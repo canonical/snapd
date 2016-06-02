@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -34,10 +35,12 @@ import (
 
 type cmdRun struct {
 	Positional struct {
-		SnapApp string `positional-arg-name:"<app name>" description:"the application to run, e.g. hello-world.env"`
+		SnapApp string `positional-arg-name:"<app name>" description:"the snap (e.g. hello-world) or application to run (e.g. hello-world.env)"`
 	} `positional-args:"yes" required:"yes"`
 
-	Command string `long:"command" description:"alternative command to run"`
+	Command  string `long:"command" description:"alternative command to run"`
+	Hook     string `long:"hook" description:"run a specific hook contained within the snap"`
+	Revision string `long:"revision" description:"use a specific snap revision instead of the active one (this only applies when using --hook)"`
 }
 
 func init() {
@@ -50,25 +53,52 @@ func init() {
 }
 
 func (x *cmdRun) Execute(args []string) error {
-	return snapRun(x.Positional.SnapApp, x.Command, args)
+	// Catch some invalid parameter combinations, provide helpful errors
+	if x.Hook != "" && x.Command != "" {
+		return fmt.Errorf("invalid parameters: --hook cannot be used with --command")
+	}
+	if x.Revision != "" && x.Hook == "" {
+		return fmt.Errorf("invalid parameters: --revision can only be used with --hook")
+	}
+	if x.Hook != "" && len(args) > 0 {
+		return fmt.Errorf("invalid parameters: extra arguments cannot be used when using --hook")
+	}
+
+	// Now actually handle the dispatching
+	if x.Hook != "" {
+		return snapRunHook(x.Positional.SnapApp, x.Hook, x.Revision)
+	}
+
+	return snapRunApp(x.Positional.SnapApp, x.Command, args)
 }
 
-func getSnapInfo(snapName string) (*snap.Info, error) {
-	// we need to get the revision here because once we are inside
-	// the confinement the snapd API may be unavailable.
-	snaps, err := Client().List([]string{snapName})
-	if err != nil {
-		return nil, err
+func getSnapInfo(snapName string, snapRevision string) (*snap.Info, error) {
+	var revision snap.Revision
+	if snapRevision != "" {
+		// User supplied a revision.
+		var err error
+		revision, err = snap.ParseRevision(snapRevision)
+		if err != nil {
+			return nil, fmt.Errorf("invalid revision: %q", snapRevision)
+		}
+	} else {
+		// User didn't supply a revision, so we need to get it via the snapd API
+		// here because once we're inside the confinement it may be unavailable.
+		snaps, err := Client().List([]string{snapName})
+		if err != nil {
+			return nil, err
+		}
+		if len(snaps) == 0 {
+			return nil, fmt.Errorf("cannot find snap %q", snapName)
+		}
+		if len(snaps) > 1 {
+			return nil, fmt.Errorf("multiple snaps for %q: %d", snapName, len(snaps))
+		}
+		revision = snap.R(snaps[0].Revision.N)
 	}
-	if len(snaps) == 0 {
-		return nil, fmt.Errorf("cannot find snap %q", snapName)
-	}
-	if len(snaps) > 1 {
-		return nil, fmt.Errorf("multiple snaps for %q: %d", snapName, len(snaps))
-	}
-	sn := snaps[0]
+
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: snap.R(sn.Revision.N),
+		Revision: revision,
 	})
 	if err != nil {
 		return nil, err
@@ -77,13 +107,11 @@ func getSnapInfo(snapName string) (*snap.Info, error) {
 	return info, nil
 }
 
-// returns the app environment that is important for
-// the later stages of executing the application
+// returns the environment that is important for the later stages of execution
 // (like SNAP_REVISION that snap-exec requires to work)
-func snapExecAppEnv(app *snap.AppInfo) []string {
+func snapExecEnv(info *snap.Info) []string {
 	env := []string{}
 	wrapperData := struct {
-		App     *snap.AppInfo
 		EnvVars string
 		// XXX: needed by snapenv
 		SnapName string
@@ -93,13 +121,12 @@ func snapExecAppEnv(app *snap.AppInfo) []string {
 		Revision snap.Revision
 		Home     string
 	}{
-		App: app,
 		// XXX: needed by snapenv
-		SnapName: app.Snap.Name(),
+		SnapName: info.Name(),
 		SnapArch: arch.UbuntuArchitecture(),
-		SnapPath: app.Snap.MountDir(),
-		Version:  app.Snap.Version,
-		Revision: app.Snap.Revision,
+		SnapPath: info.MountDir(),
+		Version:  info.Version,
+		Revision: info.Revision,
 		// must be an absolute path for
 		//   ubuntu-core-launcher/snap-confine
 		// which will mkdir() SNAP_USER_DATA for us
@@ -115,9 +142,9 @@ func snapExecAppEnv(app *snap.AppInfo) []string {
 
 var SyscallExec = syscall.Exec
 
-func snapRun(snapApp, command string, args []string) error {
+func snapRunApp(snapApp, command string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	info, err := getSnapInfo(snapName)
+	info, err := getSnapInfo(snapName, "")
 	if err != nil {
 		return err
 	}
@@ -127,22 +154,41 @@ func snapRun(snapApp, command string, args []string) error {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	// build command to run
+	return runSnapConfine(info, app.SecurityTag(), snapApp, command, args)
+}
+
+func snapRunHook(snapName, hookName, revision string) error {
+	info, err := getSnapInfo(snapName, revision)
+	if err != nil {
+		return err
+	}
+
+	hook := info.Hooks[hookName]
+	if hook == nil {
+		return fmt.Errorf("cannot find hook %q in %q", hookName, snapName)
+	}
+
+	hookBinary := filepath.Join(info.HooksDir(), hook.Name)
+
+	return runSnapConfine(info, hook.SecurityTag(), hookBinary, "", nil)
+}
+
+func runSnapConfine(info *snap.Info, securityTag, binary, command string, args []string) error {
 	cmd := []string{
 		"/usr/bin/ubuntu-core-launcher",
-		app.SecurityTag(),
-		app.SecurityTag(),
+		securityTag,
+		securityTag,
 		"/usr/lib/snapd/snap-exec",
-		snapApp,
+		binary,
 	}
+
 	if command != "" {
 		cmd = append(cmd, "--command="+command)
 	}
+
 	cmd = append(cmd, args...)
 
-	// build env
-	env := append(os.Environ(), snapExecAppEnv(app)...)
+	env := append(os.Environ(), snapExecEnv(info)...)
 
-	// launch!
 	return SyscallExec(cmd[0], cmd, env)
 }
