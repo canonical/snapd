@@ -35,7 +35,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/osutil"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -79,10 +78,10 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKey(c *C) {
-	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
-	expectedKeyID := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[12:])
+	expectedFingerprint := hex.EncodeToString(testPrivKey1Pkt.PublicKey.Fingerprint[:])
+	expectedKeyID := hex.EncodeToString(testPrivKey1Pkt.PublicKey.Fingerprint[12:])
 
-	err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err := dbs.db.ImportKey("account0", testPrivKey1)
 	c.Assert(err, IsNil)
 
 	keyPath := filepath.Join(dbs.topDir, "private-keys-v0/account0", expectedKeyID)
@@ -100,23 +99,15 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKeyAlreadyExists(c *C) {
-	err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err := dbs.db.ImportKey("account0", testPrivKey1)
 	c.Assert(err, IsNil)
 
-	err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err = dbs.db.ImportKey("account0", testPrivKey1)
 	c.Check(err, ErrorMatches, "key pair with given key id already exists")
 }
 
-func (dbs *databaseSuite) TestGenerateKey(c *C) {
-	fingerp, err := dbs.db.GenerateKey("account0")
-	c.Assert(err, IsNil)
-	c.Check(fingerp, NotNil)
-	keyPath := filepath.Join(dbs.topDir, "private-keys-v0/account0", fingerp)
-	c.Check(osutil.FileExists(keyPath), Equals, true)
-}
-
 func (dbs *databaseSuite) TestPublicKey(c *C) {
-	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk := testPrivKey1
 	fingerp := pk.PublicKey().Fingerprint()
 	keyid := pk.PublicKey().ID()
 	err := dbs.db.ImportKey("account0", pk)
@@ -136,21 +127,21 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	c.Assert(err, IsNil)
 	pubKey, ok := pkt.(*packet.PublicKey)
 	c.Assert(ok, Equals, true)
-	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
+	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1Pkt.PublicKey.Fingerprint)
 }
 
 func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
-	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk := testPrivKey1
 	keyID := pk.PublicKey().ID()
 
 	_, err := dbs.db.PublicKey("account0", keyID)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	err = dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
 	_, err = dbs.db.PublicKey("account0", "ff"+keyID)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 }
 
 type checkSuite struct {
@@ -171,7 +162,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	chks.a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, asserts.OpenPGPPrivateKey(testPrivKey0))
+	chks.a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 }
 
@@ -193,7 +184,7 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      chks.bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.ExpiredAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -208,7 +199,7 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      chks.bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -217,13 +208,13 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	content, encodedSig := chks.a.Signature()
 	// forgery
 	forgedSig := new(packet.Signature)
-	forgedSig.PubKeyAlgo = testPrivKey1.PubKeyAlgo
+	forgedSig.PubKeyAlgo = testPrivKey1Pkt.PubKeyAlgo
 	forgedSig.Hash = crypto.SHA256
 	forgedSig.CreationTime = time.Now()
-	forgedSig.IssuerKeyId = &testPrivKey0.KeyId
+	forgedSig.IssuerKeyId = &asserts.PrivateKeyPacket(testPrivKey0).KeyId
 	h := crypto.SHA256.New()
 	h.Write(content)
-	err = forgedSig.Sign(h, testPrivKey1, &packet.Config{DefaultHash: crypto.SHA256})
+	err = forgedSig.Sign(h, testPrivKey1Pkt, &packet.Config{DefaultHash: crypto.SHA256})
 	c.Assert(err, IsNil)
 	buf := new(bytes.Buffer)
 	forgedSig.Serialize(buf)
@@ -254,7 +245,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	safs.signingDB = db0
 
-	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
+	pk := testPrivKey0
 	err = db0.ImportKey("canonical", pk)
 	c.Assert(err, IsNil)
 	safs.signingKeyID = pk.PublicKey().ID()
@@ -267,7 +258,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -320,7 +311,7 @@ func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, "abcd")
-	c.Assert(err, ErrorMatches, "no matching key pair found")
+	c.Assert(err, ErrorMatches, "cannot find key pair")
 	c.Check(a1, IsNil)
 }
 
@@ -499,7 +490,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 }
 
 func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
-	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk1 := testPrivKey1
 	pubKey1Encoded, err := asserts.EncodePublicKey(pk1.PublicKey())
 	c.Assert(err, IsNil)
 

@@ -71,10 +71,18 @@ func ExecCommandErr(cmds ...string) (output string, err error) {
 
 // ExecCommandWrapper decorates the execution of the given command
 func ExecCommandWrapper(cmd *exec.Cmd) (output string, err error) {
-	fmt.Println(strings.Join(cmd.Args, " "))
+	cfg, err := config.ReadConfig(config.DefaultFileName)
+	if err != nil {
+		return "", err
+	}
+	if cfg.Verbose {
+		fmt.Println(strings.Join(cmd.Args, " "))
+	}
 	outputByte, err := cmd.CombinedOutput()
 	output = removeCoverageInfo(string(outputByte))
-	fmt.Print(output)
+	if cfg.Verbose {
+		fmt.Print(output)
+	}
 	return
 }
 

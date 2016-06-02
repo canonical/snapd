@@ -48,7 +48,7 @@ type snapOpSuite struct {
 func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string) {
 	installOutput := common.InstallSnap(c, snapName)
 	expected := "(?ms)" +
-		"Name +Version +Rev +Developer\n" +
+		"Name +Version +Rev +Developer +Notes\n" +
 		".*" +
 		displayName + " +.*\n" +
 		".*"

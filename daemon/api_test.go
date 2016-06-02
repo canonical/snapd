@@ -270,6 +270,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"private":     false,
 			"devmode":     false,
 			"confinement": snap.StrictConfinement,
+			"trymode":     false,
 		},
 		Meta: meta,
 	}
@@ -1257,6 +1258,24 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	c.Check(chg.Kind(), check.Equals, "try-snap")
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %q`, "foo", tryDir))
 
+}
+
+func (s *apiSuite) TestTrySnapRelative(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := trySnap(snapsCmd, req, nil, "relative-path", 0).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "need an absolute path")
+}
+
+func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
+	req, err := http.NewRequest("POST", "/v2/snaps", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := trySnap(snapsCmd, req, nil, "/does/not/exist", 0).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
 
 func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags, hasUbuntuCore bool) string {
