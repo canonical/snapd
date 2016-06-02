@@ -33,7 +33,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/snap"
 )
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
@@ -213,80 +212,4 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 
 	_, err = Install("hello-snap", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
-}
-
-func (s *SnapTestSuite) TestUpdate(c *C) {
-	yamlPath, err := makeInstalledMockSnap("name: foo\nversion: 1", 25)
-	c.Assert(err, IsNil)
-	makeSnapActive(yamlPath)
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	c.Assert(installed, HasLen, 1)
-	c.Assert(ActiveSnapByName("foo"), NotNil)
-
-	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2")
-
-	snapR, err := os.Open(snapPackagev2)
-	c.Assert(err, IsNil)
-	defer snapR.Close()
-
-	// details
-	var dlURL, iconURL string
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/search":
-			io.WriteString(w, `{"_embedded": {"clickindex:package": [{
-"package_name": "foo",
-"version": "2",
-"revision": 27,
-"developer": "`+testDeveloper+`",
-"anon_download_url": "`+dlURL+`",
-"icon_url": "`+iconURL+`"
-}]}}`)
-		case "/dl":
-			snapR.Seek(0, 0)
-			io.Copy(w, snapR)
-		case "/icon":
-			fmt.Fprintf(w, "")
-		default:
-			panic("unexpected url path: " + r.URL.Path)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	dlURL = mockServer.URL + "/dl"
-	iconURL = mockServer.URL + "/icon"
-
-	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
-	c.Assert(err, IsNil)
-
-	// bulk
-	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `[{
-	"package_name": "foo",
-	"version": "2",
-        "revision": 3,
-        "origin": "`+testDeveloper+`",
-	"anon_download_url": "`+dlURL+`",
-	"download_url": "`+dlURL+`",
-	"icon_url": "`+iconURL+`"
-}]`)
-	}))
-
-	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	// the test
-	updates, err := UpdateAll(0, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-	c.Assert(updates, HasLen, 1)
-	c.Check(updates[0].Name(), Equals, "foo")
-	c.Check(updates[0].Version(), Equals, "2")
-	c.Check(updates[0].Revision(), Equals, snap.R(3))
-	// ensure that we get a "local" snap back - not a remote one
-	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

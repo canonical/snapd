@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-23 14:43+0100\n"
+        "POT-Creation-Date: 2016-05-24 04:44+0200\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -205,6 +205,13 @@ msgstr  ""
 msgid   "This command logs the current user out of the store"
 msgstr  ""
 
+#, c-format
+msgid   "Try %q snap from %q"
+msgstr  ""
+
+msgid   "Try an unpacked snap in the system"
+msgstr  ""
+
 msgid   "Two-factor code: "
 msgstr  ""
 
@@ -342,6 +349,13 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The try command installs an unpacked snap into the system for testing purposes.\n"
+        "The unpacked snap content continues to be used even after installation, so\n"
+        "non-metadata changes there go live instantly. Metadata changes such as those\n"
+        "performed in snap.yaml will require reinstallation to go live.\n"
+msgstr  ""
+
+msgid   "\n"
         "\n"
         "The home directory is shared between snappy and the classic dimension.\n"
         "Run \"exit\" to leave the classic shell.\n"
@@ -353,10 +367,12 @@ msgstr  ""
 msgid   "no interfaces found"
 msgstr  ""
 
+msgid   "No snaps are installed yet. Try 'snap install hello'."
+msgstr  ""
+
 msgid   "unavailable"
 msgstr  ""
 
 #, c-format
 msgid   "unsupported shell %v"
 msgstr  ""
-

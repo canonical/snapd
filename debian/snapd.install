@@ -1,5 +1,6 @@
 /usr/bin/snap
 /usr/bin/snapd usr/lib/snapd
+/usr/bin/snap-exec usr/lib/snapd
 data/completion/snap /usr/share/bash-completion/completions/
 # i18n stuff
 ../../share /usr

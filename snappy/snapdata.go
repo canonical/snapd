@@ -29,7 +29,7 @@ import (
 )
 
 // RemoveSnapData removes the data for the given version of the given snap
-func RemoveSnapData(snap *snap.Info) error {
+func removeSnapData(snap *snap.Info) error {
 	dirs, err := snapDataDirs(snap)
 	if err != nil {
 		return err
@@ -39,7 +39,7 @@ func RemoveSnapData(snap *snap.Info) error {
 }
 
 // RemoveSnapCommonData removes the data common between versions of the given snap
-func RemoveSnapCommonData(snap *snap.Info) error {
+func removeSnapCommonData(snap *snap.Info) error {
 	dirs, err := snapCommonDataDirs(snap)
 	if err != nil {
 		return err

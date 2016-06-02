@@ -17,26 +17,33 @@
  *
  */
 
-// TODO this should be it's own package, but depends on splitting out
-// snap.yaml's
-
-package snappy
+package snapdir
 
 import (
-	"errors"
-
-	"github.com/snapcore/snapd/snap"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 )
 
-// getGadget is a convenience function to not go into the details for
-// the business logic for a gadget package in every other function
-var getGadget = getGadgetImpl
+// SnapDir is the snapdir based snap.
+type SnapDir struct {
+	path string
+}
 
-func getGadgetImpl() (*snap.Info, error) {
-	gadgets, _ := ActiveSnapsByType(snap.TypeGadget)
-	if len(gadgets) == 1 {
-		return gadgets[0].Info(), nil
-	}
+// Path returns the path of the backing container.
+func (s *SnapDir) Path() string {
+	return s.path
+}
 
-	return nil, errors.New("no gadget snap")
+// New returns a new snap directory container.
+func New(path string) *SnapDir {
+	return &SnapDir{path: path}
+}
+
+func (s *SnapDir) Install(targetPath, mountDir string) error {
+	return os.Symlink(s.path, targetPath)
+}
+
+func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
+	return ioutil.ReadFile(filepath.Join(s.path, file))
 }

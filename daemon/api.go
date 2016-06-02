@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -296,7 +297,8 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 type metarepo interface {
 	Snap(string, string, store.Authenticator) (*snap.Info, error)
-	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
+	Find(string, string, store.Authenticator) ([]*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 }
 
@@ -360,8 +362,14 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	if route == nil {
 		return InternalError("cannot find route for snaps")
 	}
-
 	query := r.URL.Query()
+
+	if query.Get("select") == "refresh" {
+		if query.Get("q") != "" {
+			return BadRequest("cannot use 'q' with 'select=refresh'")
+		}
+		return storeUpdates(c, r, user)
+	}
 
 	auther, err := c.d.auther(r)
 	if err != nil && err != auth.ErrInvalidAuth {
@@ -369,7 +377,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	remoteRepo := newRemoteRepo()
-	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
+	found, err := remoteRepo.Find(query.Get("q"), query.Get("channel"), auther)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -379,23 +387,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Sources:           []string{"store"},
 	}
 
-	results := make([]*json.RawMessage, len(found))
-	for i, x := range found {
-		url, err := route.URL("name", x.Name())
-		if err != nil {
-			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapRemote(x), url.String()))
-		if err != nil {
-			return InternalError("%v", err)
-		}
-		raw := json.RawMessage(data)
-		results[i] = &raw
-	}
-
-	return SyncResponse(results, meta)
+	return sendStorePackages(route, meta, found)
 }
 
 func shouldSearchStore(r *http.Request) bool {
@@ -418,6 +410,69 @@ func shouldSearchStore(r *http.Request) bool {
 	}
 
 	return false
+}
+
+func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("cannot find route for snaps")
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State())
+	if err != nil {
+		return InternalError("cannot list local snaps: %v", err)
+	}
+
+	candidatesInfo := make([]*store.RefreshCandidate, 0, len(found))
+	for _, sn := range found {
+		// snaps in try mode are not considered here
+		if sn.snapst.TryMode() {
+			continue
+		}
+
+		// get confinement preference from the snapstate
+		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
+			// the desired channel (not sn.info.Channel!)
+			Channel: sn.snapst.Channel,
+			DevMode: sn.snapst.DevMode(),
+
+			SnapID:   sn.info.SnapID,
+			Revision: sn.info.Revision,
+			Epoch:    sn.info.Epoch,
+		})
+	}
+
+	var auther store.Authenticator
+	if user != nil {
+		auther = user.Authenticator()
+	}
+	store := newRemoteRepo()
+	updates, err := store.ListRefresh(candidatesInfo, auther)
+	if err != nil {
+		return InternalError("cannot list updates: %v", err)
+	}
+
+	return sendStorePackages(route, nil, updates)
+}
+
+func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
+	results := make([]*json.RawMessage, 0, len(found))
+	for _, x := range found {
+		url, err := route.URL("name", x.Name())
+		if err != nil {
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
+			continue
+		}
+
+		data, err := json.Marshal(webify(mapRemote(x), url.String()))
+		if err != nil {
+			return InternalError("%v", err)
+		}
+		raw := json.RawMessage(data)
+		results = append(results, &raw)
+	}
+
+	return SyncResponse(results, meta)
 }
 
 // plural!
@@ -500,6 +555,7 @@ type snapInstruction struct {
 var snapstateInstall = snapstate.Install
 var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
+var snapstateTryPath = snapstate.TryPath
 var snapstateGet = snapstate.Get
 
 var errNothingToInstall = errors.New("nothing to install")
@@ -674,6 +730,37 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 
 const maxReadBuflen = 1024 * 1024
 
+func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snappy.InstallFlags) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if !filepath.IsAbs(trydir) {
+		return BadRequest("cannot try %q: need an absolute path", trydir)
+	}
+	if !osutil.IsDirectory(trydir) {
+		return BadRequest("cannot try %q: not a snap directory", trydir)
+	}
+
+	info, err := readSnapInfo(trydir)
+	if err != nil {
+		return BadRequest("cannot read snap info for %s: %s", trydir, err)
+	}
+
+	tsets, err := snapstateTryPath(st, info.Name(), trydir, flags)
+	if err != nil {
+		return BadRequest("cannot try %s: %s", trydir, err)
+	}
+
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
+	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
 func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -701,6 +788,13 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
 		flags |= snappy.DeveloperMode
+	}
+
+	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
+		if len(form.Value["snap-path"]) == 0 {
+			return BadRequest("need 'snap-path' value in form")
+		}
+		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
 
 	// find the file for the "snap" form field
