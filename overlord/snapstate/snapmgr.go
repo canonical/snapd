@@ -64,12 +64,17 @@ func (ss *SnapSetup) DevMode() bool {
 	return ss.Flags&int(snappy.DeveloperMode) != 0
 }
 
+func (ss *SnapSetup) TryMode() bool {
+	return ss.Flags&int(snappy.TryMode) != 0
+}
+
 // SnapStateFlags are flags stored in SnapState.
 type SnapStateFlags int
 
 const (
 	// DevMode switches confinement to non-enforcing mode.
 	DevMode = 1 << iota
+	TryMode
 )
 
 // SnapState holds the state for a snap installed in the system.
@@ -95,6 +100,21 @@ func (snapst *SnapState) Current() *snap.SideInfo {
 // DevMode returns true if the snap is installed in developer mode.
 func (snapst *SnapState) DevMode() bool {
 	return snapst.Flags&DevMode != 0
+}
+
+// TryMode returns true if the snap is installed in `try` mode as an
+// unpacked directory.
+func (snapst *SnapState) TryMode() bool {
+	return snapst.Flags&TryMode != 0
+}
+
+// SetTryMode sets/clears the TryMode flag in the SnapState
+func (snapst *SnapState) SetTryMode(active bool) {
+	if active {
+		snapst.Flags |= TryMode
+	} else {
+		snapst.Flags &= ^TryMode
+	}
 }
 
 // Manager returns a new snap manager.
@@ -395,7 +415,7 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, err := TaskSnapSetup(t)
+	ss, _, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
@@ -507,7 +527,18 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(newInfo, ss.Flags)
+	var oldInfo *snap.Info
+	if cur := snapst.Current(); cur != nil {
+		var err error
+		oldInfo, err = readInfo(ss.Name, cur)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -533,7 +564,8 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	return m.backend.CopySnapData(newInfo, oldInfo, ss.Flags)
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.CopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -557,6 +589,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
 	}
+	oldTryMode := snapst.TryMode()
+	snapst.SetTryMode(ss.TryMode())
 
 	newInfo, err := readInfo(ss.Name, cand)
 	if err != nil {
@@ -580,6 +614,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// save for undoLinkSnap
+	t.Set("old-trymode", oldTryMode)
 	t.Set("old-channel", oldChannel)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
@@ -604,6 +640,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldTryMode bool
+	err = t.Get("old-trymode", &oldTryMode)
+	if err != nil {
+		return err
+	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
@@ -611,6 +652,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
 	snapst.Active = false
 	snapst.Channel = oldChannel
+	snapst.SetTryMode(oldTryMode)
 
 	newInfo, err := readInfo(ss.Name, snapst.Candidate)
 	if err != nil {

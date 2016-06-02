@@ -180,52 +180,6 @@ type: gadget
 	c.Assert(err, IsNil)
 }
 
-func (s *SnapTestSuite) TestLocalGadgetSnapInstallVariants(c *C) {
-	snapPath := makeTestSnapPackage(c, `name: foo
-version: 1.0
-type: gadget
-`)
-
-	foo10 := &snap.SideInfo{
-		OfficialName: "foo",
-		Developer:    testDeveloper,
-		Revision:     snap.R(100),
-		Channel:      "remote-channel",
-	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, foo10, AllowGadget, nil)
-	c.Assert(err, IsNil)
-
-	contentFile := filepath.Join(dirs.SnapSnapsDir, "foo", "100", "bin", "foo")
-	_, err = os.Stat(contentFile)
-	c.Assert(err, IsNil)
-
-	// a package update
-	snapPath = makeTestSnapPackage(c, `name: foo
-version: 2.0
-type: gadget
-`)
-	foo20 := &snap.SideInfo{
-		OfficialName: "foo",
-		Developer:    testDeveloper,
-		Revision:     snap.R(200),
-		Channel:      "remote-channel",
-	}
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, foo20, 0, nil)
-	c.Check(err, IsNil)
-
-	// a package name fork, IOW, a different Gadget package.
-	snapPath = makeTestSnapPackage(c, `name: foo-fork
-version: 2.0
-type: gadget
-`)
-	_, err = (&Overlord{}).Install(snapPath, 0, nil)
-	c.Check(err, Equals, ErrGadgetPackageInstall)
-
-	// this will cause chaos, but let's test if it works
-	_, err = (&Overlord{}).Install(snapPath, AllowGadget, nil)
-	c.Check(err, IsNil)
-}
-
 // sideinfos
 var (
 	fooSI10 = &snap.SideInfo{
@@ -260,7 +214,7 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].IsActive(), Equals, true)
 
 	// deactivate v2
-	err = UnlinkSnap(snaps[1].Info(), nil)
+	err = unlinkSnap(snaps[1].Info(), nil)
 	// set v1 active
 	err = ActivateSnap(snaps[0], nil)
 	snaps, err = (&Overlord{}).Installed()
@@ -270,94 +224,6 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].Version(), Equals, "2.0")
 	c.Assert(snaps[1].IsActive(), Equals, false)
 
-}
-
-func (s *SnapTestSuite) TestCopyData(c *C) {
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snap")
-	homeDir := filepath.Join(s.tempdir, "home", "user1", "snap")
-	appDir := "foo"
-	homeData := filepath.Join(homeDir, appDir, "10")
-	err := os.MkdirAll(homeData, 0755)
-	c.Assert(err, IsNil)
-	homeCommonData := filepath.Join(homeDir, appDir, "common")
-	err = os.MkdirAll(homeCommonData, 0755)
-	c.Assert(err, IsNil)
-
-	snapYamlContent := `name: foo
-`
-	canaryData := []byte("ni ni ni")
-
-	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, AllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "10", "canary.txt")
-	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
-	c.Assert(err, IsNil)
-	canaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "common", "canary.common")
-	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), canaryData, 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(homeCommonData, "canary.common_home"), canaryData, 0644)
-	c.Assert(err, IsNil)
-
-	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, AllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-	newCanaryDataFile := filepath.Join(dirs.SnapDataDir, appDir, "20", "canary.txt")
-	content, err := ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
-
-	// ensure common data file is still there (even though it didn't get copied)
-	newCanaryDataFile = filepath.Join(dirs.SnapDataDir, appDir, "common", "canary.common")
-	content, err = ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
-
-	newCanaryDataFile = filepath.Join(homeDir, appDir, "20", "canary.home")
-	content, err = ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
-
-	// ensure home common data file is still there (even though it didn't get copied)
-	newCanaryDataFile = filepath.Join(homeDir, appDir, "common", "canary.common_home")
-	content, err = ioutil.ReadFile(newCanaryDataFile)
-	c.Assert(err, IsNil)
-	c.Assert(content, DeepEquals, canaryData)
-}
-
-// ensure that even with no home dir there is no error and the
-// system data gets copied
-func (s *SnapTestSuite) TestCopyDataNoUserHomes(c *C) {
-	// this home dir path does not exist
-	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
-	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
-	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "no-such-home", "*", "snap")
-
-	snapYamlContent := `name: foo
-`
-	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, AllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-	canaryDataFile := filepath.Join(snap.DataDir(), "canary.txt")
-	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
-	canaryDataFile = filepath.Join(snap.CommonDataDir(), "canary.common")
-	err = ioutil.WriteFile(canaryDataFile, []byte(""), 0644)
-	c.Assert(err, IsNil)
-
-	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	snap2, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, AllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(snap2.DataDir(), "canary.txt"))
-	c.Assert(err, IsNil)
-	_, err = os.Stat(filepath.Join(snap2.CommonDataDir(), "canary.common"))
-	c.Assert(err, IsNil)
-
-	// sanity atm
-	c.Check(snap.DataDir(), Not(Equals), snap2.DataDir())
-	c.Check(snap.CommonDataDir(), Equals, snap2.CommonDataDir())
 }
 
 func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {

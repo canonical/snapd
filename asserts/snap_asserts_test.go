@@ -212,8 +212,8 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
-	err = accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
+	pk1 := testPrivKey1
+	err = accSignDB.ImportKey(accountID, testPrivKey1)
 	c.Assert(err, IsNil)
 	accFingerp := pk1.PublicKey().Fingerprint()
 	accKeyID := pk1.PublicKey().ID()
@@ -232,7 +232,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
@@ -241,7 +241,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

@@ -32,7 +32,11 @@ const logObserveConnectedPlugAppArmor = `
 /var/log/** r,
 
 # Allow sysctl -w kernel.printk_ratelimit=#
+/{,usr/}sbin/sysctl ixr,
 @{PROC}/sys/kernel/printk_ratelimit rw,
+
+# Allow resolving kernel seccomp denials
+/usr/bin/scmp_sys_resolver ixr,
 
 # Needed since we are root and the owner/group doesn't match :\
 # So long as we have this, the cap must be reserved.

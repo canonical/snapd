@@ -44,10 +44,10 @@ type AssertionType struct {
 
 // Understood assertion types.
 var (
+	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount}
 	AccountKeyType      = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
-	DeviceSerialType    = &AssertionType{"device-serial", []string{"brand-id", "model", "serial"}, assembleDeviceSerial}
-	IdentityType        = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
+	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"series", "snap-id", "snap-digest"}, assembleSnapBuild}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"series", "snap-id", "snap-digest"}, assembleSnapRevision}
@@ -56,10 +56,10 @@ var (
 )
 
 var typeRegistry = map[string]*AssertionType{
+	AccountType.Name:         AccountType,
 	AccountKeyType.Name:      AccountKeyType,
-	IdentityType.Name:        IdentityType,
 	ModelType.Name:           ModelType,
-	DeviceSerialType.Name:    DeviceSerialType,
+	SerialType.Name:          SerialType,
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
@@ -604,7 +604,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 
 	signature, err := signContent(content, privKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign assertion: %v", err)
+		return nil, fmt.Errorf("cannot sign assertion: %v", err)
 	}
 	// be 'cat' friendly, add a ignored newline to the signature which is the last part of the encoded assertion
 	signature = append(signature, '\n')
