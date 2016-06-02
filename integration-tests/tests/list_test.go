@@ -46,9 +46,9 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	listOutput := cli.ExecCommand(c, "snap", "list")
 
 	expected := "(?ms)" +
-		"Name +Version +Rev +Developer *\n" +
+		"Name +Version +Rev +Developer +Notes *\n" +
 		".*" +
-		fmt.Sprintf("^%s +.* +%s +[0-9]+ +canonical *\n", partition.OSSnapName(c), verRegexp) +
+		fmt.Sprintf("^%s +.* +%s +[0-9]+ +canonical +- *\n", partition.OSSnapName(c), verRegexp) +
 		".*"
 	c.Assert(listOutput, check.Matches, expected)
 }
@@ -61,9 +61,9 @@ func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
 
 	listOutput := cli.ExecCommand(c, "snap", "list")
 	expected := "(?ms)" +
-		"Name +Version +Rev +Developer *\n" +
+		"Name +Version +Rev +Developer +Notes *\n" +
 		".*" +
-		"^hello-world +(\\d+)(\\.\\d+)* +[0-9]+ +.* *\n" +
+		"^hello-world +(\\d+)(\\.\\d+)* +[0-9]+ +\\S+ +-\n" +
 		".*"
 
 	c.Assert(listOutput, check.Matches, expected)
@@ -96,9 +96,9 @@ func (s *listSuite) TestRefreshListSimple(c *check.C) {
 
 	listOutput := cli.ExecCommand(c, "snap", "refresh", "--list")
 	expected := "(?ms)" +
-		"Name +Version +Summary *\n" +
+		"Name +Version +Developer +Notes +Summary *\n" +
 		".*" +
-		"^hello-world +(\\d+)(\\.\\d+)\\+fake1.*\n" +
+		"^hello-world +(\\d+)(\\.\\d+)\\+fake1 +canonical +- .*\n" +
 		".*"
 
 	c.Assert(listOutput, check.Matches, expected)

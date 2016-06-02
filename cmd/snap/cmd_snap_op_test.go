@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 
 	"gopkg.in/check.v1"
@@ -192,8 +193,8 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Summary
-foo +4.2update1 +some summary
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
+foo +4.2update1 +bar +- +some summary
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -213,7 +214,7 @@ func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
 		postData, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ntry\r\n.*")
-		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", fullTryDir))
+		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", regexp.QuoteMeta(fullTryDir)))
 		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"devmode\"\r\n\r\n%s\r\n.*", strconv.FormatBool(devmode)))
 	}
 
