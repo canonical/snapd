@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 
 	"gopkg.in/check.v1"
@@ -213,7 +214,7 @@ func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
 		postData, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ntry\r\n.*")
-		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", fullTryDir))
+		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", regexp.QuoteMeta(fullTryDir)))
 		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"devmode\"\r\n\r\n%s\r\n.*", strconv.FormatBool(devmode)))
 	}
 
