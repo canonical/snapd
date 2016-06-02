@@ -43,7 +43,7 @@ optionally specify additional arguments. Eg:
 
         SOCKET DOMAIN = ( AF_UNIX | AF_LOCAL | AF_INET | AF_INET6 | AF_IPX |
         AF_NETLINK | AF_X25 | AF_AX25 | AF_ATMPVC | AF_APPLETALK | AF_PACKET |
-        AF_ALG )
+        AF_ALG | AF_CAN )
 
         SOCKET TYPE = ( SOCK_STREAM | SOCK_DGRAM | SOCK_SEQPACKET | SOCK_RAW |
         SOCK_RDM | SOCK_PACKET )
