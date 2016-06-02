@@ -68,10 +68,15 @@ func listSnaps(names []string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
 
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer)
+		notes := &Notes{
+			Private: snap.Private,
+			DevMode: snap.DevMode,
+			TryMode: snap.TryMode,
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
 	}
 
 	return nil

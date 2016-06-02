@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration,!classic
 
 /*
- * Copyright (C) 2015, 2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,24 +17,48 @@
  *
  */
 
-package tests
+package main
 
 import (
-	"github.com/snapcore/snapd/integration-tests/testutils/cli"
-	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"strings"
 
-	"gopkg.in/check.v1"
+	"github.com/snapcore/snapd/client"
 )
 
-var _ = check.Suite(&aptSuite{})
-
-type aptSuite struct {
-	common.SnappySuite
+type Notes struct {
+	Confinement string
+	Price       string
+	Private     bool
+	DevMode     bool
+	TryMode     bool
 }
 
-func (s *aptSuite) TestAptGetMustPrintError(c *check.C) {
-	aptOutput := cli.ExecCommand(c, "apt-get", "update")
+func (n *Notes) String() string {
+	var ns []string
 
-	expected := "Ubuntu Core does not use apt-get, see 'snappy --help'!\n"
-	c.Assert(aptOutput, check.Equals, expected, check.Commentf("Wrong apt-get output"))
+	if n.Price != "" {
+		ns = append(ns, n.Price)
+	}
+
+	if n.Confinement != "" {
+		if n.Confinement != client.StrictConfinement {
+			ns = append(ns, n.Confinement)
+		}
+	} else if n.DevMode {
+		ns = append(ns, "devmode")
+	}
+
+	if n.Private {
+		ns = append(ns, "private")
+	}
+
+	if n.TryMode {
+		ns = append(ns, "try")
+	}
+
+	if len(ns) == 0 {
+		return "-"
+	}
+
+	return strings.Join(ns, ",")
 }

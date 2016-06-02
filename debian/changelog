@@ -1,3 +1,61 @@
+snapd (2.0.6) xenial; urgency=medium
+
+  * New upstream release: LP: #1588052:
+    - many: repository moved to snapcore/snapd
+    - debian: add transitional pkg for the github location change
+    - snap: ensure `snap try` work with relative paths
+    - debian: drop run/build dependency on lsb-release
+    - asserts/tool: gpg key pair manager
+    - many: add new snap-exec
+    - many: implement `snap refresh --list` and  `snap refresh`
+    - snap: add parsing support for hooks.
+    - many: add the cups interface
+    - interfaces: misc policy fixes (LP: #1583794)
+    - many: add `snap try`
+    - interfaces: allow using sysctl and scmp_sys_resolver for parsing
+      kernel logs
+    - debian: make snapd get its environ from /etc/environment
+    - daemon,client,snap: revisions are now strings
+    - interfaces: allow access to new ibus abstract socket path
+      LP: #1580463
+    - integration-tests: add remove tests
+    - asserts: stronger crypto choices and follow better latest designs
+    - snappy,daemon: hollow out more of snappy (either removing or not
+      exporting stuff on its way out), snappy/gadget.go is gone
+    - asserts: rename device-serial to serial
+    - asserts: rename identity to account (and username access)
+    - integration-tests: add changes tests
+    - backend: add tests for environment wrapper generation
+    - interfaces/builtin: add location-control interface
+    - overlord/snapstate: move over check snap logic from snappy
+    - release: use os-release instead of lsb-release for cross-distro
+      use
+    - asserts: allow empty snap-name for snap-declaration
+    - interfaces/builtin,docs,snap: add the pulseaudio interface
+    - many: add support for an environment map inside snap.yaml
+    - overlord/snapstate: increase robustness of doLinkSnap/undoLinkSnap
+      with sanity unit tests
+    - snap: parse epoch property
+    - snappy: do nothing in SetNextBoot when running on classic
+    - snap: validate snap type
+    - integration-tests: extend find command tests
+    - asserts: extend tests to cover mandatory and empty headers
+    - tests: stop the update-pot check in run-checks
+    - snap: parse confinement property.
+    - store: change applyUbuntuStoreHeaders to not take accept, and to
+      take a channel
+    - many: struct-based revisions, new representation
+    - interfaces: remove 'audit deny' rules from network_control.go
+    - interfaces: add  com.canonical.UrlLauncher.XdgOpen to unity7
+      interface
+    - interfaces: firewall-control can access xtables lock file
+    - interfaces: allow unity7 AppMenu
+    - interfaces: allow unity7 launcher API
+    - interfaces/builtin: add location-observe interface
+    - snap: fixed snap empty list text LP: #1587445
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 02 Jun 2016 08:23:50 +0200
+
 snapd (2.0.5) xenial; urgency=medium
 
   * New upstream release: LP: #1583085
