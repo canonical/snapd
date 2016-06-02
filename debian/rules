@@ -4,8 +4,8 @@
 	dh $@ --with autoreconf
 
 override_dh_fixperms:
-	dh_fixperms -Xusr/bin/snap-run
+	dh_fixperms -Xusr/bin/snap-confine
 
 override_dh_installdeb:
-	dh_apparmor --profile-name=usr.bin.snap-run -psnap-run
+	dh_apparmor --profile-name=usr.bin.snap-confine -psnap-confine
 	dh_installdeb
