@@ -39,6 +39,8 @@
 #include "seccomp_utils.h"
 #include "utils.h"
 
+#define sc_map_add(X) sc_map_add_kvp(#X, X)
+
 // libseccomp maximum per ARG_COUNT_MAX in src/arch.h
 #define SC_ARGS_MAXLENGTH	6
 #define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
@@ -113,7 +115,7 @@ scmp_datum_t sc_map_search(char *s)
 	return val;
 }
 
-void sc_map_add(char *key, scmp_datum_t data)
+void sc_map_add_kvp(const char *key, int value)
 {
 	struct sc_map_entry *node;
 	node = (struct sc_map_entry *)malloc(sizeof(struct sc_map_entry));
@@ -125,9 +127,15 @@ void sc_map_add(char *key, scmp_datum_t data)
 		die("Out of memory creating ENTRY");
 
 	node->e->key = strdup(key);
-	node->e->data = (void *)data;
+	if (node->e->key == NULL)
+		die("Out of memory creating e->key");
+
+	node->e->data = (void *)&value;
 	node->ep = NULL;
 	node->next = NULL;
+	//int *d;
+	//d = (void *)node->e->data;
+	//printf("DEBUG: %s, %d\n", node->e->key, *d);
 
 	if (sc_map_entries->list == NULL) {
 		sc_map_entries->count = 1;
@@ -154,103 +162,94 @@ void sc_map_init()
 	// build up the map linked list
 
 	// man 2 socket - domain
-	sc_map_add("AF_UNIX", (scmp_datum_t) AF_UNIX);
-	sc_map_add("AF_LOCAL", (scmp_datum_t) AF_LOCAL);
-	sc_map_add("AF_INET", (scmp_datum_t) AF_INET);
-	sc_map_add("AF_INET6", (scmp_datum_t) AF_INET6);
-	sc_map_add("AF_IPX", (scmp_datum_t) AF_IPX);
-	sc_map_add("AF_NETLINK", (scmp_datum_t) AF_NETLINK);
-	sc_map_add("AF_X25", (scmp_datum_t) AF_X25);
-	sc_map_add("AF_AX25", (scmp_datum_t) AF_AX25);
-	sc_map_add("AF_ATMPVC", (scmp_datum_t) AF_ATMPVC);
-	sc_map_add("AF_APPLETALK", (scmp_datum_t) AF_APPLETALK);
-	sc_map_add("AF_PACKET", (scmp_datum_t) AF_PACKET);
-	sc_map_add("AF_ALG", (scmp_datum_t) AF_ALG);
+	sc_map_add(AF_UNIX);
+	sc_map_add(AF_LOCAL);
+	sc_map_add(AF_INET);
+	sc_map_add(AF_INET6);
+	sc_map_add(AF_IPX);
+	sc_map_add(AF_NETLINK);
+	sc_map_add(AF_X25);
+	sc_map_add(AF_AX25);
+	sc_map_add(AF_ATMPVC);
+	sc_map_add(AF_APPLETALK);
+	sc_map_add(AF_PACKET);
+	sc_map_add(AF_ALG);
 
 	// man 2 socket - type
-	sc_map_add("SOCK_STREAM", (scmp_datum_t) SOCK_STREAM);
-	sc_map_add("SOCK_DGRAM", (scmp_datum_t) SOCK_DGRAM);
-	sc_map_add("SOCK_SEQPACKET", (scmp_datum_t) SOCK_SEQPACKET);
-	sc_map_add("SOCK_RAW", (scmp_datum_t) SOCK_RAW);
-	sc_map_add("SOCK_RDM", (scmp_datum_t) SOCK_RDM);
-	sc_map_add("SOCK_PACKET", (scmp_datum_t) SOCK_PACKET);
+	sc_map_add(SOCK_STREAM);
+	sc_map_add(SOCK_DGRAM);
+	sc_map_add(SOCK_SEQPACKET);
+	sc_map_add(SOCK_RAW);
+	sc_map_add(SOCK_RDM);
+	sc_map_add(SOCK_PACKET);
 
 	// man 2 prctl
-	sc_map_add("PR_CAP_AMBIENT", (scmp_datum_t) PR_CAP_AMBIENT);
-	sc_map_add("PR_CAP_AMBIENT_RAISE", (scmp_datum_t) PR_CAP_AMBIENT_RAISE);
-	sc_map_add("PR_CAP_AMBIENT_LOWER", (scmp_datum_t) PR_CAP_AMBIENT_LOWER);
-	sc_map_add("PR_CAP_AMBIENT_IS_SET",
-		   (scmp_datum_t) PR_CAP_AMBIENT_IS_SET);
-	sc_map_add("PR_CAP_AMBIENT_CLEAR_ALL",
-		   (scmp_datum_t) PR_CAP_AMBIENT_CLEAR_ALL);
-	sc_map_add("PR_CAPBSET_READ", (scmp_datum_t) PR_CAPBSET_READ);
-	sc_map_add("PR_CAPBSET_DROP", (scmp_datum_t) PR_CAPBSET_DROP);
-	sc_map_add("PR_SET_CHILD_SUBREAPER",
-		   (scmp_datum_t) PR_SET_CHILD_SUBREAPER);
-	sc_map_add("PR_GET_CHILD_SUBREAPER",
-		   (scmp_datum_t) PR_GET_CHILD_SUBREAPER);
-	sc_map_add("PR_SET_DUMPABLE", (scmp_datum_t) PR_SET_DUMPABLE);
-	sc_map_add("PR_GET_DUMPABLE", (scmp_datum_t) PR_GET_DUMPABLE);
-	sc_map_add("PR_SET_ENDIAN", (scmp_datum_t) PR_SET_ENDIAN);
-	sc_map_add("PR_GET_ENDIAN", (scmp_datum_t) PR_GET_ENDIAN);
-	sc_map_add("PR_SET_FPEMU", (scmp_datum_t) PR_SET_FPEMU);
-	sc_map_add("PR_GET_FPEMU", (scmp_datum_t) PR_GET_FPEMU);
-	sc_map_add("PR_SET_FPEXC", (scmp_datum_t) PR_SET_FPEXC);
-	sc_map_add("PR_GET_FPEXC", (scmp_datum_t) PR_GET_FPEXC);
-	sc_map_add("PR_SET_KEEPCAPS", (scmp_datum_t) PR_SET_KEEPCAPS);
-	sc_map_add("PR_GET_KEEPCAPS", (scmp_datum_t) PR_GET_KEEPCAPS);
-	sc_map_add("PR_MCE_KILL", (scmp_datum_t) PR_MCE_KILL);
-	sc_map_add("PR_MCE_KILL_GET", (scmp_datum_t) PR_MCE_KILL_GET);
-	sc_map_add("PR_SET_MM", (scmp_datum_t) PR_SET_MM);
-	sc_map_add("PR_SET_MM_START_CODE", (scmp_datum_t) PR_SET_MM_START_CODE);
-	sc_map_add("PR_SET_MM_END_CODE", (scmp_datum_t) PR_SET_MM_END_CODE);
-	sc_map_add("PR_SET_MM_START_DATA", (scmp_datum_t) PR_SET_MM_START_DATA);
-	sc_map_add("PR_SET_MM_END_DATA", (scmp_datum_t) PR_SET_MM_END_DATA);
-	sc_map_add("PR_SET_MM_START_STACK",
-		   (scmp_datum_t) PR_SET_MM_START_STACK);
-	sc_map_add("PR_SET_MM_START_BRK", (scmp_datum_t) PR_SET_MM_START_BRK);
-	sc_map_add("PR_SET_MM_BRK", (scmp_datum_t) PR_SET_MM_BRK);
-	sc_map_add("PR_SET_MM_ARG_START", (scmp_datum_t) PR_SET_MM_ARG_START);
-	sc_map_add("PR_SET_MM_ARG_END", (scmp_datum_t) PR_SET_MM_ARG_END);
-	sc_map_add("PR_SET_MM_ENV_START", (scmp_datum_t) PR_SET_MM_ENV_START);
-	sc_map_add("PR_SET_MM_ENV_END", (scmp_datum_t) PR_SET_MM_ENV_END);
-	sc_map_add("PR_SET_MM_AUXV", (scmp_datum_t) PR_SET_MM_AUXV);
-	sc_map_add("PR_SET_MM_EXE_FILE", (scmp_datum_t) PR_SET_MM_EXE_FILE);
-	sc_map_add("PR_MPX_ENABLE_MANAGEMENT",
-		   (scmp_datum_t) PR_MPX_ENABLE_MANAGEMENT);
-	sc_map_add("PR_MPX_DISABLE_MANAGEMENT",
-		   (scmp_datum_t) PR_MPX_DISABLE_MANAGEMENT);
-	sc_map_add("PR_SET_NAME", (scmp_datum_t) PR_SET_NAME);
-	sc_map_add("PR_GET_NAME", (scmp_datum_t) PR_GET_NAME);
-	sc_map_add("PR_SET_NO_NEW_PRIVS", (scmp_datum_t) PR_SET_NO_NEW_PRIVS);
-	sc_map_add("PR_GET_NO_NEW_PRIVS", (scmp_datum_t) PR_GET_NO_NEW_PRIVS);
-	sc_map_add("PR_SET_PDEATHSIG", (scmp_datum_t) PR_SET_PDEATHSIG);
-	sc_map_add("PR_GET_PDEATHSIG", (scmp_datum_t) PR_GET_PDEATHSIG);
-	sc_map_add("PR_SET_PTRACER", (scmp_datum_t) PR_SET_PTRACER);
-	sc_map_add("PR_SET_SECCOMP", (scmp_datum_t) PR_SET_SECCOMP);
-	sc_map_add("PR_GET_SECCOMP", (scmp_datum_t) PR_GET_SECCOMP);
-	sc_map_add("PR_SET_SECUREBITS", (scmp_datum_t) PR_SET_SECUREBITS);
-	sc_map_add("PR_GET_SECUREBITS", (scmp_datum_t) PR_GET_SECUREBITS);
-	sc_map_add("PR_SET_THP_DISABLE", (scmp_datum_t) PR_SET_THP_DISABLE);
-	sc_map_add("PR_TASK_PERF_EVENTS_DISABLE",
-		   (scmp_datum_t) PR_TASK_PERF_EVENTS_DISABLE);
-	sc_map_add("PR_TASK_PERF_EVENTS_ENABLE",
-		   (scmp_datum_t) PR_TASK_PERF_EVENTS_ENABLE);
-	sc_map_add("PR_GET_THP_DISABLE", (scmp_datum_t) PR_GET_THP_DISABLE);
-	sc_map_add("PR_GET_TID_ADDRESS", (scmp_datum_t) PR_GET_TID_ADDRESS);
-	sc_map_add("PR_SET_TIMERSLACK", (scmp_datum_t) PR_SET_TIMERSLACK);
-	sc_map_add("PR_GET_TIMERSLACK", (scmp_datum_t) PR_GET_TIMERSLACK);
-	sc_map_add("PR_SET_TIMING", (scmp_datum_t) PR_SET_TIMING);
-	sc_map_add("PR_GET_TIMING", (scmp_datum_t) PR_GET_TIMING);
-	sc_map_add("PR_SET_TSC", (scmp_datum_t) PR_SET_TSC);
-	sc_map_add("PR_GET_TSC", (scmp_datum_t) PR_GET_TSC);
-	sc_map_add("PR_SET_UNALIGN", (scmp_datum_t) PR_SET_UNALIGN);
-	sc_map_add("PR_GET_UNALIGN", (scmp_datum_t) PR_GET_UNALIGN);
+	sc_map_add(PR_CAP_AMBIENT);
+	sc_map_add(PR_CAP_AMBIENT_RAISE);
+	sc_map_add(PR_CAP_AMBIENT_LOWER);
+	sc_map_add(PR_CAP_AMBIENT_IS_SET);
+	sc_map_add(PR_CAP_AMBIENT_CLEAR_ALL);
+	sc_map_add(PR_CAPBSET_READ);
+	sc_map_add(PR_CAPBSET_DROP);
+	sc_map_add(PR_SET_CHILD_SUBREAPER);
+	sc_map_add(PR_GET_CHILD_SUBREAPER);
+	sc_map_add(PR_SET_DUMPABLE);
+	sc_map_add(PR_GET_DUMPABLE);
+	sc_map_add(PR_SET_ENDIAN);
+	sc_map_add(PR_GET_ENDIAN);
+	sc_map_add(PR_SET_FPEMU);
+	sc_map_add(PR_GET_FPEMU);
+	sc_map_add(PR_SET_FPEXC);
+	sc_map_add(PR_GET_FPEXC);
+	sc_map_add(PR_SET_KEEPCAPS);
+	sc_map_add(PR_GET_KEEPCAPS);
+	sc_map_add(PR_MCE_KILL);
+	sc_map_add(PR_MCE_KILL_GET);
+	sc_map_add(PR_SET_MM);
+	sc_map_add(PR_SET_MM_START_CODE);
+	sc_map_add(PR_SET_MM_END_CODE);
+	sc_map_add(PR_SET_MM_START_DATA);
+	sc_map_add(PR_SET_MM_END_DATA);
+	sc_map_add(PR_SET_MM_START_STACK);
+	sc_map_add(PR_SET_MM_START_BRK);
+	sc_map_add(PR_SET_MM_BRK);
+	sc_map_add(PR_SET_MM_ARG_START);
+	sc_map_add(PR_SET_MM_ARG_END);
+	sc_map_add(PR_SET_MM_ENV_START);
+	sc_map_add(PR_SET_MM_ENV_END);
+	sc_map_add(PR_SET_MM_AUXV);
+	sc_map_add(PR_SET_MM_EXE_FILE);
+	sc_map_add(PR_MPX_ENABLE_MANAGEMENT);
+	sc_map_add(PR_MPX_DISABLE_MANAGEMENT);
+	sc_map_add(PR_SET_NAME);
+	sc_map_add(PR_GET_NAME);
+	sc_map_add(PR_SET_NO_NEW_PRIVS);
+	sc_map_add(PR_GET_NO_NEW_PRIVS);
+	sc_map_add(PR_SET_PDEATHSIG);
+	sc_map_add(PR_GET_PDEATHSIG);
+	sc_map_add(PR_SET_PTRACER);
+	sc_map_add(PR_SET_SECCOMP);
+	sc_map_add(PR_GET_SECCOMP);
+	sc_map_add(PR_SET_SECUREBITS);
+	sc_map_add(PR_GET_SECUREBITS);
+	sc_map_add(PR_SET_THP_DISABLE);
+	sc_map_add(PR_TASK_PERF_EVENTS_DISABLE);
+	sc_map_add(PR_TASK_PERF_EVENTS_ENABLE);
+	sc_map_add(PR_GET_THP_DISABLE);
+	sc_map_add(PR_GET_TID_ADDRESS);
+	sc_map_add(PR_SET_TIMERSLACK);
+	sc_map_add(PR_GET_TIMERSLACK);
+	sc_map_add(PR_SET_TIMING);
+	sc_map_add(PR_GET_TIMING);
+	sc_map_add(PR_SET_TSC);
+	sc_map_add(PR_GET_TSC);
+	sc_map_add(PR_SET_UNALIGN);
+	sc_map_add(PR_GET_UNALIGN);
 
 	// man 2 getpriority
-	sc_map_add("PRIO_PROCESS", (scmp_datum_t) PRIO_PROCESS);
-	sc_map_add("PRIO_PGRP", (scmp_datum_t) PRIO_PGRP);
-	sc_map_add("PRIO_USER", (scmp_datum_t) PRIO_USER);
+	sc_map_add(PRIO_PROCESS);
+	sc_map_add(PRIO_PGRP);
+	sc_map_add(PRIO_USER);
 
 	// initialize the htab for our map
 	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
