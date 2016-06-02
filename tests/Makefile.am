@@ -1,4 +1,7 @@
-TESTS = \
+TESTS =
+
+if STRICT_CONFINEMENT
+TESTS += \
     test_bad_seccomp_filter_length \
     test_bad_seccomp_filter_missing_trailing_newline \
     test_complain \
@@ -9,6 +12,7 @@ TESTS = \
     test_unrestricted \
     test_unrestricted_missed \
     test_whitelist
+endif
 
 .PHONY: check-syntax
 check-syntax:
