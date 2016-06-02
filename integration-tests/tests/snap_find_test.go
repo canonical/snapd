@@ -36,7 +36,7 @@ type searchSuite struct {
 func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 	// XXX: Summary is empty atm, waiting for store support
 	expected := "(?ms)" +
-		"Name +Version +(Price +)?Summary *\n" +
+		"Name +Version +Developer +Notes +Summary *\n" +
 		".*" +
 		"^hello-world +.* *\n" +
 		".*"
@@ -51,7 +51,7 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 // SNAP_FIND_001: list all packages available on the store
 func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
 	fullListPattern := "(?ms)" +
-		"Name +Version +(Price +)?Summary *\n" +
+		"Name +Version +Developer +Notes +Summary *\n" +
 		".*" +
 		"^canonical-pc +.* *\n" +
 		".*" +
@@ -75,7 +75,7 @@ func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
 func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
 	for _, snapName := range []string{"http", "ubuntu-clock-app", "go-example-webserver"} {
 		expected := "(?ms)" +
-			"Name +Version +(Price +)?Summary *\n" +
+			"Name +Version +Developer +Notes +Summary *\n" +
 			".*" +
 			"^" + snapName + " +.* *\n" +
 			".*"
