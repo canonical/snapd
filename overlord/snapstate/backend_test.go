@@ -125,16 +125,16 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	return &snap.Info{SuggestedName: name, SideInfo: *si}, nil
 }
 
-func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
+func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter) error {
+	p.Notify("copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
 		old = oldInfo.MountDir()
 	}
 	f.ops = append(f.ops, fakeOp{
-		op:    "copy-data",
-		name:  newInfo.MountDir(),
-		flags: flags,
-		old:   old,
+		op:   "copy-data",
+		name: newInfo.MountDir(),
+		old:  old,
 	})
 	return nil
 }
@@ -163,10 +163,16 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
+func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter) error {
+	p.Notify("undo-copy-data")
+	old := "<no-old>"
+	if oldInfo != nil {
+		old = oldInfo.MountDir()
+	}
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-copy-snap-data",
 		name: newInfo.MountDir(),
+		old:  old,
 	})
 	return nil
 }

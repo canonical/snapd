@@ -166,7 +166,7 @@ func (ss *serialSuite) SetUpSuite(c *C) {
 	ss.ts = time.Now().Truncate(time.Second).UTC()
 	ss.tsLine = "timestamp: " + ss.ts.Format(time.RFC3339) + "\n"
 
-	ss.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
+	ss.deviceKey = testPrivKey2
 	encodedPubKey, err := asserts.EncodePublicKey(ss.deviceKey.PublicKey())
 	c.Assert(err, IsNil)
 	ss.encodedDevKey = string(encodedPubKey)

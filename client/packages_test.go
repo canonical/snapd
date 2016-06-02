@@ -129,7 +129,8 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 			"version": "0.1-8",
                         "confinement": "strict",
                         "private": true,
-                        "devmode": true
+                        "devmode": true,
+                        "trymode": true
 		}
 	}`
 	pkg, _, err := cs.cli.Snap(pkgName)
@@ -152,5 +153,6 @@ func (cs *clientSuite) TestClientSnap(c *check.C) {
 		Confinement:   client.StrictConfinement,
 		Private:       true,
 		DevMode:       true,
+		TryMode:       true,
 	})
 }
