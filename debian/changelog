@@ -19,6 +19,7 @@ ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
 
   [ Steve Langasek ]
   * Update Standards-Version.
+  * Add lintian override for suid binary.
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 22 May 2016 16:14:24 +0300
 
