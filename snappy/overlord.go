@@ -195,7 +195,7 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 	//        and can only be used during install right now
 }
 
-func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
+func copyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
@@ -212,10 +212,10 @@ func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Me
 	return copySnapData(oldSnap, newSnap)
 }
 
-func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
+func undoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
 
-	if err := RemoveSnapData(newInfo); err != nil {
+	if err := removeSnapData(newInfo); err != nil {
 		logger.Noticef("When cleaning up data for %s %s: %v", newInfo.Name(), newInfo.Version, err)
 	}
 
@@ -460,10 +460,10 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	}
 
 	// deal with the data
-	err = CopyData(newInfo, oldInfo, flags, meter)
+	err = copyData(newInfo, oldInfo, flags, meter)
 	defer func() {
 		if err != nil {
-			UndoCopyData(newInfo, flags, meter)
+			undoCopyData(newInfo, flags, meter)
 		}
 	}()
 	if err != nil {
@@ -578,7 +578,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	return RemoveSnapData(s.Info())
+	return removeSnapData(s.Info())
 }
 
 // SetActive sets the active state of the given snap

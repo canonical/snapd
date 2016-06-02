@@ -17,19 +17,20 @@
  *
  */
 
-package snappy
+package backend
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
-// RemoveSnapData removes the data for the given version of the given snap
-func removeSnapData(snap *snap.Info) error {
+// RemoveSnapData removes the data for the given version of the given snap.
+func (b Backend) RemoveSnapData(snap *snap.Info) error {
 	dirs, err := snapDataDirs(snap)
 	if err != nil {
 		return err
@@ -38,8 +39,8 @@ func removeSnapData(snap *snap.Info) error {
 	return removeDirs(dirs)
 }
 
-// RemoveSnapCommonData removes the data common between versions of the given snap
-func removeSnapCommonData(snap *snap.Info) error {
+// RemoveSnapCommonData removes the data common between versions of the given snap.
+func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
 	dirs, err := snapCommonDataDirs(snap)
 	if err != nil {
 		return err
@@ -113,14 +114,12 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 		if _, err := os.Stat(newPath); err != nil {
 			// there is no golang "CopyFile"
 			cmd := exec.Command("cp", "-a", oldPath, newPath)
-			if err := cmd.Run(); err != nil {
-				if exitCode, err := osutil.ExitCode(err); err == nil {
-					return &ErrDataCopyFailed{
-						OldPath:  oldPath,
-						NewPath:  newPath,
-						ExitCode: exitCode}
+			if output, err := cmd.CombinedOutput(); err != nil {
+				output = bytes.TrimSpace(output)
+				if len(output) > 0 {
+					err = fmt.Errorf("%s", output)
 				}
-				return err
+				return fmt.Errorf("cannot copy %s to %s: %v", oldPath, newPath, err)
 			}
 		}
 	}

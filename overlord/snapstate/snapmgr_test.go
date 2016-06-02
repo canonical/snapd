@@ -419,10 +419,9 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
-			op:    "copy-data",
-			name:  "/snap/some-snap/11",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:   "copy-data",
+			name: "/snap/some-snap/11",
+			old:  "/snap/some-snap/7",
 		},
 		fakeOp{
 			op:    "setup-profiles:Doing",
@@ -541,10 +540,9 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:    "copy-data",
-			name:  "/snap/some-snap/11",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:   "copy-data",
+			name: "/snap/some-snap/11",
+			old:  "/snap/some-snap/7",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -576,6 +574,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 		{
 			op:   "undo-copy-snap-data",
 			name: "/snap/some-snap/11",
+			old:  "/snap/some-snap/7",
 		},
 		{
 			op:   "link-snap",
@@ -663,10 +662,9 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:    "copy-data",
-			name:  "/snap/some-snap/11",
-			flags: int(snappy.DoInstallGC),
-			old:   "/snap/some-snap/7",
+			op:   "copy-data",
+			name: "/snap/some-snap/11",
+			old:  "/snap/some-snap/7",
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -699,6 +697,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 		{
 			op:   "undo-copy-snap-data",
 			name: "/snap/some-snap/11",
+			old:  "/snap/some-snap/7",
 		},
 		{
 			op:   "link-snap",
