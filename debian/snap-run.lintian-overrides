@@ -1,0 +1,2 @@
+# Yes, we expect this to be suid.
+snap-run: setuid-binary usr/bin/snap-run 4755 root/root

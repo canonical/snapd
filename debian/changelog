@@ -16,6 +16,11 @@ ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
   * Switch to autotools, build-depend on pkg-config, autotools-dev, autoconf
     and automake (thanks to ogra for the missing bits).
   * Use "dh $@ --with autoreconf" to prepare the build system.
+  * Rename executable to snap-confine, to fit the new execution model.
+
+  [ Steve Langasek ]
+  * Update Standards-Version.
+  * Add lintian override for suid binary.
 
   [ Jamie Strandboge ]
   * implement seccomp argument filtering (LP: #1446748)

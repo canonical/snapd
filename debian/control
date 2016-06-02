@@ -3,20 +3,23 @@ Section: utils
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9), libseccomp-dev, libapparmor-dev, libudev-dev, dh-apparmor, indent, shellcheck, pkg-config, autotools-dev, autoconf, automake, dh-autoreconf
-Standards-Version: 3.9.6
-Vcs-Git: https://github.com/ubuntu-core/snap-run
+Standards-Version: 3.9.8
+Vcs-Git: https://github.com/ubuntu-core/snap-confine
 
-Package: snap-run
+Package: snap-confine
 Architecture: any
 Breaks: ubuntu-core-launcher (<< 2.0)
 Replaces: ubuntu-core-launcher (<< 2.0)
 Depends: ${misc:Depends}, ${shlibs:Depends}, apparmor
-Description: Launcher for snappy apps
- This package contains the launcher for applications packaged as snaps
+Description: Support executable to apply confinement for snappy apps.
+ This package contains an internal tool for applying confinement to snappy app.
+ The executable (snap-confine) is ran internally by snapd to apply confinement
+ to the started application process. The tool is written in C and carefully
+ reviewed to limit the attack surface on the security model of snapd.
 
 Package: ubuntu-core-launcher
 Architecture: all
-Depends: ${misc:Depends}, ${shlibs:Depends}, snap-run
+Depends: ${misc:Depends}, ${shlibs:Depends}, snap-confine
 Pre-Depends: dpkg (>= 1.17.14)
 Description: Launcher for ubuntu-core (snappy) apps
  This is a transitional package that lets existing installation depending on

@@ -30,7 +30,7 @@ set_thread_area
 EOF
 }
 
-L="$(pwd)/../src/snap-run"
+L="$(pwd)/../src/snap-confine"
 export L
 
 TMP="$(mktemp -d)"
