@@ -238,13 +238,16 @@ func refreshOne(name, channel string) error {
 	return listSnaps([]string{name})
 }
 
-func listRefreshs() error {
+func listRefresh() error {
 	cli := Client()
 	snaps, _, err := cli.Find(&client.FindOptions{
 		Refresh: true,
 	})
 	if err != nil {
 		return err
+	}
+	if len(snaps) == 0 {
+		return fmt.Errorf(i18n.G("all snaps are fresh"))
 	}
 
 	sort.Sort(snapsByName(snaps))
@@ -266,7 +269,7 @@ func listRefreshs() error {
 
 func (x *cmdRefresh) Execute([]string) error {
 	if x.List {
-		return listRefreshs()
+		return listRefresh()
 	}
 	if x.Positional.Snap == "" {
 		return refreshAll()
