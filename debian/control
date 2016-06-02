@@ -3,7 +3,7 @@ Section: utils
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 Build-Depends: debhelper (>= 9), libseccomp-dev, libapparmor-dev, libudev-dev, dh-apparmor, indent, shellcheck, pkg-config, autotools-dev, autoconf, automake, dh-autoreconf
-Standards-Version: 3.9.6
+Standards-Version: 3.9.8
 Vcs-Git: https://github.com/ubuntu-core/snap-run
 
 Package: snap-run
