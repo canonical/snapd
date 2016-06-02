@@ -527,7 +527,18 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(newInfo, ss.Flags)
+	var oldInfo *snap.Info
+	if cur := snapst.Current(); cur != nil {
+		var err error
+		oldInfo, err = readInfo(ss.Name, cur)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -553,7 +564,8 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	return m.backend.CopySnapData(newInfo, oldInfo, ss.Flags)
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.CopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
