@@ -108,15 +108,12 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 	return nil
 }
 
-// for tests
-var cpCmd = "cp"
-
 // Lowlevel copy the snap data (but never override existing data)
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
 			// there is no golang "CopyFile"
-			cmd := exec.Command(cpCmd, "-a", oldPath, newPath)
+			cmd := exec.Command("cp", "-a", oldPath, newPath)
 			if output, err := cmd.CombinedOutput(); err != nil {
 				output = bytes.TrimSpace(output)
 				if len(output) > 0 {

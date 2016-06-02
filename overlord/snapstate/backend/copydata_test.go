@@ -356,10 +356,21 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
-	restore := backend.MockCpCommand("false")
-	defer restore()
+	fakeBinDir := filepath.Join(s.tempdir, "bin")
+	err := os.MkdirAll(fakeBinDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(fakeBinDir, "cp"), []byte(
+		`#!/bin/sh
+echo cp: boom
+exit 3
+`), 0755)
+	c.Assert(err, IsNil)
+
+	oldPATH := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPATH)
+	os.Setenv("PATH", fakeBinDir+":"+oldPATH)
 
 	// copy data will fail
-	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
-	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy %s to %s: exit status 1", v1.DataDir(), v2.DataDir())))
+	err = s.be.CopySnapData(v2, v1, &s.nullProgress)
+	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy %s to %s: cp: boom", v1.DataDir(), v2.DataDir())))
 }
