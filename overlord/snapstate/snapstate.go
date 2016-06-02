@@ -31,10 +31,6 @@ import (
 	"github.com/snapcore/snapd/snappy"
 )
 
-// allow exchange in the tests
-// XXX once we reimplent CanRemove directly here, this goes away
-var be managerBackend = &defaultBackend{}
-
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, snapName); err != nil {
 		return nil, err
@@ -186,6 +182,24 @@ func removeInactiveRevision(s *state.State, name string, revision snap.Revision,
 	return state.NewTaskSet(clearData, discardSnap)
 }
 
+// canRemove verifies that a snap can be removed.
+func canRemove(s *snap.Info, active bool) bool {
+	// Gadget snaps should not be removed as they are a key
+	// building block for Gadgets. Pruning non active ones
+	// is acceptable.
+	if s.Type == snap.TypeGadget && active {
+		return false
+	}
+
+	// You never want to remove an active kernel or OS
+	if (s.Type == snap.TypeKernel || s.Type == snap.TypeOS) && active {
+		return false
+	}
+	// TODO: on classic likely let remove core even if active if it's only snap left.
+
+	return true
+}
+
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
@@ -213,8 +227,7 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 	}
 
 	// check if this is something that can be removed
-	// XXX: move CanRemove impl directly in snapstate
-	if !be.CanRemove(info, active) {
+	if !canRemove(info, active) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
