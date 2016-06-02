@@ -382,10 +382,10 @@ apps:
 	_, err := (&Overlord{}).Install(snapPath, AllowUnauthenticated, nil)
 	c.Assert(err, IsNil)
 
-	// ensure that the binary wrapper file go generated with the right
+	// ensure that the binary symlink got generated with the right
 	// name
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
+	c.Assert(osutil.IsSymlink(binaryWrapper), Equals, true)
 
 	// and that it gets removed on remove
 	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo", "unset")
