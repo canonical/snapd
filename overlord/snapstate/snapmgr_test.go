@@ -1398,3 +1398,44 @@ func (s *snapSetupSuite) TestDevMode(c *C) {
 	ss.Flags = int(snappy.DeveloperMode)
 	c.Check(ss.DevMode(), Equals, true)
 }
+
+type canRemoveSuite struct{}
+
+var _ = Suite(&canRemoveSuite{})
+
+func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeApp,
+	}
+	info.OfficialName = "foo"
+
+	c.Check(snapstate.CanRemove(info, false), Equals, true)
+	c.Check(snapstate.CanRemove(info, true), Equals, true)
+}
+
+func (s *canRemoveSuite) TestActiveGadgetsAreNotOK(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeGadget,
+	}
+	info.OfficialName = "foo"
+
+	c.Check(snapstate.CanRemove(info, false), Equals, true)
+	c.Check(snapstate.CanRemove(info, true), Equals, false)
+}
+
+func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.OfficialName = "os"
+	kernel := &snap.Info{
+		Type: snap.TypeKernel,
+	}
+	kernel.OfficialName = "krnl"
+
+	c.Check(snapstate.CanRemove(os, false), Equals, true)
+	c.Check(snapstate.CanRemove(os, true), Equals, false)
+
+	c.Check(snapstate.CanRemove(kernel, false), Equals, true)
+	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
+}
