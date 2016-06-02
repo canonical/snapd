@@ -28,7 +28,7 @@
 #include <sys/mount.h>
 #ifdef STRICT_CONFINEMENT
 #include <sys/apparmor.h>
-#endif
+#endif				// ifdef STRICT_CONFINEMENT
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -43,13 +43,15 @@
 
 #include <ctype.h>
 
-#include "libudev.h"
-
 #include "utils.h"
+#ifdef STRICT_CONFINEMENT
+#include "libudev.h"
 #include "seccomp_utils.h"
+#endif				// ifdef STRICT_CONFINEMENT
 
 #define MAX_BUF 1000
 
+#ifdef STRICT_CONFINEMENT
 struct snappy_udev {
 	struct udev *udev;
 	struct udev_enumerate *devices;
@@ -57,6 +59,7 @@ struct snappy_udev {
 	char tagname[MAX_BUF];
 	size_t tagname_len;
 };
+#endif				// ifdef STRICT_CONFINEMENT
 
 bool verify_appname(const char *appname)
 {
@@ -76,6 +79,7 @@ bool verify_appname(const char *appname)
 	return (status == 0);
 }
 
+#ifdef STRICT_CONFINEMENT
 void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 {
 	if (udev_s == NULL)
@@ -254,11 +258,14 @@ void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 	}
 }
 
+#endif				// ifdef STRICT_CONFINEMENT
+
 bool is_running_on_classic_distribution()
 {
 	return (access("/var/lib/dpkg/status", F_OK) == 0);
 }
 
+#ifdef STRICT_CONFINEMENT
 void setup_private_mount(const char *appname)
 {
 	uid_t uid = getuid();
@@ -345,6 +352,7 @@ void setup_private_pts()
 		die("unable to mount '/dev/pts/ptmx'->'/dev/ptmx'");
 	}
 }
+#endif				// ifdef STRICT_CONFINEMENT
 
 void setup_snappy_os_mounts()
 {
@@ -487,7 +495,9 @@ int main(int argc, char **argv)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
 
 	const char *appname = argv[1];
+#ifdef STRICT_CONFINEMENT
 	const char *aa_profile = argv[1];
+#endif				// ifdef STRICT_CONFINEMENT
 	const char *binary = argv[2];
 	uid_t real_uid = getuid();
 	gid_t real_gid = getgid();
@@ -520,6 +530,7 @@ int main(int argc, char **argv)
 		if (is_running_on_classic_distribution()) {
 			setup_snappy_os_mounts();
 		}
+#ifdef STRICT_CONFINEMENT
 		// set up private mounts
 		setup_private_mount(appname);
 
@@ -531,6 +542,7 @@ int main(int argc, char **argv)
 		if (snappy_udev_init(appname, &udev_s) == 0)
 			setup_devices_cgroup(appname, &udev_s);
 		snappy_udev_cleanup(&udev_s);
+#endif				// ifdef STRICT_CONFINEMENT
 
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
@@ -557,9 +569,9 @@ int main(int argc, char **argv)
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
-#endif
 	// set seccomp (note: seccomp_load_filters die()s on all failures)
 	seccomp_load_filters(aa_profile);
+#endif				// ifdef STRICT_CONFINEMENT
 
 	// Permanently drop if not root
 	if (geteuid() == 0) {

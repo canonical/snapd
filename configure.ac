@@ -45,13 +45,11 @@ AC_ARG_ENABLE([confinement],
     esac], [enable_confinement=yes])
 AM_CONDITIONAL([STRICT_CONFINEMENT], [test "x$enable_confinement" = "xyes"])
 
-# Check for required external libraries
-PKG_CHECK_MODULES([UDEV], [libudev])
-PKG_CHECK_MODULES([SECCOMP], [libseccomp])
-
-# Check for apparmor when confinement in enabled.
+# Check for required external libraries when confinement is enabled.
 AS_IF([test "x$enable_confinement" = "xyes"], [
     PKG_CHECK_MODULES([APPARMOR], [libapparmor])
+    PKG_CHECK_MODULES([SECCOMP], [libseccomp])
+    PKG_CHECK_MODULES([UDEV], [libudev])
     AC_DEFINE([STRICT_CONFINEMENT], [1],
         [Define if strict apparmor confinement is available])
 ], [
