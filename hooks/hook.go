@@ -22,12 +22,15 @@ package hooks
 
 import (
 	"gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 // HookRef is a reference to a hook within a specific snap.
 type HookRef struct {
-	Snap string `json:"snap"`
-	Hook string `json:"hook"`
+	Snap     string        `json:"snap"`
+	Revision snap.Revision `json:"revision"`
+	Hook     string        `json:"hook"`
 }
 
 // DispatchHook is where the snap in question is found and the specific hook

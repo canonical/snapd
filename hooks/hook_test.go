@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/hooks"
+	"github.com/snapcore/snapd/snap"
 )
 
 func TestHooks(t *testing.T) { TestingT(t) }
@@ -35,19 +36,20 @@ type hooksSuite struct{}
 var _ = Suite(&hooksSuite{})
 
 func (s *hooksSuite) TestJsonMarshalHookRef(c *C) {
-	hookRef := hooks.HookRef{Snap: "snap-name", Hook: "hook-name"}
+	hookRef := hooks.HookRef{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
 	out, err := json.Marshal(hookRef)
 	c.Assert(err, IsNil)
-	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"hook\":\"hook-name\"}")
+	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
 }
 
 func (s *hooksSuite) TestJsonUnmarshalHookRef(c *C) {
-	out, err := json.Marshal(hooks.HookRef{Snap: "snap-name", Hook: "hook-name"})
+	out, err := json.Marshal(hooks.HookRef{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
 	c.Assert(err, IsNil)
 
 	var hookRef hooks.HookRef
 	err = json.Unmarshal(out, &hookRef)
 	c.Assert(err, IsNil)
 	c.Check(hookRef.Snap, Equals, "snap-name")
+	c.Check(hookRef.Revision, Equals, snap.R(1))
 	c.Check(hookRef.Hook, Equals, "hook-name")
 }
