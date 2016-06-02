@@ -22,7 +22,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
-#include <math.h>
 #include <search.h>
 #include <ctype.h>
 #include <stdbool.h>
@@ -91,8 +90,8 @@ struct sc_map_list *sc_map_entries = NULL;
  *
  * sc_map_init()		- initialize the hash map via linked list of
  * 				  of entries
- * sc_map_add(key, value)	- create entry from key/value pair and add to
- * 				  linked list. Value is scmp_data_t
+ * sc_map_add_kvp(key, value)	- create entry from key/value pair and add to
+ * 				  linked list
  * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
  * sc_map_destroy()	- destroy the hash map and linked list
  */
@@ -107,15 +106,16 @@ scmp_datum_t sc_map_search(char *s)
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
 		die("hsearch_r failed");
 
-	if (ep != NULL)
-		val = (scmp_datum_t) (ep->data);
-	else
+	if (ep != NULL) {
+		scmp_datum_t *p = ep->data;
+		val = *p;
+	} else
 		errno = EINVAL;
 
 	return val;
 }
 
-void sc_map_add_kvp(const char *key, int value)
+void sc_map_add_kvp(const char *key, scmp_datum_t value)
 {
 	struct sc_map_entry *node;
 	node = (struct sc_map_entry *)malloc(sizeof(struct sc_map_entry));
@@ -130,12 +130,13 @@ void sc_map_add_kvp(const char *key, int value)
 	if (node->e->key == NULL)
 		die("Out of memory creating e->key");
 
-	node->e->data = (void *)&value;
+	node->e->data = (void *)malloc(sizeof(scmp_datum_t));
+	if (node->e->data == NULL)
+		die("Out of memory creating e->data");
+	*(scmp_datum_t *) node->e->data = value;
+
 	node->ep = NULL;
 	node->next = NULL;
-	//int *d;
-	//d = (void *)node->e->data;
-	//printf("DEBUG: %s, %d\n", node->e->key, *d);
 
 	if (sc_map_entries->list == NULL) {
 		sc_map_entries->count = 1;
@@ -281,6 +282,7 @@ void sc_map_destroy()
 		p = next;
 		next = p->next;
 		free(p->e->key);
+		free(p->e->data);
 		free(p->e);
 		free(p);
 	}
@@ -394,6 +396,8 @@ int parse_line(char *line, struct seccomp_args *sargs)
 
 		sargs->arg_cmp[sargs->length] = SCMP_CMP(pos, op, value);
 		sargs->length++;
+
+		//printf("\nDEBUG: SCMP_CMP(%d, %d, %llu)\n", pos, op, value);
 	}
 	// too many args
 	if (pos >= SC_ARGS_MAXLENGTH)
