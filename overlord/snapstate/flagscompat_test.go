@@ -56,8 +56,6 @@ func (s *flagscompatSuite) TestCopiedConstsSanity(c *C) {
 	c.Check(snappy.LegacyInstallFlags(snappyDoInstallGC), Equals, snappy.LegacyDoInstallGC)
 	c.Check(snappy.LegacyInstallFlags(snappyAllowGadget), Equals, snappy.LegacyAllowGadget)
 
-	c.Check(snappy.LegacyInstallFlags(snappyDeveloperMode), Equals, snappy.InterimDeveloperMode)
-	c.Check(snappy.LegacyInstallFlags(snappyTryMode), Equals, snappy.InterimTryMode)
 }
 
 func (s *flagscompatSuite) TestSnapSetupNewValuesUnchanged(c *C) {
