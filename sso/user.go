@@ -39,17 +39,10 @@ var (
 	userLookup = user.Lookup
 )
 
-var runCommand = func(args ...string) error {
-	cmd := exec.Command(args[0], args[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("command %q failed with %s: %s", args, err, output)
-	}
-	return nil
-}
-
 var addUser = func(name string, sshKeys []string) error {
-	if err := runCommand("adduser", "--extrausers", "--disabled-password", name); err != nil {
-		return err
+	cmd := exec.Command("adduser", "--extrausers", "--disabled-password", name)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
 
 	u, err := userLookup(name)

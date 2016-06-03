@@ -18,7 +18,7 @@
  *
  */
 
-package sso
+package sso_test
 
 import (
 	"fmt"
@@ -31,6 +31,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/sso"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -45,8 +46,8 @@ var _ = check.Suite(&createUserSuite{})
 func (s *createUserSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })
-	SSOBaseURL = server.URL
-	s.BaseTest.AddCleanup(func() { SSOBaseURL = "" })
+	sso.SSOBaseURL = server.URL
+	s.BaseTest.AddCleanup(func() { sso.SSOBaseURL = "" })
 }
 
 func (s *createUserSuite) TestCreateUser(c *check.C) {
@@ -66,13 +67,14 @@ func (s *createUserSuite) TestCreateUser(c *check.C) {
 
 	addUserName := ""
 	addUserKeys := []string{}
-	addUser = func(name string, sshKeys []string) error {
+	restorer := sso.MockAddUser(func(name string, sshKeys []string) error {
 		addUserName = name
 		addUserKeys = sshKeys
 		return nil
-	}
+	})
+	defer restorer()
 
-	name, err := CreateUser("popper@lse.ac.uk")
+	name, err := sso.CreateUser("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
 	c.Check(name, check.Equals, "karl")
 	c.Check(addUserName, check.Equals, "karl")
@@ -81,20 +83,20 @@ func (s *createUserSuite) TestCreateUser(c *check.C) {
 
 func (s *createUserSuite) TestAddUser(c *check.C) {
 	mockHome := c.MkDir()
-	userLookup = func(string) (*user.User, error) {
+	restorer := sso.MockUserLookup(func(string) (*user.User, error) {
 		return &user.User{
 			HomeDir: mockHome,
 		}, nil
-	}
-	runCommandArgs := []string{}
-	runCommand = func(args ...string) error {
-		runCommandArgs = args
-		return nil
-	}
-	err := addUser("karl", []string{"ssh-key1", "ssh-key2"})
+	})
+	defer restorer()
+
+	mc := testutil.MockCommand(c, "adduser", "true")
+	defer mc.Restore()
+
+	err := sso.AddUser("karl", []string{"ssh-key1", "ssh-key2"})
 	c.Assert(err, check.IsNil)
-	c.Check(runCommandArgs, check.DeepEquals, []string{
-		"adduser", "--extrausers", "--disabled-password", "karl",
+	c.Check(mc.Calls(), check.DeepEquals, []string{
+		"--extrausers --disabled-password karl",
 	})
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
