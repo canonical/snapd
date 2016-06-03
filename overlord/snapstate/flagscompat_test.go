@@ -43,6 +43,9 @@ const (
 	snappyTryMode
 )
 
+// this is the minimum value larger than all the legacy/interim flags
+// combinations, so also at the same time the first flag value usable
+// again
 const interimUnusableFlagValueTop = snapstate.InterimUnusableFlagValueLast << 1
 
 func (s *flagscompatSuite) TestCopiedConstsSanity(c *C) {
