@@ -48,9 +48,9 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	logFile := path.Join(binDir, basename+".log")
 	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(""+
 		"#!/bin/sh\n"+
-		"printf \"$(basename \"$0\")\\n\" >> %[1]q\n"+
+		"echo \"$(basename \"$0\")\" >> %[1]q\n"+
 		"for arg in \"$@\"; do\n"+
-		"    printf -- \"$arg\\n\" >> %[1]q\n"+
+		"    echo \"$arg\" >> %[1]q\n"+
 		"done\n"+
 		"printf \"\\n\" >> %[1]q\n"+
 		"%s\n", logFile, script)), 0700)
