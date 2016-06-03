@@ -58,7 +58,6 @@ type apiSuite struct {
 	searchTerm        string
 	channel           string
 	suggestedCurrency string
-	overlord          *fakeOverlord
 	d                 *Daemon
 	auther            store.Authenticator
 	restoreBackends   func()
@@ -121,9 +120,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.channel = ""
 	s.err = nil
 	s.vars = nil
-	s.overlord = &fakeOverlord{
-		configs: map[string]string{},
-	}
 	s.auther = nil
 	s.d = nil
 	s.refreshCandidates = nil
@@ -1119,21 +1115,6 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		// do you feel dirty yet?
 		c.Check(fmt.Sprintf("%p", action.impl), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
 	}
-}
-
-type fakeOverlord struct {
-	configs map[string]string
-}
-
-func (o *fakeOverlord) Configure(s *snappy.Snap, c []byte) ([]byte, error) {
-	if len(c) > 0 {
-		o.configs[s.Name()] = string(c)
-	}
-	config, ok := o.configs[s.Name()]
-	if !ok {
-		return nil, fmt.Errorf("no config for %q", s.Name())
-	}
-	return []byte(config), nil
 }
 
 func (s *apiSuite) TestSideloadSnap(c *check.C) {
