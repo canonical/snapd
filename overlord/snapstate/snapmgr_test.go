@@ -932,6 +932,56 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-3))
 }
 
+func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalIntegration(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "mock", &snapstate.SnapState{
+		Active:        true,
+		Sequence:      []*snap.SideInfo{{Revision: snap.R(100001)}},
+		LocalRevision: snap.R(100001),
+	})
+
+	mockSnap := makeTestSnap(c, `name: mock
+version: 1.0`)
+	chg := s.state.NewChange("install", "install a local snap")
+	ts, err := snapstate.InstallPath(s.state, "mock", mockSnap, "", 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure only local install was run, i.e. first action is pseudo-action current
+	ops := s.fakeBackend.ops
+	c.Assert(ops, HasLen, 7)
+	c.Check(ops[0].op, Equals, "current")
+	c.Check(ops[0].old, Equals, "/snap/mock/100001")
+	// and setup-snap
+	c.Check(ops[1].op, Equals, "setup-snap")
+	c.Check(ops[1].name, Matches, `.*/mock_1.0_all.snap`)
+	c.Check(ops[1].revno, Equals, snap.R("x1"))
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "mock", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current(), DeepEquals, &snap.SideInfo{
+		OfficialName: "",
+		Channel:      "",
+		Revision:     snap.R(-1),
+	})
+	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
+}
+
 func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
