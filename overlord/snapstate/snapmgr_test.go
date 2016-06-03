@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snappy"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -236,7 +235,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 		},
 	})
 
-	ts, err := snapstate.Remove(s.state, "foo", 0)
+	ts, err := snapstate.Remove(s.state, "foo")
 	c.Assert(err, IsNil)
 
 	i := 0
@@ -263,12 +262,12 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
 	})
 
-	ts, err := snapstate.Remove(s.state, "some-snap", 0)
+	ts, err := snapstate.Remove(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("remove", "...").AddAll(ts)
 
-	_, err = snapstate.Remove(s.state, "some-snap", 0)
+	_, err = snapstate.Remove(s.state, "some-snap")
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -382,7 +381,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -409,7 +408,6 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 		fakeOp{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
 			revno: snap.R(11),
 		},
 		fakeOp{
@@ -457,7 +455,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Name:    "some-snap",
 		Channel: "some-channel",
-		Flags:   int(snappy.DoInstallGC),
+		Flags:   0,
 		UserID:  s.user.ID,
 
 		Revision: snap.R(11),
@@ -501,7 +499,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -530,7 +528,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 		{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
 			revno: snap.R(11),
 		},
 		{
@@ -618,7 +615,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -652,7 +649,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 		{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
-			flags: int(snappy.DoInstallGC),
 			revno: snap.R(11),
 		},
 		{
@@ -741,7 +737,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, snappy.DoInstallGC)
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -997,7 +993,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", 0)
+	ts, err := snapstate.Remove(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1087,7 +1083,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
-	ts, err := snapstate.Remove(s.state, "some-snap", 0)
+	ts, err := snapstate.Remove(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1189,7 +1185,7 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 		Sequence: []*snap.SideInfo{&si},
 	})
 
-	_, err := snapstate.Remove(s.state, "gadget", 0)
+	_, err := snapstate.Remove(s.state, "gadget")
 
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
@@ -1438,6 +1434,32 @@ func (s *snapStateSuite) TestSnapStateDevMode(c *C) {
 	c.Check(snapst.DevMode(), Equals, true)
 }
 
+func (s *snapStateSuite) TestSnapStateModeSetters(c *C) {
+	snapst := &snapstate.SnapState{}
+	c.Check(snapst.DevMode(), Equals, false)
+	c.Check(snapst.TryMode(), Equals, false)
+
+	snapst.SetTryMode(true)
+	c.Check(snapst.DevMode(), Equals, false)
+	c.Check(snapst.TryMode(), Equals, true)
+
+	snapst.SetDevMode(true)
+	c.Check(snapst.DevMode(), Equals, true)
+	c.Check(snapst.TryMode(), Equals, true)
+
+	snapst.SetTryMode(false)
+	c.Check(snapst.DevMode(), Equals, true)
+	c.Check(snapst.TryMode(), Equals, false)
+
+	snapst.SetDevMode(false)
+	c.Check(snapst.DevMode(), Equals, false)
+	c.Check(snapst.TryMode(), Equals, false)
+
+	snapst.SetDevMode(true)
+	c.Check(snapst.DevMode(), Equals, true)
+	c.Check(snapst.TryMode(), Equals, false)
+}
+
 type snapSetupSuite struct{}
 
 var _ = Suite(&snapSetupSuite{})
@@ -1445,7 +1467,7 @@ var _ = Suite(&snapSetupSuite{})
 func (s *snapSetupSuite) TestDevMode(c *C) {
 	ss := &snapstate.SnapSetup{}
 	c.Check(ss.DevMode(), Equals, false)
-	ss.Flags = int(snappy.DeveloperMode)
+	ss.Flags = snapstate.DevMode
 	c.Check(ss.DevMode(), Equals, true)
 }
 
