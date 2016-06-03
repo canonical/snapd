@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snappy"
+	"github.com/snapcore/snapd/sso"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -69,6 +70,7 @@ var api = []*Command{
 	eventsCmd,
 	stateChangeCmd,
 	stateChangesCmd,
+	createUserCmd,
 }
 
 var (
@@ -165,6 +167,12 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
+	}
+
+	createUserCmd = &Command{
+		Path:   "/v2/create-user",
+		UserOK: false,
+		POST:   postCreateUser,
 	}
 )
 
@@ -1237,4 +1245,42 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	chg.Abort()
 
 	return SyncResponse(change2changeInfo(chg), nil)
+}
+
+var (
+	ssoCreateUser                = sso.CreateUser
+	postCreateUserUcrednetGetUID = ucrednetGetUID
+)
+
+func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use create-user as non-root")
+	}
+
+	var createData struct {
+		EMail string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&createData); err != nil {
+		return BadRequest("cannot decode create-user data from request body: %v", err)
+	}
+
+	// FIXME: this will block, we really need to make this an
+	//        async operation
+	username, err := ssoCreateUser(createData.EMail)
+	if err != nil {
+		return BadRequest("cannot create user %s: %s", createData.EMail, err)
+	}
+
+	var createResponseData struct {
+		Username string `json:"username"`
+	}
+	createResponseData.Username = username
+
+	return SyncResponse(createResponseData, nil)
 }

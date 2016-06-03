@@ -243,3 +243,19 @@ func (cs *clientSuite) TestIsTwoFactor(c *check.C) {
 	c.Check(client.IsTwoFactorError(nil), check.Equals, false)
 	c.Check(client.IsTwoFactorError((*client.Error)(nil)), check.Equals, false)
 }
+
+func (cs *clientSuite) TestClientCreateUser(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+                        "username": "karl"
+		}
+	}`
+	rsp, err := cs.cli.CreateUser("popper@lse.ac.uk")
+	c.Assert(cs.req.Method, check.Equals, "POST")
+	c.Assert(cs.req.URL.Path, check.Equals, "/v2/create-user")
+	c.Assert(err, check.IsNil)
+	c.Assert(rsp, check.DeepEquals, &client.CreateUserResult{
+		Username: "karl",
+	})
+}

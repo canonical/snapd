@@ -292,3 +292,30 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 
 	return &sysInfo, nil
 }
+
+// UserCreationResult holds the result of a user creation
+type CreateUserResult struct {
+	Username string `json:"username"`
+}
+
+// UserCreationRequest holds the user creation request
+type CreateUserRequest struct {
+	EMail string `json:"email"`
+}
+
+// CreateUser creates a user from the given mail address
+func (client *Client) CreateUser(mail string) (*CreateUserResult, error) {
+	var createResult CreateUserResult
+	b, err := json.Marshal(CreateUserRequest{
+		EMail: mail,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(b), &createResult); err != nil {
+		return nil, fmt.Errorf("bad user result: %v", err)
+	}
+
+	return &createResult, nil
+}
