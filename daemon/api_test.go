@@ -151,22 +151,6 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	return d
 }
 
-func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
-	// creating the part to get its manifest path is cheating, a little
-	sideInfo := snap.SideInfo{
-		OfficialName:      "foo",
-		Developer:         "bar",
-		Revision:          snap.R(2147483647),
-		EditedDescription: " bla bla bla",
-	}
-
-	c.Assert(snappy.SaveManifest(&snap.Info{
-		Type:     pkgType,
-		Version:  "1",
-		SideInfo: sideInfo,
-	}), check.IsNil)
-}
-
 func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
 	return s.mkInstalledInState(c, nil, name, developer, version, revno, active, extraYaml)
 }
@@ -195,9 +179,6 @@ version: %s
 	guidir := filepath.Join(metadir, "gui")
 	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
-
-	err := snappy.SaveManifest(snapInfo)
-	c.Assert(err, check.IsNil)
 
 	if daemon != nil {
 		st := daemon.overlord.State()
