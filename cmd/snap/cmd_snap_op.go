@@ -68,8 +68,9 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
-				var pkgname string
-				chg.Get("snap-name", &pkgname)
+				var pkgnames []string
+				chg.Get("snap-names", &pkgnames)
+				pkgname := pkgnames[0]
 				pb.Start(pkgname+" ", float64(t.Progress.Total))
 				lastID = t.ID
 			}
@@ -177,13 +178,13 @@ func (x *cmdInstall) Execute([]string) error {
 	}
 
 	// extract the snapName from the change, important for sideloaded
-	var snapName string
+	var snapNames []string
 
 	if installFromFile {
-		if err := chg.Get("snap-name", &snapName); err != nil {
+		if err := chg.Get("snap-names", &snapNames); err != nil {
 			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
 		}
-		name = snapName
+		name = snapNames[0]
 	}
 
 	return listSnaps([]string{name})
@@ -235,11 +236,11 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	// extract the snap name
-	var snapName string
-	if err := chg.Get("snap-name", &snapName); err != nil {
+	var snapNames []string
+	if err := chg.Get("snap-names", &snapNames); err != nil {
 		return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
 	}
-	name = snapName
+	name = snapNames[0]
 
 	return listSnaps([]string{name})
 }
