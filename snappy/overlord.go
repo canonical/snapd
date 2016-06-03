@@ -62,9 +62,9 @@ func checkAssumes(s *snap.Info) error {
 }
 
 // CheckSnap ensures that the snap can be installed
-func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, meter progress.Meter) error {
-	allowGadget := (flags & AllowGadget) != 0
-	allowUnauth := (flags & AllowUnauthenticated) != 0
+func CheckSnap(snapFilePath string, curInfo *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
+	allowGadget := (flags & LegacyAllowGadget) != 0
+	allowUnauth := (flags & LegacyAllowUnauthenticated) != 0
 
 	// we do not Verify() the package here. This is done earlier in
 	// openSnapFile() to ensure that we do not mount/inspect
@@ -89,9 +89,9 @@ func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, mete
 
 // SetupSnap does prepare and mount the snap for further processing
 // It returns the installed path and an error
-func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (snap.PlaceInfo, error) {
-	inhibitHooks := (flags & InhibitHooks) != 0
-	allowUnauth := (flags & AllowUnauthenticated) != 0
+func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (snap.PlaceInfo, error) {
+	inhibitHooks := (flags & LegacyInhibitHooks) != 0
+	allowUnauth := (flags & LegacyAllowUnauthenticated) != 0
 
 	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
 	if err != nil {
@@ -195,7 +195,7 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 	//        and can only be used during install right now
 }
 
-func copyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
+func copyData(newSnap, oldSnap *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
@@ -212,7 +212,7 @@ func copyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Me
 	return copySnapData(oldSnap, newSnap)
 }
 
-func undoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
+func undoCopyData(newInfo *snap.Info, flags LegacyInstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
 
 	if err := removeSnapData(newInfo); err != nil {
@@ -393,7 +393,7 @@ func unlinkSnap(info *snap.Info, inter interacter) error {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) Install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	return o.InstallWithSideInfo(snapFilePath, nil, flags, meter)
 }
 
@@ -401,7 +401,7 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 // considering the provided side info.
 //
 // It returns the local snap file or an error
-func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	var oldInfo *snap.Info
 
 	if sideInfo != nil {
@@ -427,7 +427,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return nil, err
 	}
 
-	allowUnauth := (flags & AllowUnauthenticated) != 0
+	allowUnauth := (flags & LegacyAllowUnauthenticated) != 0
 	newInfo, _, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
 	if err != nil {
 		return nil, err
@@ -472,7 +472,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 
 	// and finally make active
 
-	if (flags & InhibitHooks) != 0 {
+	if (flags & LegacyInhibitHooks) != 0 {
 		// XXX: kill InhibitHooks flag but used by u-d-f atm
 		return newInfo, nil
 	}

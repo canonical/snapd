@@ -65,7 +65,7 @@ func copyAll(src, dst string) error {
 // extractKernelAssets extracts kernel/initrd/dtb data from the given
 // Snap to a versionized bootloader directory so that the bootloader
 // can use it.
-func extractKernelAssets(s *snap.Info, flags InstallFlags, inter progress.Meter) error {
+func extractKernelAssets(s *snap.Info, flags LegacyInstallFlags, inter progress.Meter) error {
 	if s.Type != snap.TypeKernel {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
 	}
