@@ -42,9 +42,12 @@ type SnapManager struct {
 
 type SnapSetupFlags Flags
 
-// backward compatibility: upgrade old flags based on snappy. flags values
+// backward compatibility: upgrade old flags based on snappy.* flags values
 // to Flags if needed
-// XXX: this can be dropped and potentially the type in 2.0.9
+// XXX: this can be dropped and potentially the type at the earliest
+// in 2.0.9 (after being out for about two prune cycles), at the
+// latest when we need to recover the reserved unusable flag values,
+// or this gets annoying for other reasons
 func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
 	f, err := strconv.Atoi(string(b))
 	if err != nil {
