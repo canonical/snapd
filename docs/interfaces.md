@@ -75,6 +75,7 @@ it gives privileged access to sensitive information stored in gsettings and
 allows adjusting settings of other applications.
 
 Usage: reserved
+Auto-Connect: yes
 
 ## Supported Interfaces - Advanced
 
