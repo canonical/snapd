@@ -1,8 +1,9 @@
 [Unit]
 Description=Automatically refresh installed snaps
 After=network.target
+Documentation=man:snap(1)
 
+# FIXME: add auto-reboot on devices
 [Service]
 Type=oneshot
-# FIXME: add auto-reboot on devices
 ExecStart=/usr/bin/snap refresh
