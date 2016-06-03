@@ -35,7 +35,7 @@ username and ssh keys obtained from the SSO server.
 
 type cmdCreateUser struct {
 	Positional struct {
-		Mail string `positional-arg-name:"email"`
+		EMail string `positional-arg-name:"email"`
 	} `positional-args:"yes"`
 }
 
@@ -45,7 +45,7 @@ func init() {
 
 func (x *cmdCreateUser) Execute([]string) error {
 	cli := Client()
-	rsp, err := cli.CreateUser(x.Positional.Mail)
+	rsp, err := cli.CreateUser(x.Positional.EMail)
 	if err != nil {
 		return err
 	}

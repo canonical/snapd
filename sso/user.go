@@ -74,7 +74,7 @@ type keysReply struct {
 	SshKeys  []string `json:"ssh_keys"`
 }
 
-func CreateUser(email string) (string, error) {
+func CreateUser(email string) (username string, err error) {
 	ssourl := SSOBaseURL
 	if ssourl == "" {
 		ssourl = os.Getenv("SNAPD_SSO_LOGIN_URL")

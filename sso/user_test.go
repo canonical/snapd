@@ -94,7 +94,7 @@ func (s *createUserSuite) TestAddUser(c *check.C) {
 	err := addUser("karl", []string{"ssh-key1", "ssh-key2"})
 	c.Assert(err, check.IsNil)
 	c.Check(runCommandArgs, check.DeepEquals, []string{
-		"adduser", "--disabled-password", "karl",
+		"adduser", "--extrausers", "--disabled-password", "karl",
 	})
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
