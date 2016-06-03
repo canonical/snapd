@@ -46,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -58,7 +57,6 @@ type apiSuite struct {
 	searchTerm        string
 	channel           string
 	suggestedCurrency string
-	overlord          *fakeOverlord
 	d                 *Daemon
 	auther            store.Authenticator
 	restoreBackends   func()
@@ -121,9 +119,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.channel = ""
 	s.err = nil
 	s.vars = nil
-	s.overlord = &fakeOverlord{
-		configs: map[string]string{},
-	}
 	s.auther = nil
 	s.d = nil
 	s.refreshCandidates = nil
@@ -149,22 +144,6 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	d.addRoutes()
 	s.d = d
 	return d
-}
-
-func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
-	// creating the part to get its manifest path is cheating, a little
-	sideInfo := snap.SideInfo{
-		OfficialName:      "foo",
-		Developer:         "bar",
-		Revision:          snap.R(2147483647),
-		EditedDescription: " bla bla bla",
-	}
-
-	c.Assert(snappy.SaveManifest(&snap.Info{
-		Type:     pkgType,
-		Version:  "1",
-		SideInfo: sideInfo,
-	}), check.IsNil)
 }
 
 func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
@@ -195,9 +174,6 @@ version: %s
 	guidir := filepath.Join(metadir, "gui")
 	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
-
-	err := snappy.SaveManifest(snapInfo)
-	c.Assert(err, check.IsNil)
 
 	if daemon != nil {
 		st := daemon.overlord.State()
@@ -298,9 +274,6 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
-	s.vars = map[string]string{"name": "foo"}
-	s.err = snappy.ErrPackageNotFound
-
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	c.Check(getSnapInfo(snapCmd, req, nil).(*resp).Status, check.Equals, http.StatusNotFound)
@@ -1138,21 +1111,6 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		// do you feel dirty yet?
 		c.Check(fmt.Sprintf("%p", action.impl), check.Equals, fmt.Sprintf("%p", inst.dispatch()))
 	}
-}
-
-type fakeOverlord struct {
-	configs map[string]string
-}
-
-func (o *fakeOverlord) Configure(s *snappy.Snap, c []byte) ([]byte, error) {
-	if len(c) > 0 {
-		o.configs[s.Name()] = string(c)
-	}
-	config, ok := o.configs[s.Name()]
-	if !ok {
-		return nil, fmt.Errorf("no config for %q", s.Name())
-	}
-	return []byte(config), nil
 }
 
 func (s *apiSuite) TestSideloadSnap(c *check.C) {
