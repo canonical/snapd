@@ -79,6 +79,13 @@ unix (connect, receive, send)
      peer=(addr="@/tmp/ibus/dbus-*"),
 
 
+# input methods (mozc)
+# allow communicating with mozc server (TODO: investigate if allows sniffing)
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@tmp/.mozc.*"),
+
+
 # input methods (fcitx)
 # allow communicating with fcitx dbus service
 dbus send
