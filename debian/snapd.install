@@ -14,8 +14,8 @@ etc/ld.so.conf.d
 # systemd stuff
 
 # auto-update
-debian/*.timer /lib/systemd/system/
-debian/snappy-autopilot.service /lib/systemd/system/
+debian/snapd.refresh.timer /lib/systemd/system/
+debian/snapd.refresh.service /lib/systemd/system/
 # snapd
 debian/*.socket /lib/systemd/system/
 debian/snapd.service /lib/systemd/system/
