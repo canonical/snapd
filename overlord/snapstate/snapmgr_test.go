@@ -72,9 +72,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
 
-	// XXX: have just one, reset!
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
-	snapstate.SetSnapstateBackend(s.fakeBackend)
 
 	restore1 := snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
 	restore2 := snapstate.MockOpenSnapFile(s.fakeBackend.OpenSnapFile)
@@ -958,13 +956,8 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 7)
+	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	expected := []fakeOp{
-		fakeOp{
-			op:     "can-remove",
-			name:   "/snap/some-snap/7",
-			active: true,
-		},
 		fakeOp{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
@@ -1053,13 +1046,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 11)
+	c.Assert(s.fakeBackend.ops, HasLen, 10)
 	expected := []fakeOp{
-		{
-			op:     "can-remove",
-			name:   "/snap/some-snap/7",
-			active: true,
-		},
 		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
@@ -1135,6 +1123,25 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "gadget",
+		Revision:     snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+	})
+
+	_, err := snapstate.Remove(s.state, "gadget", 0)
+
+	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
 
 type snapmgrQuerySuite struct {
@@ -1390,4 +1397,45 @@ func (s *snapSetupSuite) TestDevMode(c *C) {
 	c.Check(ss.DevMode(), Equals, false)
 	ss.Flags = int(snappy.DeveloperMode)
 	c.Check(ss.DevMode(), Equals, true)
+}
+
+type canRemoveSuite struct{}
+
+var _ = Suite(&canRemoveSuite{})
+
+func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeApp,
+	}
+	info.OfficialName = "foo"
+
+	c.Check(snapstate.CanRemove(info, false), Equals, true)
+	c.Check(snapstate.CanRemove(info, true), Equals, true)
+}
+
+func (s *canRemoveSuite) TestActiveGadgetsAreNotOK(c *C) {
+	info := &snap.Info{
+		Type: snap.TypeGadget,
+	}
+	info.OfficialName = "foo"
+
+	c.Check(snapstate.CanRemove(info, false), Equals, true)
+	c.Check(snapstate.CanRemove(info, true), Equals, false)
+}
+
+func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
+	os := &snap.Info{
+		Type: snap.TypeOS,
+	}
+	os.OfficialName = "os"
+	kernel := &snap.Info{
+		Type: snap.TypeKernel,
+	}
+	kernel.OfficialName = "krnl"
+
+	c.Check(snapstate.CanRemove(os, false), Equals, true)
+	c.Check(snapstate.CanRemove(os, true), Equals, false)
+
+	c.Check(snapstate.CanRemove(kernel, false), Equals, true)
+	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
 }
