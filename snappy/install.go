@@ -43,10 +43,9 @@ const (
 	LegacyDoInstallGC
 	// AllowGadget allows the installation of Gadget packages, this does not affect updates.
 	LegacyAllowGadget
-	// DeveloperMode will install the snap without confinement
-	InterimDeveloperMode
-	// TryMode indicates the snap is in try (unpacked directory) mode
-	InterimTryMode
+
+	// Do not add new flags here! this is all going away soon! just kept alive as long as we may need to quickly patch up u-d-f.
+	DO_NOT_ADD_NEW_FLAGS_HERE
 )
 
 func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags LegacyInstallFlags, meter progress.Meter) (string, error) {
