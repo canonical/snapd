@@ -1638,8 +1638,8 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 	c.Check(chg.Err(), check.ErrorMatches, `(?sm).*Install task \(fake-install-snap-error errored\)`)
 }
 
-/* temporarely not available
 func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
+	c.Skip("temporarily dropped half-baked support while sorting out flag mess")
 	calledFlags := snapstate.Flags(42)
 
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
@@ -1664,7 +1664,6 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
 	c.Check(err, check.IsNil)
 }
-*/
 
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
