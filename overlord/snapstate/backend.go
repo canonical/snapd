@@ -38,7 +38,6 @@ type managerBackend interface {
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
-	CanRemove(info *snap.Info, active bool) bool
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
@@ -87,10 +86,6 @@ func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	meter := &progress.NullProgress{}
 	snappy.UndoSetupSnap(s, meter)
 	return nil
-}
-
-func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
-	return snappy.CanRemove(info, active)
 }
 
 func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
