@@ -660,8 +660,9 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets)
-	chg.Set("snap-names", []string{inst.snap})
-	chg.Set("api-data", map[string]string{"snap-name": inst.snap})
+	chg.Set("api-data", map[string]interface{}{
+		"snap-names": []string{inst.snap},
+	})
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
@@ -698,7 +699,9 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
-	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
+	chg.Set("api-data", map[string]interface{}{
+		"snap-names": []string{info.Name()},
+	})
 
 	st.EnsureBefore(0)
 
@@ -813,8 +816,9 @@ out:
 	}
 
 	chg := newChange(st, "install-snap", msg, tsets)
-	chg.Set("api-data", map[string]string{"snap-name": snapName})
-	chg.Set("snap-names", []string{snapName})
+	chg.Set("api-data", map[string]interface{}{
+		"snap-names": []string{snapName},
+	})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -945,7 +949,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := state.NewChange(a.Action+"-snap", summary)
-	change.Set("snap-names", []string{a.Plugs[0].Snap, a.Slots[0].Snap})
+	change.Set("api-data", map[string]interface{}{
+		"snap-names": []string{a.Plugs[0].Snap, a.Slots[0].Snap},
+	})
 	change.AddAll(taskset)
 
 	state.EnsureBefore(0)
@@ -1121,12 +1127,17 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 				return false
 			}
 
+			var data map[string]*json.RawMessage
+			if chg.Get("api-data", &data) != nil {
+				logger.Noticef("cannot get api-data for change %v", chg.ID())
+				return false
+			}
 			var snapNames []string
-			if err := chg.Get("snap-names", &snapNames); err != nil {
+			err := json.Unmarshal(*data["snap-names"], &snapNames)
+			if err != nil {
 				logger.Noticef("cannot get snap-name for change %v", chg.ID())
 				return false
 			}
-
 			for _, snapName := range snapNames {
 				if snapName == wantedName {
 					return true
