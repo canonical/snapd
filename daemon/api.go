@@ -546,8 +546,8 @@ type snapInstruction struct {
 	DevMode bool   `json:"devmode"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
-	//LeaveOld bool         `json:"leave-old"`
-	License *licenseData `json:"license"`
+	LeaveOld bool         `json:"temp-dropped-leave-old"`
+	License  *licenseData `json:"license"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
 	snap   string
