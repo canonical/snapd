@@ -53,8 +53,8 @@ func init() {
 	wait.ForFunction(c, "regular", partition.Mode)
 
 	if _, err := os.Stat(config.DefaultFileName); err == nil {
-		cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-		cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", "snapd.refresh.timer")
+		cli.ExecCommand(c, "sudo", "systemctl", "disable", "snapd.refresh.timer")
 
 		cfg, err := config.ReadConfig(config.DefaultFileName)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))
