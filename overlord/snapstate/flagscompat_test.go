@@ -58,6 +58,9 @@ func (s *flagscompatSuite) TestCopiedConstsSanity(c *C) {
 }
 
 func (s *flagscompatSuite) TestSnapSetupNewValuesUnchanged(c *C) {
+	// test that new snapstate flags based SnapSetup.Flags is
+	// unmarshalled as is
+
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -90,6 +93,10 @@ func (s *flagscompatSuite) TestSnapSetupNewValuesUnchanged(c *C) {
 }
 
 func (s *flagscompatSuite) TestRangeCapturesLegacyInterim(c *C) {
+	// double check that the reserved unusable flag range
+	// captures (aka contains) the old legacy/interim flags
+	// to protect them correctly
+
 	values := []int{
 		// these overlap but weren't used in snapd actually
 		//snappyAllowUnauthenticated,
@@ -110,7 +117,10 @@ func (s *flagscompatSuite) TestRangeCapturesLegacyInterim(c *C) {
 
 }
 
-func (s *flagscompatSuite) TestSnapSetupInterimValsUpgrade(c *C) {
+func (s *flagscompatSuite) TestSnapSetupInterimValuesUpgrade(c *C) {
+	// test that the old snappy.* flags based SnapSetup.Flags
+	// are updated correctly to the new snapstate single shared flag set
+
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
