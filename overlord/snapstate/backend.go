@@ -30,7 +30,7 @@ import (
 type managerBackend interface {
 	// install releated
 	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
-	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
+	SetupSnap(snapFilePath string, si *snap.SideInfo) error
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
@@ -76,9 +76,12 @@ func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info)
 	return snap, downloadedSnapFile, nil
 }
 
-func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags int) error {
+func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo) error {
 	meter := &progress.NullProgress{}
-	_, err := snappy.SetupSnap(snapFilePath, sideInfo, snappy.InstallFlags(flags), meter)
+	// XXX: pass 0 for flags temporarely, until SetupSnap is moved over,
+	// anyway they aren't used atm, and probably we don't want to pass flags
+	// as before but more precise information
+	_, err := snappy.SetupSnap(snapFilePath, sideInfo, 0, meter)
 	return err
 }
 

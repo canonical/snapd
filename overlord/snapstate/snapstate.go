@@ -28,10 +28,36 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 )
 
-func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+// Flags are used to pass additional flags to operations and to keep track of snap modes.
+type Flags int
+
+const (
+	// DevMode switches confinement to non-enforcing mode.
+	DevMode = 1 << iota
+	// TryMode is set for snaps installed to try directly from a local directory.
+	TryMode
+
+	// the following flag values cannot be used until we drop the
+	// backward compatible support for flags values in SnapSetup
+	// that were based on snappy.* flags, after that we can
+	// start using them
+	interimUnusableLegacyFlagValueMin
+	interimUnusableLegacyFlagValue1
+	interimUnusableLegacyFlagValue2
+	interimUnusableLegacyFlagValueLast
+
+	// the following flag value is the first that can be grabbed
+	// for use in the interim time while we have the backward compatible
+	// support
+	firstInterimUsableFlagValue
+	// if we need flags for just SnapSetup it may be easier
+	// to start a new sequence from the other end with:
+	// 0x40000000 >> iota
+)
+
+func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, snapName); err != nil {
 		return nil, err
 	}
@@ -44,7 +70,7 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	ss := SnapSetup{
 		Channel: channel,
 		UserID:  userID,
-		Flags:   int(flags),
+		Flags:   SnapSetupFlags(flags),
 	}
 	ss.Name = snapName
 	ss.SnapPath = snapPath
@@ -112,7 +138,7 @@ func checkChangeConflict(s *state.State, snapName string) error {
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func Install(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -127,7 +153,7 @@ func Install(s *state.State, name, channel string, userID int, flags snappy.Inst
 
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
-func InstallPath(s *state.State, name, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func InstallPath(s *state.State, name, path, channel string, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -139,15 +165,15 @@ func InstallPath(s *state.State, name, path, channel string, flags snappy.Instal
 
 // TryPath returns a set of tasks for trying a snap from a file path.
 // Note that the state must be locked by the caller.
-func TryPath(s *state.State, name, path string, flags snappy.InstallFlags) (*state.TaskSet, error) {
-	flags |= snappy.TryMode
+func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
+	flags |= TryMode
 
 	return InstallPath(s, name, path, "", flags)
 }
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func Update(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -165,11 +191,10 @@ func Update(s *state.State, name, channel string, userID int, flags snappy.Insta
 	return doInstall(s, snapst.Active, name, "", channel, userID, flags)
 }
 
-func removeInactiveRevision(s *state.State, name string, revision snap.Revision, flags snappy.RemoveFlags) *state.TaskSet {
+func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
 	ss := SnapSetup{
 		Name:     name,
 		Revision: revision,
-		Flags:    int(flags),
 	}
 
 	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
@@ -202,7 +227,7 @@ func canRemove(s *snap.Info, active bool) bool {
 
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
+func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, name); err != nil {
 		return nil, err
 	}
@@ -235,7 +260,6 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 	ss := SnapSetup{
 		Name:     name,
 		Revision: revision,
-		Flags:    int(flags),
 	}
 
 	// trigger remove
@@ -266,7 +290,7 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 	seq := snapst.Sequence
 	for i := len(seq) - 1; i >= 0; i-- {
 		si := seq[i]
-		addNext(removeInactiveRevision(s, name, si.Revision, flags))
+		addNext(removeInactiveRevision(s, name, si.Revision))
 	}
 
 	discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), name))
