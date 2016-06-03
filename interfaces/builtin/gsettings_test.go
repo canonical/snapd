@@ -128,5 +128,5 @@ func (s *GsettingsInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *GsettingsInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(), Equals, true)
 }

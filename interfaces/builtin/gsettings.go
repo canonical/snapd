@@ -62,6 +62,6 @@ func NewGsettingsInterface() interfaces.Interface {
 		connectedPlugAppArmor: gsettingsConnectedPlugAppArmor,
 		connectedPlugSecComp:  gsettingsConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
+		autoConnect:           true,
 	}
 }
