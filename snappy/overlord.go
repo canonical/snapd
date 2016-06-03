@@ -61,8 +61,8 @@ func checkAssumes(s *snap.Info) error {
 	return nil
 }
 
-// CheckSnap ensures that the snap can be installed
-func CheckSnap(snapFilePath string, curInfo *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
+// checkSnap ensures that the snap can be installed
+func checkSnap(snapFilePath string, curInfo *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
 	allowGadget := (flags & LegacyAllowGadget) != 0
 	allowUnauth := (flags & LegacyAllowUnauthenticated) != 0
 
@@ -411,7 +411,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		}
 	}
 
-	if err := CheckSnap(snapFilePath, oldInfo, flags, meter); err != nil {
+	if err := checkSnap(snapFilePath, oldInfo, flags, meter); err != nil {
 		return nil, err
 	}
 
