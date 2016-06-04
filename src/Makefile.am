@@ -32,6 +32,8 @@ fmt:
 	       indent -linux "$$f"; \
 	done;
 
+EXTRA_DIST = 80-snappy-assign.rules snappy-app-dev
+
 if STRICT_CONFINEMENT
 # Install udev rules
 install-data-local:
