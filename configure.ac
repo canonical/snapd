@@ -61,5 +61,5 @@ AS_IF([test "x$enable_confinement" = "xyes"], [
     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX])
 ])
 
-AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile compat/Makefile])
 AC_OUTPUT
