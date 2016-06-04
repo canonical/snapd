@@ -1,3 +1,0 @@
-#!/bin/sh
-shift
-exec /usr/lib/snap-confine "$@"
