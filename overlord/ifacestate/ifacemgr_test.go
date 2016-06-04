@@ -453,7 +453,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	// NOTE: This is not an exact test as it duplicates functionality elsewhere
 	// and is was a pain to update each time. This is correctly handled by the
 	// implicit slot tests in snap/implicit_test.go
-	c.Assert(len(slots) > 17, Equals, true)
+	c.Assert(len(slots) > 18, Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
