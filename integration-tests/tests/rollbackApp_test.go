@@ -27,8 +27,8 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
 	"github.com/snapcore/snapd/integration-tests/testutils/store"
-	"github.com/snapcore/snapd/integration-tests/testutils/updates"
 	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/check.v1"
@@ -68,7 +68,7 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 	defer tearDownSnapd(c)
 
 	// run the fake update
-	output := updates.CallFakeSnapRefresh(c, snap, updates.NoOp, fakeStore)
+	output := refresh.CallFakeSnapRefreshForSnap(c, snap, refresh.NoOp, fakeStore)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*fake1.*")
 
 	// NOW do the rollback
