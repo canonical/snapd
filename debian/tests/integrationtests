@@ -4,28 +4,34 @@ NEEDS_REBOOT=/tmp/needs-reboot
 
 set -ex
 
+# for these tests, run snap and snapd from outside of the core snap
+sudo mkdir -p /etc/systemd/system/snapd.service.d/
+cat <<EOF | sudo tee /etc/systemd/system/snapd.service.d/no-reexec.conf
+[Service]
+Environment=SNAP_REEXEC=0
+EOF
+
 # required for the debian adt host
 if [ "$http_proxy" != "" ]; then
-    sudo mkdir -p /etc/systemd/system/snapd.service.d/
-    sudo cat <<EOF | sudo tee -a /etc/systemd/system/snapd.service.d/proxy.conf
+    cat <<EOF | sudo tee /etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
 Environment=http_proxy=$http_proxy
 Environment=https_proxy=$http_proxy
 EOF
-    sudo systemctl daemon-reload
 fi
+sudo systemctl daemon-reload
 
 # ensure our PATH is right
 . /etc/profile.d/apps-bin-path.sh
 
 tmp="${ADT_ARTIFACTS}/build"
-mkdir -p $tmp
-export GOPATH=$tmp
-mkdir -p $GOPATH/src/github.com/snapcore/snapd
-cp -R ./* $GOPATH/src/github.com/snapcore/snapd/
-mkdir -p $GOPATH/src/github.com/snapcore/snapd/integration-tests/data/output
-cp debian/tests/testconfig.json $GOPATH/src/github.com/snapcore/snapd/integration-tests/data/output/
-cd $GOPATH/src/github.com/snapcore/snapd
+mkdir -p "$tmp"
+export GOPATH="$tmp"
+mkdir -p "$GOPATH"/src/github.com/snapcore/snapd
+cp -R ./* "$GOPATH"/src/github.com/snapcore/snapd/
+mkdir -p "$GOPATH"/src/github.com/snapcore/snapd/integration-tests/data/output
+cp debian/tests/testconfig.json "$GOPATH"/src/github.com/snapcore/snapd/integration-tests/data/output/
+cd "$GOPATH"/src/github.com/snapcore/snapd
 
 # don't install deps nor compile tests after reboot
 if [ -z "$ADT_REBOOT_MARK" ]; then
@@ -33,10 +39,10 @@ if [ -z "$ADT_REBOOT_MARK" ]; then
     go test -tags classic -c ./integration-tests/tests
 fi
 
-./tests.test -check.vv
+SNAP_REEXEC=0 ./tests.test -check.vv
 
-if [ -e ${NEEDS_REBOOT} ]; then
-    mark=`cat ${NEEDS_REBOOT}`
+if [ -e "${NEEDS_REBOOT}" ]; then
+    mark=$(cat "${NEEDS_REBOOT}")
     echo "Rebooting..."
     sudo /tmp/autopkgtest-reboot "$mark"
 fi
