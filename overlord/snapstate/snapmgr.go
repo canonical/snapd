@@ -92,6 +92,10 @@ func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
 
+func (ss *SnapSetup) RollbackMode() bool {
+	return ss.Flags&RollbackMode != 0
+}
+
 // SnapStateFlags are flags stored in SnapState.
 type SnapStateFlags Flags
 
@@ -622,15 +626,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	cand := snapst.Candidate
 
 	m.backend.Candidate(snapst.Candidate)
-	// FIXME: HAAAAAAAAACK for rollback to avoid adding the same state twice
-	// FIXME2: find a more elegant way for this
-	found := false
-	for _, s := range snapst.Sequence {
-		if s.Revision == snapst.Candidate.Revision {
-			found = true
-		}
-	}
-	if !found {
+	// This link is the result of a rollback, so we have the
+	// snap data already in the Sequence. Do not add twice.
+	if !ss.RollbackMode() {
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
 	snapst.Candidate = nil

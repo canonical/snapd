@@ -52,6 +52,10 @@ const (
 	// for use in the interim time while we have the backward compatible
 	// support
 	firstInterimUsableFlagValue
+
+	// RollbackMode means the given snap got rolled back
+	RollbackMode
+
 	// if we need flags for just SnapSetup it may be easier
 	// to start a new sequence from the other end with:
 	// 0x40000000 >> iota
@@ -323,10 +327,12 @@ func Rollback(s *state.State, name, ver string) (*state.TaskSet, error) {
 	ss := SnapSetup{
 		Name:     name,
 		Revision: snapst.Current().Revision,
+		Flags:    RollbackMode,
 	}
 	ssPrev := SnapSetup{
 		Name:     name,
 		Revision: snapst.Previous().Revision,
+		Flags:    RollbackMode,
 	}
 
 	prepare := s.NewTask("prepare-rollback", fmt.Sprintf(i18n.G("Prepare rollback of %q"), name))
@@ -349,13 +355,17 @@ func Rollback(s *state.State, name, ver string) (*state.TaskSet, error) {
 	linkSnap.WaitFor(setupSecurity)
 	linkSnap.Set("snap-setup-task", setupSecurity.ID())
 
-	// and create a taskset
-	ts := state.NewTaskSet(prepare, unlink, removeSecurity, setupSecurity, linkSnap)
+	// remove the data and the remaining bits of the rolled back snap
+	clearDataPrev := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
+	clearDataPrev.Set("snap-setup", ss)
+	clearDataPrev.WaitFor(linkSnap)
 
-	// remove the current ver
-	tsRemovePrev := removeInactiveRevision(s, name, ss.Revision)
-	tsRemovePrev.WaitAll(ts)
-	ts.AddAll(tsRemovePrev)
+	discardSnapPrev := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
+	discardSnapPrev.WaitFor(clearDataPrev)
+	discardSnapPrev.Set("snap-setup-task", clearDataPrev.ID())
+
+	// and create a taskset
+	ts := state.NewTaskSet(prepare, unlink, removeSecurity, setupSecurity, linkSnap, clearDataPrev, discardSnapPrev)
 
 	return ts, nil
 }
