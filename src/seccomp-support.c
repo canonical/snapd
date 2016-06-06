@@ -14,9 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+#include "config.h"
+#include "seccomp-support.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -29,7 +28,6 @@
 
 #include <seccomp.h>
 
-#include "seccomp.h"
 #include "utils.h"
 
 #define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
