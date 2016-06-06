@@ -25,7 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // Keep this in sync between snap and client packages.
@@ -35,42 +35,42 @@ type revisionSuite struct{}
 var _ = Suite(&revisionSuite{})
 
 func (s revisionSuite) TestString(c *C) {
-	c.Assert(Revision{0}.String(), Equals, "unset")
-	c.Assert(Revision{10}.String(), Equals, "10")
-	c.Assert(Revision{-9}.String(), Equals, "x9")
+	c.Assert(snap.Revision{0}.String(), Equals, "unset")
+	c.Assert(snap.Revision{10}.String(), Equals, "10")
+	c.Assert(snap.Revision{-9}.String(), Equals, "x9")
 }
 
 func (s revisionSuite) TestUnset(c *C) {
-	c.Assert(Revision{0}.Unset(), Equals, true)
-	c.Assert(Revision{10}.Unset(), Equals, false)
-	c.Assert(Revision{-9}.Unset(), Equals, false)
+	c.Assert(snap.Revision{0}.Unset(), Equals, true)
+	c.Assert(snap.Revision{10}.Unset(), Equals, false)
+	c.Assert(snap.Revision{-9}.Unset(), Equals, false)
 }
 
 func (s revisionSuite) TestLocal(c *C) {
-	c.Assert(Revision{0}.Local(), Equals, false)
-	c.Assert(Revision{10}.Local(), Equals, false)
-	c.Assert(Revision{-9}.Local(), Equals, true)
+	c.Assert(snap.Revision{0}.Local(), Equals, false)
+	c.Assert(snap.Revision{10}.Local(), Equals, false)
+	c.Assert(snap.Revision{-9}.Local(), Equals, true)
 }
 
 func (s revisionSuite) TestStore(c *C) {
-	c.Assert(Revision{0}.Store(), Equals, false)
-	c.Assert(Revision{10}.Store(), Equals, true)
-	c.Assert(Revision{-9}.Store(), Equals, false)
+	c.Assert(snap.Revision{0}.Store(), Equals, false)
+	c.Assert(snap.Revision{10}.Store(), Equals, true)
+	c.Assert(snap.Revision{-9}.Store(), Equals, false)
 }
 
 func (s revisionSuite) TestJSON(c *C) {
 	for _, n := range []int{0, 10, -9} {
-		r := Revision{n}
-		data, err := json.Marshal(Revision{n})
+		r := snap.Revision{n}
+		data, err := json.Marshal(snap.Revision{n})
 		c.Assert(err, IsNil)
 		c.Assert(string(data), Equals, `"`+r.String()+`"`)
 
-		var got Revision
+		var got snap.Revision
 		err = json.Unmarshal(data, &got)
 		c.Assert(err, IsNil)
 		c.Assert(got, Equals, r)
 
-		got = Revision{}
+		got = snap.Revision{}
 		err = json.Unmarshal([]byte(strconv.Itoa(r.N)), &got)
 		c.Assert(err, IsNil)
 		c.Assert(got, Equals, r)
@@ -108,12 +108,12 @@ func (s revisionSuite) ParseRevision(c *C) {
 	}}
 
 	for _, test := range tests {
-		r, err := ParseRevision(test.s)
+		r, err := snap.ParseRevision(test.s)
 		if test.e != "" {
 			c.Assert(err.Error(), Equals, test.e)
 			continue
 		}
-		c.Assert(r, Equals, Revision{test.n})
+		c.Assert(r, Equals, snap.Revision{test.n})
 	}
 }
 
@@ -161,11 +161,11 @@ func (s *revisionSuite) TestR(c *C) {
 
 	for _, test := range tests {
 		if test.e != "" {
-			f := func() { R(test.v) }
+			f := func() { snap.R(test.v) }
 			c.Assert(f, PanicMatches, test.e)
 			continue
 		}
 
-		c.Assert(R(test.v), Equals, Revision{test.n})
+		c.Assert(snap.R(test.v), Equals, snap.Revision{test.n})
 	}
 }
