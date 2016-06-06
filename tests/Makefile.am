@@ -1,4 +1,7 @@
-TESTS = \
+TESTS =
+
+if STRICT_CONFINEMENT
+TESTS += \
     test_bad_seccomp_filter_args \
     test_bad_seccomp_filter_args_null \
     test_bad_seccomp_filter_args_prctl \
@@ -18,6 +21,7 @@ TESTS = \
     test_unrestricted \
     test_unrestricted_missed \
     test_whitelist
+endif
 
 .PHONY: check-syntax
 check-syntax:

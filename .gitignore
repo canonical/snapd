@@ -1,2 +1,19 @@
 src/snap-confine
-src/tmp
+
+# Automake
+Makefile
+Makefile.in
+snap-confine-*.tar.gz
+
+# Autoconf
+aclocal.m4
+autom4te.cache
+compile
+config.guess
+config.h.in
+config.sub
+configure
+depcomp
+install-sh
+missing
+test-driver

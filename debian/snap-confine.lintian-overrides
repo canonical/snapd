@@ -1,0 +1,2 @@
+# Yes, we expect this to be suid.
+snap-confine: setuid-binary usr/bin/snap-confine 4755 root/root

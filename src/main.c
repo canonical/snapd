@@ -262,7 +262,12 @@ void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s)
 
 bool is_running_on_classic_distribution()
 {
-	return (access("/var/lib/dpkg/status", F_OK) == 0);
+	// NOTE: keep this list sorted please
+	return false
+	    || access("/var/lib/dpkg/status", F_OK) == 0
+	    || access("/var/lib/pacman", F_OK) == 0
+	    || access("/var/lib/portage", F_OK) == 0
+	    || access("/var/lib/rpm", F_OK) == 0;
 }
 
 #ifdef STRICT_CONFINEMENT
