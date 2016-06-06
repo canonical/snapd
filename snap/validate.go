@@ -105,6 +105,7 @@ func validateField(name, cont string, whitelist *regexp.Regexp) error {
 // appContentWhitelist is the whitelist of legal chars in the "apps"
 // section of snap.yaml
 var appContentWhitelist = regexp.MustCompile(`^[A-Za-z0-9/. _#:-]*$`)
+var validAppName = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
 // ValidateApp verifies the content in the app info.
 func ValidateApp(app *AppInfo) error {
@@ -115,8 +116,17 @@ func ValidateApp(app *AppInfo) error {
 		return fmt.Errorf(`"daemon" field contains invalid value %q`, app.Daemon)
 	}
 
+	// Validate app name
+	if app.Name == "" {
+		return fmt.Errorf("snap app name cannot be empty")
+	}
+
+	if !validAppName.MatchString(app.Name) {
+		return fmt.Errorf("invalid snap app name: %q", app.Name)
+	}
+
+	// Validate the rest of the app info
 	checks := map[string]string{
-		"name":              app.Name,
 		"command":           app.Command,
 		"stop-command":      app.StopCommand,
 		"post-stop-command": app.PostStopCommand,
