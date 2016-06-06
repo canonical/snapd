@@ -106,6 +106,7 @@ type SnapState struct {
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
+	RollbackR snap.Revision    `json:"rollback,omitempty"`
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
@@ -735,9 +736,12 @@ func (m *SnapManager) doPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	st.Lock()
+	defer st.Unlock()
+	cur := snapst.Current()
+	snapst.RollbackR = cur.Revision
+
 	snapst.Candidate = snapst.Previous()
 	Set(st, ss.Name, snapst)
-	st.Unlock()
 
 	return nil
 }
@@ -752,6 +756,7 @@ func (m *SnapManager) undoPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
+	snapst.RollbackR = snap.Revision{}
 	Set(st, ss.Name, snapst)
 	return nil
 }

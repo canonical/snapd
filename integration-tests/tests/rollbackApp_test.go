@@ -85,4 +85,10 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 
 	output = cli.ExecCommand(c, "ls", "/var/snap/hello-world")
 	c.Assert(output, testutil.Contains, "current")
+
+	// do a `refresh all` and ensure we do not upgrade to the version
+	// we just rolled back from
+	output = cli.ExecCommand(c, "sudo", "snap", "refresh")
+	c.Check(output, check.Matches, "(?ms).*^hello-world.*")
+	c.Check(output, check.Not(testutil.Contains), "fake1")
 }
