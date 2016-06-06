@@ -627,9 +627,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	cand := snapst.Candidate
 
 	m.backend.Candidate(snapst.Candidate)
-	// This link is the result of a rollback, so we have the
-	// snap data already in the Sequence. Do not add twice.
+	// in rollback mode the snap is already part of the sequence,
+	// do not add it twice
 	if !ss.RollbackMode() {
+		snapst.RollbackR = snap.Revision{}
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
 	snapst.Candidate = nil
