@@ -102,6 +102,22 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(unpackDir, path))
 }
 
+// ReadDir returns the content of a single directory inside a squashfs snap.
+func (s *Snap) ReadDir(path string) ([]os.FileInfo, error) {
+	tmpdir, err := ioutil.TempDir("", "read-dir")
+	if err != nil {
+		return nil, err
+	}
+	defer os.RemoveAll(tmpdir)
+
+	unpackDir := filepath.Join(tmpdir, "unpack")
+	if err := runCommand("unsquashfs", "-i", "-d", unpackDir, s.path, path); err != nil {
+		return nil, err
+	}
+
+	return ioutil.ReadDir(filepath.Join(unpackDir, path))
+}
+
 const (
 	hashDigestBufSize = 2 * 1024 * 1024
 )
