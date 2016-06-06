@@ -91,4 +91,10 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 	output = cli.ExecCommand(c, "sudo", "snap", "refresh")
 	c.Check(output, check.Matches, "(?ms).*^hello-world.*")
 	c.Check(output, check.Not(testutil.Contains), "fake1")
+
+	// do a `refresh hello-world` and ensure that an explicit
+	// refresh will work
+	output = cli.ExecCommand(c, "sudo", "snap", "refresh", snap)
+	c.Check(output, check.Matches, "(?ms).*^hello-world.*")
+	c.Check(output, testutil.Contains, "fake1")
 }
