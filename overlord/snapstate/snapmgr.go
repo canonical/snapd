@@ -671,6 +671,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
+	// FIXME: this triggers a stale in the followup tasks in the
+	//        taskrunner code, i.e. tasks after link-snap will
+	//        only be run after the next EnsureBefore()
 	return nil
 }
 
