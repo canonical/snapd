@@ -45,10 +45,17 @@ var _ = Suite(&SquashfsTestSuite{})
 
 func makeSnap(c *C, manifest, data string) *Snap {
 	tmp := c.MkDir()
-	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0755)
+	err := os.MkdirAll(filepath.Join(tmp, "meta", "hooks"), 0755)
+	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
 	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte(manifest), 0644)
+	c.Assert(err, IsNil)
+
+	// some hooks
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "hook1"), nil, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "hook2"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	// some data
@@ -89,6 +96,16 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	content, err := snap.ReadFile("meta/snap.yaml")
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Equals, "name: foo")
+}
+
+func (s *SquashfsTestSuite) TestReadDir(c *C) {
+	snap := makeSnap(c, "name: foo", "")
+
+	fileInfos, err := snap.ReadDir("meta/hooks")
+	c.Assert(err, IsNil)
+	c.Assert(len(fileInfos), Equals, 2)
+	c.Check(fileInfos[0].Name(), Equals, "hook1")
+	c.Check(fileInfos[1].Name(), Equals, "hook2")
 }
 
 // TestUnpackGlob tests the internal unpack

@@ -47,3 +47,7 @@ func (s *SnapDir) Install(targetPath, mountDir string) error {
 func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }
+
+func (s *SnapDir) ReadDir(path string) ([]os.FileInfo, error) {
+	return ioutil.ReadDir(filepath.Join(s.path, path))
+}

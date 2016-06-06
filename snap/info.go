@@ -31,6 +31,10 @@ import (
 	"github.com/snapcore/snapd/timeout"
 )
 
+const (
+	relativeHooksDir = "meta/hooks"
+)
+
 // PlaceInfo offers all the information about where a snap and its data are located and exposed in the filesystem.
 type PlaceInfo interface {
 	// Name returns the name of the snap.
@@ -163,7 +167,7 @@ func (s *Info) MountFile() string {
 
 // HooksDir returns the directory containing the snap's hooks.
 func (s *Info) HooksDir() string {
-	return filepath.Join(s.MountDir(), "meta", "hooks")
+	return filepath.Join(s.MountDir(), relativeHooksDir)
 }
 
 // DataDir returns the data directory of the snap.
@@ -353,7 +357,17 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	return infoFromSnapYamlWithSideInfo(meta, si)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	if err != nil {
+		return nil, err
+	}
+
+	err = AddImplicitHooks(info)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
 }
 
 // ReadInfoFromSnapFile reads the snap information from the given File
@@ -365,6 +379,11 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	}
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	if err != nil {
+		return nil, err
+	}
+
+	err = AddImplicitHooksFromContainer(info, snapf)
 	if err != nil {
 		return nil, err
 	}
