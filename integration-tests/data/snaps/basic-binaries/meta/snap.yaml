@@ -9,3 +9,5 @@ apps:
   command: bin/fail
  block:
   command: bin/block
+ cat:
+  command: bin/cat

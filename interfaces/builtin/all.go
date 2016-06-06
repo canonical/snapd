@@ -30,6 +30,7 @@ var allInterfaces = []interfaces.Interface{
 	&LocationObserveInterface{},
 	&NetworkManagerInterface{},
 	NewFirewallControlInterface(),
+	NewGsettingsInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),
@@ -46,6 +47,7 @@ var allInterfaces = []interfaces.Interface{
 	NewX11Interface(),
 	NewOpenglInterface(),
 	NewPulseAudioInterface(),
+	NewCupsControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

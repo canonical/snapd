@@ -61,10 +61,10 @@ func checkAssumes(s *snap.Info) error {
 	return nil
 }
 
-// CheckSnap ensures that the snap can be installed
-func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, meter progress.Meter) error {
-	allowGadget := (flags & AllowGadget) != 0
-	allowUnauth := (flags & AllowUnauthenticated) != 0
+// checkSnap ensures that the snap can be installed
+func checkSnap(snapFilePath string, curInfo *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
+	allowGadget := (flags & LegacyAllowGadget) != 0
+	allowUnauth := (flags & LegacyAllowUnauthenticated) != 0
 
 	// we do not Verify() the package here. This is done earlier in
 	// openSnapFile() to ensure that we do not mount/inspect
@@ -89,9 +89,9 @@ func CheckSnap(snapFilePath string, curInfo *snap.Info, flags InstallFlags, mete
 
 // SetupSnap does prepare and mount the snap for further processing
 // It returns the installed path and an error
-func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (snap.PlaceInfo, error) {
-	inhibitHooks := (flags & InhibitHooks) != 0
-	allowUnauth := (flags & AllowUnauthenticated) != 0
+func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (snap.PlaceInfo, error) {
+	inhibitHooks := (flags & LegacyInhibitHooks) != 0
+	allowUnauth := (flags & LegacyAllowUnauthenticated) != 0
 
 	s, snapf, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
 	if err != nil {
@@ -109,13 +109,13 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags,
 	}
 
 	// generate the mount unit for the squashfs
-	if err := addSquashfsMount(s, inhibitHooks, meter); err != nil {
+	if err := addMountUnit(s, inhibitHooks, meter); err != nil {
 		return s, err
 	}
 
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, snapf, flags, meter); err != nil {
+		if err := extractKernelAssets(s, flags, meter); err != nil {
 			return s, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
@@ -127,7 +127,7 @@ type interacter interface {
 	Notify(status string)
 }
 
-func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
+func addMountUnit(s *snap.Info, noMount bool, inter interacter) error {
 	squashfsPath := stripGlobalRootDir(s.MountFile())
 	whereDir := stripGlobalRootDir(s.MountDir())
 
@@ -142,14 +142,14 @@ func addSquashfsMount(s *snap.Info, inhibitHooks bool, inter interacter) error {
 		return err
 	}
 
-	if !inhibitHooks {
+	if !noMount {
 		return sysd.Start(mountUnitName)
 	}
 
 	return nil
 }
 
-func removeSquashfsMount(baseDir string, inter interacter) error {
+func removeMountUnit(baseDir string, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
@@ -195,7 +195,7 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 	//        and can only be used during install right now
 }
 
-func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Meter) error {
+func copyData(newSnap, oldSnap *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
 	// deal with the old data or
 	// otherwise just create a empty data dir
 
@@ -212,20 +212,16 @@ func CopyData(newSnap, oldSnap *snap.Info, flags InstallFlags, meter progress.Me
 	return copySnapData(oldSnap, newSnap)
 }
 
-func UndoCopyData(newInfo *snap.Info, flags InstallFlags, meter progress.Meter) {
+func undoCopyData(newInfo *snap.Info, flags LegacyInstallFlags, meter progress.Meter) {
 	// XXX we were copying data, assume InhibitHooks was false
 
-	if err := RemoveSnapData(newInfo); err != nil {
+	if err := removeSnapData(newInfo); err != nil {
 		logger.Noticef("When cleaning up data for %s %s: %v", newInfo.Name(), newInfo.Version, err)
 	}
 
 }
 
 func generateWrappers(s *snap.Info, inter interacter) error {
-	// add the environment
-	if err := wrappers.AddSnapEnvironment(s); err != nil {
-		return err
-	}
 	// add the CLI apps from the snap.yaml
 	if err := wrappers.AddSnapBinaries(s); err != nil {
 		return err
@@ -245,11 +241,6 @@ func generateWrappers(s *snap.Info, inter interacter) error {
 // removeGeneratedWrappers removes the generated services, binaries, desktop
 // wrappers
 func removeGeneratedWrappers(s *snap.Info, inter interacter) error {
-	err0 := wrappers.RemoveSnapEnvironment(s)
-	if err0 != nil {
-		logger.Noticef("Cannot remove environment for %q: %v", s.Name(), err0)
-	}
-
 	err1 := wrappers.RemoveSnapBinaries(s)
 	if err1 != nil {
 		logger.Noticef("Cannot remove binaries for %q: %v", s.Name(), err1)
@@ -265,7 +256,7 @@ func removeGeneratedWrappers(s *snap.Info, inter interacter) error {
 		logger.Noticef("Cannot remove desktop files for %q: %v", s.Name(), err3)
 	}
 
-	return firstErr(err0, err1, err2, err3)
+	return firstErr(err1, err2, err3)
 }
 
 func updateCurrentSymlink(info *snap.Info, inter interacter) error {
@@ -402,7 +393,7 @@ func unlinkSnap(info *snap.Info, inter interacter) error {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) Install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	return o.InstallWithSideInfo(snapFilePath, nil, flags, meter)
 }
 
@@ -410,7 +401,7 @@ func (o *Overlord) Install(snapFilePath string, flags InstallFlags, meter progre
 // considering the provided side info.
 //
 // It returns the local snap file or an error
-func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags InstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	var oldInfo *snap.Info
 
 	if sideInfo != nil {
@@ -420,7 +411,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		}
 	}
 
-	if err := CheckSnap(snapFilePath, oldInfo, flags, meter); err != nil {
+	if err := checkSnap(snapFilePath, oldInfo, flags, meter); err != nil {
 		return nil, err
 	}
 
@@ -436,7 +427,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return nil, err
 	}
 
-	allowUnauth := (flags & AllowUnauthenticated) != 0
+	allowUnauth := (flags & LegacyAllowUnauthenticated) != 0
 	newInfo, _, err := openSnapFile(snapFilePath, allowUnauth, sideInfo)
 	if err != nil {
 		return nil, err
@@ -469,10 +460,10 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 	}
 
 	// deal with the data
-	err = CopyData(newInfo, oldInfo, flags, meter)
+	err = copyData(newInfo, oldInfo, flags, meter)
 	defer func() {
 		if err != nil {
-			UndoCopyData(newInfo, flags, meter)
+			undoCopyData(newInfo, flags, meter)
 		}
 	}()
 	if err != nil {
@@ -481,7 +472,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 
 	// and finally make active
 
-	if (flags & InhibitHooks) != 0 {
+	if (flags & LegacyInhibitHooks) != 0 {
 		// XXX: kill InhibitHooks flag but used by u-d-f atm
 		return newInfo, nil
 	}
@@ -502,7 +493,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
-func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget bool, inter interacter) error {
+func canInstall(s *snap.Info, snapf snap.Container, curInfo *snap.Info, allowGadget bool, inter interacter) error {
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
 		return &ErrArchitectureNotSupported{s.Architectures}
@@ -513,7 +504,7 @@ func canInstall(s *snap.Info, snapf snap.File, curInfo *snap.Info, allowGadget b
 	return nil
 }
 
-func CanRemove(s *snap.Info, active bool) bool {
+func canRemove(s *snap.Info, active bool) bool {
 	// Gadget snaps should not be removed as they are a key
 	// building block for Gadgets. Prunning non active ones
 	// is acceptible.
@@ -545,7 +536,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 
 	snapPath := s.MountFile()
 	// this also ensures that the mount unit stops
-	if err := removeSquashfsMount(mountDir, meter); err != nil {
+	if err := removeMountUnit(mountDir, meter); err != nil {
 		return err
 	}
 
@@ -575,7 +566,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 //
 // It returns an error on failure
 func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
-	if !CanRemove(s.Info(), s.IsActive()) {
+	if !canRemove(s.Info(), s.IsActive()) {
 		return ErrPackageNotRemovable
 	}
 
@@ -587,7 +578,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	return RemoveSnapData(s.Info())
+	return removeSnapData(s.Info())
 }
 
 // SetActive sets the active state of the given snap
