@@ -40,7 +40,7 @@ struct preprocess {
 };
 
 // strip whitespace from the end of the given string (inplace)
-size_t trim_right(char *s, size_t slen)
+static size_t trim_right(char *s, size_t slen)
 {
 	while (slen > 0 && isspace(s[slen - 1])) {
 		s[--slen] = 0;
@@ -52,7 +52,7 @@ size_t trim_right(char *s, size_t slen)
 // empty lines and lines with only whitespace (so a caller can easily skip
 // them). The line buffer is right whitespaced trimmed and the final length of
 // the trimmed line is returned.
-size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
+static size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
 {
 	size_t len = 0;
 
@@ -77,7 +77,7 @@ size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
 	return len;
 }
 
-void preprocess_filter(FILE * f, struct preprocess *p)
+static void preprocess_filter(FILE * f, struct preprocess *p)
 {
 	char buf[SC_MAX_LINE_LENGTH];
 	size_t lineno = 0;
