@@ -19,7 +19,13 @@
 
 package snap
 
-import "github.com/snapcore/snapd/release"
+import (
+	"fmt"
+	"io/ioutil"
+	"os"
+
+	"github.com/snapcore/snapd/release"
+)
 
 var implicitSlots = []string{
 	"firewall-control",
@@ -77,5 +83,56 @@ func makeImplicitSlot(snapInfo *Info, ifaceName string) *SlotInfo {
 		Name:      ifaceName,
 		Snap:      snapInfo,
 		Interface: ifaceName,
+	}
+}
+
+// AddImplicitHooks adds hooks from the installed snap's hookdir to the snap info.
+//
+// Existing hooks (i.e. ones defined in the YAML) are not changed; only missing
+// hooks are added.
+func AddImplicitHooks(snapInfo *Info) error {
+	// First of all, check to ensure the hooks directory exists. If it doesn't,
+	// it's not an error-- there's just nothing to do.
+	hooksDir := snapInfo.HooksDir()
+	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+		return nil
+	}
+
+	fileInfos, err := ioutil.ReadDir(hooksDir)
+	if err != nil {
+		return fmt.Errorf("unable to read hooks directory: %s", err)
+	}
+
+	for _, fileInfo := range fileInfos {
+		addHookName(snapInfo, fileInfo.Name())
+	}
+
+	return nil
+}
+
+// AddImplicitHooksFromContainer adds hooks from the snap file's hookdir to the snap info.
+//
+// Existing hooks (i.e. ones defined in the YAML) are not changed; only missing
+// hooks are added.
+func AddImplicitHooksFromContainer(snapInfo *Info, snapf Container) error {
+	// Read the hooks directory. If this fails we assume the hooks directory
+	// doesn't exist, which means there are no implicit hooks to load (not an
+	// error).
+	fileInfos, err := snapf.ReadDir(relativeHooksDir)
+	if err != nil {
+		return nil
+	}
+
+	for _, fileInfo := range fileInfos {
+		addHookName(snapInfo, fileInfo.Name())
+	}
+
+	return nil
+}
+
+func addHookName(snapInfo *Info, hookName string) {
+	// Don't overwrite a hook that has already been loaded from the YAML
+	if _, ok := snapInfo.Hooks[hookName]; !ok {
+		snapInfo.Hooks[hookName] = &HookInfo{Snap: snapInfo, Name: hookName}
 	}
 }

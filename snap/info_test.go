@@ -128,6 +128,10 @@ func (s *infoSuite) TestReadInfo(c *C) {
 }
 
 func makeTestSnap(c *C, yaml string) string {
+	return makeTestSnapWithHooks(c, yaml, nil)
+}
+
+func makeTestSnapWithHooks(c *C, yaml string, hookNames []string) string {
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
 
@@ -136,6 +140,18 @@ func makeTestSnap(c *C, yaml string) string {
 	// our regular snap.yaml
 	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
 	c.Assert(err, IsNil)
+
+	// make the requested hooks
+	if len(hookNames) > 0 {
+		hooksDir := filepath.Join(snapSource, snap.RelativeHooksDir)
+		err := os.MkdirAll(filepath.Join(hooksDir), 0755)
+		c.Assert(err, IsNil)
+
+		for _, hookName := range hookNames {
+			err = ioutil.WriteFile(filepath.Join(hooksDir, hookName), nil, 0644)
+			c.Assert(err, IsNil)
+		}
+	}
 
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
@@ -322,6 +338,18 @@ version: 1.0
 hooks:
   abc123:`
 	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	snapPath := makeTestSnapWithHooks(c, yaml, []string{"abc123"})
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
