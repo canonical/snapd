@@ -32,7 +32,7 @@
 #include "utils.h"
 #include "snap.h"
 #ifdef STRICT_CONFINEMENT
-#include "seccomp_utils.h"
+#include "seccomp-support.h"
 #include "udev-support.h"
 #endif				// ifdef STRICT_CONFINEMENT
 

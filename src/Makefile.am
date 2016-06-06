@@ -10,8 +10,8 @@ snap_confine_LDADD =
 
 if STRICT_CONFINEMENT
 snap_confine_SOURCES += \
-	seccomp_utils.c \
-	seccomp_utils.h \
+	seccomp-support.c \
+	seccomp-support.h \
 	udev-support.c \
 	udev-support.h
 snap_confine_CFLAGS += $(APPARMOR_CFLAGS) $(SECCOMP_CFLAGS) $(UDEV_CFLAGS)
