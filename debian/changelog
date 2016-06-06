@@ -1,3 +1,29 @@
+snapd (2.0.7) xenial; urgency=medium
+
+  * New upstream release: LP: #1589534
+    - debian: do not ship  /etc/ld.so.conf.d/snappy.conf (LP: #1589006)
+    - debian: fix snapd.refresh.service install and usage (LP: #1588977)
+    - ovlerlord/state: actually support task setting themself as
+      done/undone
+    - snap: do not use "." import in revision_test.go, as this breaks
+      gccgo-6 (fix build failure on powerpc)
+    - interfaces: add fcitx and mozc input methods to unity7
+    - interfaces: add global gsettings interfaces
+    - interfaces: autoconnect home and doc updates (LP: #1588886)
+    - integration-tests: remove
+      abortSuite.TestAbortWithValidIdInDoingStatus
+    - many: adding backward compatible code to upgrade SnapSetup.Flags
+    - overlord/snapstate: handle sideloading over an old sideloaded snap
+      without panicing
+    - interfaces: add socketcall() to the network/network-bind
+      interfaces (LP: #1588100)
+    - overlord/snapstate,snappy: move over CanRemoveThis moves over the
+      CanRemove check to snapstate itself.overlord/snapstate
+    - snappy: move over CanRemove
+    - overlord/snapstate,snappy: move over CopyData and Remove*Data code
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 06 Jun 2016 16:35:50 +0200
+
 snapd (2.0.6) xenial; urgency=medium
 
   * New upstream release: LP: #1588052:
