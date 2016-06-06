@@ -195,12 +195,18 @@ func (client *Client) ServerVersion() (string, error) {
 		return "unknown", err
 	}
 
-	version := sysInfo.Version
-	if version == "" {
-		version = "unknown"
+	serverVersion := sysInfo.Version
+	if serverVersion == "" {
+		serverVersion = "unknown"
 	}
 
-	return fmt.Sprintf("%s (series %s)", version, sysInfo.Series), nil
+	versionStr := fmt.Sprintf(""+
+		"snapd:  %s\n"+
+		"series: %s\n", serverVersion, sysInfo.Series)
+	if sysInfo.OnClassic {
+		versionStr += fmt.Sprintf("%s %s\n", sysInfo.OSRelease.ID, sysInfo.OSRelease.VersionID)
+	}
+	return versionStr, nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -244,10 +250,20 @@ func IsTwoFactorError(err error) bool {
 	return e.Kind == ErrorKindTwoFactorFailed || e.Kind == ErrorKindTwoFactorRequired
 }
 
+// OSRelease contains information about the system extracted from /etc/os-release.
+type OSRelease struct {
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	VersionID string `json:"version-id,omitempty"`
+	Codename  string `json:"codename,omitempty"`
+}
+
 // SysInfo holds system information
 type SysInfo struct {
-	Series  string `json:"series,omitempty"`
-	Version string `json:"version,omitempty"`
+	Series    string    `json:"series,omitempty"`
+	Version   string    `json:"version,omitempty"`
+	OSRelease OSRelease `json:"os-release"`
+	OnClassic bool      `json:"on-classic"`
 }
 
 func (rsp *response) err() error {

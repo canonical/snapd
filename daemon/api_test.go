@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -381,6 +382,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 
 	s.daemon(c).Version = "42b1"
 
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", Name: "distro-name"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -388,6 +393,11 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	expected := map[string]interface{}{
 		"series":  "16",
 		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":   "distro-id",
+			"name": "distro-name",
+		},
+		"on-classic": true,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

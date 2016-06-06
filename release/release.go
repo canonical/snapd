@@ -32,10 +32,10 @@ var Series = "16"
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
-	ID       string
-	Name     string
-	Release  string
-	Codename string
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	VersionID string `json:"version-id,omitempty"`
+	Codename  string `json:"codename,omitempty"`
 }
 
 var osReleasePath = "/etc/os-release"
@@ -60,7 +60,7 @@ func readOSRelease() (*OS, error) {
 		}
 		if strings.HasPrefix(line, "VERSION_ID=") {
 			tmp := strings.SplitN(line, "=", 2)
-			osRelease.Release = strings.Trim(tmp[1], "\"")
+			osRelease.VersionID = strings.Trim(tmp[1], "\"")
 		}
 		if strings.HasPrefix(line, "UBUNTU_CODENAME=") {
 			tmp := strings.SplitN(line, "=", 2)
