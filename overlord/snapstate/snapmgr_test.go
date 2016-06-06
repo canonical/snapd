@@ -271,7 +271,7 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
-func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -366,7 +366,7 @@ func (s *snapmgrTestSuite) TestInstallIntegration(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
+func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -484,7 +484,7 @@ func (s *snapmgrTestSuite) TestUpdateIntegration(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
+func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -599,7 +599,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoIntegration(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
+func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -722,7 +722,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoIntegration(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestUpdateSameRevisionIntegration(c *C) {
+func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -792,7 +792,7 @@ func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
 
 }
 
-func (s *snapmgrTestSuite) TestInstallFirstLocalIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
 
@@ -851,7 +851,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) TestInstallSubsequentLocalIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
 
@@ -928,7 +928,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-3))
 }
 
-func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalIntegration(c *C) {
+func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
 
@@ -978,7 +978,7 @@ version: 1.0`)
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
 }
 
-func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
+func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1058,7 +1058,7 @@ func (s *snapmgrTestSuite) TestRemoveIntegration(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
-func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsIntegration(c *C) {
+func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	si3 := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(3),

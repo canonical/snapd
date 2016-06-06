@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 
-import sys, os
+import sys
 from socket import timeout
 import urllib.request
 
@@ -16,7 +16,7 @@ try:
     print(decoded_response.replace('<!doctype html>', ''), end="")
 except urllib.error.URLError as e:
   print("Error, reason: ", e.reason)
-  os.exit(1)
+  sys.exit(1)
 except timeout:
   print("request timeout")
-  os.exit(1)
+  sys.exit(1)

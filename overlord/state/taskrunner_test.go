@@ -117,7 +117,15 @@ var sequenceTests = []struct{ setup, result string }{{
 }, {
 	setup:  "t31:do-error t21:undo-error",
 	result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t21:undo-error t11:undo",
-}}
+}, {
+	setup:  "t21:do-set-ready",
+	result: "t11:do t12:do t21:do t31:do t32:do",
+},
+	{
+		setup:  "t31:do-error t21:undo-set-ready",
+		result: "t11:do t12:do t21:do t31:do t31:do-error t32:do t32:undo t21:undo t11:undo",
+	},
+}
 
 func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	sb := &stateBackend{}
@@ -147,6 +155,14 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 			if task.Get(label+"-error", &isSet) == nil && isSet {
 				ch <- task.Summary() + ":" + label + "-error"
 				return errors.New("boom")
+			}
+			if task.Get(label+"-set-ready", &isSet) == nil && isSet {
+				switch task.Status() {
+				case state.DoingStatus:
+					task.SetStatus(state.DoneStatus)
+				case state.UndoingStatus:
+					task.SetStatus(state.UndoneStatus)
+				}
 			}
 			return nil
 		}
