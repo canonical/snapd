@@ -16,5 +16,7 @@ try:
     print(decoded_response.replace('<!doctype html>', ''), end="")
 except urllib.error.URLError as e:
   print("Error, reason: ", e.reason)
+  sys.exit(1)
 except timeout:
   print("request timeout")
+  sys.exit(1)

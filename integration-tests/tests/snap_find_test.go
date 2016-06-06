@@ -21,6 +21,8 @@
 package tests
 
 import (
+	"runtime"
+
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 
@@ -50,6 +52,10 @@ func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
 
 // SNAP_FIND_001: list all packages available on the store
 func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
+	if runtime.GOARCH != "amd64" {
+		c.Skip("all find results are only available on amd64")
+	}
+
 	fullListPattern := "(?ms)" +
 		"Name +Version +Developer +Notes +Summary *\n" +
 		".*" +
@@ -73,6 +79,10 @@ func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
 
 // SNAP_FIND_002: find packages on store with different name formats
 func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
+	if runtime.GOARCH != "amd64" {
+		c.Skip("all find results are only available on amd64")
+	}
+
 	for _, snapName := range []string{"http", "ubuntu-clock-app", "go-example-webserver"} {
 		expected := "(?ms)" +
 			"Name +Version +Developer +Notes +Summary *\n" +

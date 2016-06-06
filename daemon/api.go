@@ -541,10 +541,12 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string       `json:"action"`
-	Channel  string       `json:"channel"`
-	DevMode  bool         `json:"devmode"`
-	LeaveOld bool         `json:"leave-old"`
+	Action  string `json:"action"`
+	Channel string `json:"channel"`
+	DevMode bool   `json:"devmode"`
+	// dropping support temporarely until flag confusion is sorted,
+	// this isn't supported by client atm anyway
+	LeaveOld bool         `json:"temp-dropped-leave-old"`
 	License  *licenseData `json:"license"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
@@ -598,12 +600,9 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snappy.DoInstallGC
-	if inst.LeaveOld {
-		flags = 0
-	}
+	flags := snapstate.Flags(0)
 	if inst.DevMode {
-		flags |= snappy.DeveloperMode
+		flags |= snapstate.DevMode
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
@@ -623,10 +622,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snappy.DoInstallGC
-	if inst.LeaveOld {
-		flags = 0
-	}
+	flags := snapstate.Flags(0)
 
 	ts, err := snapstateUpdate(st, inst.snap, inst.Channel, inst.userID, flags)
 	if err != nil {
@@ -642,11 +638,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snappy.DoRemoveGC
-	if inst.LeaveOld {
-		flags = 0
-	}
-	ts, err := snapstate.Remove(st, inst.snap, flags)
+	ts, err := snapstate.Remove(st, inst.snap)
 	if err != nil {
 		return "", nil, err
 	}
@@ -730,7 +722,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 
 const maxReadBuflen = 1024 * 1024
 
-func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snappy.InstallFlags) Response {
+func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -784,10 +776,10 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	var flags snappy.InstallFlags
+	var flags snapstate.Flags
 
 	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
-		flags |= snappy.DeveloperMode
+		flags |= snapstate.DevMode
 	}
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
