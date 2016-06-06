@@ -50,7 +50,7 @@ func (s *installSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
 	defer common.RemoveSnap(c, data.BasicSnapName)
 
 	expected := "(?ms)" +
-		"Name +Version +Rev +Developer\n" +
+		"Name +Version +Rev +Developer +Notes\n" +
 		".*" +
 		"^basic +.* *\n" +
 		".*"
@@ -137,8 +137,8 @@ func (s *installSuite) TestInstallFromDifferentChannels(c *check.C) {
 	snapName := "hello-world"
 
 	expected := "(?ms).*\n" +
-		"Name +Version +Rev +Developer\n" +
-		snapName + " .* canonical\n"
+		"Name +Version +Rev +Developer +Notes\n" +
+		snapName + " .* canonical +-\n"
 
 	for _, channel := range []string{"edge", "beta", "candidate", "stable"} {
 		actual := cli.ExecCommand(c, "sudo", "snap", "install", snapName, "--channel="+channel)
@@ -154,8 +154,8 @@ func (s *installSuite) TestInstallWithDevmodeOption(c *check.C) {
 	snapName := "hello-world"
 
 	expected := "(?ms).*\n" +
-		"Name +Version +Rev +Developer\n" +
-		snapName + " .* canonical\n"
+		"Name +Version +Rev +Developer +Notes\n" +
+		snapName + " .* canonical +devmode\n"
 
 	actual := cli.ExecCommand(c, "sudo", "snap", "install", snapName, "--devmode")
 	defer common.RemoveSnap(c, snapName)
@@ -177,4 +177,16 @@ Name=Echo
 Comment=It echos stuff
 Exec=/snap/bin/basic-desktop.echo
 `)
+}
+
+// regression test for lp #1574829
+func (s *installSuite) TestInstallsPointsToLoginWhenNotAuthenticated(c *check.C) {
+	cli.ExecCommandErr("snap", "logout")
+
+	expected := ".*snap login --help.*\n"
+
+	actual, err := cli.ExecCommandErr("snap", "install", "hello-world")
+
+	c.Assert(err, check.NotNil)
+	c.Assert(actual, check.Matches, expected)
 }

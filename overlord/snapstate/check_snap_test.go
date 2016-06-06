@@ -35,20 +35,16 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
-type checkSnapSuite struct {
-	onClassic bool
-}
+type checkSnapSuite struct{}
 
 var _ = Suite(&checkSnapSuite{})
 
 func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	s.onClassic = release.OnClassic
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	release.OnClassic = s.onClassic
 }
 
 func (s *checkSnapSuite) TestOpenSnapFile(c *C) {
@@ -108,7 +104,7 @@ architectures:
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		c.Check(path, Equals, "snap-path")
 		c.Check(si, IsNil)
 		return info, nil, nil
@@ -130,7 +126,7 @@ assumes: [f1, f2]`
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -148,7 +144,7 @@ assumes: [common-data-dir]`
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -182,7 +178,7 @@ version: 2
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -218,7 +214,7 @@ version: 2
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -231,7 +227,8 @@ version: 2
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
-	release.OnClassic = false
+	reset := release.MockOnClassic(false)
+	defer reset()
 
 	st := state.New(nil)
 	st.Lock()
@@ -245,7 +242,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -258,7 +255,8 @@ version: 1
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetCannotBeInstalledOnClassic(c *C) {
-	release.OnClassic = true
+	reset := release.MockOnClassic(true)
+	defer reset()
 
 	st := state.New(nil)
 	st.Lock()
@@ -272,7 +270,7 @@ version: 1
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 
-	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.File, error) {
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)

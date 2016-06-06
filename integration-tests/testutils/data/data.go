@@ -43,4 +43,6 @@ const (
 	HomeConsumerSnapName = "home-consumer"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
 	WrongYamlSnapName = "wrong-yaml"
+	// DevKmsg reads /dev/kmsg and is useful to test confinement
+	DevKmsg = "dev-kmsg"
 )
