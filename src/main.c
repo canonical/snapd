@@ -26,7 +26,6 @@
 #include "classic.h"
 #include "mount-support.h"
 #include "snap.h"
-#include "user-support.h"
 #include "utils.h"
 #ifdef STRICT_CONFINEMENT
 #include "seccomp-support.h"
@@ -101,9 +100,6 @@ int main(int argc, char **argv)
 		if (real_uid != 0 && getegid() == 0)
 			die("dropping privs did not work");
 	}
-	// Ensure that the user data path exists.
-	setup_user_data();
-
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 
 #ifdef STRICT_CONFINEMENT
