@@ -40,6 +40,7 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
+// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
 type SnapSetupFlags Flags
 
 // backward compatibility: upgrade old flags based on snappy.* flags values
@@ -84,10 +85,12 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name, ss.Revision)
 }
 
+// DevMode returns true if the snap is being installed in developer mode.
 func (ss *SnapSetup) DevMode() bool {
 	return ss.Flags&DevMode != 0
 }
 
+// TryMode returns true if the snap is being installed in try mode directly from a directory.
 func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
@@ -405,6 +408,7 @@ func (m *SnapManager) Stop() {
 	m.runner.Stop()
 }
 
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var ss SnapSetup
 
