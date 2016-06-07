@@ -4,7 +4,9 @@ snap_confine_SOURCES = \
 	utils.c \
 	utils.h \
 	snap.c \
-	snap.h
+	snap.h \
+	classic.c \
+	classic.h
 snap_confine_CFLAGS = -Wall -Werror
 snap_confine_LDADD =
 

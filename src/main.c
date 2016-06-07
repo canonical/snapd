@@ -31,20 +31,11 @@
 
 #include "utils.h"
 #include "snap.h"
+#include "classic.h"
 #ifdef STRICT_CONFINEMENT
 #include "seccomp-support.h"
 #include "udev-support.h"
 #endif				// ifdef STRICT_CONFINEMENT
-
-bool is_running_on_classic_distribution()
-{
-	// NOTE: keep this list sorted please
-	return false
-	    || access("/var/lib/dpkg/status", F_OK) == 0
-	    || access("/var/lib/pacman", F_OK) == 0
-	    || access("/var/lib/portage", F_OK) == 0
-	    || access("/var/lib/rpm", F_OK) == 0;
-}
 
 #ifdef STRICT_CONFINEMENT
 void setup_private_mount(const char *appname)
