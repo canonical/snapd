@@ -46,9 +46,30 @@ func (s *SnapSuite) TestList(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer
-foo +4.2 +17 +bar
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer +Notes
+foo +4.2 +17 +bar +-
 `)
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestListEmpty(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"list"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, "No snaps are installed yet. Try 'snap install hello-world'.\n")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -70,10 +91,33 @@ func (s *SnapSuite) TestListWithQuery(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"list", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer
-foo +4.2 +17 +bar
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer +Notes
+foo +4.2 +17 +bar +-
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(n, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestListWithNotes(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17, "trymode": true}]}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"list"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer +Notes
+foo +4.2 +17 +bar +try
+`)
+	c.Check(s.Stderr(), check.Equals, "")
 }

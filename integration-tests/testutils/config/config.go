@@ -38,6 +38,7 @@ type Config struct {
 	Update        bool
 	Rollback      bool
 	FromBranch    bool
+	Verbose       bool
 }
 
 // Write writes the config to a file that will be copied to the test bed.

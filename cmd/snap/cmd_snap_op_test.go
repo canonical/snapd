@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"regexp"
 	"strconv"
 
 	"gopkg.in/check.v1"
@@ -174,15 +175,46 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapSuite) TestRefreshList(c *check.C) {
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			c.Check(r.URL.Query().Get("select"), check.Equals, "refresh")
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "revision":17,"summary":"some summary"}]}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--list"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
+foo +4.2update1 +bar +- +some summary
+`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, 1)
+}
+
 func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
-	tryDir := c.MkDir()
+	// pass relative path to cmd
+	tryDir := "some-dir"
 
 	s.srv.checker = func(r *http.Request) {
+		// ensure the client always sends the absolute path
+		fullTryDir, err := filepath.Abs(tryDir)
+		c.Assert(err, check.IsNil)
+
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
 		postData, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ntry\r\n.*")
-		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", tryDir))
+		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"snap-path\"\r\n\r\n%s\r\n.*", regexp.QuoteMeta(fullTryDir)))
 		c.Assert(string(postData), check.Matches, fmt.Sprintf("(?s).*Content-Disposition: form-data; name=\"devmode\"\r\n\r\n%s\r\n.*", strconv.FormatBool(devmode)))
 	}
 

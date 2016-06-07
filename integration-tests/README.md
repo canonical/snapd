@@ -155,6 +155,40 @@ test, *always* call the methods of the common suite:
 	    s.SnappySuite.TearDownTest(c)
     }
 
+### Classic-only and all-snaps-only tests
+
+There are some integration tests which only work in classic ubuntu systems, and
+some which only work in all-snaps systems.
+
+These tests are guarded by a build tag. If you develop a test that will work
+only in one type of system remember to add corresponding tag to the top of the
+file.
+
+For tests that will run only in a classic system, use:
+
+```
+// -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!allsnaps
+...
+```
+
+For tests that will run only in an all-snap system, use
+```
+// -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration,!classic
+...
+```
+
+The autopkgtest runner uses a classic testbed so it will exclude the
+all-snaps-only tests by passing the classic tag.
+
+The main.go runner executes by default in an all-snaps system so it will
+exclude the classic-only tests by passing the all-snaps tag. If you are
+using this runner to execute the tests in a classic system you can run the
+right set of tests by passing the flag:
+
+    go run integration-tests/main.go -test-build-tags=classic
+
 ### Tests with reboots
 
 `adt-run` supports reboots during tests. A test can request a reboot specifying
@@ -202,7 +236,11 @@ must use the build tag:
 This allows to exclude the tests that require a reboot by passing `excludereboots`
 to the `test-build-tags` flag:
 
-    go run integration-tests/main.go -test-build-tags=excludereboots
+    go run integration-tests/main.go -test-build-tags=excludereboots,classic
+
+or:
+
+    go run integration-tests/main.go -test-build-tags=excludereboots,allsnaps
 
 ### Update-rollback stress test
 
@@ -229,21 +267,6 @@ We have found that some tests give random results on low-performance systems. Yo
 exclude these tests by passing `lowperformance` to the `test-build-tags` flag:
 
     go run integration-tests/main.go -test-build-tags=lowperformance
-
-### Classic-only tests
-
-There are certain integration tests which at the moment only work in classic ubuntu systems, for
-instance the unity suite, which checks features that currently are only available in desktop systems.
-
-These tests are guarded by the `classiconly` build tag, the autopkgtest runner is configured to
-include it when building the tests' binary. If you develop a test of this type remember to add it at
-the top of the file:
-
-```
-// -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration,classiconly
-...
-```
 
 ### Store tests
 

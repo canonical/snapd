@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +17,48 @@
  *
  */
 
-package snappy
+package main
 
 import (
-	. "gopkg.in/check.v1"
+	"strings"
 
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/client"
 )
 
-func (s *SnapTestSuite) TestUnlinkSnapActiveVsNotActive(c *C) {
-	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeApp)
-
-	err := unlinkSnap(foo2, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-
-	err = unlinkSnap(foo1, &progress.NullProgress{})
-	c.Assert(err, Equals, ErrSnapNotActive)
+type Notes struct {
+	Confinement string
+	Price       string
+	Private     bool
+	DevMode     bool
+	TryMode     bool
 }
 
-func (s *SnapTestSuite) TestCanRemoveGadget(c *C) {
-	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeGadget)
+func (n *Notes) String() string {
+	var ns []string
 
-	c.Check(CanRemove(foo2, true), Equals, false)
+	if n.Price != "" {
+		ns = append(ns, n.Price)
+	}
 
-	c.Check(CanRemove(foo1, false), Equals, true)
+	if n.Confinement != "" {
+		if n.Confinement != client.StrictConfinement {
+			ns = append(ns, n.Confinement)
+		}
+	} else if n.DevMode {
+		ns = append(ns, "devmode")
+	}
+
+	if n.Private {
+		ns = append(ns, "private")
+	}
+
+	if n.TryMode {
+		ns = append(ns, "try")
+	}
+
+	if len(ns) == 0 {
+		return "-"
+	}
+
+	return strings.Join(ns, ",")
 }

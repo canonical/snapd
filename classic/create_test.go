@@ -52,6 +52,9 @@ var _ = Suite(&CreateTestSuite{})
 
 func (t *CreateTestSuite) SetUpTest(c *C) {
 	t.BaseTest.SetUpTest(c)
+	if release.ReleaseInfo.ID != "ubuntu" {
+		c.Skip("classic test only work on ubuntu")
+	}
 
 	dirs.SetRootDir(c.MkDir())
 

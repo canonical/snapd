@@ -43,7 +43,7 @@ const (
 	imgPath             = "imgPath"
 	testbedIP           = "1.1.1.1"
 	testbedPort         = 90
-	adtrunTpl           = "adt-run -B --override-control %s --built-tree %s --output-dir %s --setup-commands touch /run/autopkgtest_no_reboot.stamp %s"
+	adtrunTpl           = "adt-run -B -q --override-control %s --built-tree %s --output-dir %s --setup-commands touch /run/autopkgtest_no_reboot.stamp %s"
 )
 
 type AutoPkgTestSuite struct {
@@ -222,6 +222,35 @@ func (s *AutoPkgTestSuite) TestAdtRunEnv(c *check.C) {
 		adtrunTpl, controlFile, sourceCodePath, testOutputDir, "--env var1=value1 testbed-options")
 	c.Check(s.execCalls[expectedCommandCall], check.Equals, 1,
 		check.Commentf("Expected call %s not executed 1 time", expectedCommandCall))
+}
+
+func (s *AutoPkgTestSuite) TestAdtRunLocalAddsQuietFlag(c *check.C) {
+	s.adtRunAddsQuietFlag(c, true)
+}
+
+func (s *AutoPkgTestSuite) TestAdtRunRemoteAddsQuietFlag(c *check.C) {
+	s.adtRunAddsQuietFlag(c, false)
+}
+
+func (s *AutoPkgTestSuite) adtRunAddsQuietFlag(c *check.C, local bool) {
+	s.subject.Verbose = true
+
+	if local {
+		s.subject.AdtRunLocal(imgPath)
+	} else {
+		s.subject.AdtRunRemote(testbedIP, testbedPort)
+	}
+
+	match := false
+	for call := range s.execCalls {
+		if strings.HasPrefix(call, "adt-run") {
+			if strings.Contains(call, " -q ") {
+				match = true
+				break
+			}
+		}
+	}
+	c.Assert(match, check.Equals, false, check.Commentf("quiet flag found in adt-run call with verbose=true"))
 }
 
 func tplExecuteCmd(tplFile, outputFile string, data interface{}) string {

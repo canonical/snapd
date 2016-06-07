@@ -22,6 +22,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -191,17 +192,37 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
+	List       bool   `long:"list" description:"show available snaps for refresh"`
 	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
-	} `positional-args:"yes" required:"yes"`
+	} `positional-args:"yes"`
 }
 
-func (x *cmdRefresh) Execute([]string) error {
+func refreshAll() error {
+	// FIXME: move this to snapd instead and have a new refresh-all endpoint
 	cli := Client()
-	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel}
-	changeID, err := cli.Refresh(name, opts)
+	updates, _, err := cli.Find(&client.FindOptions{Refresh: true})
+	if err != nil {
+		return fmt.Errorf("cannot list updates: %s", err)
+	}
+
+	for _, update := range updates {
+		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
+		if err != nil {
+			return err
+		}
+		if _, err := wait(cli, changeID); err != nil {
+			return err
+		}
+	}
+
+	return listSnaps(nil)
+}
+
+func refreshOne(name, channel string) error {
+	cli := Client()
+	changeID, err := cli.Refresh(name, &client.SnapOptions{Channel: channel})
 	if err != nil {
 		return err
 	}
@@ -209,7 +230,20 @@ func (x *cmdRefresh) Execute([]string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
+
 	return listSnaps([]string{name})
+}
+
+func (x *cmdRefresh) Execute([]string) error {
+	if x.List {
+		return findSnaps(&client.FindOptions{
+			Refresh: true,
+		})
+	}
+	if x.Positional.Snap == "" {
+		return refreshAll()
+	}
+	return refreshOne(x.Positional.Snap, x.Channel)
 }
 
 type cmdTry struct {
@@ -225,7 +259,13 @@ func (x *cmdTry) Execute([]string) error {
 	opts := &client.SnapOptions{
 		DevMode: x.DevMode,
 	}
-	changeID, err := cli.Try(name, opts)
+
+	path, err := filepath.Abs(name)
+	if err != nil {
+		return fmt.Errorf("cannot get full path for %q: %s", name, err)
+	}
+
+	changeID, err := cli.Try(path, opts)
 	if err != nil {
 		return err
 	}
