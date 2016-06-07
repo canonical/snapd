@@ -79,6 +79,7 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	} else {
 		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q"), snapName, channel))
 	}
+
 	prepare.Set("snap-setup", ss)
 
 	tasks := []*state.Task{prepare}
@@ -435,6 +436,9 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		return nil, err
 	}
 	for snapName, snapState := range stateMap {
+		if snapState.Current() == nil {
+			continue
+		}
 		snapInfo, err := readInfo(snapName, snapState.Current())
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)

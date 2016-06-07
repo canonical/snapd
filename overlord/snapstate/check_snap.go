@@ -105,6 +105,10 @@ func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flag
 		return fmt.Errorf("cannot install a gadget snap on classic")
 	}
 
-	// there should always be a gadget snap on devices
-	return fmt.Errorf("cannot find original gadget snap")
+	// FIXME: hrm, hrm, at firstboot we really have no gadget yet
+	return nil
+	/*
+		// there should always be a gadget snap on devices
+		return fmt.Errorf("cannot find original gadget snap")
+	*/
 }
