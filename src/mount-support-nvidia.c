@@ -35,10 +35,10 @@ void sc_bind_mount_nvidia_driver()
 	glob_t glob_res __attribute__ ((__cleanup__(globfree))) = {
 	.gl_pathv = NULL};
 	int err = glob("/usr/lib/nvidia-[1-9][0-9][0-9]/",
-		       GLOB_NOCHECK | GLOB_ONLYDIR | GLOB_MARK, NULL,
+		       GLOB_ONLYDIR | GLOB_MARK, NULL,
 		       &glob_res);
-	if (err != 0) {
-		die("cannot glob for nvidia drivers: %d", err);
+	if (err != 0 && err != GLOB_NOMATCH) {
+		die("cannot for nvidia drivers: %d", err);
 	}
 	switch (glob_res.gl_pathc) {
 	case 0:
