@@ -53,12 +53,9 @@ const (
 	// support
 	firstInterimUsableFlagValue
 
-	// RollbackMode means the given snap got rolled back
-	RollbackMode
-
-	// if we need flags for just SnapSetup it may be easier
-	// to start a new sequence from the other end with:
-	// 0x40000000 >> iota
+	// Flags for SnapSetup:
+	// RollbackOp means the given snap got rolled back
+	RollbackOp = 0x40000000 >> iota
 )
 
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
@@ -327,12 +324,12 @@ func Rollback(s *state.State, name, ver string) (*state.TaskSet, error) {
 	ss := SnapSetup{
 		Name:     name,
 		Revision: snapst.Current().Revision,
-		Flags:    RollbackMode,
+		Flags:    RollbackOp,
 	}
 	ssPrev := SnapSetup{
 		Name:     name,
 		Revision: snapst.Previous().Revision,
-		Flags:    RollbackMode,
+		Flags:    RollbackOp,
 	}
 
 	prepare := s.NewTask("prepare-rollback", fmt.Sprintf(i18n.G("Prepare rollback of %q"), name))
