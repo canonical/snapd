@@ -22,6 +22,7 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 
 	"gopkg.in/tomb.v2"
@@ -36,10 +37,12 @@ import (
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
+	store   StoreService
 
 	runner *state.TaskRunner
 }
 
+// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
 type SnapSetupFlags Flags
 
 // backward compatibility: upgrade old flags based on snappy.* flags values
@@ -84,10 +87,12 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name, ss.Revision)
 }
 
+// DevMode returns true if the snap is being installed in developer mode.
 func (ss *SnapSetup) DevMode() bool {
 	return ss.Flags&DevMode != 0
 }
 
+// TryMode returns true if the snap is being installed in try mode directly from a directory.
 func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
@@ -148,9 +153,20 @@ func (snapst *SnapState) SetTryMode(active bool) {
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
 	backend := &defaultBackend{}
+
+	storeID := ""
+	// TODO: set the store-id here from the model information
+	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
+		storeID = cand
+	}
+	store := store.NewUbuntuStoreSnapRepository(nil, storeID)
+	// TODO: if needed we could also put the store on the state using
+	// the Cache mechanism and an accessor function
+
 	m := &SnapManager{
 		state:   s,
 		backend: backend,
+		store:   store,
 		runner:  runner,
 	}
 
@@ -183,6 +199,16 @@ func Manager(s *state.State) (*SnapManager, error) {
 	}, nil)
 
 	return m, nil
+}
+
+// Store returns the store service used by the manager.
+func (m *SnapManager) Store() StoreService {
+	return m.store
+}
+
+// ReplaceStore replaces the store used by manager.
+func (m *SnapManager) ReplaceStore(store StoreService) {
+	m.store = store
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
@@ -272,7 +298,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		auther = user.Authenticator()
 	}
 
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, auther)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, m.store, auther)
 	if err != nil {
 		return err
 	}
@@ -405,6 +431,7 @@ func (m *SnapManager) Stop() {
 	m.runner.Stop()
 }
 
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var ss SnapSetup
 
