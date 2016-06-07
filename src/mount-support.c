@@ -127,7 +127,9 @@ void setup_private_pts()
 void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
-
+#ifdef ROOTFS_IS_CORE_SNAP
+#error "not implemented"
+#else
 	// we mount some whitelisted directories
 	//
 	// Note that we do not mount "/etc/" from snappy. We could do that,
@@ -159,6 +161,7 @@ void setup_snappy_os_mounts()
 			die("unable to bind %s to %s", src, dst);
 		}
 	}
+#endif				// ROOTFS_IS_CORE_SNAP
 }
 
 void setup_slave_mount_namespace()
