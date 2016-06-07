@@ -86,6 +86,11 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 	output = cli.ExecCommand(c, "ls", "/var/snap/hello-world")
 	c.Assert(output, testutil.Contains, "current")
 
+	// rollback again and it errors
+	output, err = cli.ExecCommandErr("sudo", "snap", "rollback", snap)
+	c.Assert(err, check.NotNil)
+	c.Assert(output, check.Matches, "error:.*: can only rollback once\n")
+
 	// do a `refresh all` and ensure we do not upgrade to the version
 	// we just rolled back from
 	output = cli.ExecCommand(c, "sudo", "snap", "refresh")
@@ -97,4 +102,9 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 	output = cli.ExecCommand(c, "sudo", "snap", "refresh", snap)
 	c.Check(output, check.Matches, "(?ms).*^hello-world.*")
 	c.Check(output, testutil.Contains, "fake1")
+
+	// and rollback again (after the refresh) is fine
+	output = cli.ExecCommand(c, "sudo", "snap", "rollback", snap)
+	c.Assert(output, check.Matches, "(?ms).*^hello-world.*")
+	c.Assert(output, check.Not(testutil.Contains), "fake1")
 }
