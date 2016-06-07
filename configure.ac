@@ -76,9 +76,25 @@ AC_ARG_ENABLE([rootfs_is_core_snap],
     esac], [enable_rootfs_is_core_snap=no])
 AM_CONDITIONAL([ROOTFS_IS_CORE_SNAP], [test "x$enable_rootfs_is_core_snap" = "xyes"])
 
+# Enable special support for hosts with nvidia drivers.
+# This option allows hosts using proprietary nvidia drivers to run opengl
+# snap applications by bind-mounting the nvidia driver to /var/lib/snapd/lib/gl.
+AC_ARG_ENABLE([nvidia-mount],
+    AS_HELP_STRING([--enable-nvidia-mount], [Bind mount nvidia drivers]),
+    [case "${enableval}" in
+        yes) enable_nvidia_mount=yes ;;
+        no)  enable_nvidia_mount=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-nvidia-mount])
+    esac], [enable_nvidia_mount=no])
+AM_CONDITIONAL([NVIDIA_MOUNT], [test "x$enable_nvidia_mount" = "xyes"])
+
 AS_IF([test "x$enable_rootfs_is_core_snap" = "xyes"], [
     AC_DEFINE([ROOTFS_IS_CORE_SNAP], [1],
         [Use the core snap as the root file system])])
+
+AS_IF([test "x$enable_nvidia_mount" = "xyes"], [
+    AC_DEFINE([NVIDIA_MOUNT], [1],
+        [Bind mount nvidia drivers to /var/lib/snapd/lib/gl])])
 
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile compat/Makefile])
 AC_OUTPUT

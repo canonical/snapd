@@ -8,7 +8,9 @@ snap_confine_SOURCES = \
 	classic.c \
 	classic.h \
 	mount-support.c \
-	mount-support.h
+	mount-support.h \
+	mount-support-nvidia.c \
+	mount-support-nvidia.h
 snap_confine_CFLAGS = -Wall -Werror
 snap_confine_LDADD =
 
