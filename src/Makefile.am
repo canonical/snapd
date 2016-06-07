@@ -4,14 +4,16 @@ snap_confine_SOURCES = \
 	utils.c \
 	utils.h \
 	snap.c \
-	snap.h
+	snap.h \
+	classic.c \
+	classic.h
 snap_confine_CFLAGS = -Wall -Werror
 snap_confine_LDADD =
 
 if STRICT_CONFINEMENT
 snap_confine_SOURCES += \
-	seccomp_utils.c \
-	seccomp_utils.h \
+	seccomp-support.c \
+	seccomp-support.h \
 	udev-support.c \
 	udev-support.h
 snap_confine_CFLAGS += $(APPARMOR_CFLAGS) $(SECCOMP_CFLAGS) $(UDEV_CFLAGS)
