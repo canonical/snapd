@@ -27,9 +27,19 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
+// A StoreService can find, list available updates and offer for download snaps.
+type StoreService interface {
+	Snap(string, string, store.Authenticator) (*snap.Info, error)
+	Find(string, string, store.Authenticator) ([]*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
+	SuggestedCurrency() string
+
+	Download(*snap.Info, progress.Meter, store.Authenticator) (string, error)
+}
+
 type managerBackend interface {
 	// install releated
-	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
+	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, store StoreService, auther store.Authenticator) (*snap.Info, string, error)
 	SetupSnap(snapFilePath string, si *snap.SideInfo) error
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
@@ -56,9 +66,8 @@ type defaultBackend struct {
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 func (b *defaultBackend) Current(*snap.Info)       {}
 
-func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
-	mStore := snappy.NewConfiguredUbuntuStoreSnapRepository()
-	snap, err := mStore.Snap(name, channel, auther)
+func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, stor StoreService, auther store.Authenticator) (*snap.Info, string, error) {
+	snap, err := stor.Snap(name, channel, auther)
 	if err != nil {
 		return nil, "", err
 	}
@@ -68,7 +77,7 @@ func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info)
 		return nil, "", err
 	}
 
-	downloadedSnapFile, err := mStore.Download(snap, meter, auther)
+	downloadedSnapFile, err := stor.Download(snap, meter, auther)
 	if err != nil {
 		return nil, "", err
 	}

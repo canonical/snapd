@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -91,19 +92,19 @@ func (s *apiSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
+func (s *apiSuite) Download(*snap.Info, progress.Meter, store.Authenticator) (string, error) {
+	panic("Download not expected to be called")
+}
+
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
 func (s *apiSuite) SetUpSuite(c *check.C) {
-	newRemoteRepo = func() metarepo {
-		return s
-	}
 	muxVars = s.muxVars
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
-	newRemoteRepo = nil
 	muxVars = nil
 }
 
@@ -142,6 +143,9 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	d, err := New()
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
+
+	d.overlord.SnapManager().ReplaceStore(s)
+
 	s.d = d
 	return d
 }
@@ -333,7 +337,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"api",
 		"maxReadBuflen",
 		"muxVars",
-		"newRemoteRepo",
 		"errNothingToInstall",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
