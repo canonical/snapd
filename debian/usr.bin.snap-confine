@@ -97,6 +97,11 @@
     mount options=(rw rbind) /var/snap/ -> /tmp/snap.rootfs_*/var/snap/,
     mount options=(rw rbind) /var/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
 
+    # nvidia handling, glob needs /usr/** and the launcher must be
+    # able to bind mount the nvidia dir
+    /usr/** r,
+    mount options=(rw bind) /usr/lib/nvidia-*/ -> /var/lib/snapd/lib/gl/,
+
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
     pivot_root,
