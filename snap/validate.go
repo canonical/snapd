@@ -118,7 +118,7 @@ func ValidateApp(app *AppInfo) error {
 
 	// Validate app name
 	if !validAppName.MatchString(app.Name) {
-		return fmt.Errorf("cannot use %q as app name (app names are letters/digits with dash as separator)", app.Name)
+		return fmt.Errorf("cannot have %q as app name - use letters, digits, and dash as separator", app.Name)
 	}
 
 	// Validate the rest of the app info

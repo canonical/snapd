@@ -124,7 +124,7 @@ func (s *ValidateSuite) TestValidateAppName(c *C) {
 	}
 	for _, name := range invalidAppNames {
 		err := ValidateApp(&AppInfo{Name: name})
-		c.Assert(err, ErrorMatches, `cannot use ".*" as app name.*`)
+		c.Assert(err, ErrorMatches, `cannot have ".*" as app name.*`)
 	}
 }
 
