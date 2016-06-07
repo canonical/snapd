@@ -6,7 +6,9 @@ snap_confine_SOURCES = \
 	snap.c \
 	snap.h \
 	classic.c \
-	classic.h
+	classic.h \
+	mount-support.c \
+	mount-support.h
 snap_confine_CFLAGS = -Wall -Werror
 snap_confine_LDADD =
 
