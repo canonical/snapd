@@ -91,6 +91,13 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
+func (s *snapmgrTestSuite) TestStore(c *C) {
+	c.Check(s.snapmgr.Store(), NotNil)
+
+	s.snapmgr.ReplaceStore(nil)
+	c.Check(s.snapmgr.Store(), IsNil)
+}
+
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
 	i := 0
 	n := 5

@@ -22,6 +22,7 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 	"strconv"
 
 	"gopkg.in/tomb.v2"
@@ -36,6 +37,7 @@ import (
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
+	store   StoreService
 
 	runner *state.TaskRunner
 }
@@ -151,9 +153,20 @@ func (snapst *SnapState) SetTryMode(active bool) {
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
 	backend := &defaultBackend{}
+
+	storeID := ""
+	// TODO: set the store-id here from the model information
+	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
+		storeID = cand
+	}
+	store := store.NewUbuntuStoreSnapRepository(nil, storeID)
+	// TODO: if needed we could also put the store on the state using
+	// the Cache mechanism and an accessor function
+
 	m := &SnapManager{
 		state:   s,
 		backend: backend,
+		store:   store,
 		runner:  runner,
 	}
 
@@ -186,6 +199,16 @@ func Manager(s *state.State) (*SnapManager, error) {
 	}, nil)
 
 	return m, nil
+}
+
+// Store returns the store service used by the manager.
+func (m *SnapManager) Store() StoreService {
+	return m.store
+}
+
+// ReplaceStore replaces the store used by manager.
+func (m *SnapManager) ReplaceStore(store StoreService) {
+	m.store = store
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
@@ -275,7 +298,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		auther = user.Authenticator()
 	}
 
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, auther)
+	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, m.store, auther)
 	if err != nil {
 		return err
 	}
