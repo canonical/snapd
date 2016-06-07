@@ -92,8 +92,8 @@ func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
 
-func (ss *SnapSetup) RollbackMode() bool {
-	return ss.Flags&RollbackMode != 0
+func (ss *SnapSetup) RollbackOp() bool {
+	return ss.Flags&RollbackOp != 0
 }
 
 // SnapStateFlags are flags stored in SnapState.
@@ -629,7 +629,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	m.backend.Candidate(snapst.Candidate)
 	// in rollback mode the snap is already part of the sequence,
 	// do not add it twice
-	if !ss.RollbackMode() {
+	if !ss.RollbackOp() {
 		snapst.RollbackR = snap.Revision{}
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
