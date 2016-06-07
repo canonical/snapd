@@ -196,7 +196,7 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 }
 
 func setupDataDirs(newSnap, oldSnap *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
-	// just creates a empty data dirs
+	// just creates the empty data dirs
 
 	// Make sure the common data directory exists, even if this isn't a new
 	// install.

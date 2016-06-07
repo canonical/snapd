@@ -376,7 +376,7 @@ apps:
 
 // core & kernel
 
-// mockBootloader mocks a the bootloader interface and records all
+// mockBootloader mocks the bootloader interface and records all
 // set/get calls
 type mockBootloader struct {
 	bootvars map[string]string
