@@ -19,8 +19,6 @@
 #define SNAP_CONFINE_MOUNT_SUPPORT_NVIDIA_H
 
 // Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
-// It is assumed that the driver directory is /usr/lib/nvidia-*
-// and that only one such directory exists.
 void sc_bind_mount_nvidia_driver();
 
 #endif

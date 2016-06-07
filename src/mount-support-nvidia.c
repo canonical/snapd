@@ -29,22 +29,30 @@
 void sc_bind_mount_nvidia_driver()
 {
 #ifdef NVIDIA_MOUNT
-	// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
-	// It is assumed that the driver directory is /usr/lib/nvidia-*.
-	// and that only one such directory exists.
+	// The driver can be in one of a few locations. On some distributions
+	// it is /usr/lib/nvidia-{xxx} (where xxx is the version number)
+	// on other distributions it is just /usr/lib/nvidia.
+	// Before this is all made easy by snapd and the mount security backend
+	// we just look in all the possible places.
+	const char *patterns[] = {
+		"/usr/lib/nvidia",
+		"/usr/lib/nvidia-[1-9][0-9][0-9]",
+	};
 	glob_t glob_res __attribute__ ((__cleanup__(globfree))) = {
 	.gl_pathv = NULL};
-	int err = glob("/usr/lib/nvidia-[1-9][0-9][0-9]/",
-		       GLOB_ONLYDIR | GLOB_MARK, NULL,
-		       &glob_res);
-	if (err != 0 && err != GLOB_NOMATCH) {
-		die("cannot for nvidia drivers: %d", err);
+	for (int i = 0; i < sizeof patterns / sizeof *patterns; ++i) {
+		int err = glob(patterns[i],
+			       GLOB_ONLYDIR | GLOB_MARK | (i >
+							   0 ? GLOB_APPEND : 0),
+			       NULL, &glob_res);
+		debug("glob(%s, ...) returned %d", patterns[i], err);
 	}
 	switch (glob_res.gl_pathc) {
 	case 0:
 		debug("cannot find any nvidia drivers");
 		break;
 	case 1:;
+		// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
 		const char *src = glob_res.gl_pathv[0];
 		const char *dst = "/var/lib/snapd/lib/gl";
 		debug("bind mounting nvidia driver %s -> %s", src, dst);
