@@ -182,7 +182,7 @@ void setup_snappy_os_mounts()
 			die("cannot bind mount %s to %s", src, dst);
 		}
 	}
-	sc_bind_mount_nvidia_driver();
+	sc_bind_mount_nvidia_driver(rootfs_dir);
 	// Chroot into the new root filesystem so that / is the core snap.  Why are
 	// we using something as esoteric as pivot_root? Because this makes apparmor
 	// handling easy. Using a normal chroot makes all apparmor rules conditional.
@@ -238,7 +238,7 @@ void setup_snappy_os_mounts()
 			die("unable to bind %s to %s", src, dst);
 		}
 	}
-	sc_bind_mount_nvidia_driver();
+	sc_bind_mount_nvidia_driver("");
 #endif				// ROOTFS_IS_CORE_SNAP
 }
 

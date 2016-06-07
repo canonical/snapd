@@ -19,6 +19,7 @@
 #define SNAP_CONFINE_MOUNT_SUPPORT_NVIDIA_H
 
 // Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
-void sc_bind_mount_nvidia_driver();
+// The directory is mounted relative to the given rootfs_dir.
+void sc_bind_mount_nvidia_driver(const char *rootfs_dir);
 
 #endif

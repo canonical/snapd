@@ -26,7 +26,7 @@
 #include "utils.h"
 #endif				// ifdef NVIDIA_MOUNT
 
-void sc_bind_mount_nvidia_driver()
+void sc_bind_mount_nvidia_driver(const char *rootfs_dir)
 {
 #ifdef NVIDIA_MOUNT
 	// The driver can be in one of a few locations. On some distributions
@@ -54,7 +54,11 @@ void sc_bind_mount_nvidia_driver()
 	case 1:;
 		// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
 		const char *src = glob_res.gl_pathv[0];
-		const char *dst = "/var/lib/snapd/lib/gl";
+		char buf[512];
+		must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir,
+			      "/var/lib/snapd/lib/gl");
+		const char *dst = buf;
+
 		debug("bind mounting nvidia driver %s -> %s", src, dst);
 		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
 			die("cannot bind mount nvidia driver %s -> %s",
