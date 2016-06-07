@@ -52,8 +52,10 @@ const (
 	// for use in the interim time while we have the backward compatible
 	// support
 	firstInterimUsableFlagValue
+)
 
-	// Flags for SnapSetup:
+// SnapSetup specific flags
+const (
 	// RollbackOp means the given snap got rolled back
 	RollbackOp = 0x40000000 >> iota
 )
