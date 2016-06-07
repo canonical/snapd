@@ -22,13 +22,13 @@ package snapstate
 
 import (
 	"fmt"
+	"strconv"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -40,6 +40,30 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
+type SnapSetupFlags Flags
+
+// backward compatibility: upgrade old flags based on snappy.* flags values
+// to Flags if needed
+// XXX: this can be dropped and potentially the type at the earliest
+// in 2.0.9 (after being out for about two prune cycles), at the
+// latest when we need to recover the reserved unusable flag values,
+// or this gets annoying for other reasons
+func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
+	f, err := strconv.Atoi(string(b))
+	if err != nil {
+		return fmt.Errorf("invalid snap-setup flags: %v", err)
+	}
+	if f >= interimUnusableLegacyFlagValueMin && f < (interimUnusableLegacyFlagValueLast<<1) {
+		// snappy.DeveloperMode was 0x10, TryMode was 0x20,
+		// snapstate values are 1 and 2 so this does what we need
+		f >>= 4
+	}
+
+	*ssfl = SnapSetupFlags(f)
+
+	return nil
+}
+
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	Name     string        `json:"name"`
@@ -47,7 +71,7 @@ type SnapSetup struct {
 	Channel  string        `json:"channel,omitempty"`
 	UserID   int           `json:"user-id,omitempty"`
 
-	Flags int `json:"flags,omitempty"`
+	Flags SnapSetupFlags `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
 }
@@ -61,21 +85,15 @@ func (ss *SnapSetup) MountDir() string {
 }
 
 func (ss *SnapSetup) DevMode() bool {
-	return ss.Flags&int(snappy.DeveloperMode) != 0
+	return ss.Flags&DevMode != 0
 }
 
 func (ss *SnapSetup) TryMode() bool {
-	return ss.Flags&int(snappy.TryMode) != 0
+	return ss.Flags&TryMode != 0
 }
 
 // SnapStateFlags are flags stored in SnapState.
-type SnapStateFlags int
-
-const (
-	// DevMode switches confinement to non-enforcing mode.
-	DevMode = 1 << iota
-	TryMode
-)
+type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
@@ -102,13 +120,22 @@ func (snapst *SnapState) DevMode() bool {
 	return snapst.Flags&DevMode != 0
 }
 
+// SetDevMode sets/clears the DevMode flag in the SnapState.
+func (snapst *SnapState) SetDevMode(active bool) {
+	if active {
+		snapst.Flags |= DevMode
+	} else {
+		snapst.Flags &= ^DevMode
+	}
+}
+
 // TryMode returns true if the snap is installed in `try` mode as an
 // unpacked directory.
 func (snapst *SnapState) TryMode() bool {
 	return snapst.Flags&TryMode != 0
 }
 
-// SetTryMode sets/clears the TryMode flag in the SnapState
+// SetTryMode sets/clears the TryMode flag in the SnapState.
 func (snapst *SnapState) SetTryMode(active bool) {
 	if active {
 		snapst.Flags |= TryMode
@@ -178,8 +205,10 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if ss.Revision.Unset() {
 		// Local revisions start at -1 and go down.
+		// (unless it's a really old local revision in which case it needs fixing)
 		revision := snapst.LocalRevision
-		if revision.Unset() {
+		if revision.Unset() || revision.N > 0 {
+			// if revision.N>0 this fixes it
 			revision = snap.R(-1)
 		} else {
 			revision.N--
@@ -444,13 +473,13 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.Current(curInfo)
 
-	if err := checkSnap(t.State(), ss.SnapPath, curInfo, snappy.InstallFlags(ss.Flags)); err != nil {
+	if err := checkSnap(t.State(), ss.SnapPath, curInfo, Flags(ss.Flags)); err != nil {
 		return err
 	}
 
 	// TODO Use ss.Revision to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags)
+	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate)
 }
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -527,7 +556,18 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(newInfo, ss.Flags)
+	var oldInfo *snap.Info
+	if cur := snapst.Current(); cur != nil {
+		var err error
+		oldInfo, err = readInfo(ss.Name, cur)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -553,7 +593,8 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	return m.backend.CopySnapData(newInfo, oldInfo, ss.Flags)
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.CopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {

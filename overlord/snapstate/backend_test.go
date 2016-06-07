@@ -38,7 +38,6 @@ type fakeOp struct {
 	name     string
 	revno    snap.Revision
 	channel  string
-	flags    int
 	active   bool
 	sinfo    snap.SideInfo
 
@@ -106,7 +105,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return &snap.Info{Architectures: []string{"all"}}, nil, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo) error {
 	revno := snap.R(0)
 	if si != nil {
 		revno = si.Revision
@@ -114,7 +113,6 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 	f.ops = append(f.ops, fakeOp{
 		op:    "setup-snap",
 		name:  snapFilePath,
-		flags: flags,
 		revno: revno,
 	})
 	return nil
@@ -122,19 +120,23 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	// naive emulation for now, always works
-	return &snap.Info{SuggestedName: name, SideInfo: *si}, nil
+	info := &snap.Info{SuggestedName: name, SideInfo: *si}
+	if name == "gadget" {
+		info.Type = snap.TypeGadget
+	}
+	return info, nil
 }
 
-func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
+func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter) error {
+	p.Notify("copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
 		old = oldInfo.MountDir()
 	}
 	f.ops = append(f.ops, fakeOp{
-		op:    "copy-data",
-		name:  newInfo.MountDir(),
-		flags: flags,
-		old:   old,
+		op:   "copy-data",
+		name: newInfo.MountDir(),
+		old:  old,
 	})
 	return nil
 }
@@ -163,21 +165,18 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
+func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter) error {
+	p.Notify("undo-copy-data")
+	old := "<no-old>"
+	if oldInfo != nil {
+		old = oldInfo.MountDir()
+	}
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-copy-snap-data",
 		name: newInfo.MountDir(),
+		old:  old,
 	})
 	return nil
-}
-
-func (f *fakeSnappyBackend) CanRemove(info *snap.Info, active bool) bool {
-	f.ops = append(f.ops, fakeOp{
-		op:     "can-remove",
-		name:   info.MountDir(),
-		active: active,
-	})
-	return true
 }
 
 func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) error {
