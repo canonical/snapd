@@ -24,6 +24,9 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#ifdef ROOTFS_IS_CORE_SNAP
+#include <sys/syscall.h>
+#endif
 #include <errno.h>
 #include <sched.h>
 #include <string.h>
@@ -128,7 +131,72 @@ void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
 #ifdef ROOTFS_IS_CORE_SNAP
-#error "not implemented"
+	char rootfs_dir[MAX_BUF] = { 0 };
+	// Create a temporary directory that will become the root directory of this
+	// process later on. The directory will be used as a mount point for the
+	// core snap.
+	//
+	// XXX: This directory is never cleaned up today.
+	must_snprintf(rootfs_dir, sizeof(rootfs_dir),
+		      "/tmp/snap.rootfs_XXXXXX");
+	if (mkdtemp(rootfs_dir) == NULL) {
+		die("cannot create temporary directory for the root file system");
+	}
+	// Bind mount the OS snap into the rootfs directory.
+	const char *core_snap_dir = "/snap/ubuntu-core/current";
+	debug("bind mounting core snap: %s -> %s", core_snap_dir, rootfs_dir);
+	if (mount(core_snap_dir, rootfs_dir, NULL, MS_BIND, NULL) != 0) {
+		die("cannot bind mount core snap: %s to %s", core_snap_dir,
+		    rootfs_dir);
+	}
+	// Bind mount certain directories from the rootfs directory (with the core
+	// snap) to various places on the host OS. Each directory is justified with
+	// a short comment below.
+	const char *source_mounts[] = {
+		"/dev",		// because it contains devices on host OS
+		"/etc",		// because that's where /etc/resolv.conf lives, perhaps a bad idea
+		"/home",	// to support /home/*/snap and home interface
+		"/proc",	// fundamental filesystem
+		"/snap",	// to get access to all the snaps
+		"/sys",		// fundamental filesystem
+		"/tmp",		// to get writable tmp
+		"/var/lib/snapd",	// to get access to snap state
+		"/var/snap",	// to get access to global snap data
+		"/var/tmp",	// to get access to the other temporary directory
+	};
+	for (int i = 0; i < sizeof(source_mounts) / sizeof *source_mounts; i++) {
+		const char *src = source_mounts[i];
+		char dst[512];
+		must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir,
+			      source_mounts[i]);
+		debug("bind mounting %s to %s", src, dst);
+		// NOTE: MS_REC so that we can see anything that may be mounted under
+		// any of the directories already. This is crucial for /snap, for
+		// example.
+		//
+		// NOTE: MS_SLAVE so that the started process cannot maliciously mount
+		// anything into those places and affect the system on the outside.
+		if (mount(src, dst, NULL, MS_BIND | MS_REC | MS_SLAVE, NULL) !=
+		    0) {
+			die("cannot bind mount %s to %s", src, dst);
+		}
+	}
+	// Chroot into the new root filesystem so that / is the core snap.  Why are
+	// we using something as esoteric as pivot_root? Because this makes apparmor
+	// handling easy. Using a normal chroot makes all apparmor rules conditional.
+	// We are either running on an all-snap system where this would-be chroot
+	// didn't happen and all the rules see / as the root file system _OR_
+	// we are running on top of a classic distribution and this chroot has now
+	// moved all paths to /tmp/snap.rootfs_*. Because we are using unshare with
+	// CLONE_NEWNS we can essentially use pivot_root just like chroot but this
+	// makes apparmor unaware of the old root so everything works okay.
+	debug("chrooting into %s", rootfs_dir);
+	if (chdir(rootfs_dir) == -1) {
+		die("cannot change working directory to %s", rootfs_dir);
+	}
+	if (syscall(SYS_pivot_root, ".", rootfs_dir) == -1) {
+		die("cannot pivot_root to the new root filesystem");
+	}
 #else
 	// we mount some whitelisted directories
 	//
