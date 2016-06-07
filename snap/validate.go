@@ -117,12 +117,8 @@ func ValidateApp(app *AppInfo) error {
 	}
 
 	// Validate app name
-	if app.Name == "" {
-		return fmt.Errorf("snap app name cannot be empty")
-	}
-
 	if !validAppName.MatchString(app.Name) {
-		return fmt.Errorf("invalid snap app name: %q", app.Name)
+		return fmt.Errorf("cannot use %q as app name (app names are letters/digits with dash as separator)", app.Name)
 	}
 
 	// Validate the rest of the app info

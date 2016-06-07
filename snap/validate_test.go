@@ -119,16 +119,13 @@ func (s *ValidateSuite) TestValidateAppName(c *C) {
 		c.Check(ValidateApp(&AppInfo{Name: name}), IsNil)
 	}
 	invalidAppNames := []string{
-		"-", "--", "a--a", "a-", "a ", " a", "a a", "日本語", "한글",
-		"ру́сский язы́к", ":a", "a:", "a:a", "_a", "a_", "a_a",
+		"", "-", "--", "a--a", "a-", "a ", " a", "a a", "日本語", "한글",
+		"ру́сский язы́к", "ໄຂ່​ອີ​ສ​ເຕີ້", ":a", "a:", "a:a", "_a", "a_", "a_a",
 	}
 	for _, name := range invalidAppNames {
 		err := ValidateApp(&AppInfo{Name: name})
-		c.Assert(err, ErrorMatches, `invalid snap app name: ".*"`)
+		c.Assert(err, ErrorMatches, `cannot use ".*" as app name.*`)
 	}
-
-	// Also check empty name
-	c.Assert(ValidateApp(&AppInfo{Name: ""}), ErrorMatches, `snap app name cannot be empty`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
