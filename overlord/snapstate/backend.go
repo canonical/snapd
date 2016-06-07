@@ -30,15 +30,14 @@ import (
 type managerBackend interface {
 	// install releated
 	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, auther store.Authenticator) (*snap.Info, string, error)
-	SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error
-	CopySnapData(newSnap, oldSnap *snap.Info, flags int) error
+	SetupSnap(snapFilePath string, si *snap.SideInfo) error
+	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo) error
-	UndoCopySnapData(newSnap *snap.Info, flags int) error
+	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
-	CanRemove(info *snap.Info, active bool) bool
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
@@ -77,15 +76,13 @@ func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info)
 	return snap, downloadedSnapFile, nil
 }
 
-func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags int) error {
+func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo) error {
 	meter := &progress.NullProgress{}
-	_, err := snappy.SetupSnap(snapFilePath, sideInfo, snappy.InstallFlags(flags), meter)
+	// XXX: pass 0 for flags temporarely, until SetupSnap is moved over,
+	// anyway they aren't used atm, and probably we don't want to pass flags
+	// as before but more precise information
+	_, err := snappy.SetupSnap(snapFilePath, sideInfo, 0, meter)
 	return err
-}
-
-func (b *defaultBackend) CopySnapData(newInfo, oldInfo *snap.Info, flags int) error {
-	meter := &progress.NullProgress{}
-	return snappy.CopyData(newInfo, oldInfo, snappy.InstallFlags(flags), meter)
 }
 
 func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
@@ -94,24 +91,6 @@ func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
 	return nil
 }
 
-func (b *defaultBackend) UndoCopySnapData(newInfo *snap.Info, flags int) error {
-	meter := &progress.NullProgress{}
-	snappy.UndoCopyData(newInfo, snappy.InstallFlags(flags), meter)
-	return nil
-}
-
-func (b *defaultBackend) CanRemove(info *snap.Info, active bool) bool {
-	return snappy.CanRemove(info, active)
-}
-
 func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	return snappy.RemoveSnapFiles(s, meter)
-}
-
-func (b *defaultBackend) RemoveSnapData(info *snap.Info) error {
-	return snappy.RemoveSnapData(info)
-}
-
-func (b *defaultBackend) RemoveSnapCommonData(info *snap.Info) error {
-	return snappy.RemoveSnapCommonData(info)
 }

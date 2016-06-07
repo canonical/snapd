@@ -50,6 +50,6 @@ func (s *networkBindInterfaceSuite) TestPlugDisconnectionDisablesClientConnectio
 	output = cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
-	output = cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Equals, "request timeout\n")
+	output, err := cli.ExecCommandErr("network-consumer", providerURL)
+	c.Assert(err, check.NotNil)
 }

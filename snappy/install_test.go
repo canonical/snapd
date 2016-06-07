@@ -37,7 +37,7 @@ import (
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	name, err := Install(snapPath, "channel", LegacyAllowUnauthenticated|LegacyDoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -51,7 +51,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
+	name, err := Install(snapPath, "", LegacyAllowUnauthenticated|LegacyDoInstallGC|LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -63,7 +63,7 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
-func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
+func (s *SnapTestSuite) installThree(c *C, flags LegacyInstallFlags) {
 	c.Skip("can't really install 3 separate snap version just through the old snappy.Install interface, they all get revision 0!")
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
@@ -88,7 +88,7 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 
 // check that on install we remove all but the two newest package versions
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
-	s.installThree(c, AllowUnauthenticated|DoInstallGC)
+	s.installThree(c, LegacyAllowUnauthenticated|LegacyDoInstallGC)
 
 	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Check(err, IsNil)
@@ -111,7 +111,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 
 // check that if flags does not include DoInstallGC, no gc is done
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
-	s.installThree(c, AllowUnauthenticated)
+	s.installThree(c, LegacyAllowUnauthenticated)
 
 	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Assert(err, IsNil)

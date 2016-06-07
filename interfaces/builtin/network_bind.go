@@ -89,7 +89,7 @@ socket
 # of socket(), bind(), connect(), etc individually. While we could allow it,
 # we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
 # when LP: #1446748 is implemented.
-#socketcall
+socketcall
 `
 
 // NewNetworkBindInterface returns a new "network-bind" interface.

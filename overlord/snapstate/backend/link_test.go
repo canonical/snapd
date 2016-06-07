@@ -171,7 +171,7 @@ apps:
 	c.Assert(currentDataDir, Equals, dataDir)
 }
 
-func (s *linkSuite) TestLinkUnoIdempotent(c *C) {
+func (s *linkSuite) TestLinkUndoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 
 	const yaml = `name: hello
