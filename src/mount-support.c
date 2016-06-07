@@ -161,7 +161,6 @@ void setup_snappy_os_mounts()
 		"/snap",	// to get access to all the snaps
 		"/sys",		// fundamental filesystem
 		"/tmp",		// to get writable tmp
-		"/var/lib/snapd",	// to get access to snap state
 		"/var/snap",	// to get access to global snap data
 		"/var/tmp",	// to get access to the other temporary directory
 	};
