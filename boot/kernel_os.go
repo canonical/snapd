@@ -59,8 +59,8 @@ func copyAll(src, dst string) error {
 }
 
 // ExtractKernelAssets extracts kernel/initrd/dtb data from the given
-// Snap if required to a versioned bootloader directory so that the bootloader
-// can use it.
+// kernel snap, if required, to a versioned bootloader directory so
+// that the bootloader can use it.
 func ExtractKernelAssets(s *snap.Info, inter progress.Meter) error {
 	if s.Type != snap.TypeKernel {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
@@ -115,7 +115,7 @@ func ExtractKernelAssets(s *snap.Info, inter progress.Meter) error {
 	return dir.Sync()
 }
 
-// SetNextBoot will schedule the given os or kernel snap to be used in
+// SetNextBoot will schedule the given OS or kernel snap to be used in
 // the next boot
 func SetNextBoot(s *snap.Info) error {
 	if release.OnClassic {
@@ -149,7 +149,7 @@ func SetNextBoot(s *snap.Info) error {
 	return nil
 }
 
-// KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or Kernel snap.
+// KernelOrOsRebootRequired returns whether a reboot is required to swith to the given OS or kernel snap.
 func KernelOrOsRebootRequired(s *snap.Info) bool {
 	if s.Type != snap.TypeKernel && s.Type != snap.TypeOS {
 		return false

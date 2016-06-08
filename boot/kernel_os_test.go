@@ -37,7 +37,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-func TestKernelOS(t *testing.T) { TestingT(t) }
+func TestBoot(t *testing.T) { TestingT(t) }
 
 // XXX: share this
 // mockBootloader mocks the bootloader interface and records all
