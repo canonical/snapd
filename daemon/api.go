@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -295,17 +294,6 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 	return user, err
 }
 
-type metarepo interface {
-	Snap(string, string, store.Authenticator) (*snap.Info, error)
-	Find(string, string, store.Authenticator) ([]*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
-	SuggestedCurrency() string
-}
-
-var newRemoteRepo = func() metarepo {
-	return snappy.NewConfiguredUbuntuStoreSnapRepository()
-}
-
 var muxVars = mux.Vars
 
 func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -357,6 +345,10 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
+func getStore(c *Command) snapstate.StoreService {
+	return c.d.overlord.SnapManager().Store()
+}
+
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
@@ -376,14 +368,14 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	remoteRepo := newRemoteRepo()
-	found, err := remoteRepo.Find(query.Get("q"), query.Get("channel"), auther)
+	store := getStore(c)
+	found, err := store.Find(query.Get("q"), query.Get("channel"), auther)
 	if err != nil {
 		return InternalError("%v", err)
 	}
 
 	meta := &Meta{
-		SuggestedCurrency: remoteRepo.SuggestedCurrency(),
+		SuggestedCurrency: store.SuggestedCurrency(),
 		Sources:           []string{"store"},
 	}
 
@@ -446,7 +438,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	if user != nil {
 		auther = user.Authenticator()
 	}
-	store := newRemoteRepo()
+	store := getStore(c)
 	updates, err := store.ListRefresh(candidatesInfo, auther)
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)

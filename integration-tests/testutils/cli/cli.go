@@ -83,7 +83,7 @@ func ExecCommandWrapper(cmd *exec.Cmd) (output string, err error) {
 	if cfg.Verbose {
 		fmt.Print(output)
 	}
-	return
+	return output, err
 }
 
 // AddOptionsToCommand inserts the required coverage options in
