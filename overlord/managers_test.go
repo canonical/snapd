@@ -42,8 +42,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	// XXX: here until we split out kernel_os
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -84,7 +82,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "")
+	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
@@ -411,13 +409,8 @@ func (b *mockBootloader) Name() string {
 
 func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloader(c *C) {
 	bootloader := newMockBootloader(c.MkDir())
-	oldFB := snappy.FindBootloader
-	snappy.FindBootloader = func() (partition.Bootloader, error) {
-		return bootloader, nil
-	}
-	defer func() {
-		snappy.FindBootloader = oldFB
-	}()
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -454,13 +447,8 @@ type: os
 
 func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	bootloader := newMockBootloader(c.MkDir())
-	oldFB := snappy.FindBootloader
-	snappy.FindBootloader = func() (partition.Bootloader, error) {
-		return bootloader, nil
-	}
-	defer func() {
-		snappy.FindBootloader = oldFB
-	}()
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
