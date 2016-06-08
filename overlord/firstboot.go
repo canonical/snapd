@@ -80,7 +80,8 @@ func populateStateFromInstalled() error {
 			return err
 		}
 
-		// FIXME: nuts! short-circut the snap-setup
+		// FIXME: this is a bit nuts, we short-circut the "prepare"
+		//        task and add the meta-data we have about the snap
 		tp := ts.Tasks()[0]
 		var ss snapstate.SnapSetup
 		tp.Get("snap-setup", &ss)
@@ -88,16 +89,6 @@ func populateStateFromInstalled() error {
 		ss.Channel = si.Channel
 		ss.SnapID = si.SnapID
 		tp.Set("snap-setup", &ss)
-
-		// candiate must be set
-		var snapst snapstate.SnapState
-		err = snapstate.Get(st, info.Name(), &snapst)
-		if err != nil && err != state.ErrNoState {
-			return err
-		}
-		snapst.Candidate = &si
-		snapst.Channel = si.Channel
-		snapstate.Set(st, info.Name(), &snapst)
 
 		msg := fmt.Sprintf("First boot install of %s", filepath.Base(info.Name()))
 		chg := st.NewChange("install-snap", msg)
