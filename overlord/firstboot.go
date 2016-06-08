@@ -80,12 +80,6 @@ func populateStateFromInstalled() error {
 			return fmt.Errorf("cannot run chg: %v", chg)
 		}
 
-		// snap.Install() will install them under a new name
-		for _, fn := range []string{snapPath, snapPath + ".sideinfo"} {
-			if err := os.Remove(fn); err != nil {
-				fmt.Printf("Failed to remove %q: %s\n", fn, err)
-			}
-		}
 	}
 	ovld.Stop()
 
