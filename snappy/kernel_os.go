@@ -35,12 +35,14 @@ import (
 )
 
 // override in tests
-var findBootloader = partition.FindBootloader
+// XXX: just made it exported as quick hack until we split out this
+// from snappy and decide a proper testing interface
+var FindBootloader = partition.FindBootloader
 
 // removeKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap
 func removeKernelAssets(s snap.PlaceInfo, inter interacter) error {
-	bootloader, err := findBootloader()
+	bootloader, err := FindBootloader()
 	if err != nil {
 		return fmt.Errorf("no not remove kernel assets: %s", err)
 	}
@@ -76,7 +78,7 @@ func extractKernelAssets(s *snap.Info, flags LegacyInstallFlags, inter progress.
 		return err
 	}
 
-	bootloader, err := findBootloader()
+	bootloader, err := FindBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
 	}
@@ -129,7 +131,7 @@ func SetNextBoot(s *snap.Info) error {
 		return nil
 	}
 
-	bootloader, err := findBootloader()
+	bootloader, err := FindBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot set next boot: %s", err)
 	}
@@ -158,7 +160,7 @@ func kernelOrOsRebootRequired(s *snap.Info) bool {
 		return false
 	}
 
-	bootloader, err := findBootloader()
+	bootloader, err := FindBootloader()
 	if err != nil {
 		logger.Noticef("cannot get boot settings: %s", err)
 		return false
@@ -212,7 +214,7 @@ func SyncBoot() error {
 	if release.OnClassic {
 		return nil
 	}
-	bootloader, err := findBootloader()
+	bootloader, err := FindBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot run SyncBoot: %s", err)
 	}

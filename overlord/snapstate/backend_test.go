@@ -53,7 +53,7 @@ type fakeSnappyBackend struct {
 	linkSnapFailTrigger string
 }
 
-func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
+func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, stor snapstate.StoreService, auther store.Authenticator) (*snap.Info, string, error) {
 	p.Notify("download")
 	var macaroon string
 	if auther != nil {

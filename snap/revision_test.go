@@ -35,33 +35,33 @@ type revisionSuite struct{}
 var _ = Suite(&revisionSuite{})
 
 func (s revisionSuite) TestString(c *C) {
-	c.Assert(snap.Revision{0}.String(), Equals, "unset")
-	c.Assert(snap.Revision{10}.String(), Equals, "10")
-	c.Assert(snap.Revision{-9}.String(), Equals, "x9")
+	c.Assert(snap.R(0).String(), Equals, "unset")
+	c.Assert(snap.R(10).String(), Equals, "10")
+	c.Assert(snap.R(-9).String(), Equals, "x9")
 }
 
 func (s revisionSuite) TestUnset(c *C) {
-	c.Assert(snap.Revision{0}.Unset(), Equals, true)
-	c.Assert(snap.Revision{10}.Unset(), Equals, false)
-	c.Assert(snap.Revision{-9}.Unset(), Equals, false)
+	c.Assert(snap.R(0).Unset(), Equals, true)
+	c.Assert(snap.R(10).Unset(), Equals, false)
+	c.Assert(snap.R(-9).Unset(), Equals, false)
 }
 
 func (s revisionSuite) TestLocal(c *C) {
-	c.Assert(snap.Revision{0}.Local(), Equals, false)
-	c.Assert(snap.Revision{10}.Local(), Equals, false)
-	c.Assert(snap.Revision{-9}.Local(), Equals, true)
+	c.Assert(snap.R(0).Local(), Equals, false)
+	c.Assert(snap.R(10).Local(), Equals, false)
+	c.Assert(snap.R(-9).Local(), Equals, true)
 }
 
 func (s revisionSuite) TestStore(c *C) {
-	c.Assert(snap.Revision{0}.Store(), Equals, false)
-	c.Assert(snap.Revision{10}.Store(), Equals, true)
-	c.Assert(snap.Revision{-9}.Store(), Equals, false)
+	c.Assert(snap.R(0).Store(), Equals, false)
+	c.Assert(snap.R(10).Store(), Equals, true)
+	c.Assert(snap.R(-9).Store(), Equals, false)
 }
 
 func (s revisionSuite) TestJSON(c *C) {
 	for _, n := range []int{0, 10, -9} {
-		r := snap.Revision{n}
-		data, err := json.Marshal(snap.Revision{n})
+		r := snap.R(n)
+		data, err := json.Marshal(snap.R(n))
 		c.Assert(err, IsNil)
 		c.Assert(string(data), Equals, `"`+r.String()+`"`)
 
@@ -113,7 +113,7 @@ func (s revisionSuite) ParseRevision(c *C) {
 			c.Assert(err.Error(), Equals, test.e)
 			continue
 		}
-		c.Assert(r, Equals, snap.Revision{test.n})
+		c.Assert(r, Equals, snap.R(test.n))
 	}
 }
 
@@ -166,6 +166,6 @@ func (s *revisionSuite) TestR(c *C) {
 			continue
 		}
 
-		c.Assert(snap.R(test.v), Equals, snap.Revision{test.n})
+		c.Assert(snap.R(test.v), Equals, snap.R(test.n))
 	}
 }
