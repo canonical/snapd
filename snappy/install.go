@@ -178,7 +178,7 @@ func GarbageCollect(name string, flags LegacyInstallFlags, pb progress.Meter) er
 	}
 
 	for _, snap := range snaps[:active-1] {
-		if err := (&Overlord{}).Uninstall(snap, pb); err != nil {
+		if err := (&Overlord{}).uninstall(snap, pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}
