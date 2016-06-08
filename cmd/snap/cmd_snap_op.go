@@ -40,6 +40,15 @@ func lastLogStr(logs []string) string {
 	return logs[len(logs)-1]
 }
 
+func snapName(chg *client.Change) (string, error) {
+	var snapNames []string
+	err := chg.Get("snap-names", &snapNames)
+	if err != nil || len(snapNames) == 0 {
+		return "", fmt.Errorf("cannot extract the snap name from change %d: %s", chg.ID, err)
+	}
+	return snapNames[0], nil
+}
+
 func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
@@ -69,10 +78,11 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
-				var pkgnames []string
-				chg.Get("snap-names", &pkgnames)
-				pkgname := pkgnames[0]
-				pb.Start(pkgname+" ", float64(t.Progress.Total))
+				snapName, err := snapName(chg)
+				if err != nil {
+					return nil, err
+				}
+				pb.Start(snapName+" ", float64(t.Progress.Total))
 				lastID = t.ID
 			}
 			break
@@ -179,13 +189,11 @@ func (x *cmdInstall) Execute([]string) error {
 	}
 
 	// extract the snapName from the change, important for sideloaded
-	var snapNames []string
-
 	if installFromFile {
-		if err := chg.Get("snap-names", &snapNames); err != nil {
-			return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
+		name, err = snapName(chg)
+		if err != nil {
+			return err
 		}
-		name = snapNames[0]
 	}
 
 	return listSnaps([]string{name})
@@ -276,11 +284,10 @@ func (x *cmdTry) Execute([]string) error {
 	}
 
 	// extract the snap name
-	var snapNames []string
-	if err := chg.Get("snap-names", &snapNames); err != nil {
-		return fmt.Errorf("cannot extract the snap-name from local file %q: %s", name, err)
+	name, err = snapName(chg)
+	if err != nil {
+		return err
 	}
-	name = snapNames[0]
 
 	return listSnaps([]string{name})
 }
