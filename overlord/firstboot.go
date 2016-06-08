@@ -27,11 +27,11 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 )
 
 func populateStateFromInstalled() error {
@@ -125,7 +125,7 @@ func populateStateFromInstalled() error {
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
-	if err := snappy.FirstBoot(); err != nil {
+	if err := firstboot.FirstBoot(); err != nil {
 		return err
 	}
 

@@ -17,27 +17,26 @@
  *
  */
 
-package snappy
+package firstboot
 
 import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/systemd"
 )
 
+func TestStore(t *testing.T) { TestingT(t) }
+
 type FirstBootTestSuite struct {
-	gadgetConfig map[string]interface{}
-	globs        []string
-	ethdir       string
-	ifup         string
-	e            error
-	snapMap      map[string]*Snap
-	snapMapErr   error
+	globs  []string
+	ethdir string
+	ifup   string
+	e      error
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -45,15 +44,6 @@ var _ = Suite(&FirstBootTestSuite{})
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
-	os.MkdirAll(dirs.SnapSnapsDir, 0755)
-
-	// mock the world!
-	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
-		return []byte("ActiveState=inactive\n"), nil
-	}
-
-	err := os.MkdirAll(filepath.Join(tempdir, "etc", "systemd", "system", "multi-user.target.wants"), 0755)
-	c.Assert(err, IsNil)
 
 	s.globs = globs
 	globs = nil
@@ -61,22 +51,14 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ethdir = c.MkDir()
 	s.ifup = ifup
 	ifup = "/bin/true"
-	newSnapMap = s.newSnapMap
 
 	s.e = nil
-	s.snapMap = nil
-	s.snapMapErr = nil
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	globs = s.globs
 	ethdir = s.ethdir
 	ifup = s.ifup
-	newSnapMap = newSnapMapImpl
-}
-
-func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {
-	return s.snapMap, s.snapMapErr
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
@@ -124,45 +106,4 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
 	err = enableFirstEther()
 	c.Check(err, NotNil)
 	c.Check(os.IsNotExist(err), Equals, true)
-}
-
-var mockOSYaml = `
-name: ubuntu-core
-version: 1.0
-type: os
-`
-
-var mockKernelYaml = `
-name: canonical-linux-pc
-version: 1.0
-type: kernel
-`
-
-func (s *FirstBootTestSuite) ensureSystemSnapIsEnabledOnFirstBoot(c *C, yaml string, expectActivated bool) {
-	_, err := makeInstalledMockSnap(yaml, 11)
-	c.Assert(err, IsNil)
-
-	all, err := (&Overlord{}).Installed()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	c.Check(all[0].IsActive(), Equals, false)
-
-	c.Assert(FirstBoot(), IsNil)
-
-	all, err = (&Overlord{}).Installed()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	c.Check(all[0].IsActive(), Equals, expectActivated)
-}
-
-func (s *FirstBootTestSuite) TestSystemSnapsEnablesOS(c *C) {
-	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockOSYaml, true)
-}
-
-func (s *FirstBootTestSuite) TestSystemSnapsEnablesKernel(c *C) {
-	s.ensureSystemSnapIsEnabledOnFirstBoot(c, mockKernelYaml, true)
-}
-
-func (s *FirstBootTestSuite) TestSystemSnapsDoesEnableApps(c *C) {
-	s.ensureSystemSnapIsEnabledOnFirstBoot(c, "", true)
 }
