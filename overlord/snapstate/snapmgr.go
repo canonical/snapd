@@ -21,7 +21,9 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"strconv"
 
 	"gopkg.in/tomb.v2"
@@ -204,6 +206,18 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// check if we need to read .sideinfo files
+	var si snap.SideInfo
+	if (ss.Flags & WithSideInfo) > 0 {
+		metafn := ss.SnapPath + ".sideinfo"
+		if j, err := ioutil.ReadFile(metafn); err == nil {
+			if err := json.Unmarshal(j, &si); err != nil {
+				return fmt.Errorf("cannot read metadata: %s %s\n", metafn, err)
+			}
+		}
+		ss.Revision = si.Revision
+	}
+
 	if ss.Revision.Unset() {
 		// Local revisions start at -1 and go down.
 		// (unless it's a really old local revision in which case it needs fixing)
@@ -219,6 +233,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
+		si.Revision = revision
 	} else {
 		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
 			return err
@@ -227,10 +242,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = &snap.SideInfo{
-		Revision: ss.Revision,
-		SnapID:   ss.SnapID,
-	}
+	snapst.Candidate = &si
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
