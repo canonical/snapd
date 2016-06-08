@@ -95,10 +95,6 @@ var (
 	// accepting a license is required, but no license file is provided
 	ErrLicenseNotProvided = errors.New("snap.yaml requires license, but no license was provided")
 
-	// ErrNotFirstBoot is an error that indicates that the first boot has already
-	// run
-	ErrNotFirstBoot = errors.New("this is not your first boot")
-
 	// ErrNotImplemented may be returned when an implementation of
 	// an interface is partial.
 	ErrNotImplemented = errors.New("not implemented")
