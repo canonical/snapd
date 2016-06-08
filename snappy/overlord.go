@@ -393,15 +393,15 @@ func unlinkSnap(info *snap.Info, inter interacter) error {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
-	return o.InstallWithSideInfo(snapFilePath, nil, flags, meter)
+func (o *Overlord) install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+	return o.installWithSideInfo(snapFilePath, nil, flags, meter)
 }
 
 // InstallWithSideInfo installs the given snap file to the system
 // considering the provided side info.
 //
 // It returns the local snap file or an error
-func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) installWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	var oldInfo *snap.Info
 
 	if sideInfo != nil {

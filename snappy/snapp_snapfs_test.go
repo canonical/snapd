@@ -135,7 +135,7 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     snap.R(16),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
@@ -208,7 +208,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     snap.R(16),
 	}
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).installWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
@@ -239,7 +239,7 @@ func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
 		OfficialName: "ubuntu-core",
 		Revision:     snap.R(160),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
@@ -269,7 +269,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     snap.R(40),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
@@ -292,7 +292,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     snap.R(42),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -320,7 +320,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     snap.R(42),
 	}
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).installWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
@@ -403,7 +403,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -427,7 +427,7 @@ plugs:
 `)
 	// install but our missing security-template will break the install
 	// revision will be 0
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, ErrorMatches, "could not find specified template: not-there.*")
 
 	// ensure the mount unit is not there
