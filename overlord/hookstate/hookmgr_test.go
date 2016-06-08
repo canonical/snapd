@@ -20,14 +20,12 @@
 package hookstate_test
 
 import (
-	"errors"
 	"testing"
+	"regexp"
 
 	. "gopkg.in/check.v1"
-	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/hooks"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -36,10 +34,9 @@ import (
 func TestHookManager(t *testing.T) { TestingT(t) }
 
 type hookManagerSuite struct {
-	state          *state.State
-	manager        *hookstate.HookManager
-	oldDispatch    func(hooks.HookRef, *tomb.Tomb) error
-	dispatchCalled bool
+	state      *state.State
+	manager    *hookstate.HookManager
+	mockHandler *mockHandler
 }
 
 var _ = Suite(&hookManagerSuite{})
@@ -50,20 +47,11 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	manager, err := hookstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.manager = manager
-	s.oldDispatch = hookstate.DispatchHook
-
-	s.dispatchCalled = false
-	hookstate.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
-		s.dispatchCalled = true
-		return nil
-	}
 }
 
 func (s *hookManagerSuite) TearDownTest(c *C) {
 	s.manager.Stop()
 	dirs.SetRootDir("")
-
-	hookstate.DispatchHook = s.oldDispatch
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
@@ -85,7 +73,7 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	task := tasks[0]
 	c.Check(task.Kind(), Equals, "run-hook")
 
-	var hook hooks.HookRef
+	var hook hookstate.HookRef
 	err = task.Get("hook", &hook)
 	c.Check(err, IsNil, Commentf("Expected task to contain hook"))
 	c.Check(hook.Snap, Equals, "test-snap")
@@ -103,6 +91,16 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	change.AddAll(taskSet)
 	s.state.Unlock()
 
+	// Register a handler generator for the "test-hook" hook
+	var calledContext *hookstate.Context
+	mockHandler := newMockHandler()
+	mockHandlerGenerator := func (context *hookstate.Context) hookstate.Handler {
+		calledContext = context
+		return mockHandler
+	}
+
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
 	s.manager.Ensure()
 	s.manager.Wait()
 
@@ -112,43 +110,50 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	tasks := taskSet.Tasks()
 	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
 	task := tasks[0]
+
+	hookRef := hookstate.HookRef{
+		Snap: "test-snap",
+		Revision: snap.R(1),
+		Hook: "test-hook",
+	}
+	c.Check(calledContext, DeepEquals, hookstate.NewContext(task, hookRef))
+	c.Check(mockHandler.beforeCalled, Equals, true)
+	c.Check(mockHandler.doneCalled, Equals, true)
+	c.Check(mockHandler.errorCalled, Equals, false)
 
 	c.Check(task.Kind(), Equals, "run-hook")
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
-	c.Check(s.dispatchCalled, Equals, true)
 }
 
-func (s *hookManagerSuite) TestRunHookTaskHandleFailure(c *C) {
-	hookstate.DispatchHook = func(hookRef hooks.HookRef, _ *tomb.Tomb) error {
-		return errors.New("failed at user request")
+type mockHandler struct {
+	beforeCalled bool
+	doneCalled bool
+	errorCalled bool
+	err error
+}
+
+func newMockHandler() *mockHandler {
+	return &mockHandler {
+		beforeCalled: false,
+		doneCalled: false,
+		errorCalled: false,
+		err: nil,
 	}
+}
 
-	s.state.Lock()
-	taskSet, err := hookstate.RunHook(s.state, "test-snap", snap.R(1), "test-hook")
-	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
-	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
+func (h *mockHandler) Before() error {
+	h.beforeCalled = true
+	return nil
+}
 
-	change := s.state.NewChange("kind", "summary")
-	change.AddAll(taskSet)
-	s.state.Unlock()
+func (h *mockHandler) Done() error {
+	h.doneCalled = true
+	return nil
+}
 
-	s.manager.Ensure()
-	s.manager.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	tasks := taskSet.Tasks()
-	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
-	task := tasks[0]
-
-	c.Check(task.Kind(), Equals, "run-hook")
-	c.Check(task.Status(), Equals, state.ErrorStatus)
-	c.Check(change.Status(), Equals, state.ErrorStatus)
-	c.Check(s.dispatchCalled, Equals, false)
-
-	taskLog := task.Log()
-	c.Assert(taskLog, HasLen, 1)
-	c.Check(taskLog[0], Matches, ".*error dispatching hook: failed at user request.*")
+func (h *mockHandler) Error(err error) error {
+	h.err = err
+	h.errorCalled = true
+	return nil
 }
