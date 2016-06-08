@@ -26,6 +26,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
@@ -99,7 +101,7 @@ func enableInstalledSnaps() error {
 // first ethernet device and runs gadgetConfig (as well as flagging that
 // it run)
 func FirstBoot() error {
-	if firstBootHasRun() {
+	if firstboot.HasRun() {
 		return ErrNotFirstBoot
 	}
 	defer stampFirstBoot()
@@ -108,13 +110,9 @@ func FirstBoot() error {
 	return enableInstalledSnaps()
 }
 
-// NOTE: if you change stampFile, update the condition in
-// snapd.firstboot.service to match
-var stampFile = "/var/lib/snapd/firstboot/stamp"
-
 func stampFirstBoot() error {
 	// filepath.Dir instead of firstbootDir directly to ease testing
-	stampDir := filepath.Dir(stampFile)
+	stampDir := filepath.Dir(dirs.SnapFirstBootStamp)
 
 	if _, err := os.Stat(stampDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(stampDir, 0755); err != nil {
@@ -122,7 +120,7 @@ func stampFirstBoot() error {
 		}
 	}
 
-	return osutil.AtomicWriteFile(stampFile, []byte{}, 0644, 0)
+	return osutil.AtomicWriteFile(dirs.SnapFirstBootStamp, []byte{}, 0644, 0)
 }
 
 var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
@@ -156,8 +154,4 @@ func enableFirstEther() error {
 	}
 
 	return nil
-}
-
-func firstBootHasRun() bool {
-	return osutil.FileExists(stampFile)
 }
