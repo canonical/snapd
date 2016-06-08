@@ -90,11 +90,9 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	// mock the boot variable writing for the tests
 	s.bootloader = newMockBootloader(c.MkDir())
-	FindBootloader = func() (partition.Bootloader, error) {
-		return s.bootloader, nil
-	}
+	partition.ForceBootloader(s.bootloader)
 
-	s.AddCleanup(func() { FindBootloader = partition.FindBootloader })
+	s.AddCleanup(func() { partition.ForceBootloader(nil) })
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
@@ -302,15 +300,6 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 	snap.isActive = true
 	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
-}
-
-func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
-	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, _, err := openSnapFile(snapPkg, true, nil)
-	c.Assert(err, IsNil)
-
-	err = extractKernelAssets(snap, 0, nil)
-	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
