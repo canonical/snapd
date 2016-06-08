@@ -104,10 +104,14 @@ func main() {
 	}
 	cfg.Write()
 
-	build.Assets(&build.Config{
+	err := build.Assets(&build.Config{
 		UseSnappyFromBranch: *useSnappyFromBranch,
 		Arch:                *arch,
 		TestBuildTags:       *testBuildTags})
+	if err != nil {
+		log.Printf("Assets building failed: %s", err)
+		os.Exit(1)
+	}
 
 	rootPath := testutils.RootPath()
 

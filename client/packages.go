@@ -45,8 +45,13 @@ type Snap struct {
 	Private       bool      `json:"private"`
 	DevMode       bool      `json:"devmode"`
 	TryMode       bool      `json:"trymode"`
+	Apps          []AppInfo `json:"apps"`
 
 	Prices map[string]float64 `json:"prices"`
+}
+
+type AppInfo struct {
+	Name string `json:"name"`
 }
 
 // Statuses and types a snap may have.
