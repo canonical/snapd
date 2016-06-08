@@ -259,12 +259,12 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
-		si.Revision = revision
 	} else {
 		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
 			return err
 		}
 	}
+	si.Revision = ss.Revision
 
 	st.Lock()
 	t.Set("snap-setup", ss)
