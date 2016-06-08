@@ -23,16 +23,13 @@ package hookstate
 
 import (
 	"fmt"
+	"regexp"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/hooks"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
-
-// DispatchHook is the hook dispatcher; exported here so it can be overridden in
-// tests.
-var DispatchHook = hooks.DispatchHook
 
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
@@ -40,6 +37,22 @@ var DispatchHook = hooks.DispatchHook
 type HookManager struct {
 	state  *state.State
 	runner *state.TaskRunner
+	repository *Repository
+}
+
+type Handler interface {
+	Before() error
+	Done() error
+	Error(err error) error
+}
+
+type HandlerGenerator func(*Context) Handler
+
+// HookRef is a reference to a hook within a specific snap.
+type HookRef struct {
+	Snap     string        `json:"snap"`
+	Revision snap.Revision `json:"revision"`
+	Hook     string        `json:"hook"`
 }
 
 // Manager returns a new HookManager.
@@ -48,11 +61,23 @@ func Manager(s *state.State) (*HookManager, error) {
 	manager := &HookManager{
 		state:  s,
 		runner: runner,
+		repository: NewRepository(),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
 
 	return manager, nil
+}
+
+// Register requests that a given handler generator be called when a matching
+// hook is run, and the handler be used for the hook.
+//
+// Specifically, if a matching hook is about to be run, the handler's Before()
+// method will be called. After the hook has completed running, either the
+// handler's Done() method or its Error() method will be called, depending on
+// the outcome.
+func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerator) {
+	m.repository.AddHandlerGenerator(pattern, generator)
 }
 
 // Ensure implements StateManager.Ensure.
@@ -71,9 +96,13 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
+// doRunHook actually runs the hook that was requested.
+//
+// Note that this method is synchronous, as the task is already running in a
+// goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	var hookRef hooks.HookRef
+	var hookRef HookRef
 	err := task.Get("hook", &hookRef)
 	task.State().Unlock()
 
@@ -81,8 +110,25 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("failed to extract hook from task: %s", err)
 	}
 
-	if err := DispatchHook(hookRef, tomb); err != nil {
-		return fmt.Errorf("error dispatching hook: %s", err)
+	context := &Context {
+		task: task,
+		hookRef: hookRef,
+	}
+
+	// Obtain a list of handlers for this hook (if any)
+	handlers := m.repository.GenerateHandlers(context)
+
+	// About to run the hook-- notify the handlers
+	for _, handler := range handlers {
+		handler.Before()
+	}
+
+	// TODO: Actually dispatch the hook.
+
+	// Done with the hook. TODO: Check the result, if success call Done(), if
+	// error, call Error(). Since we have no hooks, for now we just call Done().
+	for _, handler := range handlers {
+		handler.Done()
 	}
 
 	return nil
