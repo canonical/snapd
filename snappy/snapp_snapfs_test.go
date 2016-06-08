@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/systemd"
@@ -91,11 +90,11 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 
 	// mock the boot variable writing for the tests
 	s.bootloader = newMockBootloader(c.MkDir())
-	findBootloader = func() (partition.Bootloader, error) {
+	FindBootloader = func() (partition.Bootloader, error) {
 		return s.bootloader, nil
 	}
 
-	s.AddCleanup(func() { findBootloader = partition.FindBootloader })
+	s.AddCleanup(func() { FindBootloader = partition.FindBootloader })
 }
 
 func (s *SquashfsTestSuite) TearDownTest(c *C) {
@@ -135,7 +134,7 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     snap.R(16),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
@@ -208,7 +207,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     snap.R(16),
 	}
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
@@ -230,53 +229,12 @@ type: os
 vendor: Someone
 `
 
-func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	snapPkg := makeTestSnapPackage(c, packageOS)
-	si := &snap.SideInfo{
-		OfficialName: "ubuntu-core",
-		Revision:     snap.R(160),
-	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
-	c.Assert(err, IsNil)
-
-	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
-		"snappy_os":   "ubuntu-core_160.snap",
-		"snappy_mode": "try",
-	})
-}
-
 const packageKernel = `
 name: ubuntu-kernel
 version: 4.0-1
 type: kernel
 vendor: Someone
 `
-
-func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	files := [][]string{
-		{"kernel.img", "I'm a kernel"},
-		{"initrd.img", "...and I'm an initrd"},
-		{"meta/kernel.yaml", "version: 4.2"},
-	}
-	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	si := &snap.SideInfo{
-		OfficialName: "ubuntu-kernel",
-		Revision:     snap.R(40),
-	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
-	c.Assert(err, IsNil)
-
-	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
-		"snappy_kernel": "ubuntu-kernel_40.snap",
-		"snappy_mode":   "try",
-	})
-}
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	files := [][]string{
@@ -292,7 +250,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     snap.R(42),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -320,7 +278,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     snap.R(42),
 	}
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
+	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
@@ -403,7 +361,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).Install(snapPkg, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
