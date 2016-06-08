@@ -35,7 +35,8 @@ var _ = check.Suite(&homeInterfaceSuite{
 	interfaceSuite: interfaceSuite{
 		sampleSnaps: []string{data.HomeConsumerSnapName},
 		slot:        "home",
-		plug:        "home-consumer"}})
+		plug:        "home-consumer",
+		autoconnect: true}})
 
 type homeInterfaceSuite struct {
 	interfaceSuite

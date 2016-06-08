@@ -35,23 +35,9 @@ import (
 	"github.com/snapcore/snapd/progress"
 )
 
-func (s *SnapTestSuite) TestInstallInstall(c *C) {
-	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
-
-	all, err := (&Overlord{}).Installed()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	snap := all[0]
-	c.Check(snap.Name(), Equals, name)
-	c.Check(snap.IsActive(), Equals, true)
-}
-
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
+	name, err := Install(snapPath, "", LegacyAllowUnauthenticated|LegacyDoInstallGC|LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -63,7 +49,7 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
-func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
+func (s *SnapTestSuite) installThree(c *C, flags LegacyInstallFlags) {
 	c.Skip("can't really install 3 separate snap version just through the old snappy.Install interface, they all get revision 0!")
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
@@ -88,7 +74,7 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 
 // check that on install we remove all but the two newest package versions
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
-	s.installThree(c, AllowUnauthenticated|DoInstallGC)
+	s.installThree(c, LegacyAllowUnauthenticated|LegacyDoInstallGC)
 
 	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Check(err, IsNil)
@@ -111,7 +97,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 
 // check that if flags does not include DoInstallGC, no gc is done
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
-	s.installThree(c, AllowUnauthenticated)
+	s.installThree(c, LegacyAllowUnauthenticated)
 
 	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Assert(err, IsNil)
@@ -167,11 +153,11 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 
-	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
+	name, err := Install("foo", "ch", LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	_, err = Install("foo", "ch", 0, &progress.NullProgress{})
+	_, err = Install("foo", "ch", LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, ErrorMatches, ".*"+ErrAlreadyInstalled.Error())
 }
 
