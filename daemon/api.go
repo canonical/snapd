@@ -1176,7 +1176,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 			var snapNames []string
 			err := json.Unmarshal(*data["snap-names"], &snapNames)
 			if err != nil {
-				logger.Noticef("cannot get snap-name for change %v", chg.ID())
+				logger.Noticef("cannot get snap name for change %v", chg.ID())
 				return false
 			}
 			for _, snapName := range snapNames {
