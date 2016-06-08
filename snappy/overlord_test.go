@@ -153,7 +153,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
 	snap, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
+	err = (&Overlord{}).uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)

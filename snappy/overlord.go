@@ -518,10 +518,10 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	return nil
 }
 
-// Uninstall removes the given local snap from the system.
+// uninstall removes the given local snap from the system.
 //
 // It returns an error on failure
-func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
+func (o *Overlord) uninstall(s *Snap, meter progress.Meter) error {
 	if !canRemove(s.Info(), s.IsActive()) {
 		return ErrPackageNotRemovable
 	}

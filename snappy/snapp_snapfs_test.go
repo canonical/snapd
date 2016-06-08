@@ -214,7 +214,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_16.snap")), Equals, true)
 
 	// now remove and ensure its gone
-	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
+	err = (&Overlord{}).uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_16.snap")), Equals, false)
 
@@ -286,7 +286,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
-	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
+	err = (&Overlord{}).uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
@@ -299,7 +299,7 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
@@ -310,7 +310,7 @@ func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
