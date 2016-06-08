@@ -38,7 +38,7 @@ var _ = Suite(&kernelTestSuite{})
 func (s *kernelTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = newMockBootloader(c.MkDir())
-	findBootloader = func() (partition.Bootloader, error) {
+	FindBootloader = func() (partition.Bootloader, error) {
 		return s.bootloader, nil
 	}
 }

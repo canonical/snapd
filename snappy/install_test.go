@@ -35,20 +35,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 )
 
-func (s *SnapTestSuite) TestInstallInstall(c *C) {
-	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "channel", LegacyAllowUnauthenticated|LegacyDoInstallGC, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-	c.Check(name, Equals, "foo")
-
-	all, err := (&Overlord{}).Installed()
-	c.Check(err, IsNil)
-	c.Assert(all, HasLen, 1)
-	snap := all[0]
-	c.Check(snap.Name(), Equals, name)
-	c.Check(snap.IsActive(), Equals, true)
-}
-
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
 	name, err := Install(snapPath, "", LegacyAllowUnauthenticated|LegacyDoInstallGC|LegacyInhibitHooks, &progress.NullProgress{})
@@ -167,11 +153,11 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 
-	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
+	name, err := Install("foo", "ch", LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	_, err = Install("foo", "ch", 0, &progress.NullProgress{})
+	_, err = Install("foo", "ch", LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, ErrorMatches, ".*"+ErrAlreadyInstalled.Error())
 }
 
