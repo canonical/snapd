@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/firstboot"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -125,8 +126,12 @@ func populateStateFromInstalled() error {
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
-	if err := firstboot.FirstBoot(); err != nil {
-		return err
+	if firstboot.HasRun() {
+		return firstboot.ErrNotFirstBoot
+	}
+	defer firstboot.StampFirstBoot()
+	if err := firstboot.EnableFirstEther(); err != nil {
+		logger.Noticef("Failed to bring up ethernet: %s", err)
 	}
 
 	return populateStateFromInstalled()

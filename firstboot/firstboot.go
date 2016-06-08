@@ -30,29 +30,17 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func HasRun() bool {
-	return osutil.FileExists(dirs.SnapFirstBootStamp)
-}
-
 var (
 	// ErrNotFirstBoot is an error that indicates that the first boot has already
 	// run
 	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
-// FirstBoot checks whether it's the first boot, and if so enables the
-// first ethernet device and runs gadgetConfig (as well as flagging that
-// it run)
-func FirstBoot() error {
-	if HasRun() {
-		return ErrNotFirstBoot
-	}
-	defer stampFirstBoot()
-
-	return enableFirstEther()
+func HasRun() bool {
+	return osutil.FileExists(dirs.SnapFirstBootStamp)
 }
 
-func stampFirstBoot() error {
+func StampFirstBoot() error {
 	// filepath.Dir instead of firstbootDir directly to ease testing
 	stampDir := filepath.Dir(dirs.SnapFirstBootStamp)
 
@@ -69,7 +57,7 @@ var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
 var ethdir = "/etc/network/interfaces.d"
 var ifup = "/sbin/ifup"
 
-func enableFirstEther() error {
+func EnableFirstEther() error {
 	var eths []string
 	for _, glob := range globs {
 		eths, _ = filepath.Glob(glob)

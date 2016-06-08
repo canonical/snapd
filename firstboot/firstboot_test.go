@@ -61,22 +61,8 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	ifup = s.ifup
 }
 
-func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
-	c.Assert(FirstBoot(), IsNil)
-	_, err := os.Stat(dirs.SnapFirstBootStamp)
-	c.Assert(err, IsNil)
-
-	c.Assert(FirstBoot(), Equals, ErrNotFirstBoot)
-}
-
-func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
-	c.Assert(FirstBoot(), IsNil)
-	_, err := os.Stat(dirs.SnapFirstBootStamp)
-	c.Assert(err, IsNil)
-}
-
 func (s *FirstBootTestSuite) TestEnableFirstEther(c *C) {
-	c.Check(enableFirstEther(), IsNil)
+	c.Check(EnableFirstEther(), IsNil)
 	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
 	c.Assert(fs, HasLen, 0)
 }
@@ -87,7 +73,7 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 	c.Assert(err, IsNil)
 
 	globs = []string{filepath.Join(dir, "eth*")}
-	c.Check(enableFirstEther(), IsNil)
+	c.Check(EnableFirstEther(), IsNil)
 	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
 	c.Assert(fs, HasLen, 1)
 	bs, err := ioutil.ReadFile(fs[0])
@@ -103,7 +89,7 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
 
 	ethdir = "/no/such/thing"
 	globs = []string{filepath.Join(dir, "eth*")}
-	err = enableFirstEther()
+	err = EnableFirstEther()
 	c.Check(err, NotNil)
 	c.Check(os.IsNotExist(err), Equals, true)
 }
