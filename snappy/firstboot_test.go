@@ -46,7 +46,6 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
 	os.MkdirAll(dirs.SnapSnapsDir, 0755)
-	stampFile = filepath.Join(c.MkDir(), "stamp")
 
 	// mock the world!
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
@@ -82,7 +81,7 @@ func (s *FirstBootTestSuite) newSnapMap() (map[string]*Snap, error) {
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 	c.Assert(FirstBoot(), IsNil)
-	_, err := os.Stat(stampFile)
+	_, err := os.Stat(dirs.SnapFirstBootStamp)
 	c.Assert(err, IsNil)
 
 	c.Assert(FirstBoot(), Equals, ErrNotFirstBoot)
@@ -90,7 +89,7 @@ func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
 
 func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
 	c.Assert(FirstBoot(), IsNil)
-	_, err := os.Stat(stampFile)
+	_, err := os.Stat(dirs.SnapFirstBootStamp)
 	c.Assert(err, IsNil)
 }
 
