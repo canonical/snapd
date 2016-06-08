@@ -37,7 +37,7 @@ import (
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "channel", LegacyAllowUnauthenticated|LegacyDoInstallGC, &progress.NullProgress{})
+	name, err := install(snapPath, "channel", LegacyAllowUnauthenticated|LegacyDoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -51,7 +51,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "", LegacyAllowUnauthenticated|LegacyDoInstallGC|LegacyInhibitHooks, &progress.NullProgress{})
+	name, err := install(snapPath, "", LegacyAllowUnauthenticated|LegacyDoInstallGC|LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -74,15 +74,15 @@ func (s *SnapTestSuite) installThree(c *C, flags LegacyInstallFlags) {
 	snapYamlContent := `name: foo
 `
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
+	_, err = install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
+	_, err = install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 3.0")
-	_, err = Install(snapPath, "", flags, &progress.NullProgress{})
+	_, err = install(snapPath, "", flags, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 }
 
@@ -167,11 +167,11 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
 	c.Assert(err, IsNil)
 
-	name, err := Install("foo", "ch", 0, &progress.NullProgress{})
+	name, err := install("foo", "ch", 0, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
-	_, err = Install("foo", "ch", 0, &progress.NullProgress{})
+	_, err = install("foo", "ch", 0, &progress.NullProgress{})
 	c.Assert(err, ErrorMatches, ".*"+ErrAlreadyInstalled.Error())
 }
 
@@ -210,6 +210,6 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	_, err = Install("hello-snap", "ch", 0, ag)
+	_, err = install("hello-snap", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
 }
