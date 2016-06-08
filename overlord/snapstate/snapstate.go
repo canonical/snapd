@@ -57,6 +57,12 @@ const (
 	// 0x40000000 >> iota
 )
 
+const (
+	// WithSideInfo makes the code look for .sideinfo files for sideloaded
+	// snaps (used in first-boot)
+	WithSideInfo = 0x40000000 >> iota
+)
+
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, snapName); err != nil {
 		return nil, err
@@ -160,6 +166,20 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
+
+	return doInstall(s, snapst.Active, name, path, channel, 0, flags)
+}
+
+// InstallPathWithSideInfo returns a set of tasks for installing snap from
+// a file path with an additional ".sideinfo" file next to it.
+// Note that the state must be locked by the caller.
+func InstallPathWithSideInfo(s *state.State, name, path, channel string, flags Flags) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	flags |= WithSideInfo
 
 	return doInstall(s, snapst.Active, name, path, channel, 0, flags)
 }

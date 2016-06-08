@@ -20,9 +20,7 @@
 package overlord
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -57,39 +55,19 @@ func populateStateFromInstalled() error {
 		if err != nil {
 			return err
 		}
-
-		// Stuff that we do from the first-boot install bits
-		var si snap.SideInfo
-		metafn := snapPath + ".meta"
-		if j, err := ioutil.ReadFile(metafn); err == nil {
-			// FIXME: proper error handling
-			if err := json.Unmarshal(j, &si); err != nil {
-				fmt.Printf("Cannot read metadata: %s %s\n", metafn, err)
-				continue
-			}
-		}
-		info, err := snap.ReadInfoFromSnapFile(sf, &si)
+		info, err := snap.ReadInfoFromSnapFile(sf, nil)
 		if err != nil {
 			return err
 		}
 		fmt.Printf("Installing %s\n", info.Name())
 
 		st.Lock()
-		ts, err := snapstate.InstallPath(st, info.Name(), snapPath, "", 0)
+		ts, err := snapstate.InstallPathWithSideInfo(st, info.Name(), snapPath, "", 0)
 		if err != nil {
 			return err
 		}
 
-		// FIXME: this is a bit nuts, we short-circut the "prepare"
-		//        task and add the meta-data we have about the snap
-		tp := ts.Tasks()[0]
-		var ss snapstate.SnapSetup
-		tp.Get("snap-setup", &ss)
-		ss.Revision = si.Revision
-		ss.Channel = si.Channel
-		ss.SnapID = si.SnapID
-		tp.Set("snap-setup", &ss)
-
+		// FIXME: make this a single change
 		msg := fmt.Sprintf("First boot install of %s", filepath.Base(info.Name()))
 		chg := st.NewChange("install-snap", msg)
 		chg.AddAll(ts)
@@ -103,7 +81,7 @@ func populateStateFromInstalled() error {
 		}
 
 		// snap.Install() will install them under a new name
-		for _, fn := range []string{snapPath, snapPath + ".meta"} {
+		for _, fn := range []string{snapPath, snapPath + ".sideinfo"} {
 			if err := os.Remove(fn); err != nil {
 				fmt.Printf("Failed to remove %q: %s\n", fn, err)
 			}
