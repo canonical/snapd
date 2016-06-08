@@ -33,6 +33,7 @@
 
 #include "utils.h"
 #include "snap.h"
+#include "classic.h"
 #include "mount-support-nvidia.h"
 
 #define MAX_BUF 1000
@@ -128,6 +129,23 @@ void setup_private_pts()
 #endif				// ifdef STRICT_CONFINEMENT
 }
 
+static void sc_bind_mount_hostfs(const char *rootfs_dir)
+{
+	// Create a read-only bind mount from "/" to
+	// "$rootfs_dir/var/lib/snapd/hostfs".
+	char buf[512];
+	must_snprintf(buf, sizeof buf, "%s%s", rootfs_dir, SC_HOSTFS_DIR);
+	debug("bind-mounting host filesystem at %s", buf);
+	if (mount("/", buf, NULL, MS_BIND | MS_RDONLY, NULL) != 0) {
+		if (errno == ENOENT) {
+			die("cannot bind-mount host filesystem\n"
+			    "the core snap is too old, please run: snap refresh ubuntu-core");
+		} else {
+			die("cannot bind-mount host filesystem at %s", buf);
+		}
+	}
+}
+
 void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
@@ -181,7 +199,12 @@ void setup_snappy_os_mounts()
 			die("cannot bind mount %s to %s", src, dst);
 		}
 	}
-	sc_bind_mount_nvidia_driver(rootfs_dir);
+#ifdef NVIDIA_ARCH
+	// Make this conditional on Nvidia support for Arch as Ubuntu doesn't use
+	// this so far and it requires a very recent version of the core snap.
+	sc_bind_mount_hostfs(rootfs_dir);
+#endif
+	sc_mount_nvidia_driver(rootfs_dir);
 	// Chroot into the new root filesystem so that / is the core snap.  Why are
 	// we using something as esoteric as pivot_root? Because this makes apparmor
 	// handling easy. Using a normal chroot makes all apparmor rules conditional.
@@ -237,7 +260,7 @@ void setup_snappy_os_mounts()
 			die("unable to bind %s to %s", src, dst);
 		}
 	}
-	sc_bind_mount_nvidia_driver("");
+	sc_mount_nvidia_driver("");
 #endif				// ROOTFS_IS_CORE_SNAP
 }
 
