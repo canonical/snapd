@@ -27,58 +27,58 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type HomeInterfaceSuite struct {
+type GsettingsInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&HomeInterfaceSuite{
-	iface: builtin.NewHomeInterface(),
+var _ = Suite(&GsettingsInterfaceSuite{
+	iface: builtin.NewGsettingsInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
-			Name:      "home",
-			Interface: "home",
+			Name:      "gsettings",
+			Interface: "gsettings",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "home",
-			Interface: "home",
+			Name:      "gsettings",
+			Interface: "gsettings",
 		},
 	},
 })
 
-func (s *HomeInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "home")
+func (s *GsettingsInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "gsettings")
 }
 
-func (s *HomeInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *GsettingsInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "home",
-		Interface: "home",
+		Name:      "gsettings",
+		Interface: "gsettings",
 	}})
-	c.Assert(err, ErrorMatches, "home slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "gsettings slots are reserved for the operating system snap")
 }
 
-func (s *HomeInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *GsettingsInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *HomeInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *GsettingsInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "home"`)
+		PanicMatches, `slot is not of interface "gsettings"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "home"`)
+		PanicMatches, `plug is not of interface "gsettings"`)
 }
 
-func (s *HomeInterfaceSuite) TestUnusedSecuritySystems(c *C) {
+func (s *GsettingsInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
 		interfaces.SecurityUDev}
@@ -101,14 +101,18 @@ func (s *HomeInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *HomeInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *GsettingsInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	// connected plugs have a non-nil security snippet for seccomp
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
+func (s *GsettingsInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
@@ -123,6 +127,6 @@ func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
+func (s *GsettingsInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, true)
 }

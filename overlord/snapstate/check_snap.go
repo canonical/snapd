@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
@@ -69,7 +68,7 @@ func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, sna
 var openSnapFile = openSnapFileImpl
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flags snappy.InstallFlags) error {
+func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
 	// XXX: actually verify snap before using content from it unless dev-mode
 
 	s, _, err := openSnapFile(snapFilePath, nil)
