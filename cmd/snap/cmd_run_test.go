@@ -23,6 +23,7 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"os/user"
 	"sort"
 	"syscall"
 
@@ -47,6 +48,9 @@ func (s *SnapSuite) TestSnapRunSnapExecAppEnv(c *check.C) {
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
+	usr, err := user.Current()
+	c.Assert(err, check.IsNil)
+
 	env := snaprun.SnapExecAppEnv(info.Apps["app"])
 	sort.Strings(env)
 	c.Check(env, check.DeepEquals, []string{
@@ -56,7 +60,7 @@ func (s *SnapSuite) TestSnapRunSnapExecAppEnv(c *check.C) {
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=snapname",
 		"SNAP_REVISION=42",
-		"SNAP_USER_DATA=/snap/snapname/42",
+		fmt.Sprintf("SNAP_USER_DATA=%s/snap/snapname/42", usr.HomeDir),
 		"SNAP_VERSION=1.0",
 	})
 }
