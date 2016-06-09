@@ -45,6 +45,7 @@ var _ = check.Suite(&createUserSuite{})
 
 // obtained via:
 //  `curl https://login.staging.ubuntu.com/api/v2/keys/mvo@ubuntu.com`
+//  `curl https://login.staging.ubuntu.com/api/v2/keys/xDPXBdB`
 var mockServerJSON = `{
     "username": "mvo", 
     "ssh_keys": [
