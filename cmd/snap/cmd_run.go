@@ -106,8 +106,8 @@ func snapExecAppEnv(app *snap.AppInfo) []string {
 		Home: os.Getenv("$HOME"),
 	}
 	for _, envVar := range append(
-		snapenv.GetBasicSnapEnvVars(wrapperData),
-		snapenv.GetUserSnapEnvVars(wrapperData)...) {
+		snapenv.Basic(wrapperData),
+		snapenv.User(wrapperData)...) {
 		env = append(env, envVar)
 	}
 	return env
