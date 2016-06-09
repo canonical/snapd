@@ -38,7 +38,6 @@ type fakeOp struct {
 	name     string
 	revno    snap.Revision
 	channel  string
-	flags    int
 	active   bool
 	sinfo    snap.SideInfo
 
@@ -54,7 +53,7 @@ type fakeSnappyBackend struct {
 	linkSnapFailTrigger string
 }
 
-func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, auther store.Authenticator) (*snap.Info, string, error) {
+func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, stor snapstate.StoreService, auther store.Authenticator) (*snap.Info, string, error) {
 	p.Notify("download")
 	var macaroon string
 	if auther != nil {
@@ -106,7 +105,7 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return &snap.Info{Architectures: []string{"all"}}, nil, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, flags int) error {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo) error {
 	revno := snap.R(0)
 	if si != nil {
 		revno = si.Revision
@@ -114,7 +113,6 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, fl
 	f.ops = append(f.ops, fakeOp{
 		op:    "setup-snap",
 		name:  snapFilePath,
-		flags: flags,
 		revno: revno,
 	})
 	return nil
