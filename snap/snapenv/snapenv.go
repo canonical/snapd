@@ -27,17 +27,17 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// GetBasicSnapEnvVars returns the app-level environment variables for a snap.
+// Basic returns the app-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func Basic(app *snap.AppInfo) []string {
+func Basic(info *snap.Info) []string {
 	return []string{
-		fmt.Sprintf("SNAP=%s", app.Snap.MountDir()),
-		fmt.Sprintf("SNAP_DATA=%s", app.Snap.DataDir()),
-		fmt.Sprintf("SNAP_NAME=%s", app.Snap.Name()),
-		fmt.Sprintf("SNAP_VERSION=%s", app.Snap.Version),
-		fmt.Sprintf("SNAP_REVISION=%s", app.Snap.Revision),
+		fmt.Sprintf("SNAP=%s", info.MountDir()),
+		fmt.Sprintf("SNAP_DATA=%s", info.DataDir()),
+		fmt.Sprintf("SNAP_NAME=%s", info.Name()),
+		fmt.Sprintf("SNAP_VERSION=%s", info.Version),
+		fmt.Sprintf("SNAP_REVISION=%s", info.Revision),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 	}
@@ -47,9 +47,9 @@ func Basic(app *snap.AppInfo) []string {
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func User(app *snap.AppInfo, home string) []string {
+func User(info *snap.Info, home string) []string {
 	// FIXME: should go into PlacementInfo
-	userData := filepath.Join(home, app.Snap.MountDir())
+	userData := filepath.Join(home, info.MountDir())
 	return []string{
 		fmt.Sprintf("SNAP_USER_DATA=%s", userData),
 	}
