@@ -43,7 +43,7 @@ func Basic(app *snap.AppInfo) []string {
 	}
 }
 
-// GetUserSnapEnvVars returns the user-level environment variables for a snap.
+// User returns the user-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
