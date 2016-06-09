@@ -31,22 +31,8 @@ type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
 
-func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
-	envList := []string{
-		"PATH=/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS=unix:abstract=something1234",
-	}
-	envMap := MakeMapFromEnvList(envList)
-	c.Assert(envMap, DeepEquals, map[string]string{
-		"PATH": "/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=something1234",
-	})
+func (ts *HTestSuite) TestBasic(c *C) {
 }
 
-func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
-	envList := []string{
-		"nonsesne",
-	}
-	envMap := MakeMapFromEnvList(envList)
-	c.Assert(envMap, DeepEquals, map[string]string(nil))
+func (ts *HTestSuite) TestUser(c *C) {
 }
