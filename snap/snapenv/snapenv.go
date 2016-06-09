@@ -22,27 +22,11 @@ package snapenv
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"text/template"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/logger"
 )
-
-// MakeMapFromEnvList takes a string list of the form "key=value"
-// and returns a map[string]string from that list
-// This is useful for os.Environ() manipulation
-func MakeMapFromEnvList(env []string) map[string]string {
-	envMap := map[string]string{}
-	for _, l := range env {
-		split := strings.SplitN(l, "=", 2)
-		if len(split) != 2 {
-			return nil
-		}
-		envMap[split[0]] = split[1]
-	}
-	return envMap
-}
 
 func fillSnapEnvVars(desc interface{}, vars []string) []string {
 	for i, v := range vars {
