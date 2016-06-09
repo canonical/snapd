@@ -132,7 +132,7 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     snap.R(16),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// after install the blob is in the right dir
@@ -205,7 +205,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 		OfficialName: "hello-snap",
 		Revision:     snap.R(16),
 	}
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, LegacyInhibitHooks, &MockProgressMeter{})
+	snap, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
@@ -214,7 +214,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_16.snap")), Equals, true)
 
 	// now remove and ensure its gone
-	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
+	err = (&Overlord{}).uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "hello-snap_16.snap")), Equals, false)
 
@@ -248,7 +248,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     snap.R(42),
 	}
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -276,7 +276,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 		OfficialName: "ubuntu-kernel",
 		Revision:     snap.R(42),
 	}
-	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
+	snap, err := (&Overlord{}).installWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	installedSnap, err := NewInstalledSnap(filepath.Join(snap.MountDir(), "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
@@ -286,7 +286,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, true)
 
 	// ensure uninstall cleans the kernel assets
-	err = (&Overlord{}).Uninstall(installedSnap, &MockProgressMeter{})
+	err = (&Overlord{}).uninstall(installedSnap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(kernelAssetsDir), Equals, false)
 }
@@ -299,7 +299,7 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
@@ -310,7 +310,7 @@ func (s *SquashfsTestSuite) TestActiveOSNotRemovable(c *C) {
 	c.Assert(err, IsNil)
 
 	snap.isActive = true
-	c.Assert((&Overlord{}).Uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
+	c.Assert((&Overlord{}).uninstall(snap, &MockProgressMeter{}), Equals, ErrPackageNotRemovable)
 }
 
 func (s *SquashfsTestSuite) TestInstallOsRebootRequired(c *C) {
@@ -350,7 +350,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapNoUnpacksKernelForGrub(c *C) {
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
-	_, err := (&Overlord{}).Install(snapPkg, LegacyInhibitHooks, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(snapPkg, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -374,7 +374,7 @@ plugs:
 `)
 	// install but our missing security-template will break the install
 	// revision will be 0
-	_, err := (&Overlord{}).Install(snapPkg, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(snapPkg, 0, &MockProgressMeter{})
 	c.Assert(err, ErrorMatches, "could not find specified template: not-there.*")
 
 	// ensure the mount unit is not there
