@@ -106,7 +106,7 @@ func snapExecAppEnv(app *snap.AppInfo) []string {
 		// must be an absolute path for
 		//   ubuntu-core-launcher/snap-confine
 		// which will mkdir() SNAP_USER_DATA for us
-		Home: os.Getenv("$HOME"),
+		Home: os.Getenv("HOME"),
 	}
 	for _, envVar := range append(
 		snapenv.Basic(wrapperData),
