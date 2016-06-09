@@ -45,7 +45,7 @@ var mockAppInfo = &snap.AppInfo{
 }
 
 func (ts *HTestSuite) TestBasic(c *C) {
-	env := GetBasicSnapEnvVars(mockAppInfo)
+	env := Basic(mockAppInfo)
 	sort.Strings(env)
 
 	c.Assert(env, DeepEquals, []string{
@@ -61,7 +61,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
-	env := GetUserSnapEnvVars(mockAppInfo, "/root")
+	env := User(mockAppInfo, "/root")
 	c.Assert(env, DeepEquals, []string{
 		"SNAP_USER_DATA=/root/snap/foo/17",
 	})

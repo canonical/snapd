@@ -31,7 +31,7 @@ import (
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func GetBasicSnapEnvVars(app *snap.AppInfo) []string {
+func Basic(app *snap.AppInfo) []string {
 	return []string{
 		fmt.Sprintf("SNAP=%s", app.Snap.MountDir()),
 		fmt.Sprintf("SNAP_DATA=%s", app.Snap.DataDir()),
@@ -47,7 +47,7 @@ func GetBasicSnapEnvVars(app *snap.AppInfo) []string {
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func GetUserSnapEnvVars(app *snap.AppInfo, home string) []string {
+func User(app *snap.AppInfo, home string) []string {
 	// FIXME: should go into PlacementInfo
 	userData := filepath.Join(home, app.Snap.MountDir())
 	return []string{
