@@ -26,7 +26,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -67,22 +66,10 @@ export HOME="$SNAP_USER_DATA"
 	wrapperData := struct {
 		App     *snap.AppInfo
 		EnvVars string
-		// XXX: needed by snapenv
-		SnapName string
-		SnapArch string
-		SnapPath string
-		Version  string
-		Revision snap.Revision
-		Home     string
+		Home    string
 	}{
-		App: app,
-		// XXX: needed by snapenv
-		SnapName: app.Snap.Name(),
-		SnapArch: arch.UbuntuArchitecture(),
-		SnapPath: app.Snap.MountDir(),
-		Version:  app.Snap.Version,
-		Revision: app.Snap.Revision,
-		Home:     "$HOME",
+		App:  app,
+		Home: "$HOME",
 	}
 
 	envVars := []string{}
