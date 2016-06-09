@@ -178,7 +178,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	p := &MockProgressMeter{}
-	name, err := installRemote(mStore, r, 0, p)
+	name, err := installRemote(mStore, r, LegacyInhibitHooks, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	st, err := os.Stat(snapPackage)
@@ -227,6 +227,7 @@ apps:
 	r.OfficialName = "foo"
 	r.Developer = "bar"
 	r.Version = "1.0"
+	r.Revision = snap.R(10)
 	r.Developer = testDeveloper
 	r.AnonDownloadURL = mockServer.URL + "/snap"
 	r.DownloadURL = mockServer.URL + "/snap"
@@ -234,12 +235,12 @@ apps:
 
 	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
 	p := &MockProgressMeter{}
-	name, err := installRemote(mStore, r, 0, p)
+	name, err := installRemote(mStore, r, LegacyInhibitHooks, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 	c.Check(p.notified, HasLen, 0)
 
-	name, err = installRemote(mStore, r, 0, p)
+	name, err = installRemote(mStore, r, LegacyInhibitHooks, p)
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 }
@@ -253,7 +254,7 @@ architectures:
 `
 
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	_, err := s.overlord.Install(snapPkg, 0, &MockProgressMeter{})
+	_, err := s.overlord.install(snapPkg, 0, &MockProgressMeter{})
 	errorMsg := fmt.Sprintf("package's supported architectures (yadayada, blahblah) is incompatible with this system (%s)", arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
 }
