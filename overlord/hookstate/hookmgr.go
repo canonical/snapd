@@ -48,8 +48,8 @@ type Handler interface {
 
 type HandlerGenerator func(*Context) Handler
 
-// HookRef is a reference to a hook within a specific snap.
-type HookRef struct {
+// HookSetup is a reference to a hook within a specific snap.
+type HookSetup struct {
 	Snap     string        `json:"snap"`
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
@@ -102,8 +102,8 @@ func (m *HookManager) Stop() {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	var hookRef HookRef
-	err := task.Get("hook", &hookRef)
+	var hookSetup HookSetup
+	err := task.Get("hook", &hookSetup)
 	task.State().Unlock()
 
 	if err != nil {
@@ -111,8 +111,8 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	context := &Context{
-		task:    task,
-		hookRef: hookRef,
+		task:      task,
+		hookSetup: hookSetup,
 	}
 
 	// Obtain a list of handlers for this hook (if any)

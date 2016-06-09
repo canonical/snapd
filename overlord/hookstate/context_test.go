@@ -42,11 +42,11 @@ func (s *contextSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	hookRef := hookstate.HookRef{Hook: "test-hook", Snap: "test-snap"}
-	s.context = hookstate.NewContext(task, hookRef)
+	hookSetup := hookstate.HookSetup{Hook: "test-hook", Snap: "test-snap"}
+	s.context = hookstate.NewContext(task, hookSetup)
 }
 
-func (s *contextSuite) TestHookRef(c *C) {
+func (s *contextSuite) TestHookSetup(c *C) {
 	c.Check(s.context.HookName(), Equals, "test-hook")
 	c.Check(s.context.SnapName(), Equals, "test-snap")
 }

@@ -35,21 +35,21 @@ type hooksSuite struct{}
 
 var _ = Suite(&hooksSuite{})
 
-func (s *hooksSuite) TestJsonMarshalHookRef(c *C) {
-	hookRef := hookstate.HookRef{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
-	out, err := json.Marshal(hookRef)
+func (s *hooksSuite) TestJsonMarshalHookSetup(c *C) {
+	hookSetup := hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
+	out, err := json.Marshal(hookSetup)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
 }
 
-func (s *hooksSuite) TestJsonUnmarshalHookRef(c *C) {
-	out, err := json.Marshal(hookstate.HookRef{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
+func (s *hooksSuite) TestJsonUnmarshalHookSetup(c *C) {
+	out, err := json.Marshal(hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
 	c.Assert(err, IsNil)
 
-	var hookRef hookstate.HookRef
-	err = json.Unmarshal(out, &hookRef)
+	var hookSetup hookstate.HookSetup
+	err = json.Unmarshal(out, &hookSetup)
 	c.Assert(err, IsNil)
-	c.Check(hookRef.Snap, Equals, "snap-name")
-	c.Check(hookRef.Revision, Equals, snap.R(1))
-	c.Check(hookRef.Hook, Equals, "hook-name")
+	c.Check(hookSetup.Snap, Equals, "snap-name")
+	c.Check(hookSetup.Revision, Equals, snap.R(1))
+	c.Check(hookSetup.Hook, Equals, "hook-name")
 }
