@@ -55,11 +55,11 @@ func fillSnapEnvVars(desc interface{}, vars []string) []string {
 	return vars
 }
 
-// GetBasicSnapEnvVars returns the app-level environment variables for a snap.
+// Basic returns the app-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func GetBasicSnapEnvVars(desc interface{}) []string {
+func Basic(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP={{.SnapPath}}",
 		"SNAP_DATA=/var{{.SnapPath}}",
@@ -71,11 +71,11 @@ func GetBasicSnapEnvVars(desc interface{}) []string {
 	})
 }
 
-// GetUserSnapEnvVars returns the user-level environment variables for a snap.
+// User returns the user-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func GetUserSnapEnvVars(desc interface{}) []string {
+func User(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP_USER_DATA={{.Home}}{{.SnapPath}}",
 	})

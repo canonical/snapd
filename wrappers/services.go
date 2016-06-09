@@ -250,8 +250,8 @@ WantedBy={{.ServiceTargetUnit}}
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	allVars := snapenv.GetBasicSnapEnvVars(wrapperData)
-	allVars = append(allVars, snapenv.GetUserSnapEnvVars(wrapperData)...)
+	allVars := snapenv.Basic(wrapperData)
+	allVars = append(allVars, snapenv.User(wrapperData)...)
 	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

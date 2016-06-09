@@ -87,8 +87,8 @@ export HOME="$SNAP_USER_DATA"
 
 	envVars := []string{}
 	for _, envVar := range append(
-		snapenv.GetBasicSnapEnvVars(wrapperData),
-		snapenv.GetUserSnapEnvVars(wrapperData)...) {
+		snapenv.Basic(wrapperData),
+		snapenv.User(wrapperData)...) {
 		envVars = append(envVars, quoteEnvVar(envVar))
 	}
 	wrapperData.EnvVars = strings.Join(envVars, "\n")
