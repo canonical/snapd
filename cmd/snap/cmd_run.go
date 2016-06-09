@@ -34,10 +34,10 @@ import (
 
 type cmdRun struct {
 	Positional struct {
-		SnapApp string `positional-arg-name:"<snapApp>" description:"the application to run, e.g. hello-world.env"`
+		SnapApp string `positional-arg-name:"<app name>" description:"the application to run, e.g. hello-world.env"`
 	} `positional-args:"yes" required:"yes"`
 
-	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
+	Command string `long:"command" description:"alternative command to run"`
 }
 
 func init() {
@@ -55,7 +55,7 @@ func (x *cmdRun) Execute(args []string) error {
 
 func getSnapInfo(snapName string) (*snap.Info, error) {
 	// we need to get the revision here because once we are inside
-	// the confinement its not available anymore
+	// the confinement the snapd API may be unavailable.
 	snaps, err := Client().List([]string{snapName})
 	if err != nil {
 		return nil, err
@@ -77,8 +77,10 @@ func getSnapInfo(snapName string) (*snap.Info, error) {
 	return info, nil
 }
 
-// returns phase1 env (same vars for all apps)
-func getPhase1AppEnv(app *snap.AppInfo) []string {
+// returns the app environment that is important for
+// the later stages of executing the application
+// (like SNAP_REVISION that snap-exec requires to work)
+func snapExecAppEnv(app *snap.AppInfo) []string {
 	env := []string{}
 	wrapperData := struct {
 		App     *snap.AppInfo
@@ -139,7 +141,7 @@ func snapRun(snapApp, command string, args []string) error {
 	cmd = append(cmd, args...)
 
 	// build env
-	env := append(os.Environ(), getPhase1AppEnv(app)...)
+	env := append(os.Environ(), snapExecAppEnv(app)...)
 
 	// launch!
 	return SyscallExec(cmd[0], cmd, env)
