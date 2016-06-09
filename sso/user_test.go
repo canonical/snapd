@@ -43,6 +43,17 @@ type createUserSuite struct {
 
 var _ = check.Suite(&createUserSuite{})
 
+// obtained via:
+//  `curl https://login.staging.ubuntu.com/api/v2/keys/mvo@ubuntu.com`
+var mockServerJSON = `{
+    "username": "mvo", 
+    "ssh_keys": [
+        "ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAqwsTkky+laeukWyGFmtiAQUFgjD+wKYuRtOj11gjTe3qUNDgMR54W8IUELZ6NwNWs2wium+jQZLY4vlsDq4PkYK8J2qgjRZURCKp4JbjbVNSg2WO7vDtl+0FIC1GaCdglRVWffrwKN1RLlwqBCVXi01nnTk3+hEpWddjqoTXMwM= egon@top", 
+        "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDKBFmfD1KNULZv35907+ArIfxdGGzF1XCQj287AgK7k5GWcEdnUQfkSUHRZ4cNOqshY6W3CyDzVAmaDmeB9A7qpmsVlQp2D8y253+F2NMm1bcDdT3weG5vxkdF5qdx99gRMwDYJ4WZgIryrCAOqDLKmoSEuyuh1Zil9pDGPh/grf+EgXzDFnntgE8XJVKIldsbUplCmycSNtk47PtJATJ8q5v2dIazlxwmxKfarXS7x805u4ElrZ2h3JMCOOfL1k3sJbYc4JbZ6zB8DAhSsZ79KrStn3DE+gULmPJjM0HEbtouegZpE5wcHldoo4Oi78uNrwtv1lWp4AnK/Xwm3bl/ egon@bod\r\n"
+    ], 
+    "openid_identifier": "xDPXBdB"
+}`
+
 func (s *createUserSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })
@@ -57,7 +68,7 @@ func (s *createUserSuite) TestCreateUser(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/api/v2/keys/popper@lse.ac.uk")
-			fmt.Fprintln(w, `{"username": "karl", "ssh_keys": ["ssh-rsa AAAAB3Nz karl@hennie"]}`)
+			fmt.Fprintln(w, mockServerJSON)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -76,9 +87,10 @@ func (s *createUserSuite) TestCreateUser(c *check.C) {
 
 	name, err := sso.CreateUser("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
-	c.Check(name, check.Equals, "karl")
-	c.Check(addUserName, check.Equals, "karl")
-	c.Check(addUserKeys, check.DeepEquals, []string{"ssh-rsa AAAAB3Nz karl@hennie"})
+	c.Check(name, check.Equals, "mvo")
+	c.Check(addUserName, check.Equals, "mvo")
+	c.Check(addUserKeys, check.DeepEquals, []string{"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAqwsTkky+laeukWyGFmtiAQUFgjD+wKYuRtOj11gjTe3qUNDgMR54W8IUELZ6NwNWs2wium+jQZLY4vlsDq4PkYK8J2qgjRZURCKp4JbjbVNSg2WO7vDtl+0FIC1GaCdglRVWffrwKN1RLlwqBCVXi01nnTk3+hEpWddjqoTXMwM= egon@top",
+		"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDKBFmfD1KNULZv35907+ArIfxdGGzF1XCQj287AgK7k5GWcEdnUQfkSUHRZ4cNOqshY6W3CyDzVAmaDmeB9A7qpmsVlQp2D8y253+F2NMm1bcDdT3weG5vxkdF5qdx99gRMwDYJ4WZgIryrCAOqDLKmoSEuyuh1Zil9pDGPh/grf+EgXzDFnntgE8XJVKIldsbUplCmycSNtk47PtJATJ8q5v2dIazlxwmxKfarXS7x805u4ElrZ2h3JMCOOfL1k3sJbYc4JbZ6zB8DAhSsZ79KrStn3DE+gULmPJjM0HEbtouegZpE5wcHldoo4Oi78uNrwtv1lWp4AnK/Xwm3bl/ egon@bod\r\n"})
 }
 
 func (s *createUserSuite) TestAddUser(c *check.C) {
