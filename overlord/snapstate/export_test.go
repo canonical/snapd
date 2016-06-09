@@ -82,3 +82,9 @@ var (
 	CheckSnap = checkSnap
 	CanRemove = canRemove
 )
+
+// flagscompat
+const (
+	InterimUnusableFlagValueMin  = interimUnusableLegacyFlagValueMin
+	InterimUnusableFlagValueLast = interimUnusableLegacyFlagValueLast
+)

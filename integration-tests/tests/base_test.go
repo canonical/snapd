@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/report"
 	"github.com/snapcore/snapd/integration-tests/testutils/runner"
 	"github.com/snapcore/snapd/integration-tests/testutils/wait"
+	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -53,8 +54,14 @@ func init() {
 	wait.ForFunction(c, "regular", partition.Mode)
 
 	if _, err := os.Stat(config.DefaultFileName); err == nil {
-		cli.ExecCommand(c, "sudo", "systemctl", "stop", "snappy-autopilot.timer")
-		cli.ExecCommand(c, "sudo", "systemctl", "disable", "snappy-autopilot.timer")
+		timerName := "snapd.refresh.timer"
+		// FIXME: compat with old os images, kill once we have released
+		//        a stable OS snap with snapd 2.0.7
+		if osutil.FileExists("/lib/systemd/system/snappy-autopilot.service") {
+			timerName = "snappy-autopilot.timer"
+		}
+		cli.ExecCommand(c, "sudo", "systemctl", "stop", timerName)
+		cli.ExecCommand(c, "sudo", "systemctl", "disable", timerName)
 
 		cfg, err := config.ReadConfig(config.DefaultFileName)
 		c.Assert(err, check.IsNil, check.Commentf("Error reading config: %v", err))

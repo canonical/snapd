@@ -24,7 +24,6 @@ import (
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -38,9 +37,11 @@ var _ = Suite(&kernelTestSuite{})
 func (s *kernelTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.bootloader = newMockBootloader(c.MkDir())
-	findBootloader = func() (partition.Bootloader, error) {
-		return s.bootloader, nil
-	}
+	partition.ForceBootloader(s.bootloader)
+}
+
+func (s *kernelTestSuite) TearDownTest(c *C) {
+	partition.ForceBootloader(nil)
 }
 
 func (s *kernelTestSuite) TestNameAndRevnoFromSnap(c *C) {
@@ -111,15 +112,4 @@ func (s *kernelTestSuite) TestSyncBoot(c *C) {
 	c.Assert(found[0].Revision(), Equals, snap.R(20))
 	c.Assert(found[0].Version(), Equals, "v1")
 	c.Assert(found[0].IsActive(), Equals, true)
-}
-
-// SetNextBoot should do nothing on classic LP: #1580403
-func (s *kernelTestSuite) TestSetNextBootOnClassic(c *C) {
-	restore := release.MockOnClassic(true)
-	defer restore()
-
-	// Create a fake OS snap that we try to update
-	snapInfo := snaptest.MockSnap(c, "type: os", &snap.SideInfo{Revision: snap.R(42)})
-	err := SetNextBoot(snapInfo)
-	c.Assert(err, IsNil)
 }
