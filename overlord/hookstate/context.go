@@ -21,29 +21,35 @@ package hookstate
 
 import (
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 type Context struct {
-	task      *state.Task
-	hookSetup HookSetup
+	task  *state.Task
+	setup hookSetup
 }
 
-// NewContext returns a new context with the given task and setup.
-func NewContext(task *state.Task, hookSetup HookSetup) *Context {
+// newContext returns a new context with the given task and setup.
+func newContext(task *state.Task, setup hookSetup) *Context {
 	return &Context{
-		task:      task,
-		hookSetup: hookSetup,
+		task:  task,
+		setup: setup,
 	}
-}
-
-// HookName returns the name of the hook in this context.
-func (c *Context) HookName() string {
-	return c.hookSetup.Hook
 }
 
 // SnapName returns the name of the snap containing the hook.
 func (c *Context) SnapName() string {
-	return c.hookSetup.Snap
+	return c.setup.Snap
+}
+
+// SnapRevision returns the revision of the snap containing the hook.
+func (c *Context) SnapRevision() snap.Revision {
+	return c.setup.Revision
+}
+
+// HookName returns the name of the hook in this context.
+func (c *Context) HookName() string {
+	return c.setup.Hook
 }
 
 // Lock acquires the state lock for this context (required for Set/Get).

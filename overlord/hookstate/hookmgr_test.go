@@ -59,28 +59,6 @@ func (s *hookManagerSuite) TestSmoke(c *C) {
 	s.manager.Wait()
 }
 
-func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	taskSet, err := hookstate.RunHook(s.state, "test-snap", snap.R(1), "test-hook")
-	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
-	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
-
-	tasks := taskSet.Tasks()
-	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
-
-	task := tasks[0]
-	c.Check(task.Kind(), Equals, "run-hook")
-
-	var hookSetup hookstate.HookSetup
-	err = task.Get("hook", &hookSetup)
-	c.Check(err, IsNil, Commentf("Expected task to contain hook"))
-	c.Check(hookSetup.Snap, Equals, "test-snap")
-	c.Check(hookSetup.Revision, Equals, snap.R(1))
-	c.Check(hookSetup.Hook, Equals, "test-hook")
-}
-
 func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	s.state.Lock()
 	taskSet, err := hookstate.RunHook(s.state, "test-snap", snap.R(1), "test-hook")
@@ -111,12 +89,11 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
 	task := tasks[0]
 
-	hookSetup := hookstate.HookSetup{
-		Snap:     "test-snap",
-		Revision: snap.R(1),
-		Hook:     "test-hook",
-	}
-	c.Check(calledContext, DeepEquals, hookstate.NewContext(task, hookSetup))
+	c.Assert(calledContext, NotNil, Commentf("Expected handler generator to be called with a valid context"))
+	c.Check(calledContext.SnapName(), Equals, "test-snap")
+	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
+	c.Check(calledContext.HookName(), Equals, "test-hook")
+
 	c.Check(mockHandler.beforeCalled, Equals, true)
 	c.Check(mockHandler.doneCalled, Equals, true)
 	c.Check(mockHandler.errorCalled, Equals, false)

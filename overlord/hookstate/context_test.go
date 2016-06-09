@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func TestContext(t *testing.T) { TestingT(t) }
@@ -42,7 +43,7 @@ func (s *contextSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	hookSetup := hookstate.HookSetup{Hook: "test-hook", Snap: "test-snap"}
+	hookSetup := hookstate.NewHookSetup("test-snap", snap.R(1), "test-hook")
 	s.context = hookstate.NewContext(task, hookSetup)
 }
 

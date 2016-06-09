@@ -24,9 +24,9 @@ import (
 	"sync"
 )
 
-// Repository stores all registered handler generators, and generates registered
+// repository stores all registered handler generators, and generates registered
 // handlers.
-type Repository struct {
+type repository struct {
 	mutex      sync.RWMutex
 	generators []patternGeneratorPair
 }
@@ -39,12 +39,12 @@ type patternGeneratorPair struct {
 }
 
 // NewRepository creates an empty handler generator repository.
-func NewRepository() *Repository {
-	return &Repository{}
+func newRepository() *repository {
+	return &repository{}
 }
 
 // AddHandler adds the provided handler generator to the repository.
-func (r *Repository) AddHandlerGenerator(pattern *regexp.Regexp, generator HandlerGenerator) {
+func (r *repository) addHandlerGenerator(pattern *regexp.Regexp, generator HandlerGenerator) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -57,7 +57,7 @@ func (r *Repository) AddHandlerGenerator(pattern *regexp.Regexp, generator Handl
 // GenerateHandlers calls the handler generators whose patterns match the
 // hook name contained within the provided context, and returns the resulting
 // handlers.
-func (r *Repository) GenerateHandlers(context *Context) []Handler {
+func (r *repository) generateHandlers(context *Context) []Handler {
 	hookName := context.HookName()
 	var handlers []Handler
 

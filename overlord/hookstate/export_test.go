@@ -1,4 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -19,18 +20,7 @@
 
 package hookstate
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
+var (
+	NewContext   = newContext
+	NewHookSetup = newHookSetup
 )
-
-// RunHook returns a set of tasks for running a specific hook.
-func RunHook(s *state.State, snapName string, revision snap.Revision, hookName string) (*state.TaskSet, error) {
-	summary := fmt.Sprintf(i18n.G("%s (revision %s): run %s hook"), snapName, revision, hookName)
-	task := s.NewTask("run-hook", summary)
-	task.Set("hook-setup", newHookSetup(snapName, revision, hookName))
-	return state.NewTaskSet(task), nil
-}
