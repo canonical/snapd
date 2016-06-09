@@ -78,7 +78,7 @@ func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	err := key.keyEncode(buf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode %s: %v", kind, err)
+		return nil, fmt.Errorf("cannot encode %s: %v", kind, err)
 	}
 	return encodeFormatAndData(key.keyFormat(), buf.Bytes()), nil
 }
