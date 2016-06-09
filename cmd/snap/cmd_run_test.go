@@ -42,12 +42,12 @@ apps:
   command: run-app
 `)
 
-func (s *SnapSuite) TestSnapRunGetPhase1AppEnv(c *check.C) {
+func (s *SnapSuite) TestSnapRunSnapExecAppEnv(c *check.C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
-	env := snaprun.GetPhase1AppEnv(info.Apps["app"])
+	env := snaprun.SnapExecAppEnv(info.Apps["app"])
 	sort.Strings(env)
 	c.Check(env, check.DeepEquals, []string{
 		"SNAP=/snap/snapname/42",

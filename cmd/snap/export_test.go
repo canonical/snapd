@@ -23,6 +23,6 @@ package main
 var RunMain = run
 
 var (
-	GetPhase1AppEnv = getPhase1AppEnv
-	SnapRun         = snapRun
+	SnapExecAppEnv = snapExecAppEnv
+	SnapRun        = snapRun
 )
