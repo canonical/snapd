@@ -73,12 +73,12 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	task := tasks[0]
 	c.Check(task.Kind(), Equals, "run-hook")
 
-	var hook hookstate.HookRef
-	err = task.Get("hook", &hook)
+	var hookSetup hookstate.HookSetup
+	err = task.Get("hook", &hookSetup)
 	c.Check(err, IsNil, Commentf("Expected task to contain hook"))
-	c.Check(hook.Snap, Equals, "test-snap")
-	c.Check(hook.Revision, Equals, snap.R(1))
-	c.Check(hook.Hook, Equals, "test-hook")
+	c.Check(hookSetup.Snap, Equals, "test-snap")
+	c.Check(hookSetup.Revision, Equals, snap.R(1))
+	c.Check(hookSetup.Hook, Equals, "test-hook")
 }
 
 func (s *hookManagerSuite) TestRunHookTask(c *C) {
@@ -111,12 +111,12 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
 	task := tasks[0]
 
-	hookRef := hookstate.HookRef{
+	hookSetup := hookstate.HookSetup{
 		Snap:     "test-snap",
 		Revision: snap.R(1),
 		Hook:     "test-hook",
 	}
-	c.Check(calledContext, DeepEquals, hookstate.NewContext(task, hookRef))
+	c.Check(calledContext, DeepEquals, hookstate.NewContext(task, hookSetup))
 	c.Check(mockHandler.beforeCalled, Equals, true)
 	c.Check(mockHandler.doneCalled, Equals, true)
 	c.Check(mockHandler.errorCalled, Equals, false)

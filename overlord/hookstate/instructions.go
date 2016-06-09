@@ -31,6 +31,6 @@ import (
 func RunHook(s *state.State, snapName string, revision snap.Revision, hookName string) (*state.TaskSet, error) {
 	summary := fmt.Sprintf(i18n.G("%s (revision %s): run %s hook"), snapName, revision, hookName)
 	task := s.NewTask("run-hook", summary)
-	task.Set("hook", HookRef{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
 	return state.NewTaskSet(task), nil
 }

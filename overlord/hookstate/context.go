@@ -24,26 +24,26 @@ import (
 )
 
 type Context struct {
-	task    *state.Task
-	hookRef HookRef
+	task      *state.Task
+	hookSetup HookSetup
 }
 
-// NewContext returns a new context with the given task and hookref.
-func NewContext(task *state.Task, hookRef HookRef) *Context {
+// NewContext returns a new context with the given task and setup.
+func NewContext(task *state.Task, hookSetup HookSetup) *Context {
 	return &Context{
-		task:    task,
-		hookRef: hookRef,
+		task:      task,
+		hookSetup: hookSetup,
 	}
 }
 
 // HookName returns the name of the hook in this context.
 func (c *Context) HookName() string {
-	return c.hookRef.Hook
+	return c.hookSetup.Hook
 }
 
 // SnapName returns the name of the snap containing the hook.
 func (c *Context) SnapName() string {
-	return c.hookRef.Snap
+	return c.hookSetup.Snap
 }
 
 // Lock acquires the state lock for this context (required for Set/Get).

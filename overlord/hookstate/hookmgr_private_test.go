@@ -45,7 +45,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.manager = manager
 }
 
-func (s *hookManagerSuite) TestDoRunHookMissingHookRefIsError(c *C) {
+func (s *hookManagerSuite) TestDoRunHookMissingHookSetupIsError(c *C) {
 	// Create task that is specifically missing the hook reference
 	s.state.Lock()
 	task := s.state.NewTask("foo", "bar")
