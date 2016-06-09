@@ -12,7 +12,7 @@ if which git >/dev/null; then
 fi
 
 if [ -z "$v" ]; then
-    v="$(head -n1 "$(dirname $0)"/debian/changelog | sed -e 's/^.*(\(.*\)).*/\1/')"
+    v="$(cd "$(dirname $0)"; dpkg-parsechangelog --show-field Version)"
     o=debian/changelog
 fi
 
