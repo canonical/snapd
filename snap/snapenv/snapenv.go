@@ -21,9 +21,11 @@ package snapenv
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 	"text/template"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -61,12 +63,12 @@ func fillSnapEnvVars(desc interface{}, vars []string) []string {
 // somewhere more reasonable like the snappy module.
 func GetBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
-		"SNAP={{.SnapPath}}",
-		"SNAP_DATA=/var{{.SnapPath}}",
-		"SNAP_NAME={{.SnapName}}",
-		"SNAP_VERSION={{.Version}}",
-		"SNAP_REVISION={{.Revision}}",
-		"SNAP_ARCH={{.SnapArch}}",
+		"SNAP={{.App.Snap.MountDir}}",
+		"SNAP_DATA=/var{{.App.Snap.MountDir}}",
+		"SNAP_NAME={{.App.Snap.Name}}",
+		"SNAP_VERSION={{.App.Snap.Version}}",
+		"SNAP_REVISION={{.App.Snap.Revision}}",
+		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 	})
 }
@@ -77,6 +79,6 @@ func GetBasicSnapEnvVars(desc interface{}) []string {
 // somewhere more reasonable like the snappy module.
 func GetUserSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
-		"SNAP_USER_DATA={{.Home}}{{.SnapPath}}",
+		"SNAP_USER_DATA={{.Home}}{{.App.Snap.MountDir}}",
 	})
 }
