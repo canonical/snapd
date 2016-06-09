@@ -20,8 +20,8 @@
 package hookstate_test
 
 import (
-	"testing"
 	"regexp"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -39,7 +39,7 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	repository := hookstate.NewRepository()
 
 	var calledContext *hookstate.Context
-	mockHandlerGenerator := func (context *hookstate.Context) hookstate.Handler {
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		calledContext = context
 		return newMockHandler()
 	}

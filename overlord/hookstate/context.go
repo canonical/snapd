@@ -30,8 +30,8 @@ type Context struct {
 
 // NewContext returns a new context with the given task and hookref.
 func NewContext(task *state.Task, hookRef HookRef) *Context {
-	return &Context {
-		task: task,
+	return &Context{
+		task:    task,
 		hookRef: hookRef,
 	}
 }

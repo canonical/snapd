@@ -20,14 +20,14 @@
 package hookstate
 
 import (
-	"sync"
 	"regexp"
+	"sync"
 )
 
 // Repository stores all registered handler generators, and generates registered
 // handlers.
 type Repository struct {
-	mutex sync.RWMutex
+	mutex      sync.RWMutex
 	generators []patternGeneratorPair
 }
 
@@ -49,7 +49,7 @@ func (r *Repository) AddHandlerGenerator(pattern *regexp.Regexp, generator Handl
 	defer r.mutex.Unlock()
 
 	r.generators = append(r.generators, patternGeneratorPair{
-		pattern: pattern,
+		pattern:   pattern,
 		generator: generator,
 	})
 }

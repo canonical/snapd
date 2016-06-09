@@ -20,8 +20,8 @@
 package hookstate_test
 
 import (
-	"testing"
 	"regexp"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -34,8 +34,8 @@ import (
 func TestHookManager(t *testing.T) { TestingT(t) }
 
 type hookManagerSuite struct {
-	state      *state.State
-	manager    *hookstate.HookManager
+	state       *state.State
+	manager     *hookstate.HookManager
 	mockHandler *mockHandler
 }
 
@@ -94,7 +94,7 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	// Register a handler generator for the "test-hook" hook
 	var calledContext *hookstate.Context
 	mockHandler := newMockHandler()
-	mockHandlerGenerator := func (context *hookstate.Context) hookstate.Handler {
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		calledContext = context
 		return mockHandler
 	}
@@ -112,9 +112,9 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 	task := tasks[0]
 
 	hookRef := hookstate.HookRef{
-		Snap: "test-snap",
+		Snap:     "test-snap",
 		Revision: snap.R(1),
-		Hook: "test-hook",
+		Hook:     "test-hook",
 	}
 	c.Check(calledContext, DeepEquals, hookstate.NewContext(task, hookRef))
 	c.Check(mockHandler.beforeCalled, Equals, true)
@@ -128,17 +128,17 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 
 type mockHandler struct {
 	beforeCalled bool
-	doneCalled bool
-	errorCalled bool
-	err error
+	doneCalled   bool
+	errorCalled  bool
+	err          error
 }
 
 func newMockHandler() *mockHandler {
-	return &mockHandler {
+	return &mockHandler{
 		beforeCalled: false,
-		doneCalled: false,
-		errorCalled: false,
-		err: nil,
+		doneCalled:   false,
+		errorCalled:  false,
+		err:          nil,
 	}
 }
 

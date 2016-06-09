@@ -35,8 +35,8 @@ import (
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
 type HookManager struct {
-	state  *state.State
-	runner *state.TaskRunner
+	state      *state.State
+	runner     *state.TaskRunner
 	repository *Repository
 }
 
@@ -59,8 +59,8 @@ type HookRef struct {
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
 	manager := &HookManager{
-		state:  s,
-		runner: runner,
+		state:      s,
+		runner:     runner,
 		repository: NewRepository(),
 	}
 
@@ -110,8 +110,8 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("failed to extract hook from task: %s", err)
 	}
 
-	context := &Context {
-		task: task,
+	context := &Context{
+		task:    task,
 		hookRef: hookRef,
 	}
 
