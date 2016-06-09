@@ -67,8 +67,8 @@ var storeConfig = (*store.SnapUbuntuStoreConfig)(nil)
 
 // TODO: kill this function once fewer places make a store on the fly
 
-// NewConfiguredUbuntuStoreSnapRepository creates a new fully configured store.SnapUbuntuStoreRepository with the store id selected by the gadget.
-func NewConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
+// newConfiguredUbuntuStoreSnapRepository creates a new fully configured store.SnapUbuntuStoreRepository with the store id selected by the gadget.
+func newConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
 	storeID := ""
 	// TODO: set the store-id here from the model information
 	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
@@ -113,7 +113,7 @@ func doInstall(name, channel string, flags LegacyInstallFlags, meter progress.Me
 	}
 
 	// check repos next
-	mStore := NewConfiguredUbuntuStoreSnapRepository()
+	mStore := newConfiguredUbuntuStoreSnapRepository()
 	installed, err := (&Overlord{}).Installed()
 	if err != nil {
 		return "", err

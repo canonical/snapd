@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -115,7 +116,7 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstall
 
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, flags, meter); err != nil {
+		if err := boot.ExtractKernelAssets(s, meter); err != nil {
 			return s, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
@@ -195,9 +196,8 @@ func UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) {
 	//        and can only be used during install right now
 }
 
-func copyData(newSnap, oldSnap *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
-	// deal with the old data or
-	// otherwise just create a empty data dir
+func setupDataDirs(newSnap, oldSnap *snap.Info, flags LegacyInstallFlags, meter progress.Meter) error {
+	// just creates the empty data dirs
 
 	// Make sure the common data directory exists, even if this isn't a new
 	// install.
@@ -209,16 +209,7 @@ func copyData(newSnap, oldSnap *snap.Info, flags LegacyInstallFlags, meter progr
 		return os.MkdirAll(newSnap.DataDir(), 0755)
 	}
 
-	return copySnapData(oldSnap, newSnap)
-}
-
-func undoCopyData(newInfo *snap.Info, flags LegacyInstallFlags, meter progress.Meter) {
-	// XXX we were copying data, assume InhibitHooks was false
-
-	if err := removeSnapData(newInfo); err != nil {
-		logger.Noticef("When cleaning up data for %s %s: %v", newInfo.Name(), newInfo.Version, err)
-	}
-
+	return nil
 }
 
 func generateWrappers(s *snap.Info, inter interacter) error {
@@ -287,7 +278,7 @@ func updateCurrentSymlink(info *snap.Info, inter interacter) error {
 
 	// FIXME: create {Os,Kernel}Snap type instead of adding special
 	//        cases here
-	if err := SetNextBoot(info); err != nil {
+	if err := boot.SetNextBoot(info); err != nil {
 		return err
 	}
 
@@ -402,16 +393,15 @@ func (o *Overlord) Install(snapFilePath string, flags LegacyInstallFlags, meter 
 //
 // It returns the local snap file or an error
 func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
-	var oldInfo *snap.Info
-
-	if sideInfo != nil {
-		oldSnap := ActiveSnapByName(sideInfo.OfficialName)
-		if oldSnap != nil {
-			oldInfo = oldSnap.Info()
-		}
+	if sideInfo == nil {
+		sideInfo = new(snap.SideInfo)
 	}
 
-	if err := checkSnap(snapFilePath, oldInfo, flags, meter); err != nil {
+	if sideInfo.Revision.Unset() {
+		sideInfo.Revision = snap.R(-1)
+	}
+
+	if err := checkSnap(snapFilePath, nil, flags, meter); err != nil {
 		return nil, err
 	}
 
@@ -442,30 +432,8 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		}
 	}
 
-	if oldInfo != nil {
-		// we need to stop any services and make the commands unavailable
-		// so that copying data and later activating the new revision
-		// can work
-		err = unlinkSnap(oldInfo, meter)
-		defer func() {
-			if err != nil {
-				if err := linkSnap(oldInfo, meter); err != nil {
-					logger.Noticef("When linking old revision: %v", newInfo.Name(), err)
-				}
-			}
-		}()
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// deal with the data
-	err = copyData(newInfo, oldInfo, flags, meter)
-	defer func() {
-		if err != nil {
-			undoCopyData(newInfo, flags, meter)
-		}
-	}()
+	// deal with the data dirs
+	err = setupDataDirs(newInfo, nil, flags, meter)
 	if err != nil {
 		return nil, err
 	}
@@ -477,19 +445,7 @@ func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideI
 		return newInfo, nil
 	}
 
-	err = linkSnap(newInfo, meter)
-	defer func() {
-		if err != nil {
-			if err := unlinkSnap(newInfo, meter); err != nil {
-				logger.Noticef("When unlinking failed new snap revision: %v", newInfo.Name(), err)
-			}
-		}
-	}()
-	if err != nil {
-		return nil, err
-	}
-
-	return newInfo, nil
+	return nil, fmt.Errorf("cannot handle install anymore with InhibitHooks unset")
 }
 
 // CanInstall checks whether the Snap passes a series of tests required for installation
@@ -554,7 +510,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 
 	// remove the kernel assets (if any)
 	if typ == snap.TypeKernel {
-		if err := removeKernelAssets(s, meter); err != nil {
+		if err := boot.RemoveKernelAssets(s, meter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
 		}
 	}
@@ -578,7 +534,7 @@ func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
 		return err
 	}
 
-	return removeSnapData(s.Info())
+	return nil
 }
 
 // SetActive sets the active state of the given snap
