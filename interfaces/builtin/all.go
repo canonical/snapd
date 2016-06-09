@@ -29,6 +29,7 @@ var allInterfaces = []interfaces.Interface{
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&NetworkManagerInterface{},
+        &MirInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
 	NewHomeInterface(),
