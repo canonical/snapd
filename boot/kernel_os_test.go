@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,13 +21,13 @@ package boot_test
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
@@ -39,67 +39,21 @@ import (
 
 func TestBoot(t *testing.T) { TestingT(t) }
 
-// XXX: share this
-// mockBootloader mocks the bootloader interface and records all
-// set/get calls
-type mockBootloader struct {
-	bootvars map[string]string
-	bootdir  string
-	name     string
-}
-
-func newMockBootloader(bootdir string) *mockBootloader {
-	return &mockBootloader{
-		bootvars: make(map[string]string),
-		bootdir:  bootdir,
-		name:     "mocky",
-	}
-}
-
-func (b *mockBootloader) SetBootVar(key, value string) error {
-	b.bootvars[key] = value
-	return nil
-}
-
-func (b *mockBootloader) GetBootVar(key string) (string, error) {
-	return b.bootvars[key], nil
-}
-
-func (b *mockBootloader) Dir() string {
-	return b.bootdir
-}
-
-func (b *mockBootloader) Name() string {
-	return b.name
-}
-
 type kernelOSSuite struct {
-	bootloader *mockBootloader
+	bootloader *boottest.MockBootloader
 }
 
 var _ = Suite(&kernelOSSuite{})
 
 func (s *kernelOSSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	s.bootloader = newMockBootloader(c.MkDir())
+	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
 }
 
 func (s *kernelOSSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
-}
-
-func populate(c *C, dir string, files [][]string) {
-	for _, def := range files {
-		filename := def[0]
-		content := def[1]
-		basedir := filepath.Dir(filepath.Join(dir, filename))
-		err := os.MkdirAll(basedir, 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(dir, filename), []byte(content), 0644)
-		c.Assert(err, IsNil)
-	}
 }
 
 const packageKernel = `
@@ -124,7 +78,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		Revision:     snap.R(42),
 	}
 	snap := snaptest.MockSnap(c, packageKernel, si)
-	populate(c, snap.MountDir(), files)
+	snaptest.PopulateDir(snap.MountDir(), files)
 
 	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
 	c.Assert(err, IsNil)
@@ -154,7 +108,8 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 
 func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	// pretend to be a grub system
-	s.bootloader.name = "grub"
+	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
+	partition.ForceBootloader(mockGrub)
 
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
@@ -166,13 +121,13 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		Revision:     snap.R(42),
 	}
 	snap := snaptest.MockSnap(c, packageKernel, si)
-	populate(c, snap.MountDir(), files)
+	snaptest.PopulateDir(snap.MountDir(), files)
 
 	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
-	kernimg := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	kernimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
 	c.Assert(osutil.FileExists(kernimg), Equals, false)
 }
 
@@ -194,7 +149,7 @@ func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
 	err := boot.SetNextBoot(snapInfo)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.bootloader.bootvars, HasLen, 0)
+	c.Assert(s.bootloader.BootVars, HasLen, 0)
 }
 
 func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
@@ -209,7 +164,7 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 	err := boot.SetNextBoot(info)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snappy_os":   "core_100.snap",
 		"snappy_mode": "try",
 	})
@@ -229,16 +184,16 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	err := boot.SetNextBoot(info)
 	c.Assert(err, IsNil)
 
-	c.Assert(s.bootloader.bootvars, DeepEquals, map[string]string{
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
 		"snappy_kernel": "krnl_42.snap",
 		"snappy_mode":   "try",
 	})
 
-	s.bootloader.bootvars["snappy_good_kernel"] = "krnl_40.snap"
-	s.bootloader.bootvars["snappy_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_40.snap"
+	s.bootloader.BootVars["snappy_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
 
 	// simulate good boot
-	s.bootloader.bootvars["snappy_good_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
 }
