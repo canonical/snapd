@@ -34,18 +34,16 @@ type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
 
-var mockAppInfo = &snap.AppInfo{
-	Snap: &snap.Info{
-		SuggestedName: "foo",
-		Version:       "1.0",
-		SideInfo: snap.SideInfo{
-			Revision: snap.R(17),
-		},
+var mockSnapInfo = &snap.Info{
+	SuggestedName: "foo",
+	Version:       "1.0",
+	SideInfo: snap.SideInfo{
+		Revision: snap.R(17),
 	},
 }
 
 func (ts *HTestSuite) TestBasic(c *C) {
-	env := Basic(mockAppInfo)
+	env := Basic(mockSnapInfo)
 	sort.Strings(env)
 
 	c.Assert(env, DeepEquals, []string{
@@ -61,7 +59,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
-	env := User(mockAppInfo, "/root")
+	env := User(mockSnapInfo, "/root")
 	c.Assert(env, DeepEquals, []string{
 		"SNAP_USER_DATA=/root/snap/foo/17",
 	})

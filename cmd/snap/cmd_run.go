@@ -80,8 +80,8 @@ func getSnapInfo(snapName string) (*snap.Info, error) {
 // the later stages of executing the application
 // (like SNAP_REVISION that snap-exec requires to work)
 func snapExecAppEnv(app *snap.AppInfo) []string {
-	env := snapenv.Basic(app)
-	env = append(env, snapenv.User(app, os.Getenv("HOME"))...)
+	env := snapenv.Basic(app.Snap)
+	env = append(env, snapenv.User(app.Snap, os.Getenv("HOME"))...)
 	return env
 }
 
