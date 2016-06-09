@@ -35,7 +35,7 @@ var (
 )
 
 func genTestPrivKey() asserts.PrivateKey {
-	// use a shorter key length here for test key because otherwise
+	// use a shorter key length here for test keys because otherwise
 	// they take too long to generate;
 	// the ones that care use pregenerated keys of the right length
 	// or use GenerateKey directly
