@@ -195,7 +195,7 @@ static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 	glob_t glob_res __attribute__ ((__cleanup__(globfree))) = {
 	.gl_pathv = NULL};
 	int err = glob(glob_pattern, GLOB_ONLYDIR | GLOB_MARK, NULL, &glob_res);
-	debug("glob(%s, ...) returned %d", patterns[i], err);
+	debug("glob(%s, ...) returned %d", glob_pattern, err);
 	switch (glob_res.gl_pathc) {
 	case 0:
 		debug("cannot find any nvidia drivers");
