@@ -20,9 +20,12 @@
 package snapenv
 
 import (
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -31,8 +34,35 @@ type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
 
+var mockAppInfo = &snap.AppInfo{
+	Snap: &snap.Info{
+		SuggestedName: "foo",
+		Version:       "1.0",
+		SideInfo: snap.SideInfo{
+			Revision: snap.R(17),
+		},
+	},
+}
+
 func (ts *HTestSuite) TestBasic(c *C) {
+	env := GetBasicSnapEnvVars(mockAppInfo)
+	sort.Strings(env)
+
+	c.Assert(env, DeepEquals, []string{
+		"SNAP=/snap/foo/17",
+		"SNAP_ARCH=amd64",
+		"SNAP_DATA=/var/snap/foo/17",
+		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
+		"SNAP_NAME=foo",
+		"SNAP_REVISION=17",
+		"SNAP_VERSION=1.0",
+	})
+
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
+	env := GetUserSnapEnvVars(mockAppInfo, "/root")
+	c.Assert(env, DeepEquals, []string{
+		"SNAP_USER_DATA=/root/snap/foo/17",
+	})
 }
