@@ -22,12 +22,15 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
+	"path/filepath"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
 )
@@ -113,7 +116,25 @@ func snapExecAppEnv(app *snap.AppInfo) []string {
 	return env
 }
 
+func createUserDataDirs(info *snap.Info) error {
+	usr, err := UserCurrent()
+	if err != nil {
+		return fmt.Errorf("cannot get the current user: %s", err)
+	}
+
+	// see snapenv.User
+	userData := filepath.Join(usr.HomeDir, info.MountDir())
+	commonUserData := filepath.Join(userData, "..", "common")
+	for _, d := range []string{userData, commonUserData} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return fmt.Errorf("cannot create %q: %s", d, err)
+		}
+	}
+	return nil
+}
+
 var SyscallExec = syscall.Exec
+var UserCurrent = user.Current
 
 func snapRun(snapApp, command string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
@@ -125,6 +146,10 @@ func snapRun(snapApp, command string, args []string) error {
 	app := info.Apps[appName]
 	if app == nil {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
+	}
+
+	if err := createUserDataDirs(info); err != nil {
+		logger.Noticef("WARNING: cannot create user data: %s", err)
 	}
 
 	// build command to run
