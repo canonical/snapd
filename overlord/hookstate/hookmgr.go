@@ -28,7 +28,6 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 // HookManager is responsible for the maintenance of hooks in the system state.
@@ -37,7 +36,7 @@ import (
 type HookManager struct {
 	state      *state.State
 	runner     *state.TaskRunner
-	repository *Repository
+	repository *repository
 }
 
 type Handler interface {
@@ -48,20 +47,13 @@ type Handler interface {
 
 type HandlerGenerator func(*Context) Handler
 
-// HookSetup is a reference to a hook within a specific snap.
-type HookSetup struct {
-	Snap     string        `json:"snap"`
-	Revision snap.Revision `json:"revision"`
-	Hook     string        `json:"hook"`
-}
-
 // Manager returns a new HookManager.
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
 	manager := &HookManager{
 		state:      s,
 		runner:     runner,
-		repository: NewRepository(),
+		repository: newRepository(),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -77,7 +69,7 @@ func Manager(s *state.State) (*HookManager, error) {
 // handler's Done() method or its Error() method will be called, depending on
 // the outcome.
 func (m *HookManager) Register(pattern *regexp.Regexp, generator HandlerGenerator) {
-	m.repository.AddHandlerGenerator(pattern, generator)
+	m.repository.addHandlerGenerator(pattern, generator)
 }
 
 // Ensure implements StateManager.Ensure.
@@ -102,21 +94,16 @@ func (m *HookManager) Stop() {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	var hookSetup HookSetup
-	err := task.Get("hook", &hookSetup)
+	var hook hookSetup
+	err := task.Get("hook-setup", &hook)
 	task.State().Unlock()
 
 	if err != nil {
 		return fmt.Errorf("failed to extract hook from task: %s", err)
 	}
 
-	context := &Context{
-		task:      task,
-		hookSetup: hookSetup,
-	}
-
 	// Obtain a list of handlers for this hook (if any)
-	handlers := m.repository.GenerateHandlers(context)
+	handlers := m.repository.generateHandlers(newContext(task, hook))
 
 	// About to run the hook-- notify the handlers
 	for _, handler := range handlers {

@@ -20,17 +20,16 @@
 package hookstate
 
 import (
-	"fmt"
-
-	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
-// RunHook returns a set of tasks for running a specific hook.
-func RunHook(s *state.State, snapName string, revision snap.Revision, hookName string) (*state.TaskSet, error) {
-	summary := fmt.Sprintf(i18n.G("%s (revision %s): run %s hook"), snapName, revision, hookName)
-	task := s.NewTask("run-hook", summary)
-	task.Set("hook-setup", newHookSetup(snapName, revision, hookName))
-	return state.NewTaskSet(task), nil
+// hookSetup is a reference to a hook within a specific snap.
+type hookSetup struct {
+	Snap     string        `json:"snap"`
+	Revision snap.Revision `json:"revision"`
+	Hook     string        `json:"hook"`
+}
+
+func newHookSetup(snap string, revision snap.Revision, hook string) hookSetup {
+	return hookSetup{Snap: snap, Revision: revision, Hook: hook}
 }

@@ -17,7 +17,7 @@
  *
  */
 
-package hookstate_test
+package hookstate
 
 import (
 	"encoding/json"
@@ -25,7 +25,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -36,20 +35,20 @@ type hooksSuite struct{}
 var _ = Suite(&hooksSuite{})
 
 func (s *hooksSuite) TestJsonMarshalHookSetup(c *C) {
-	hookSetup := hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
+	hookSetup := newHookSetup("snap-name", snap.R(1), "hook-name")
 	out, err := json.Marshal(hookSetup)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
 }
 
 func (s *hooksSuite) TestJsonUnmarshalHookSetup(c *C) {
-	out, err := json.Marshal(hookstate.HookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
+	out, err := json.Marshal(newHookSetup("snap-name", snap.R(1), "hook-name"))
 	c.Assert(err, IsNil)
 
-	var hookSetup hookstate.HookSetup
-	err = json.Unmarshal(out, &hookSetup)
+	var setup hookSetup
+	err = json.Unmarshal(out, &setup)
 	c.Assert(err, IsNil)
-	c.Check(hookSetup.Snap, Equals, "snap-name")
-	c.Check(hookSetup.Revision, Equals, snap.R(1))
-	c.Check(hookSetup.Hook, Equals, "hook-name")
+	c.Check(setup.Snap, Equals, "snap-name")
+	c.Check(setup.Revision, Equals, snap.R(1))
+	c.Check(setup.Hook, Equals, "hook-name")
 }

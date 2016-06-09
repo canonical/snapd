@@ -17,7 +17,7 @@
  *
  */
 
-package hookstate_test
+package hookstate
 
 import (
 	"regexp"
@@ -25,8 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func TestRepository(t *testing.T) { TestingT(t) }
@@ -36,35 +36,68 @@ type repositorySuite struct{}
 var _ = Suite(&repositorySuite{})
 
 func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
-	repository := hookstate.NewRepository()
+	repository := newRepository()
 
-	var calledContext *hookstate.Context
-	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+	var calledContext *Context
+	mockHandlerGenerator := func(context *Context) Handler {
 		calledContext = context
 		return newMockHandler()
 	}
 
 	// Verify that a handler generator can be added to the repository
-	repository.AddHandlerGenerator(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+	repository.addHandlerGenerator(regexp.MustCompile("test-hook"), mockHandlerGenerator)
 
 	state := state.New(nil)
 	state.Lock()
 	task := state.NewTask("test-task", "my test task")
-	hookSetup := hookstate.HookSetup{Hook: "test-hook", Snap: "test-snap"}
-	context := hookstate.NewContext(task, hookSetup)
+	hookSetup := newHookSetup("test-snap", snap.R(1), "test-hook")
+	context := newContext(task, hookSetup)
 	state.Unlock()
 
+	c.Assert(context, NotNil)
+
 	// Verify that the handler can be generated
-	handlers := repository.GenerateHandlers(context)
+	handlers := repository.generateHandlers(context)
 	c.Check(handlers, HasLen, 1)
 	c.Check(calledContext, DeepEquals, context)
 
 	// Add another handler
-	repository.AddHandlerGenerator(regexp.MustCompile(".*-hook"), mockHandlerGenerator)
+	repository.addHandlerGenerator(regexp.MustCompile(".*-hook"), mockHandlerGenerator)
 
 	// Verify that two handlers are generated for the test-hook, now
-	handlers = repository.GenerateHandlers(context)
+	handlers = repository.generateHandlers(context)
 	c.Check(handlers, HasLen, 2)
 	c.Check(calledContext, DeepEquals, context)
+}
 
+type mockHandler struct {
+	beforeCalled bool
+	doneCalled   bool
+	errorCalled  bool
+	err          error
+}
+
+func newMockHandler() *mockHandler {
+	return &mockHandler{
+		beforeCalled: false,
+		doneCalled:   false,
+		errorCalled:  false,
+		err:          nil,
+	}
+}
+
+func (h *mockHandler) Before() error {
+	h.beforeCalled = true
+	return nil
+}
+
+func (h *mockHandler) Done() error {
+	h.doneCalled = true
+	return nil
+}
+
+func (h *mockHandler) Error(err error) error {
+	h.err = err
+	h.errorCalled = true
+	return nil
 }

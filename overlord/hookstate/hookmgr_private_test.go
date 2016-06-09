@@ -26,7 +26,9 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func TestHookManager(t *testing.T) { TestingT(t) }
@@ -39,10 +41,16 @@ type hookManagerSuite struct {
 var _ = Suite(&hookManagerSuite{})
 
 func (s *hookManagerSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 	s.state = state.New(nil)
 	manager, err := Manager(s.state)
 	c.Assert(err, IsNil)
 	s.manager = manager
+}
+
+func (s *hookManagerSuite) TearDownTest(c *C) {
+	s.manager.Stop()
+	dirs.SetRootDir("")
 }
 
 func (s *hookManagerSuite) TestDoRunHookMissingHookSetupIsError(c *C) {
@@ -54,4 +62,26 @@ func (s *hookManagerSuite) TestDoRunHookMissingHookSetupIsError(c *C) {
 	err := s.manager.doRunHook(task, &tomb.Tomb{})
 	c.Check(err, NotNil)
 	c.Check(err, ErrorMatches, "failed to extract hook from task.*")
+}
+
+func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	taskSet, err := RunHook(s.state, "test-snap", snap.R(1), "test-hook")
+	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
+	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
+
+	tasks := taskSet.Tasks()
+	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
+
+	task := tasks[0]
+	c.Check(task.Kind(), Equals, "run-hook")
+
+	var setup hookSetup
+	err = task.Get("hook-setup", &setup)
+	c.Check(err, IsNil, Commentf("Expected task to contain hook"))
+	c.Check(setup.Snap, Equals, "test-snap")
+	c.Check(setup.Revision, Equals, snap.R(1))
+	c.Check(setup.Hook, Equals, "test-hook")
 }
