@@ -24,8 +24,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 func TestContext(t *testing.T) { TestingT(t) }
