@@ -129,6 +129,7 @@ void setup_private_pts()
 #endif				// ifdef STRICT_CONFINEMENT
 }
 
+#ifdef NVIDIA_ARCH
 static void sc_bind_mount_hostfs(const char *rootfs_dir)
 {
 	// Create a read-only bind mount from "/" to
@@ -145,6 +146,7 @@ static void sc_bind_mount_hostfs(const char *rootfs_dir)
 		}
 	}
 }
+#endif				// ifdef NVIDIA_ARCH
 
 void setup_snappy_os_mounts()
 {
