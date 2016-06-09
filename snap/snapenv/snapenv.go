@@ -64,7 +64,7 @@ func fillSnapEnvVars(desc interface{}, vars []string) []string {
 func GetBasicSnapEnvVars(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP={{.App.Snap.MountDir}}",
-		"SNAP_DATA=/var{{.App.Snap.MountDir}}",
+		"SNAP_DATA={{.App.Snap.DataDir}}",
 		"SNAP_NAME={{.App.Snap.Name}}",
 		"SNAP_VERSION={{.App.Snap.Version}}",
 		"SNAP_REVISION={{.App.Snap.Revision}}",
