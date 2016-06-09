@@ -23,6 +23,7 @@ package main
 var RunMain = run
 
 var (
-	SnapExecAppEnv = snapExecAppEnv
-	SnapRun        = snapRun
+	SnapExecAppEnv     = snapExecAppEnv
+	SnapRun            = snapRun
+	CreateUserDataDirs = createUserDataDirs
 )

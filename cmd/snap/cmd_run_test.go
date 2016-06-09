@@ -23,6 +23,8 @@ package main_test
 import (
 	"fmt"
 	"net/http"
+	"os/user"
+	"path/filepath"
 	"sort"
 	"syscall"
 
@@ -30,6 +32,7 @@ import (
 
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -103,4 +106,20 @@ func (s *SnapSuite) TestSnapRunIntegration(c *check.C) {
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{"/usr/bin/ubuntu-core-launcher", "snap.snapname.app", "snap.snapname.app", "/usr/lib/snapd/snap-exec", "snapname.app", "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+}
+
+func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, check.IsNil)
+	info.SideInfo.Revision = snap.R(42)
+
+	fakeHome := c.MkDir()
+	snaprun.UserCurrent = func() (*user.User, error) {
+		return &user.User{HomeDir: fakeHome}, nil
+	}
+
+	err = snaprun.CreateUserDataDirs(info)
+	c.Assert(err, check.IsNil)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
 }
