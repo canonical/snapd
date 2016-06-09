@@ -1,3 +1,15 @@
+snapd (2.0.8) xenial; urgency=medium
+
+  * New upstream release: LP: #1589534
+    - debian: make `snap refresh` times more random (LP: #1537793)
+    - cmd: ExecInCoreSnap looks in "core" snap first, and only in
+      "ubuntu-core" snap if rev>125.
+    - cmd/snap: have 'snap list' display helper message on stderr
+      (LP: #1587445)
+    - snap: make app names more restrictive.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 08 Jun 2016 07:56:58 +0200
+
 snapd (2.0.7) xenial; urgency=medium
 
   * New upstream release: LP: #1589534

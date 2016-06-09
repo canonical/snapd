@@ -110,33 +110,50 @@ func (s *ValidateSuite) TestValidateHook(c *C) {
 
 // ValidateApp
 
+func (s *ValidateSuite) TestValidateAppName(c *C) {
+	validAppNames := []string{
+		"1", "a", "aa", "aaa", "aaaa", "Aa", "aA", "1a", "a1", "1-a", "a-1",
+		"a-a", "aa-a", "a-aa", "a-b-c", "0a-a", "a-0a",
+	}
+	for _, name := range validAppNames {
+		c.Check(ValidateApp(&AppInfo{Name: name}), IsNil)
+	}
+	invalidAppNames := []string{
+		"", "-", "--", "a--a", "a-", "a ", " a", "a a", "日本語", "한글",
+		"ру́сский язы́к", "ໄຂ່​ອີ​ສ​ເຕີ້", ":a", "a:", "a:a", "_a", "a_", "a_a",
+	}
+	for _, name := range invalidAppNames {
+		err := ValidateApp(&AppInfo{Name: name})
+		c.Assert(err, ErrorMatches, `cannot have ".*" as app name.*`)
+	}
+}
+
 func (s *ValidateSuite) TestAppWhitelistSimple(c *C) {
-	c.Check(ValidateApp(&AppInfo{Name: "foo"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{Command: "foo"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{StopCommand: "foo"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{PostStopCommand: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo"}), IsNil)
 }
 
 func (s *ValidateSuite) TestAppWhitelistIllegal(c *C) {
 	c.Check(ValidateApp(&AppInfo{Name: "x\n"}), NotNil)
 	c.Check(ValidateApp(&AppInfo{Name: "test!me"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{Command: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{StopCommand: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{PostStopCommand: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{SocketMode: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{ListenStream: "foo\n"}), NotNil)
-	c.Check(ValidateApp(&AppInfo{BusName: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", Command: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", StopCommand: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", PostStopCommand: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", SocketMode: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", ListenStream: "foo\n"}), NotNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", BusName: "foo\n"}), NotNil)
 }
 
 func (s *ValidateSuite) TestAppDaemonValue(c *C) {
-	c.Check(ValidateApp(&AppInfo{Daemon: "oneshot"}), IsNil)
-	c.Check(ValidateApp(&AppInfo{Daemon: "nono"}), ErrorMatches, `"daemon" field contains invalid value "nono"`)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "oneshot"}), IsNil)
+	c.Check(ValidateApp(&AppInfo{Name: "foo", Daemon: "nono"}), ErrorMatches, `"daemon" field contains invalid value "nono"`)
 }
 
 func (s *ValidateSuite) TestAppWhitelistError(c *C) {
-	err := ValidateApp(&AppInfo{Name: "x\n"})
+	err := ValidateApp(&AppInfo{Name: "foo", Command: "x\n"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, `app description field 'name' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:-]*$')`)
+	c.Check(err.Error(), Equals, `app description field 'command' contains illegal "x\n" (legal: '^[A-Za-z0-9/. _#:-]*$')`)
 }
 
 // Validate

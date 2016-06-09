@@ -171,6 +171,7 @@ func main() {
 	}
 
 	// no magic /o\
+	cmd.ExecInCoreSnap()
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
 		os.Exit(1)
