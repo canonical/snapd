@@ -319,7 +319,7 @@ func Rollback(s *state.State, name, ver string) (*state.TaskSet, error) {
 	if !snapst.Active {
 		return nil, fmt.Errorf("cannot rollback inactive snaps")
 	}
-	if !snapst.RollbackR.Unset() {
+	if len(snapst.RollbackR) > 0 {
 		return nil, fmt.Errorf("can only rollback once")
 	}
 	if snapst.Previous() == nil {
