@@ -35,7 +35,11 @@ var (
 )
 
 func genTestPrivKey() asserts.PrivateKey {
-	privKey, err := asserts.GenerateKey()
+	// use a shorter key length here for test keys because otherwise
+	// they take too long to generate;
+	// the ones that care use pregenerated keys of the right length
+	// or use GenerateKey directly
+	privKey, err := asserts.GenerateTestKey(752)
 	if err != nil {
 		panic(fmt.Errorf("failed to create priv key for tests: %v", err))
 	}
