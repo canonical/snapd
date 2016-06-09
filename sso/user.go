@@ -63,8 +63,9 @@ var addUser = func(name string, sshKeys []string) error {
 }
 
 type keysReply struct {
-	Username string   `json:"username"`
-	SshKeys  []string `json:"ssh_keys"`
+	Username         string   `json:"username"`
+	SshKeys          []string `json:"ssh_keys"`
+	OpenIDIdentifier string   `json:"openid_identifier"`
 }
 
 func CreateUser(email string) (username string, err error) {
