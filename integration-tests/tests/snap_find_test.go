@@ -109,3 +109,19 @@ func (s *searchSuite) TestFindShowsHelp(c *check.C) {
 
 	c.Assert(actual, check.Matches, expected)
 }
+
+// SNAP_FIND_005.1: find package with min search string length
+func (s *searchSuite) TestFindWithShortQueryShowsResults(c *check.C) {
+	expected := "(?ms)" +
+		"Name +Version +Developer +Notes +Summary *\n" +
+		".*" +
+		// ab is a snap uploaded by u1test+snappy@canonical.com
+		"^ab +.* *\n" +
+		".*"
+
+	for _, searchTerm := range []string{"a", "ab"} {
+		searchOutput := cli.ExecCommand(c, "snap", "find", searchTerm)
+
+		c.Check(searchOutput, check.Matches, expected)
+	}
+}
