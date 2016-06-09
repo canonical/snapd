@@ -33,6 +33,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
@@ -42,8 +43,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	// XXX: here until we split out kernel_os
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -84,42 +83,14 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "")
+	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
 }
 
-// TODO: share these and the one in snapstate (through snaptest) once we have maybe a few more examples
-func makeTestSnapWithFiles(c *C, snapYamlContent string, files [][]string) (snapFilePath string) {
-	tmpdir := c.MkDir()
-	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-	snapYamlFn := filepath.Join(tmpdir, "meta", "snap.yaml")
-	ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
-
-	for _, filenameAndContent := range files {
-		filename := filenameAndContent[0]
-		content := filenameAndContent[1]
-		basedir := filepath.Dir(filepath.Join(tmpdir, filename))
-		err := os.MkdirAll(basedir, 0755)
-		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tmpdir, filename), []byte(content), 0644)
-		c.Assert(err, IsNil)
-	}
-
-	err := osutil.ChDir(tmpdir, func() error {
-		var err error
-		snapFilePath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
-		c.Assert(err, IsNil)
-		return err
-	})
-	c.Assert(err, IsNil)
-	return filepath.Join(tmpdir, snapFilePath)
-
-}
-
 func makeTestSnap(c *C, snapYamlContent string) string {
-	return makeTestSnapWithFiles(c, snapYamlContent, nil)
+	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstall(c *C) {
@@ -376,48 +347,10 @@ apps:
 
 // core & kernel
 
-// mockBootloader mocks the bootloader interface and records all
-// set/get calls
-type mockBootloader struct {
-	bootvars map[string]string
-	bootdir  string
-	name     string
-}
-
-func newMockBootloader(bootdir string) *mockBootloader {
-	return &mockBootloader{
-		bootvars: make(map[string]string),
-		bootdir:  bootdir,
-		name:     "mocky",
-	}
-}
-
-func (b *mockBootloader) SetBootVar(key, value string) error {
-	b.bootvars[key] = value
-	return nil
-}
-
-func (b *mockBootloader) GetBootVar(key string) (string, error) {
-	return b.bootvars[key], nil
-}
-
-func (b *mockBootloader) Dir() string {
-	return b.bootdir
-}
-
-func (b *mockBootloader) Name() string {
-	return b.name
-}
-
 func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloader(c *C) {
-	bootloader := newMockBootloader(c.MkDir())
-	oldFB := snappy.FindBootloader
-	snappy.FindBootloader = func() (partition.Bootloader, error) {
-		return bootloader, nil
-	}
-	defer func() {
-		snappy.FindBootloader = oldFB
-	}()
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -446,21 +379,16 @@ type: os
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	c.Assert(bootloader.bootvars, DeepEquals, map[string]string{
+	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
 		"snappy_os":   "core_x1.snap",
 		"snappy_mode": "try",
 	})
 }
 
 func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
-	bootloader := newMockBootloader(c.MkDir())
-	oldFB := snappy.FindBootloader
-	snappy.FindBootloader = func() (partition.Bootloader, error) {
-		return bootloader, nil
-	}
-	defer func() {
-		snappy.FindBootloader = oldFB
-	}()
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -475,7 +403,7 @@ type: kernel`
 		{"initrd.img", "...and I'm an initrd"},
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
-	snapPath := makeTestSnapWithFiles(c, packageKernel, files)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
 
 	st := ms.o.State()
 	st.Lock()
@@ -493,7 +421,7 @@ type: kernel`
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	c.Assert(bootloader.bootvars, DeepEquals, map[string]string{
+	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
 		"snappy_kernel": "krnl_x1.snap",
 		"snappy_mode":   "try",
 	})

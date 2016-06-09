@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -784,19 +783,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
-	tmpdir := c.MkDir()
-	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-	snapYamlFn := filepath.Join(tmpdir, "meta", "snap.yaml")
-	ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
-	err := osutil.ChDir(tmpdir, func() error {
-		var err error
-		snapFilePath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
-		c.Assert(err, IsNil)
-		return err
-	})
-	c.Assert(err, IsNil)
-	return filepath.Join(tmpdir, snapFilePath)
-
+	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
 }
 
 func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {

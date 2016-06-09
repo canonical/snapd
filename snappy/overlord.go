@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -115,7 +116,7 @@ func SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstall
 
 	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := extractKernelAssets(s, flags, meter); err != nil {
+		if err := boot.ExtractKernelAssets(s, meter); err != nil {
 			return s, fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
@@ -277,7 +278,7 @@ func updateCurrentSymlink(info *snap.Info, inter interacter) error {
 
 	// FIXME: create {Os,Kernel}Snap type instead of adding special
 	//        cases here
-	if err := SetNextBoot(info); err != nil {
+	if err := boot.SetNextBoot(info); err != nil {
 		return err
 	}
 
@@ -383,15 +384,15 @@ func unlinkSnap(info *snap.Info, inter interacter) error {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
-	return o.InstallWithSideInfo(snapFilePath, nil, flags, meter)
+func (o *Overlord) install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+	return o.installWithSideInfo(snapFilePath, nil, flags, meter)
 }
 
 // InstallWithSideInfo installs the given snap file to the system
 // considering the provided side info.
 //
 // It returns the local snap file or an error
-func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) installWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	if sideInfo == nil {
 		sideInfo = new(snap.SideInfo)
 	}
@@ -509,7 +510,7 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 
 	// remove the kernel assets (if any)
 	if typ == snap.TypeKernel {
-		if err := removeKernelAssets(s, meter); err != nil {
+		if err := boot.RemoveKernelAssets(s, meter); err != nil {
 			logger.Noticef("removing kernel assets failed with %s", err)
 		}
 	}
@@ -517,10 +518,10 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	return nil
 }
 
-// Uninstall removes the given local snap from the system.
+// uninstall removes the given local snap from the system.
 //
 // It returns an error on failure
-func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
+func (o *Overlord) uninstall(s *Snap, meter progress.Meter) error {
 	if !canRemove(s.Info(), s.IsActive()) {
 		return ErrPackageNotRemovable
 	}

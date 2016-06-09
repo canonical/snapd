@@ -59,7 +59,7 @@ func listDir(c *C, p string) []string {
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	snapPath := makeTestSnapPackage(c, "")
-	snap, err := (&Overlord{}).Install(snapPath, LegacyInhibitHooks, nil)
+	snap, err := (&Overlord{}).install(snapPath, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 	c.Check(snap.Name(), Equals, "foo")
 
@@ -83,7 +83,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 		Revision:     snap.R(40),
 	}
 
-	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
+	sn, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 	c.Check(sn.Name(), Equals, "foo")
 	c.Check(sn.Revision, Equals, snap.R(40))
@@ -106,7 +106,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c 
 		Revision:     snap.R(55),
 	}
 
-	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
+	sn, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 	c.Check(sn.Name(), Equals, "bar")
 	c.Check(sn.Revision, Equals, snap.R(55))
@@ -120,7 +120,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAssumes(c *C) {
 name: foo
 version: 1.0
 assumes: [f1, f2]`)
-	_, err := (&Overlord{}).Install(pkg, LegacyInhibitHooks, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(pkg, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
 }
 
@@ -129,7 +129,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallProvidedAssumes(c *C) {
 name: foo
 version: 1.0
 assumes: [common-data-dir]`)
-	_, err := (&Overlord{}).Install(pkg, LegacyInhibitHooks, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(pkg, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Check(err, IsNil)
 }
 
@@ -143,7 +143,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := dirs.SnapSnapsDir
-	_, err := (&Overlord{}).Install(makeTestSnapPackage(c, ""), 0, nil)
+	_, err := (&Overlord{}).install(makeTestSnapPackage(c, ""), 0, nil)
 	c.Assert(err, IsNil)
 
 	instDir := filepath.Join(targetDir, fooComposedName, "1.0")
@@ -153,7 +153,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
 	snap, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
+	err = (&Overlord{}).uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -168,7 +168,7 @@ func (s *SnapTestSuite) TestLocalGadgetSnapInstall(c *C) {
 version: 1.0
 type: gadget
 `)
-	_, err := (&Overlord{}).Install(snapPath, LegacyAllowGadget|LegacyInhibitHooks, nil)
+	_, err := (&Overlord{}).install(snapPath, LegacyAllowGadget|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	contentFile := filepath.Join(dirs.SnapSnapsDir, "foo", "x1", "bin", "foo")
@@ -193,11 +193,11 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	snapYamlContent := `name: foo
 `
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
+	_, err := (&Overlord{}).installWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
+	_, err = (&Overlord{}).installWithSideInfo(snapPath, fooSI20, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	snaps, err := (&Overlord{}).Installed()
@@ -233,7 +233,7 @@ apps:
    daemon: forking
 `
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapPath, LegacyInhibitHooks, nil)
+	_, err := (&Overlord{}).install(snapPath, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(allSystemctl, HasLen, 0)
@@ -254,7 +254,7 @@ apps:
 		Revision:     snap.R(55),
 	}
 
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, NotNil)
 }
 
@@ -272,7 +272,7 @@ slots:
 `
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	// Use InstallWithSideInfo, this is just a cheap way to call openSnapFile
-	snapInfo, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
+	snapInfo, err := (&Overlord{}).installWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	// Ensure that side info is correctly stored

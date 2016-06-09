@@ -50,7 +50,7 @@ func (s *undoTestSuite) SetUpTest(c *C) {
 }
 
 func (s *undoTestSuite) TearDownTest(c *C) {
-	FindBootloader = partition.FindBootloader
+	partition.ForceBootloader(nil)
 }
 
 var helloSnap = `name: hello-snap
@@ -80,9 +80,7 @@ func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 
 func (s *undoTestSuite) TestUndoForSetupSnapKernelUboot(c *C) {
 	bootloader := newMockBootloader(c.MkDir())
-	FindBootloader = func() (partition.Bootloader, error) {
-		return bootloader, nil
-	}
+	partition.ForceBootloader(bootloader)
 
 	testFiles := [][]string{
 		{"kernel.img", "kernel"},
