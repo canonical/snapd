@@ -54,6 +54,7 @@ func (s *SnapSuite) TestSnapRunSnapExecAppEnv(c *check.C) {
 	env := snaprun.SnapExecAppEnv(info.Apps["app"])
 	sort.Strings(env)
 	c.Check(env, check.DeepEquals, []string{
+		fmt.Sprintf("HOME=%s/snap/snapname/42", usr.HomeDir),
 		"SNAP=/snap/snapname/42",
 		"SNAP_ARCH=amd64",
 		"SNAP_DATA=/var/snap/snapname/42",

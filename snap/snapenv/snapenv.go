@@ -78,5 +78,6 @@ func Basic(desc interface{}) []string {
 func User(desc interface{}) []string {
 	return fillSnapEnvVars(desc, []string{
 		"SNAP_USER_DATA={{.Home}}{{.SnapPath}}",
+		"HOME={{.Home}}{{.SnapPath}}",
 	})
 }
