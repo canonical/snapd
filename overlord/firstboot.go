@@ -21,7 +21,6 @@ package overlord
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"

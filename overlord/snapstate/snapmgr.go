@@ -73,7 +73,6 @@ func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
 type SnapSetup struct {
 	Name     string        `json:"name"`
 	Revision snap.Revision `json:"revision,omitempty"`
-	SnapID   string        `json:"snap-id,omitempty"`
 	Channel  string        `json:"channel,omitempty"`
 	UserID   int           `json:"user-id,omitempty"`
 
