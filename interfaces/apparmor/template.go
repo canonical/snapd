@@ -176,6 +176,11 @@ var defaultTemplate = []byte(`
   @{PROC}/uptime r,
   @{PROC}/loadavg r,
 
+  # lsb-release
+  /usr/bin/lsb_release ixr,
+  /usr/bin/ r,
+  /usr/share/distro-info/*.csv r,
+
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
   # information leak.
