@@ -118,7 +118,7 @@ scmp_datum_t sc_map_search(char *s)
 void sc_map_add_kvp(const char *key, scmp_datum_t value)
 {
 	struct sc_map_entry *node;
-	node = (struct sc_map_entry *)malloc(sizeof(struct sc_map_entry));
+	node = malloc(sizeof(*node));
 	if (node == NULL)
 		die("Out of memory creating sc_map_entries");
 
