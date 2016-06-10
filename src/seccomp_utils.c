@@ -108,8 +108,7 @@ scmp_datum_t sc_map_search(char *s)
 		die("hsearch_r failed");
 
 	if (ep != NULL) {
-		scmp_datum_t *p = ep->data;
-		val = *p;
+		val = *((scmp_datum_t *) ep->data);
 	} else
 		errno = EINVAL;
 
