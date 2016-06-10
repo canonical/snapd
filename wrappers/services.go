@@ -27,7 +27,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -222,13 +221,8 @@ WantedBy={{.ServiceTargetUnit}}
 		StopTimeout       time.Duration
 		ServiceTargetUnit string
 
-		// For snapenv.GetBasicSnapEnvVars
-		SnapName string
-		SnapArch string
-		SnapPath string
-		Version  string
-		Revision snap.Revision
-		Home     string
+		Home    string
+		EnvVars string
 	}{
 		App: appInfo,
 
@@ -237,12 +231,6 @@ WantedBy={{.ServiceTargetUnit}}
 		StopTimeout:       serviceStopTimeout(appInfo),
 		ServiceTargetUnit: systemd.ServicesTarget,
 
-		// For snapenv.GetBasicSnapEnvVars
-		SnapName: appInfo.Snap.Name(),
-		SnapArch: arch.UbuntuArchitecture(),
-		SnapPath: appInfo.Snap.MountDir(),
-		Version:  appInfo.Snap.Version,
-		Revision: appInfo.Snap.Revision,
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
