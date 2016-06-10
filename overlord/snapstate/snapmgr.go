@@ -42,9 +42,6 @@ type SnapManager struct {
 	runner *state.TaskRunner
 }
 
-// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
-type SnapSetupFlags Flags
-
 // backward compatibility: upgrade old flags based on snappy.* flags values
 // to Flags if needed
 // XXX: this can be dropped and potentially the type at the earliest

@@ -54,7 +54,9 @@ const (
 	firstInterimUsableFlagValue
 )
 
-// SnapSetup specific flags
+// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
+type SnapSetupFlags Flags
+
 const (
 	// RollbackOp means the given snap got rolled back
 	RollbackOp = 0x40000000 >> iota
