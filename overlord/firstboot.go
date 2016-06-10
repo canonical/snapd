@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 func populateStateFromInstalled() error {
@@ -52,19 +51,10 @@ func populateStateFromInstalled() error {
 	tsAll := []*state.TaskSet{}
 	for i, snapPath := range all {
 
-		// FIXME: we need to verify the file before we open it
-		sf, err := snap.Open(snapPath)
-		if err != nil {
-			return err
-		}
-		info, err := snap.ReadInfoFromSnapFile(sf, nil)
-		if err != nil {
-			return err
-		}
-		fmt.Printf("Installing %s\n", info.Name())
+		fmt.Printf("Installing %s\n", snapPath)
 
 		st.Lock()
-		ts, err := snapstate.InstallPathWithSideInfo(st, info.Name(), snapPath, "", 0)
+		ts, err := snapstate.InstallPathWithSideInfo(st, snapPath, "", 0)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}

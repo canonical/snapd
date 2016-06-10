@@ -21,9 +21,7 @@
 package snapstate
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strconv"
 
@@ -78,7 +76,8 @@ type SnapSetup struct {
 
 	Flags SnapSetupFlags `json:"flags,omitempty"`
 
-	SnapPath string `json:"snap-path,omitempty"`
+	SnapPath string        `json:"snap-path,omitempty"`
+	SideInfo snap.SideInfo `json:"side-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -231,18 +230,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// check if we need to read .sideinfo files
-	var si snap.SideInfo
-	if (ss.Flags & WithSideInfo) > 0 {
-		metafn := ss.SnapPath + ".sideinfo"
-		if j, err := ioutil.ReadFile(metafn); err == nil {
-			if err := json.Unmarshal(j, &si); err != nil {
-				return fmt.Errorf("cannot read metadata: %s %s\n", metafn, err)
-			}
-		}
-		ss.Revision = si.Revision
-	}
-
+	si := ss.SideInfo
 	if ss.Revision.Unset() {
 		// Local revisions start at -1 and go down.
 		// (unless it's a really old local revision in which case it needs fixing)
