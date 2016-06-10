@@ -69,8 +69,14 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		fmt.Fprintln(w, i18n.G("Slot\tPlug"))
 		defer w.Flush()
 		for _, slot := range ifaces.Slots {
-			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != slot.Snap {
-				continue
+			if wanted := x.Positionals.Query.Snap; wanted != "" {
+				ok := wanted == slot.Snap
+				for i := 0; i < len(slot.Connections) && !ok; i++ {
+					ok = wanted == slot.Connections[i].Snap
+				}
+				if !ok {
+					continue
+				}
 			}
 			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != slot.Name {
 				continue
