@@ -67,7 +67,7 @@ func getSnapInfo(snapName string) (*snap.Info, error) {
 	}
 	sn := snaps[0]
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: snap.R(sn.Revision.N),
+		Revision: sn.Revision,
 	})
 	if err != nil {
 		return nil, err
