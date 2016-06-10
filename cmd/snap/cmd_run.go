@@ -89,7 +89,7 @@ func snapExecAppEnv(app *snap.AppInfo) []string {
 }
 
 func createUserDataDirs(info *snap.Info) error {
-	usr, err := UserCurrent()
+	usr, err := userCurrent()
 	if err != nil {
 		return fmt.Errorf("cannot get the current user: %s", err)
 	}
@@ -105,8 +105,8 @@ func createUserDataDirs(info *snap.Info) error {
 	return nil
 }
 
-var SyscallExec = syscall.Exec
-var UserCurrent = user.Current
+var syscallExec = syscall.Exec
+var userCurrent = user.Current
 
 func snapRun(snapApp, command string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
@@ -121,7 +121,7 @@ func snapRun(snapApp, command string, args []string) error {
 	}
 
 	if err := createUserDataDirs(info); err != nil {
-		logger.Noticef("WARNING: cannot create user data: %s", err)
+		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
 
 	// build command to run
@@ -141,5 +141,5 @@ func snapRun(snapApp, command string, args []string) error {
 	env := append(os.Environ(), snapExecAppEnv(app)...)
 
 	// launch!
-	return SyscallExec(cmd[0], cmd, env)
+	return syscallExec(cmd[0], cmd, env)
 }

@@ -26,7 +26,6 @@ import (
 	"os/user"
 	"path/filepath"
 	"sort"
-	"syscall"
 
 	"gopkg.in/check.v1"
 
@@ -95,13 +94,13 @@ func (s *SnapSuite) TestSnapRunIntegration(c *check.C) {
 	execArg0 := ""
 	execArgs := []string{}
 	execEnv := []string{}
-	snaprun.SyscallExec = func(arg0 string, args []string, envv []string) error {
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
 		execArg0 = arg0
 		execArgs = args
 		execEnv = envv
 		return nil
-	}
-	defer func() { snaprun.SyscallExec = syscall.Exec }()
+	})
+	defer restorer()
 
 	// and run it!
 	err := snaprun.SnapRun("snapname.app", "", []string{"arg1", "arg2"})
@@ -117,9 +116,10 @@ func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	info.SideInfo.Revision = snap.R(42)
 
 	fakeHome := c.MkDir()
-	snaprun.UserCurrent = func() (*user.User, error) {
+	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{HomeDir: fakeHome}, nil
-	}
+	})
+	defer restorer()
 
 	err = snaprun.CreateUserDataDirs(info)
 	c.Assert(err, check.IsNil)
