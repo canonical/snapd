@@ -28,7 +28,6 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -225,14 +224,8 @@ WantedBy={{.ServiceTargetUnit}}
 		StopTimeout       time.Duration
 		ServiceTargetUnit string
 
+		Home    string
 		EnvVars string
-		// For snapenv.GetBasicSnapEnvVars
-		SnapName string
-		SnapArch string
-		SnapPath string
-		Version  string
-		Revision snap.Revision
-		Home     string
 	}{
 		App: appInfo,
 
@@ -241,17 +234,11 @@ WantedBy={{.ServiceTargetUnit}}
 		StopTimeout:       serviceStopTimeout(appInfo),
 		ServiceTargetUnit: systemd.ServicesTarget,
 
-		// For snapenv.GetBasicSnapEnvVars
-		SnapName: appInfo.Snap.Name(),
-		SnapArch: arch.UbuntuArchitecture(),
-		SnapPath: appInfo.Snap.MountDir(),
-		Version:  appInfo.Snap.Version,
-		Revision: appInfo.Snap.Revision,
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	allVars := snapenv.Basic(wrapperData)
-	allVars = append(allVars, snapenv.User(wrapperData)...)
+	allVars := snapenv.Basic(appInfo.Snap)
+	allVars = append(allVars, snapenv.User(appInfo.Snap, "/root")...)
 	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
