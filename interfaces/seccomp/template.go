@@ -230,6 +230,7 @@ mlock2
 mlockall
 mmap
 mmap2
+modify_ldt
 mprotect
 
 # LP: #1448184 - these aren't currently mediated by AppArmor. Deny for now
