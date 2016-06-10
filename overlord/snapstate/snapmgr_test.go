@@ -1184,6 +1184,88 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
 
+func (s *snapmgrTestSuite) TestRollbackRunThrough(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+	siOld := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&siOld, &si},
+	})
+
+	chg := s.state.NewChange("rollback", "rollback a snap")
+	ts, err := snapstate.Rollback(s.state, "some-snap", "")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.ops, HasLen, 7)
+	expected := []fakeOp{
+		fakeOp{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		fakeOp{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		fakeOp{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				OfficialName: "some-snap",
+				Revision:     snap.R(2),
+			},
+		},
+		fakeOp{
+			op:   "link-snap",
+			name: "/snap/some-snap/2",
+		},
+		fakeOp{
+			op:   "remove-snap-data",
+			name: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:   "remove-snap-files",
+			name: "/snap/some-snap/7",
+		},
+	}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify that the R(2) version is active now and R(7) is gone
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 1)
+	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
+		OfficialName: "some-snap",
+		Channel:      "",
+		Revision:     snap.R(2),
+	})
+
+}
+
 type snapmgrQuerySuite struct {
 	st *state.State
 }
