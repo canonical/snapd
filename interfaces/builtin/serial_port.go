@@ -39,11 +39,6 @@ func (iface *SerialPortInterface) String() string {
 	return iface.Name()
 }
 
-// Slots will be allowed to access any files matched here
-const serialSlotAppArmorSnippet = `
-/dev/tty[A-Z]{1,3}[0-9]{1,3}$ rw,
-`
-
 // Pattern to match allowed serial device nodes, path attributes will be
 // compared to this for validity
 var serialAllowedPathPattern = regexp.MustCompile("^/dev/tty[A-Z]{1,3}[0-9]{1,3}$")
@@ -60,6 +55,9 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if !ok || path == "" {
 		return fmt.Errorf("serial-port slot must have a path attribute")
 	}
+
+	// Clean the path before checking it matches the pattern
+	path = filepath.Clean(path)
 
 	// Check the path attribute is in the allowable pattern
 	if serialAllowedPathPattern.MatchString(path) {
@@ -81,10 +79,11 @@ func (iface *SerialPortInterface) SanitizePlug(slot *interfaces.Plug) error {
 func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		if iface.isSerialDevice(slot) {
-			return []byte(serialSlotAppArmorSnippet), nil
+		path, err := iface.path(slot)
+		if err != nil {
+			return nil, fmt.Errorf("cannot compute slot security snippet: %v", err)
 		}
-		return nil, nil
+		return []byte(fmt.Sprintf("\n%s rwk,\n", path)), nil
 	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
 		return nil, nil
 	default:
@@ -102,7 +101,7 @@ func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, sl
 	}
 }
 
-// PermanentPlugSnippet return  snippet required to use a bool-file interface.
+// PermanentPlugSnippet no permissions provided to plug permanently
 func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
@@ -133,15 +132,6 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 func (iface *SerialPortInterface) path(slot *interfaces.Slot) (string, error) {
 	if path, ok := slot.Attrs["path"].(string); ok {
 		return filepath.Clean(path), nil
-	}
-	panic("slot is not sanitized")
-}
-
-// isSerialDevice checks if a given serial-port slot has sensible path
-func (iface *SerialPortInterface) isSerialDevice(slot *interfaces.Slot) bool {
-	if path, ok := slot.Attrs["path"].(string); ok {
-		path = filepath.Clean(path)
-		return serialAllowedPathPattern.MatchString(path)
 	}
 	panic("slot is not sanitized")
 }

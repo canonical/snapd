@@ -182,14 +182,34 @@ func (s *SerialPortInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotSnippetGivesExtraPermissions(c *C) {
-	expectedSlotSnippet := []byte(`
-/dev/tty[A-Z]{1,3}[0-9]{1,3}$ rw,
+	// slot snippet 1
+	expectedSlotSnippet1 := []byte(`
+/dev/ttyS0 rwk,
 `)
-	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
-		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecurityAppArmor)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, DeepEquals, expectedSlotSnippet)
-	}
+	snippet, err := s.iface.PermanentSlotSnippet(s.testSlot1, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSlotSnippet1)
+	// slot snippet 2
+	expectedSlotSnippet2 := []byte(`
+/dev/ttyAMA2 rwk,
+`)
+	snippet, err = s.iface.PermanentSlotSnippet(s.testSlot2, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSlotSnippet2)
+	// slot snippet 3
+	expectedSlotSnippet3 := []byte(`
+/dev/ttyUSB927 rwk,
+`)
+	snippet, err = s.iface.PermanentSlotSnippet(s.testSlot3, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSlotSnippet3)
+	// slot snippet 4
+	expectedSlotSnippet4 := []byte(`
+/dev/ttyS42 rwk,
+`)
+	snippet, err = s.iface.PermanentSlotSnippet(s.testSlot4, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSlotSnippet4)
 }
 
 func (s *SerialPortInterfaceSuite) TestPermanentSlotSnippetPanicsOnUnsanitizedSlots(c *C) {
