@@ -210,6 +210,7 @@ var defaultTemplate = []byte(`
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
+  @{PROC}/@{pid}/io r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
