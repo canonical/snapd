@@ -50,6 +50,8 @@ func populateStateFromInstalled() error {
 	}
 
 	for _, snapPath := range all {
+
+		// FIXME: we need to verify the file before we open it
 		sf, err := snap.Open(snapPath)
 		if err != nil {
 			return err
@@ -91,10 +93,16 @@ func FirstBoot() error {
 	if firstboot.HasRun() {
 		return firstboot.ErrNotFirstBoot
 	}
-	defer firstboot.StampFirstBoot()
 	if err := firstboot.EnableFirstEther(); err != nil {
 		logger.Noticef("Failed to bring up ethernet: %s", err)
 	}
 
-	return populateStateFromInstalled()
+	// snappy will be in a very unhappy state if this happens,
+	// because populateStateFromInstalled will error if there
+	// is a state file already
+	if err := populateStateFromInstalled(); err != nil {
+		return err
+	}
+
+	return firstboot.StampFirstBoot()
 }
