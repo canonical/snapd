@@ -59,7 +59,7 @@ type SnapSetupFlags Flags
 
 const (
 	// RollbackOp means the given snap got rolled back
-	RollbackOp = 0x40000000 >> iota
+	RollbackOp SnapSetupFlags = 0x40000000 >> iota
 )
 
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
