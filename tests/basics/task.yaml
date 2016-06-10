@@ -1,5 +1,5 @@
 summary: Check that basic interactions work
-execute:
+execute: |
     echo Core is not there by default...
     snap list | grep core && exit 1
 
