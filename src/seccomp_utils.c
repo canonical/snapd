@@ -130,7 +130,7 @@ void sc_map_add_kvp(const char *key, scmp_datum_t value)
 	if (node->e->key == NULL)
 		die("Out of memory creating e->key");
 
-	node->e->data = (void *)malloc(sizeof(scmp_datum_t));
+	node->e->data = malloc(sizeof(scmp_datum_t *));
 	if (node->e->data == NULL)
 		die("Out of memory creating e->data");
 	*(scmp_datum_t *) node->e->data = value;
