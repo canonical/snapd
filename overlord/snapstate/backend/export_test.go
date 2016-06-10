@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,31 +17,9 @@
  *
  */
 
-package snappy
+package backend
 
-import (
-	"github.com/snapcore/snapd/dirs"
+var (
+	AddMountUnit    = addMountUnit
+	RemoveMountUnit = removeMountUnit
 )
-
-// takes a directory and removes the global root, this is needed
-// when the SetRoot option is used and we need to generate
-// content for the "Apps" section
-var stripGlobalRootDir = stripGlobalRootDirImpl
-
-func stripGlobalRootDirImpl(dir string) string {
-	if dirs.GlobalRootDir == "/" {
-		return dir
-	}
-
-	return dir[len(dirs.GlobalRootDir):]
-}
-
-// firstErr returns the first error of the given error list
-func firstErr(err ...error) error {
-	for _, e := range err {
-		if e != nil {
-			return e
-		}
-	}
-	return nil
-}

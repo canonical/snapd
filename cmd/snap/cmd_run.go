@@ -27,7 +27,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -110,37 +109,10 @@ func getSnapInfo(snapName string, snapRevision string) (*snap.Info, error) {
 // returns the environment that is important for the later stages of execution
 // (like SNAP_REVISION that snap-exec requires to work)
 func snapExecEnv(info *snap.Info) []string {
-	env := []string{}
-	wrapperData := struct {
-		EnvVars string
-		// XXX: needed by snapenv
-		SnapName string
-		SnapArch string
-		SnapPath string
-		Version  string
-		Revision snap.Revision
-		Home     string
-	}{
-		// XXX: needed by snapenv
-		SnapName: info.Name(),
-		SnapArch: arch.UbuntuArchitecture(),
-		SnapPath: info.MountDir(),
-		Version:  info.Version,
-		Revision: info.Revision,
-		// must be an absolute path for
-		//   ubuntu-core-launcher/snap-confine
-		// which will mkdir() SNAP_USER_DATA for us
-		Home: os.Getenv("HOME"),
-	}
-	for _, envVar := range append(
-		snapenv.Basic(wrapperData),
-		snapenv.User(wrapperData)...) {
-		env = append(env, envVar)
-	}
+	env := snapenv.Basic(info)
+	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
 	return env
 }
-
-var SyscallExec = syscall.Exec
 
 func snapRunApp(snapApp, command string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
@@ -172,6 +144,8 @@ func snapRunHook(snapName, hookName, revision string) error {
 
 	return runSnapConfine(info, hook.SecurityTag(), hookBinary, "", nil)
 }
+
+var SyscallExec = syscall.Exec
 
 func runSnapConfine(info *snap.Info, securityTag, binary, command string, args []string) error {
 	cmd := []string{
