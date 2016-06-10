@@ -1294,6 +1294,20 @@ version: gadget
 	c.Check(info.Type, Equals, snap.TypeGadget)
 }
 
+func (s *snapmgrQuerySuite) TestPrevious(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "name1", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.Current(), NotNil)
+	c.Assert(snapst.Current().Revision, Equals, snap.R(12))
+	c.Assert(snapst.Previous(), NotNil)
+	c.Assert(snapst.Previous().Revision, Equals, snap.R(11))
+}
+
 func (s *snapmgrQuerySuite) TestAll(c *C) {
 	st := s.st
 	st.Lock()
