@@ -76,8 +76,8 @@ type SnapSetup struct {
 
 	Flags SnapSetupFlags `json:"flags,omitempty"`
 
-	SnapPath string        `json:"snap-path,omitempty"`
-	SideInfo snap.SideInfo `json:"side-info,omitempty"`
+	SnapPath string         `json:"snap-path,omitempty"`
+	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -230,7 +230,6 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	si := ss.SideInfo
 	if ss.Revision.Unset() {
 		// Local revisions start at -1 and go down.
 		// (unless it's a really old local revision in which case it needs fixing)
@@ -251,11 +250,19 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 	}
-	si.Revision = ss.Revision
+
+	var si *snap.SideInfo
+	if ss.SideInfo != nil {
+		si = ss.SideInfo
+	} else {
+		si = &snap.SideInfo{
+			Revision: ss.Revision,
+		}
+	}
 
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = &si
+	snapst.Candidate = si
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil

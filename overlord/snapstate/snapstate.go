@@ -197,7 +197,8 @@ func InstallPathWithSideInfo(s *state.State, path, channel string, flags Flags) 
 		SnapPath: path,
 		Channel:  channel,
 		Flags:    SnapSetupFlags(flags),
-		SideInfo: si,
+		SideInfo: &si,
+		Revision: si.Revision,
 	}
 
 	return doInstall(s, snapst.Active, ss)
