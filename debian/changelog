@@ -1,10 +1,10 @@
-snapd (2.0.8+1) UNRELEASED; urgency=medium
+snapd (2.0.8+1) unstable; urgency=medium
 
   * New upstream release.
   * Update lintian-overrides for new paths.
   * debian/copyright: fix a typo (thanks, lintian!)
 
- -- Steve Langasek <vorlon@debian.org>  Fri, 10 Jun 2016 15:56:43 -0700
+ -- Steve Langasek <vorlon@debian.org>  Fri, 10 Jun 2016 23:17:22 +0000
 
 snapd (2.0.8) xenial; urgency=medium
 
