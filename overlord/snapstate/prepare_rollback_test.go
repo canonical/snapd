@@ -106,7 +106,6 @@ func (s *prepareRollbackSuite) TestDoUndoPrepareRollbackSnap(c *C) {
 		Revision:     snap.R(2),
 	}
 
-	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1, si2},
 		Active:   true,
