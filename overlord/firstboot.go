@@ -49,7 +49,8 @@ func populateStateFromInstalled() error {
 		return err
 	}
 
-	for _, snapPath := range all {
+	tsAll := []*state.TaskSet{}
+	for i, snapPath := range all {
 
 		// FIXME: we need to verify the file before we open it
 		sf, err := snap.Open(snapPath)
@@ -64,27 +65,37 @@ func populateStateFromInstalled() error {
 
 		st.Lock()
 		ts, err := snapstate.InstallPathWithSideInfo(st, info.Name(), snapPath, "", 0)
+		if i > 0 {
+			ts.WaitAll(tsAll[i-1])
+		}
+		st.Unlock()
+
 		if err != nil {
 			return err
 		}
 
-		// FIXME: make this a single change
-		msg := fmt.Sprintf("First boot install of %s", filepath.Base(info.Name()))
-		chg := st.NewChange("install-snap", msg)
-		chg.AddAll(ts)
-		st.Unlock()
-
-		// do it and wait for ready
-		st.EnsureBefore(0)
-		<-chg.Ready()
-		if chg.Status() != state.DoneStatus {
-			return fmt.Errorf("cannot run chg: %v", chg)
-		}
-
+		tsAll = append(tsAll, ts)
 	}
-	ovld.Stop()
+	if len(tsAll) == 0 {
+		return nil
+	}
 
-	return nil
+	st.Lock()
+	msg := fmt.Sprintf("First boot install")
+	chg := st.NewChange("install-snap", msg)
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	st.Unlock()
+
+	// do it and wait for ready
+	st.EnsureBefore(0)
+	<-chg.Ready()
+	if chg.Status() != state.DoneStatus {
+		return fmt.Errorf("cannot run chg: %v", chg)
+	}
+
+	return ovld.Stop()
 }
 
 // FirstBoot will do some initial boot setup and then sync the
