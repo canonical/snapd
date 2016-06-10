@@ -122,7 +122,7 @@ void sc_map_add_kvp(const char *key, scmp_datum_t value)
 	if (node == NULL)
 		die("Out of memory creating sc_map_entries");
 
-	node->e = (ENTRY *) malloc(sizeof(ENTRY));
+	node->e = malloc(sizeof(node->e));
 	if (node->e == NULL)
 		die("Out of memory creating ENTRY");
 
