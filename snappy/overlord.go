@@ -384,15 +384,15 @@ func unlinkSnap(info *snap.Info, inter interacter) error {
 // Install installs the given snap file to the system.
 //
 // It returns the local snap file or an error
-func (o *Overlord) Install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
-	return o.InstallWithSideInfo(snapFilePath, nil, flags, meter)
+func (o *Overlord) install(snapFilePath string, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+	return o.installWithSideInfo(snapFilePath, nil, flags, meter)
 }
 
 // InstallWithSideInfo installs the given snap file to the system
 // considering the provided side info.
 //
 // It returns the local snap file or an error
-func (o *Overlord) InstallWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
+func (o *Overlord) installWithSideInfo(snapFilePath string, sideInfo *snap.SideInfo, flags LegacyInstallFlags, meter progress.Meter) (sp *snap.Info, err error) {
 	if sideInfo == nil {
 		sideInfo = new(snap.SideInfo)
 	}
@@ -518,10 +518,10 @@ func RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
 	return nil
 }
 
-// Uninstall removes the given local snap from the system.
+// uninstall removes the given local snap from the system.
 //
 // It returns an error on failure
-func (o *Overlord) Uninstall(s *Snap, meter progress.Meter) error {
+func (o *Overlord) uninstall(s *Snap, meter progress.Meter) error {
 	if !canRemove(s.Info(), s.IsActive()) {
 		return ErrPackageNotRemovable
 	}
