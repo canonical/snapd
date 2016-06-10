@@ -144,35 +144,20 @@ apps:
 }
 
 func (ms *mgrsSuite) TestHappyRemove(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
 	snapYamlContent := `name: foo
 apps:
  bar:
   command: bin/bar
 `
-	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.0")
+	snap := ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 
-	st := ms.o.State()
-	st.Lock()
-	defer st.Unlock()
-
-	ts, err := snapstate.InstallPath(st, "foo", snapPath, "", snapstate.DevMode)
+	ts, err := snapstate.Remove(st, "foo")
 	c.Assert(err, IsNil)
-	chg := st.NewChange("install-snap", "...")
-	chg.AddAll(ts)
-
-	st.Unlock()
-	err = ms.o.Settle()
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
-
-	snap, err := snap.ReadInfo("foo", &snap.SideInfo{Revision: snap.R(-1)})
-	c.Assert(err, IsNil)
-
-	ts, err = snapstate.Remove(st, "foo")
-	c.Assert(err, IsNil)
-	chg = st.NewChange("remove-snap", "...")
+	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
 
 	st.Unlock()
@@ -425,4 +410,83 @@ type: kernel`
 		"snappy_kernel": "krnl_x1.snap",
 		"snappy_mode":   "try",
 	})
+}
+
+func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Info {
+	st := ms.o.State()
+
+	snapPath := makeTestSnap(c, snapYamlContent)
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+
+	// store current state
+	snapName := info.Name()
+	var snapst snapstate.SnapState
+	snapstate.Get(st, snapName, &snapst)
+
+	ts, err := snapstate.InstallPath(st, snapName, snapPath, "", snapstate.DevMode)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	// ensure its different from before
+	var newSnapst snapstate.SnapState
+	snapstate.Get(st, snapName, &newSnapst)
+	c.Assert(newSnapst.Current().Revision.Unset(), Equals, false)
+	c.Assert(snapst.Current(), Not(DeepEquals), newSnapst.Current())
+
+	return info
+}
+
+func (ms *mgrsSuite) TestHappyRollback(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+`
+	ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
+	ms.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
+
+	// ensure we are on r2
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x2.snap")), Equals, true)
+	mup := systemd.MountUnitPath("/snap/foo/x2", "mount")
+	content, err := ioutil.ReadFile(mup)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x2")
+	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x2.snap")
+
+	// now do the rollback
+	ts, err := snapstate.Rollback(st, "foo", "")
+	c.Assert(err, IsNil)
+	chg := st.NewChange("rollback-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("rollback-snap change failed with: %v", chg.Err()))
+
+	// ensure we are back to x1 after the rollback
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
+	mup = systemd.MountUnitPath("/snap/foo/x1", "mount")
+	content, err = ioutil.ReadFile(mup)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
+	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
+
 }
