@@ -52,10 +52,10 @@ func (s *MirInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-/* TODO move back when you have plug for client */
+		/* TODO move back when you have plug for client */
 		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
-		c.Assert(snippet, /*Not(*/IsNil/*)*/)
+		c.Assert(snippet /*Not(*/, IsNil /*)*/)
 
 	}
 	snippet, err = s.iface.PermanentPlugSnippet(s.slot, interfaces.SecurityDBus)
@@ -75,7 +75,7 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		snippet, err = s.iface.PermanentPlugSnippet(s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, Not(IsNil))
-                /* this should be PermanentSlotSnippet for Mir, but atm PermanentPlug works*/
+		/* this should be PermanentSlotSnippet for Mir, but atm PermanentPlug works*/
 	}
 }
 

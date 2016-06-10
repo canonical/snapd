@@ -20,7 +20,7 @@
 package builtin
 
 import (
-       "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 var mirPermanentSlotAppArmor = []byte(`
@@ -535,13 +535,13 @@ func (iface *MirInterface) Name() string {
 }
 
 func (iface *MirInterface) PermanentPlugSnippet(
-            plug *interfaces.Plug, 
-            securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem{
-        case interfaces.SecurityAppArmor:
-                return mirPermanentSlotAppArmor, nil
-        case interfaces.SecuritySecComp:
-                return mirPermanentSlotSecComp, nil
+	plug *interfaces.Plug,
+	securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		return mirPermanentSlotAppArmor, nil
+	case interfaces.SecuritySecComp:
+		return mirPermanentSlotSecComp, nil
 	case interfaces.SecurityUDev, interfaces.SecurityDBus:
 		return nil, nil
 	default:
@@ -550,9 +550,9 @@ func (iface *MirInterface) PermanentPlugSnippet(
 }
 
 func (iface *MirInterface) ConnectedPlugSnippet(
-            plug *interfaces.Plug, 
-            slot *interfaces.Slot, 
-            securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	plug *interfaces.Plug,
+	slot *interfaces.Slot,
+	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return nil, nil
@@ -566,8 +566,8 @@ func (iface *MirInterface) ConnectedPlugSnippet(
 }
 
 func (iface *MirInterface) PermanentSlotSnippet(
-            slot *interfaces.Slot, 
-            securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	slot *interfaces.Slot,
+	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return nil, nil
@@ -582,11 +582,11 @@ func (iface *MirInterface) PermanentSlotSnippet(
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-        case interfaces.SecurityAppArmor:
+	case interfaces.SecurityAppArmor:
 		return nil, nil
-        case interfaces.SecuritySecComp:
+	case interfaces.SecuritySecComp:
 		return nil, nil
-        case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityUDev, interfaces.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -595,7 +595,7 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 
 func (iface *MirInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
- }
+}
 
 func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
