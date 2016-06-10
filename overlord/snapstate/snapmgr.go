@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -679,6 +680,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
+
+	// if we just installed a core snap, request a restart
+	// so that we switch executing its snapd
+	if newInfo.Type == snap.TypeOS && release.OnClassic {
+		st.Unlock()
+		st.RequestRestart()
+		st.Lock()
+	}
+
 	return nil
 }
 

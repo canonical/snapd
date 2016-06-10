@@ -34,10 +34,12 @@ import (
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
-// and to mediate requests to ensure the state sooner.
+// and to mediate requests to ensure the state sooner or request restarts.
 type Backend interface {
 	Checkpoint(data []byte) error
 	EnsureBefore(d time.Duration)
+	// TODO: take flags to ask for reboot vs restart?
+	RequestRestart()
 }
 
 type customData map[string]*json.RawMessage
@@ -217,6 +219,13 @@ func (s *State) Unlock() {
 func (s *State) EnsureBefore(d time.Duration) {
 	if s.backend != nil {
 		s.backend.EnsureBefore(d)
+	}
+}
+
+// RequestRestart asks for a restart of the managing process.
+func (s *State) RequestRestart() {
+	if s.backend != nil {
+		s.backend.RequestRestart()
 	}
 }
 
