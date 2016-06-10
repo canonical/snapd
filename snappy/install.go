@@ -55,7 +55,7 @@ func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Inf
 	}
 	defer os.Remove(downloadedSnap)
 
-	localSnap, err := (&Overlord{}).InstallWithSideInfo(downloadedSnap, &remoteSnap.SideInfo, flags, meter)
+	localSnap, err := (&Overlord{}).installWithSideInfo(downloadedSnap, &remoteSnap.SideInfo, flags, meter)
 	if err != nil {
 		return "", err
 	}
@@ -80,7 +80,7 @@ func newConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
 
 // Install the givens snap names provided via args. This can be local
 // files or snaps that are queried from the store
-func Install(name, channel string, flags LegacyInstallFlags, meter progress.Meter) (string, error) {
+func install(name, channel string, flags LegacyInstallFlags, meter progress.Meter) (string, error) {
 	name, err := doInstall(name, channel, flags, meter)
 	if err != nil {
 		return "", err
@@ -104,7 +104,7 @@ func doInstall(name, channel string, flags LegacyInstallFlags, meter progress.Me
 			flags |= LegacyAllowUnauthenticated
 		}
 
-		snap, err := (&Overlord{}).Install(name, flags, meter)
+		snap, err := (&Overlord{}).install(name, flags, meter)
 		if err != nil {
 			return "", err
 		}
@@ -178,7 +178,7 @@ func GarbageCollect(name string, flags LegacyInstallFlags, pb progress.Meter) er
 	}
 
 	for _, snap := range snaps[:active-1] {
-		if err := (&Overlord{}).Uninstall(snap, pb); err != nil {
+		if err := (&Overlord{}).uninstall(snap, pb); err != nil {
 			return ErrGarbageCollectImpossible(err.Error())
 		}
 	}
