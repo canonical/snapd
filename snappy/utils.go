@@ -20,13 +20,7 @@
 package snappy
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapenv"
 )
 
 // takes a directory and removes the global root, this is needed
@@ -40,49 +34,6 @@ func stripGlobalRootDirImpl(dir string) string {
 	}
 
 	return dir[len(dirs.GlobalRootDir):]
-}
-
-// makeSnapHookEnv returns an environment suitable for passing to
-// os/exec.Cmd.Env
-//
-// The returned environment contains additional SNAP_* variables that
-// are required when calling a meta/hook/ script and that will override
-// any already existing SNAP_* variables in os.Environment()
-func makeSnapHookEnv(sn *Snap) (env []string) {
-	desc := struct {
-		SnapName    string
-		SnapArch    string
-		SnapPath    string
-		Version     string
-		Revision    snap.Revision
-		UdevAppName string
-	}{
-		sn.Name(),
-		arch.UbuntuArchitecture(),
-		sn.Info().MountDir(),
-		sn.Version(),
-		sn.Revision(),
-		sn.Name(),
-	}
-
-	vars := snapenv.Basic(desc)
-	snapEnv := snapenv.MakeMapFromEnvList(vars)
-
-	// merge regular env and new snapEnv
-	envMap := snapenv.MakeMapFromEnvList(os.Environ())
-	for k, v := range snapEnv {
-		envMap[k] = v
-	}
-
-	// force default locale
-	envMap["LC_ALL"] = "C.UTF-8"
-
-	// flatten
-	for k, v := range envMap {
-		env = append(env, fmt.Sprintf("%s=%s", k, v))
-	}
-
-	return env
 }
 
 // firstErr returns the first error of the given error list
