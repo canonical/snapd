@@ -107,9 +107,9 @@ scmp_datum_t sc_map_search(char *s)
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
 		die("hsearch_r failed");
 
-	if (ep != NULL) {
-		val = *((scmp_datum_t *) ep->data);
-	} else
+	if (ep != NULL)
+		val = *(scmp_datum_t *) ep->data;
+	else
 		errno = EINVAL;
 
 	return val;
