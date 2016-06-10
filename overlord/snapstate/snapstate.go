@@ -176,14 +176,6 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 // a file path with an additional ".sideinfo" file next to it.
 // Note that the state must be locked by the caller.
 func InstallPathWithSideInfo(s *state.State, path, channel string, flags Flags) (*state.TaskSet, error) {
-	sf, err := snap.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	info, err := snap.ReadInfoFromSnapFile(sf, nil)
-	if err != nil {
-		return nil, err
-	}
 
 	var si snap.SideInfo
 	metafn := path + ".sideinfo"
@@ -193,9 +185,9 @@ func InstallPathWithSideInfo(s *state.State, path, channel string, flags Flags) 
 		}
 	}
 
-	name := info.Name()
+	name := si.OfficialName
 	var snapst SnapState
-	err = Get(s, name, &snapst)
+	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
