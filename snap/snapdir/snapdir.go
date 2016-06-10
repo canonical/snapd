@@ -17,13 +17,33 @@
  *
  */
 
-package snappy
+package snapdir
 
-// RemoveFlags can be used to pass additional flags to the snap removal request
-type RemoveFlags uint
-
-const (
-	// DoRemoveGC will ensure that garbage collection is done, unless a
-	// version is specified.
-	DoRemoveGC RemoveFlags = 1 << iota
+import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
 )
+
+// SnapDir is the snapdir based snap.
+type SnapDir struct {
+	path string
+}
+
+// Path returns the path of the backing container.
+func (s *SnapDir) Path() string {
+	return s.path
+}
+
+// New returns a new snap directory container.
+func New(path string) *SnapDir {
+	return &SnapDir{path: path}
+}
+
+func (s *SnapDir) Install(targetPath, mountDir string) error {
+	return os.Symlink(s.path, targetPath)
+}
+
+func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
+	return ioutil.ReadFile(filepath.Join(s.path, file))
+}

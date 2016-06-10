@@ -20,13 +20,12 @@
 package asserts_test
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 type modelSuite struct {
@@ -35,8 +34,8 @@ type modelSuite struct {
 }
 
 var (
-	_ = Suite(&deviceSerialSuite{})
 	_ = Suite(&modelSuite{})
+	_ = Suite(&serialSuite{})
 )
 
 func (mods *modelSuite) SetUpSuite(c *C) {
@@ -87,25 +86,35 @@ const (
 	modelErrPrefix = "assertion model: "
 )
 
-func (mods *modelSuite) TestDecodeInvalidMandatory(c *C) {
-	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
-
-	mandatoryHeaders := []string{"series", "brand-id", "model", "os", "architecture", "gadget", "kernel", "store", "allowed-modes", "required-snaps", "class", "timestamp"}
-
-	for _, mandatory := range mandatoryHeaders {
-		invalid := strings.Replace(encoded, mandatory+":", "xyz:", 1)
-		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, fmt.Sprintf("%s%q header is mandatory", modelErrPrefix, mandatory))
-	}
-}
-
 func (mods *modelSuite) TestDecodeInvalid(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
+		{"series: 16\n", "series: \n", `"series" header should not be empty`},
+		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
 		{"brand-id: brand-id1\n", "brand-id: random\n", `authority-id and brand-id must match, model assertions are expected to be signed by the brand: "brand-id1" != "random"`},
-		{"required-snaps: foo, bar\n", "required-snaps: foo,\n", `empty entry in comma separated "required-snaps" header: "foo,"`},
+		{"model: baz-3000\n", "", `"model" header is mandatory`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"os: core\n", "", `"os" header is mandatory`},
+		{"os: core\n", "os: \n", `"os" header should not be empty`},
+		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
+		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
+		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
+		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
+		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
+		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
+		{"store: brand-store\n", "", `"store" header is mandatory`},
+		{"store: brand-store\n", "store: \n", `"store" header should not be empty`},
+		{"allowed-modes: \n", "", `"allowed-modes" header is mandatory`},
 		{"allowed-modes: \n", "allowed-modes: ,\n", `empty entry in comma separated "allowed-modes" header: ","`},
+		{"required-snaps: foo, bar\n", "", `"required-snaps" header is mandatory`},
+		{"required-snaps: foo, bar\n", "required-snaps: foo,\n", `empty entry in comma separated "required-snaps" header: "foo,"`},
+		{"class: fixed\n", "", `"class" header is mandatory`},
+		{"class: fixed\n", "class: \n", `"class" header should not be empty`},
+		{mods.tsLine, "", `"timestamp" header is mandatory`},
+		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
@@ -146,24 +155,24 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	c.Assert(err, ErrorMatches, "model assertion timestamp outside of signing key validity")
 }
 
-type deviceSerialSuite struct {
+type serialSuite struct {
 	ts            time.Time
 	tsLine        string
 	deviceKey     asserts.PrivateKey
 	encodedDevKey string
 }
 
-func (dss *deviceSerialSuite) SetUpSuite(c *C) {
-	dss.ts = time.Now().Truncate(time.Second).UTC()
-	dss.tsLine = "timestamp: " + dss.ts.Format(time.RFC3339) + "\n"
+func (ss *serialSuite) SetUpSuite(c *C) {
+	ss.ts = time.Now().Truncate(time.Second).UTC()
+	ss.tsLine = "timestamp: " + ss.ts.Format(time.RFC3339) + "\n"
 
-	dss.deviceKey = asserts.OpenPGPPrivateKey(testPrivKey2)
-	encodedPubKey, err := asserts.EncodePublicKey(dss.deviceKey.PublicKey())
+	ss.deviceKey = testPrivKey2
+	encodedPubKey, err := asserts.EncodePublicKey(ss.deviceKey.PublicKey())
 	c.Assert(err, IsNil)
-	dss.encodedDevKey = string(encodedPubKey)
+	ss.encodedDevKey = string(encodedPubKey)
 }
 
-const deviceSerialExample = "type: device-serial\n" +
+const serialExample = "type: serial\n" +
 	"authority-id: canonical\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
@@ -175,40 +184,48 @@ const deviceSerialExample = "type: device-serial\n" +
 	"\n\n" +
 	"openpgp c2ln"
 
-func (dss *deviceSerialSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
-	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(dss.encodedDevKey, "\n", "\n ", -1), 1)
+func (ss *serialSuite) TestDecodeOK(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n ", -1), 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.DeviceSerialType)
-	deviceSerial := a.(*asserts.DeviceSerial)
-	c.Check(deviceSerial.AuthorityID(), Equals, "canonical")
-	c.Check(deviceSerial.Timestamp(), Equals, dss.ts)
-	c.Check(deviceSerial.BrandID(), Equals, "brand-id1")
-	c.Check(deviceSerial.Model(), Equals, "baz-3000")
-	c.Check(deviceSerial.Serial(), Equals, "2700")
-	c.Check(deviceSerial.DeviceKey().Fingerprint(), Equals, dss.deviceKey.PublicKey().Fingerprint())
+	c.Check(a.Type(), Equals, asserts.SerialType)
+	serial := a.(*asserts.Serial)
+	c.Check(serial.AuthorityID(), Equals, "canonical")
+	c.Check(serial.Timestamp(), Equals, ss.ts)
+	c.Check(serial.BrandID(), Equals, "brand-id1")
+	c.Check(serial.Model(), Equals, "baz-3000")
+	c.Check(serial.Serial(), Equals, "2700")
+	c.Check(serial.DeviceKey().Fingerprint(), Equals, ss.deviceKey.PublicKey().Fingerprint())
 }
 
 const (
-	deviceSerialErrPrefix = "assertion device-serial: "
+	serialErrPrefix = "assertion serial: "
 )
 
-func (dss *deviceSerialSuite) TestDecodeInvalid(c *C) {
-	encoded := strings.Replace(deviceSerialExample, "TSLINE", dss.tsLine, 1)
+func (ss *serialSuite) TestDecodeInvalid(c *C) {
+	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"model: baz-3000\n", "", `"model" header is mandatory`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
+		{"serial: 2700\n", "serial: \n", `"serial" header should not be empty`},
+		{ss.tsLine, "", `"timestamp" header is mandatory`},
+		{ss.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{ss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
+		{"device-key:\n DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
 		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
-		{dss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(dss.encodedDevKey, "\n", "\n ", -1), 1)
+		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n ", -1), 1)
 
 		_, err := asserts.Decode([]byte(invalid))
-		c.Check(err, ErrorMatches, deviceSerialErrPrefix+test.expectedErr)
+		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)
 	}
 }

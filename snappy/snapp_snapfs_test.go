@@ -24,13 +24,14 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/partition"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
-	"github.com/ubuntu-core/snappy/systemd"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -119,20 +120,20 @@ func (s *SquashfsTestSuite) TestOpenSnapFile(c *C) {
 
 func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: 42}
+	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
 	info, _, err := openSnapFile(snapPkg, true, &si)
 	c.Assert(err, IsNil)
 
 	// check side info
 	c.Check(info.Name(), Equals, "blessed")
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.R(42))
 }
 
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     16,
+		Revision:     snap.R(16),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -148,24 +149,24 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/hello-snap_16.snap")
 }
 
-func (s *SquashfsTestSuite) TestAddSquashfsMount(c *C) {
+func (s *SquashfsTestSuite) TestAddMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
-			Revision:     13,
+			Revision:     snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(info, true, inter)
+	err := addMountUnit(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure correct mount unit
 	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, "snap-foo-13.mount"))
 	c.Assert(err, IsNil)
 	c.Assert(string(mount), Equals, `[Unit]
-Description=Squashfs mount unit for foo
+Description=Mount unit for foo
 
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
@@ -177,17 +178,17 @@ WantedBy=multi-user.target
 
 }
 
-func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
+func (s *SquashfsTestSuite) TestRemoveMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
 			OfficialName: "foo",
-			Revision:     13,
+			Revision:     snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
 	}
 	inter := &MockProgressMeter{}
-	err := addSquashfsMount(info, true, inter)
+	err := addMountUnit(info, true, inter)
 	c.Assert(err, IsNil)
 
 	// ensure we have the files
@@ -195,7 +196,7 @@ func (s *SquashfsTestSuite) TestRemoveSquashfsMountUnit(c *C) {
 	c.Assert(osutil.FileExists(p), Equals, true)
 
 	// now call remove and ensure they are gone
-	err = removeSquashfsMount(info.MountDir(), inter)
+	err = removeMountUnit(info.MountDir(), inter)
 	c.Assert(err, IsNil)
 	p = filepath.Join(dirs.SnapServicesDir, "snaps-foo-13.mount")
 	c.Assert(osutil.FileExists(p), Equals, false)
@@ -205,7 +206,7 @@ func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapPath := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
 		OfficialName: "hello-snap",
-		Revision:     16,
+		Revision:     snap.R(16),
 	}
 	snap, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -230,10 +231,13 @@ vendor: Someone
 `
 
 func (s *SquashfsTestSuite) TestInstallOsSnapUpdatesBootloader(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	snapPkg := makeTestSnapPackage(c, packageOS)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-core",
-		Revision:     160,
+		Revision:     snap.R(160),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -252,6 +256,9 @@ vendor: Someone
 `
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	files := [][]string{
 		{"kernel.img", "I'm a kernel"},
 		{"initrd.img", "...and I'm an initrd"},
@@ -260,7 +267,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     40,
+		Revision:     snap.R(40),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -283,7 +290,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     42,
+		Revision:     snap.R(42),
 	}
 	_, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -311,7 +318,7 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
 		OfficialName: "ubuntu-kernel",
-		Revision:     42,
+		Revision:     snap.R(42),
 	}
 	snap, err := (&Overlord{}).InstallWithSideInfo(snapPkg, si, 0, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -341,10 +348,10 @@ func (s *SquashfsTestSuite) TestActiveKernelNotRemovable(c *C) {
 
 func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernelErrors(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	snap, snapf, err := openSnapFile(snapPkg, true, nil)
+	snap, _, err := openSnapFile(snapPkg, true, nil)
 	c.Assert(err, IsNil)
 
-	err = extractKernelAssets(snap, snapf, 0, nil)
+	err = extractKernelAssets(snap, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 

@@ -22,9 +22,9 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
 )
 
 type NetworkBindInterfaceSuite struct {

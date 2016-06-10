@@ -27,8 +27,8 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func (cs *clientSuite) TestClientLogin(c *check.C) {

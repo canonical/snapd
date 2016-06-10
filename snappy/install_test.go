@@ -31,13 +31,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/progress"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/progress"
 )
 
 func (s *SnapTestSuite) TestInstallInstall(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "channel", AllowUnauthenticated|DoInstallGC, &progress.NullProgress{})
+	name, err := Install(snapPath, "channel", LegacyAllowUnauthenticated|LegacyDoInstallGC, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -51,7 +51,7 @@ func (s *SnapTestSuite) TestInstallInstall(c *C) {
 
 func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
-	name, err := Install(snapPath, "", AllowUnauthenticated|DoInstallGC|InhibitHooks, &progress.NullProgress{})
+	name, err := Install(snapPath, "", LegacyAllowUnauthenticated|LegacyDoInstallGC|LegacyInhibitHooks, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "foo")
 
@@ -63,7 +63,7 @@ func (s *SnapTestSuite) TestInstallNoHook(c *C) {
 	c.Check(snap.IsActive(), Equals, false) // c.f. TestInstallInstall
 }
 
-func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
+func (s *SnapTestSuite) installThree(c *C, flags LegacyInstallFlags) {
 	c.Skip("can't really install 3 separate snap version just through the old snappy.Install interface, they all get revision 0!")
 	dirs.SnapDataHomeGlob = filepath.Join(s.tempdir, "home", "*", "snaps")
 	homeDir := filepath.Join(s.tempdir, "home", "user1", "snaps")
@@ -88,7 +88,7 @@ func (s *SnapTestSuite) installThree(c *C, flags InstallFlags) {
 
 // check that on install we remove all but the two newest package versions
 func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
-	s.installThree(c, AllowUnauthenticated|DoInstallGC)
+	s.installThree(c, LegacyAllowUnauthenticated|LegacyDoInstallGC)
 
 	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Check(err, IsNil)
@@ -111,7 +111,7 @@ func (s *SnapTestSuite) TestClickInstallGCSimple(c *C) {
 
 // check that if flags does not include DoInstallGC, no gc is done
 func (s *SnapTestSuite) TestClickInstallGCSuppressed(c *C) {
-	s.installThree(c, AllowUnauthenticated)
+	s.installThree(c, LegacyAllowUnauthenticated)
 
 	globs, err := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, "foo", "*"))
 	c.Assert(err, IsNil)
@@ -212,80 +212,4 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 
 	_, err = Install("hello-snap", "ch", 0, ag)
 	c.Assert(err, ErrorMatches, ".*"+ErrPackageNameAlreadyInstalled.Error())
-}
-
-func (s *SnapTestSuite) TestUpdate(c *C) {
-	yamlPath, err := makeInstalledMockSnap("name: foo\nversion: 1", 25)
-	c.Assert(err, IsNil)
-	makeSnapActive(yamlPath)
-	installed, err := (&Overlord{}).Installed()
-	c.Assert(err, IsNil)
-	c.Assert(installed, HasLen, 1)
-	c.Assert(ActiveSnapByName("foo"), NotNil)
-
-	snapPackagev2 := makeTestSnapPackage(c, "name: foo\nversion: 2")
-
-	snapR, err := os.Open(snapPackagev2)
-	c.Assert(err, IsNil)
-	defer snapR.Close()
-
-	// details
-	var dlURL, iconURL string
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/search":
-			io.WriteString(w, `{"_embedded": {"clickindex:package": [{
-"package_name": "foo",
-"version": "2",
-"revision": 27,
-"developer": "`+testDeveloper+`",
-"anon_download_url": "`+dlURL+`",
-"icon_url": "`+iconURL+`"
-}]}}`)
-		case "/dl":
-			snapR.Seek(0, 0)
-			io.Copy(w, snapR)
-		case "/icon":
-			fmt.Fprintf(w, "")
-		default:
-			panic("unexpected url path: " + r.URL.Path)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	dlURL = mockServer.URL + "/dl"
-	iconURL = mockServer.URL + "/icon"
-
-	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
-	c.Assert(err, IsNil)
-
-	// bulk
-	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, `[{
-	"package_name": "foo",
-	"version": "2",
-        "revision": 3,
-        "origin": "`+testDeveloper+`",
-	"anon_download_url": "`+dlURL+`",
-	"download_url": "`+dlURL+`",
-	"icon_url": "`+iconURL+`"
-}]`)
-	}))
-
-	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	// the test
-	updates, err := UpdateAll(0, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-	c.Assert(updates, HasLen, 1)
-	c.Check(updates[0].Name(), Equals, "foo")
-	c.Check(updates[0].Version(), Equals, "2")
-	c.Check(updates[0].Revision(), Equals, 3)
-	// ensure that we get a "local" snap back - not a remote one
-	c.Check(updates[0], FitsTypeOf, &Snap{})
 }

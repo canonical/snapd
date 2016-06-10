@@ -20,8 +20,8 @@
 package builtin_test
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
-	. "github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	. "github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
@@ -34,7 +34,10 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	all := builtin.Interfaces()
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
 	c.Check(all, Contains, &builtin.BluezInterface{})
+	c.Check(all, Contains, &builtin.LocationControlInterface{})
+	c.Check(all, Contains, &builtin.LocationObserveInterface{})
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
+	c.Check(all, DeepContains, builtin.NewGsettingsInterface())
 	c.Check(all, DeepContains, builtin.NewHomeInterface())
 	c.Check(all, DeepContains, builtin.NewLocaleControlInterface())
 	c.Check(all, DeepContains, builtin.NewLogObserveInterface())
@@ -50,4 +53,6 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewUnity7Interface())
 	c.Check(all, DeepContains, builtin.NewX11Interface())
 	c.Check(all, DeepContains, builtin.NewOpenglInterface())
+	c.Check(all, DeepContains, builtin.NewPulseAudioInterface())
+	c.Check(all, DeepContains, builtin.NewCupsControlInterface())
 }

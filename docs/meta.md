@@ -123,4 +123,4 @@ See `config.md` for details.
 
 # Examples
 
-See https://github.com/ubuntu-core/snappy-testdata for up-to-date examples.
+See https://github.com/snapcore/snapd-testdata for up-to-date examples.

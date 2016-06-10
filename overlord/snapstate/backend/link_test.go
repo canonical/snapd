@@ -25,14 +25,14 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 
-	"github.com/ubuntu-core/snappy/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
 
 func TestBackend(t *testing.T) { TestingT(t) }
@@ -62,6 +62,9 @@ func (s *linkSuite) TearDownTest(c *C) {
 func (s *linkSuite) TestLinkDoUndoGenerateWrappers(c *C) {
 	const yaml = `name: hello
 version: 1.0
+environment:
+ KEY: value
+
 apps:
  bin:
    command: bin
@@ -70,7 +73,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -99,7 +102,7 @@ func (s *linkSuite) TestLinkDoUndoCurrentSymlink(c *C) {
 version: 1.0
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -130,6 +133,8 @@ func (s *linkSuite) TestLinkDoIdempotent(c *C) {
 
 	const yaml = `name: hello
 version: 1.0
+environment:
+ KEY: value
 apps:
  bin:
    command: bin
@@ -138,7 +143,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)
@@ -166,7 +171,7 @@ apps:
 	c.Assert(currentDataDir, Equals, dataDir)
 }
 
-func (s *linkSuite) TestLinkUnoIdempotent(c *C) {
+func (s *linkSuite) TestLinkUndoIdempotent(c *C) {
 	// make sure that a retry wouldn't stumble on partial work
 
 	const yaml = `name: hello
@@ -179,7 +184,7 @@ apps:
    daemon: simple
 `
 
-	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: 11})
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	err := s.be.LinkSnap(info)
 	c.Assert(err, IsNil)

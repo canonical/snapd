@@ -23,10 +23,10 @@ package tests
 import (
 	"os"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/build"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )

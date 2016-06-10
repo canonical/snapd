@@ -24,18 +24,40 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
-// allow exchange in the tests
-// XXX once we reimplent CanRemove directly here, this goes away
-var be managerBackend = &defaultBackend{}
+// Flags are used to pass additional flags to operations and to keep track of snap modes.
+type Flags int
 
-func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+const (
+	// DevMode switches confinement to non-enforcing mode.
+	DevMode = 1 << iota
+	// TryMode is set for snaps installed to try directly from a local directory.
+	TryMode
+
+	// the following flag values cannot be used until we drop the
+	// backward compatible support for flags values in SnapSetup
+	// that were based on snappy.* flags, after that we can
+	// start using them
+	interimUnusableLegacyFlagValueMin
+	interimUnusableLegacyFlagValue1
+	interimUnusableLegacyFlagValue2
+	interimUnusableLegacyFlagValueLast
+
+	// the following flag value is the first that can be grabbed
+	// for use in the interim time while we have the backward compatible
+	// support
+	firstInterimUsableFlagValue
+	// if we need flags for just SnapSetup it may be easier
+	// to start a new sequence from the other end with:
+	// 0x40000000 >> iota
+)
+
+func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, snapName); err != nil {
 		return nil, err
 	}
@@ -48,7 +70,7 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	ss := SnapSetup{
 		Channel: channel,
 		UserID:  userID,
-		Flags:   int(flags),
+		Flags:   SnapSetupFlags(flags),
 	}
 	ss.Name = snapName
 	ss.SnapPath = snapPath
@@ -116,7 +138,7 @@ func checkChangeConflict(s *state.State, snapName string) error {
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func Install(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -131,7 +153,7 @@ func Install(s *state.State, name, channel string, userID int, flags snappy.Inst
 
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
-func InstallPath(s *state.State, name, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func InstallPath(s *state.State, name, path, channel string, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -141,9 +163,17 @@ func InstallPath(s *state.State, name, path, channel string, flags snappy.Instal
 	return doInstall(s, snapst.Active, name, path, channel, 0, flags)
 }
 
+// TryPath returns a set of tasks for trying a snap from a file path.
+// Note that the state must be locked by the caller.
+func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
+	flags |= TryMode
+
+	return InstallPath(s, name, path, "", flags)
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+func Update(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -161,11 +191,10 @@ func Update(s *state.State, name, channel string, userID int, flags snappy.Insta
 	return doInstall(s, snapst.Active, name, "", channel, userID, flags)
 }
 
-func removeInactiveRevision(s *state.State, name string, revision int, flags snappy.RemoveFlags) *state.TaskSet {
+func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
 	ss := SnapSetup{
 		Name:     name,
 		Revision: revision,
-		Flags:    int(flags),
 	}
 
 	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
@@ -178,9 +207,27 @@ func removeInactiveRevision(s *state.State, name string, revision int, flags sna
 	return state.NewTaskSet(clearData, discardSnap)
 }
 
+// canRemove verifies that a snap can be removed.
+func canRemove(s *snap.Info, active bool) bool {
+	// Gadget snaps should not be removed as they are a key
+	// building block for Gadgets. Pruning non active ones
+	// is acceptable.
+	if s.Type == snap.TypeGadget && active {
+		return false
+	}
+
+	// You never want to remove an active kernel or OS
+	if (s.Type == snap.TypeKernel || s.Type == snap.TypeOS) && active {
+		return false
+	}
+	// TODO: on classic likely let remove core even if active if it's only snap left.
+
+	return true
+}
+
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskSet, error) {
+func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, name); err != nil {
 		return nil, err
 	}
@@ -205,8 +252,7 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 	}
 
 	// check if this is something that can be removed
-	// XXX: move CanRemove impl directly in snapstate
-	if !be.CanRemove(info, active) {
+	if !canRemove(info, active) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
 
@@ -214,7 +260,6 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 	ss := SnapSetup{
 		Name:     name,
 		Revision: revision,
-		Flags:    int(flags),
 	}
 
 	// trigger remove
@@ -245,7 +290,7 @@ func Remove(s *state.State, name string, flags snappy.RemoveFlags) (*state.TaskS
 	seq := snapst.Sequence
 	for i := len(seq) - 1; i >= 0; i-- {
 		si := seq[i]
-		addNext(removeInactiveRevision(s, name, si.Revision, flags))
+		addNext(removeInactiveRevision(s, name, si.Revision))
 	}
 
 	discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q"), name))
@@ -267,7 +312,7 @@ var readInfo = snap.ReadInfo
 
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
-func Info(s *state.State, name string, revision int) (*snap.Info, error) {
+func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err == state.ErrNoState {
@@ -287,7 +332,7 @@ func Info(s *state.State, name string, revision int) (*snap.Info, error) {
 		return readInfo(name, snapst.Candidate)
 	}
 
-	return nil, fmt.Errorf("cannot find snap %q at revision %d", name, revision)
+	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
 }
 
 // Current returns the information about the current revision of a snap with the given name.

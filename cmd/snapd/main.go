@@ -25,8 +25,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/ubuntu-core/snappy/daemon"
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/logger"
 )
 
 func init() {
@@ -37,6 +38,7 @@ func init() {
 }
 
 func main() {
+	cmd.ExecInCoreSnap()
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
@@ -48,10 +50,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
-
 	if err := d.Init(); err != nil {
 		return err
 	}
+	d.Version = cmd.Version
 
 	d.Start()
 

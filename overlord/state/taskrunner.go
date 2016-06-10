@@ -25,7 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/ubuntu-core/snappy/logger"
+	"github.com/snapcore/snapd/logger"
 )
 
 // HandlerFunc is the type of function for the handlers
@@ -123,12 +123,16 @@ func (r *TaskRunner) run(t *Task) {
 			switch t.Status() {
 			case DoingStatus:
 				t.SetStatus(DoneStatus)
+				fallthrough
+			case DoneStatus:
 				next = t.HaltTasks()
 			case AbortStatus:
 				t.SetStatus(DoneStatus) // Not actually aborted.
 				r.tryUndo(t)
 			case UndoingStatus:
 				t.SetStatus(UndoneStatus)
+				fallthrough
+			case UndoneStatus:
 				next = t.WaitTasks()
 			}
 			if len(next) > 0 {

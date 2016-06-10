@@ -3,9 +3,15 @@
 
 #export DH_VERBOSE=1
 export DH_OPTIONS
-export DH_GOPKG := github.com/ubuntu-core/snappy
+export DH_GOPKG := github.com/snapcore/snapd
 #export DEB_BUILD_OPTIONS=nocheck
 export DH_GOLANG_EXCLUDES=integration-tests
+export DH_GOLANG_GO_GENERATE=1
+
+# we need the builddir; is there a simpler way to get it?
+BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
+
+export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
@@ -21,50 +27,44 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-core-snapd-units \
 		snapd.firstboot.service
-	# we want the autopilot timer enabled by default
-#	dh_systemd_enable \
+	# we want the auto-update timer enabled by default
+	dh_systemd_enable \
 		-psnapd \
-		snappy-autopilot.timer
-	# but the autopilot service disabled
-#	dh_systemd_enable \
+		snapd.refresh.timer
+	# but the auto-update service disabled
+	dh_systemd_enable \
 		--no-enable \
 		-psnapd \
-		snappy-autopilot.service
+		snapd.refresh.service
 	# enable snapd
 	dh_systemd_enable \
 		-psnapd \
 		snapd.socket
+	dh_systemd_enable \
+		-psnapd \
+		snapd.service
 
 override_dh_systemd_start:
 	# start boot-ok
 	dh_systemd_start \
 		-pubuntu-core-snapd-units \
 		snapd.boot-ok.service
-	# we want to start the autopilot timer
-#	dh_systemd_start \
+	# we want to start the auto-update timer
+	dh_systemd_start \
 		-psnapd \
-		snappy-autopilot.timer
+		snapd.refresh.timer
 	# but not start the service
-#	dh_systemd_start \
+	dh_systemd_start \
 		--no-start \
 		-psnapd \
-		snappy-autopilot.service
+		snapd.refresh.service
 	# start snapd
 	dh_systemd_start \
 		-psnapd \
 		snapd.socket
-
-# we need the builddir; is there a simpler way to get it?
-BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
-
-override_dh_auto_build:
-	dh_auto_build
-	# this will update the i18n stuff using our build-in xgettext-go
-	if [ "$(RELEASE)" = "vivid" ]; then\
-		GOPATH=${BUILDDIR} ./update-pot;\
-	else\
-		GOPATH=${BUILDDIR} go generate ./i18n;\
-	fi;
+	dh_systemd_start \
+		-psnapd \
+		snapd.service
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang

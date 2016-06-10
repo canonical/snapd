@@ -23,8 +23,8 @@ package tests
 import (
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
 )
 
 const providerURL = "http://127.0.0.1:8081"
@@ -50,6 +50,6 @@ func (s *networkBindInterfaceSuite) TestPlugDisconnectionDisablesClientConnectio
 	output = cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
-	output = cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Equals, "request timeout\n")
+	output, err := cli.ExecCommandErr("network-consumer", providerURL)
+	c.Assert(err, check.NotNil)
 }

@@ -23,7 +23,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // templateVariables returns text defining apparmor variables that can be used in the
@@ -32,7 +32,7 @@ func templateVariables(appInfo *snap.AppInfo) []byte {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
-	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%d\"\n", appInfo.Snap.Revision)
+	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", appInfo.Snap.Revision)
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
 	return buf.Bytes()
 }

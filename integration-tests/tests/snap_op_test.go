@@ -29,14 +29,14 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/wait"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/testutil"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/integration-tests/testutils/build"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/wait"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&snapOpSuite{})
@@ -48,7 +48,7 @@ type snapOpSuite struct {
 func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string) {
 	installOutput := common.InstallSnap(c, snapName)
 	expected := "(?ms)" +
-		"Name +Version +Rev +Developer\n" +
+		"Name +Version +Rev +Developer +Notes\n" +
 		".*" +
 		displayName + " +.*\n" +
 		".*"
@@ -71,8 +71,8 @@ func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
 	common.InstallSnap(c, snapPath)
 	installOutput := common.InstallSnap(c, snapPath)
 	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
-	// double check, sideloaded snaps have revnos like 1000xx
-	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
+	// double check, sideloaded snaps have revnos like xNN
+	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "x*"))
 	c.Check(len(revnos) >= 2, check.Equals, true)
 
 	removeOutput := common.RemoveSnap(c, data.BasicSnapName)
@@ -108,10 +108,10 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 		wait.ForCommand(c, needle, "snap", "changes")
 
 		// find change id of the remove
-		output := cli.ExecCommand(c, "snap", "changes")
+		output := cli.ExecCommand(c, "snap", "changes", data.BasicBinariesSnapName)
 		id := regexp.MustCompile(`(?m)([0-9]+).*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
 		needle = `will retry: `
-		wait.ForCommand(c, needle, "snap", "changes", id)
+		wait.ForCommand(c, needle, "snap", "change", id)
 
 		// now stop the service that blocks the umount
 		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
@@ -153,11 +153,11 @@ func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
 	c.Assert(err, check.NotNil)
 
 	// check undone and error in tasks
-	output := cli.ExecCommand(c, "snap", "changes")
+	output := cli.ExecCommand(c, "snap", "changes", snapName)
 	expected := fmt.Sprintf(`(?ms).*\n(\d+) +Error.*Install "%s" snap\n$`, snapName)
 	id := regexp.MustCompile(expected).FindStringSubmatch(output)[1]
 
-	output = cli.ExecCommand(c, "snap", "changes", id)
+	output = cli.ExecCommand(c, "snap", "change", id)
 
 	type undoneCheckerFunc func(*check.C, string, string)
 	for _, fn := range []undoneCheckerFunc{

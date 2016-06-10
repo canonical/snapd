@@ -22,9 +22,9 @@ package builtin_test
 import (
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/interfaces/builtin"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
 )
 
 type HomeInterfaceSuite struct {
@@ -124,5 +124,5 @@ func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(), Equals, true)
 }

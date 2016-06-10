@@ -21,8 +21,8 @@
 package tests
 
 import (
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
@@ -50,6 +50,6 @@ func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *ch
 	output = cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
-	output = cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Equals, "Error, reason:  [Errno 13] Permission denied\n")
+	output, err := cli.ExecCommandErr("network-consumer", providerURL)
+	c.Check(err, check.NotNil)
 }

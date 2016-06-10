@@ -34,8 +34,7 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/osutil"
+	"github.com/snapcore/snapd/asserts"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -79,10 +78,10 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKey(c *C) {
-	expectedFingerprint := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[:])
-	expectedKeyID := hex.EncodeToString(testPrivKey1.PublicKey.Fingerprint[12:])
+	expectedFingerprint := hex.EncodeToString(testPrivKey1Pkt.PublicKey.Fingerprint[:])
+	expectedKeyID := hex.EncodeToString(testPrivKey1Pkt.PublicKey.Fingerprint[12:])
 
-	err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err := dbs.db.ImportKey("account0", testPrivKey1)
 	c.Assert(err, IsNil)
 
 	keyPath := filepath.Join(dbs.topDir, "private-keys-v0/account0", expectedKeyID)
@@ -100,23 +99,15 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKeyAlreadyExists(c *C) {
-	err := dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err := dbs.db.ImportKey("account0", testPrivKey1)
 	c.Assert(err, IsNil)
 
-	err = dbs.db.ImportKey("account0", asserts.OpenPGPPrivateKey(testPrivKey1))
+	err = dbs.db.ImportKey("account0", testPrivKey1)
 	c.Check(err, ErrorMatches, "key pair with given key id already exists")
 }
 
-func (dbs *databaseSuite) TestGenerateKey(c *C) {
-	fingerp, err := dbs.db.GenerateKey("account0")
-	c.Assert(err, IsNil)
-	c.Check(fingerp, NotNil)
-	keyPath := filepath.Join(dbs.topDir, "private-keys-v0/account0", fingerp)
-	c.Check(osutil.FileExists(keyPath), Equals, true)
-}
-
 func (dbs *databaseSuite) TestPublicKey(c *C) {
-	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk := testPrivKey1
 	fingerp := pk.PublicKey().Fingerprint()
 	keyid := pk.PublicKey().ID()
 	err := dbs.db.ImportKey("account0", pk)
@@ -136,21 +127,21 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	c.Assert(err, IsNil)
 	pubKey, ok := pkt.(*packet.PublicKey)
 	c.Assert(ok, Equals, true)
-	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1.PublicKey.Fingerprint)
+	c.Assert(pubKey.Fingerprint, DeepEquals, testPrivKey1Pkt.PublicKey.Fingerprint)
 }
 
 func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
-	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk := testPrivKey1
 	keyID := pk.PublicKey().ID()
 
 	_, err := dbs.db.PublicKey("account0", keyID)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	err = dbs.db.ImportKey("account0", pk)
 	c.Assert(err, IsNil)
 
 	_, err = dbs.db.PublicKey("account0", "ff"+keyID)
-	c.Check(err, ErrorMatches, "no matching key pair found")
+	c.Check(err, ErrorMatches, "cannot find key pair")
 }
 
 type checkSuite struct {
@@ -171,7 +162,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 		"authority-id": "canonical",
 		"primary-key":  "0",
 	}
-	chks.a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, asserts.OpenPGPPrivateKey(testPrivKey0))
+	chks.a, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 }
 
@@ -193,7 +184,7 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      chks.bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.ExpiredAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -208,7 +199,7 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      chks.bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -217,13 +208,13 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	content, encodedSig := chks.a.Signature()
 	// forgery
 	forgedSig := new(packet.Signature)
-	forgedSig.PubKeyAlgo = testPrivKey1.PubKeyAlgo
+	forgedSig.PubKeyAlgo = testPrivKey1Pkt.PubKeyAlgo
 	forgedSig.Hash = crypto.SHA256
 	forgedSig.CreationTime = time.Now()
-	forgedSig.IssuerKeyId = &testPrivKey0.KeyId
+	forgedSig.IssuerKeyId = &asserts.PrivateKeyPacket(testPrivKey0).KeyId
 	h := crypto.SHA256.New()
 	h.Write(content)
-	err = forgedSig.Sign(h, testPrivKey1, &packet.Config{DefaultHash: crypto.SHA256})
+	err = forgedSig.Sign(h, testPrivKey1Pkt, &packet.Config{DefaultHash: crypto.SHA256})
 	c.Assert(err, IsNil)
 	buf := new(bytes.Buffer)
 	forgedSig.Serialize(buf)
@@ -254,7 +245,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	safs.signingDB = db0
 
-	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
+	pk := testPrivKey0
 	err = db0.ImportKey("canonical", pk)
 	c.Assert(err, IsNil)
 	safs.signingKeyID = pk.PublicKey().ID()
@@ -267,7 +258,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -320,7 +311,7 @@ func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
 		"primary-key":  "a",
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, "abcd")
-	c.Assert(err, ErrorMatches, "no matching key pair found")
+	c.Assert(err, ErrorMatches, "cannot find key pair")
 	c.Check(a1, IsNil)
 }
 
@@ -499,7 +490,7 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 }
 
 func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
-	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk1 := testPrivKey1
 	pubKey1Encoded, err := asserts.EncodePublicKey(pk1.PublicKey())
 	c.Assert(err, IsNil)
 
@@ -583,4 +574,73 @@ func (res *revisionErrorSuite) TestErrorText(c *C) {
 	for _, test := range tests {
 		c.Check(test.err, ErrorMatches, test.expected)
 	}
+}
+
+type signatureBackwardCompSuite struct{}
+
+var _ = Suite(&signatureBackwardCompSuite{})
+
+func (sbcs *signatureBackwardCompSuite) TestOldSHA256SignaturesWork(c *C) {
+	// these were using SHA256
+
+	const (
+		testTrustedKey = `type: account-key
+authority-id: can0nical
+account-id: can0nical
+public-key-id: 844efa9730eec4be
+public-key-fingerprint: 716ff3cec4b9364a2bd930dc844efa9730eec4be
+since: 2016-01-14T15:00:00Z
+until: 2023-01-14T15:00:00Z
+body-length: 376
+
+openpgp xsBNBFaXv40BCADIlqLKFZaPaoe4TNLQv77vh4JWTlt7Z3IN2ducNqfg50q5mnkyUD2D
+SckvsMy1440+a0Z83m/A7aPaO1JkLpMGfLr23VLyKCaAe0k6hg69/6aEfXhfy0yYvEOgGcBiX+fN
+T6tqdRCsd+08LtisjYez7iJvmVwQ/syeduoTU4EiSVO1zlgc3eeq3TFyvcN0E1EsZ/7l2A33amTo
+mtAPVyQsa1B+lTeaUgwuPBWV0oTuYcUSfYsmmsXEKx/PnzkliicnrC9QZ5CcisskVve3QwPAuLUz
+2nV7/6vSRF22T4cUPF4QntjZBB6xjopdDH6wQsKyzLTTRak74moWksx8MEmVABEBAAE=
+
+openpgp wsBcBAABCAAQBQJWl8DiCRCETvqXMO7EvgAAhjkIAEoINWjQkujtx/TFYsKh0yYcQSpT
+v8O83mLRP7Ty+mH99uQ0/DbeQ1hM5st8cFgzU8SzlDCh6BUMnAl/bR/hhibFD40CBLd13kDXl1aN
+APybmSYoDVRQPAPop44UF0aCrTIw4Xds3E56d2Rsn+CkNML03kRc/i0Q53uYzZwxXVnzW/gVOXDL
+u/IZtjeo3KsB645MVEUxJLQmjlgMOwMvCHJgWhSvZOuf7wC0soBCN9Ufa/0M/PZFXzzn8LpjKVrX
+iDXhV7cY5PceG8ZV7Duo1JadOCzpkOHmai4DcrN7ZeY8bJnuNjOwvTLkrouw9xci4IxpPDRu0T/i
+K9qaJtUo4cA=`
+		testAccKey = `type: account-key
+authority-id: can0nical
+account-id: developer1
+public-key-id: adea89b00094c337
+public-key-fingerprint: 5fa7b16ad5e8c8810d5a0686adea89b00094c337
+since: 2016-01-14T15:00:00Z
+until: 2023-01-14T15:00:00Z
+body-length: 376
+
+openpgp xsBNBFaXv5MBCACkK//qNb3UwRtDviGcCSEi8Z6d5OXok3yilQmEh0LuW6DyP9sVpm08
+Vb1LGewOa5dThWGX4XKRBI/jCUnjCJQ6v15lLwHe1N7MJQ58DUxKqWFMV9yn4RcDPk6LqoFpPGdR
+rbp9Ivo3PqJRMyD0wuJk9RhbaGZmILcL//BLgomE9NgQdAfZbiEnGxtkqAjeVtBtcJIj5TnCC658
+ZCqwugQeO9iJuIn3GosYvvTB6tReq6GP6b4dqvoi7SqxHVhtt2zD4Y6FUZIVmvZK0qwkV0gua2az
+LzPOeoVcU1AEl7HVeBk7G6GiT5jx+CjjoGa0j22LdJB9S3JXHtGYk5p9CAwhABEBAAE=
+
+openpgp wsBcBAABCAAQBQJWl8HNCRCETvqXMO7EvgAAeuAIABn/1i8qGyaIhxOWE2cHIPYW3hq2
+PWpq7qrPN5Dbp/00xrTvc6tvMQWsXlMrAsYuq3sBCxUp3JRp9XhGiQeJtb8ft10g3+3J7e8OGHjl
+CfXJ3A5el8Xxp5qkFywCsLdJgNtF6+uSQ4dO8SrAwzkM7c3JzntxdiFOjDLUSyZ+rXL42jdRagTY
+8bcZfb47vd68Hyz3EvSvJuHSDbcNSTd3B832cimpfq5vJ7FoDrchVn3sg+3IwekuPhG3LQn5BVtc
+0ontHd+V1GaandhqBaDA01cGZN0gnqv2Haogt0P/h3nZZZJ1nTW5PLC6hs8TZdBdl3Lel8yAHD5L
+ZF5jSvRDLgI=`
+	)
+
+	tKey, err := asserts.Decode([]byte(testTrustedKey))
+	c.Assert(err, IsNil)
+
+	cfg := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		TrustedKeys:    []*asserts.AccountKey{tKey.(*asserts.AccountKey)},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode([]byte(testAccKey))
+	c.Assert(err, IsNil)
+
+	err = db.Check(a)
+	c.Check(err, IsNil)
 }

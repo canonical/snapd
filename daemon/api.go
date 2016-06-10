@@ -35,20 +35,20 @@ import (
 
 	"github.com/gorilla/mux"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/i18n"
-	"github.com/ubuntu-core/snappy/interfaces"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/overlord/auth"
-	"github.com/ubuntu-core/snappy/overlord/ifacestate"
-	"github.com/ubuntu-core/snappy/overlord/snapstate"
-	"github.com/ubuntu-core/snappy/overlord/state"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snappy"
-	"github.com/ubuntu-core/snappy/store"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 var api = []*Command{
@@ -173,7 +173,8 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	m := map[string]string{
-		"series": release.Series,
+		"series":  release.Series,
+		"version": c.d.Version,
 	}
 
 	return SyncResponse(m, nil)
@@ -293,16 +294,6 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 	return user, err
 }
 
-type metarepo interface {
-	Snap(string, string, store.Authenticator) (*snap.Info, error)
-	FindSnaps(string, string, store.Authenticator) ([]*snap.Info, error)
-	SuggestedCurrency() string
-}
-
-var newRemoteRepo = func() metarepo {
-	return snappy.NewConfiguredUbuntuStoreSnapRepository()
-}
-
 var muxVars = mux.Vars
 
 func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -354,47 +345,41 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	return result
 }
 
+func getStore(c *Command) snapstate.StoreService {
+	return c.d.overlord.SnapManager().Store()
+}
+
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
 	}
-
 	query := r.URL.Query()
+
+	if query.Get("select") == "refresh" {
+		if query.Get("q") != "" {
+			return BadRequest("cannot use 'q' with 'select=refresh'")
+		}
+		return storeUpdates(c, r, user)
+	}
 
 	auther, err := c.d.auther(r)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 
-	remoteRepo := newRemoteRepo()
-	found, err := remoteRepo.FindSnaps(query.Get("q"), query.Get("channel"), auther)
+	store := getStore(c)
+	found, err := store.Find(query.Get("q"), query.Get("channel"), auther)
 	if err != nil {
 		return InternalError("%v", err)
 	}
 
 	meta := &Meta{
-		SuggestedCurrency: remoteRepo.SuggestedCurrency(),
+		SuggestedCurrency: store.SuggestedCurrency(),
 		Sources:           []string{"store"},
 	}
 
-	results := make([]*json.RawMessage, len(found))
-	for i, x := range found {
-		url, err := route.URL("name", x.Name())
-		if err != nil {
-			logger.Noticef("cannot build URL for snap %q (r%d): %v", x.Name(), x.Revision, err)
-			continue
-		}
-
-		data, err := json.Marshal(webify(mapRemote(x), url.String()))
-		if err != nil {
-			return InternalError("%v", err)
-		}
-		raw := json.RawMessage(data)
-		results[i] = &raw
-	}
-
-	return SyncResponse(results, meta)
+	return sendStorePackages(route, meta, found)
 }
 
 func shouldSearchStore(r *http.Request) bool {
@@ -417,6 +402,69 @@ func shouldSearchStore(r *http.Request) bool {
 	}
 
 	return false
+}
+
+func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
+	route := c.d.router.Get(snapCmd.Path)
+	if route == nil {
+		return InternalError("cannot find route for snaps")
+	}
+
+	found, err := allLocalSnapInfos(c.d.overlord.State())
+	if err != nil {
+		return InternalError("cannot list local snaps: %v", err)
+	}
+
+	candidatesInfo := make([]*store.RefreshCandidate, 0, len(found))
+	for _, sn := range found {
+		// snaps in try mode are not considered here
+		if sn.snapst.TryMode() {
+			continue
+		}
+
+		// get confinement preference from the snapstate
+		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
+			// the desired channel (not sn.info.Channel!)
+			Channel: sn.snapst.Channel,
+			DevMode: sn.snapst.DevMode(),
+
+			SnapID:   sn.info.SnapID,
+			Revision: sn.info.Revision,
+			Epoch:    sn.info.Epoch,
+		})
+	}
+
+	var auther store.Authenticator
+	if user != nil {
+		auther = user.Authenticator()
+	}
+	store := getStore(c)
+	updates, err := store.ListRefresh(candidatesInfo, auther)
+	if err != nil {
+		return InternalError("cannot list updates: %v", err)
+	}
+
+	return sendStorePackages(route, nil, updates)
+}
+
+func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
+	results := make([]*json.RawMessage, 0, len(found))
+	for _, x := range found {
+		url, err := route.URL("name", x.Name())
+		if err != nil {
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", x.Name(), x.Revision, err)
+			continue
+		}
+
+		data, err := json.Marshal(webify(mapRemote(x), url.String()))
+		if err != nil {
+			return InternalError("%v", err)
+		}
+		raw := json.RawMessage(data)
+		results = append(results, &raw)
+	}
+
+	return SyncResponse(results, meta)
 }
 
 // plural!
@@ -445,13 +493,13 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		url, err := route.URL("name", name)
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q (r%d): %v", name, rev, err)
+			logger.Noticef("cannot build URL for snap %q revision %s: %v", name, rev, err)
 			continue
 		}
 
 		data, err := json.Marshal(webify(mapLocal(x.info, x.snapst), url.String()))
 		if err != nil {
-			return InternalError("cannot serialize snap %q (r%d): %v", name, rev, err)
+			return InternalError("cannot serialize snap %q revision %s: %v", name, rev, err)
 		}
 		raw := json.RawMessage(data)
 		results[i] = &raw
@@ -485,10 +533,12 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string       `json:"action"`
-	Channel  string       `json:"channel"`
-	DevMode  bool         `json:"devmode"`
-	LeaveOld bool         `json:"leave-old"`
+	Action  string `json:"action"`
+	Channel string `json:"channel"`
+	DevMode bool   `json:"devmode"`
+	// dropping support temporarely until flag confusion is sorted,
+	// this isn't supported by client atm anyway
+	LeaveOld bool         `json:"temp-dropped-leave-old"`
 	License  *licenseData `json:"license"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
@@ -499,6 +549,7 @@ type snapInstruction struct {
 var snapstateInstall = snapstate.Install
 var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
+var snapstateTryPath = snapstate.TryPath
 var snapstateGet = snapstate.Get
 
 var errNothingToInstall = errors.New("nothing to install")
@@ -541,12 +592,9 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snappy.DoInstallGC
-	if inst.LeaveOld {
-		flags = 0
-	}
+	flags := snapstate.Flags(0)
 	if inst.DevMode {
-		flags |= snappy.DeveloperMode
+		flags |= snapstate.DevMode
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
@@ -566,10 +614,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snappy.DoInstallGC
-	if inst.LeaveOld {
-		flags = 0
-	}
+	flags := snapstate.Flags(0)
 
 	ts, err := snapstateUpdate(st, inst.snap, inst.Channel, inst.userID, flags)
 	if err != nil {
@@ -585,11 +630,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snappy.DoRemoveGC
-	if inst.LeaveOld {
-		flags = 0
-	}
-	ts, err := snapstate.Remove(st, inst.snap, flags)
+	ts, err := snapstate.Remove(st, inst.snap)
 	if err != nil {
 		return "", nil, err
 	}
@@ -657,6 +698,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets)
+	chg.Set("snap-names", []string{inst.snap})
 	state.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
@@ -671,6 +713,37 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *s
 }
 
 const maxReadBuflen = 1024 * 1024
+
+func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if !filepath.IsAbs(trydir) {
+		return BadRequest("cannot try %q: need an absolute path", trydir)
+	}
+	if !osutil.IsDirectory(trydir) {
+		return BadRequest("cannot try %q: not a snap directory", trydir)
+	}
+
+	info, err := readSnapInfo(trydir)
+	if err != nil {
+		return BadRequest("cannot read snap info for %s: %s", trydir, err)
+	}
+
+	tsets, err := snapstateTryPath(st, info.Name(), trydir, flags)
+	if err != nil {
+		return BadRequest("cannot try %s: %s", trydir, err)
+	}
+
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
+	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
+
+	st.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
 
 func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
@@ -695,10 +768,17 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	var flags snappy.InstallFlags
+	var flags snapstate.Flags
 
 	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
-		flags |= snappy.DeveloperMode
+		flags |= snapstate.DevMode
+	}
+
+	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
+		if len(form.Value["snap-path"]) == 0 {
+			return BadRequest("need 'snap-path' value in form")
+		}
+		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
 	}
 
 	// find the file for the "snap" form field
@@ -774,6 +854,7 @@ out:
 
 	chg := newChange(st, "install-snap", msg, tsets)
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
+	chg.Set("snap-names", []string{snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -904,6 +985,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := state.NewChange(a.Action+"-snap", summary)
+	change.Set("snap-names", []string{a.Plugs[0].Snap, a.Slots[0].Snap})
 	change.AddAll(taskset)
 
 	state.EnsureBefore(0)
@@ -1070,6 +1152,29 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		filter = func(chg *state.Change) bool { return chg.Status().Ready() }
 	default:
 		return BadRequest("select should be one of: all,in-progress,ready")
+	}
+
+	if wantedName := query.Get("for"); wantedName != "" {
+		outerFilter := filter
+		filter = func(chg *state.Change) bool {
+			if !outerFilter(chg) {
+				return false
+			}
+
+			var snapNames []string
+			if err := chg.Get("snap-names", &snapNames); err != nil {
+				logger.Noticef("cannot get snap-name for change %v", chg.ID())
+				return false
+			}
+
+			for _, snapName := range snapNames {
+				if snapName == wantedName {
+					return true
+				}
+			}
+
+			return false
+		}
 	}
 
 	state := c.d.overlord.State()

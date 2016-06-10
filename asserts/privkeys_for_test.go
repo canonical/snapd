@@ -22,9 +22,7 @@ package asserts_test
 import (
 	"fmt"
 
-	"golang.org/x/crypto/openpgp/packet"
-
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 // private keys to use in tests
@@ -32,10 +30,12 @@ var (
 	testPrivKey0 = genTestPrivKey()
 	testPrivKey1 = genTestPrivKey()
 	testPrivKey2 = genTestPrivKey()
+
+	testPrivKey1Pkt = asserts.PrivateKeyPacket(testPrivKey1)
 )
 
-func genTestPrivKey() *packet.PrivateKey {
-	privKey, err := asserts.GeneratePrivateKeyInTest()
+func genTestPrivKey() asserts.PrivateKey {
+	privKey, err := asserts.GenerateKey()
 	if err != nil {
 		panic(fmt.Errorf("failed to create priv key for tests: %v", err))
 	}

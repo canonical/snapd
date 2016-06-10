@@ -28,7 +28,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
 
 	"gopkg.in/check.v1"
 )
@@ -71,11 +71,19 @@ func ExecCommandErr(cmds ...string) (output string, err error) {
 
 // ExecCommandWrapper decorates the execution of the given command
 func ExecCommandWrapper(cmd *exec.Cmd) (output string, err error) {
-	fmt.Println(strings.Join(cmd.Args, " "))
+	cfg, err := config.ReadConfig(config.DefaultFileName)
+	if err != nil {
+		return "", err
+	}
+	if cfg.Verbose {
+		fmt.Println(strings.Join(cmd.Args, " "))
+	}
 	outputByte, err := cmd.CombinedOutput()
 	output = removeCoverageInfo(string(outputByte))
-	fmt.Print(output)
-	return
+	if cfg.Verbose {
+		fmt.Print(output)
+	}
+	return output, err
 }
 
 // AddOptionsToCommand inserts the required coverage options in
@@ -107,9 +115,6 @@ func findIndex(items []string, targetItems ...string) int {
 }
 
 func addCoverageOptions(cmds []string, index int) ([]string, error) {
-	orig := make([]string, len(cmds))
-	copy(orig, cmds)
-
 	coveragePath := getCoveragePath()
 	err := os.MkdirAll(coveragePath, os.ModePerm)
 	if err != nil {
@@ -119,11 +124,12 @@ func addCoverageOptions(cmds []string, index int) ([]string, error) {
 	tmpFile := getCoverFilename()
 	coverprofile := filepath.Join(coveragePath, tmpFile)
 
-	head := append(cmds[:index+1],
-		[]string{"-test.run=^TestRunMain$", "-test.coverprofile=" + coverprofile}...)
-	tail := orig[index+1:]
+	output := append(cmds, []string{"", ""}...)
 
-	return append(head, tail...), nil
+	copy(output[index+2:], output[index:])
+	output[index+1] = "-test.run=^TestRunMain$"
+	output[index+2] = "-test.coverprofile=" + coverprofile
+	return output, nil
 }
 
 func removeCoverageInfo(input string) string {

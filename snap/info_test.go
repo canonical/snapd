@@ -20,16 +20,18 @@
 package snap_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
-	"github.com/ubuntu-core/snappy/snap/squashfs"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 type infoSuite struct{}
@@ -55,14 +57,14 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 		OfficialName:      "newname",
 		EditedSummary:     "fixed summary",
 		EditedDescription: "fixed desc",
-		Revision:          1,
+		Revision:          snap.R(1),
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
 	c.Check(info.Summary(), Equals, "fixed summary")
 	c.Check(info.Description(), Equals, "fixed desc")
-	c.Check(info.Revision, Equals, 1)
+	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
@@ -94,7 +96,7 @@ apps:
      command: bar-bin -x
 `))
 	c.Assert(err, IsNil)
-	info.Revision = 42
+	info.Revision = snap.R(42)
 
 	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar /snap/foo/42/bar-bin -x")
 	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo /snap/foo/42/foo-bin")
@@ -109,7 +111,7 @@ apps:
 `
 
 func (s *infoSuite) TestReadInfo(c *C) {
-	si := &snap.SideInfo{Revision: 42, EditedSummary: "esummary"}
+	si := &snap.SideInfo{Revision: snap.R(42), EditedSummary: "esummary"}
 
 	snapInfo1 := snaptest.MockSnap(c, sampleYaml, si)
 
@@ -117,7 +119,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(snapInfo2.Name(), Equals, "sample")
-	c.Check(snapInfo2.Revision, Equals, 42)
+	c.Check(snapInfo2.Revision, Equals, snap.R(42))
 	c.Check(snapInfo2.Summary(), Equals, "esummary")
 
 	c.Check(snapInfo2.Apps["app"].Command, Equals, "foo")
@@ -146,6 +148,27 @@ func makeTestSnap(c *C, yaml string) string {
 func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
 	yaml := `name: foo
 version: 1.0
+type: app
+epoch: 1*
+confinement: devmode`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "foo")
+	c.Check(info.Version, Equals, "1.0")
+	c.Check(info.Type, Equals, snap.TypeApp)
+	c.Check(info.Revision, Equals, snap.R(0))
+	c.Check(info.Epoch, Equals, "1*")
+	c.Check(info.Confinement, Equals, snap.DevmodeConfinement)
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
+	yaml := `name: foo
+version: 1.0
 type: app`
 	snapPath := makeTestSnap(c, yaml)
 
@@ -157,7 +180,8 @@ type: app`
 	c.Check(info.Name(), Equals, "foo")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Revision, Equals, 0)
+	c.Check(info.Revision, Equals, snap.R(0))
+	c.Check(info.Epoch, Equals, "0") // Defaults to 0
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {
@@ -171,13 +195,13 @@ type: app`
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
 		OfficialName: "baz",
-		Revision:     42,
+		Revision:     snap.R(42),
 	})
 	c.Assert(err, IsNil)
 	c.Check(info.Name(), Equals, "baz")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Type, Equals, snap.TypeApp)
-	c.Check(info.Revision, Equals, 42)
+	c.Check(info.Revision, Equals, snap.R(42))
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFileValidates(c *C) {
@@ -191,4 +215,117 @@ type: app`
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, "invalid snap name.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidType(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: foo`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid snap type.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidConfinement(c *C) {
+	yaml := `name: foo
+version: 1.0
+confinement: foo`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid confinement type.*")
+}
+
+func (s *infoSuite) TestAppEnvSimple(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+apps:
+ foo:
+  environment:
+   app-k: app-v
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Apps["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"app-k=app-v\n",
+		"global-k=global-v\n",
+	})
+}
+
+func (s *infoSuite) TestAppEnvOverrideGlobal(c *C) {
+	yaml := `name: foo
+version: 1.0
+type: app
+environment:
+ global-k: global-v
+ global-and-local: global-v
+apps:
+ foo:
+  environment:
+   app-k: app-v
+   global-and-local: local-v
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	env := info.Apps["foo"].Env()
+	sort.Strings(env)
+	c.Check(env, DeepEquals, []string{
+		"app-k=app-v\n",
+		"global-and-local=local-v\n",
+		"global-k=global-v\n",
+	})
+}
+
+func (s *infoSuite) TestSplitSnapApp(c *C) {
+	for _, t := range []struct {
+		in  string
+		out []string
+	}{
+		// normal cases
+		{"foo.bar", []string{"foo", "bar"}},
+		{"foo.bar.baz", []string{"foo", "bar.baz"}},
+		// special case, snapName == appName
+		{"foo", []string{"foo", "foo"}},
+	} {
+		snap, app := snap.SplitSnapApp(t.in)
+		c.Check([]string{snap, app}, DeepEquals, t.out)
+	}
+}
+
+func ExampleSpltiSnapApp() {
+	fmt.Println(snap.SplitSnapApp("hello-world.env"))
+	// Output: hello-world env
+}
+
+func ExampleSpltiSnapAppShort() {
+	fmt.Println(snap.SplitSnapApp("hello-world"))
+	// Output: hello-world hello-world
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidHook(c *C) {
+	yaml := `name: foo
+version: 1.0
+hooks:
+  abc123:`
+	snapPath := makeTestSnap(c, yaml)
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
 }

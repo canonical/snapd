@@ -34,12 +34,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/logger"
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/release"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -56,6 +56,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Architectures = d.Architectures
 	info.Type = d.Type
 	info.Version = d.Version
+	info.Epoch = "0"
 	info.OfficialName = d.Name
 	info.SnapID = d.SnapID
 	info.Revision = d.Revision
@@ -167,7 +168,7 @@ func init() {
 	v.Set("fields", strings.Join(getStructFields(snapDetails{}), ","))
 	defaultConfig.SearchURI.RawQuery = v.Encode()
 
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("click-metadata")
+	defaultConfig.BulkURI, err = storeBaseURI.Parse("metadata")
 	if err != nil {
 		panic(err)
 	}
@@ -212,19 +213,19 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 }
 
 // small helper that sets the correct http headers for the ubuntu store
-func (s *SnapUbuntuStoreRepository) applyUbuntuStoreHeaders(req *http.Request, accept string, auther Authenticator) {
+func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, auther Authenticator) {
 	if auther != nil {
 		auther.Authenticate(req)
 	}
 
-	if accept == "" {
-		accept = "application/hal+json"
-	}
-	req.Header.Set("Accept", accept)
-
+	req.Header.Set("Accept", "application/hal+json,application/json")
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.Series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if channel != "" {
+		req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	}
 
 	if s.storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", s.storeID)
@@ -295,8 +296,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 		return nil, err
 	}
 
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -424,8 +424,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 	}
 
 	// set headers
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -476,9 +475,9 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 
 }
 
-// FindSnaps finds  (installable) snaps from the store, matching the
+// Find finds  (installable) snaps from the store, matching the
 // given search term.
-func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string, auther Authenticator) ([]*snap.Info, error) {
+func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auther Authenticator) ([]*snap.Info, error) {
 	if channel == "" {
 		channel = "stable"
 	}
@@ -494,8 +493,7 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	}
 
 	// set headers
-	s.applyUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -533,11 +531,73 @@ func (s *SnapUbuntuStoreRepository) FindSnaps(searchTerm string, channel string,
 	return snaps, nil
 }
 
-// Updates returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authenticator) (snaps []*snap.Info, err error) {
-	// XXX: uses obsolete end point!
+// RefreshCandidate contains information for the store about the currently
+// installed snap so that the store can decide what update we should see
+type RefreshCandidate struct {
+	SnapID   string
+	Revision snap.Revision
+	Epoch    string
+	DevMode  bool
 
-	jsonData, err := json.Marshal(map[string][]string{"name": installed})
+	// the desired channel
+	Channel string
+}
+
+// the exact bits that we need to send to the store
+type currentSnapJson struct {
+	SnapID   string `json:"snap_id"`
+	Channel  string `json:"channel"`
+	Revision int    `json:"revision,omitempty"`
+	Epoch    string `json:"epoch"`
+
+	// The store expects a "confinement" value {"strict", "devmode"}.
+	// We map this accordingly from our devmode bool, we do not
+	// use the value of the current snap as we are interested in the
+	// users intention, not the actual value of the snap itself.
+	Confinement snap.ConfinementType `json:"confinement"`
+}
+
+type metadataWrapper struct {
+	Snaps  []currentSnapJson `json:"snaps"`
+	Fields []string          `json:"fields"`
+}
+
+// ListRefresh returns the available updates for a list of snap identified by fullname with channel.
+func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, auther Authenticator) (snaps []*snap.Info, err error) {
+
+	candidateMap := map[string]*RefreshCandidate{}
+	currentSnaps := make([]currentSnapJson, 0, len(installed))
+	for _, cs := range installed {
+		revision := cs.Revision.N
+		if !cs.Revision.Store() {
+			revision = 0
+		}
+		// the store gets confused if we send snaps without a snapid
+		// (like local ones)
+		if cs.SnapID == "" {
+			continue
+		}
+
+		confinement := snap.StrictConfinement
+		if cs.DevMode {
+			confinement = snap.DevmodeConfinement
+		}
+
+		currentSnaps = append(currentSnaps, currentSnapJson{
+			SnapID:      cs.SnapID,
+			Channel:     cs.Channel,
+			Confinement: confinement,
+			Epoch:       cs.Epoch,
+			Revision:    revision,
+		})
+		candidateMap[cs.SnapID] = cs
+	}
+
+	// build input for the updates endpoint
+	jsonData, err := json.Marshal(metadataWrapper{
+		Snaps:  currentSnaps,
+		Fields: []string{"snap_id", "package_name", "revision", "version", "download_url"},
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -549,7 +609,7 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authentic
 	// set headers
 	// the updates call is a special snowflake right now
 	// (see LP: #1427155)
-	s.applyUbuntuStoreHeaders(req, "application/json", auther)
+	s.setUbuntuStoreHeaders(req, "", auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -557,15 +617,20 @@ func (s *SnapUbuntuStoreRepository) Updates(installed []string, auther Authentic
 	}
 	defer resp.Body.Close()
 
-	var updateData []snapDetails
+	var updateData searchResults
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&updateData); err != nil {
 		return nil, err
 	}
 
-	res := make([]*snap.Info, len(updateData))
-	for i, rsnap := range updateData {
-		res[i] = infoFromRemote(rsnap)
+	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
+	for _, rsnap := range updateData.Payload.Packages {
+		// the store also gives us identical revisions, filter those
+		// out, we are not interested
+		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
+			continue
+		}
+		res = append(res, infoFromRemote(rsnap))
 	}
 
 	s.checkStoreResponse(resp)
@@ -600,7 +665,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	if err != nil {
 		return "", err
 	}
-	s.applyUbuntuStoreHeaders(req, "", auther)
+	s.setUbuntuStoreHeaders(req, "", auther)
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err

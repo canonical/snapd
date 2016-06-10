@@ -24,7 +24,8 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
-	_ "crypto/sha256" // be explicit about needing SHA256
+	_ "crypto/sha256" // be explicit about supporting SHA256
+	_ "crypto/sha512" // be explicit about needing SHA512
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -82,27 +83,17 @@ func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 	return encodeFormatAndData(key.keyFormat(), buf.Bytes()), nil
 }
 
-var openpgpConfig = &packet.Config{
-	DefaultHash: crypto.SHA256,
+type openpgpSigner interface {
+	sign(content []byte) (*packet.Signature, error)
 }
 
 func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
-	opgPrivKey, ok := privateKey.(openpgpPrivateKey)
+	signer, ok := privateKey.(openpgpSigner)
 	if !ok {
 		panic(fmt.Errorf("not an internally supported PrivateKey: %T", privateKey))
 	}
-	privKey := opgPrivKey.privk
 
-	sig := new(packet.Signature)
-	sig.PubKeyAlgo = privKey.PubKeyAlgo
-	sig.Hash = openpgpConfig.Hash()
-	sig.CreationTime = time.Now()
-	sig.IssuerKeyId = &privKey.KeyId
-
-	h := openpgpConfig.Hash().New()
-	h.Write(content)
-
-	err := sig.Sign(h, privKey, openpgpConfig)
+	sig, err := signer.sign(content)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +158,7 @@ func verifyContentSignature(content []byte, sig Signature, pubKey *packet.Public
 		panic(fmt.Errorf("not an internally supported Signature: %T", sig))
 	}
 
-	h := openpgpConfig.Hash().New()
+	h := opgSig.sig.Hash.New()
 	h.Write(content)
 	return pubKey.VerifySignature(h, opgSig.sig)
 }
@@ -272,6 +263,29 @@ func (opgPrivK openpgpPrivateKey) keyEncode(w io.Writer) error {
 	return opgPrivK.privk.Serialize(w)
 }
 
+var openpgpConfig = &packet.Config{
+	DefaultHash: crypto.SHA512,
+}
+
+func (opgPrivK openpgpPrivateKey) sign(content []byte) (*packet.Signature, error) {
+	privk := opgPrivK.privk
+	sig := new(packet.Signature)
+	sig.PubKeyAlgo = privk.PubKeyAlgo
+	sig.Hash = openpgpConfig.Hash()
+	sig.CreationTime = time.Now()
+	sig.IssuerKeyId = &privk.KeyId
+
+	h := openpgpConfig.Hash().New()
+	h.Write(content)
+
+	err := sig.Sign(h, privk, openpgpConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	return sig, nil
+}
+
 func decodePrivateKey(privKey []byte) (PrivateKey, error) {
 	pkt, err := decodeOpenpgp(privKey, "private key")
 	if err != nil {
@@ -289,14 +303,123 @@ func OpenPGPPrivateKey(privk *packet.PrivateKey) PrivateKey {
 	return openpgpPrivateKey{privk}
 }
 
-func generatePrivateKey() (*packet.PrivateKey, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 2048)
+// GenerateKey generates a private/public key pair.
+func GenerateKey() (PrivateKey, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, err
 	}
-	return packet.NewRSAPrivateKey(time.Now(), priv), nil
+	return OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Now(), priv)), nil
 }
 
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
 	return encodeKey(privKey, "private key")
+}
+
+// externally held key pairs
+
+type extPGPPrivateKey struct {
+	pubKey PublicKey
+	from   string
+	doSign func(fingerprint string, content []byte) ([]byte, error)
+}
+
+func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(fingerprint string, content []byte) ([]byte, error)) (PrivateKey, error) {
+	var pubKey *packet.PublicKey
+
+	rd := packet.NewReader(exportedPubKeyStream)
+	for {
+		pkt, err := rd.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot read exported public key: %v", err)
+		}
+		cand, ok := pkt.(*packet.PublicKey)
+		if ok {
+			if cand.IsSubkey {
+				continue
+			}
+			if pubKey != nil {
+				return nil, fmt.Errorf("cannot select exported public key, found many")
+			}
+			pubKey = cand
+		}
+	}
+
+	if pubKey == nil {
+		return nil, fmt.Errorf("cannot read exported public key, found none (broken export)")
+
+	}
+
+	rsaPubKey, ok := pubKey.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("not a RSA key")
+	}
+
+	bitLen := rsaPubKey.N.BitLen()
+	if bitLen < 4096 {
+		return nil, fmt.Errorf("need at least 4096 bits key, got %d", bitLen)
+	}
+
+	return &extPGPPrivateKey{
+		pubKey: OpenPGPPublicKey(pubKey),
+		from:   from,
+		doSign: sign,
+	}, nil
+}
+
+func (expk *extPGPPrivateKey) PublicKey() PublicKey {
+	return expk.pubKey
+}
+
+func (expk *extPGPPrivateKey) keyEncode(w io.Writer) error {
+	return fmt.Errorf("cannot access external private key to encode it")
+}
+
+func (expk *extPGPPrivateKey) keyFormat() string {
+	return ""
+}
+
+func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
+	out, err := expk.doSign(expk.pubKey.Fingerprint(), content)
+	if err != nil {
+		return nil, err
+	}
+
+	badSig := fmt.Sprintf("bad %s produced signature: ", expk.from)
+
+	sigpkt, err := packet.Read(bytes.NewBuffer(out))
+	if err != nil {
+		return nil, fmt.Errorf(badSig+"%v", err)
+	}
+
+	sig, ok := sigpkt.(*packet.Signature)
+	if !ok {
+		return nil, fmt.Errorf(badSig+"got %T", sigpkt)
+	}
+
+	opgSig := openpgpSignature{sig}
+
+	if sig.IssuerKeyId == nil {
+		return nil, fmt.Errorf(badSig + "no key id in the signature")
+	}
+
+	sigKeyID := opgSig.KeyID()
+	wantedID := expk.pubKey.ID()
+	if sigKeyID != wantedID {
+		return nil, fmt.Errorf(badSig+"wrong key id (expected %q): %s", wantedID, sigKeyID)
+	}
+
+	if sig.Hash != crypto.SHA512 {
+		return nil, fmt.Errorf(badSig + "expected SHA512 digest")
+	}
+
+	err = expk.pubKey.verify(content, opgSig)
+	if err != nil {
+		return nil, fmt.Errorf(badSig+"it does not verify: %v", err)
+	}
+
+	return sig, nil
 }

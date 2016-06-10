@@ -26,8 +26,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/progress"
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 )
 
 func (s *SnapTestSuite) TestActiveSnapByType(c *C) {
@@ -85,7 +85,7 @@ type: os`, 11)
 	// now remove the channel
 	si := snap.SideInfo{
 		OfficialName:      "app",
-		Revision:          11,
+		Revision:          snap.R(11),
 		Developer:         testDeveloper,
 		Channel:           "",
 		EditedSummary:     "hello",
@@ -165,7 +165,7 @@ func (s *SnapTestSuite) TestPackageNameInstalled(c *C) {
 	c.Assert(ActivateSnap(snap, ag), IsNil)
 
 	c.Check(PackageNameActive("hello-snap"), Equals, true)
-	c.Assert(UnlinkSnap(snap.Info(), ag), IsNil)
+	c.Assert(unlinkSnap(snap.Info(), ag), IsNil)
 	c.Check(PackageNameActive("hello-snap"), Equals, false)
 }
 
@@ -217,19 +217,19 @@ func (s *SnapTestSuite) TestFindSnapsByNameAndRevision(c *C) {
 	installed, err := repo.Installed()
 	c.Assert(err, IsNil)
 
-	snaps := FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 11, installed)
+	snaps := FindSnapsByNameAndRevision("hello-snap."+testDeveloper, snap.R(11), installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndRevision("bad-app."+testDeveloper, 11, installed)
+	snaps = FindSnapsByNameAndRevision("bad-app."+testDeveloper, snap.R(11), installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndRevision("hello-snap.badDeveloper", 11, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap.badDeveloper", snap.R(11), installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndRevision("hello-snap."+testDeveloper, 22, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap."+testDeveloper, snap.R(22), installed)
 	c.Check(snaps, HasLen, 0)
 
-	snaps = FindSnapsByNameAndRevision("hello-snap", 11, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap", snap.R(11), installed)
 	c.Check(snaps, HasLen, 1)
-	snaps = FindSnapsByNameAndRevision("bad-app", 11, installed)
+	snaps = FindSnapsByNameAndRevision("bad-app", snap.R(11), installed)
 	c.Check(snaps, HasLen, 0)
-	snaps = FindSnapsByNameAndRevision("hello-snap", 22, installed)
+	snaps = FindSnapsByNameAndRevision("hello-snap", snap.R(22), installed)
 	c.Check(snaps, HasLen, 0)
 }

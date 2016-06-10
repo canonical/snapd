@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
+// +build !excludeintegration,!classic
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -23,9 +23,9 @@ package tests
 import (
 	"fmt"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/partition"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/partition"
 
 	"gopkg.in/check.v1"
 )

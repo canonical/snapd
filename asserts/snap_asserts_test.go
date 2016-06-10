@@ -26,7 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -70,6 +70,24 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.Gates(), DeepEquals, []string{"snap-id-3", "snap-id-4"})
 }
 
+func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: \n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.SnapName(), Equals, "")
+}
+
 const (
 	snapDeclErrPrefix = "assertion snap-declaration: "
 )
@@ -89,12 +107,17 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series: 16\n", "", `"series" header is mandatory`},
+		{"series: 16\n", "series: \n", `"series" header should not be empty`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
 		{"snap-name: first\n", "", `"snap-name" header is mandatory`},
 		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
+		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
+		{sds.tsLine, "", `"timestamp" header is mandatory`},
+		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{"gates: snap-id-3,snap-id-4\n", "", `\"gates\" header is mandatory`},
 		{"gates: snap-id-3,snap-id-4\n", "gates: foo,\n", `empty entry in comma separated "gates" header: "foo,"`},
-		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -159,12 +182,18 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series: 16\n", "", `"series" header is mandatory`},
+		{"series: 16\n", "series: \n", `"series" header should not be empty`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
-		{"grade: stable\n", "", `"grade" header is mandatory`},
+		{"snap-digest: sha256 ...\n", "snap-digest: \n", `"snap-digest" header should not be empty`},
 		{"snap-size: 10000\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
+		{"grade: stable\n", "", `"grade" header is mandatory`},
+		{"grade: stable\n", "grade: \n", `"grade" header should not be empty`},
+		{sbs.tsLine, "", `"timestamp" header is mandatory`},
+		{sbs.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sbs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 
@@ -183,8 +212,8 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	}
 	accSignDB, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	pk1 := asserts.OpenPGPPrivateKey(testPrivKey1)
-	err = accSignDB.ImportKey(accountID, asserts.OpenPGPPrivateKey(testPrivKey1))
+	pk1 := testPrivKey1
+	err = accSignDB.ImportKey(accountID, testPrivKey1)
 	c.Assert(err, IsNil)
 	accFingerp := pk1.PublicKey().Fingerprint()
 	accKeyID := pk1.PublicKey().ID()
@@ -203,7 +232,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
 
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
@@ -212,7 +241,7 @@ func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID stri
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	checkDB, err = asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -331,15 +360,23 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 	encoded := srs.makeValidEncoded()
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series: 16\n", "", `"series" header is mandatory`},
+		{"series: 16\n", "series: \n", `"series" header should not be empty`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
 		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
+		{"snap-digest: sha256 ...\n", "snap-digest: \n", `"snap-digest" header should not be empty`},
 		{"snap-size: 123\n", "", `"snap-size" header is mandatory`},
+		{"snap-size: 123\n", "snap-size: \n", `"snap-size" header should not be empty`},
 		{"snap-size: 123\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 123\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
 		{"snap-revision: 1\n", "", `"snap-revision" header is mandatory`},
+		{"snap-revision: 1\n", "snap-revision: \n", `"snap-revision" header should not be empty`},
 		{"snap-revision: 1\n", "snap-revision: -1\n", `"snap-revision" header is not an unsigned integer: -1`},
 		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an unsigned integer: zzz`},
 		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
+		{"developer-id: dev-id1\n", "developer-id: \n", `"developer-id" header should not be empty`},
+		{srs.tsLine, "", `"timestamp" header is mandatory`},
+		{srs.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{srs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 	}
 

@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-05-18 23:53-0300\n"
+        "POT-Creation-Date: 2016-06-07 10:40+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -102,6 +102,9 @@ msgstr  ""
 msgid   "Install a snap to the system"
 msgstr  ""
 
+msgid   "List a change's tasks"
+msgstr  ""
+
 msgid   "List installed snaps"
 msgstr  ""
 
@@ -133,13 +136,13 @@ msgstr  ""
 msgid   "Mount snap %q"
 msgstr  ""
 
-msgid   "Name\tVersion\tPrice\tSummary"
+msgid   "Name\tVersion\tDeveloper\tNotes\tSummary"
 msgstr  ""
 
-msgid   "Name\tVersion\tRev\tDeveloper"
+msgid   "Name\tVersion\tRev\tDeveloper\tNotes"
 msgstr  ""
 
-msgid   "Name\tVersion\tSummary"
+msgid   "No snaps are installed yet. Try 'snap install hello-world'."
 msgstr  ""
 
 msgid   "Password: "
@@ -202,6 +205,13 @@ msgstr  ""
 msgid   "This command logs the current user out of the store"
 msgstr  ""
 
+#, c-format
+msgid   "Try %q snap from %q"
+msgstr  ""
+
+msgid   "Try an unpacked snap in the system"
+msgstr  ""
+
 msgid   "Two-factor code: "
 msgstr  ""
 
@@ -225,6 +235,10 @@ msgid   "\n"
         "To succeed the assertion must be valid, its signature verified with a known\n"
         "public key and the assertion consistent with and its prerequisite in the\n"
         "database.\n"
+msgstr  ""
+
+msgid   "\n"
+        "The change command displays a summary of tasks associated to an individual change."
 msgstr  ""
 
 msgid   "\n"
@@ -335,6 +349,13 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The try command installs an unpacked snap into the system for testing purposes.\n"
+        "The unpacked snap content continues to be used even after installation, so\n"
+        "non-metadata changes there go live instantly. Metadata changes such as those\n"
+        "performed in snap.yaml will require reinstallation to go live.\n"
+msgstr  ""
+
+msgid   "\n"
         "\n"
         "The home directory is shared between snappy and the classic dimension.\n"
         "Run \"exit\" to leave the classic shell.\n"
@@ -344,6 +365,9 @@ msgid   "no changes found"
 msgstr  ""
 
 msgid   "no interfaces found"
+msgstr  ""
+
+msgid   "unavailable"
 msgstr  ""
 
 #, c-format

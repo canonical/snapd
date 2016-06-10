@@ -19,7 +19,7 @@
 
 package i18n
 
-//go:generate ../update-pot
+//go:generate update-pot
 
 import (
 	"github.com/gosexy/gettext"

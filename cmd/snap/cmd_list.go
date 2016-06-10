@@ -22,11 +22,10 @@ package main
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -55,22 +54,29 @@ func (x *cmdList) Execute([]string) error {
 	return listSnaps(x.Positional.Snaps)
 }
 
-func listSnaps(args []string) error {
+func listSnaps(names []string) error {
 	cli := Client()
-	snaps, err := cli.ListSnaps(args)
+	snaps, err := cli.List(names)
 	if err != nil {
 		return err
+	} else if len(snaps) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
+		return nil
 	}
-
 	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
 	defer w.Flush()
 
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper"))
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
 
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, strconv.Itoa(snap.Revision), snap.Developer)
+		notes := &Notes{
+			Private: snap.Private,
+			DevMode: snap.DevMode,
+			TryMode: snap.TryMode,
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
 	}
 
 	return nil

@@ -20,14 +20,17 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BluezInterface{},
+	&LocationControlInterface{},
+	&LocationObserveInterface{},
 	&NetworkManagerInterface{},
 	NewFirewallControlInterface(),
+	NewGsettingsInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),
@@ -43,6 +46,8 @@ var allInterfaces = []interfaces.Interface{
 	NewUnity7Interface(),
 	NewX11Interface(),
 	NewOpenglInterface(),
+	NewPulseAudioInterface(),
+	NewCupsControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

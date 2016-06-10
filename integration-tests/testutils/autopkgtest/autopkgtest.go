@@ -25,8 +25,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/tpl"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/tpl"
 )
 
 const (
@@ -56,6 +56,8 @@ type AutoPkgTest struct {
 	ShellOnFail bool
 	// Env is a map with the environment variables to set on the test bed and their values.
 	Env map[string]string
+	// Verbose controls the amount of output printed
+	Verbose bool
 }
 
 // AdtRunLocal starts a kvm running the image passed as argument and runs the
@@ -80,11 +82,15 @@ func (a *AutoPkgTest) adtRun(testbedOptions string) (err error) {
 	prepareTargetDir(outputDir)
 
 	cmd := []string{
-		"adt-run", "-B",
+		"adt-run", "-B"}
+	if !a.Verbose {
+		cmd = append(cmd, "-q")
+	}
+	cmd = append(cmd, []string{
 		"--override-control", controlFile,
 		"--built-tree", a.SourceCodePath,
 		"--output-dir", outputDir,
-		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp"}
+		"--setup-commands", "touch /run/autopkgtest_no_reboot.stamp"}...)
 	for envVar, value := range a.Env {
 		cmd = append(cmd, "--env")
 		cmd = append(cmd, fmt.Sprintf("%s=%s", envVar, value))

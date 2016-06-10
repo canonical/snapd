@@ -29,8 +29,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
 
 	"gopkg.in/check.v1"
 )
@@ -420,6 +420,61 @@ func (s *cliTestSuite) TestAddOptionsToSnappyCommand(c *check.C) {
 	}
 }
 
+func (s *cliTestSuite) TestAddOptionsDoesNotModifyOriginalCmds(c *check.C) {
+	for _, cmd := range s.targetCoverCmds {
+		cmdsIn := []string{cmd, "subcommand1", "subcommand2"}
+
+		_, err := AddOptionsToCommand(cmdsIn)
+
+		c.Check(err, check.IsNil)
+		c.Check(len(cmdsIn), check.Equals, 3)
+		c.Check(cmdsIn[0], check.Equals, cmd)
+		c.Check(cmdsIn[1], check.Equals, "subcommand1")
+		c.Check(cmdsIn[2], check.Equals, "subcommand2")
+	}
+}
+
+func (s *cliTestSuite) TestExecCommandWrapperDoesNotWriteVerboseOutputByDefault(c *check.C) {
+	backStdout := os.Stdout
+	defer func() { os.Stdout = backStdout }()
+	tmp, err := ioutil.TempFile("", "")
+	c.Assert(err, check.IsNil)
+	defer os.Remove(tmp.Name())
+
+	os.Stdout = tmp
+
+	_, err = ExecCommandWrapper(s.cmd)
+	c.Assert(err, check.IsNil)
+
+	completeOutput, err := ioutil.ReadFile(tmp.Name())
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(completeOutput), check.Equals, "")
+}
+
+func (s *cliTestSuite) TestExecCommandWrapperHonoursVerboseFlag(c *check.C) {
+	s.writeVerboseConfig(true)
+
+	backStdout := os.Stdout
+	defer func() { os.Stdout = backStdout }()
+	tmp, err := ioutil.TempFile("", "")
+	c.Assert(err, check.IsNil)
+	defer os.Remove(tmp.Name())
+
+	os.Stdout = tmp
+
+	cmdOutput, err := ExecCommandWrapper(s.cmd)
+	c.Assert(err, check.IsNil)
+
+	completeOutput, err := ioutil.ReadFile(tmp.Name())
+	c.Assert(err, check.IsNil)
+
+	sentCmd, err := AddOptionsToCommand(s.cmd.Args)
+
+	expected := fmt.Sprintf("%s\n%s", strings.Join(sentCmd, " "), cmdOutput)
+	c.Assert(string(completeOutput), check.Equals, expected)
+}
+
 func getParamOuput(output string, cmd *exec.Cmd) string {
 	if len(cmd.Env) == 1 && cmd.Env[0] == defaultEnv {
 		output += "\nEnv variables: " + strings.Join(cmd.Env, ", ")
@@ -442,4 +497,14 @@ func (s *cliTestSuite) writeFromBranchConfig(fromBranch bool) error {
 	cfg.Write()
 
 	return nil
+}
+
+func (s *cliTestSuite) writeVerboseConfig(verbose bool) {
+	testutils.PrepareTargetDir(filepath.Dir(s.configFile))
+
+	cfg := config.Config{
+		FileName: s.configFile,
+		Verbose:  verbose,
+	}
+	cfg.Write()
 }

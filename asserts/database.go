@@ -174,25 +174,6 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	}, nil
 }
 
-// GenerateKey generates a private/public key pair for identity and
-// stores it returning its key id.
-func (db *Database) GenerateKey(authorityID string) (keyID string, err error) {
-	// TODO: optionally delegate the whole thing to the keypair mgr
-
-	// TODO: support specifying different key types/algorithms
-	privKey, err := generatePrivateKey()
-	if err != nil {
-		return "", fmt.Errorf("failed to generate private key: %v", err)
-	}
-
-	pk := OpenPGPPrivateKey(privKey)
-	err = db.ImportKey(authorityID, pk)
-	if err != nil {
-		return "", err
-	}
-	return pk.PublicKey().ID(), nil
-}
-
 // ImportKey stores the given private/public key pair for identity.
 func (db *Database) ImportKey(authorityID string, privKey PrivateKey) error {
 	return db.keypairMgr.Put(authorityID, privKey)
@@ -225,7 +206,7 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
 func (db *Database) Sign(assertType *AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
-	authorityID, err := checkMandatory(headers, "authority-id")
+	authorityID, err := checkNotEmpty(headers, "authority-id")
 	if err != nil {
 		return nil, err
 	}

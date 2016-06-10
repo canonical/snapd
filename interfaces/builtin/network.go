@@ -19,7 +19,7 @@
 
 package builtin
 
-import "github.com/ubuntu-core/snappy/interfaces"
+import "github.com/snapcore/snapd/interfaces"
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network
 const networkConnectedPlugAppArmor = `
@@ -57,7 +57,7 @@ socket
 # of socket(), bind(), connect(), etc individually. While we could allow it,
 # we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
 # when LP: #1446748 is implemented.
-#socketcall
+socketcall
 `
 
 // NewNetworkInterface returns a new "network" interface.

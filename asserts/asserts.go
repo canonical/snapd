@@ -44,10 +44,10 @@ type AssertionType struct {
 
 // Understood assertion types.
 var (
+	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount}
 	AccountKeyType      = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
-	DeviceSerialType    = &AssertionType{"device-serial", []string{"brand-id", "model", "serial"}, assembleDeviceSerial}
-	IdentityType        = &AssertionType{"identity", []string{"account-id"}, assembleIdentity}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
+	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"series", "snap-id", "snap-digest"}, assembleSnapBuild}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"series", "snap-id", "snap-digest"}, assembleSnapRevision}
@@ -56,10 +56,10 @@ var (
 )
 
 var typeRegistry = map[string]*AssertionType{
+	AccountType.Name:         AccountType,
 	AccountKeyType.Name:      AccountKeyType,
-	IdentityType.Name:        IdentityType,
 	ModelType.Name:           ModelType,
-	DeviceSerialType.Name:    DeviceSerialType,
+	SerialType.Name:          SerialType,
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
@@ -472,11 +472,11 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	if _, err := checkMandatory(headers, "authority-id"); err != nil {
+	if _, err := checkNotEmpty(headers, "authority-id"); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
-	typ, err := checkMandatory(headers, "type")
+	typ, err := checkNotEmpty(headers, "type")
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -486,7 +486,7 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	}
 
 	for _, primKey := range assertType.PrimaryKey {
-		if _, err := checkMandatory(headers, primKey); err != nil {
+		if _, err := checkNotEmpty(headers, primKey); err != nil {
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 		}
 	}
@@ -543,7 +543,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 
-	if _, err := checkMandatory(finalHeaders, "authority-id"); err != nil {
+	if _, err := checkNotEmpty(finalHeaders, "authority-id"); err != nil {
 		return nil, err
 	}
 
@@ -568,7 +568,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 		"body-length":  true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
-		if _, err := checkMandatory(finalHeaders, primKey); err != nil {
+		if _, err := checkNotEmpty(finalHeaders, primKey); err != nil {
 			return nil, err
 		}
 		writeHeader(buf, finalHeaders, primKey)
@@ -604,7 +604,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 
 	signature, err := signContent(content, privKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed to sign assertion: %v", err)
+		return nil, fmt.Errorf("cannot sign assertion: %v", err)
 	}
 	// be 'cat' friendly, add a ignored newline to the signature which is the last part of the encoded assertion
 	signature = append(signature, '\n')

@@ -26,11 +26,11 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/autopkgtest"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/build"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/image"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/testutils"
+	"github.com/snapcore/snapd/integration-tests/testutils/autopkgtest"
+	"github.com/snapcore/snapd/integration-tests/testutils/build"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/image"
+	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
 )
 
 const (
@@ -77,16 +77,12 @@ func main() {
 			"If this flag is used, the image will be updated and then rolled back before running the tests.")
 		outputDir     = flag.String("output-dir", defaultOutputDir, "Directory where test artifacts will be stored.")
 		shellOnFail   = flag.Bool("shell-fail", false, "Run a shell in the testbed if the suite fails.")
-		testBuildTags = flag.String("test-build-tags", "", "Build tags to be passed to the go test command")
+		testBuildTags = flag.String("test-build-tags", "allsnaps", "Build tags to be passed to the go test command")
 		httpProxy     = flag.String("http-proxy", "", "HTTP proxy to set in the testbed.")
+		verbose       = flag.Bool("v", false, "Show complete test output")
 	)
 
 	flag.Parse()
-
-	build.Assets(&build.Config{
-		UseSnappyFromBranch: *useSnappyFromBranch,
-		Arch:                *arch,
-		TestBuildTags:       *testBuildTags})
 
 	// TODO: generate the files out of the source tree. --elopio - 2015-07-15
 	testutils.PrepareTargetDir(dataOutputDir)
@@ -104,8 +100,18 @@ func main() {
 		Update:        *update,
 		Rollback:      *rollback,
 		FromBranch:    *useSnappyFromBranch,
+		Verbose:       *verbose,
 	}
 	cfg.Write()
+
+	err := build.Assets(&build.Config{
+		UseSnappyFromBranch: *useSnappyFromBranch,
+		Arch:                *arch,
+		TestBuildTags:       *testBuildTags})
+	if err != nil {
+		log.Printf("Assets building failed: %s", err)
+		os.Exit(1)
+	}
 
 	rootPath := testutils.RootPath()
 
@@ -122,6 +128,7 @@ func main() {
 			"TEST_USER_NAME":     os.Getenv("TEST_USER_NAME"),
 			"TEST_USER_PASSWORD": os.Getenv("TEST_USER_PASSWORD"),
 		},
+		Verbose: *verbose,
 	}
 	if !remoteTestbed {
 		img := &image.Image{

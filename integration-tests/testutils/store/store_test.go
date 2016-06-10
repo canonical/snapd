@@ -29,8 +29,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ubuntu-core/snappy/osutil"
-	"github.com/ubuntu-core/snappy/snap/snaptest"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/snaptest"
 
 	. "gopkg.in/check.v1"
 )
@@ -114,6 +114,7 @@ func (s *storeTestSuite) TestExactMathEndpoint(c *C) {
         "clickindex:package": [
             {
                 "name": "foo.canonical",
+                "snap_id": "",
                 "package_name": "foo",
                 "origin": "canonical",
                 "anon_download_url": "%s/download/foo_1_all.snap",
@@ -127,11 +128,11 @@ func (s *storeTestSuite) TestExactMathEndpoint(c *C) {
 }
 
 func (s *storeTestSuite) TestBulkEndpoint(c *C) {
-	c.Skip("not relevant atm, will change")
-	s.makeTestSnap(c, "name: foo\nversion: 1")
+	s.makeTestSnap(c, "name: hello-world\nversion: 1")
 
-	resp, err := s.StorePostJSON("/click-metadata", []byte(`{
-"name": ["foo.canonical"]
+	// note that we send the hello-world snapID here
+	resp, err := s.StorePostJSON("/metadata", []byte(`{
+"snaps": [{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":1}]
 }`))
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
@@ -139,17 +140,22 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 	c.Assert(resp.StatusCode, Equals, 200)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, fmt.Sprintf(`[
-    {
-        "status": "Published",
-        "name": "foo.canonical",
-        "package_name": "foo",
-        "origin": "canonical",
-        "anon_download_url": "%s/download/foo_1_all.snap",
-        "version": "1",
-        "revision": 424242
+	c.Assert(string(body), Equals, fmt.Sprintf(`{
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "name": "hello-world.canonical",
+                "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+                "package_name": "hello-world",
+                "origin": "canonical",
+                "anon_download_url": "%[1]s/download/hello-world_1_all.snap",
+                "download_url": "%[1]s/download/hello-world_1_all.snap",
+                "version": "1",
+                "revision": 424242
+            }
+        ]
     }
-]`, s.store.URL()))
+}`, s.store.URL()))
 }
 
 // FIXME: extract into snappy/testutils

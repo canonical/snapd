@@ -25,8 +25,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/data"
 
 	"gopkg.in/check.v1"
 )
@@ -35,7 +35,8 @@ var _ = check.Suite(&homeInterfaceSuite{
 	interfaceSuite: interfaceSuite{
 		sampleSnaps: []string{data.HomeConsumerSnapName},
 		slot:        "home",
-		plug:        "home-consumer"}})
+		plug:        "home-consumer",
+		autoconnect: true}})
 
 type homeInterfaceSuite struct {
 	interfaceSuite

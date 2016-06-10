@@ -22,20 +22,19 @@ package snappy
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
 
-	"github.com/ubuntu-core/snappy/arch"
-	"github.com/ubuntu-core/snappy/dirs"
-	"github.com/ubuntu-core/snappy/policy"
-	"github.com/ubuntu-core/snappy/snap"
-	"github.com/ubuntu-core/snappy/snap/snapenv"
-	"github.com/ubuntu-core/snappy/store"
-	"github.com/ubuntu-core/snappy/systemd"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/policy"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapenv"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/systemd"
 
 	. "gopkg.in/check.v1"
 )
@@ -100,17 +99,17 @@ func (s *SnapTestSuite) TestLocalSnapSimple(c *C) {
 	snapYaml, err := makeInstalledMockSnap("", 15)
 	c.Assert(err, IsNil)
 
-	snap, err := NewInstalledSnap(snapYaml)
+	sn, err := NewInstalledSnap(snapYaml)
 	c.Assert(err, IsNil)
-	c.Assert(snap, NotNil)
-	c.Check(snap.Name(), Equals, "hello-snap")
-	c.Check(snap.Version(), Equals, "1.10")
-	c.Check(snap.IsActive(), Equals, false)
-	c.Check(snap.Info().Summary(), Equals, "hello in summary")
-	c.Check(snap.Info().Description(), Equals, "Hello...")
-	c.Check(snap.Info().Revision, Equals, 15)
+	c.Assert(sn, NotNil)
+	c.Check(sn.Name(), Equals, "hello-snap")
+	c.Check(sn.Version(), Equals, "1.10")
+	c.Check(sn.IsActive(), Equals, false)
+	c.Check(sn.Info().Summary(), Equals, "hello in summary")
+	c.Check(sn.Info().Description(), Equals, "Hello...")
+	c.Check(sn.Info().Revision, Equals, snap.R(15))
 
-	mountDir := snap.Info().MountDir()
+	mountDir := sn.Info().MountDir()
 	_, err = os.Stat(mountDir)
 	c.Assert(err, IsNil)
 
@@ -152,80 +151,6 @@ const (
 	funkyAppName = "8nzc1x4iim2xj1g2ul64"
 )
 
-/* acquired via:
-curl -s --data-binary '{"name":["8nzc1x4iim2xj1g2ul64.chipaca"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/click-metadata
-*/
-const MockUpdatesJSON = `[
-    {
-        "status": "Published",
-        "name": "8nzc1x4iim2xj1g2ul64.chipaca",
-        "package_name": "8nzc1x4iim2xj1g2ul64",
-        "origin": "chipaca",
-        "changelog": "",
-        "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/04/hello.svg_Dlrd3L4.png",
-        "title": "Returns for store credit only.",
-        "binary_filesize": 65375,
-        "anon_download_url": "https://public.apps.ubuntu.com/anon/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-        "allow_unauthenticated": true,
-        "revision": 3,
-        "version": "42",
-        "download_url": "https://public.apps.ubuntu.com/download/chipaca/8nzc1x4iim2xj1g2ul64.chipaca/8nzc1x4iim2xj1g2ul64.chipaca_42_all.snap",
-        "download_sha512": "5364253e4a988f4f5c04380086d542f410455b97d48cc6c69ca2a5877d8aef2a6b2b2f83ec4f688cae61ebc8a6bf2cdbd4dbd8f743f0522fc76540429b79df42"
-    }
-]`
-
-func mockActiveSnapIterByType(mockSnaps []string) {
-	ActiveSnapIterByType = func(f func(*snap.Info) string, snapTs ...snap.Type) (res []string, err error) {
-		return mockSnaps, nil
-	}
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdates(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"name":["`+funkyAppName+`"]}`)
-		io.WriteString(w, MockUpdatesJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	s.storeCfg.BulkURI, err = url.Parse(mockServer.URL + "/updates/")
-	c.Assert(err, IsNil)
-	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
-	c.Assert(repo, NotNil)
-
-	// override the real ActiveSnapIterByType to return our
-	// mock data
-	mockActiveSnapIterByType([]string{funkyAppName})
-
-	// the actual test
-	results, err := snapUpdates(repo)
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 1)
-	c.Assert(results[0].Name(), Equals, funkyAppName)
-	c.Assert(results[0].Revision, Equals, 3)
-	c.Assert(results[0].Version, Equals, "42")
-}
-
-func (s *SnapTestSuite) TestUbuntuStoreRepositoryUpdatesNoSnaps(c *C) {
-
-	var err error
-	s.storeCfg.SearchURI, err = url.Parse("https://some-uri")
-	c.Assert(err, IsNil)
-	repo := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
-	c.Assert(repo, NotNil)
-
-	mockActiveSnapIterByType([]string{})
-
-	// the actual test
-	results, err := snapUpdates(repo)
-	c.Assert(err, IsNil)
-	c.Assert(results, HasLen, 0)
-}
-
 func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
 	yamlFile, err := makeInstalledMockSnap("", 11)
 	c.Assert(err, IsNil)
@@ -266,7 +191,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 
 	r := &snap.Info{}
 	r.OfficialName = "foo"
-	r.Revision = 42
+	r.Revision = snap.R(42)
 	r.Developer = "bar"
 	r.EditedDescription = "this is a description"
 	r.Version = "1.0"
@@ -287,7 +212,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(installed, HasLen, 1)
 
-	c.Check(installed[0].Info().Revision, Equals, 42)
+	c.Check(installed[0].Info().Revision, Equals, snap.R(42))
 	c.Check(installed[0].Developer(), Equals, "bar")
 	c.Check(installed[0].Info().Description(), Equals, "this is a description")
 

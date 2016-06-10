@@ -20,7 +20,7 @@
 package store
 
 import (
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 // snapDetails encapsulates the data sent to us from the store.
@@ -42,7 +42,7 @@ type snapDetails struct {
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
-	Revision        int                `json:"revision"`
+	Revision        snap.Revision      `json:"revision"`
 	SnapID          string             `json:"snap_id"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
@@ -51,6 +51,7 @@ type snapDetails struct {
 
 	// FIXME: the store should return "developer" to us instead of
 	//        origin
-	Developer string `json:"origin" yaml:"origin"`
-	Private   bool   `json:"private" yaml:"private"`
+	Developer   string `json:"origin" yaml:"origin"`
+	Private     bool   `json:"private" yaml:"private"`
+	Confinement string `json:"confinement" yaml:"confinement"`
 }

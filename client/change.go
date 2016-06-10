@@ -130,9 +130,21 @@ const (
 	ChangesAll = ChangesReady | ChangesInProgress
 )
 
-func (client *Client) Changes(which ChangeSelector) ([]*Change, error) {
+type ChangesOptions struct {
+	SnapName string // if empty, no filtering by name is done
+	Selector ChangeSelector
+}
+
+func (client *Client) Changes(opts *ChangesOptions) ([]*Change, error) {
 	query := url.Values{}
-	query.Set("select", which.String())
+	if opts != nil {
+		if opts.Selector != 0 {
+			query.Set("select", opts.Selector.String())
+		}
+		if opts.SnapName != "" {
+			query.Set("for", opts.SnapName)
+		}
+	}
 
 	var chgds []changeAndData
 	_, err := client.doSync("GET", "/v2/changes", query, nil, nil, &chgds)

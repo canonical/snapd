@@ -31,7 +31,7 @@ import (
 
 	"gopkg.in/tylerb/graceful.v1"
 
-	"github.com/ubuntu-core/snappy/snap"
+	"github.com/snapcore/snapd/snap"
 )
 
 var (
@@ -80,7 +80,7 @@ func NewStore(blobDir string) *Store {
 	mux.HandleFunc("/", rootEndpoint)
 	mux.HandleFunc("/search", store.searchEndpoint)
 	mux.HandleFunc("/package/", store.detailsEndpoint)
-	mux.HandleFunc("/click-metadata", store.bulkEndpoint)
+	mux.HandleFunc("/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
 
 	return store
@@ -147,6 +147,7 @@ type searchReplyJSON struct {
 
 type detailsReplyJSON struct {
 	Name            string `json:"name"`
+	SnapID          string `json:"snap_id"`
 	PackageName     string `json:"package_name"`
 	Developer       string `json:"origin"`
 	AnonDownloadURL string `json:"anon_download_url"`
@@ -247,23 +248,36 @@ func (s *Store) refreshSnaps() error {
 	return nil
 }
 
+type candidateSnap struct {
+	SnapID string `json:"snap_id"`
+}
+
 type bulkReqJSON struct {
-	Name []string
+	CandidateSnaps []candidateSnap `json:"snaps"`
+	Fields         []string        `json:"fields"`
+}
+
+type payload struct {
+	Packages []detailsReplyJSON `json:"clickindex:package"`
 }
 
 type bulkReplyJSON struct {
-	Status          string `json:"status"`
-	Name            string `json:"name"`
-	PackageName     string `json:"package_name"`
-	Developer       string `json:"origin"`
-	AnonDownloadURL string `json:"anon_download_url"`
-	Version         string `json:"version"`
-	Revision        int    `json:"revision"`
+	Payload payload `json:"_embedded"`
+}
+
+// FIXME: find a better way to extract the snapID -> name mapping
+//        for the fake store
+var snapIDtoName = map[string]string{
+	"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ": "hello-world",
+	"EQPfyVOJF0AZNz9P2IJ6UKwldLFN5TzS": "xkcd-webserver",
+	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
+	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
+	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	var pkgs bulkReqJSON
-	var replyData []bulkReplyJSON
+	var replyData bulkReplyJSON
 
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&pkgs); err != nil {
@@ -273,11 +287,16 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	s.refreshSnaps()
 
-	// check if we have downloadable snap of the given name
-	for _, pkgWithChannel := range pkgs.Name {
-		pkg := strings.Split(pkgWithChannel, "/")[0]
+	// check if we have downloadable snap of the given SnapID
+	for _, pkg := range pkgs.CandidateSnaps {
 
-		if fn, ok := s.snaps[pkg]; ok {
+		name := snapIDtoName[pkg.SnapID]
+		if name == "" {
+			http.Error(w, fmt.Sprintf("unknown snapid: %q", pkg.SnapID), http.StatusBadRequest)
+			return
+		}
+
+		if fn, ok := s.snaps[name]; ok {
 			snapFile, err := snap.Open(fn)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
@@ -291,11 +310,12 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 				return
 			}
 
-			replyData = append(replyData, bulkReplyJSON{
-				Status:          "Published",
+			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
 				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
+				SnapID:          pkg.SnapID,
 				PackageName:     info.Name(),
 				Developer:       defaultDeveloper,
+				DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,
 				Revision:        makeRevision(info),
@@ -311,4 +331,5 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 	w.Write(out)
+
 }

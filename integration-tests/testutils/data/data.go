@@ -37,8 +37,12 @@ const (
 	NetworkConsumerSnapName = "network-consumer"
 	// NetworkBindConsumerSnapName is the name of the snap with network plug
 	NetworkBindConsumerSnapName = "network-bind-consumer"
+	// LogObserveConsumerSnapName is the name of the snap with log-observe plug
+	LogObserveConsumerSnapName = "log-observe-consumer"
 	// HomeConsumerSnapName is the name of the snap with home plug
 	HomeConsumerSnapName = "home-consumer"
 	// WrongYamlSnapName is the name of a snap with an invalid meta yaml
 	WrongYamlSnapName = "wrong-yaml"
+	// DevKmsg reads /dev/kmsg and is useful to test confinement
+	DevKmsg = "dev-kmsg"
 )

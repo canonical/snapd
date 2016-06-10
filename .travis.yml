@@ -7,7 +7,7 @@ env:
   global:
     # Encrypted Coveralls token. The secret token for your repository can be found at the bottom of
     # your repository's page on Coveralls. To encrypt it, install the travis gem and run:
-    #     travis encrypt -r ubuntu-core/snappy COVERALLS_TOKEN=$secret_token
+    #     travis encrypt -r snapcore/snapd COVERALLS_TOKEN=$secret_token
     - secure: "bHMAmu1F32uc3EXYuK8VnxK3x57aZTr0L4f4J1SKLKKkCy9khvwfBRXP+mlBtNzTjzN9TPYYXc5M6JYJKlM9a8ylu+kzjJBzpW6oI01yKskJuzSr7QbQl9SPoSxYvIZC38df+pJV7dCBtiK/ikXWixRtf316VaQOkaVYcLYs5lYvSrPTGYrEr90CHH2ZlVgUASdee3t6Ew7jIbs0MKRz1AOtrU2N2OZj9SmLa3PBB3syMpamf5aJW/kDR7JrRCLHdbTMDtGk+B8klPKofhOEGzplAqnzeBdMS2yqZ+qBH85w40NX3HEyQryzdidod1VmMfj9AUIgsy8rdfwWjjp0GxdSG9sX4KBi8sgtBfq4S7VtluWPQwe0/l6y3spZv7agNzVej6fM+hongFlpvuXMxGHuiqbkln4cx8KWD+jr5eljdinbxQKXHVn/xOiGLl4rcVMgVaYna/t6tVSBmOD0G45Q/UBu1b+AxdchDzMzv+A4ASwRJwYHUPj1SIlducd+VfvucVDiczF9CqnquCwgoJKN5vufxyz4wPgqnwhXwTd1+f+lROoB3gOE0aQya8wSGIulqZO5DbHkCO/gFMKRTxNIk9FM+CZwwFgPiqlOeY88nnHK1tY/ShIihK1jV6BSl1UkZEn91h64/0zh22YJ3/yp3mP30L8Q5MwgsXdeZNI="
   matrix:
     - TEST_SUITE="--static"
@@ -16,6 +16,7 @@ env:
 before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -qq squashfs-tools
+  - sudo apt-get install -qq gnupg
 install:
   - echo "Skip. Install is done by the test script."
 script: sh -v ./run-checks $TEST_SUITE

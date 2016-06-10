@@ -27,8 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
-	"github.com/ubuntu-core/snappy/dirs"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 )
 
 type sysDBSuite struct {
@@ -40,7 +40,7 @@ var _ = Suite(&sysDBSuite{})
 func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 
-	pk := asserts.OpenPGPPrivateKey(testPrivKey0)
+	pk := testPrivKey0
 	trustedPubKey := pk.PublicKey()
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
 	c.Assert(err, IsNil)

@@ -20,7 +20,7 @@
 package builtin
 
 import (
-	"github.com/ubuntu-core/snappy/interfaces"
+	"github.com/snapcore/snapd/interfaces"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/network-control
@@ -68,11 +68,9 @@ network sna,
 /{,usr/}{,s}bin/bridge ixr,
 /{,usr/}{,s}bin/dhclient Pxr,             # use ixr instead if want to limit to snap dirs
 /{,usr/}{,s}bin/ifconfig ixr,
-audit deny /{,usr/}{,s}bin/if{up,down} r, # the system uses these, snaps shouldn't
 /{,usr/}{,s}bin/ip ixr,
 /{,usr/}{,s}bin/ipmaddr ixr,
 /{,usr/}{,s}bin/iptunnel ixr,
-audit deny /{,usr/}{,s}bin/mii-tool r,    # needs capability sys_module
 /{,usr/}{,s}bin/nameif ixr,
 /{,usr/}{,s}bin/netstat ixr,              # -p not supported
 /{,usr/}{,s}bin/nstat ixr,

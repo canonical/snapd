@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration,!excludereboots
+// +build !excludeintegration,!excludereboots,!classic
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -26,33 +26,29 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/cli"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/common"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/config"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/store"
-	"github.com/ubuntu-core/snappy/integration-tests/testutils/updates"
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/integration-tests/testutils/config"
+	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
+	"github.com/snapcore/snapd/integration-tests/testutils/store"
 )
 
-var _ = check.Suite(&snapRefreshAppSuite{})
+var _ = check.Suite(&snapRefreshAllSuite{})
 
-type snapRefreshAppSuite struct {
+type snapRefreshAllSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
-	snap := "hello-world"
+func (s *snapRefreshAllSuite) TestAllRefresh(c *check.C) {
+	// install two  snaps and also create fake refresh
+	snaps := []string{"hello-world", "xkcd-webserver"}
+	for _, snap := range snaps {
+		cli.ExecCommand(c, "sudo", "snap", "install", snap)
+		defer cli.ExecCommand(c, "sudo", "snap", "remove", snap)
+	}
 
-	// install edge version from the store (which is squashfs)
-	cli.ExecCommand(c, "sudo", "snap", "install", snap)
-	defer cli.ExecCommand(c, "sudo", "snap", "remove", snap)
-
-	// make a fakestore and make it available to snapd
-
-	// use /var/tmp is not a tempfs for space reasons
-	blobDir, err := ioutil.TempDir("/var/tmp", "snap-fake-store-blobs-")
-	c.Assert(err, check.IsNil)
-	defer cli.ExecCommand(c, "sudo", "rm", "-rf", blobDir)
-
+	// create/start the store, run snapd against the fake store
+	blobDir, err := ioutil.TempDir("", "snap-fake-store-blobs-")
 	fakeStore := store.NewStore(blobDir)
 	err = fakeStore.Start()
 	c.Assert(err, check.IsNil)
@@ -66,7 +62,8 @@ func (s *snapRefreshAppSuite) TestAppUpdate(c *check.C) {
 	setUpSnapd(c, cfg.FromBranch, env)
 	defer tearDownSnapd(c)
 
-	// run the fake update
-	output := updates.CallFakeSnapRefresh(c, snap, updates.NoOp, fakeStore)
+	// and refresh all snaps
+	output := refresh.CallFakeSnapRefreshAll(c, snaps, refresh.NoOp, fakeStore)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*fake1.*")
+	c.Assert(output, check.Matches, "(?ms).*^xkcd-webserver.*fake1.*")
 }

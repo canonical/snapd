@@ -22,10 +22,9 @@ package main
 import (
 	"fmt"
 	"sort"
-	"text/tabwriter"
 
-	"github.com/ubuntu-core/snappy/client"
-	"github.com/ubuntu-core/snappy/i18n"
+	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -38,7 +37,7 @@ The find command queries the store for available packages.
 func getPrice(prices map[string]float64, currency string) string {
 	// If there are no prices, then the snap is free
 	if len(prices) == 0 {
-		return "-"
+		return ""
 	}
 
 	// Look up the price by currency code
@@ -76,42 +75,21 @@ func init() {
 	})
 }
 
-func hasPrices(snaps []*client.Snap) bool {
-	for _, snap := range snaps {
-		if len(snap.Prices) > 0 {
-			return true
-		}
-	}
-	return false
-}
-
-func printWithPrices(w *tabwriter.Writer, snaps []*client.Snap, suggestedCurrency string) {
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tPrice\tSummary"))
-
-	for _, snap := range snaps {
-		price := getPrice(snap.Prices, suggestedCurrency)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", snap.Name, snap.Version, price, snap.Summary)
-
-	}
-}
-
-func printNoPrices(w *tabwriter.Writer, snaps []*client.Snap) {
-	fmt.Fprintln(w, i18n.G("Name\tVersion\tSummary"))
-
-	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\n", snap.Name, snap.Version, snap.Summary)
-	}
-}
-
 func (x *cmdFind) Execute([]string) error {
+	return findSnaps(&client.FindOptions{
+		Query: x.Positional.Query,
+	})
+}
+
+func findSnaps(opts *client.FindOptions) error {
 	cli := Client()
-	snaps, resInfo, err := cli.FindSnaps(x.Positional.Query)
+	snaps, resInfo, err := cli.Find(opts)
 	if err != nil {
 		return err
 	}
 
 	if len(snaps) == 0 {
-		return fmt.Errorf("no snaps found for %q", x.Positional.Query)
+		return fmt.Errorf("no snaps found for %q", opts.Query)
 	}
 
 	sort.Sort(snapsByName(snaps))
@@ -119,10 +97,16 @@ func (x *cmdFind) Execute([]string) error {
 	w := tabWriter()
 	defer w.Flush()
 
-	if hasPrices(snaps) {
-		printWithPrices(w, snaps, resInfo.SuggestedCurrency)
-	} else {
-		printNoPrices(w, snaps)
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tDeveloper\tNotes\tSummary"))
+
+	for _, snap := range snaps {
+		notes := &Notes{
+			Private:     snap.Private,
+			Confinement: snap.Confinement,
+			Price:       getPrice(snap.Prices, resInfo.SuggestedCurrency),
+		}
+		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, notes, snap.Summary)
 	}
 
 	return nil

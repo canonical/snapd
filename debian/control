@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Steve Langasek <vorlon@debian.org>
 Build-Depends: bash-completion,
                debhelper (>= 9),
-               dh-golang,
+               dh-golang (>=1.7),
                dh-systemd,
                fakeroot,
                gettext,
@@ -23,26 +23,32 @@ Build-Depends: bash-completion,
                golang-yaml.v2-dev,
                golang-gopkg-tomb.v2-dev,
                golang-websocket-dev,
-               lsb-release,
                python3,
                python3-markdown,
                squashfs-tools
 Standards-Version: 3.9.7
-Homepage: https://github.com/ubuntu-core/snappy
+Homepage: https://github.com/snapcore/snapd
 Vcs-Browser: https://github.com/vorlonofportland/snappy/tree/debian
 Vcs-Git: https://github.com/vorlonofportland/snappy.git -b debian
 
 Package: golang-github-ubuntu-core-snappy-dev
 Architecture: all
-Breaks: golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
-Replaces: golang-snappy-dev (<< 1.7.3+20160303ubuntu4)
+Depends: ${misc:Depends}, golang-github-snapcore-snapd-dev
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.
+
+Package: golang-github-snapcore-snapd-dev
+Architecture: all
+Breaks: golang-snappy-dev (<< 1.7.3+20160303ubuntu4), golang-github-ubuntu-core-snappy-dev (<< 2.0.6)
+Replaces: golang-snappy-dev (<< 1.7.3+20160303ubuntu4), golang-github-ubuntu-core-snappy-dev (<< 2.0.6)
 Depends: ${misc:Depends}
 Description: snappy development go packages.
  Use these to use the snappy API.
 
 Package: snapd
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, adduser, lsb-release,
+Depends: ${misc:Depends}, ${shlibs:Depends}, adduser,
  squashfs-tools, ubuntu-core-launcher (>= 1.0.23),
 Conflicts: snappy, snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}

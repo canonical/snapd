@@ -27,7 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/ubuntu-core/snappy/asserts"
+	"github.com/snapcore/snapd/asserts"
 )
 
 type accountKeySuite struct {
@@ -45,7 +45,7 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	pk := asserts.OpenPGPPrivateKey(testPrivKey1)
+	pk := testPrivKey1
 	err = accDb.ImportKey("acc-id1", pk)
 	c.Assert(err, IsNil)
 	aks.fp = pk.PublicKey().Fingerprint()
@@ -104,12 +104,19 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
-		{aks.sinceLine, "", `"since" header is mandatory`},
-		{aks.untilLine, "", `"until" header is mandatory`},
-		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
-		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
+		{"account-id: acc-id1\n", "account-id: \n", `"account-id" header should not be empty`},
 		{"public-key-id: " + aks.keyid + "\n", "", `"public-key-id" header is mandatory`},
+		{"public-key-id: " + aks.keyid + "\n", "public-key-id: \n", `"public-key-id" header should not be empty`},
 		{"public-key-fingerprint: " + aks.fp + "\n", "", `"public-key-fingerprint" header is mandatory`},
+		{"public-key-fingerprint: " + aks.fp + "\n", "public-key-fingerprint: \n", `"public-key-fingerprint" header should not be empty`},
+		{aks.sinceLine, "", `"since" header is mandatory`},
+		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
+		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
+		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
+		{aks.untilLine, "", `"until" header is mandatory`},
+		{aks.untilLine, "until: \n", `"until" header should not be empty`},
+		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
+		{aks.untilLine, "until: \n", `"until" header should not be empty`},
 	}
 
 	for _, test := range invalidHeaderTests {
@@ -188,7 +195,7 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", &trustedKey.PublicKey)},
+		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -206,7 +213,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 		"since":                  aks.since.Format(time.RFC3339),
 		"until":                  aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
 
 	db := aks.openDB(c)
@@ -226,7 +233,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 		"since":                  aks.since.Format(time.RFC3339),
 		"until":                  aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), asserts.OpenPGPPrivateKey(trustedKey))
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
 
 	db := aks.openDB(c)

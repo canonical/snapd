@@ -39,7 +39,12 @@ type Snap struct {
 	Status        string    `json:"status"`
 	Type          string    `json:"type"`
 	Version       string    `json:"version"`
-	Revision      int       `json:"revision"`
+	Channel       string    `json:"channel"`
+	Revision      Revision  `json:"revision"`
+	Confinement   string    `json:"confinement"`
+	Private       bool      `json:"private"`
+	DevMode       bool      `json:"devmode"`
+	TryMode       bool      `json:"trymode"`
 
 	Prices map[string]float64 `json:"prices"`
 }
@@ -55,15 +60,26 @@ const (
 	TypeKernel = "kernel"
 	TypeGadget = "gadget"
 	TypeOS     = "os"
+
+	StrictConfinement  = "strict"
+	DevmodeConfinement = "devmode"
 )
 
 type ResultInfo struct {
 	SuggestedCurrency string `json:"suggested-currency"`
 }
 
-// ListSnaps returns the list of all snaps installed on the system
+// FindOptions supports exactly one of the following options:
+// - Refresh: only return snaps that are refreshable
+// - Query: only return snaps that match the query string
+type FindOptions struct {
+	Refresh bool
+	Query   string
+}
+
+// List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
-func (client *Client) ListSnaps(names []string) ([]*Snap, error) {
+func (client *Client) List(names []string) ([]*Snap, error) {
 	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
 	if err != nil {
 		return nil, err
@@ -88,12 +104,18 @@ func (client *Client) ListSnaps(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
-// FindSnaps returns a list of snaps available for install from the
+// Find returns a list of snaps available for install from the
 // store for this system and that match the query
-func (client *Client) FindSnaps(query string) ([]*Snap, *ResultInfo, error) {
-	q := url.Values{}
+func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
+	if opts == nil {
+		opts = &FindOptions{}
+	}
 
-	q.Set("q", query)
+	q := url.Values{}
+	q.Set("q", opts.Query)
+	if opts.Refresh {
+		q.Set("select", "refresh")
+	}
 
 	return client.snapsFromPath("/v2/find", q)
 }
