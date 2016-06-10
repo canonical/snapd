@@ -132,6 +132,19 @@ func (s *installSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail
 	c.Assert(actual, check.Matches, expected)
 }
 
+// SNAP_INSTALL_007.1: with min package name
+func (s *installSuite) TestInstallWithShortestPackageName(c *check.C) {
+	// ab is a snap uploaded by u1test+snappy@canonical.com
+	snapName := "ab"
+
+	common.InstallSnap(c, snapName)
+	defer common.RemoveSnap(c, snapName)
+
+	actual := cli.ExecCommand(c, "ab.echo")
+	expected := "From short-name snap\n"
+	c.Assert(actual, check.Equals, expected)
+}
+
 // SNAP_INSTALL_008: from different channel other than default
 func (s *installSuite) TestInstallFromDifferentChannels(c *check.C) {
 	snapName := "hello-world"
