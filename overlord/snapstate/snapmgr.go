@@ -493,7 +493,8 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(ss.placeInfo())
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -520,9 +521,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	pb := &TaskProgressAdapter{task: t}
 	// TODO Use ss.Revision to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate)
+	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb)
 }
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
