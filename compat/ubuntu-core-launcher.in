@@ -1,3 +1,3 @@
 #!/bin/sh
 shift
-exec @LIBDIR@/snap-confine "$@"
+exec @libdir@/snap-confine "$@"
