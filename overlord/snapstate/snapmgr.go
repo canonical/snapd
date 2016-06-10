@@ -252,7 +252,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var si *snap.SideInfo
-	if ss.SideInfo != nil {
+	if ss.SideInfo != nil && !ss.SideInfo.Revision.Unset() {
 		si = ss.SideInfo
 	} else {
 		si = &snap.SideInfo{
