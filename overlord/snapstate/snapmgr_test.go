@@ -1184,6 +1184,45 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
 
+func (s *snapmgrTestSuite) TestRollbackNoRollbackAgain(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:    true,
+		Sequence:  []*snap.SideInfo{&si},
+		RollbackR: []snap.Revision{snap.R(7)},
+	})
+
+	ts, err := snapstate.Rollback(s.state, "some-snap", "")
+	c.Assert(err, ErrorMatches, "can only rollback once")
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRollbackNothingToRollbackTo(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+	})
+
+	ts, err := snapstate.Rollback(s.state, "some-snap", "")
+	c.Assert(err, ErrorMatches, "no revision to rollback to")
+	c.Assert(ts, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestRollbackRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
