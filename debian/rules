@@ -4,7 +4,7 @@
 	dh $@ --with autoreconf
 
 override_dh_auto_configure:
-	./configure --enable-nvidia-ubuntu --prefix=/usr
+	./configure --enable-nvidia-ubuntu --enable-rootfs-is-core-snap --prefix=/usr
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/bin/snap-confine
