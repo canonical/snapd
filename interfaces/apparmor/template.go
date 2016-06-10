@@ -196,6 +196,7 @@ var defaultTemplate = []byte(`
   /etc/lsb-release r,
   /sys/devices/**/read_ahead_kb r,
   /sys/devices/system/cpu/** r,
+  /sys/devices/system/node/node[0-9]*/* r,
   /sys/kernel/mm/transparent_hugepage/enabled r,
   /sys/kernel/mm/transparent_hugepage/defrag r,
   # NOTE: this leaks running process but java seems to want it (even though it
