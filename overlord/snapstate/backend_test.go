@@ -105,7 +105,8 @@ func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo)
 	return &snap.Info{Architectures: []string{"all"}}, nil, nil
 }
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo) error {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p progress.Meter) error {
+	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
 		revno = si.Revision
@@ -157,7 +158,8 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, p progress.Meter) error {
+	p.Notify("setup-snap")
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-setup-snap",
 		name: s.MountDir(),
