@@ -38,6 +38,21 @@ type OS struct {
 	Codename string
 }
 
+// IsDevModeDistro returns true if the distribution doesn't implement required
+// security features for confinement.
+func (os *OS) IsDevModeDistro() bool {
+	switch os.ID {
+	case "ubuntu":
+		return false
+	default:
+		// NOTE: Other distributions can move out of devmode by
+		// integrating with the interface security backends. This will
+		// be documented separately in the porting guide.
+		return true
+	}
+
+}
+
 var osReleasePath = "/etc/os-release"
 
 // readOSRelease returns the os-release information of the current system.
