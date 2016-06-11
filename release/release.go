@@ -38,9 +38,9 @@ type OS struct {
 	Codename string
 }
 
-// IsDevModeDistro returns true if the distribution doesn't implement required
-// security features for confinement.
-func (os *OS) IsDevModeDistro() bool {
+// ForceDevMode returns true if the distribution doesn't implement required
+// security features for confinement and devmode is forced.
+func (os *OS) ForceDevMode() bool {
 	switch os.ID {
 	case "ubuntu":
 		return false
