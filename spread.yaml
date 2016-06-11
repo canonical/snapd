@@ -1,8 +1,8 @@
 project: snapd
 
 environment:
-    GOPATH: /src
-    PATH: $PATH:/src/bin
+    GOPATH: /gopath
+    PATH: /gopath/bin:/snap/bin:$PATH
 
 backends:
     linode:
@@ -10,7 +10,7 @@ backends:
         systems:
             - ubuntu-16.04-grub
 
-path: /src/github.com/snapcore/snapd
+path: /gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
@@ -21,11 +21,11 @@ prepare: |
     apt build-dep -y ./
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
     chown test.test -R ..
-    sudo -i -u test /bin/sh -c "cd $PWD && dpkg-buildpackage -b -Zgzip"
+    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -b -Zgzip"
     apt install -y ../snapd_*.deb
 
 restore: |
-    rm -f /src/github.com/snapcore/*.deb
+    rm -f /gopath/src/github.com/snapcore/*.deb
     userdel test 2>&1 || true
     apt purge snapd 2>&1 || true
 
