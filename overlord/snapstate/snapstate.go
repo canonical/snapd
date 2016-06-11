@@ -192,25 +192,6 @@ func InstallPathWithSideInfo(s *state.State, path, channel string, flags Flags) 
 		return nil, err
 	}
 
-	// FIXME: 1. u-d-f should not write a sideinfo file if there
-	//           is no side-info
-	//        2. firstboot.go uses InstallPath() if no .sideinfo
-	//           file is there
-	//
-	// we may not have si.OfficialName in SideInfo because
-	// the snap might be sideloaded
-	if name == "" {
-		snapf, err := snap.Open(path)
-		if err != nil {
-			return nil, err
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-		if err != nil {
-			return nil, err
-		}
-		name = info.Name()
-	}
-
 	ss := &SnapSetup{
 		Name:     name,
 		SnapPath: path,

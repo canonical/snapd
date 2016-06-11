@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func populateStateFromInstalled() error {
@@ -54,7 +55,21 @@ func populateStateFromInstalled() error {
 		fmt.Printf("Installing %s\n", snapPath)
 
 		st.Lock()
-		ts, err := snapstate.InstallPathWithSideInfo(st, snapPath, "", 0)
+		var ts *state.TaskSet
+		if osutil.FileExists(snapPath + ".sideinfo") {
+			ts, err = snapstate.InstallPathWithSideInfo(st, snapPath, "", 0)
+		} else {
+			// a sideloaded snap not from the store
+			snapf, err := snap.Open(snapPath)
+			if err != nil {
+				return err
+			}
+			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+			if err != nil {
+				return err
+			}
+			ts, err = snapstate.InstallPath(st, info.Name(), snapPath, "", 0)
+		}
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
