@@ -101,7 +101,7 @@ func (s *ReleaseTestSuite) TestReleaseInfo(c *C) {
 	c.Assert(release.ReleaseInfo.ID, Equals, "distro-id")
 }
 
-func (s *ReleaseTestSuite) TestIsDevModeDistro(c *C) {
+func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 	// Restore real OS info at the end of this function.
 	defer release.MockReleaseInfo(&release.OS{})()
 	distros := []struct {
@@ -120,6 +120,6 @@ func (s *ReleaseTestSuite) TestIsDevModeDistro(c *C) {
 	for _, distro := range distros {
 		c.Logf("checking distribution %q", distro.id)
 		release.MockReleaseInfo(&release.OS{ID: distro.id})
-		c.Assert(release.ReleaseInfo.IsDevModeDistro(), Equals, distro.devmode)
+		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode)
 	}
 }

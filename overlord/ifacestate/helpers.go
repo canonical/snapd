@@ -226,7 +226,7 @@ var securityBackends = []interfaces.SecurityBackend{
 }
 
 func init() {
-	if !release.ReleaseInfo.IsDevModeDistro() {
+	if !release.ReleaseInfo.ForceDevMode() {
 		securityBackends = append(securityBackends, &apparmor.Backend{})
 	}
 }
