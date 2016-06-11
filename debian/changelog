@@ -1,6 +1,7 @@
 snapd (2.0.8+1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * Update lintian-overrides for new paths.
 
  -- Steve Langasek <vorlon@debian.org>  Fri, 10 Jun 2016 15:56:43 -0700
 

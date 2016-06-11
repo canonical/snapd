@@ -1,6 +1,7 @@
 # False positive string match against contents of golang-yaml.v2
 snapd: embedded-library usr/bin/snap: libyaml
 snapd: embedded-library usr/lib/snapd/snapd: libyaml
+snapd: embedded-library usr/lib/snapd/snap-exec: libyaml
 # Up for discussion whether we should use this directory on Debian, or
 # patch snap to use some different mountpoint; in the meantime, override to
 # pass the NEW queue.
