@@ -144,15 +144,62 @@ func (x *cmdRemove) Execute([]string) error {
 	return nil
 }
 
+type channelMixin struct {
+	Channel string `long:"channel" description:"Use this channel instead of the device's default"`
+
+	// shortcuts
+	EdgeChannel      bool `long:"edge" description:"Install from the edge channel"`
+	BetaChannel      bool `long:"beta" description:"Install from the beta channel"`
+	CandidateChannel bool `long:"candidate" description:"Install from the candidate channel"`
+	StableChannel    bool `long:"stable" description:"Install from the stable channel"`
+}
+
+func (x *channelMixin) setChannel(channel string) error {
+	if x.Channel != "" {
+		return fmt.Errorf("cannot set channel to %q, already set to %q", channel, x.Channel)
+	}
+	x.Channel = channel
+	return nil
+}
+
+func (x *channelMixin) setChannelFromCommandline() error {
+	if x.StableChannel {
+		if err := x.setChannel("stable"); err != nil {
+			return err
+		}
+	}
+	if x.CandidateChannel {
+		if err := x.setChannel("candidate"); err != nil {
+			return err
+		}
+	}
+	if x.BetaChannel {
+		if err := x.setChannel("beta"); err != nil {
+			return err
+		}
+	}
+	if x.EdgeChannel {
+		if err := x.setChannel("edge"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 type cmdInstall struct {
-	Channel    string `long:"channel" description:"Install from this channel instead of the device's default"`
-	DevMode    bool   `long:"devmode" description:"Install the snap with non-enforcing security"`
+	channelMixin
+
+	DevMode    bool `long:"devmode" description:"Install the snap with non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdInstall) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+
 	var changeID string
 	var err error
 	var installFromFile bool
@@ -189,8 +236,9 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
-	List       bool   `long:"list" description:"show available snaps for refresh"`
-	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
+	channelMixin
+
+	List       bool `long:"list" description:"show available snaps for refresh"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -232,6 +280,10 @@ func refreshOne(name, channel string) error {
 }
 
 func (x *cmdRefresh) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+
 	if x.List {
 		return findSnaps(&client.FindOptions{
 			Refresh: true,
