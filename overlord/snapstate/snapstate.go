@@ -179,15 +179,17 @@ func InstallPathWithSideInfo(s *state.State, path, channel string, flags Flags) 
 
 	var si snap.SideInfo
 	metafn := path + ".sideinfo"
-	if j, err := ioutil.ReadFile(metafn); err == nil {
-		if err := json.Unmarshal(j, &si); err != nil {
-			return nil, fmt.Errorf("cannot read metadata: %s %s\n", metafn, err)
-		}
+	j, err := ioutil.ReadFile(metafn)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(j, &si); err != nil {
+		return nil, fmt.Errorf("cannot read metadata: %s %s", metafn, err)
 	}
 
 	name := si.OfficialName
 	var snapst SnapState
-	err := Get(s, name, &snapst)
+	err = Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
