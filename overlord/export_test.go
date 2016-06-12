@@ -53,3 +53,7 @@ func MockEnsureNext(o *Overlord, t time.Time) {
 func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
 }
+
+var (
+	PopulateStateFromInstalled = populateStateFromInstalled
+)

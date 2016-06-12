@@ -17,15 +17,17 @@
  *
  */
 
-package overlord
+package overlord_test
 
 import (
+	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/firstboot"
+	"github.com/snapcore/snapd/overlord"
 )
 
 type FirstBootTestSuite struct {
@@ -43,15 +45,24 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
-	c.Assert(FirstBoot(), IsNil)
+	c.Assert(overlord.FirstBoot(), IsNil)
 	_, err := os.Stat(dirs.SnapFirstBootStamp)
 	c.Assert(err, IsNil)
 
-	c.Assert(FirstBoot(), Equals, firstboot.ErrNotFirstBoot)
+	c.Assert(overlord.FirstBoot(), Equals, overlord.ErrNotFirstBoot)
 }
 
 func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
-	c.Assert(FirstBoot(), IsNil)
+	c.Assert(overlord.FirstBoot(), IsNil)
 	_, err := os.Stat(dirs.SnapFirstBootStamp)
 	c.Assert(err, IsNil)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromInstalledErrorsOnState(c *C) {
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	err = ioutil.WriteFile(dirs.SnapStateFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = overlord.PopulateStateFromInstalled()
+	c.Assert(err, ErrorMatches, "cannot create state: state .* already exists")
 }

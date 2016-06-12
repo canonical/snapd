@@ -20,6 +20,7 @@
 package overlord
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 
@@ -30,6 +31,12 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	// ErrNotFirstBoot is an error that indicates that the first boot has already
+	// run
+	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
 func populateStateFromInstalled() error {
@@ -107,7 +114,7 @@ func populateStateFromInstalled() error {
 // state
 func FirstBoot() error {
 	if firstboot.HasRun() {
-		return firstboot.ErrNotFirstBoot
+		return ErrNotFirstBoot
 	}
 	if err := firstboot.EnableFirstEther(); err != nil {
 		logger.Noticef("Failed to bring up ethernet: %s", err)
