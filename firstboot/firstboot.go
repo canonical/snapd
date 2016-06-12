@@ -20,7 +20,6 @@
 package firstboot
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -28,12 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-)
-
-var (
-	// ErrNotFirstBoot is an error that indicates that the first boot has already
-	// run
-	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
 func HasRun() bool {
