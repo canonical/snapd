@@ -1506,3 +1506,26 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	c.Check(snapstate.CanRemove(kernel, false), Equals, true)
 	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
 }
+
+func (s *snapmgrTestSuite) TestInstallPathWithSideInfoNoSideInfo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: mock
+version: 1.0`)
+	_, err := snapstate.InstallPathWithSideInfo(s.state, mockSnap, "", 0)
+	c.Assert(err, ErrorMatches, ".*: no such file or directory")
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithSideInfoInvalidSideInfo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, `name: mock
+version: 1.0`)
+	err := ioutil.WriteFile(mockSnap+".sideinfo", []byte("invalid json"), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snapstate.InstallPathWithSideInfo(s.state, mockSnap, "", 0)
+	c.Assert(err, ErrorMatches, "cannot read metadata: .*")
+}
