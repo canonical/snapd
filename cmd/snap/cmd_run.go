@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -29,8 +30,14 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
+)
+
+var (
+	syscallExec = syscall.Exec
+	userCurrent = user.Current
 )
 
 type cmdRun struct {
@@ -115,6 +122,23 @@ func snapExecEnv(info *snap.Info) []string {
 	return env
 }
 
+func createUserDataDirs(info *snap.Info) error {
+	usr, err := userCurrent()
+	if err != nil {
+		return fmt.Errorf("cannot get the current user: %s", err)
+	}
+
+	// see snapenv.User
+	userData := filepath.Join(usr.HomeDir, info.MountDir())
+	commonUserData := filepath.Join(userData, "..", "common")
+	for _, d := range []string{userData, commonUserData} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return fmt.Errorf("cannot create %q: %s", d, err)
+		}
+	}
+	return nil
+}
+
 func snapRunApp(snapApp, command string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
 	info, err := getSnapInfo(snapName, "")
@@ -146,9 +170,11 @@ func snapRunHook(snapName, hookName, revision string) error {
 	return runSnapConfine(info, hook.SecurityTag(), hookBinary, "", nil)
 }
 
-var SyscallExec = syscall.Exec
-
 func runSnapConfine(info *snap.Info, securityTag, binary, command string, args []string) error {
+	if err := createUserDataDirs(info); err != nil {
+		logger.Noticef("WARNING: cannot create user data directory: %s", err)
+	}
+
 	cmd := []string{
 		"/usr/bin/ubuntu-core-launcher",
 		securityTag,
@@ -165,5 +191,5 @@ func runSnapConfine(info *snap.Info, securityTag, binary, command string, args [
 
 	env := append(os.Environ(), snapExecEnv(info)...)
 
-	return SyscallExec(cmd[0], cmd, env)
+	return syscallExec(cmd[0], cmd, env)
 }
