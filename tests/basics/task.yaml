@@ -1,7 +1,8 @@
 summary: Check that basic interactions work
+restore: |
+    snap remove hello-world
 execute: |
-    echo Core is not there by default...
-    snap list | grep core && exit 1
+    echo Core might be pulled by a previous test
 
     echo Installing something pulls it...
     snap install hello-world
