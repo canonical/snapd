@@ -20,10 +20,31 @@
 
 package main
 
+import (
+	"os/user"
+)
+
 var RunMain = run
 
 var (
-	SnapExecEnv = snapExecEnv
-	SnapRunApp  = snapRunApp
-	SnapRunHook = snapRunHook
+	SnapExecEnv        = snapExecEnv
+	CreateUserDataDirs = createUserDataDirs
+	SnapRunApp         = snapRunApp
+	SnapRunHook        = snapRunHook
 )
+
+func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
+	syscallExecOrig := syscallExec
+	syscallExec = f
+	return func() {
+		syscallExec = syscallExecOrig
+	}
+}
+
+func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
+	userCurrentOrig := userCurrent
+	userCurrent = f
+	return func() {
+		userCurrent = userCurrentOrig
+	}
+}
