@@ -243,12 +243,12 @@ func (s *SnapOpSuite) TestTryDevMode(c *check.C) {
 
 func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
-	c.Assert(err, check.ErrorMatches, `cannot set channel to "edge", already set to "beta"`)
+	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
 }
 
 func (s *SnapSuite) TestRefreshChannelDuplicationError(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--edge", "--beta", "some-snap"})
-	c.Assert(err, check.ErrorMatches, `cannot set channel to "edge", already set to "beta"`)
+	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
 }
 
 func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
