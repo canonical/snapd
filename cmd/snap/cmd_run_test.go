@@ -24,13 +24,15 @@ import (
 	"fmt"
 	"net/http"
 	"os/user"
+	"path/filepath"
 	"sort"
-	"syscall"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -55,7 +57,7 @@ func (s *SnapSuite) TestSnapRunSnapExecAppEnv(c *check.C) {
 	sort.Strings(env)
 	c.Check(env, check.DeepEquals, []string{
 		"SNAP=/snap/snapname/42",
-		"SNAP_ARCH=amd64",
+		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_DATA=/var/snap/snapname/42",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=snapname",
@@ -93,13 +95,13 @@ func (s *SnapSuite) TestSnapRunIntegration(c *check.C) {
 	execArg0 := ""
 	execArgs := []string{}
 	execEnv := []string{}
-	snaprun.SyscallExec = func(arg0 string, args []string, envv []string) error {
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
 		execArg0 = arg0
 		execArgs = args
 		execEnv = envv
 		return nil
-	}
-	defer func() { snaprun.SyscallExec = syscall.Exec }()
+	})
+	defer restorer()
 
 	// and run it!
 	err := snaprun.SnapRun("snapname.app", "", []string{"arg1", "arg2"})
@@ -107,4 +109,21 @@ func (s *SnapSuite) TestSnapRunIntegration(c *check.C) {
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{"/usr/bin/ubuntu-core-launcher", "snap.snapname.app", "snap.snapname.app", "/usr/lib/snapd/snap-exec", "snapname.app", "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+}
+
+func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
+	info, err := snap.InfoFromSnapYaml(mockYaml)
+	c.Assert(err, check.IsNil)
+	info.SideInfo.Revision = snap.R(42)
+
+	fakeHome := c.MkDir()
+	restorer := snaprun.MockUserCurrent(func() (*user.User, error) {
+		return &user.User{HomeDir: fakeHome}, nil
+	})
+	defer restorer()
+
+	err = snaprun.CreateUserDataDirs(info)
+	c.Assert(err, check.IsNil)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/42")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
 }
