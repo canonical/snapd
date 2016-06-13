@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
@@ -55,7 +56,7 @@ func (s *SnapSuite) TestSnapRunSnapExecAppEnv(c *check.C) {
 	sort.Strings(env)
 	c.Check(env, check.DeepEquals, []string{
 		"SNAP=/snap/snapname/42",
-		"SNAP_ARCH=amd64",
+		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_DATA=/var/snap/snapname/42",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=snapname",
