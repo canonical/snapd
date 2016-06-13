@@ -42,6 +42,7 @@ type listSuite struct {
 
 var verRegexp = `(\d{2}\.\d{2}.*|\w{12})`
 
+// ported to spread: tests/listing
 func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	listOutput := cli.ExecCommand(c, "snap", "list")
 
@@ -53,6 +54,7 @@ func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
 	c.Assert(listOutput, check.Matches, expected)
 }
 
+// ported to spread: tests/listing
 func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
 	common.InstallSnap(c, "hello-world")
 	s.AddCleanup(func() {
