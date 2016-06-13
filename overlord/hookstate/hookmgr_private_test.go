@@ -20,7 +20,7 @@
 package hookstate
 
 import (
-	"testing"
+	"encoding/json"
 
 	"gopkg.in/tomb.v2"
 
@@ -30,8 +30,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
-
-func TestHookManager(t *testing.T) { TestingT(t) }
 
 type hookManagerSuite struct {
 	state   *state.State
@@ -61,7 +59,7 @@ func (s *hookManagerSuite) TestDoRunHookMissingHookSetupIsError(c *C) {
 
 	err := s.manager.doRunHook(task, &tomb.Tomb{})
 	c.Check(err, NotNil)
-	c.Check(err, ErrorMatches, "failed to extract hook from task.*")
+	c.Check(err, ErrorMatches, "failed to extract hook setup from task.*")
 }
 
 func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
@@ -84,4 +82,23 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	c.Check(setup.Snap, Equals, "test-snap")
 	c.Check(setup.Revision, Equals, snap.R(1))
 	c.Check(setup.Hook, Equals, "test-hook")
+}
+
+func (s *hookManagerSuite) TestJsonMarshalHookSetup(c *C) {
+	hookSetup := hookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
+	out, err := json.Marshal(hookSetup)
+	c.Assert(err, IsNil)
+	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
+}
+
+func (s *hookManagerSuite) TestJsonUnmarshalHookSetup(c *C) {
+	out, err := json.Marshal(hookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
+	c.Assert(err, IsNil)
+
+	var setup hookSetup
+	err = json.Unmarshal(out, &setup)
+	c.Assert(err, IsNil)
+	c.Check(setup.Snap, Equals, "snap-name")
+	c.Check(setup.Revision, Equals, snap.R(1))
+	c.Check(setup.Hook, Equals, "hook-name")
 }

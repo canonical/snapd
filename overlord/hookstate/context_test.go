@@ -17,22 +17,17 @@
  *
  */
 
-package hookstate_test
+package hookstate
 
 import (
-	"testing"
-
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
-func TestContext(t *testing.T) { TestingT(t) }
-
 type contextSuite struct {
-	context *hookstate.Context
+	context *Context
 }
 
 var _ = Suite(&contextSuite{})
@@ -43,8 +38,8 @@ func (s *contextSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	hookSetup := hookstate.NewHookSetup("test-snap", snap.R(1), "test-hook")
-	s.context = hookstate.NewContext(task, hookSetup)
+	setup := hookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	s.context = &Context{task: task, setup: setup}
 }
 
 func (s *contextSuite) TestHookSetup(c *C) {

@@ -29,14 +29,6 @@ type Context struct {
 	setup hookSetup
 }
 
-// newContext returns a new context with the given task and setup.
-func newContext(task *state.Task, setup hookSetup) *Context {
-	return &Context{
-		task:  task,
-		setup: setup,
-	}
-}
-
 // SnapName returns the name of the snap containing the hook.
 func (c *Context) SnapName() string {
 	return c.setup.Snap

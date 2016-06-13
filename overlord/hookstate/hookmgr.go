@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // HookManager is responsible for the maintenance of hooks in the system state.
@@ -46,6 +47,13 @@ type Handler interface {
 }
 
 type HandlerGenerator func(*Context) Handler
+
+// hookSetup is a reference to a hook within a specific snap.
+type hookSetup struct {
+	Snap     string        `json:"snap"`
+	Revision snap.Revision `json:"revision"`
+	Hook     string        `json:"hook"`
+}
 
 // Manager returns a new HookManager.
 func Manager(s *state.State) (*HookManager, error) {
@@ -94,16 +102,16 @@ func (m *HookManager) Stop() {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	var hook hookSetup
-	err := task.Get("hook-setup", &hook)
+	var setup hookSetup
+	err := task.Get("hook-setup", &setup)
 	task.State().Unlock()
 
 	if err != nil {
-		return fmt.Errorf("failed to extract hook from task: %s", err)
+		return fmt.Errorf("failed to extract hook setup from task: %s", err)
 	}
 
 	// Obtain a list of handlers for this hook (if any)
-	handlers := m.repository.generateHandlers(newContext(task, hook))
+	handlers := m.repository.generateHandlers(&Context{task: task, setup: setup})
 
 	// About to run the hook-- notify the handlers
 	for _, handler := range handlers {
