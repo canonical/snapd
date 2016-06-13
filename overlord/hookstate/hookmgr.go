@@ -40,12 +40,19 @@ type HookManager struct {
 	repository *repository
 }
 
+// Handler is the interface a client must satify to handle hooks.
 type Handler interface {
+	// Before is called right before the hook is to be run.
 	Before() error
+
+	// Done is called right after the hook has finished successfully.
 	Done() error
+
+	// Error is called if the hook encounters an error while running.
 	Error(err error) error
 }
 
+// HandlerGenerator is the function signature required to register for hooks.
 type HandlerGenerator func(*Context) Handler
 
 // hookSetup is a reference to a hook within a specific snap.
@@ -114,24 +121,31 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Unlock()
 
 	if err != nil {
-		return fmt.Errorf("failed to extract hook setup from task: %s", err)
+		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
-	// Obtain a list of handlers for this hook (if any)
+	// Obtain a handler for this hook. The repository returns a list since it's
+	// possible for regular expressions to overlap, but multiple handlers is an
+	// error (as is no handler).
 	handlers := m.repository.generateHandlers(&Context{task: task, setup: setup})
-
-	// About to run the hook-- notify the handlers
-	for _, handler := range handlers {
-		handler.Before()
+	handlersCount := len(handlers)
+	if handlersCount == 0 {
+		return fmt.Errorf("no registered handlers for hook %q", setup.Hook)
 	}
+	if handlersCount > 1 {
+		return fmt.Errorf("%d handlers registered for hook %q, expected 1", handlersCount, setup.Hook)
+	}
+
+	handler := handlers[0]
+
+	// About to run the hook-- notify the handler
+	handler.Before()
 
 	// TODO: Actually dispatch the hook.
 
 	// Done with the hook. TODO: Check the result, if success call Done(), if
 	// error, call Error(). Since we have no hooks, for now we just call Done().
-	for _, handler := range handlers {
-		handler.Done()
-	}
+	handler.Done()
 
 	return nil
 }

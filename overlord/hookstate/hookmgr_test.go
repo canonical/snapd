@@ -98,6 +98,70 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(change.Status(), Equals, state.DoneStatus)
 }
 
+func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {
+	s.state.Lock()
+	task := hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook")
+	c.Assert(task, NotNil, Commentf("Expected HookTask to return a task"))
+
+	change := s.state.NewChange("kind", "summary")
+	change.AddTask(task)
+	s.state.Unlock()
+
+	// Note that we do NOT register a handler
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Check(task.Status(), Equals, state.ErrorStatus)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, task, regexp.MustCompile(".*no registered handlers for hook \"test-hook\".*"))
+}
+
+func (s *hookManagerSuite) TestHookWithMultipleHandlersIsError(c *C) {
+	s.state.Lock()
+	task := hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook")
+	c.Assert(task, NotNil, Commentf("Expected HookTask to return a task"))
+
+	change := s.state.NewChange("kind", "summary")
+	change.AddTask(task)
+	s.state.Unlock()
+
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return newMockHandler()
+	}
+
+	// Register multiple times for this hook
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Check(task.Status(), Equals, state.ErrorStatus)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+
+	checkTaskLogContains(c, task, regexp.MustCompile(".*2 handlers registered for hook \"test-hook\".*"))
+}
+
+func checkTaskLogContains(c *C, task *state.Task, pattern *regexp.Regexp) {
+	found := false
+	for _, message := range task.Log() {
+		if pattern.MatchString(message) {
+			found = true
+		}
+	}
+
+	c.Check(found, Equals, true, Commentf("Expected to find regex %q in task log: %v", pattern, task.Log()))
+}
+
 type mockHandler struct {
 	beforeCalled bool
 	doneCalled   bool

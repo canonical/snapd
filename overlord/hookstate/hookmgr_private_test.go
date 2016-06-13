@@ -59,7 +59,7 @@ func (s *hookManagerSuite) TestDoRunHookMissingHookSetupIsError(c *C) {
 
 	err := s.manager.doRunHook(task, &tomb.Tomb{})
 	c.Check(err, NotNil)
-	c.Check(err, ErrorMatches, "failed to extract hook setup from task.*")
+	c.Check(err, ErrorMatches, "cannot extract hook setup from task.*")
 }
 
 func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
