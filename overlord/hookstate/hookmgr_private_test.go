@@ -66,32 +66,26 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	taskSet, err := RunHook(s.state, "test-snap", snap.R(1), "test-hook")
-	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
-	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
-
-	tasks := taskSet.Tasks()
-	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
-
-	task := tasks[0]
+	task := HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook")
+	c.Assert(task, NotNil, Commentf("Expected HookTask to return a task"))
 	c.Check(task.Kind(), Equals, "run-hook")
 
 	var setup hookSetup
-	err = task.Get("hook-setup", &setup)
-	c.Check(err, IsNil, Commentf("Expected task to contain hook"))
+	err := task.Get("hook-setup", &setup)
+	c.Check(err, IsNil, Commentf("Expected task to contain hook setup"))
 	c.Check(setup.Snap, Equals, "test-snap")
 	c.Check(setup.Revision, Equals, snap.R(1))
 	c.Check(setup.Hook, Equals, "test-hook")
 }
 
-func (s *hookManagerSuite) TestJsonMarshalHookSetup(c *C) {
+func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
 	hookSetup := hookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
 	out, err := json.Marshal(hookSetup)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
 }
 
-func (s *hookManagerSuite) TestJsonUnmarshalHookSetup(c *C) {
+func (s *hookManagerSuite) TestHookSetupJsonUnmarshal(c *C) {
 	out, err := json.Marshal(hookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"})
 	c.Assert(err, IsNil)
 

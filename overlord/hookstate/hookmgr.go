@@ -69,6 +69,13 @@ func Manager(s *state.State) (*HookManager, error) {
 	return manager, nil
 }
 
+// HookTask returns a task that will run the specified hook.
+func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
+	task := s.NewTask("run-hook", taskSummary)
+	task.Set("hook-setup", hookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	return task
+}
+
 // Register requests that a given handler generator be called when a matching
 // hook is run, and the handler be used for the hook.
 //
