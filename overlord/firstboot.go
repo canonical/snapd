@@ -104,7 +104,7 @@ func populateStateFromInstalled() error {
 	st.EnsureBefore(0)
 	<-chg.Ready()
 	if chg.Status() != state.DoneStatus {
-		return fmt.Errorf("cannot run chg: %v", chg)
+		return fmt.Errorf("cannot run chg: %s", chg.Err())
 	}
 
 	return ovld.Stop()

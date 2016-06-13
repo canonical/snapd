@@ -27,10 +27,14 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type FirstBootTestSuite struct {
+	systemctl *testutil.MockCmd
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -38,10 +42,20 @@ var _ = Suite(&FirstBootTestSuite{})
 func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
+
+	// mock the world!
+	err := os.MkdirAll(dirs.SnapBlobDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
+	s.systemctl = testutil.MockCommand(c, "systemctl", "")
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
+	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
+	s.systemctl.Restore()
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
@@ -65,4 +79,42 @@ func (s *FirstBootTestSuite) TestPopulateFromInstalledErrorsOnState(c *C) {
 
 	err = overlord.PopulateStateFromInstalled()
 	c.Assert(err, ErrorMatches, "cannot create state: state .* already exists")
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromInstalledSimpleNoSideInfo(c *C) {
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0`
+	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+	targetSnapFile := filepath.Join(dirs.SnapBlobDir, filepath.Base(mockSnapFile))
+	err := os.Rename(mockSnapFile, targetSnapFile)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	err = overlord.PopulateStateFromInstalled()
+	c.Assert(err, IsNil)
+
+	// and check the snap got correctly installed
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, "foo", "x1", "meta", "snap.yaml")), Equals, true)
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromInstalledSimpleWithSideInfo(c *C) {
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0`
+	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+	targetSnapFile := filepath.Join(dirs.SnapBlobDir, filepath.Base(mockSnapFile))
+	err := os.Rename(mockSnapFile, targetSnapFile)
+	c.Assert(err, IsNil)
+
+	mockSideInfo := []byte(`{"name":"foo-official","revision":17}`)
+	err = ioutil.WriteFile(targetSnapFile+".sideinfo", mockSideInfo, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	err = overlord.PopulateStateFromInstalled()
+	c.Assert(err, IsNil)
+
+	// and check the snap got correctly installed (with the sideinfo)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, "foo-official", "17", "meta", "snap.yaml")), Equals, true)
 }
