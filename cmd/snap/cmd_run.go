@@ -40,7 +40,7 @@ type cmdRun struct {
 
 	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
 	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
-	Revision string `long:"revision" description:"use a specific snap revision when running hook" hidden:"yes"`
+	Revision string `short:"r" description:"use a specific snap revision when running hook" hidden:"yes"`
 }
 
 func init() {
@@ -58,7 +58,7 @@ func (x *cmdRun) Execute(args []string) error {
 		return fmt.Errorf("cannot use --hook and --command together")
 	}
 	if x.Revision != "" && x.Hook == "" {
-		return fmt.Errorf("--revision can only be used with --hook")
+		return fmt.Errorf("-r can only be used with --hook")
 	}
 	if x.Hook != "" && len(args) > 0 {
 		return fmt.Errorf("too many arguments for hook %q: %s", x.Hook, strings.Join(args, " "))
