@@ -59,14 +59,13 @@ func (s *hookManagerSuite) TestSmoke(c *C) {
 	s.manager.Wait()
 }
 
-func (s *hookManagerSuite) TestRunHookTask(c *C) {
+func (s *hookManagerSuite) TestHookTask(c *C) {
 	s.state.Lock()
-	taskSet, err := hookstate.RunHook(s.state, "test-snap", snap.R(1), "test-hook")
-	c.Assert(err, IsNil, Commentf("RunHook unexpectedly failed"))
-	c.Assert(taskSet, NotNil, Commentf("Expected RunHook to provide a task set"))
+	task := hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook")
+	c.Assert(task, NotNil, Commentf("Expected HookTask to return a task"))
 
 	change := s.state.NewChange("kind", "summary")
-	change.AddAll(taskSet)
+	change.AddTask(task)
 	s.state.Unlock()
 
 	// Register a handler generator for the "test-hook" hook
@@ -84,10 +83,6 @@ func (s *hookManagerSuite) TestRunHookTask(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	tasks := taskSet.Tasks()
-	c.Assert(tasks, HasLen, 1, Commentf("Expected task set to contain 1 task"))
-	task := tasks[0]
 
 	c.Assert(calledContext, NotNil, Commentf("Expected handler generator to be called with a valid context"))
 	c.Check(calledContext.SnapName(), Equals, "test-snap")
