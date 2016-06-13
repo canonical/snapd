@@ -452,3 +452,25 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	c.Check(err, IsNil)
 	c.Check(v, Equals, 2)
 }
+
+func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	o.State().RequestRestart()
+}
+
+func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	restartRequested := false
+
+	o.SetRestartHandler(func() {
+		restartRequested = true
+	})
+
+	o.State().RequestRestart()
+
+	c.Check(restartRequested, Equals, true)
+}
