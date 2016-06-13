@@ -44,8 +44,9 @@ fi
 (mkdir -p $GOPATH/bin;
  cd $GOPATH/bin;
  go get github.com/snapcore/snapd/integration-tests/testutils/build/snapbuild;
+ sudo cp $GOPATH/bin/snapbuild /usr/local/bin
 )
-export PATH=$GOPATH/bin:$PATH
+
 
 SNAP_REEXEC=0 ./tests.test -check.vv
 
