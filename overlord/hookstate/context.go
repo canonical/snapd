@@ -24,6 +24,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// Context represents the context under which a given hook is running.
 type Context struct {
 	task  *state.Task
 	setup hookSetup
