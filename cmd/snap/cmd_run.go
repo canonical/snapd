@@ -26,7 +26,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapenv"
@@ -68,7 +67,7 @@ func getSnapInfo(snapName string) (*snap.Info, error) {
 	}
 	sn := snaps[0]
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
-		Revision: snap.R(sn.Revision.N),
+		Revision: sn.Revision,
 	})
 	if err != nil {
 		return nil, err
@@ -81,35 +80,8 @@ func getSnapInfo(snapName string) (*snap.Info, error) {
 // the later stages of executing the application
 // (like SNAP_REVISION that snap-exec requires to work)
 func snapExecAppEnv(app *snap.AppInfo) []string {
-	env := []string{}
-	wrapperData := struct {
-		App     *snap.AppInfo
-		EnvVars string
-		// XXX: needed by snapenv
-		SnapName string
-		SnapArch string
-		SnapPath string
-		Version  string
-		Revision snap.Revision
-		Home     string
-	}{
-		App: app,
-		// XXX: needed by snapenv
-		SnapName: app.Snap.Name(),
-		SnapArch: arch.UbuntuArchitecture(),
-		SnapPath: app.Snap.MountDir(),
-		Version:  app.Snap.Version,
-		Revision: app.Snap.Revision,
-		// must be an absolute path for
-		//   ubuntu-core-launcher/snap-confine
-		// which will mkdir() SNAP_USER_DATA for us
-		Home: os.Getenv("HOME"),
-	}
-	for _, envVar := range append(
-		snapenv.Basic(wrapperData),
-		snapenv.User(wrapperData)...) {
-		env = append(env, envVar)
-	}
+	env := snapenv.Basic(app.Snap)
+	env = append(env, snapenv.User(app.Snap, os.Getenv("HOME"))...)
 	return env
 }
 

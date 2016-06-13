@@ -21,7 +21,6 @@ package backend_test
 
 import (
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -34,8 +33,6 @@ import (
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
-
-func TestBackend(t *testing.T) { TestingT(t) }
 
 type linkSuite struct {
 	be           backend.Backend

@@ -17,28 +17,9 @@
  *
  */
 
-package overlord
+package backend
 
-import (
-	"time"
-
-	"github.com/snapcore/snapd/osutil"
+var (
+	AddMountUnit    = addMountUnit
+	RemoveMountUnit = removeMountUnit
 )
-
-type overlordStateBackend struct {
-	path           string
-	ensureBefore   func(d time.Duration)
-	requestRestart func()
-}
-
-func (osb *overlordStateBackend) Checkpoint(data []byte) error {
-	return osutil.AtomicWriteFile(osb.path, data, 0600, 0)
-}
-
-func (osb *overlordStateBackend) EnsureBefore(d time.Duration) {
-	osb.ensureBefore(d)
-}
-
-func (osb *overlordStateBackend) RequestRestart() {
-	osb.requestRestart()
-}
