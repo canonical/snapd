@@ -43,6 +43,7 @@ type snapmgrTestSuite struct {
 	snapmgr *snapstate.SnapManager
 
 	fakeBackend *fakeSnappyBackend
+	fakeStore   *fakeStore
 
 	user *auth.UserState
 
@@ -60,16 +61,18 @@ func (s *snapmgrTestSuite) settle() {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
-	s.fakeBackend = &fakeSnappyBackend{
+	s.fakeBackend = &fakeSnappyBackend{}
+	s.state = state.New(nil)
+	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
 	}
-	s.state = state.New(nil)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
+	s.snapmgr.ReplaceStore(s.fakeStore)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
@@ -293,13 +296,12 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
-		fakeOp{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
-		},
 		fakeOp{
 			op:  "current",
 			old: "<no-current>",
@@ -341,8 +343,8 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	// check progress
 	task := ts.Tasks()[0]
 	cur, total := task.Progress()
-	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
-	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 
 	// verify snap-setup in the task state
 	var ss snapstate.SnapSetup
@@ -399,12 +401,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	expected := []fakeOp{
 		fakeOp{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
-		},
-		fakeOp{
 			op:  "current",
 			old: "/snap/some-snap/7",
 		},
@@ -447,13 +443,18 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	}
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// check progress
 	task := ts.Tasks()[0]
 	cur, total := task.Progress()
-	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
-	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -519,12 +520,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
-		},
-		{
 			op:  "current",
 			old: "/snap/some-snap/7",
 		},
@@ -589,6 +584,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	}
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -639,12 +639,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := []fakeOp{
-		{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
-		},
 		{
 			op:  "current",
 			old: "/snap/some-snap/7",
@@ -711,6 +705,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	}
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -753,20 +752,11 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
-		{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "channel-for-7",
-		},
-	}
-
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*revision 7 of snap "some-snap" already installed.*`)
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+	c.Assert(s.fakeBackend.ops, HasLen, 0)
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
