@@ -43,7 +43,7 @@ fi
 # ensure we have snapbuild available for the tests
 (mkdir -p $GOPATH/bin;
  cd $GOPATH/bin;
- go build github.com/snapcore/snapd/integration-tests/testutils/build/snapbuild;
+ go get github.com/snapcore/snapd/integration-tests/testutils/build/snapbuild;
 )
 export PATH=$GOPATH/bin:$PATH
 
