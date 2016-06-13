@@ -86,7 +86,7 @@ func getSnapInfo(snapName string, snapRevision string) (*snap.Info, error) {
 		var err error
 		revision, err = snap.ParseRevision(snapRevision)
 		if err != nil {
-			return nil, fmt.Errorf("invalid revision: %q", snapRevision)
+			return nil, err
 		}
 	} else {
 		// User didn't supply a revision, so we need to get it via the snapd API

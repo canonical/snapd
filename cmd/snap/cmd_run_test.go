@@ -254,7 +254,7 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 func (s *SnapSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
 	err := snaprun.SnapRunHook("snapname", "hook-name", "invalid")
 	c.Assert(err, check.NotNil)
-	c.Check(err, check.ErrorMatches, "invalid revision: \"invalid\"")
+	c.Check(err, check.ErrorMatches, "invalid snap revision: \"invalid\"")
 }
 
 func (s *SnapSuite) mockServer(c *check.C) {
