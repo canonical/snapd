@@ -125,6 +125,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	if name == "gadget" {
 		info.Type = snap.TypeGadget
 	}
+	if name == "core" {
+		info.Type = snap.TypeOS
+	}
 	return info, nil
 }
 
