@@ -34,7 +34,6 @@ capability sys_tty_config,
 capability sys_admin,
 
 unix (receive, send) type=seqpacket addr=none,
-/tmp/mir_socket rw,
 /dev/dri/card0 rw,
 /dev/shm/\#* rw,
 
@@ -340,24 +339,6 @@ sendfile64
 sendmsg
 sendto
 
-# snappy doesn't currently support per-app UID/GIDs so don't allow this family
-# of syscalls. To properly support these, we need to have syscall arg filtering
-# (LP: #1446748) and per-app UID/GIDs.
-#setgid
-#setgid32
-#setgroups
-#setgroups32
-#setregid
-#setregid32
-#setresgid
-#setresgid32
-#setresuid
-#setresuid32
-#setreuid
-#setreuid32
-#setuid
-#setuid32
-
 # These break isolation but are common and can't be mediated at the seccomp
 # level with arg filtering
 setpgid
@@ -482,44 +463,6 @@ var mirConnectedPlugAppArmor = []byte(`
 # gives privileged access to the system.
 # Usage: reserved
 
-
-capability dac_override,
-capability sys_tty_config,
-capability sys_admin,
-
-unix (receive, send) type=seqpacket addr=none,
-/tmp/mir_socket rw,
-/dev/dri/card0 rw,
-/dev/shm/\#* rw,
-
-/sys/devices/**/uevent rw,
-/sys/devices/**/ r,
-/dev/input/* rw,
-/dev/tty* wr,
-/run/udev/data/* r,
-/run/udev/** rw,
-
-ptrace peer=**,
-/bin/sleep mrix,
-/bin/pidof mrix,
-/bin/sed mrix,
-/bin/cp mrix,
-/sbin/killall5 ixr,
-/usr/bin/expr ixr,
-/usr/bin/chmod ixr,
-/bin/chmod ixr,
-/proc/ r,
-/proc/*/stat r,
-/proc/*/cmdline r,
-/sys/bus/ r,
-/sys/class/ r,
-/sys/class/input/ r,
-/sys/class/drm/ r,
-/etc/udev/udev.conf r,
-capability sys_ptrace,
-capability chown,
-capability fowner,
-capability sys_ptrace,
 `)
 
 var mirConnectedPlugSecComp = []byte(`
