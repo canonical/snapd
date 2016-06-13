@@ -156,7 +156,7 @@ type channelMixin struct {
 
 func (x *channelMixin) setChannel(channel string) error {
 	if x.Channel != "" {
-		return fmt.Errorf("cannot set channel to %q, already set to %q", channel, x.Channel)
+		return fmt.Errorf("Please specify a single channel")
 	}
 	x.Channel = channel
 	return nil
