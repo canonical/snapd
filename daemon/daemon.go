@@ -221,6 +221,10 @@ func (d *Daemon) addRoutes() {
 
 // Start the Daemon
 func (d *Daemon) Start() {
+	d.overlord.SetRestartHandler(func() {
+		d.tomb.Kill(nil)
+	})
+
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
 	d.tomb.Go(func() error {

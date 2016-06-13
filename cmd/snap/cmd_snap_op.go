@@ -40,6 +40,11 @@ func lastLogStr(logs []string) string {
 	return logs[len(logs)-1]
 }
 
+const (
+	maxGoneTime  = 5 * time.Second
+	gonePollTime = 100 * time.Millisecond
+)
+
 func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
@@ -47,12 +52,28 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 		fmt.Fprint(Stdout, "\n")
 	}()
 
+	tMax := time.Time{}
+
 	var lastID string
 	lastLog := map[string]string{}
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
-			return nil, err
+			// an error here means the server most likely went away
+			now := time.Now()
+			if tMax.IsZero() {
+				tMax = now.Add(maxGoneTime)
+			}
+			if now.After(tMax) {
+				return nil, err
+			}
+			pb.Spin("waiting for server restart")
+			time.Sleep(gonePollTime)
+			continue
+		}
+		if !tMax.IsZero() {
+			pb.Finished()
+			tMax = time.Time{}
 		}
 
 		for _, t := range chg.Tasks {

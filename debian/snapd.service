@@ -8,6 +8,7 @@ Requires=snapd.socket
 [Service]
 ExecStart=/usr/lib/snapd/snapd
 EnvironmentFile=/etc/environment
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
