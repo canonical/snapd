@@ -1,4 +1,4 @@
-bin_PROGRAMS = snap-confine
+libexec_PROGRAMS = snap-confine
 snap_confine_SOURCES = \
 	main.c \
 	utils.c \
@@ -8,7 +8,9 @@ snap_confine_SOURCES = \
 	classic.c \
 	classic.h \
 	mount-support.c \
-	mount-support.h
+	mount-support.h \
+	mount-support-nvidia.c \
+	mount-support-nvidia.h
 snap_confine_CFLAGS = -Wall -Werror
 snap_confine_LDADD =
 
@@ -18,8 +20,8 @@ snap_confine_SOURCES += \
 	seccomp-support.h \
 	udev-support.c \
 	udev-support.h
-snap_confine_CFLAGS += $(APPARMOR_CFLAGS) $(SECCOMP_CFLAGS) $(UDEV_CFLAGS)
-snap_confine_LDADD += $(APPARMOR_LIBS) $(SECCOMP_LIBS) $(UDEV_LIBS)
+snap_confine_CFLAGS += $(APPARMOR_CFLAGS) $(SECCOMP_CFLAGS) $(LIBUDEV_CFLAGS)
+snap_confine_LDADD += $(APPARMOR_LIBS) $(SECCOMP_LIBS) $(LIBUDEV_LIBS)
 endif
 
 # Force particular coding style on all source and header files.
@@ -50,15 +52,15 @@ EXTRA_DIST = 80-snappy-assign.rules snappy-app-dev
 if STRICT_CONFINEMENT
 # Install udev rules
 install-data-local:
-	install -d -m 755 $(DESTDIR)/lib/udev/rules.d
-	install -m 644 80-snappy-assign.rules $(DESTDIR)/lib/udev/rules.d
+	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
+	install -m 644 80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 
 # Install support script for udev rules
 install-exec-local:
-	install -d -m 755 $(DESTDIR)/lib/udev
-	install -m 755 snappy-app-dev $(DESTDIR)/lib/udev/
+	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -m 755 snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
 endif
 
 # Ensure that snap-confine is +s (setuid)
 install-exec-hook:
-	chmod 4755 $(DESTDIR)$(bindir)/snap-confine
+	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine

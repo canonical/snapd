@@ -1,0 +1,1 @@
+rm_conffile /etc/apparmor.d/usr.bin.ubuntu-core-launcher 1.0.29~ -- "$@"

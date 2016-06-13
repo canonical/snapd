@@ -19,6 +19,7 @@
 
 #include <unistd.h>
 #include <limits.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <errno.h>

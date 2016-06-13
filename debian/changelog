@@ -1,4 +1,4 @@
-ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.29) UNRELEASED; urgency=medium
 
   [ Zygmunt Krynicki ]
   * Rename the package and everything else from ubuntu-core-launcher to
@@ -21,6 +21,14 @@ ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
   [ Steve Langasek ]
   * Update Standards-Version.
   * Add lintian override for suid binary.
+
+  [ Zygmunt Krynicki ]
+  * Change unreleased version back to 1.0.x after discussion with Michael Vogt.
+  * Don't mark ubuntu-core-launcher as transitional (it isn't yet).
+  * Move rm_conffile to ubuntu-core-launcher.maintscript, remove the now-empty
+    postrm and preinst scripts.
+  * Enable hardening options for snap-confine
+  * Build-depend on udev, use udevlibdir instead of hardcoding /lib/udev
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 22 May 2016 16:14:24 +0300
 

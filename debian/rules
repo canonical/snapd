@@ -1,10 +1,16 @@
 #!/usr/bin/make -f
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+DPKG_EXPORT_BUILDFLAGS = 1
+include /usr/share/dpkg/buildflags.mk
 
 %:
 	dh $@ --with autoreconf
 
+override_dh_auto_configure:
+	./configure --enable-nvidia-ubuntu --enable-rootfs-is-core-snap --prefix=/usr --libexecdir=/usr/lib/snap-confine
+
 override_dh_fixperms:
-	dh_fixperms -Xusr/bin/snap-confine
+	dh_fixperms -Xusr/lib/snap-confine/snap-confine
 
 override_dh_installdeb:
 	dh_apparmor --profile-name=usr.bin.snap-confine -psnap-confine

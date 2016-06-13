@@ -14,14 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef SNAP_CONFINE_CLASSIC_H
-#define SNAP_CONFINE_CLASSIC_H
 
-#include <stdbool.h>
+#ifndef SNAP_CONFINE_MOUNT_SUPPORT_NVIDIA_H
+#define SNAP_CONFINE_MOUNT_SUPPORT_NVIDIA_H
 
-// Location of the host filesystem directory in the core snap.
-#define SC_HOSTFS_DIR "/var/lib/snapd/hostfs"
-
-bool is_running_on_classic_distribution();
+void sc_mount_nvidia_driver(const char *rootfs_dir);
 
 #endif
