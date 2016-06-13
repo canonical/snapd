@@ -149,16 +149,16 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	trustedBackstore := NewMemoryBackstore()
 
 	for _, a := range cfg.Trusted {
-		switch a.Type() {
-		case AccountKeyType:
-			accKey := a.(*AccountKey)
+		switch accepted := a.(type) {
+		case *AccountKey:
+			accKey := accepted
 			err := trustedBackstore.Put(AccountKeyType, accKey)
 			if err != nil {
 				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
 			}
 
-		case AccountType:
-			acct := a.(*Account)
+		case *Account:
+			acct := accepted
 			err := trustedBackstore.Put(AccountType, acct)
 			if err != nil {
 				return nil, fmt.Errorf("error loading for use trusted account %q: %v", acct.DisplayName(), err)
