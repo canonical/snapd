@@ -78,7 +78,7 @@ func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 	buf := new(bytes.Buffer)
 	err := key.keyEncode(buf)
 	if err != nil {
-		return nil, fmt.Errorf("failed to encode %s: %v", kind, err)
+		return nil, fmt.Errorf("cannot encode %s: %v", kind, err)
 	}
 	return encodeFormatAndData(key.keyFormat(), buf.Bytes()), nil
 }
@@ -303,13 +303,17 @@ func OpenPGPPrivateKey(privk *packet.PrivateKey) PrivateKey {
 	return openpgpPrivateKey{privk}
 }
 
-// GenerateKey generates a private/public key pair.
-func GenerateKey() (PrivateKey, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, 4096)
+func generateKey(bits int) (PrivateKey, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		return nil, err
 	}
 	return OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Now(), priv)), nil
+}
+
+// GenerateKey generates a private/public key pair.
+func GenerateKey() (PrivateKey, error) {
+	return generateKey(4096)
 }
 
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
