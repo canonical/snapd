@@ -40,6 +40,8 @@ const openglConnectedPlugAppArmor = `
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
   /sys/bus/pci/devices/** r,
+  /run/udev/data/+drm:card* r,
+  /run/udev/data/+pci:[0-9]* r,
 `
 
 const openglConnectedPlugSecComp = `

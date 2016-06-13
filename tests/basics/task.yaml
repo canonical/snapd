@@ -1,0 +1,13 @@
+summary: Check that basic interactions work
+execute: |
+    echo Core is not there by default...
+    snap list | grep core && exit 1
+
+    echo Installing something pulls it...
+    snap install hello-world
+    snap list | grep core
+
+    echo Test a few basic properties...
+    hello-world.echo | grep Hello
+    hello-world.env | grep SNAP_NAME=hello-world
+    hello-world.evil && exit 1 || true
