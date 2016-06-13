@@ -6,5 +6,4 @@ description: A basic snap declaring a plug on log-observe
 apps:
   log-observe-consumer:
     command: bin/consumer
-    daemon: simple
-    plugs: [network-bind, log-observe]
+    plugs: [log-observe]
