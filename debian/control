@@ -33,6 +33,4 @@ Architecture: all
 Depends: snap-confine, ${misc:Depends}, ${shlibs:Depends}
 Pre-Depends: dpkg (>= 1.17.14)
 Description: Launcher for ubuntu-core (snappy) apps
- This is a transitional package that lets existing installation depending on
- ubuntu-core-launcher syntax continue to work as-is. In the future this will become
- an empty transitional package.
+ This package contains the launcher for launching snappy applications
