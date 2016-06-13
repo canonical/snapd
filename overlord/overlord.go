@@ -168,6 +168,10 @@ func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		for {
+			o.ensureTimerReset()
+			// in case of errors engine logs them,
+			// continue to the next Ensure() try for now
+			o.stateEng.Ensure()
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -178,10 +182,6 @@ func (o *Overlord) Loop() {
 				st.Prune(pruneWait, abortWait)
 				st.Unlock()
 			}
-			o.ensureTimerReset()
-			// in case of errors engine logs them,
-			// continue to the next Ensure() try for now
-			o.stateEng.Ensure()
 		}
 	})
 }

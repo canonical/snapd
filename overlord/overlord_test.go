@@ -150,7 +150,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("Ensure calls not happening")
 	}
-	c.Check(time.Since(t0) >= 20*time.Millisecond, Equals, true)
+	c.Check(time.Since(t0) >= 10*time.Millisecond, Equals, true)
 
 	err = o.Stop()
 	c.Assert(err, IsNil)
