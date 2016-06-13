@@ -1,4 +1,4 @@
-bin_PROGRAMS = snap-confine
+libexec_PROGRAMS = snap-confine
 snap_confine_SOURCES = \
 	main.c \
 	utils.c \
@@ -63,4 +63,4 @@ endif
 
 # Ensure that snap-confine is +s (setuid)
 install-exec-hook:
-	chmod 4755 $(DESTDIR)$(bindir)/snap-confine
+	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
