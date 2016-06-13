@@ -47,16 +47,21 @@ hooks:
 `)
 
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
-	invalidParameterSets := [][]string{
-		[]string{"run", "snap-name", "--hook=hook-name", "--command=command-name"},
-		[]string{"run", "snap-name", "--revision=1", "--command=command-name"},
-		[]string{"run", "snap-name", "--revision=1"},
-		[]string{"run", "snap-name", "--hook=hook-name", "foo", "bar"},
-	}
-	for _, invalidParameters := range invalidParameterSets {
-		_, err := snaprun.Parser().ParseArgs(invalidParameters)
-		c.Check(err, check.ErrorMatches, ".*invalid parameters.*")
-	}
+	invalidParameters := []string{"run", "snap-name", "--hook=hook-name", "--command=command-name"}
+	_, err := snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*cannot use --hook and --command together.*")
+
+	invalidParameters = []string{"run", "snap-name", "--revision=1", "--command=command-name"}
+	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*--revision can only be used with --hook.*")
+
+	invalidParameters = []string{"run", "snap-name", "--revision=1"}
+	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*--revision can only be used with --hook.*")
+
+	invalidParameters = []string{"run", "snap-name", "--hook=hook-name", "foo", "bar"}
+	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"hook-name\": foo bar.*")
 }
 
 func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {

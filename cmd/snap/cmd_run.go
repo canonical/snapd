@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -39,7 +40,7 @@ type cmdRun struct {
 
 	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
 	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
-	Revision string `long:"revision" description:"use a specific snap revision instead of the active one (this only applies when using --hook)" hidden:"yes"`
+	Revision string `long:"revision" description:"use a specific snap revision when running hook" hidden:"yes"`
 }
 
 func init() {
@@ -54,13 +55,13 @@ func init() {
 func (x *cmdRun) Execute(args []string) error {
 	// Catch some invalid parameter combinations, provide helpful errors
 	if x.Hook != "" && x.Command != "" {
-		return fmt.Errorf("invalid parameters: --hook cannot be used with --command")
+		return fmt.Errorf("cannot use --hook and --command together")
 	}
 	if x.Revision != "" && x.Hook == "" {
-		return fmt.Errorf("invalid parameters: --revision can only be used with --hook")
+		return fmt.Errorf("--revision can only be used with --hook")
 	}
 	if x.Hook != "" && len(args) > 0 {
-		return fmt.Errorf("invalid parameters: extra arguments cannot be used when using --hook")
+		return fmt.Errorf("too many arguments for hook %q: %s", x.Hook, strings.Join(args, " "))
 	}
 
 	// Now actually handle the dispatching
