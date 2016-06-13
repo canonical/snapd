@@ -84,6 +84,8 @@
     mount options=(rw rslave) -> /,
     /{tmp/snap.rootfs_*,}snap/ r,
     /{tmp/snap.rootfs_*,}snap/** r,
+
+    # This is used when --enable-rootfs-is-core-snap is used
     mount options=(rw bind) /snap/ubuntu-core/*/ -> /tmp/snap.rootfs_*/,
 
     mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
@@ -96,6 +98,15 @@
     mount options=(rw rbind) /var/lib/snapd/ -> /tmp/snap.rootfs_*/var/lib/snapd/,
     mount options=(rw rbind) /var/snap/ -> /tmp/snap.rootfs_*/var/snap/,
     mount options=(rw rbind) /var/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
+
+    # This is used when --enable-rootfs-is-core-snap is NOT used
+    mount options=(rw bind) /snap/ubuntu-core/*/bin/ -> /bin/,
+    mount options=(rw bind) /snap/ubuntu-core/*/sbin/ -> /sbin/,
+    mount options=(rw bind) /snap/ubuntu-core/*/lib/ -> /lib/,
+    mount options=(rw bind) /snap/ubuntu-core/*/lib32/ -> /lib32/,
+    mount options=(rw bind) /snap/ubuntu-core/*/libx32/ -> /libx32/,
+    mount options=(rw bind) /snap/ubuntu-core/*/lib64/ -> /lib64/,
+    mount options=(rw bind) /snap/ubuntu-core/*/usr/ -> /usr/,
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
