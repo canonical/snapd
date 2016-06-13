@@ -139,13 +139,17 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	handler := handlers[0]
 
 	// About to run the hook-- notify the handler
-	handler.Before()
+	if err := handler.Before(); err != nil {
+		return fmt.Errorf("cannot handle hook %q: %s", err)
+	}
 
 	// TODO: Actually dispatch the hook.
 
 	// Done with the hook. TODO: Check the result, if success call Done(), if
 	// error, call Error(). Since we have no hooks, for now we just call Done().
-	handler.Done()
+	if err := handler.Done(); err != nil {
+		return fmt.Errorf("cannot handle finished hook %q: %s", err)
+	}
 
 	return nil
 }
