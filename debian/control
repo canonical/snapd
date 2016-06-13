@@ -13,7 +13,8 @@ Build-Depends: autoconf,
                libseccomp-dev,
                libudev-dev,
                pkg-config,
-               shellcheck
+               shellcheck,
+               udev
 Standards-Version: 3.9.8
 Vcs-Git: https://github.com/ubuntu-core/snap-confine
 

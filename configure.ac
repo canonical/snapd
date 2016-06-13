@@ -49,7 +49,8 @@ AM_CONDITIONAL([STRICT_CONFINEMENT], [test "x$enable_confinement" = "xyes"])
 AS_IF([test "x$enable_confinement" = "xyes"], [
     PKG_CHECK_MODULES([APPARMOR], [libapparmor])
     PKG_CHECK_MODULES([SECCOMP], [libseccomp])
-    PKG_CHECK_MODULES([UDEV], [libudev])
+    PKG_CHECK_MODULES([LIBUDEV], [libudev])
+    PKG_CHECK_MODULES([UDEV], [udev])
     AC_DEFINE([STRICT_CONFINEMENT], [1],
         [Define if strict apparmor confinement is available])
 ], [
