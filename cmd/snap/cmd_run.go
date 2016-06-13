@@ -93,7 +93,7 @@ func getSnapInfo(snapName string, snapRevision string) (*snap.Info, error) {
 		if len(snaps) > 1 {
 			return nil, fmt.Errorf("multiple snaps for %q: %d", snapName, len(snaps))
 		}
-		revision = snap.R(snaps[0].Revision.N)
+		revision = snaps[0].Revision
 	}
 
 	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
