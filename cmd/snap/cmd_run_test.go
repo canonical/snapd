@@ -51,13 +51,13 @@ func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	_, err := snaprun.Parser().ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*cannot use --hook and --command together.*")
 
-	invalidParameters = []string{"run", "snap-name", "--revision=1", "--command=command-name"}
+	invalidParameters = []string{"run", "snap-name", "-r=1", "--command=command-name"}
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)
-	c.Check(err, check.ErrorMatches, ".*--revision can only be used with --hook.*")
+	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
-	invalidParameters = []string{"run", "snap-name", "--revision=1"}
+	invalidParameters = []string{"run", "snap-name", "-r=1"}
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)
-	c.Check(err, check.ErrorMatches, ".*--revision can only be used with --hook.*")
+	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
 	invalidParameters = []string{"run", "snap-name", "--hook=hook-name", "foo", "bar"}
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)
