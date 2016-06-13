@@ -29,8 +29,8 @@ endif
 check-syntax:
 	@d=`mktemp -d`; \
 	trap 'rm -rf $d' EXIT; \
-	for f in $(wildcard *.c) $(wildcard *.h); do \
-	       out="$$d/$$f.out"; \
+	for f in $(wildcard $(srcdir)/*.c) $(wildcard $(srcdir)/*.h); do \
+	       out="$$d/`basename $$f.out`"; \
 	       echo "Checking $$f ... "; \
 	       indent -linux "$$f" -o "$$out"; \
 	       diff -Naur "$$f" "$$out" || exit 1; \
@@ -50,15 +50,18 @@ fmt:
 EXTRA_DIST = 80-snappy-assign.rules snappy-app-dev
 
 if STRICT_CONFINEMENT
+# NOTE: This makes distcheck fail but it is required for udev, so go figure.
+# http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
+#
 # Install udev rules
 install-data-local:
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
-	install -m 644 80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
+	install -m 644 $(srcdir)/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 
 # Install support script for udev rules
 install-exec-local:
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-	install -m 755 snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
+	install -m 755 $(srcdir)/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
 endif
 
 # Ensure that snap-confine is +s (setuid)

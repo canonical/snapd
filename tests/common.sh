@@ -1,5 +1,5 @@
 #!/bin/sh
-    
+
 L="$(pwd)/../src/snap-confine"
 export L
 
