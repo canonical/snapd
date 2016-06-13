@@ -45,6 +45,10 @@ type unitySuite struct {
 }
 
 func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
+	if runtime.GOARCH != "amd64" {
+		c.Skip("all find results are only available on amd64")
+	}
+
 	_, err := cli.ExecCommandErr("sudo", "snap", "install", appName)
 	c.Assert(err, check.IsNil)
 	defer cli.ExecCommand(c, "sudo", "snap", "remove", appName)
