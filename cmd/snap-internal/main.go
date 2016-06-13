@@ -33,12 +33,16 @@ func main() {
 	}
 }
 
+var shortDescr = "internal command"
+var longDescr = "internal command please do not use"
+
 func run() error {
 	var opts struct {
 	}
 
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
-	parser.AddCommand("set-boot", "set-boot", "set-boot", &cmdSetBoot{})
+	parser.AddCommand("set-boot", shortDescr, longDescr, &cmdSetBoot{})
+	parser.AddCommand("download", shortDescr, longDescr, &cmdDownload{})
 
 	_, err := parser.Parse()
 	if err != nil {
