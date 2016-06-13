@@ -37,9 +37,9 @@ type cmdRun struct {
 		SnapApp string `positional-arg-name:"<app name>" description:"the snap (e.g. hello-world) or application to run (e.g. hello-world.env)"`
 	} `positional-args:"yes" required:"yes"`
 
-	Command  string `long:"command" description:"alternative command to run"`
-	Hook     string `long:"hook" description:"run a specific hook contained within the snap"`
-	Revision string `long:"revision" description:"use a specific snap revision instead of the active one (this only applies when using --hook)"`
+	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
+	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
+	Revision string `long:"revision" description:"use a specific snap revision instead of the active one (this only applies when using --hook)" hidden:"yes"`
 }
 
 func init() {
