@@ -32,7 +32,7 @@ restore: |
 suites:
     tests/:
         summary: Full-system tests for snapd
-        restore: |
+        restore-each: |
             echo Resetting snapd state...
             systemctl stop snapd || true
             umount /var/lib/snapd/snaps/*.snap 2>&1 || true
