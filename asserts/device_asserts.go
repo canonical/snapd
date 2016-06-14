@@ -103,7 +103,7 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Model)(nil)
 
-var modelMandatory = []string{"os", "architecture", "gadget", "kernel", "store", "class"}
+var modelMandatory = []string{"os", "architecture", "gadget", "kernel", "class"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
 	if assert.headers["brand-id"] != assert.headers["authority-id"] {
