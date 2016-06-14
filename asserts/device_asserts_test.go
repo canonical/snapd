@@ -48,7 +48,7 @@ const modelExample = "type: model\n" +
 	"series: 16\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
-	"os: core\n" +
+	"core: core\n" +
 	"architecture: amd64\n" +
 	"gadget: brand-gadget\n" +
 	"kernel: baz-linux\n" +
@@ -73,7 +73,7 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.BrandID(), Equals, "brand-id1")
 	c.Check(model.Model(), Equals, "baz-3000")
 	c.Check(model.Class(), Equals, "fixed")
-	c.Check(model.OS(), Equals, "core")
+	c.Check(model.Core(), Equals, "core")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
@@ -98,8 +98,8 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: baz/3000\n", `"model" primary key header cannot contain '/'`},
-		{"os: core\n", "", `"os" header is mandatory`},
-		{"os: core\n", "os: \n", `"os" header should not be empty`},
+		{"core: core\n", "", `"core" header is mandatory`},
+		{"core: core\n", "core: \n", `"core" header should not be empty`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
