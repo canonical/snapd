@@ -54,7 +54,7 @@ export HOME="$SNAP_USER_DATA"
 # Snap name is: {{.App.Snap.Name}}
 # App name is: {{.App.Name}}
 
-{{.App.LauncherCommand}} "$@"
+exec {{.App.LauncherCommand}} "$@"
 `
 
 	if err := snap.ValidateApp(app); err != nil {
