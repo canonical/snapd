@@ -191,6 +191,9 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 	if err := os.MkdirAll(info.MountDir(), 0755); err != nil {
 		return err
 	}
+	defer os.Remove(filepath.Dir(info.MountDir()))
+	defer os.Remove(info.MountDir())
+
 	if err := runCommand("mount", snapPath, info.MountDir()); err != nil {
 		return err
 	}
