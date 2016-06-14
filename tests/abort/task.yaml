@@ -1,0 +1,40 @@
+summary: Check task abort
+environment:
+  SNAP_NAME: hello-world
+restore: |
+  echo Resetting snapd state...
+  systemctl stop snapd || true
+  umount /var/lib/snapd/snaps/*.snap 2>&1 || true
+  rm -rf /snap/*
+  rm -rf /var/lib/snapd/*
+  rm -f /etc/systemd/system/snap-*.{mount,service}
+  rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
+  systemctl start snapd
+execute: |
+  echo "Abort with invalid id"
+  invalidID="10000000"
+  expected="error: cannot find change with id \"$invalidID\""
+  actual=$(sudo snap abort $invalidID 2>&1) || true
+  echo "$actual" | grep -Pq "$expected" || exit 1
+
+  echo "Abort with valid id - error"
+  subdirPath="/snap/$SNAP_NAME/current/foo"
+  sudo mkdir -p $subdirPath
+  snap install $SNAP_NAME || true
+  idPattern="\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
+  changes=$(snap changes)
+  id=$(echo "$changes" | grep -Pzo "$idPattern")
+  expected="error: cannot abort change $id with nothing pending"
+  actual=$(sudo snap abort $id 2>&1) || true
+  echo "$actual" | grep -Pq "$expected" || exit 1
+
+  sudo rm -rf $subdirPath
+
+  echo "Abort with valid id - done"
+  sudo snap install $SNAP_NAME
+  idPattern="\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
+  changes=$(snap changes)
+  id=$(echo "$changes" | grep -Pzo "$idPattern")
+  expected="error: cannot abort change $id with nothing pending"
+  actual=$(sudo snap abort $id 2>&1) || true
+  echo "$actual" | grep -Pq "$expected" || exit 1
