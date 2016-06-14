@@ -42,21 +42,27 @@
 // https://www.archlinux.org/packages/extra/x86_64/nvidia-utils/files/
 //
 // FIXME: this doesn't yet work with libGLX and libglvnd redirector
+// FIXME: this still doesn't work with the 361 driver
 static const char *nvidia_globs[] = {
 	"/usr/lib/libEGL.so*",
 	"/usr/lib/libEGL_nvidia.so*",
 	"/usr/lib/libGL.so*",
+	"/usr/lib/libOpenGL.so*",
 	"/usr/lib/libGLESv1_CM.so*",
 	"/usr/lib/libGLESv1_CM_nvidia.so*",
 	"/usr/lib/libGLESv2.so*",
 	"/usr/lib/libGLESv2_nvidia.so*",
 	"/usr/lib/libGLX_indirect.so*",
 	"/usr/lib/libGLX_nvidia.so*",
+	"/usr/lib/libGLX.so*",
+	"/usr/lib/libGLdispatch.so*",
+	"/usr/lib/libGLU.so*",
 	"/usr/lib/libXvMCNVIDIA.so*",
 	"/usr/lib/libXvMCNVIDIA_dynamic.so*",
 	"/usr/lib/libcuda.so*",
 	"/usr/lib/libnvcuvid.so*",
 	"/usr/lib/libnvidia-cfg.so*",
+	"/usr/lib/libnvidia-compiler.so*",
 	"/usr/lib/libnvidia-eglcore.so*",
 	"/usr/lib/libnvidia-encode.so*",
 	"/usr/lib/libnvidia-fatbinaryloader.so*",
