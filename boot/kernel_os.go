@@ -52,7 +52,7 @@ func RemoveKernelAssets(s snap.PlaceInfo, inter progress.Meter) error {
 }
 
 func copyAll(src, dst string) error {
-	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
+	if output, err := exec.Command("cp", "-aLv", src, dst).CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot copy %q -> %q: %s (%s)", src, dst, err, output)
 	}
 	return nil
