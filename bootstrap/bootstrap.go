@@ -30,6 +30,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -45,11 +46,10 @@ type headerYaml struct {
 }
 
 type bootstrapYaml struct {
-	Snaps        []string `yaml:"snaps"`
-	Rootdir      string   `yaml:"rootdir"`
-	Channel      string   `yaml:"channel"`
-	StoreID      string   `yaml:"store-id"`
-	Architecture string   `yaml:"architecture"`
+	Snaps            []string `yaml:"extra-snaps"`
+	Rootdir          string   `yaml:"rootdir"`
+	Channel          string   `yaml:"channel"`
+	ModelAssertionFn string   `yaml:"model-assertion"`
 }
 
 func Bootstrap(bootstrapYaml string) error {
@@ -74,6 +74,17 @@ func Bootstrap(bootstrapYaml string) error {
 		return fmt.Errorf("cannot bootstrap over existing system")
 	}
 
+	rawAssert, err := ioutil.ReadFile(y.Bootstrap.ModelAssertionFn)
+	if err != nil {
+		return err
+	}
+
+	ass, err := asserts.Decode(rawAssert)
+	if err != nil {
+		return err
+	}
+	model := ass.(*asserts.Model)
+
 	// put snaps in place
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
@@ -81,10 +92,20 @@ func Bootstrap(bootstrapYaml string) error {
 	opts := &downloadOptions{
 		TargetDir:    dirs.SnapBlobDir,
 		Channel:      y.Bootstrap.Channel,
-		StoreID:      y.Bootstrap.StoreID,
-		Architecture: y.Bootstrap.Architecture,
+		StoreID:      model.Store(),
+		Architecture: model.Architecture(),
 	}
-	for _, snapName := range y.Bootstrap.Snaps {
+
+	// FIXME: support sideloading snaps by copying the boostrap.snaps
+	//        first and keeping track of the already downloaded names
+	snaps := []string{}
+	snaps = append(snaps, y.Bootstrap.Snaps...)
+	snaps = append(snaps, model.Gadget())
+	snaps = append(snaps, model.OS())
+	snaps = append(snaps, model.Kernel())
+	snaps = append(snaps, model.RequiredSnaps()...)
+
+	for _, snapName := range snaps {
 		fmt.Printf("Fetching %s\n", snapName)
 		if osutil.FileExists(snapName) {
 			if err := copyLocalSnapFile(snapName); err != nil {

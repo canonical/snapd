@@ -14,23 +14,45 @@ setup and extract kernel assets (if needed).
 $ cat > bootstrap.yaml <<EOF
 bootstrap:
  rootdir: /tmp/diskimage-with-bootloader
- snaps: 
- - canonical-pc
- - /tmp/os/b8X2psL1ryVrPt5WEmpYiqfr5emixTd7_122.snap
- - /tmp/kernel/SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk_30.snape
- EOF
- $ sudo snap bootstrap bootstramp.yaml
- ...
- ```
+ channel: edge
+ model-assertion: model.assertion
+ extra-snaps:
+ - webdm
+EOF
+
+$ cat > model.assertion <<EOF
+type: model
+series: 16
+authority-id: my-brand
+brand-id: my-brand
+model: my-model
+class: my-class
+allowed-modes:  
+required-snaps: 
+architecture: amd64
+gadget: canonical-pc
+kernel: canonical-pc-linux
+os: ubuntu-core
+timestamp: 2016-1-2T10:00:00-05:00
+body-length: 0
+
+openpgpg 2cln
+EOF
+
+$ sudo snap bootstrap bootstramp.yaml
+[do the right thing]
+```
 
 ## Supported fields in bootstrap.yaml
 
+* model-assertions: the filename of the model assertion
 * rootdir: the root directory of the image (e.g. "/tmp/diskimage")
-* snaps: list of string of snap names or paths (e.g. ["canonical-pc", "hello"])
 * channel: the channel to use (e.g. "edge")
-* store-id: the store-id to use (e.g. "plano")
-* architecture: the architecture to use (e.g. "armhf")
+* extra-snaps: list of string of snap names or paths (e.g. ["webdm", "hello"])
 
 
+## Future fields we need to support
 
+A way to load additional assertions into the image, e.g. via:
 
+* assertions: a list of string of additional files with assertions
