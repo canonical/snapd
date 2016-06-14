@@ -24,10 +24,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
@@ -125,10 +127,16 @@ func setBootvars() error {
 		if err != nil {
 			return fmt.Errorf("can not read %v", fullname)
 		}
+		// FIMXE: read .sideinfo here
 		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 		if err != nil {
 			return fmt.Errorf("can not get info for %v", fullname)
 		}
+		// local install
+		if info.Revision.Unset() {
+			info.Revision = snap.R(-1)
+		}
+
 		switch info.Type {
 		case snap.TypeOS:
 			bootvar = "snappy_os"
@@ -136,6 +144,9 @@ func setBootvars() error {
 		case snap.TypeKernel:
 			bootvar = "snappy_kernel"
 			bootvar2 = "snappy_good_kernel"
+			if err := extractKernelAssets(fullname, info); err != nil {
+				return err
+			}
 		}
 
 		name := filepath.Base(fullname)
@@ -148,11 +159,33 @@ func setBootvars() error {
 		}
 	}
 
-	if bootloader.Name() == "u-boot" {
-		// FIXME: do the equaivalent of extractKernelAssets here
-		return fmt.Errorf("IMPLEMENT (or call): extractKernelAssets()")
-	}
+	return nil
+}
 
+func runCommand(cmdStr ...string) error {
+	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
+	}
+	return nil
+}
+
+func extractKernelAssets(snapPath string, info *snap.Info) error {
+	// FIXME: hrm, hrm, we need to be root for this - alternatively
+	//        we could make boot.ExtractKernelAssets() work on
+	//        a plain .snap file again (i.e. revert bee59a2)
+	if err := os.MkdirAll(info.MountDir(), 0755); err != nil {
+		return err
+	}
+	if err := runCommand("mount", snapPath, info.MountDir()); err != nil {
+		return err
+	}
+	defer runCommand("umount", info.MountDir())
+
+	pb := progress.NewTextProgress()
+	if err := boot.ExtractKernelAssets(info, pb); err != nil {
+		return err
+	}
 	return nil
 }
 
