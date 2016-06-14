@@ -251,11 +251,15 @@ func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
 	state.Lock()
 	user, err := UserFromRequest(state, r)
 	state.Unlock()
-	if err != nil {
+	if err != nil && err != auth.ErrInvalidAuth {
 		return nil, err
 	}
+	var userID int
+	if user != nil {
+		userID = user.ID
+	}
 	state.Lock()
-	auther, err := auth.Authenticator(state, user.ID)
+	auther, err := auth.Authenticator(state, userID)
 	state.Unlock()
 	return auther, err
 }

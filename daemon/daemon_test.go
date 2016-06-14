@@ -211,8 +211,13 @@ func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
 	d := newTestDaemon(c)
 	auther, err := d.auther(req)
 
-	c.Check(err, check.Equals, auth.ErrInvalidAuth)
-	c.Check(auther, check.IsNil)
+	c.Check(err, check.IsNil)
+	state := d.overlord.State()
+	state.Lock()
+	expected, err := auth.Authenticator(state, 0)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(auther, check.DeepEquals, expected)
 }
 
 func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
