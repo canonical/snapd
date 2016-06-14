@@ -1,0 +1,13 @@
+summary: Check commands help
+environment:
+  CMD/abort: abort
+  CMD/changes: changes
+  CMD/find: find
+  CMD/install: install
+  CMD/interfaces: interfaces
+  CMD/remove: remove
+execute: |
+  echo "Checking help for command $CMD"
+  expected="(?s)Usage:\n  snap \[OPTIONS\] $CMD.*?\n\nThe $CMD command .*?\nHelp Options:\n  -h, --help +Show this help message\n.*?"
+  actual=$(snap $CMD --help)
+  echo "$actual" | grep -Pzq "$expected" || exit 1

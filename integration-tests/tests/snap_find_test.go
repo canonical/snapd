@@ -94,18 +94,3 @@ func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
 		c.Check(searchOutput, check.Matches, expected)
 	}
 }
-
-// SNAP_FIND_003: --help prints the detailed help test for the command
-func (s *searchSuite) TestFindShowsHelp(c *check.C) {
-	expected := "(?ms)" +
-		"^Usage:\n" +
-		`  snap \[OPTIONS\] find.*\n` +
-		"\n^The find command .*\n" +
-		"^Help Options:\n" +
-		"^  -h, --help +Show this help message\n" +
-		".*"
-
-	actual := cli.ExecCommand(c, "snap", "find", "--help")
-
-	c.Assert(actual, check.Matches, expected)
-}
