@@ -209,10 +209,10 @@ func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
 
 	d := newTestDaemon(c)
-	user, err := d.auther(req)
+	auther, err := d.auther(req)
 
 	c.Check(err, check.Equals, auth.ErrInvalidAuth)
-	c.Check(user, check.IsNil)
+	c.Check(auther, check.IsNil)
 }
 
 func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
@@ -220,10 +220,10 @@ func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
 	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
 
 	d := newTestDaemon(c)
-	user, err := d.auther(req)
+	auther, err := d.auther(req)
 
 	c.Check(err, check.ErrorMatches, "invalid authorization header")
-	c.Check(user, check.IsNil)
+	c.Check(auther, check.IsNil)
 }
 
 func (s *daemonSuite) TestAutherValidUser(c *check.C) {
@@ -238,8 +238,12 @@ func (s *daemonSuite) TestAutherValidUser(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
-	user, err := d.auther(req)
+	auther, err := d.auther(req)
 
 	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, expectedUser.Authenticator())
+	state.Lock()
+	expected, err := auth.Authenticator(state, expectedUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(auther, check.DeepEquals, expected)
 }

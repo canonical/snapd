@@ -276,7 +276,11 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	_, ok := searchStore(findCmd, req, nil).(*resp)
 	c.Assert(ok, check.Equals, true)
 	// ensure authenticator was set
-	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
+	state.Lock()
+	expected, err := auth.Authenticator(state, user.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Assert(s.auther, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
@@ -910,7 +914,11 @@ func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	_ = getSnapsInfo(snapsCmd, req, nil).(*resp)
 
 	// ensure authenticator was set
-	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
+	state.Lock()
+	expected, err := auth.Authenticator(state, user.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Assert(s.auther, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {

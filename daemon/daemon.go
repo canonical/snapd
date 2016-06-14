@@ -254,7 +254,10 @@ func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
 	if err != nil {
 		return nil, err
 	}
-	return user.Authenticator(), nil
+	state.Lock()
+	auther, err := auth.Authenticator(state, user.ID)
+	state.Unlock()
+	return auther, err
 }
 
 // New Daemon
