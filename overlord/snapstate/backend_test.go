@@ -49,6 +49,7 @@ type fakeDownload struct {
 
 type fakeStore struct {
 	downloads           []fakeDownload
+	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
 }
@@ -68,6 +69,7 @@ func (f *fakeStore) Snap(name, channel string, auther store.Authenticator) (*sna
 		},
 		Version: name,
 	}
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revno})
 
 	return info, nil
 }
@@ -94,6 +96,7 @@ func (f *fakeStore) Download(snapInfo *snap.Info, pb progress.Meter, auther stor
 		name:     snapInfo.Name(),
 		channel:  snapInfo.Channel,
 	})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: snapInfo.Name()})
 
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))

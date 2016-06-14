@@ -66,6 +66,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
+		fakeBackend:         s.fakeBackend,
 	}
 
 	var err error
@@ -302,30 +303,39 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		channel:  "some-channel",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
-		fakeOp{
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
 			op:  "current",
 			old: "<no-current>",
 		},
-		fakeOp{
+		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
 		},
-		fakeOp{
+		{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op:   "copy-data",
 			name: "/snap/some-snap/11",
 			old:  "<no-old>",
 		},
-		fakeOp{
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
@@ -334,7 +344,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 				Revision:     snap.R(11),
 			},
 		},
-		fakeOp{
+		{
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
 		},
@@ -400,34 +410,43 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := []fakeOp{
-		fakeOp{
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
 			op:  "current",
 			old: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
 		},
-		fakeOp{
+		{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "copy-data",
 			name: "/snap/some-snap/11",
 			old:  "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
@@ -436,7 +455,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				Revision:     snap.R(11),
 			},
 		},
-		fakeOp{
+		{
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
 		},
@@ -519,6 +538,15 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := []fakeOp{
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
 		{
 			op:  "current",
 			old: "/snap/some-snap/7",
@@ -640,6 +668,15 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	expected := []fakeOp{
 		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
 			op:  "current",
 			old: "/snap/some-snap/7",
 		},
@@ -756,7 +793,11 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	c.Check(chg.Err(), ErrorMatches, `(?s).*revision 7 of snap "some-snap" already installed.*`)
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, HasLen, 0)
+	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{{
+		op:    "storesvc-snap",
+		name:  "some-snap",
+		revno: snap.R(7),
+	}})
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -989,28 +1030,28 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	expected := []fakeOp{
-		fakeOp{
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
-		fakeOp{
+		{
 			op:   "remove-snap-data",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "remove-snap-common-data",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "remove-snap-files",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
