@@ -288,20 +288,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := &TaskProgressAdapter{task: t}
 
-	var auther store.Authenticator
-	if ss.UserID > 0 {
-		st.Lock()
-		user, err := auth.User(st, ss.UserID)
-		st.Unlock()
-		if err != nil {
-			return err
-		}
-		st.Lock()
-		auther, err = auth.Authenticator(st, user.ID)
-		st.Unlock()
-		if err != nil {
-			return err
-		}
+	st.Lock()
+	auther, err := auth.Authenticator(st, ss.UserID)
+	st.Unlock()
+	if err != nil {
+		return err
 	}
 
 	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, m.store, auther)
