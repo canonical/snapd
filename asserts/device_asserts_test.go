@@ -97,6 +97,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"brand-id: brand-id1\n", "brand-id: random\n", `authority-id and brand-id must match, model assertions are expected to be signed by the brand: "brand-id1" != "random"`},
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"model: baz-3000\n", "model: baz/3000\n", `"model" primary key header cannot contain '/'`},
 		{"os: core\n", "", `"os" header is mandatory`},
 		{"os: core\n", "os: \n", `"os" header should not be empty`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
