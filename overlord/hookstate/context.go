@@ -33,17 +33,8 @@ const (
 
 // Context represents the context under which a given hook is running.
 type Context struct {
-	task    *state.Task
-	setup   hookSetup
-	dataKey string
-}
-
-func newContext(task *state.Task, setup hookSetup) *Context {
-	return &Context{
-		task:    task,
-		setup:   setup,
-		dataKey: setup.Hook + "-" + contextDataKey,
-	}
+	task  *state.Task
+	setup hookSetup
 }
 
 // SnapName returns the name of the snap containing the hook.
@@ -75,7 +66,7 @@ func (c *Context) Unlock() {
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (c *Context) Set(key string, value interface{}) {
 	var data map[string]*json.RawMessage
-	if err := c.task.Get(c.dataKey, &data); err != nil {
+	if err := c.task.Get(contextDataKey, &data); err != nil {
 		data = make(map[string]*json.RawMessage)
 	}
 
@@ -86,14 +77,14 @@ func (c *Context) Set(key string, value interface{}) {
 	raw := json.RawMessage(marshalledValue)
 	data[key] = &raw
 
-	c.task.Set(c.dataKey, data)
+	c.task.Set(contextDataKey, data)
 }
 
 // Get unmarshals the stored value associated with the provided key into the
 // value parameter.
 func (c *Context) Get(key string, value interface{}) error {
 	var data map[string]*json.RawMessage
-	if err := c.task.Get(c.dataKey, &data); err != nil {
+	if err := c.task.Get(contextDataKey, &data); err != nil {
 		return err
 	}
 

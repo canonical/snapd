@@ -41,7 +41,7 @@ func (s *contextSuite) SetUpTest(c *C) {
 
 	s.task = state.NewTask("test-task", "my test task")
 	s.setup = hookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.context = newContext(s.task, s.setup)
+	s.context = &Context{task: s.task, setup: s.setup}
 }
 
 func (s *contextSuite) TestHookSetup(c *C) {
@@ -71,29 +71,13 @@ func (s *contextSuite) TestSetPersistence(c *C) {
 
 	// Verify that "foo" is still "bar" within another context of the same hook
 	// on the same task.
-	anotherContext := newContext(s.task, s.setup)
+	anotherContext := &Context{task: s.task, setup: s.setup}
 	anotherContext.Lock()
 	defer anotherContext.Unlock()
 
 	var output string
 	c.Check(anotherContext.Get("foo", &output), IsNil, Commentf("Expected new context to also contain 'foo'"))
 	c.Check(output, Equals, "bar")
-}
-
-func (s *contextSuite) TestSetPersistenceIsHookSpecific(c *C) {
-	s.context.Lock()
-	s.context.Set("foo", "bar")
-	s.context.Unlock()
-
-	// Verify that "foo" is not "bar" within the context of another hook on the
-	// same task.
-	s.setup.Hook = "foo"
-	anotherContext := newContext(s.task, s.setup)
-	anotherContext.Lock()
-	defer anotherContext.Unlock()
-
-	var output string
-	c.Check(anotherContext.Get("foo", &output), NotNil, Commentf("Expected new context to not contain 'foo'"))
 }
 
 func (s *contextSuite) TestSetUnmarshalable(c *C) {
@@ -104,7 +88,7 @@ func (s *contextSuite) TestSetUnmarshalable(c *C) {
 		c.Check(recover(), Matches, ".*cannot marshal context value.*", Commentf("Expected panic when attempting install"))
 	}()
 
-	s.context.Set("foo", func(){})
+	s.context.Set("foo", func() {})
 }
 
 func (s *contextSuite) TestGetIsolatedFromTask(c *C) {
