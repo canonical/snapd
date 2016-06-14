@@ -28,6 +28,8 @@ import (
 
 type contextSuite struct {
 	context *Context
+	task    *state.Task
+	setup   hookSetup
 }
 
 var _ = Suite(&contextSuite{})
@@ -37,9 +39,9 @@ func (s *contextSuite) SetUpTest(c *C) {
 	state.Lock()
 	defer state.Unlock()
 
-	task := state.NewTask("test-task", "my test task")
-	setup := hookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.context = &Context{task: task, setup: setup}
+	s.task = state.NewTask("test-task", "my test task")
+	s.setup = hookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	s.context = newContext(s.task, s.setup)
 }
 
 func (s *contextSuite) TestHookSetup(c *C) {
@@ -57,4 +59,64 @@ func (s *contextSuite) TestSetAndGet(c *C) {
 	s.context.Set("foo", "bar")
 	c.Check(s.context.Get("foo", &output), IsNil, Commentf("Expected context to contain 'foo'"))
 	c.Check(output, Equals, "bar")
+
+	// Test another non-existing key, but after the context data was created.
+	c.Check(s.context.Get("baz", &output), NotNil)
+}
+
+func (s *contextSuite) TestSetPersistence(c *C) {
+	s.context.Lock()
+	s.context.Set("foo", "bar")
+	s.context.Unlock()
+
+	// Verify that "foo" is still "bar" within another context of the same hook
+	// on the same task.
+	anotherContext := newContext(s.task, s.setup)
+	anotherContext.Lock()
+	defer anotherContext.Unlock()
+
+	var output string
+	c.Check(anotherContext.Get("foo", &output), IsNil, Commentf("Expected new context to also contain 'foo'"))
+	c.Check(output, Equals, "bar")
+}
+
+func (s *contextSuite) TestSetPersistenceIsHookSpecific(c *C) {
+	s.context.Lock()
+	s.context.Set("foo", "bar")
+	s.context.Unlock()
+
+	// Verify that "foo" is not "bar" within the context of another hook on the
+	// same task.
+	s.setup.Hook = "foo"
+	anotherContext := newContext(s.task, s.setup)
+	anotherContext.Lock()
+	defer anotherContext.Unlock()
+
+	var output string
+	c.Check(anotherContext.Get("foo", &output), NotNil, Commentf("Expected new context to not contain 'foo'"))
+}
+
+func (s *contextSuite) TestSetUnmarshalable(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	defer func() {
+		c.Check(recover(), Matches, ".*cannot marshal context value.*", Commentf("Expected panic when attempting install"))
+	}()
+
+	s.context.Set("foo", func(){})
+}
+
+func (s *contextSuite) TestGetIsolatedFromTask(c *C) {
+	// Set data in the task itself
+	s.task.State().Lock()
+	s.task.Set("foo", "bar")
+	s.task.State().Unlock()
+
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	// Verify that "foo" is not set when asking for data from the hook context
+	var output string
+	c.Check(s.context.Get("foo", &output), NotNil, Commentf("Expected context data to be isolated from task"))
 }

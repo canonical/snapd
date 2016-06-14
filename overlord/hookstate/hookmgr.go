@@ -131,7 +131,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	// Obtain a handler for this hook. The repository returns a list since it's
 	// possible for regular expressions to overlap, but multiple handlers is an
 	// error (as is no handler).
-	handlers := m.repository.generateHandlers(&Context{task: task, setup: setup})
+	handlers := m.repository.generateHandlers(newContext(task, setup))
 	handlersCount := len(handlers)
 	if handlersCount == 0 {
 		return fmt.Errorf("no registered handlers for hook %q", setup.Hook)
