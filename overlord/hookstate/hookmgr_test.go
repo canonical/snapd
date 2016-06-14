@@ -131,7 +131,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile("cannot handle hook.*before failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*before failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
@@ -164,7 +164,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile("cannot handle finished hook.*done failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*done failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {
