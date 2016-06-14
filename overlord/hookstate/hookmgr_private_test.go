@@ -71,7 +71,7 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	c.Check(task.Kind(), Equals, "run-hook")
 
 	var setup hookSetup
-	err := task.Get(hookSetupKey, &setup)
+	err := task.Get("hook-setup", &setup)
 	c.Check(err, IsNil, Commentf("Expected task to contain hook setup"))
 	c.Check(setup.Snap, Equals, "test-snap")
 	c.Check(setup.Revision, Equals, snap.R(1))
