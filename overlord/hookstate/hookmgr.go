@@ -31,10 +31,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const (
-	hookSetupKey = "hook-setup"
-)
-
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
@@ -83,7 +79,7 @@ func Manager(s *state.State) (*HookManager, error) {
 // HookTask returns a task that will run the specified hook.
 func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set(hookSetupKey, hookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook-setup", hookSetup{Snap: snapName, Revision: revision, Hook: hookName})
 	return task
 }
 
@@ -121,7 +117,7 @@ func (m *HookManager) Stop() {
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	var setup hookSetup
-	err := task.Get(hookSetupKey, &setup)
+	err := task.Get("hook-setup", &setup)
 	task.State().Unlock()
 
 	if err != nil {
