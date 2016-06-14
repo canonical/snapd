@@ -118,6 +118,26 @@ apps:
 slots:
     iface:
 `
+const sambaYamlWithHook = `
+name: samba
+apps:
+    smbd:
+    nmbd:
+hooks:
+    test-hook:
+        plugs: [iface]
+slots:
+    iface:
+`
+const hookYaml = `
+name: foo
+version: 1
+developer: acme
+hooks:
+    test-hook:
+plugs:
+    iface:
+`
 
 func (s *backendSuite) TestName(c *C) {
 	c.Check(s.backend.Name(), Equals, "apparmor")
@@ -128,6 +148,20 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 	s.installSnap(c, devMode, sambaYaml, 1)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	// file called "snap.sambda.smbd" was created
+	_, err := os.Stat(profile)
+	c.Check(err, IsNil)
+	// apparmor_parser was used to load that file
+	c.Check(s.parserCmd.Calls(), DeepEquals, []string{
+		fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, profile),
+	})
+}
+
+func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsProfiles(c *C) {
+	devMode := false
+	s.installSnap(c, devMode, hookYaml, 1)
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.test-hook")
+
+	// Verify that profile "snap.foo.hook.test-hook" was created
 	_, err := os.Stat(profile)
 	c.Check(err, IsNil)
 	// apparmor_parser was used to load that file
@@ -170,6 +204,26 @@ func (s *backendSuite) TestRemovingSnapRemovesAndUnloadsProfiles(c *C) {
 	}
 }
 
+func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.installSnap(c, devMode, hookYaml, 1)
+		s.parserCmd.ForgetCalls()
+		s.removeSnap(c, snapInfo)
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.test-hook")
+		// file called "snap.foo.hook.test-hook" was removed
+		_, err := os.Stat(profile)
+		c.Check(os.IsNotExist(err), Equals, true)
+		// apparmor cache file was removed
+		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.foo.hook.test-hook")
+		_, err = os.Stat(cache)
+		c.Check(os.IsNotExist(err), Equals, true)
+		// apparmor_parser was used to unload the profile
+		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
+			"--remove snap.foo.hook.test-hook",
+		})
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapMakesNeccesaryChanges(c *C) {
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, devMode, sambaYaml, 1)
@@ -205,6 +259,29 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	}
 }
 
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.installSnap(c, devMode, sambaYamlWithNmbd, 1)
+		s.parserCmd.ForgetCalls()
+		// NOTE: the revision is kept the same to just test on the new application being added
+		snapInfo = s.updateSnap(c, snapInfo, devMode, sambaYamlWithHook, 1)
+		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
+		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.test-hook")
+
+		// Verify that profile "snap.samba.hook.test-hook" was created
+		_, err := os.Stat(hookProfile)
+		c.Check(err, IsNil)
+		// apparmor_parser was used to load the both profiles
+		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, hookProfile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, nmbdProfile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, smbdProfile),
+		})
+		s.removeSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.installSnap(c, devMode, sambaYamlWithNmbd, 1)
@@ -220,6 +297,29 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
 			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, smbdProfile),
 			"--remove snap.samba.nmbd",
+		})
+		s.removeSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.installSnap(c, devMode, sambaYamlWithHook, 1)
+		s.parserCmd.ForgetCalls()
+		// NOTE: the revision is kept the same to just test on the application being removed
+		snapInfo = s.updateSnap(c, snapInfo, devMode, sambaYamlWithNmbd, 1)
+		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
+		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
+		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.test-hook")
+
+		// Verify profile "snap.samba.hook.test-hook" was removed
+		_, err := os.Stat(hookProfile)
+		c.Check(os.IsNotExist(err), Equals, true)
+		// apparmor_parser was used to remove the unused profile
+		c.Check(s.parserCmd.Calls(), DeepEquals, []string{
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, nmbdProfile),
+			fmt.Sprintf("--replace --write-cache -O no-expr-simplify --cache-loc=%s/var/cache/apparmor %s", s.rootDir, smbdProfile),
+			"--remove snap.samba.hook.test-hook",
 		})
 		s.removeSnap(c, snapInfo)
 	}
