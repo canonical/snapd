@@ -29,6 +29,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -44,10 +45,11 @@ type headerYaml struct {
 }
 
 type bootstrapYaml struct {
-	Snaps   []string `yaml:"snaps"`
-	Rootdir string   `yaml:"rootdir"`
-	Channel string   `yaml:"channel"`
-	StoreID string   `yaml:"store-id"`
+	Snaps        []string `yaml:"snaps"`
+	Rootdir      string   `yaml:"rootdir"`
+	Channel      string   `yaml:"channel"`
+	StoreID      string   `yaml:"store-id"`
+	Architecture string   `yaml:"architecture"`
 }
 
 func Bootstrap(bootstrapYaml string) error {
@@ -77,9 +79,10 @@ func Bootstrap(bootstrapYaml string) error {
 		return err
 	}
 	opts := &downloadOptions{
-		TargetDir: dirs.SnapBlobDir,
-		Channel:   y.Bootstrap.Channel,
-		StoreID:   y.Bootstrap.StoreID,
+		TargetDir:    dirs.SnapBlobDir,
+		Channel:      y.Bootstrap.Channel,
+		StoreID:      y.Bootstrap.StoreID,
+		Architecture: y.Bootstrap.Architecture,
 	}
 	for _, snapName := range y.Bootstrap.Snaps {
 		fmt.Printf("Fetching %s\n", snapName)
@@ -127,8 +130,19 @@ func setBootvars() error {
 		if err != nil {
 			return fmt.Errorf("can not read %v", fullname)
 		}
-		// FIMXE: read .sideinfo here
-		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+		// read .sideinfo
+		var si snap.SideInfo
+		siFn := fullname + ".sideinfo"
+		if osutil.FileExists(siFn) {
+			j, err := ioutil.ReadFile(siFn)
+			if err != nil {
+				return err
+			}
+			if err := json.Unmarshal(j, &si); err != nil {
+				return fmt.Errorf("cannot read metadata: %s %s\n", siFn, err)
+			}
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapFile, &si)
 		if err != nil {
 			return fmt.Errorf("can not get info for %v", fullname)
 		}
@@ -208,10 +222,11 @@ func copyLocalSnapFile(snapName string) error {
 }
 
 type downloadOptions struct {
-	Series    string
-	TargetDir string
-	StoreID   string
-	Channel   string
+	Series       string
+	TargetDir    string
+	StoreID      string
+	Channel      string
+	Architecture string
 }
 
 func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error) {
@@ -224,6 +239,12 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 		defer func() { release.Series = oldSeries }()
 
 		release.Series = opts.Series
+	}
+	if opts.Architecture != "" {
+		oldArchitecture := arch.UbuntuArchitecture()
+		defer func() { arch.SetArchitecture(arch.ArchitectureType(oldArchitecture)) }()
+
+		arch.SetArchitecture(arch.ArchitectureType(opts.Architecture))
 	}
 
 	pwd, err := os.Getwd()
@@ -245,10 +266,11 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 	if err != nil {
 		return "", err
 	}
-	baseName := filepath.Base(snap.MountFile())
+	defer os.Remove(tmpName)
 
+	baseName := filepath.Base(snap.MountFile())
 	path := filepath.Join(targetDir, baseName)
-	if err := os.Rename(tmpName, path); err != nil {
+	if err := osutil.CopyFile(tmpName, path, 0); err != nil {
 		return "", err
 	}
 
