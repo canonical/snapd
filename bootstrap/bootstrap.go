@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -76,7 +77,7 @@ func Bootstrap(bootstrapYaml string) error {
 	opts := &downloadOptions{
 		TargetDir: dirs.SnapBlobDir,
 		Channel:   y.Bootstrap.Channel,
-		StoreID:   y.Boostrap.StoreID,
+		StoreID:   y.Bootstrap.StoreID,
 	}
 	for _, snapName := range y.Bootstrap.Snaps {
 		fmt.Printf("Fetching %s\n", snapName)
@@ -89,6 +90,67 @@ func Bootstrap(bootstrapYaml string) error {
 				return err
 			}
 		}
+	}
+
+	// now do the bootloader stuff
+	if err := setBootvars(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func setBootvars() error {
+	// set the bootvars for kernel/os snaps so that the system
+	// actually boots and can do the `firstboot` import of the snaps.
+	//
+	// there is also no mounted os/kernel snap, all we have are the
+	// blobs
+
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		return fmt.Errorf("can not set kernel/os bootvars: %s", err)
+	}
+
+	snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+	if len(snaps) == 0 {
+		return fmt.Errorf("internal error: cannot find os/kernel snap")
+	}
+	for _, fullname := range snaps {
+		bootvar := ""
+		bootvar2 := ""
+
+		// detect type
+		snapFile, err := snap.Open(fullname)
+		if err != nil {
+			return fmt.Errorf("can not read %v", fullname)
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+		if err != nil {
+			return fmt.Errorf("can not get info for %v", fullname)
+		}
+		switch info.Type {
+		case snap.TypeOS:
+			bootvar = "snappy_os"
+			bootvar2 = "snappy_good_os"
+		case snap.TypeKernel:
+			bootvar = "snappy_kernel"
+			bootvar2 = "snappy_good_kernel"
+		}
+
+		name := filepath.Base(fullname)
+		for _, b := range []string{bootvar, bootvar2} {
+			if b != "" {
+				if err := bootloader.SetBootVar(b, name); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	if bootloader.Name() == "u-boot" {
+		// FIXME: do the equaivalent of extractKernelAssets here
+		return fmt.Errorf("IMPLEMENT (or call): extractKernelAssets()")
 	}
 
 	return nil
