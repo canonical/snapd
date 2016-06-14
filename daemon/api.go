@@ -434,15 +434,9 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 
-	var auther store.Authenticator
-	if user != nil {
-		st := c.d.overlord.State()
-		st.Lock()
-		auther, err = auth.Authenticator(st, user.ID)
-		st.Unlock()
-		if err != nil {
-			return InternalError("cannot authenticate: %v", err)
-		}
+	auther, err := c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
 	}
 
 	store := getStore(c)
