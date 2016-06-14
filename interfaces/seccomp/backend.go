@@ -101,14 +101,15 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets ma
 			buf.WriteString("@complain\n")
 		}
 		buf.Write(defaultTemplate)
-		for _, snippet := range snippets[appInfo.Name] {
+		securityTag := appInfo.SecurityTag()
+		for _, snippet := range snippets[securityTag] {
 			buf.Write(snippet)
 			buf.WriteRune('\n')
 		}
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := appInfo.SecurityTag()
+		fname := securityTag
 		content[fname] = &osutil.FileState{
 			Content: buf.Bytes(),
 			Mode:    0644,
