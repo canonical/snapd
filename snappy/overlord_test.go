@@ -20,11 +20,9 @@
 package snappy
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -61,19 +59,18 @@ func listDir(c *C, p string) []string {
 
 func (s *SnapTestSuite) TestLocalSnapInstall(c *C) string {
 	snapPath := makeTestSnapPackage(c, "")
-	// XXX Broken test: revision will be unset
-	snap, err := (&Overlord{}).Install(snapPath, 0, nil)
+	snap, err := (&Overlord{}).install(snapPath, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 	c.Check(snap.Name(), Equals, "foo")
 
-	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "unset")
+	baseDir := filepath.Join(dirs.SnapSnapsDir, fooComposedName, "x1")
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
 
 	snapEntries := listDir(c, filepath.Join(dirs.SnapSnapsDir, fooComposedName))
-	c.Check(snapEntries, DeepEquals, []string{"current", "unset"})
+	c.Check(snapEntries, DeepEquals, []string{"x1"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"common", "current", "unset"})
+	c.Check(snapDataEntries, DeepEquals, []string{"common", "x1"})
 
 	return snapPath
 }
@@ -86,7 +83,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 		Revision:     snap.R(40),
 	}
 
-	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
+	sn, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 	c.Check(sn.Name(), Equals, "foo")
 	c.Check(sn.Revision, Equals, snap.R(40))
@@ -95,10 +92,10 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 	c.Assert(osutil.FileExists(baseDir), Equals, true)
 
 	snapEntries := listDir(c, filepath.Join(dirs.SnapSnapsDir, fooComposedName))
-	c.Check(snapEntries, DeepEquals, []string{"40", "current"})
+	c.Check(snapEntries, DeepEquals, []string{"40"})
 
 	snapDataEntries := listDir(c, filepath.Join(dirs.SnapDataDir, fooComposedName))
-	c.Check(snapDataEntries, DeepEquals, []string{"40", "common", "current"})
+	c.Check(snapDataEntries, DeepEquals, []string{"40", "common"})
 }
 
 func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c *C) {
@@ -109,7 +106,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c 
 		Revision:     snap.R(55),
 	}
 
-	sn, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, nil)
+	sn, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 	c.Check(sn.Name(), Equals, "bar")
 	c.Check(sn.Revision, Equals, snap.R(55))
@@ -123,7 +120,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallMissingAssumes(c *C) {
 name: foo
 version: 1.0
 assumes: [f1, f2]`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(pkg, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
 }
 
@@ -132,7 +129,7 @@ func (s *SnapTestSuite) TestLocalSnapInstallProvidedAssumes(c *C) {
 name: foo
 version: 1.0
 assumes: [common-data-dir]`)
-	_, err := (&Overlord{}).Install(pkg, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).install(pkg, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Check(err, IsNil)
 }
 
@@ -146,7 +143,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	}
 
 	targetDir := dirs.SnapSnapsDir
-	_, err := (&Overlord{}).Install(makeTestSnapPackage(c, ""), 0, nil)
+	_, err := (&Overlord{}).install(makeTestSnapPackage(c, ""), 0, nil)
 	c.Assert(err, IsNil)
 
 	instDir := filepath.Join(targetDir, fooComposedName, "1.0")
@@ -156,7 +153,7 @@ func (s *SnapTestSuite) TestSnapRemove(c *C) {
 	yamlPath := filepath.Join(instDir, "meta", "snap.yaml")
 	snap, err := NewInstalledSnap(yamlPath)
 	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
+	err = (&Overlord{}).uninstall(snap, &MockProgressMeter{})
 	c.Assert(err, IsNil)
 
 	_, err = os.Stat(instDir)
@@ -171,11 +168,10 @@ func (s *SnapTestSuite) TestLocalGadgetSnapInstall(c *C) {
 version: 1.0
 type: gadget
 `)
-	// XXX Broken test: revision will be unset
-	_, err := (&Overlord{}).Install(snapPath, LegacyAllowGadget, nil)
+	_, err := (&Overlord{}).install(snapPath, LegacyAllowGadget|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
-	contentFile := filepath.Join(dirs.SnapSnapsDir, "foo", "unset", "bin", "foo")
+	contentFile := filepath.Join(dirs.SnapSnapsDir, "foo", "x1", "bin", "foo")
 	_, err = os.Stat(contentFile)
 	c.Assert(err, IsNil)
 }
@@ -197,23 +193,18 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	snapYamlContent := `name: foo
 `
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated, nil)
+	_, err := (&Overlord{}).installWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, LegacyAllowUnauthenticated, nil)
+	_, err = (&Overlord{}).installWithSideInfo(snapPath, fooSI20, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
-	// ensure v2 is active
 	snaps, err := (&Overlord{}).Installed()
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 2)
-	c.Assert(snaps[0].Version(), Equals, "1.0")
-	c.Assert(snaps[0].IsActive(), Equals, false)
-	c.Assert(snaps[1].Version(), Equals, "2.0")
-	c.Assert(snaps[1].IsActive(), Equals, true)
 
-	// deactivate v2
+	// fully unlink v2
 	err = unlinkSnap(snaps[1].Info(), nil)
 	// set v1 active
 	err = ActivateSnap(snaps[0], nil)
@@ -224,69 +215,6 @@ func (s *SnapTestSuite) TestClickSetActive(c *C) {
 	c.Assert(snaps[1].Version(), Equals, "2.0")
 	c.Assert(snaps[1].IsActive(), Equals, false)
 
-}
-
-func (s *SnapTestSuite) TestSnappyHandleBinariesOnUpgrade(c *C) {
-	snapYamlContent := `name: foo
-apps:
- bar:
-  command: bin/bar
-`
-	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-
-	// ensure that the binary wrapper file got generated with the right
-	// path
-	oldSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "10", "bin", "bar")
-	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	content, err := ioutil.ReadFile(binaryWrapper)
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), oldSnapBin), Equals, true)
-
-	// and that it gets updated on upgrade
-	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
-	_, err = (&Overlord{}).InstallWithSideInfo(snapPath, fooSI20, LegacyAllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-	newSnapBin := filepath.Join(dirs.SnapSnapsDir[len(dirs.GlobalRootDir):], "foo", "20", "bin", "bar")
-	content, err = ioutil.ReadFile(binaryWrapper)
-	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), newSnapBin), Equals, true)
-}
-
-func (s *SnapTestSuite) TestSnappyHandleServicesOnInstall(c *C) {
-	snapYamlContent := `name: foo
-apps:
- service:
-   command: bin/hello
-   daemon: forking
-`
-	si := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(32),
-	}
-
-	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	// XXX Broken test: revision will be unset
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, LegacyAllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-
-	servicesFile := filepath.Join(dirs.SnapServicesDir, "snap.foo.service.service")
-	c.Assert(osutil.FileExists(servicesFile), Equals, true)
-	st, err := os.Stat(servicesFile)
-	c.Assert(err, IsNil)
-	// should _not_ be executable
-	c.Assert(st.Mode().String(), Equals, "-rw-r--r--")
-
-	// and that it gets removed on remove
-	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo", "32")
-	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	snap, err := NewInstalledSnap(yamlPath)
-	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
-	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(servicesFile), Equals, false)
-	c.Assert(osutil.FileExists(snapDir), Equals, false)
 }
 
 func (s *SnapTestSuite) TestSnappyHandleServicesOnInstallInhibit(c *C) {
@@ -305,38 +233,11 @@ apps:
    daemon: forking
 `
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	_, err := (&Overlord{}).Install(snapPath, LegacyInhibitHooks, nil)
+	_, err := (&Overlord{}).install(snapPath, LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	c.Assert(allSystemctl, HasLen, 0)
 
-}
-
-func (s *SnapTestSuite) TestSnappyHandleBinariesOnInstall(c *C) {
-	snapYamlContent := `name: foo
-apps:
- bar:
-  command: bin/bar
-`
-	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
-	// XXX Broken test: revision will be unset
-	_, err := (&Overlord{}).Install(snapPath, LegacyAllowUnauthenticated, nil)
-	c.Assert(err, IsNil)
-
-	// ensure that the binary wrapper file go generated with the right
-	// name
-	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
-
-	// and that it gets removed on remove
-	snapDir := filepath.Join(dirs.SnapSnapsDir, "foo", "unset")
-	yamlPath := filepath.Join(snapDir, "meta", "snap.yaml")
-	snap, err := NewInstalledSnap(yamlPath)
-	c.Assert(err, IsNil)
-	err = (&Overlord{}).Uninstall(snap, &MockProgressMeter{})
-	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
-	c.Assert(osutil.FileExists(snapDir), Equals, false)
 }
 
 func (s *SnapTestSuite) TestInstallIncorrectSnapYamlErrors(c *C) {
@@ -353,7 +254,7 @@ apps:
 		Revision:     snap.R(55),
 	}
 
-	_, err := (&Overlord{}).InstallWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
+	_, err := (&Overlord{}).installWithSideInfo(snapPath, si, 0, &MockProgressMeter{})
 	c.Assert(err, NotNil)
 }
 
@@ -371,7 +272,7 @@ slots:
 `
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	// Use InstallWithSideInfo, this is just a cheap way to call openSnapFile
-	snapInfo, err := (&Overlord{}).InstallWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated, nil)
+	snapInfo, err := (&Overlord{}).installWithSideInfo(snapPath, fooSI10, LegacyAllowUnauthenticated|LegacyInhibitHooks, nil)
 	c.Assert(err, IsNil)
 
 	// Ensure that side info is correctly stored

@@ -177,6 +177,22 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 		"canonical-pi2:pin-13  keyboard-lights:capslock-led\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
+
+	s.SetUpTest(c)
+	// should be the same
+	rest, err = Parser().ParseArgs([]string{"interfaces", "canonical-pi2"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.SetUpTest(c)
+	// and the same again
+	rest, err = Parser().ParseArgs([]string{"interfaces", "keyboard-lights"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
 }
 
 func (s *SnapSuite) TestInterfacesTwoPlugs(c *C) {
