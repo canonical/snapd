@@ -68,7 +68,7 @@ func (c *Context) Set(key string, value interface{}) {
 
 	marshalledValue, err := json.Marshal(value)
 	if err != nil {
-		panic("internal error: cannot marshal context value for \"" + key + "\": " + err.Error())
+		panic(fmt.Sprintf("internal error: cannot marshal context value for %q: %s", key, err))
 	}
 	raw := json.RawMessage(marshalledValue)
 	data[key] = &raw
