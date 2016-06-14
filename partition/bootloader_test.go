@@ -68,6 +68,16 @@ func (s *PartitionTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *PartitionTestSuite) TestForceBootloader(c *C) {
+	b := newMockBootloader()
+	ForceBootloader(b)
+	defer ForceBootloader(nil)
+
+	got, err := FindBootloader()
+	c.Assert(err, IsNil)
+	c.Check(got, Equals, b)
+}
+
 func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	b := newMockBootloader()
 	b.bootVars["snappy_os"] = "os1"

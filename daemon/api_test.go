@@ -252,6 +252,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"devmode":     false,
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
+			"apps":        []appJSON{},
 		},
 		Meta: meta,
 	}

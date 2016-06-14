@@ -28,9 +28,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -784,24 +784,12 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
-	tmpdir := c.MkDir()
-	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-	snapYamlFn := filepath.Join(tmpdir, "meta", "snap.yaml")
-	ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
-	err := osutil.ChDir(tmpdir, func() error {
-		var err error
-		snapFilePath, err = snaptest.BuildSquashfsSnap(tmpdir, "")
-		c.Assert(err, IsNil)
-		return err
-	})
-	c.Assert(err, IsNil)
-	return filepath.Join(tmpdir, snapFilePath)
-
+	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
 }
 
 func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	// use the real thing for this one
-	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -860,7 +848,7 @@ version: 1.0`)
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	// use the real thing for this one
-	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -937,7 +925,7 @@ version: 1.0`)
 
 func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	// use the real thing for this one
-	snapstate.MockOpenSnapFile(snapstate.OpenSnapFileImpl)
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
 	s.state.Lock()
 	defer s.state.Unlock()
