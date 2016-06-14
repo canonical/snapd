@@ -35,21 +35,6 @@ type interfacesCliTest struct {
 	common.SnappySuite
 }
 
-// SNAP_INTERFACES_001: --help - print detailed help text for the interfaces command
-func (s *interfacesCliTest) TestInstallShowHelp(c *check.C) {
-	expected := "(?ms)" +
-		"^Usage:\n" +
-		`  snap \[OPTIONS\] interfaces.*\n` +
-		"\n^The interfaces command .*\n" +
-		"^Help Options:\n" +
-		"^  -h, --help +Show this help message\n" +
-		".*"
-
-	actual := cli.ExecCommand(c, "snap", "interfaces", "--help")
-
-	c.Assert(actual, check.Matches, expected)
-}
-
 // SNAP_INTERFACES_006: snap interfaces -i=<slot>
 func (s *interfacesCliTest) TestFilterBySlot(c *check.C) {
 	plug := "network"

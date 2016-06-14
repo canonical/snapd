@@ -35,21 +35,6 @@ type changesSuite struct {
 	common.SnappySuite
 }
 
-// SNAP_CHANGES_001: --help prints the detailed help test for the command
-func (s *changesSuite) TestChangesShowsHelp(c *check.C) {
-	expected := "(?ms)" +
-		"^Usage:\n" +
-		`  snap \[OPTIONS\] changes.*\n` +
-		"\n^The changes command .*\n" +
-		"^Help Options:\n" +
-		"^  -h, --help +Show this help message\n" +
-		".*"
-
-	actual := cli.ExecCommand(c, "snap", "changes", "--help")
-
-	c.Assert(actual, check.Matches, expected)
-}
-
 // SNAP_CHANGES_004: with invalid id
 func (s *changesSuite) TestChangesWithInvalidIdShowsError(c *check.C) {
 	invalidID := "10000000"

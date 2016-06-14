@@ -39,21 +39,6 @@ type abortSuite struct {
 	common.SnappySuite
 }
 
-// SNAP_ABORT_001: --help - print detailed help text for the abort command
-func (s *abortSuite) TestAbortShowHelp(c *check.C) {
-	expected := "(?ms)" +
-		"^Usage:\n" +
-		`  snap \[OPTIONS\] abort.*\n` +
-		"\n^The abort command .*\n" +
-		"^Help Options:\n" +
-		"^  -h, --help +Show this help message\n" +
-		".*"
-
-	actual := cli.ExecCommand(c, "snap", "abort", "--help")
-
-	c.Assert(actual, check.Matches, expected)
-}
-
 // SNAP_ABORT_002: with invalid id
 func (s *abortSuite) TestAbortWithInvalidId(c *check.C) {
 	id := "10000000"
