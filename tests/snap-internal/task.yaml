@@ -1,0 +1,11 @@
+summary: Check that cmdline for channel shortcuts work
+execute: |
+    echo Ensure that snap-internal download works 
+    /usr/lib/snapd/snap-internal download --targetdir /tmp/ hello-world
+    ls /tmp/hello-world_*.snap
+    ls /tmp/hello-world_*.snap.sideinfo
+    echo Ensure that metadata looks valid
+    grep '"snap-id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"' /tmp/hello-world_*.snap.sideinfo
+restore:
+    rm -f /tmp/hello-world_*
+
