@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-// A StoreService can find, list available updates and offer for download snaps.
+// A StoreService can find, list available updates and download snaps.
 type StoreService interface {
 	Snap(name, channel string, auther store.Authenticator) (*snap.Info, error)
 	Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error)
