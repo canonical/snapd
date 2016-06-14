@@ -28,6 +28,8 @@ import (
 
 type contextSuite struct {
 	context *Context
+	task    *state.Task
+	setup   hookSetup
 }
 
 var _ = Suite(&contextSuite{})
@@ -35,11 +37,11 @@ var _ = Suite(&contextSuite{})
 func (s *contextSuite) SetUpTest(c *C) {
 	state := state.New(nil)
 	state.Lock()
-	defer state.Unlock()
+	s.task = state.NewTask("test-task", "my test task")
+	state.Unlock()
 
-	task := state.NewTask("test-task", "my test task")
-	setup := hookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.context = &Context{task: task, setup: setup}
+	s.setup = hookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	s.context = newContext(s.task, s.setup)
 }
 
 func (s *contextSuite) TestHookSetup(c *C) {
@@ -51,10 +53,56 @@ func (s *contextSuite) TestSetAndGet(c *C) {
 	s.context.Lock()
 	defer s.context.Unlock()
 
-	var output string
-	c.Check(s.context.Get("foo", &output), NotNil)
+	output, err := s.context.Get("foo")
+	c.Check(err, NotNil)
 
 	s.context.Set("foo", "bar")
-	c.Check(s.context.Get("foo", &output), IsNil, Commentf("Expected context to contain 'foo'"))
+	output, err = s.context.Get("foo")
+	c.Check(err, IsNil, Commentf("Expected context to contain 'foo'"))
 	c.Check(output, Equals, "bar")
+}
+
+func (s *contextSuite) TestSetPersistence(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	s.context.Set("foo", "bar")
+
+	// Verify that "foo" is still "bar" within another context of the same hook
+	// on the same task.
+	anotherContext := newContext(s.task, s.setup)
+	anotherContext.Lock()
+	defer anotherContext.Unlock()
+
+	output, err := anotherContext.Get("foo")
+	c.Check(err, IsNil, Commentf("Expected new context to also contain 'foo'"))
+	c.Check(output, Equals, "bar")
+}
+
+func (s *contextSuite) TestSetPersistenceIsHookSpecific(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	s.context.Set("foo", "bar")
+
+	// Verify that "foo" is not "bar" within the context of another hook on the
+	// same task.
+	s.setup.Hook = "foo"
+	anotherContext := newContext(s.task, s.setup)
+	anotherContext.Lock()
+	defer anotherContext.Unlock()
+
+	_, err := anotherContext.Get("foo")
+	c.Check(err, NotNil, Commentf("Expected new context to not contain 'foo'"))
+}
+
+func (s *contextSuite) TestGetIsolatedFromTask(c *C) {
+	// Set data in the task itself
+	s.task.State().Lock()
+	s.task.Set("foo", "bar")
+	s.task.State().Unlock()
+
+	// Verify that "foo" is not set when asking for data from the hook context
+	_, err := s.context.Get("foo")
+	c.Check(err, NotNil, Commentf("Expected context data to be isolated from task"))
 }
