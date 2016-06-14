@@ -20,14 +20,30 @@
 package hookstate
 
 import (
+	"encoding/json"
+	"fmt"
+
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
+const (
+	contextDataKey = "hook-context"
+)
+
 // Context represents the context under which a given hook is running.
 type Context struct {
-	task  *state.Task
-	setup hookSetup
+	task    *state.Task
+	setup   hookSetup
+	dataKey string
+}
+
+func newContext(task *state.Task, setup hookSetup) *Context {
+	return &Context{
+		task:    task,
+		setup:   setup,
+		dataKey: setup.Hook + "-" + contextDataKey,
+	}
 }
 
 // SnapName returns the name of the snap containing the hook.
@@ -58,11 +74,38 @@ func (c *Context) Unlock() {
 // Set associates value with key.
 // The provided value must properly marshal and unmarshal with encoding/json.
 func (c *Context) Set(key string, value interface{}) {
-	c.task.Set(key, value)
+	var data map[string]*json.RawMessage
+	if err := c.task.Get(c.dataKey, &data); err != nil {
+		data = make(map[string]*json.RawMessage)
+	}
+
+	marshalledValue, err := json.Marshal(value)
+	if err != nil {
+		panic("internal error: cannot marshal context value for \"" + key + "\": " + err.Error())
+	}
+	raw := json.RawMessage(marshalledValue)
+	data[key] = &raw
+
+	c.task.Set(c.dataKey, data)
 }
 
 // Get unmarshals the stored value associated with the provided key into the
 // value parameter.
 func (c *Context) Get(key string, value interface{}) error {
-	return c.task.Get(key, value)
+	var data map[string]*json.RawMessage
+	if err := c.task.Get(c.dataKey, &data); err != nil {
+		return err
+	}
+
+	raw, ok := data[key]
+	if !ok {
+		return state.ErrNoState
+	}
+
+	err := json.Unmarshal([]byte(*raw), &value)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
+	}
+
+	return nil
 }
