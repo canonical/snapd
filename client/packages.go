@@ -23,30 +23,37 @@ import (
 	"fmt"
 	"net/url"
 	"time"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 // Snap holds the data for a snap as obtained from snapd.
 type Snap struct {
-	ID            string    `json:"id"`
-	Summary       string    `json:"summary"`
-	Description   string    `json:"description"`
-	DownloadSize  int64     `json:"download-size"`
-	Icon          string    `json:"icon"`
-	InstalledSize int64     `json:"installed-size"`
-	InstallDate   time.Time `json:"install-date"`
-	Name          string    `json:"name"`
-	Developer     string    `json:"developer"`
-	Status        string    `json:"status"`
-	Type          string    `json:"type"`
-	Version       string    `json:"version"`
-	Channel       string    `json:"channel"`
-	Revision      Revision  `json:"revision"`
-	Confinement   string    `json:"confinement"`
-	Private       bool      `json:"private"`
-	DevMode       bool      `json:"devmode"`
-	TryMode       bool      `json:"trymode"`
+	ID            string        `json:"id"`
+	Summary       string        `json:"summary"`
+	Description   string        `json:"description"`
+	DownloadSize  int64         `json:"download-size"`
+	Icon          string        `json:"icon"`
+	InstalledSize int64         `json:"installed-size"`
+	InstallDate   time.Time     `json:"install-date"`
+	Name          string        `json:"name"`
+	Developer     string        `json:"developer"`
+	Status        string        `json:"status"`
+	Type          string        `json:"type"`
+	Version       string        `json:"version"`
+	Channel       string        `json:"channel"`
+	Revision      snap.Revision `json:"revision"`
+	Confinement   string        `json:"confinement"`
+	Private       bool          `json:"private"`
+	DevMode       bool          `json:"devmode"`
+	TryMode       bool          `json:"trymode"`
+	Apps          []AppInfo     `json:"apps"`
 
 	Prices map[string]float64 `json:"prices"`
+}
+
+type AppInfo struct {
+	Name string `json:"name"`
 }
 
 // Statuses and types a snap may have.

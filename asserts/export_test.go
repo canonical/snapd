@@ -28,6 +28,9 @@ import (
 
 // expose test-only things here
 
+// GenerateTestKey lets the test generate keys of given length
+var GenerateTestKey = generateKey
+
 // access internal openpgp lib packet
 func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
 	return pk.(openpgpPrivateKey).privk
@@ -59,6 +62,7 @@ func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYea
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]string{
+				"type":          "account-key",
 				"authority-id":  authorityID,
 				"account-id":    authorityID,
 				"public-key-id": openPGPPubKey.ID(),

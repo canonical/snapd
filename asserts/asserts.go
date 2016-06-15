@@ -486,7 +486,7 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	}
 
 	for _, primKey := range assertType.PrimaryKey {
-		if _, err := checkNotEmpty(headers, primKey); err != nil {
+		if _, err := checkPrimaryKey(headers, primKey); err != nil {
 			return nil, fmt.Errorf("assertion %s: %v", assertType.Name, err)
 		}
 	}
@@ -568,7 +568,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]string, body 
 		"body-length":  true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
-		if _, err := checkNotEmpty(finalHeaders, primKey); err != nil {
+		if _, err := checkPrimaryKey(finalHeaders, primKey); err != nil {
 			return nil, err
 		}
 		writeHeader(buf, finalHeaders, primKey)

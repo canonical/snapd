@@ -230,6 +230,7 @@ mlock2
 mlockall
 mmap
 mmap2
+modify_ldt
 mprotect
 
 # LP: #1448184 - these aren't currently mediated by AppArmor. Deny for now
@@ -316,6 +317,11 @@ sched_rr_get_interval
 sched_setscheduler
 
 sched_yield
+
+# Allow configuring seccomp filter. This is ok because the kernel enforces that
+# the new filter is a subset of the current filter (ie, no widening
+# permissions)
+seccomp
 
 select
 _newselect

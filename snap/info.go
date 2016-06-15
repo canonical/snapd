@@ -42,6 +42,9 @@ type PlaceInfo interface {
 	// MountFile returns the path where the snap file that is mounted is installed.
 	MountFile() string
 
+	// HooksDir returns the directory containing the snap's hooks.
+	HooksDir() string
+
 	// DataDir returns the data directory of the snap.
 	DataDir() string
 
@@ -158,6 +161,11 @@ func (s *Info) MountFile() string {
 	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Revision))
 }
 
+// HooksDir returns the directory containing the snap's hooks.
+func (s *Info) HooksDir() string {
+	return filepath.Join(s.MountDir(), "meta", "hooks")
+}
+
 // DataDir returns the data directory of the snap.
 func (s *Info) DataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), s.Revision.String())
@@ -178,7 +186,7 @@ func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
 }
 
-// sanity check that Info is a PlacInfo
+// sanity check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
 
 // PlugInfo provides information about a plug.
@@ -311,6 +319,14 @@ func (app *AppInfo) Env() []string {
 		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
 	}
 	return env
+}
+
+// SecurityTag returns the hook-specific security tag.
+//
+// Security tags are used by various security subsystems as "profile names" and
+// sometimes also as a part of the file name.
+func (hook *HookInfo) SecurityTag() string {
+	return fmt.Sprintf("snap.%s.hook.%s", hook.Snap.Name(), hook.Name)
 }
 
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {

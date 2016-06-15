@@ -22,15 +22,11 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 
-	"github.com/snapcore/snapd/integration-tests/testutils/build"
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
-	"github.com/snapcore/snapd/integration-tests/testutils/data"
-	"github.com/snapcore/snapd/integration-tests/testutils/wait"
 
 	"gopkg.in/check.v1"
 )
@@ -83,54 +79,6 @@ func (s *abortSuite) TestAbortWithValidIdInErrorStatus(c *check.C) {
 
 	c.Assert(err, check.NotNil)
 	c.Assert(actual, check.Matches, expected)
-}
-
-// SNAP_ABORT_005: with valid id - doing
-func (s *abortSuite) TestAbortWithValidIdInDoingStatus(c *check.C) {
-	// install the binaries snap
-	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
-	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-	common.InstallSnap(c, snapPath)
-
-	// run a command that keeps the mount point busy in the background
-	blockerBin := fmt.Sprintf("/snap/bin/%s.block", data.BasicBinariesSnapName)
-	blockerSrv := "umount-blocker"
-	cli.ExecCommand(c, "sudo", "systemd-run", "--unit", blockerSrv, blockerBin)
-	wait.ForActiveService(c, blockerSrv)
-	defer func() {
-		cli.ExecCommand(c, "sudo", "systemctl", "stop", blockerSrv)
-		wait.ForInactiveService(c, blockerSrv)
-
-		// this triggers an Ensure in the overlord, which makes sure that the aborted task has moved to Undone
-		cli.ExecCommandErr("sudo", "snap", "refresh", "ubuntu-core")
-
-		wait.ForCommand(c, "Undone", "snap", "changes", data.BasicBinariesSnapName)
-		// the remove command will be cancelled, so we need to remove the snap at the end
-		common.RemoveSnap(c, data.BasicBinariesSnapName)
-	}()
-
-	go func() {
-		// try to remove, will block because of blockerSrv and fail after abort
-		_, err := cli.ExecCommandErr("sudo", "snap", "remove", data.BasicBinariesSnapName)
-		c.Assert(err, check.NotNil)
-	}()
-
-	var doingID string
-	err = wait.ForFunction(c, `\d+`, func() (string, error) {
-		doingID = getDoingRemoveID(data.BasicBinariesSnapName)
-		return doingID, nil
-	})
-	c.Assert(err, check.IsNil)
-
-	cli.ExecCommand(c, "sudo", "snap", "abort", doingID)
-
-	err = wait.ForCommand(c,
-		fmt.Sprintf(` +Abort +.*Remove "%s" snap`, data.BasicBinariesSnapName), "snap", "changes")
-	c.Assert(err, check.IsNil)
-
-	abortedID := getAbortedRemoveID(data.BasicBinariesSnapName)
-	c.Assert(doingID, check.Equals, abortedID)
 }
 
 // SNAP_ABORT_006: with valid id - done

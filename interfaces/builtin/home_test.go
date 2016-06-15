@@ -124,5 +124,5 @@ func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(), Equals, true)
 }
