@@ -85,6 +85,13 @@ func Bootstrap(bootstrapYaml string) error {
 	}
 	model := ass.(*asserts.Model)
 
+	// *sigh* we need to adjust the storeID if its set to "canonical"
+	//        because that is the default
+	storeID := model.Store()
+	if storeID == "canonical" {
+		storeID = ""
+	}
+
 	// put snaps in place
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
@@ -92,7 +99,7 @@ func Bootstrap(bootstrapYaml string) error {
 	opts := &downloadOptions{
 		TargetDir:    dirs.SnapBlobDir,
 		Channel:      y.Bootstrap.Channel,
-		StoreID:      model.Store(),
+		StoreID:      storeID,
 		Architecture: model.Architecture(),
 	}
 

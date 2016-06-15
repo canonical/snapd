@@ -30,6 +30,7 @@ class: my-class
 allowed-modes:  
 required-snaps: 
 architecture: amd64
+store: canonical
 gadget: canonical-pc
 kernel: canonical-pc-linux
 os: ubuntu-core
