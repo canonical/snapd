@@ -17,7 +17,7 @@ execute: |
   id="1"
   expected="error: cannot abort change $id with nothing pending"
   actual=$(sudo snap abort $id 2>&1) || EXPECTED_FAILED="abort-error"
-  [ "$EXPECTED_FAILED" == "abort-error" ] || exit 1
+  [ "$EXPECTED_FAILED" = "abort-error" ] || exit 1
   echo "$actual" | grep -Pq "$expected" || exit 1
 
   sudo rm -rf $subdirPath
