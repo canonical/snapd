@@ -98,14 +98,14 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	c.Assert(string(content), Equals, "name: foo")
 }
 
-func (s *SquashfsTestSuite) TestReadDir(c *C) {
+func (s *SquashfsTestSuite) TestListDir(c *C) {
 	snap := makeSnap(c, "name: foo", "")
 
-	fileInfos, err := snap.ReadDir("meta/hooks")
+	fileNames, err := snap.ListDir("meta/hooks")
 	c.Assert(err, IsNil)
-	c.Assert(len(fileInfos), Equals, 2)
-	c.Check(fileInfos[0].Name(), Equals, "hook1")
-	c.Check(fileInfos[1].Name(), Equals, "hook2")
+	c.Assert(len(fileNames), Equals, 2)
+	c.Check(fileNames[0], Equals, "hook1")
+	c.Check(fileNames[1], Equals, "hook2")
 }
 
 // TestUnpackGlob tests the internal unpack

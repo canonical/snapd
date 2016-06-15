@@ -50,7 +50,7 @@ func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	c.Assert(content, DeepEquals, needle)
 }
 
-func (s *SnapdirTestSuite) TestReadDir(c *C) {
+func (s *SnapdirTestSuite) TestListDir(c *C) {
 	d := c.MkDir()
 
 	err := os.MkdirAll(filepath.Join(d, "test"), 0755)
@@ -61,11 +61,11 @@ func (s *SnapdirTestSuite) TestReadDir(c *C) {
 	c.Assert(err, IsNil)
 
 	snap := snapdir.New(d)
-	fileInfos, err := snap.ReadDir("test")
+	fileNames, err := snap.ListDir("test")
 	c.Assert(err, IsNil)
-	c.Assert(fileInfos, HasLen, 2)
-	c.Check(fileInfos[0].Name(), Equals, "test1")
-	c.Check(fileInfos[1].Name(), Equals, "test2")
+	c.Assert(fileNames, HasLen, 2)
+	c.Check(fileNames[0], Equals, "test1")
+	c.Check(fileNames[1], Equals, "test2")
 }
 
 func (s *SnapdirTestSuite) TestInstall(c *C) {
