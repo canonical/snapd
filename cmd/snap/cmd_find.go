@@ -42,7 +42,7 @@ func getPrice(prices map[string]float64, currency, status string) string {
 
 	// If the snap is priced, but has been purchased
 	if status == "available" {
-		return ""
+		return i18n.G("bought")
 	}
 
 	// Look up the price by currency code
