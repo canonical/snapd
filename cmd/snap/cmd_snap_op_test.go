@@ -95,6 +95,9 @@ func (s *SnapOpSuite) TearDownTest(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestWait(c *check.C) {
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
 	// lazy way of getting a URL that won't work nor break stuff
 	server := httptest.NewServer(nil)
 	snap.ClientConfig.BaseURL = server.URL
@@ -121,6 +124,9 @@ func (s *SnapOpSuite) TestWait(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestWaitRecovers(c *check.C) {
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
 	nah := true
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		if nah {

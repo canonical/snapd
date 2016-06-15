@@ -40,9 +40,10 @@ func lastLogStr(logs []string) string {
 	return logs[len(logs)-1]
 }
 
-const maxGoneTime = 5 * time.Second
-
-var pollTime = 100 * time.Millisecond
+var (
+	maxGoneTime = 5 * time.Second
+	pollTime    = 100 * time.Millisecond
+)
 
 func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()

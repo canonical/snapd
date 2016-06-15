@@ -43,6 +43,14 @@ func MockPollTime(d time.Duration) (restore func()) {
 	}
 }
 
+func MockMaxGoneTime(d time.Duration) (restore func()) {
+	d0 := maxGoneTime
+	maxGoneTime = d
+	return func() {
+		maxGoneTime = d0
+	}
+}
+
 func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
 	syscallExecOrig := syscallExec
 	syscallExec = f
