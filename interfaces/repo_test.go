@@ -49,6 +49,8 @@ func (s *RepositorySuite) SetUpTest(c *C) {
 name: consumer
 apps:
     app:
+hooks:
+    test-hook:
 plugs:
     plug:
         interface: interface
@@ -61,6 +63,8 @@ plugs:
 name: producer
 apps:
     app:
+hooks:
+    test-hook:
 slots:
     slot:
         interface: interface
@@ -767,14 +771,17 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"app": [][]byte{
+		"snap.consumer.app": [][]byte{
+			[]byte(`static plug snippet`),
+		},
+		"snap.consumer.hook.test-hook": [][]byte{
 			[]byte(`static plug snippet`),
 		},
 	})
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"app": [][]byte{
+		"snap.producer.app": [][]byte{
 			[]byte(`static slot snippet`),
 		},
 	})
@@ -784,7 +791,11 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err = repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"app": [][]byte{
+		"snap.consumer.app": [][]byte{
+			[]byte(`static plug snippet`),
+			[]byte(`connection-specific plug snippet`),
+		},
+		"snap.consumer.hook.test-hook": [][]byte{
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},
@@ -792,7 +803,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"app": [][]byte{
+		"snap.producer.app": [][]byte{
 			[]byte(`static slot snippet`),
 			[]byte(`connection-specific slot snippet`),
 		},
