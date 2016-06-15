@@ -31,6 +31,8 @@ var (
 	CreateUserDataDirs = createUserDataDirs
 	SnapRunApp         = snapRunApp
 	SnapRunHook        = snapRunHook
+	Wait               = wait
+	GonePollTime       = gonePollTime
 )
 
 func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
