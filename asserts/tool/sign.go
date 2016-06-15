@@ -126,6 +126,10 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	authorityID := req.AuthorityID
 
 	if req.AccountKey != nil {
+		if keyID != "" || authorityID != "" {
+			return nil, fmt.Errorf("cannot mix specifying an account-key together with key id and/or authority-id")
+		}
+
 		// use the account-key as a handle to get the information about
 		// signer and key id
 		a, err := asserts.Decode(req.AccountKey)
@@ -134,7 +138,7 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		}
 		accKey, ok := a.(*asserts.AccountKey)
 		if !ok {
-			return nil, fmt.Errorf("cannot use handle account-key, not actually an account-key, got: %T", a)
+			return nil, fmt.Errorf("cannot use handle account-key, not actually an account-key, got: %s", a.Type().Name)
 		}
 		keyID = accKey.PublicKeyID()
 		authorityID = accKey.AccountID()
@@ -153,6 +157,10 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 
 	if authorityID != "" {
 		headers["authority-id"] = authorityID
+	}
+
+	if headers["authority-id"] == "" {
+		return nil, fmt.Errorf("cannot sign assertion with unspecified signer identifier (aka authority-id)")
 	}
 
 	if req.Revision != 0 {
