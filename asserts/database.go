@@ -74,8 +74,8 @@ type KeypairManager interface {
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// trusted account keys
-	TrustedKeys []*AccountKey
+	// trusted assertions (account and account-key supported)
+	Trusted []Assertion
 	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
 	// manager/backstore for keypairs, mandatory
@@ -148,10 +148,23 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 
 	trustedBackstore := NewMemoryBackstore()
 
-	for _, accKey := range cfg.TrustedKeys {
-		err := trustedBackstore.Put(AccountKeyType, accKey)
-		if err != nil {
-			return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AuthorityID(), err)
+	for _, a := range cfg.Trusted {
+		switch accepted := a.(type) {
+		case *AccountKey:
+			accKey := accepted
+			err := trustedBackstore.Put(AccountKeyType, accKey)
+			if err != nil {
+				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
+			}
+
+		case *Account:
+			acct := accepted
+			err := trustedBackstore.Put(AccountType, acct)
+			if err != nil {
+				return nil, fmt.Errorf("error loading for use trusted account %q: %v", acct.DisplayName(), err)
+			}
+		default:
+			return nil, fmt.Errorf("cannot load trusted assertions that are not account-key or account: %s", a.Type().Name)
 		}
 	}
 
