@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -18,33 +17,26 @@
  *
  */
 
-package main
+package testutil
 
 import (
-	"os/user"
+	"os/exec"
+
+	. "gopkg.in/check.v1"
 )
 
-var RunMain = run
+type mockCommandSuite struct{}
 
-var (
-	SnapExecEnv        = snapExecEnv
-	CreateUserDataDirs = createUserDataDirs
-	SnapRunApp         = snapRunApp
-	SnapRunHook        = snapRunHook
-)
+var _ = Suite(&mockCommandSuite{})
 
-func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
-	syscallExecOrig := syscallExec
-	syscallExec = f
-	return func() {
-		syscallExec = syscallExecOrig
-	}
-}
-
-func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
-	userCurrentOrig := userCurrent
-	userCurrent = f
-	return func() {
-		userCurrent = userCurrentOrig
-	}
+func (s *mockCommandSuite) TestMockCommand(c *C) {
+	mock := MockCommand(c, "cmd", "true")
+	err := exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run()
+	c.Assert(err, IsNil)
+	err = exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run()
+	c.Assert(err, IsNil)
+	c.Assert(mock.Calls(), DeepEquals, [][]string{
+		{"cmd", "first-run", "--arg1", "arg2", "a space"},
+		{"cmd", "second-run", "--arg1", "arg2", "a %s"},
+	})
 }

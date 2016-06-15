@@ -58,8 +58,9 @@ func (s *appArmorSuite) TestLoadProfileRunsAppArmorParserReplace(c *C) {
 	defer cmd.Restore()
 	err := apparmor.LoadProfile("/path/to/snap.samba.smbd")
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, []string{
-		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor /path/to/snap.samba.smbd"})
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
+	})
 }
 
 func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
@@ -69,8 +70,9 @@ func (s *appArmorSuite) TestLoadProfileReportsErrors(c *C) {
 	c.Assert(err.Error(), Equals, `cannot load apparmor profile: exit status 42
 apparmor_parser output:
 `)
-	c.Assert(cmd.Calls(), DeepEquals, []string{
-		"--replace --write-cache -O no-expr-simplify --cache-loc=/var/cache/apparmor /path/to/snap.samba.smbd"})
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", "--cache-loc=/var/cache/apparmor", "/path/to/snap.samba.smbd"},
+	})
 }
 
 // Tests for Profile.Unload()
@@ -80,7 +82,9 @@ func (s *appArmorSuite) TestUnloadProfileRunsAppArmorParserRemove(c *C) {
 	defer cmd.Restore()
 	err := apparmor.UnloadProfile("snap.samba.smbd")
 	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), DeepEquals, []string{"--remove snap.samba.smbd"})
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"apparmor_parser", "--remove", "snap.samba.smbd"},
+	})
 }
 
 func (s *appArmorSuite) TestUnloadProfileReportsErrors(c *C) {

@@ -134,9 +134,10 @@ func (ss *stateSuite) TestCache(c *C) {
 }
 
 type fakeStateBackend struct {
-	checkpoints  [][]byte
-	error        func() error
-	ensureBefore time.Duration
+	checkpoints      [][]byte
+	error            func() error
+	ensureBefore     time.Duration
+	restartRequested bool
 }
 
 func (b *fakeStateBackend) Checkpoint(data []byte) error {
@@ -149,6 +150,10 @@ func (b *fakeStateBackend) Checkpoint(data []byte) error {
 
 func (b *fakeStateBackend) EnsureBefore(d time.Duration) {
 	b.ensureBefore = d
+}
+
+func (b *fakeStateBackend) RequestRestart() {
+	b.restartRequested = true
 }
 
 func (ss *stateSuite) TestImplicitCheckpointAndRead(c *C) {
@@ -636,4 +641,13 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Assert(t4.Status(), Equals, state.DoStatus)
 
 	c.Check(st.NumTask(), Equals, 3)
+}
+
+func (ss *stateSuite) TestRequestRestart(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+
+	st.RequestRestart()
+
+	c.Check(b.restartRequested, Equals, true)
 }
