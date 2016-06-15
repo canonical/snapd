@@ -1,10 +1,8 @@
 summary: Check that symlinks to /usr/bin/snap trigger `snap run`
-prepare:
+prepare: |
     echo Ensure we have a os snap with `snap run`
-    sudo snap refresh --channel=beta ubuntu-core
+    sudo snap install --channel=beta ubuntu-core
     sudo snap install hello-world
-restore:
-    sudo snap remove hello-world
 environment:
     APP/helloworld: hello-world
     APP/helloworldecho: hello-world.echo
