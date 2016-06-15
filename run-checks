@@ -9,27 +9,31 @@ else
     goctest="go test"
 fi
 
-STATIC=""
-UNIT=""
-INTEGRATION=""
+STATIC=
+UNIT=
+SPREAD=
+DEPRECATED=
 
 case "${1:-all}" in
     all)
-        STATIC="yes"
-        UNIT="yes"
-        INTEGRATION="yes"
+        STATIC=1
+        UNIT=1
+        DEPRECATED=1
         ;;
     --static)
-        STATIC="yes"
+        STATIC=1
         ;;
     --unit)
-        UNIT="yes"
+        UNIT=1
+        ;;
+    --spread)
+        SPREAD=1
         ;;
     --integration)
-        INTEGRATION="yes"
+        DEPRECATED=1
         ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit or --integration."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread, or --integration."
         exit 1
 esac
 
@@ -67,14 +71,14 @@ addtrap endmsg
 append_coverage() {
     local profile="$1"
     if [ -f $profile ]; then
-        cat $profile | grep -v "mode: set" >> .coverage/coverage.out
+        cat $profile | grep -v "mode: set" | cat >> .coverage/coverage.out
         rm $profile
     fi
 }
 
-sh ./get-deps.sh
+if [ "$STATIC" = 1 ]; then
+    ./get-deps.sh
 
-if [ ! -z "$STATIC" ]; then
     # Run static tests.
     echo Checking docs
     ./mdlint.py docs/*.md
@@ -116,7 +120,9 @@ if [ ! -z "$STATIC" ]; then
 
 fi
 
-if [ ! -z "$UNIT" ]; then
+if [ "$UNIT" = 1 ]; then
+    ./get-deps.sh
+
     # Prepare the coverage output profile.
     rm -rf .coverage
     mkdir .coverage
@@ -145,8 +151,20 @@ if [ ! -z "$UNIT" ]; then
     done
 fi
 
-if [ ! -z "$INTEGRATION" ]; then
-    # integration suite in kvm
+if [ "$SPREAD" = 1 ]; then 
+    TMP_SPREAD="$(mktemp -d)"
+    addtrap "rm -rf \"$TMP_SPREAD\""
+
+    export PATH=$TMP_SPREAD:$PATH
+    ( cd $TMP_SPREAD && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
+
+    spread -v
+fi
+
+if [ "$DEPRECATED" = 1 ]; then
+    ./get-deps.sh
+
+    # deprecated integration suite in kvm
     if which adt-run >/dev/null 2>&1; then
         echo "Running integration tests on rolling edge"
         result=0

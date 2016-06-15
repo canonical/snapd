@@ -226,9 +226,7 @@ var securityBackends = []interfaces.SecurityBackend{
 }
 
 func init() {
-	switch release.ReleaseInfo.ID {
-	case "ubuntu":
-		// Enable apparmor support when running on Ubuntu
+	if !release.ReleaseInfo.ForceDevMode() {
 		securityBackends = append(securityBackends, &apparmor.Backend{})
 	}
 }

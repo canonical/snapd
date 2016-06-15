@@ -24,10 +24,10 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
@@ -50,26 +50,10 @@ func checkAssumes(s *snap.Info) error {
 	return nil
 }
 
-// openSnapFile opens a snap blob returning both a snap.Info completed
-// with sideInfo (if not nil) and a corresponding snap.Container.
-func openSnapFileImpl(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return info, snapf, nil
-}
-
-var openSnapFile = openSnapFileImpl
+var openSnapFile = backend.OpenSnapFile
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flags snappy.InstallFlags) error {
+func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
 	// XXX: actually verify snap before using content from it unless dev-mode
 
 	s, _, err := openSnapFile(snapFilePath, nil)

@@ -58,6 +58,50 @@ func (opens *openSuite) TestOpenDatabasePanicOnUnsetBackstores(c *C) {
 	c.Assert(func() { asserts.OpenDatabase(cfg) }, PanicMatches, "database cannot be used without setting a keypair manager")
 }
 
+func (opens *openSuite) TestOpenDatabaseTrustedAccount(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"account-id":   "trusted",
+		"display-name": "Trusted",
+		"validation":   "certified",
+		"timestamp":    "2015-01-01T14:00:00Z",
+	}
+	acct, err := asserts.AssembleAndSignInTest(asserts.AccountType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	cfg := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Trusted:        []asserts.Assertion{acct},
+	}
+
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	a, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": "trusted",
+	})
+	c.Assert(err, IsNil)
+	acct1 := a.(*asserts.Account)
+	c.Check(acct1.AccountID(), Equals, "trusted")
+	c.Check(acct1.DisplayName(), Equals, "Trusted")
+}
+
+func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "0",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
+
+	cfg := &asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Trusted:        []asserts.Assertion{a},
+	}
+
+	_, err = asserts.OpenDatabase(cfg)
+	c.Assert(err, ErrorMatches, "cannot load trusted assertions that are not account-key or account: test-only")
+}
+
 type databaseSuite struct {
 	topDir string
 	db     *asserts.Database
@@ -184,7 +228,7 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      chks.bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Trusted:        []asserts.Assertion{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -199,7 +243,7 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      chks.bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Trusted:        []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -258,7 +302,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Trusted:        []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -302,6 +346,16 @@ func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
 	c.Assert(err, ErrorMatches, `"primary-key" header is mandatory`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignPrimaryKeyWithSlash(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "baz/9000",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, ErrorMatches, `"primary-key" primary key header cannot contain '/'`)
 	c.Check(a1, IsNil)
 }
 
@@ -633,7 +687,7 @@ ZF5jSvRDLgI=`
 
 	cfg := &asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		TrustedKeys:    []*asserts.AccountKey{tKey.(*asserts.AccountKey)},
+		Trusted:        []asserts.Assertion{tKey.(*asserts.AccountKey)},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

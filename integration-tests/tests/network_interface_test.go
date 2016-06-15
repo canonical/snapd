@@ -50,6 +50,6 @@ func (s *networkInterfaceSuite) TestPlugDisconnectionDisablesFunctionality(c *ch
 	output = cli.ExecCommand(c, "snap", "interfaces")
 	c.Assert(output, check.Matches, disconnectedPattern(s.slot, s.plug))
 
-	output = cli.ExecCommand(c, "network-consumer", providerURL)
-	c.Assert(output, check.Equals, "Error, reason:  [Errno 13] Permission denied\n")
+	output, err := cli.ExecCommandErr("network-consumer", providerURL)
+	c.Check(err, check.NotNil)
 }

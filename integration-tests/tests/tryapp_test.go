@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/wait"
 	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/check.v1"
@@ -103,6 +104,7 @@ func (s *trySuite) TestTryConfinmentAllows(c *check.C) {
 	defer common.RemoveSnap(c, data.NetworkConsumerSnapName)
 
 	// confinment works in try mode:
+	wait.ForActiveService(c, "snap.network-bind-consumer.network-consumer.service")
 	providerURL := "http://127.0.0.1:8081"
 	output := cli.ExecCommand(c, "network-consumer", providerURL)
 	c.Assert(output, check.Equals, "ok\n")
