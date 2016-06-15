@@ -27,9 +27,10 @@ import (
 var RunMain = run
 
 var (
-	SnapExecAppEnv     = snapExecAppEnv
-	SnapRun            = snapRun
+	SnapExecEnv        = snapExecEnv
 	CreateUserDataDirs = createUserDataDirs
+	SnapRunApp         = snapRunApp
+	SnapRunHook        = snapRunHook
 )
 
 func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
