@@ -108,8 +108,12 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 		wait.ForCommand(c, needle, "snap", "changes")
 
 		// find change id of the remove
+		pattern := `(?m)([0-9]+).*Doing.*Remove.*"`
+		err := wait.ForCommand(c, pattern, "snap", "changes", data.BasicBinariesSnapName)
+		c.Assert(err, check.IsNil)
+
 		output := cli.ExecCommand(c, "snap", "changes", data.BasicBinariesSnapName)
-		id := regexp.MustCompile(`(?m)([0-9]+).*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
+		id := regexp.MustCompile(pattern).FindStringSubmatch(output)[1]
 		needle = `will retry: `
 		wait.ForCommand(c, needle, "snap", "change", id)
 
