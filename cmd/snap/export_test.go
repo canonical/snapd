@@ -22,6 +22,7 @@ package main
 
 import (
 	"os/user"
+	"time"
 )
 
 var RunMain = run
@@ -32,8 +33,15 @@ var (
 	SnapRunApp         = snapRunApp
 	SnapRunHook        = snapRunHook
 	Wait               = wait
-	GonePollTime       = gonePollTime
 )
+
+func MockPollTime(d time.Duration) (restore func()) {
+	d0 := pollTime
+	pollTime = d
+	return func() {
+		pollTime = d0
+	}
+}
 
 func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
 	syscallExecOrig := syscallExec
