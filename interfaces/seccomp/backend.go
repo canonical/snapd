@@ -95,24 +95,37 @@ func (b *Backend) Remove(snapName string) error {
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		var buf bytes.Buffer
-		if devMode {
-			// NOTE: This is going to be understood by ubuntu-core-launcher
-			buf.WriteString("@complain\n")
-		}
-		buf.Write(defaultTemplate)
-		for _, snippet := range snippets[appInfo.Name] {
-			buf.Write(snippet)
-			buf.WriteRune('\n')
-		}
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := appInfo.SecurityTag()
-		content[fname] = &osutil.FileState{
-			Content: buf.Bytes(),
-			Mode:    0644,
-		}
+		addContent(appInfo.SecurityTag(), devMode, snippets, content)
 	}
+
+	for _, hookInfo := range snapInfo.Hooks {
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+		addContent(hookInfo.SecurityTag(), devMode, snippets, content)
+	}
+
 	return content, nil
+}
+
+func addContent(securityTag string, devMode bool, snippets map[string][][]byte, content map[string]*osutil.FileState) {
+	var buffer bytes.Buffer
+	if devMode {
+		// NOTE: This is understood by ubuntu-core-launcher
+		buffer.WriteString("@complain\n")
+	}
+
+	buffer.Write(defaultTemplate)
+	for _, snippet := range snippets[securityTag] {
+		buffer.Write(snippet)
+		buffer.WriteRune('\n')
+	}
+
+	content[securityTag] = &osutil.FileState{
+		Content: buffer.Bytes(),
+		Mode:    0644,
+	}
 }
