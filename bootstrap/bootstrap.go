@@ -108,7 +108,7 @@ func Bootstrap(bootstrapYaml string) error {
 	snaps := []string{}
 	snaps = append(snaps, y.Bootstrap.Snaps...)
 	snaps = append(snaps, model.Gadget())
-	snaps = append(snaps, model.OS())
+	snaps = append(snaps, model.Core())
 	snaps = append(snaps, model.Kernel())
 	snaps = append(snaps, model.RequiredSnaps()...)
 
@@ -207,7 +207,7 @@ func setBootvars() error {
 func runCommand(cmdStr ...string) error {
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %q: %s (%s)", cmd, err, output)
+		return fmt.Errorf("cannot run %v: %s (%s)", cmdStr, err, output)
 	}
 	return nil
 }
