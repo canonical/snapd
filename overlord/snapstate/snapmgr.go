@@ -282,11 +282,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	checker := func(info *snap.Info) error {
-		return checkRevisionIsNew(ss.Name, snapst, info.Revision)
-	}
-
-	pb := &TaskProgressAdapter{task: t}
+	meter := &TaskProgressAdapter{task: t}
 
 	var auther store.Authenticator
 	if ss.UserID > 0 {
@@ -299,10 +295,20 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		auther = user.Authenticator()
 	}
 
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, m.store, auther)
+	storeInfo, err := m.store.Snap(ss.Name, ss.Channel, auther)
 	if err != nil {
 		return err
 	}
+
+	if err = checkRevisionIsNew(ss.Name, snapst, storeInfo.Revision); err != nil {
+		return err
+	}
+
+	downloadedSnapFile, err := m.store.Download(storeInfo, meter, auther)
+	if err != nil {
+		return err
+	}
+
 	ss.SnapPath = downloadedSnapFile
 	ss.Revision = storeInfo.Revision
 

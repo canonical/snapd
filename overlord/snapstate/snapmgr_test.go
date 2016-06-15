@@ -43,6 +43,7 @@ type snapmgrTestSuite struct {
 	snapmgr *snapstate.SnapManager
 
 	fakeBackend *fakeSnappyBackend
+	fakeStore   *fakeStore
 
 	user *auth.UserState
 
@@ -60,16 +61,19 @@ func (s *snapmgrTestSuite) settle() {
 var _ = Suite(&snapmgrTestSuite{})
 
 func (s *snapmgrTestSuite) SetUpTest(c *C) {
-	s.fakeBackend = &fakeSnappyBackend{
+	s.fakeBackend = &fakeSnappyBackend{}
+	s.state = state.New(nil)
+	s.fakeStore = &fakeStore{
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
+		fakeBackend:         s.fakeBackend,
 	}
-	s.state = state.New(nil)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.snapmgr.AddForeignTaskHandlers(s.fakeBackend)
+	s.snapmgr.ReplaceStore(s.fakeStore)
 
 	snapstate.SetSnapManagerBackend(s.snapmgr, s.fakeBackend)
 
@@ -293,37 +297,45 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
-		fakeOp{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
-		fakeOp{
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
 			op:  "current",
 			old: "<no-current>",
 		},
-		fakeOp{
+		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
 		},
-		fakeOp{
+		{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op:   "copy-data",
 			name: "/snap/some-snap/11",
 			old:  "<no-old>",
 		},
-		fakeOp{
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
@@ -332,7 +344,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 				Revision:     snap.R(11),
 			},
 		},
-		fakeOp{
+		{
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
 		},
@@ -341,8 +353,8 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	// check progress
 	task := ts.Tasks()[0]
 	cur, total := task.Progress()
-	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
-	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 
 	// verify snap-setup in the task state
 	var ss snapstate.SnapSetup
@@ -398,40 +410,43 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	s.state.Lock()
 
 	expected := []fakeOp{
-		fakeOp{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
-		fakeOp{
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
 			op:  "current",
 			old: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
 		},
-		fakeOp{
+		{
 			op:    "setup-snap",
 			name:  "downloaded-snap-path",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "copy-data",
 			name: "/snap/some-snap/11",
 			old:  "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
-		fakeOp{
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				OfficialName: "some-snap",
@@ -440,20 +455,25 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 				Revision:     snap.R(11),
 			},
 		},
-		fakeOp{
+		{
 			op:   "link-snap",
 			name: "/snap/some-snap/11",
 		},
 	}
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// check progress
 	task := ts.Tasks()[0]
 	cur, total := task.Progress()
-	c.Assert(cur, Equals, s.fakeBackend.fakeCurrentProgress)
-	c.Assert(total, Equals, s.fakeBackend.fakeTotalProgress)
+	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
+	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -519,10 +539,13 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
 		},
 		{
 			op:  "current",
@@ -589,6 +612,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	}
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -640,10 +668,13 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "some-channel",
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
 		},
 		{
 			op:  "current",
@@ -711,6 +742,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	}
 
 	// ensure all our tasks ran
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
+		macaroon: s.user.Macaroon,
+		name:     "some-snap",
+		channel:  "some-channel",
+	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -753,20 +789,15 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
-		{
-			op:       "download",
-			macaroon: s.user.Macaroon,
-			name:     "some-snap",
-			channel:  "channel-for-7",
-		},
-	}
-
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*revision 7 of snap "some-snap" already installed.*`)
 
 	// ensure all our tasks ran
-	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{{
+		op:    "storesvc-snap",
+		name:  "some-snap",
+		revno: snap.R(7),
+	}})
 
 	// verify snaps in the system state
 	var snapst snapstate.SnapState
@@ -999,28 +1030,28 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	expected := []fakeOp{
-		fakeOp{
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:    "remove-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
-		fakeOp{
+		{
 			op:   "remove-snap-data",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "remove-snap-common-data",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "remove-snap-files",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
