@@ -82,7 +82,7 @@ installed.
 
 The gui directory contains GUI releated files for the snap.
 
-### dekstop files
+### desktop files
 
 The `gui/` directory may contain .desktop files for the snap. Those
 desktop files may contain all valid desktop entries from the xdg
