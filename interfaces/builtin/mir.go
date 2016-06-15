@@ -222,28 +222,6 @@ lstat
 lstat64
 
 madvise
-fadvise64
-fadvise64_64
-arm_fadvise64_64
-
-mbind
-mbarrier
-mincore
-mkdir
-mkdirat
-mlock
-mlockall
-mmap
-mmap2
-mprotect
-
-# LP: #1448184 - these aren't currently mediated by AppArmor. Deny for now
-#mq_getsetattr
-#mq_notify
-#mq_open
-#mq_timedreceive
-#mq_timedsend
-#mq_unlink
 
 mremap
 msgctl
