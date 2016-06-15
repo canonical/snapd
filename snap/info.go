@@ -362,7 +362,7 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	err = AddImplicitHooks(info)
+	err = addImplicitHooks(info)
 	if err != nil {
 		return nil, err
 	}
@@ -383,7 +383,7 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	err = AddImplicitHooksFromContainer(info, snapf)
+	err = addImplicitHooksFromContainer(info, snapf)
 	if err != nil {
 		return nil, err
 	}

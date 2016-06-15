@@ -86,11 +86,11 @@ func makeImplicitSlot(snapInfo *Info, ifaceName string) *SlotInfo {
 	}
 }
 
-// AddImplicitHooks adds hooks from the installed snap's hookdir to the snap info.
+// addImplicitHooks adds hooks from the installed snap's hookdir to the snap info.
 //
 // Existing hooks (i.e. ones defined in the YAML) are not changed; only missing
 // hooks are added.
-func AddImplicitHooks(snapInfo *Info) error {
+func addImplicitHooks(snapInfo *Info) error {
 	// First of all, check to ensure the hooks directory exists. If it doesn't,
 	// it's not an error-- there's just nothing to do.
 	hooksDir := snapInfo.HooksDir()
@@ -110,11 +110,11 @@ func AddImplicitHooks(snapInfo *Info) error {
 	return nil
 }
 
-// AddImplicitHooksFromContainer adds hooks from the snap file's hookdir to the snap info.
+// addImplicitHooksFromContainer adds hooks from the snap file's hookdir to the snap info.
 //
 // Existing hooks (i.e. ones defined in the YAML) are not changed; only missing
 // hooks are added.
-func AddImplicitHooksFromContainer(snapInfo *Info, snapf Container) error {
+func addImplicitHooksFromContainer(snapInfo *Info, snapf Container) error {
 	// Read the hooks directory. If this fails we assume the hooks directory
 	// doesn't exist, which means there are no implicit hooks to load (not an
 	// error).
