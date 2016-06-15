@@ -83,7 +83,7 @@ func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
 	err = mainCmd.Process.Kill()
 	c.Assert(err, check.IsNil, check.Commentf("error interrupting %s, %v", appName, err))
 
-	// at this point the Xvfb, ubuntu-clock-app.clock and qmlscene processes are still alive
+	// at this point the Xvfb and qmlscene processes are still alive
 	//and the snap can't be removed
-	cli.ExecCommand(c, "sudo", "killall", "-9", appBinaryName, "Xvfb", "qmlscene")
+	cli.ExecCommand(c, "sudo", "killall", "-9", "Xvfb", "qmlscene")
 }
