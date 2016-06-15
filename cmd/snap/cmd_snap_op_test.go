@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -74,16 +75,23 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 type SnapOpSuite struct {
 	SnapSuite
 
-	srv snapOpTestServer
+	restorePollTime func()
+	srv             snapOpTestServer
 }
 
 func (s *SnapOpSuite) SetUpTest(c *check.C) {
 	s.SnapSuite.SetUpTest(c)
 
+	s.restorePollTime = snap.MockPollTime(time.Millisecond)
 	s.srv = snapOpTestServer{
 		c:     c,
 		total: 4,
 	}
+}
+
+func (s *SnapOpSuite) TearDownTest(c *check.C) {
+	s.restorePollTime()
+	s.SnapSuite.TearDownTest(c)
 }
 
 func (s *SnapOpSuite) TestWait(c *check.C) {

@@ -40,10 +40,9 @@ func lastLogStr(logs []string) string {
 	return logs[len(logs)-1]
 }
 
-const (
-	maxGoneTime  = 5 * time.Second
-	gonePollTime = 100 * time.Millisecond
-)
+const maxGoneTime = 5 * time.Second
+
+var pollTime = 100 * time.Millisecond
 
 func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
@@ -69,7 +68,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 				return nil, err
 			}
 			pb.Spin("Waiting for server to restart")
-			time.Sleep(gonePollTime)
+			time.Sleep(pollTime)
 			continue
 		}
 		if !tMax.IsZero() {
@@ -112,7 +111,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 		// note this very purposely is not a ticker; we want
 		// to sleep 100ms between calls, not call once every
 		// 100ms.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(pollTime)
 	}
 }
 
