@@ -53,7 +53,7 @@ func run() error {
 
 		Revision int `long:"revision" description:"revision to set for the assertion (starts and defaults to 0)"`
 
-		GPGHomedir string `long:"gpg-homedir" description:"alternative GPG homedir, otherwise the default ~/.gnupg is used"`
+		GPGHomedir string `long:"gpg-homedir" description:"alternative GPG homedir, otherwise the default ~/.gnupg is used (or GNUPGHOME env var can be set instead)"`
 	}
 
 	parser := flags.NewParser(&opts, flags.HelpFlag)
