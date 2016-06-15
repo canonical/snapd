@@ -42,7 +42,7 @@ func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
 
 // OpenSysDatabase opens the installation-wide assertion database. Uses the given trusted account key.
 func OpenSysDatabase(trustedAccountKey string) (*Database, error) {
-	var trustedKeys []*AccountKey
+	var trusted []Assertion
 
 	// XXX: temporary, allow to set up without trusted keys
 	// until we have and install a firm trusted key with snappy itself
@@ -63,11 +63,11 @@ func OpenSysDatabase(trustedAccountKey string) (*Database, error) {
 		default:
 			return nil, fmt.Errorf("trusted account key is %T, not an account-key", trustedAccKey)
 		}
-		trustedKeys = []*AccountKey{trustedKey}
+		trusted = []Assertion{trustedKey}
 	}
 
 	cfg := &DatabaseConfig{
-		TrustedKeys: trustedKeys,
+		Trusted: trusted,
 	}
 	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
 }
