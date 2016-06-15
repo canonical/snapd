@@ -86,8 +86,9 @@ func parseStatement(req *SignRequest, dest interface{}) error {
 }
 
 type nestedStatement struct {
-	Headers     map[string]interface{} `yaml:"headers" json:"headers"`
-	ContentBody string                 `yaml:"content-body" json:"content-body"`
+	Headers map[string]interface{} `yaml:"headers" json:"headers"`
+	// XXX/TODO: decide how this should be called, part of larger naming discussion!
+	ContentBody string `yaml:"content-body" json:"content-body"`
 }
 
 // Sign produces the text of a signed assertion as specified by req.
