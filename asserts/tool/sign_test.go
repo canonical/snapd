@@ -73,7 +73,7 @@ const (
 	flatModelYaml = `series: "16"
 brand-id: user-id1
 model: baz-3000
-os: core
+core: core
 architecture: amd64
 gadget: brand-gadget
 kernel: baz-linux
@@ -88,7 +88,7 @@ timestamp: 2015-11-25T20:00:00Z
   series: "16"
   brand-id: user-id1
   model: baz-3000
-  os: core
+  core: core
   architecture: amd64
   gadget: brand-gadget
   kernel: baz-linux
@@ -114,7 +114,7 @@ func expectedModelHeaders() map[string]string {
 		"extra-flag":     "yes",
 		"gadget":         "brand-gadget",
 		"kernel":         "baz-linux",
-		"os":             "core",
+		"core":           "core",
 		"store":          "brand-store",
 		"required-snaps": "foo,bar",
 		"timestamp":      "2015-11-25T20:00:00Z",
@@ -227,7 +227,7 @@ func headersForJSON() map[string]interface{} {
 		"series":         "16",
 		"brand-id":       "user-id1",
 		"model":          "baz-3000",
-		"os":             "core",
+		"core":           "core",
 		"architecture":   "amd64",
 		"gadget":         "brand-gadget",
 		"kernel":         "baz-linux",
