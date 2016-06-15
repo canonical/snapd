@@ -1,11 +1,11 @@
 summary: Check snap web servers
 environment:
   SNAP_NAME/pythonServer: xkcd-webserver
-  TCP_VERSION/pythonServer: 4
+  IP_VERSION/pythonServer: 4
   PORT/pythonServer: 80
   TEXT/pythonServer: XKCD rocks!
   SNAP_NAME/goServer: go-example-webserver
-  TCP_VERSION/goServer: 6
+  IP_VERSION/goServer: 6
   PORT/goServer: 8081
   TEXT/goServer: Hello World
 prepare: |
@@ -19,7 +19,7 @@ restore: |
   sudo snap remove $SNAP_NAME
   rm request.txt
 execute: |
-  response=$(nc -"$TCP_VERSION" localhost "$PORT" < request.txt)
+  response=$(nc -"$IP_VERSION" localhost "$PORT" < request.txt)
 
   statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
   echo "$response" | grep -Pzq "$statusPattern" || exit 1
