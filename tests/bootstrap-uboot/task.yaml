@@ -30,6 +30,7 @@ execute: |
  allowed-modes:  
  required-snaps:  
  architecture: armhf
+ store: canonical
  gadget: canonical-pi2
  kernel: canonical-pi2-linux
  os: ubuntu-core
