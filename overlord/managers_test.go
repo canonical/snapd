@@ -123,7 +123,7 @@ apps:
 	// ensure that the binary wrapper file got generated with the right
 	// name
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
+	c.Assert(osutil.IsSymlink(binaryWrapper), Equals, true)
 
 	// data dirs
 	c.Assert(osutil.IsDirectory(snap.DataDir()), Equals, true)
@@ -335,7 +335,7 @@ apps:
 	c.Check(info.Version, Equals, "2.0")
 
 	// check udpated wrapper
-	symlinkTarget, err := filepath.EvalSymlinks(info.Apps["bar"].WrapperPath())
+	symlinkTarget, err := os.Readlink(info.Apps["bar"].WrapperPath())
 	c.Assert(err, IsNil)
 	c.Assert(symlinkTarget, Equals, "/usr/bin/snap")
 
