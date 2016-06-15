@@ -1,15 +1,6 @@
 summary: Check snap listings
 prepare: |
   snap install hello-world
-restore: |
-  echo Resetting snapd state...
-  systemctl stop snapd || true
-  umount /var/lib/snapd/snaps/*.snap 2>&1 || true
-  rm -rf /snap/*
-  rm -rf /var/lib/snapd/*
-  rm -f /etc/systemd/system/snap-*.{mount,service}
-  rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
-  systemctl start snapd
 execute: |
   echo "List prints core snap version"
   expected="^ubuntu-core +.*? +((\d{2}\.\d{2}\+\d{8}\.\d*\-\d*)|\w{12}) + \d+ +canonical +- *"
