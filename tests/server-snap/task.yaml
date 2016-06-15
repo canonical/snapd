@@ -14,12 +14,13 @@ prepare: |
   GET / HTTP/1.0
 
   EOF
+  while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 restore: |
   sudo snap remove $SNAP_NAME
   rm request.txt
 execute: |
-  while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
   response=$(nc -"$TCP_VERSION" localhost "$PORT" < request.txt)
+
   statusPattern="(?s)HTTP\/1\.0 200 OK\n*"
   echo "$response" | grep -Pzq "$statusPattern" || exit 1
   echo "$response" | grep -Pzq "$TEXT" || exit 1
