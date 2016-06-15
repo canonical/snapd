@@ -60,6 +60,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 		chg, err := client.Change(id)
 		if err != nil {
 			// an error here means the server most likely went away
+			// XXX: it actually can be a bunch of other things; fix client to expose it better
 			now := time.Now()
 			if tMax.IsZero() {
 				tMax = now.Add(maxGoneTime)
@@ -67,7 +68,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 			if now.After(tMax) {
 				return nil, err
 			}
-			pb.Spin("waiting for server restart")
+			pb.Spin("Waiting for server to restart")
 			time.Sleep(gonePollTime)
 			continue
 		}

@@ -221,6 +221,7 @@ func (d *Daemon) addRoutes() {
 
 // Start the Daemon
 func (d *Daemon) Start() {
+	// die when asked to restart (systemd should get us back up!)
 	d.overlord.SetRestartHandler(func() {
 		d.tomb.Kill(nil)
 	})
