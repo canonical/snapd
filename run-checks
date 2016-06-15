@@ -71,7 +71,7 @@ addtrap endmsg
 append_coverage() {
     local profile="$1"
     if [ -f $profile ]; then
-        cat $profile | grep -v "mode: set" >> .coverage/coverage.out
+        cat $profile | grep -v "mode: set" | cat >> .coverage/coverage.out
         rm $profile
     fi
 }

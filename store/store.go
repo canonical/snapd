@@ -208,7 +208,12 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
 		purchasesURI:  cfg.PurchasesURI,
-		client:        &http.Client{},
+		client: &http.Client{
+			Transport: &LoggedTransport{
+				Transport: http.DefaultTransport,
+				Key:       "SNAPD_DEBUG_HTTP",
+			},
+		},
 	}
 }
 
