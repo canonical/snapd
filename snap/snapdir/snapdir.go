@@ -48,6 +48,16 @@ func (s *SnapDir) ReadFile(file string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(s.path, file))
 }
 
-func (s *SnapDir) ReadDir(path string) ([]os.FileInfo, error) {
-	return ioutil.ReadDir(filepath.Join(s.path, path))
+func (s *SnapDir) ListDir(path string) ([]string, error) {
+	fileInfos, err := ioutil.ReadDir(filepath.Join(s.path, path))
+	if err != nil {
+		return nil, err
+	}
+
+	var fileNames []string
+	for _, fileInfo := range fileInfos {
+		fileNames = append(fileNames, fileInfo.Name())
+	}
+
+	return fileNames, nil
 }

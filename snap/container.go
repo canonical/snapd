@@ -35,8 +35,8 @@ type Container interface {
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) ([]byte, error)
 
-	// ReadDir returns the content of a single directory inside the snap.
-	ReadDir(path string) ([]os.FileInfo, error)
+	// ListDir returns the content of a single directory inside the snap.
+	ListDir(path string) ([]string, error)
 
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir)
 	Install(targetPath, mountDir string) error

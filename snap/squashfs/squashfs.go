@@ -102,8 +102,8 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 	return ioutil.ReadFile(filepath.Join(unpackDir, path))
 }
 
-// ReadDir returns the content of a single directory inside a squashfs snap.
-func (s *Snap) ReadDir(path string) ([]os.FileInfo, error) {
+// ListDir returns the content of a single directory inside a squashfs snap.
+func (s *Snap) ListDir(path string) ([]string, error) {
 	tmpdir, err := ioutil.TempDir("", "read-dir")
 	if err != nil {
 		return nil, err
@@ -115,7 +115,17 @@ func (s *Snap) ReadDir(path string) ([]os.FileInfo, error) {
 		return nil, err
 	}
 
-	return ioutil.ReadDir(filepath.Join(unpackDir, path))
+	fileInfos, err := ioutil.ReadDir(filepath.Join(unpackDir, path))
+	if err != nil {
+		return nil, err
+	}
+
+	var fileNames []string
+	for _, fileInfo := range fileInfos {
+		fileNames = append(fileNames, fileInfo.Name())
+	}
+
+	return fileNames, nil
 }
 
 const (
