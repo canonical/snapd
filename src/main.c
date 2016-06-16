@@ -17,6 +17,7 @@
 #include "config.h"
 
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 #ifdef STRICT_CONFINEMENT
@@ -34,6 +35,14 @@
 
 int main(int argc, char **argv)
 {
+	char *basename = strchr(*argv, '/');
+	if (basename)
+		*argv = basename + 1;
+	if (argc > 1 && !strcmp(*argv, "ubuntu-core-launcher")) {
+		argv++;
+		*argv = "ubuntu-core-launcher";
+	}
+		
 	const int NR_ARGS = 2;
 	if (argc < NR_ARGS + 1)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
