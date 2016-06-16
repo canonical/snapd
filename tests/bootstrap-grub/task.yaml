@@ -30,7 +30,7 @@ execute: |
  store: canonical
  gadget: canonical-pc
  kernel: canonical-pc-linux
- os: ubuntu-core
+ core: ubuntu-core
  timestamp: 2016-01-02T10:00:00-05:00
  body-length: 0
 
