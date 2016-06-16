@@ -25,6 +25,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
@@ -76,6 +77,8 @@ func ExecInCoreSnap() {
 			return
 		}
 	}
+
+	logger.Debugf("restarting into %q", full)
 
 	env := append(os.Environ(), key+"=0")
 	panic(syscall.Exec(full, os.Args, env))
