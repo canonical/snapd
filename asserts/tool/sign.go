@@ -53,11 +53,12 @@ type SignRequest struct {
 	// StatementMediaType specifies the media type of the input
 	StatementMediaType string
 	// Statement is used as input to construct the assertion
-	// it's a mapping encoded as either JSON or YAML (specified in StatementMediaType)
+	// it's a mapping encoded as either JSON or YAML
+	// (specified in StatementMediaType)
 	// either of just the header fields of the assertion
 	// or containting exactly two entries
 	// "headers": mapping with the header fields
-	// "content-body": used as the content body of the assertion
+	// "body": used as the body of the assertion
 	Statement []byte
 
 	// The revision of the new assertion
@@ -87,8 +88,7 @@ func parseStatement(req *SignRequest, dest interface{}) error {
 
 type nestedStatement struct {
 	Headers map[string]interface{} `yaml:"headers" json:"headers"`
-	// XXX/TODO: decide how this should be called, part of larger naming discussion!
-	ContentBody string `yaml:"content-body" json:"content-body"`
+	Body    string                 `yaml:"body" json:"body"`
 }
 
 // Sign produces the text of a signed assertion as specified by req.
@@ -121,7 +121,7 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	body := []byte(nestedStatement.ContentBody)
+	body := []byte(nestedStatement.Body)
 
 	keyID := req.KeyID
 	authorityID := req.AuthorityID
