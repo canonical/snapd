@@ -5,7 +5,7 @@ access. It uses apparmor and seccomp to do this.
 
 Run with:
 
-    $ snap-confine /path/to/rootdir security-profile /path/to/binary additional args
+    $ snap-confine security-profile /path/to/binary additional args
 
 Can run the tests with:
 
@@ -23,7 +23,7 @@ under the given apparmor profile.
 ## Seccomp
 
 The seccomp filter profile in expected to be located in
-`/var/lib/snappy/seccomp/profiles`
+`/var/lib/snapd/seccomp/profiles`
 
 The filter file contains lines with syscall names, comments that start
 with "#" or special directives that start with a "@".
