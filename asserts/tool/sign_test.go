@@ -309,7 +309,7 @@ func (s *signSuite) TestSignKeyIDNestedJSONWithBodyAndRevision(c *C) {
 	c.Check(a.Body(), DeepEquals, []byte("CONTENT"))
 }
 
-func (s *signSuite) TestSignAccountKeyHandleNestedYAML(c *C) {
+func (s *signSuite) TestSignAccountKeyHandle(c *C) {
 	req := tool.SignRequest{
 		AccountKey: s.accKey,
 
