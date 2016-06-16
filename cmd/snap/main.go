@@ -168,6 +168,7 @@ func main() {
 		cmd := &cmdRun{}
 		cmd.Positional.SnapApp = snapApp
 		cmd.Execute(os.Args[1:])
+		return
 	}
 
 	// no magic /o\
