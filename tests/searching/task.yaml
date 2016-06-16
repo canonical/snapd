@@ -1,0 +1,38 @@
+summary: Check snap search
+execute: |
+  echo "List all snaps"
+  expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+  .*?\n\
+  canonical-pc +.*? *\n\
+  .*?\
+  canonical-pc-linux +.*? *\n\
+  .*?\
+  go-example-webserver +.*? *\n\
+  .*?\
+  hello-world +.*? *\n\
+  .*?\
+  ubuntu-clock-app +.*? *\n\
+  .*?\
+  ubuntu-core +.*? *\n\
+  .*"
+  actual=$(snap find)
+  echo "$actual" | grep -Pzq "$expected" || exit 1
+
+  echo "Exact matches"
+  for snapName in hello-world http ubuntu-clock-app go-example-webserver
+  do
+    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+  .*?\n\
+  $snapName +.*? *\n\
+  .*"
+    actual=$(snap find $snapName)
+    echo "$actual" | grep -Pzq "$expected" || exit 1
+  done
+
+  echo "Partial terms work too"
+  expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+  .*?\n\
+  hello-world +.*? *\n\
+  .*"
+  actual=$(snap find hello-)
+  echo "$actual" | grep -Pzq "$expected" || exit 1

@@ -21,8 +21,6 @@
 package tests
 
 import (
-	"runtime"
-
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 
@@ -33,66 +31,6 @@ var _ = check.Suite(&searchSuite{})
 
 type searchSuite struct {
 	common.SnappySuite
-}
-
-func (s *searchSuite) TestSearchMustPrintMatch(c *check.C) {
-	// XXX: Summary is empty atm, waiting for store support
-	expected := "(?ms)" +
-		"Name +Version +Developer +Notes +Summary *\n" +
-		".*" +
-		"^hello-world +.* *\n" +
-		".*"
-
-	for _, searchTerm := range []string{"hello-", "hello-world"} {
-		searchOutput := cli.ExecCommand(c, "snap", "find", searchTerm)
-
-		c.Check(searchOutput, check.Matches, expected)
-	}
-}
-
-// SNAP_FIND_001: list all packages available on the store
-func (s *searchSuite) TestFindMustPrintCompleteList(c *check.C) {
-	if runtime.GOARCH != "amd64" {
-		c.Skip("all find results are only available on amd64")
-	}
-
-	fullListPattern := "(?ms)" +
-		"Name +Version +Developer +Notes +Summary *\n" +
-		".*" +
-		"^canonical-pc +.* *\n" +
-		".*" +
-		"^canonical-pc-linux +.* *\n" +
-		".*" +
-		"^go-example-webserver +.* *\n" +
-		".*" +
-		"^hello-world +.* *\n" +
-		".*" +
-		"^ubuntu-clock-app +.* *\n" +
-		".*" +
-		"^ubuntu-core +.* *\n" +
-		".*"
-
-	searchOutput := cli.ExecCommand(c, "snap", "find")
-
-	c.Assert(searchOutput, check.Matches, fullListPattern)
-}
-
-// SNAP_FIND_002: find packages on store with different name formats
-func (s *searchSuite) TestFindWorksWithDifferentFormats(c *check.C) {
-	if runtime.GOARCH != "amd64" {
-		c.Skip("all find results are only available on amd64")
-	}
-
-	for _, snapName := range []string{"http", "ubuntu-clock-app", "go-example-webserver"} {
-		expected := "(?ms)" +
-			"Name +Version +Developer +Notes +Summary *\n" +
-			".*" +
-			"^" + snapName + " +.* *\n" +
-			".*"
-		searchOutput := cli.ExecCommand(c, "snap", "find", snapName)
-
-		c.Check(searchOutput, check.Matches, expected)
-	}
 }
 
 // SNAP_FIND_003: --help prints the detailed help test for the command
