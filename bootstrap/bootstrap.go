@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -50,6 +51,7 @@ type bootstrapYaml struct {
 	Rootdir          string   `yaml:"rootdir"`
 	Channel          string   `yaml:"channel"`
 	ModelAssertionFn string   `yaml:"model-assertion"`
+	GadgetUnpackDir  string   `yaml:"gadget-unpack-dir"`
 }
 
 func Bootstrap(bootstrapYaml string) error {
@@ -64,8 +66,66 @@ func Bootstrap(bootstrapYaml string) error {
 		return err
 	}
 
+	// if we have a gadget-unpack-dir, download/unpack into that
+	if y.Bootstrap.GadgetUnpackDir != "" {
+		return downloadUnpackGadget(&y.Bootstrap)
+	}
+
+	// we have a rootdir, try to bootstrap into that
 	if y.Bootstrap.Rootdir != "" {
-		dirs.SetRootDir(y.Bootstrap.Rootdir)
+		return bootstrapToRootdir(&y.Bootstrap)
+	}
+
+	return nil
+
+}
+
+func decodeModelAssertion(fn string) (*asserts.Model, error) {
+	rawAssert, err := ioutil.ReadFile(fn)
+	if err != nil {
+		return nil, err
+	}
+
+	ass, err := asserts.Decode(rawAssert)
+	if err != nil {
+		return nil, err
+	}
+	return ass.(*asserts.Model), nil
+}
+
+func downloadUnpackGadget(opts *bootstrapYaml) error {
+	model, err := decodeModelAssertion(opts.ModelAssertionFn)
+	if err != nil {
+		return err
+	}
+
+	dlOpts := &downloadOptions{
+		TargetDir:    opts.GadgetUnpackDir,
+		Channel:      opts.Channel,
+		StoreID:      model.Store(),
+		Architecture: model.Architecture(),
+	}
+	snapFn, err := acquireSnap(model.Gadget(), dlOpts)
+	if err != nil {
+		return err
+	}
+	// FIXME: jumping through layers here, we need to make
+	//        unpack part of the container interface (again)
+	snap := squashfs.New(snapFn)
+	return snap.Unpack("*", opts.GadgetUnpackDir)
+}
+
+func acquireSnap(snapName string, dlOpts *downloadOptions) (string, error) {
+	if osutil.FileExists(snapName) {
+		return copyLocalSnapFile(snapName, dlOpts.TargetDir)
+	}
+
+	return downloadSnapWithSideInfo(snapName, dlOpts)
+}
+
+func bootstrapToRootdir(opts *bootstrapYaml) error {
+	if opts.Rootdir != "" {
+		dirs.SetRootDir(opts.Rootdir)
 		defer dirs.SetRootDir("/")
 	}
 
@@ -74,39 +134,26 @@ func Bootstrap(bootstrapYaml string) error {
 		return fmt.Errorf("cannot bootstrap over existing system")
 	}
 
-	rawAssert, err := ioutil.ReadFile(y.Bootstrap.ModelAssertionFn)
+	model, err := decodeModelAssertion(opts.ModelAssertionFn)
 	if err != nil {
 		return err
-	}
-
-	ass, err := asserts.Decode(rawAssert)
-	if err != nil {
-		return err
-	}
-	model := ass.(*asserts.Model)
-
-	// *sigh* we need to adjust the storeID if its set to "canonical"
-	//        because that is the default
-	storeID := model.Store()
-	if storeID == "canonical" {
-		storeID = ""
 	}
 
 	// put snaps in place
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
 	}
-	opts := &downloadOptions{
+	dlOpts := &downloadOptions{
 		TargetDir:    dirs.SnapBlobDir,
-		Channel:      y.Bootstrap.Channel,
-		StoreID:      storeID,
+		Channel:      opts.Channel,
+		StoreID:      model.Store(),
 		Architecture: model.Architecture(),
 	}
 
 	// FIXME: support sideloading snaps by copying the boostrap.snaps
 	//        first and keeping track of the already downloaded names
 	snaps := []string{}
-	snaps = append(snaps, y.Bootstrap.Snaps...)
+	snaps = append(snaps, opts.Snaps...)
 	snaps = append(snaps, model.Gadget())
 	snaps = append(snaps, model.Core())
 	snaps = append(snaps, model.Kernel())
@@ -114,14 +161,8 @@ func Bootstrap(bootstrapYaml string) error {
 
 	for _, snapName := range snaps {
 		fmt.Printf("Fetching %s\n", snapName)
-		if osutil.FileExists(snapName) {
-			if err := copyLocalSnapFile(snapName); err != nil {
-				return err
-			}
-		} else {
-			if _, err := downloadSnapWithSideInfo(snapName, opts); err != nil {
-				return err
-			}
+		if _, err := acquireSnap(snapName, dlOpts); err != nil {
+			return err
 		}
 	}
 
@@ -234,22 +275,22 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 	return nil
 }
 
-func copyLocalSnapFile(snapName string) error {
+func copyLocalSnapFile(snapName, targetDir string) (string, error) {
 	snapFile, err := snap.Open(snapName)
 	if err != nil {
-		return err
+		return "", err
 	}
 	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
 	// local snap gets sideloaded revision
 	if info.Revision.Unset() {
 		info.Revision = snap.R(-1)
 	}
-	dst := info.MountFile()
+	dst := filepath.Join(targetDir, filepath.Dir(info.MountFile()))
 
-	return osutil.CopyFile(snapName, dst, 0)
+	return dst, osutil.CopyFile(snapName, dst, 0)
 }
 
 type downloadOptions struct {
@@ -279,6 +320,14 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 		arch.SetArchitecture(arch.ArchitectureType(opts.Architecture))
 	}
 
+	// *sigh* we need to adjust the storeID if its set to "canonical"
+	//        because there is no "canonical" store in the store server
+	//        it is just ""
+	storeID := opts.StoreID
+	if storeID == "canonical" {
+		storeID = ""
+	}
+
 	pwd, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -288,7 +337,7 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 		targetDir = pwd
 	}
 
-	m := store.NewUbuntuStoreSnapRepository(nil, opts.StoreID)
+	m := store.NewUbuntuStoreSnapRepository(nil, storeID)
 	snap, err := m.Snap(name, opts.Channel, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find snap: %s", err)

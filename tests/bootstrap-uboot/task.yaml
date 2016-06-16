@@ -1,6 +1,8 @@
 summary: Check that bootstrap works for uboot-systems
 environment:
   IMAGE: /tmp/diskimage
+restore:
+ rm -rf $IMAGE
 execute: |
  echo Creating mock uboot env
  sudo apt install u-boot-tools
