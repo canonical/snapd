@@ -39,6 +39,7 @@ ubuntu-core-launcher (1.0.29) UNRELEASED; urgency=medium
   [ Zygmunt Krynicki ]
   * Update Vcs-Git pointer to point to
     https://github.com/snapcore/snap-confine
+  * Make ubuntu-core-launcher a symlink to snap-confine
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Jun 2016 17:12:24 +0200
 
