@@ -97,7 +97,7 @@ func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	snap := makeSnap(c, "", data)
 
 	outputDir := c.MkDir()
-	err := snap.unpack("data*", outputDir)
+	err := snap.Unpack("data*", outputDir)
 	c.Assert(err, IsNil)
 
 	// this is the file we expect
