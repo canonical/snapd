@@ -64,19 +64,6 @@ sendmsg
 
 `)
 
-var mirConnectedPlugAppArmor = []byte(`
-# Description: Allow use of the Mir server. Reserved because this
-# gives privileged access to the system.
-# Usage: reserved
-
-`)
-
-var mirConnectedPlugSecComp = []byte(`
-# Description: Allow operating as the mir service. Reserved because this
-# gives privileged access to the system.
-
-`)
-
 type MirInterface struct{}
 
 func (iface *MirInterface) Name() string {
@@ -103,11 +90,8 @@ func (iface *MirInterface) ConnectedPlugSnippet(
 	slot *interfaces.Slot,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return nil, nil
-	case interfaces.SecuritySecComp:
-		return nil, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+		interfaces.SecurityUDev, interfaces.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -118,11 +102,8 @@ func (iface *MirInterface) PermanentSlotSnippet(
 	slot *interfaces.Slot,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return nil, nil
-	case interfaces.SecuritySecComp:
-		return nil, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+		interfaces.SecurityUDev, interfaces.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -131,11 +112,8 @@ func (iface *MirInterface) PermanentSlotSnippet(
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return nil, nil
-	case interfaces.SecuritySecComp:
-		return nil, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+		interfaces.SecurityUDev, interfaces.SecurityDBus:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
