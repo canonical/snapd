@@ -1,21 +1,17 @@
 summary: Check that bootstrap works for grub-systems
 environment:
-  IMAGE: /tmp/diskimage
+  UNPACKDIR: /tmp/gadget-unpack-dir
 restore:
- rm -rf $IMAGE
+  rm -rf $UNPACKDIR
 execute: |
- echo Creating mock grub env
- mkdir -p $IMAGE/boot/grub
- touch $IMAGE/boot/grub/grub.cfg
-
+ echo Creating $UNPACKDIR
+ mkdir $UNPACKDIR
  echo Preparing bootstrap.yaml 
  cat > bootstrap.yaml <<EOF
  bootstrap:
-   rootdir: $IMAGE
+   gadget-unpack-dir: $UNPACKDIR
    channel: edge
    model-assertion: model.assertion
-   extra-snaps:
-   - webdm
  EOF
 
  echo Creating model assertion
@@ -39,14 +35,12 @@ execute: |
  openpgpg 2cln
  EOF
 
- echo Running bootstrap
+ echo Running bootstrap to fetch gadget
  sudo snap bootstrap bootstrap.yaml
 
  echo Verifying the result
- ls -lR $IMAGE
- for f in canonical-pc canonical-pc-linux ubuntu-core webdm; do
-   ls $IMAGE/var/lib/snapd/snaps/${f}*.snap
-   ls $IMAGE/var/lib/snapd/snaps/${f}*.snap.sideinfo
- done
- grep snappy_os=ubuntu-core $IMAGE/boot/grub/grubenv
- grep snappy_kernel=canonical-pc-linux $IMAGE/boot/grub/grubenv
+ ls -lR $UNPACKDIR
+ ls $UNPACKDIR/canonical-pc_*.snap
+ ls $UNPACKDIR/canonical-pc_*.snap.sideinfo
+ ls $UNPACKDIR/meta/snap.yaml
+ ls $UNPACKDIR/grub.cfg

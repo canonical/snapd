@@ -65,7 +65,7 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// We can not mount it for real in the tests, so we just unpack
 	// it to the location which is good enough for the tests.
 	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
-		if err := s.unpack("*", mountDir); err != nil {
+		if err := s.Unpack("*", mountDir); err != nil {
 			return err
 		}
 	}
@@ -82,7 +82,7 @@ var runCommand = func(args ...string) error {
 	return nil
 }
 
-func (s *Snap) unpack(src, dstDir string) error {
+func (s *Snap) Unpack(src, dstDir string) error {
 	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
 }
 
