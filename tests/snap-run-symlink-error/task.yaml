@@ -12,6 +12,7 @@ execute: |
     # FIXME: remove "SNAP_REEXEC" once we have `snap run` inside the os snap
     export SNAP_REEXEC=0
     echo Setting up incorrect symlink for snap run
+    sudo mkdir -p /snap/bin
     sudo ln -s /usr/bin/snap /snap/bin/xxx
     echo Running unknown command
     expected='internal error, please report: running "xxx" failed: cannot find snap "xxx"'
