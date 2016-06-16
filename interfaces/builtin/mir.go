@@ -41,21 +41,6 @@ network netlink raw,
 /run/mir_socket rw,
 /dev/input/* rw,
 
-
-#/sys/devices/**/uevent rw,
-#/sys/devices/**/ r,
-#/run/udev/** rw,
-#/proc/ r,
-#/proc/*/stat r,
-#/proc/*/cmdline r,
-#/sys/bus/ r,
-#/sys/class/ r,
-#/sys/class/input/ r,
-#/sys/class/drm/ r,
-#/etc/udev/udev.conf r,
-#capability chown,
-#capability fowner,
-
 `)
 
 var mirPermanentSlotSecComp = []byte(`
