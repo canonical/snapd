@@ -167,8 +167,12 @@ func main() {
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
 		cmd := &cmdRun{}
 		cmd.Positional.SnapApp = snapApp
-		cmd.Execute(os.Args[1:])
-		return
+		// this will call syscall.Exec() so it does not return
+		// *unless* there is an error, i.e. we setup a wrong
+		// symlink
+		err := cmd.Execute(os.Args[1:])
+		fmt.Fprintf(Stderr, "internal error, please report: running %q failed: %s\n", snapApp, err)
+		os.Exit(46)
 	}
 
 	// no magic /o\
