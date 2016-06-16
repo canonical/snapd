@@ -69,6 +69,13 @@ void setup_private_mount(const char *appname)
 	}
 	umask(old_mask);
 
+	// chdir to '/' since the mount won't apply to the current directory
+	char *pwd = get_current_dir_name();
+	if (pwd == NULL)
+		die("unable to get current directory");
+	if (chdir("/") != 0)
+		die("unable to change directory to '/'");
+
 	// MS_BIND is there from linux 2.4
 	if (mount(tmpdir, "/tmp", NULL, MS_BIND, NULL) != 0) {
 		die("unable to bind private /tmp");
@@ -81,6 +88,11 @@ void setup_private_mount(const char *appname)
 	if (chown("/tmp/", uid, gid) < 0) {
 		die("unable to chown tmpdir");
 	}
+	// chdir to original directory
+	if (chdir(pwd) != 0)
+		die("unable to change to original directory");
+	free(pwd);
+
 	// ensure we set the various TMPDIRs to our newly created tmpdir
 	const char *tmpd[] = { "TMPDIR", "TEMPDIR", NULL };
 	int i;
