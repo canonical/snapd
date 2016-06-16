@@ -28,6 +28,7 @@ package testutil
 
 import (
 	"reflect"
+	"runtime"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -171,6 +172,10 @@ type myStruct struct {
 }
 
 func (s *CheckersS) TestContainsUncomparableType(c *C) {
+	if runtime.Compiler != "go" {
+		c.Skip("this test only works on go (not gccgo)")
+	}
+
 	elem := myStruct{map[string]string{"k": "v"}}
 	containerArray := [...]myStruct{elem}
 	containerSlice := []myStruct{elem}
