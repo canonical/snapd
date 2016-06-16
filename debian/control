@@ -16,7 +16,7 @@ Build-Depends: autoconf,
                shellcheck,
                udev
 Standards-Version: 3.9.8
-Vcs-Git: https://github.com/ubuntu-core/snap-confine
+Vcs-Git: https://github.com/snapcore/snap-confine
 
 Package: snap-confine
 Architecture: any

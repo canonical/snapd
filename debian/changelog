@@ -36,7 +36,11 @@ ubuntu-core-launcher (1.0.29) UNRELEASED; urgency=medium
   * chdir() to '/' before setting up private /tmp so private /tmp works when
     user is in /tmp (LP: #1592402)
 
- -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 22 May 2016 16:14:24 +0300
+  [ Zygmunt Krynicki ]
+  * Update Vcs-Git pointer to point to
+    https://github.com/snapcore/snap-confine
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Jun 2016 17:12:24 +0200
 
 ubuntu-core-launcher (1.0.28) yakkety; urgency=medium
 
