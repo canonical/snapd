@@ -28,23 +28,23 @@ var mirPermanentSlotAppArmor = []byte(`
 # gives privileged access to the system.
 # Usage: reserved
 
+capability dac_override,
+capability sys_tty_config,
+capability sys_admin,
 
-#capability dac_override,
-#capability sys_tty_config,
-#capability sys_admin,
-#
-#unix (receive, send) type=seqpacket addr=none,
-#/dev/dri/card0 rw,
-#/dev/shm/\#* rw,
-#
+unix (receive, send) type=seqpacket addr=none,
+/dev/dri/card0 rw,
+/dev/shm/\#* rw,
+/dev/tty* wr,
+/run/udev/data/* r,
+network netlink raw,
+/run/mir_socket rw,
+/dev/input/* rw,
+
+
 #/sys/devices/**/uevent rw,
 #/sys/devices/**/ r,
-#/dev/input/* rw,
-#/dev/tty* wr,
-#/run/udev/data/* r,
 #/run/udev/** rw,
-#
-#
 #/proc/ r,
 #/proc/*/stat r,
 #/proc/*/cmdline r,
@@ -55,9 +55,7 @@ var mirPermanentSlotAppArmor = []byte(`
 #/etc/udev/udev.conf r,
 #capability chown,
 #capability fowner,
-#
-#network netlink raw,
-#/run/mir_socket rw,
+
 `)
 
 var mirPermanentSlotSecComp = []byte(`
@@ -68,6 +66,7 @@ var mirPermanentSlotSecComp = []byte(`
 bind
 listen
 setsockopt
+getsockname
 
 # Needed by server upon client connect
 sendto
