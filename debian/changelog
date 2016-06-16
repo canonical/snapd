@@ -1,4 +1,4 @@
-ubuntu-core-launcher (1.0.29) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.30) UNRELEASED; urgency=medium
 
   [ Zygmunt Krynicki ]
   * Rename the package and everything else from ubuntu-core-launcher to
@@ -40,6 +40,7 @@ ubuntu-core-launcher (1.0.29) UNRELEASED; urgency=medium
   * Update Vcs-Git pointer to point to
     https://github.com/snapcore/snap-confine
   * Make ubuntu-core-launcher a symlink to snap-confine
+  * Bump version to 1.0.30
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Jun 2016 17:12:24 +0200
 
