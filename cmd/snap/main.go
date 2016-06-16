@@ -169,7 +169,7 @@ func main() {
 		cmd.Positional.SnapApp = snapApp
 		// this will call syscall.Exec() so it does not return
 		// *unless* there is an error, i.e. we setup a wrong
-		// symlink
+		// symlink (or syscall.Exec() fails for strange reasons)
 		err := cmd.Execute(os.Args[1:])
 		fmt.Fprintf(Stderr, "internal error, please report: running %q failed: %s\n", snapApp, err)
 		os.Exit(46)
