@@ -41,6 +41,7 @@ ubuntu-core-launcher (1.0.30) UNRELEASED; urgency=medium
     https://github.com/snapcore/snap-confine
   * Make ubuntu-core-launcher a symlink to snap-confine
   * Bump version to 1.0.30
+  * SRU for Ubuntu (LP: #1593396)
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Thu, 16 Jun 2016 17:12:24 +0200
 
