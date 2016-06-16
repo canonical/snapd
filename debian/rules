@@ -72,8 +72,8 @@ override_dh_auto_install: snap.8
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# Making the packages private
 	rm -rf ${CURDIR}/debian/snapd/usr/share/gocode
-	# toolbelt is not shippable
-	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
+	# snap-assert is WIP
+	rm -f ${CURDIR}/debian/tmp/usr/bin/snap-assert
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 
