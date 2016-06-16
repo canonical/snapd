@@ -39,6 +39,7 @@ unix (receive, send) type=seqpacket addr=none,
 /run/udev/data/* r,
 network netlink raw,
 /run/mir_socket rw,
+#NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
 
 `)
