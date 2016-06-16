@@ -42,7 +42,7 @@ int main(int argc, char **argv)
 		argv++;
 		*argv = "ubuntu-core-launcher";
 	}
-		
+
 	const int NR_ARGS = 2;
 	if (argc < NR_ARGS + 1)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
