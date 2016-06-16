@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
 )
 
 type MirInterfaceSuite struct {
@@ -34,6 +35,20 @@ type MirInterfaceSuite struct {
 
 var _ = Suite(&MirInterfaceSuite{
 	iface: &builtin.MirInterface{},
+	slot: &interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Name:      "mir",
+			Interface: "mir",
+		},
+	},
+	plug: &interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "other"},
+			Name:      "mir",
+			Interface: "mir",
+		},
+	},
 })
 
 func (s *MirInterfaceSuite) TestName(c *C) {
