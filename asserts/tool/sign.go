@@ -38,19 +38,19 @@ const (
 	YAMLInput = "application/x-yaml"
 )
 
-// SignRequest lets specify the complete input for signing an assertion.
+// SignRequest specifies the complete input for signing an assertion.
 type SignRequest struct {
-	// the key to use can be speficied either passing the text of
-	// an account-key assertion
+	// The key to use can be speficied either passing the text of
+	// an account-key assertion in AccountKey
 	AccountKey []byte
-	// or passing the key id
+	// or passing the key id in KeyID
 	KeyID string
-	// and an optional account-id of the signer (if left out headers value are consulted)
+	// and an optional account-id of the signer (if left out headers value are consulted) in AuthorityID
 	AuthorityID string
 
-	// the assertion type (as a string)
+	// The assertion type (as a string)
 	AssertionType string
-	// specify the media type of the input
+	// StatementMediaType specifies the media type of the input
 	StatementMediaType string
 	// Statement is used as input to construct the assertion
 	// it's a mapping encoded as either JSON or YAML (specified in StatementMediaType)
@@ -60,7 +60,7 @@ type SignRequest struct {
 	// "content-body": used as the content body of the assertion
 	Statement []byte
 
-	// revision of the new assertion
+	// The revision of the new assertion
 	Revision int
 }
 
@@ -183,10 +183,10 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	return asserts.Encode(a), nil
 }
 
-// let the invoker use a limited amount of structured input without having
-// to convert everything obvious to strings upfront on their side,
-// we convert integers, bool (to yes|no), list of strings (to comma separated) and nil (to empty)
-
+// strigify lets the invoker use a limited amount of structured input
+// without having to convert everything obvious to strings upfront on
+// their side, we convert integers, bool (to yes|no), list of strings
+// (to comma separated) and nil (to empty).
 func stringify(m map[string]interface{}) (map[string]string, error) {
 	res := make(map[string]string, len(m))
 	for k, w := range m {
