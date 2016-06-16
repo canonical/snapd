@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/policy"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 
@@ -150,28 +149,6 @@ func (s *SnapTestSuite) TestLocalSnapRepositorySimple(c *C) {
 const (
 	funkyAppName = "8nzc1x4iim2xj1g2ul64"
 )
-
-func (s *SnapTestSuite) TestMakeConfigEnv(c *C) {
-	yamlFile, err := makeInstalledMockSnap("", 11)
-	c.Assert(err, IsNil)
-	snap, err := NewInstalledSnap(yamlFile)
-	c.Assert(err, IsNil)
-	c.Assert(snap, NotNil)
-
-	os.Setenv("SNAP_NAME", "override-me")
-	defer os.Setenv("SNAP_NAME", "")
-
-	env := makeSnapHookEnv(snap)
-
-	// now ensure that the environment we get back is what we want
-	envMap := snapenv.MakeMapFromEnvList(env)
-	// regular env is unaltered
-	c.Assert(envMap["PATH"], Equals, os.Getenv("PATH"))
-	// SNAP_* is overriden
-	c.Assert(envMap["SNAP_NAME"], Equals, "hello-snap")
-	c.Assert(envMap["SNAP_VERSION"], Equals, "1.10")
-	c.Check(envMap["LC_ALL"], Equals, "C.UTF-8")
-}
 
 func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	snapPackage := makeTestSnapPackage(c, "")

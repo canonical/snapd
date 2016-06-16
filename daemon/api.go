@@ -593,7 +593,7 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags := snapstate.Flags(0)
-	if inst.DevMode {
+	if inst.DevMode || release.ReleaseInfo.ForceDevMode() {
 		flags |= snapstate.DevMode
 	}
 
@@ -771,6 +771,9 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	var flags snapstate.Flags
 
 	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
+		flags |= snapstate.DevMode
+	}
+	if release.ReleaseInfo.ForceDevMode() {
 		flags |= snapstate.DevMode
 	}
 

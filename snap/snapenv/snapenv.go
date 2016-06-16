@@ -20,63 +20,37 @@
 package snapenv
 
 import (
-	"bytes"
-	"strings"
-	"text/template"
+	"fmt"
+	"path/filepath"
 
-	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/snap"
 )
-
-// MakeMapFromEnvList takes a string list of the form "key=value"
-// and returns a map[string]string from that list
-// This is useful for os.Environ() manipulation
-func MakeMapFromEnvList(env []string) map[string]string {
-	envMap := map[string]string{}
-	for _, l := range env {
-		split := strings.SplitN(l, "=", 2)
-		if len(split) != 2 {
-			return nil
-		}
-		envMap[split[0]] = split[1]
-	}
-	return envMap
-}
-
-func fillSnapEnvVars(desc interface{}, vars []string) []string {
-	for i, v := range vars {
-		var templateOut bytes.Buffer
-		t := template.Must(template.New("wrapper").Parse(v))
-		if err := t.Execute(&templateOut, desc); err != nil {
-			// this can never happen, except we forget a variable
-			logger.Panicf("Unable to execute template: %v", err)
-		}
-		vars[i] = templateOut.String()
-	}
-	return vars
-}
 
 // Basic returns the app-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func Basic(desc interface{}) []string {
-	return fillSnapEnvVars(desc, []string{
-		"SNAP={{.SnapPath}}",
-		"SNAP_DATA=/var{{.SnapPath}}",
-		"SNAP_NAME={{.SnapName}}",
-		"SNAP_VERSION={{.Version}}",
-		"SNAP_REVISION={{.Revision}}",
-		"SNAP_ARCH={{.SnapArch}}",
+func Basic(info *snap.Info) []string {
+	return []string{
+		fmt.Sprintf("SNAP=%s", info.MountDir()),
+		fmt.Sprintf("SNAP_DATA=%s", info.DataDir()),
+		fmt.Sprintf("SNAP_NAME=%s", info.Name()),
+		fmt.Sprintf("SNAP_VERSION=%s", info.Version),
+		fmt.Sprintf("SNAP_REVISION=%s", info.Revision),
+		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
-	})
+	}
 }
 
 // User returns the user-level environment variables for a snap.
 // Despite this being a bit snap-specific, this is in helpers.go because it's
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
-func User(desc interface{}) []string {
-	return fillSnapEnvVars(desc, []string{
-		"SNAP_USER_DATA={{.Home}}{{.SnapPath}}",
-	})
+func User(info *snap.Info, home string) []string {
+	// FIXME: should go into PlacementInfo
+	userData := filepath.Join(home, info.MountDir())
+	return []string{
+		fmt.Sprintf("SNAP_USER_DATA=%s", userData),
+	}
 }

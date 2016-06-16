@@ -26,8 +26,9 @@ import (
 )
 
 type overlordStateBackend struct {
-	path         string
-	ensureBefore func(d time.Duration)
+	path           string
+	ensureBefore   func(d time.Duration)
+	requestRestart func()
 }
 
 func (osb *overlordStateBackend) Checkpoint(data []byte) error {
@@ -36,4 +37,8 @@ func (osb *overlordStateBackend) Checkpoint(data []byte) error {
 
 func (osb *overlordStateBackend) EnsureBefore(d time.Duration) {
 	osb.ensureBefore(d)
+}
+
+func (osb *overlordStateBackend) RequestRestart() {
+	osb.requestRestart()
 }

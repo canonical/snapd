@@ -25,6 +25,7 @@ import (
 
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/integration-tests/testutils/wait"
 )
 
 const providerURL = "http://127.0.0.1:8081"
@@ -41,6 +42,8 @@ type networkBindInterfaceSuite struct {
 }
 
 func (s *networkBindInterfaceSuite) TestPlugDisconnectionDisablesClientConnection(c *check.C) {
+	wait.ForActiveService(c, "snap.network-bind-consumer.network-consumer.service")
+
 	output := cli.ExecCommand(c, "network-consumer", providerURL)
 	c.Assert(output, check.Equals, "ok\n")
 

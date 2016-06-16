@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -54,6 +55,8 @@ type Overlord struct {
 	ensureTimer *time.Timer
 	ensureNext  time.Time
 	pruneTimer  *time.Timer
+	// restarts
+	restartHandler func()
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -67,8 +70,9 @@ func New() (*Overlord, error) {
 	}
 
 	backend := &overlordStateBackend{
-		path:         dirs.SnapStateFile,
-		ensureBefore: o.ensureBefore,
+		path:           dirs.SnapStateFile,
+		ensureBefore:   o.ensureBefore,
+		requestRestart: o.requestRestart,
 	}
 	s, err := loadState(backend)
 	if err != nil {
@@ -146,11 +150,28 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 }
 
+func (o *Overlord) requestRestart() {
+	if o.restartHandler == nil {
+		logger.Noticef("restart requested but no handler set")
+	} else {
+		o.restartHandler()
+	}
+}
+
+// SetRestartHandler sets a handler to fulfill restart requests asynchronously.
+func (o *Overlord) SetRestartHandler(handleRestart func()) {
+	o.restartHandler = handleRestart
+}
+
 // Loop runs a loop in a goroutine to ensure the current state regularly through StateEngine Ensure.
 func (o *Overlord) Loop() {
 	o.ensureTimerSetup()
 	o.loopTomb.Go(func() error {
 		for {
+			o.ensureTimerReset()
+			// in case of errors engine logs them,
+			// continue to the next Ensure() try for now
+			o.stateEng.Ensure()
 			select {
 			case <-o.loopTomb.Dying():
 				return nil
@@ -161,10 +182,6 @@ func (o *Overlord) Loop() {
 				st.Prune(pruneWait, abortWait)
 				st.Unlock()
 			}
-			o.ensureTimerReset()
-			// in case of errors engine logs them,
-			// continue to the next Ensure() try for now
-			o.stateEng.Ensure()
 		}
 	})
 }

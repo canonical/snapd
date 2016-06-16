@@ -29,7 +29,7 @@ import (
 
 var _ = check.Suite(&logObserveInterfaceSuite{
 	interfaceSuite: interfaceSuite{
-		sampleSnaps: []string{data.LogObserveConsumerSnapName, data.NetworkConsumerSnapName},
+		sampleSnaps: []string{data.LogObserveConsumerSnapName},
 		slot:        "log-observe",
 		plug:        "log-observe-consumer"}})
 
@@ -41,11 +41,11 @@ func (s *logObserveInterfaceSuite) TestConnectedPlugAllowsLogObserve(c *check.C)
 	cli.ExecCommand(c, "sudo", "snap", "connect",
 		s.plug+":"+s.slot, "ubuntu-core:"+s.slot)
 
-	output := cli.ExecCommand(c, "network-consumer", "http://127.0.0.1:8081")
+	output := cli.ExecCommand(c, "log-observe-consumer")
 	c.Assert(output, check.Equals, "ok\n")
 }
 
 func (s *logObserveInterfaceSuite) TestDisconnectedPlugDisablesLogObserve(c *check.C) {
-	output := cli.ExecCommand(c, "network-consumer", "http://127.0.0.1:8081")
-	c.Assert(output, check.Equals, "error accessing log\n")
+	output := cli.ExecCommand(c, "log-observe-consumer")
+	c.Assert(output, check.Equals, "tail: cannot open '/var/log/syslog' for reading: Permission denied\nerror accessing log\n")
 }

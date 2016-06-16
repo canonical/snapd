@@ -1,3 +1,76 @@
+snapd (2.0.9) xenial; urgency=medium
+
+  * New upstream release: LP: #1593201
+    - snap: add the magic redirect part of `snap run`
+    - tests, integration-tests: port server related tests to spread
+    - overlord/snapstate: log restarting in the task
+    - daemon: test restart wiring, fix setup/teardown
+    - cmd: don't show the price if a snap has already been purchased
+    - tests, integration-tests: port listing tests to spread
+    - integration-tests: do not try to kill ubuntu-clock-app.clock (no
+      longer a process)
+    - several: tie up overlord's restart handler into daemon; adjust
+      snap to cope
+    - tests, integration-tests: port abort tests to spread
+    - integration-tests: fix flaky TestRemoveBusyRetries
+    - testutils: refactor/mock exec
+    - snap,cmd: add hook support to snap run.
+    - overlord/snapstate: remove Download from backend
+    - store: use a custom logging transport
+    - overlord/hookstate: implement basic HookManager.
+    - spread: move the suite restore to restore-each
+    - asserts: turn model os into model core field, making it also more
+      like the kernel and gadget fields
+    - asserts: / is not allowed in primary key headers, follow the store
+      in this
+    - release: enable full confinement on Elementary 0.4
+    - integration-tests: fix another i386 autopkgtest failure.
+    - cmd/snap: create SNAP_USER_DATA and common dirs in `snap run`
+    - many: have the installation of the core snap request a restart (on
+      classic)
+    - asserts: allow to load also account assertions into the trusted
+      set
+    - many: install snaps in devmode on distributions without complete
+      apparmor and seccomp support
+    - spread: run on travis
+    - snapenv: do not hardcode amd64 in tests
+    - spread: initial harness and first test
+    - interfaces: miscelleneous policy updates for chromium, x86,
+      opengl, etc
+    - integration-tests: remove daemon to use the log-observe interface
+    - client: remove client.Revision and import snap.Revision instead
+    - integration-tests: wait for network-bind service in try test
+    - many: move over from snappy to snapstate/backend SetupSnap and
+      related code
+    - integration-tests: add interfaces cli tests
+    - snapenv: cleanup snapenv.{Basic,User}
+    - cmd/snap: also print slots that connect to the wanted snap (LP:
+      #1590704)
+    - asserts: error style, use "cannot" instead of "failed to"
+      following the main decided style
+    - integration-tests: wait until the network-bind service is up
+      before testing
+    - many: add new `snap run` command
+    - snappy: unexport snappy.Install and snappy.Overlord.{Un,}Install
+    - many: add some shared testing helpers to snap/snaptest and to
+      boot/boottest
+    - rest-api: support to send apps per snap (LP: #1564076)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 16 Jun 2016 13:56:12 +0200
+
+snapd (2.0.8.1) UNRELEASED; urgency=medium
+
+  * New upstream release
+    - Cherry pick four commits that show snaps as installed in devmode on
+    distributions without full confinement dependencies available:
+
+    25634d3364a46b5e9147e4466932c59b1b572d35
+    53f2e8d5f1b2d7ce13f5b50be4c09fa1de8cf1e0
+    38771f4cc324ad9dd4aa48b03108d13a2c361aad
+    c46e069351c61e45c338c98ab12689a319790bd5
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Tue, 14 Jun 2016 15:55:30 +0200
+
 snapd (2.0.8) xenial; urgency=medium
 
   * New upstream release: LP: #1589534
