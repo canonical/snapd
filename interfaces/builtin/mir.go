@@ -129,5 +129,5 @@ func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *MirInterface) AutoConnect() bool {
-	return false
+	return true
 }
