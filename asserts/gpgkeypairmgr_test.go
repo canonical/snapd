@@ -190,7 +190,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	checkDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 		Backstore:      asserts.NewMemoryBackstore(),
-		TrustedKeys:    []*asserts.AccountKey{trustedAccKey.(*asserts.AccountKey)},
+		Trusted:        []asserts.Assertion{trustedAccKey.(*asserts.AccountKey)},
 	})
 	c.Assert(err, IsNil)
 	err = checkDB.Add(devAccKey)

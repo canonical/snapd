@@ -29,6 +29,7 @@ const networkConnectedPlugAppArmor = `
 #include <abstractions/ssl_certs>
 
 @{PROC}/sys/net/core/somaxconn r,
+@{PROC}/sys/net/ipv4/tcp_fastopen r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network

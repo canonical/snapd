@@ -20,10 +20,13 @@
 package snapstate_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -33,14 +36,31 @@ type linkSnapSuite struct {
 
 	fakeBackend *fakeSnappyBackend
 
+	stateBackend *witnessRestartReqStateBackend
+
 	reset func()
 }
 
 var _ = Suite(&linkSnapSuite{})
 
+type witnessRestartReqStateBackend struct {
+	restartRequested bool
+}
+
+func (b *witnessRestartReqStateBackend) Checkpoint([]byte) error {
+	return nil
+}
+
+func (b *witnessRestartReqStateBackend) RequestRestart() {
+	b.restartRequested = true
+}
+
+func (b *witnessRestartReqStateBackend) EnsureBefore(time.Duration) {}
+
 func (s *linkSnapSuite) SetUpTest(c *C) {
+	s.stateBackend = &witnessRestartReqStateBackend{}
 	s.fakeBackend = &fakeSnappyBackend{}
-	s.state = state.New(nil)
+	s.state = state.New(s.stateBackend)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
@@ -86,6 +106,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(snapst.Candidate, IsNil)
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.stateBackend.restartRequested, Equals, false)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
@@ -178,4 +199,32 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 			name: "/snap/foo/35",
 		},
 	})
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		Candidate: &snap.SideInfo{
+			OfficialName: "core",
+			Revision:     snap.R(33),
+		},
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Name: "core",
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(s.stateBackend.restartRequested, Equals, true)
 }

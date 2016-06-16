@@ -108,8 +108,8 @@ func (s *createUserSuite) TestAddUser(c *check.C) {
 
 	err := sso.AddUser("karl", []string{"ssh-key1", "ssh-key2"})
 	c.Assert(err, check.IsNil)
-	c.Check(mc.Calls(), check.DeepEquals, []string{
-		"--extrausers --disabled-password karl",
+	c.Check(mc.Calls(), check.DeepEquals, [][]string{
+		{"adduser", "--extrausers", "--disabled-password", "karl"},
 	})
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
