@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
@@ -161,16 +160,6 @@ func init() {
 }
 
 func main() {
-	// magic \o/
-	arg0 := os.Args[0]
-	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, filepath.Base(arg0))) {
-		snapApp := filepath.Base(arg0)
-		cmd := []string{"/usr/bin/snap", "run", snapApp}
-		cmd = append(cmd, os.Args[1:]...)
-		syscall.Exec(cmd[0], cmd, os.Environ())
-	}
-
-	// no magic /o\
 	cmd.ExecInCoreSnap()
 
 	// magic \o/

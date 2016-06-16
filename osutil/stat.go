@@ -41,16 +41,6 @@ func IsDirectory(path string) bool {
 	return fileInfo.IsDir()
 }
 
-// IsSymlink returns true if the given file is a symlink
-func IsSymlink(path string) bool {
-	fileInfo, err := os.Lstat(path)
-	if err != nil {
-		return false
-	}
-
-	return (fileInfo.Mode() & os.ModeSymlink) != 0
-}
-
 // IsDevice checks if the given os.FileMode coresponds to a device (char/block)
 func IsDevice(mode os.FileMode) bool {
 	return (mode & (os.ModeDevice | os.ModeCharDevice)) != 0
