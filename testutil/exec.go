@@ -48,7 +48,11 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	logFile := path.Join(binDir, basename+".log")
 	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(""+
 		"#!/bin/sh\n"+
-		"echo \"$@\" >> %q\n"+
+		"echo \"$(basename \"$0\")\" >> %[1]q\n"+
+		"for arg in \"$@\"; do\n"+
+		"    echo \"$arg\" >> %[1]q\n"+
+		"done\n"+
+		"printf \"\\n\" >> %[1]q\n"+
 		"%s\n", logFile, script)), 0700)
 	if err != nil {
 		panic(err)
@@ -70,17 +74,28 @@ func (cmd *MockCmd) Restore() {
 }
 
 // Calls returns a list of calls that were made to the mock command.
-func (cmd *MockCmd) Calls() []string {
-	calls, err := ioutil.ReadFile(cmd.logFile)
+// of the form:
+// [][]string{
+//     {"cmd", "arg1", "arg2"}, // first invocation of "cmd"
+//     {"cmd", "arg1", "arg2"}, // second invocation of "cmd"
+// }
+func (cmd *MockCmd) Calls() [][]string {
+	raw, err := ioutil.ReadFile(cmd.logFile)
 	if os.IsNotExist(err) {
 		return nil
 	}
 	if err != nil {
 		panic(err)
 	}
-	text := string(calls)
-	text = strings.TrimSuffix(text, "\n")
-	return strings.Split(text, "\n")
+	logContent := strings.TrimSuffix(string(raw), "\n")
+
+	allCalls := [][]string{}
+	calls := strings.Split(logContent, "\n\n")
+	for _, call := range calls {
+		call = strings.TrimSuffix(call, "\n")
+		allCalls = append(allCalls, strings.Split(call, "\n"))
+	}
+	return allCalls
 }
 
 // ForgetCalls purges the list of calls made so far

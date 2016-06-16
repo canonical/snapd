@@ -1,3 +1,16 @@
+snapd (2.0.8.1) UNRELEASED; urgency=medium
+
+  * New upstream release
+    - Cherry pick four commits that show snaps as installed in devmode on
+    distributions without full confinement dependencies available:
+
+    25634d3364a46b5e9147e4466932c59b1b572d35
+    53f2e8d5f1b2d7ce13f5b50be4c09fa1de8cf1e0
+    38771f4cc324ad9dd4aa48b03108d13a2c361aad
+    c46e069351c61e45c338c98ab12689a319790bd5
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Tue, 14 Jun 2016 15:55:30 +0200
+
 snapd (2.0.8) xenial; urgency=medium
 
   * New upstream release: LP: #1589534
