@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/sso"
@@ -1120,20 +1121,33 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestSideloadSnap(c *check.C) {
+var sideLoadBodyWithoutDevMode = "" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+	"\r\n" +
+	"xyzzy\r\n" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+	"\r\n" +
+	"a/b/local.snap\r\n" +
+	"----hello--\r\n"
+
+func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
-	body := "" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
-		"\r\n" +
-		"xyzzy\r\n" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
-		"\r\n" +
-		"a/b/local.snap\r\n" +
-		"----hello--\r\n"
+	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
+}
+func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
+	// try a multipart/form-data upload
+	body := sideLoadBodyWithoutDevMode
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	defer restore()
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.DevMode, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1150,6 +1164,8 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, snapstate.DevMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -1394,9 +1410,18 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 }
 
-func (s *apiSuite) TestInstall(c *check.C) {
+func (s *apiSuite) TestInstalOnNonDevModeDistro(c *check.C) {
+	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0))
+}
+func (s *apiSuite) TestInstalOnDevModeDistro(c *check.C) {
+	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode)
+}
+
+func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags) {
 	calledFlags := snapstate.Flags(42)
 	installQueue := []string{}
+	restore := release.MockReleaseInfo(releaseInfo)
+	defer restore()
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
 		// we have ubuntu-core
@@ -1437,7 +1462,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	st.Lock()
 
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
-	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
+	c.Check(calledFlags, check.Equals, flags)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(chg.Kind(), check.Equals, "install-snap")

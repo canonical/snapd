@@ -31,9 +31,12 @@ var _ = Suite(&mockCommandSuite{})
 
 func (s *mockCommandSuite) TestMockCommand(c *C) {
 	mock := MockCommand(c, "cmd", "true")
-	err := exec.Command("cmd", "--arg1", "arg2").Run()
+	err := exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run()
 	c.Assert(err, IsNil)
-	// FIXME: improve mocking, does not properly split args,
-	//        does not include $0
-	c.Assert(mock.Calls(), DeepEquals, []string{"--arg1 arg2"})
+	err = exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run()
+	c.Assert(err, IsNil)
+	c.Assert(mock.Calls(), DeepEquals, [][]string{
+		{"cmd", "first-run", "--arg1", "arg2", "a space"},
+		{"cmd", "second-run", "--arg1", "arg2", "a %s"},
+	})
 }

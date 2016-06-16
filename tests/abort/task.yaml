@@ -1,0 +1,31 @@
+summary: Check change abort
+environment:
+  SNAP_NAME: hello-world
+execute: |
+  echo "Abort with invalid id"
+  invalidID="10000000"
+  expected="error: cannot find change with id \"$invalidID\""
+  actual=$(sudo snap abort $invalidID 2>&1) || EXPECTED_FAILED="abort-invalid"
+  [ "$EXPECTED_FAILED" = "abort-invalid" ] || exit 1
+  echo "$actual" | grep -Pq "$expected" || exit 1
+
+  echo "Abort with valid id - error"
+  subdirPath="/snap/$SNAP_NAME/current/foo"
+  sudo mkdir -p $subdirPath
+  snap install $SNAP_NAME || EXPECTED_FAILED=install
+  [ "$EXPECTED_FAILED" = "install" ] || exit 1
+  id="1"
+  expected="error: cannot abort change $id with nothing pending"
+  actual=$(sudo snap abort $id 2>&1) || EXPECTED_FAILED="abort-error"
+  [ "$EXPECTED_FAILED" = "abort-error" ] || exit 1
+  echo "$actual" | grep -Pq "$expected" || exit 1
+
+  sudo rm -rf $subdirPath
+
+  echo "Abort with valid id - done"
+  sudo snap install $SNAP_NAME
+  id="2"
+  expected="error: cannot abort change $id with nothing pending"
+  actual=$(sudo snap abort $id 2>&1) || EXPECTED_FAILED="abort-done"
+  [ "$EXPECTED_FAILED" = "abort-done" ] || exit 1
+  echo "$actual" | grep -Pq "$expected" || exit 1
