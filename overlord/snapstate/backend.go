@@ -23,14 +23,13 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 )
 
-// A StoreService can find, list available updates and offer for download snaps.
+// A StoreService can find, list available updates and download snaps.
 type StoreService interface {
-	Snap(string, string, store.Authenticator) (*snap.Info, error)
-	Find(string, string, store.Authenticator) ([]*snap.Info, error)
+	Snap(name, channel string, auther store.Authenticator) (*snap.Info, error)
+	Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 
@@ -39,12 +38,11 @@ type StoreService interface {
 
 type managerBackend interface {
 	// install releated
-	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, store StoreService, auther store.Authenticator) (*snap.Info, string, error)
-	SetupSnap(snapFilePath string, si *snap.SideInfo) error
+	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) error
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
-	UndoSetupSnap(s snap.PlaceInfo) error
+	UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
@@ -65,41 +63,3 @@ type defaultBackend struct {
 
 func (b *defaultBackend) Candidate(*snap.SideInfo) {}
 func (b *defaultBackend) Current(*snap.Info)       {}
-
-func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, stor StoreService, auther store.Authenticator) (*snap.Info, string, error) {
-	snap, err := stor.Snap(name, channel, auther)
-	if err != nil {
-		return nil, "", err
-	}
-
-	err = checker(snap)
-	if err != nil {
-		return nil, "", err
-	}
-
-	downloadedSnapFile, err := stor.Download(snap, meter, auther)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return snap, downloadedSnapFile, nil
-}
-
-func (b *defaultBackend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo) error {
-	meter := &progress.NullProgress{}
-	// XXX: pass 0 for flags temporarely, until SetupSnap is moved over,
-	// anyway they aren't used atm, and probably we don't want to pass flags
-	// as before but more precise information
-	_, err := snappy.SetupSnap(snapFilePath, sideInfo, 0, meter)
-	return err
-}
-
-func (b *defaultBackend) UndoSetupSnap(s snap.PlaceInfo) error {
-	meter := &progress.NullProgress{}
-	snappy.UndoSetupSnap(s, meter)
-	return nil
-}
-
-func (b *defaultBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
-	return snappy.RemoveSnapFiles(s, meter)
-}

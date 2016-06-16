@@ -50,6 +50,8 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 	b.mu.Unlock()
 }
 
+func (b *stateBackend) RequestRestart() {}
+
 func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
 	for i := 0; i < 10; i++ {
 		sb.ensureBefore = time.Hour
@@ -343,4 +345,62 @@ func (ts *taskRunnerSuite) TestExternalAbort(c *C) {
 
 	// The Abort above must make Ensure kill the task, or this will never end.
 	ensureChange(c, r, sb, chg)
+}
+
+func (ts *taskRunnerSuite) TestStopHandlerJustFinishing(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	r.AddHandler("just-finish", func(t *state.Task, tb *tomb.Tomb) error {
+		ch <- true
+		<-tb.Dying()
+		// just ignore and actually finishes
+		return nil
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("just-finish", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	r.Ensure()
+	<-ch
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	r.AddHandler("ask-for-retry", func(t *state.Task, tb *tomb.Tomb) error {
+		ch <- true
+		<-tb.Dying()
+		// ask for retry
+		return state.Retry
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("ask-for-retry", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	r.Ensure()
+	<-ch
+	r.Stop()
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.DoingStatus)
 }

@@ -112,8 +112,9 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 		// udevadm was used to reload rules and re-run triggers
-		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
-			"control --reload-rules", "trigger",
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
 		})
 		s.removeSnap(c, snapInfo)
 	}
@@ -149,8 +150,9 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// udevadm was used to reload rules and re-run triggers
-		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
-			"control --reload-rules", "trigger",
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
 		})
 	}
 }
@@ -170,8 +172,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 		// udevadm was used to reload rules and re-run triggers
-		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
-			"control --reload-rules", "trigger",
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
 		})
 		s.removeSnap(c, snapInfo)
 	}
@@ -192,8 +195,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// udevadm was used to reload rules and re-run triggers
-		c.Check(s.udevadmCmd.Calls(), DeepEquals, []string{
-			"control --reload-rules", "trigger",
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
 		})
 		s.removeSnap(c, snapInfo)
 	}
