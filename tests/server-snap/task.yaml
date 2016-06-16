@@ -8,6 +8,7 @@ environment:
   IP_VERSION/goServer: 6
   PORT/goServer: 8081
   TEXT/goServer: Hello World
+kill-timeout: 1m
 prepare: |
   sudo snap install $SNAP_NAME
   cat > request.txt <<EOF
