@@ -163,8 +163,7 @@ func main() {
 	cmd.ExecInCoreSnap()
 
 	// magic \o/
-	arg0 := os.Args[0]
-	snapApp := filepath.Base(arg0)
+	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
 		cmd := &cmdRun{}
 		cmd.Positional.SnapApp = snapApp
