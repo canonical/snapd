@@ -145,7 +145,7 @@ func (x *cmdRemove) Execute([]string) error {
 }
 
 type channelMixin struct {
-	Channel string `long:"channel" description:"Use this channel instead of the device's default"`
+	Channel string `long:"channel" description:"Use this channel instead of stable"`
 
 	// shortcuts
 	EdgeChannel      bool `long:"edge" description:"Install from the edge channel"`
