@@ -24,9 +24,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"time"
 
 	"gopkg.in/check.v1"
 
@@ -72,16 +75,88 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 type SnapOpSuite struct {
 	SnapSuite
 
-	srv snapOpTestServer
+	restorePollTime func()
+	srv             snapOpTestServer
 }
 
 func (s *SnapOpSuite) SetUpTest(c *check.C) {
 	s.SnapSuite.SetUpTest(c)
 
+	s.restorePollTime = snap.MockPollTime(time.Millisecond)
 	s.srv = snapOpTestServer{
 		c:     c,
 		total: 4,
 	}
+}
+
+func (s *SnapOpSuite) TearDownTest(c *check.C) {
+	s.restorePollTime()
+	s.SnapSuite.TearDownTest(c)
+}
+
+func (s *SnapOpSuite) TestWait(c *check.C) {
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
+	// lazy way of getting a URL that won't work nor break stuff
+	server := httptest.NewServer(nil)
+	snap.ClientConfig.BaseURL = server.URL
+	server.Close()
+
+	d := c.MkDir()
+	oldStdout := os.Stdout
+	stdout, err := ioutil.TempFile(d, "stdout")
+	c.Assert(err, check.IsNil)
+	defer func() {
+		os.Stdout = oldStdout
+		stdout.Close()
+		os.Remove(stdout.Name())
+	}()
+	os.Stdout = stdout
+
+	cli := snap.Client()
+	chg, err := snap.Wait(cli, "x")
+	c.Assert(chg, check.IsNil)
+	c.Assert(err, check.NotNil)
+	buf, err := ioutil.ReadFile(stdout.Name())
+	c.Assert(err, check.IsNil)
+	c.Check(string(buf), check.Matches, "(?ms).*Waiting for server to restart.*")
+}
+
+func (s *SnapOpSuite) TestWaitRecovers(c *check.C) {
+	restore := snap.MockMaxGoneTime(time.Millisecond)
+	defer restore()
+
+	nah := true
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		if nah {
+			nah = false
+			return
+		}
+		fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+	})
+
+	d := c.MkDir()
+	oldStdout := os.Stdout
+	stdout, err := ioutil.TempFile(d, "stdout")
+	c.Assert(err, check.IsNil)
+	defer func() {
+		os.Stdout = oldStdout
+		stdout.Close()
+		os.Remove(stdout.Name())
+	}()
+	os.Stdout = stdout
+
+	cli := snap.Client()
+	chg, err := snap.Wait(cli, "x")
+	// we got the change
+	c.Assert(chg, check.NotNil)
+	c.Assert(err, check.IsNil)
+	buf, err := ioutil.ReadFile(stdout.Name())
+	c.Assert(err, check.IsNil)
+
+	// but only after recovering
+	c.Check(string(buf), check.Matches, "(?ms).*Waiting for server to restart.*")
 }
 
 func (s *SnapOpSuite) TestInstall(c *check.C) {
