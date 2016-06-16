@@ -135,6 +135,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	snapstateGet = snapstate.Get
 	snapstateInstallPath = snapstate.InstallPath
 	readSnapInfo = readSnapInfoImpl
+	dirs.SetRootDir("")
 }
 
 func (s *apiSuite) daemon(c *check.C) *Daemon {
