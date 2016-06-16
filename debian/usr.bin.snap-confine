@@ -130,4 +130,13 @@
     /{dev,run}/{,shm/} r,
     # This should both have 'owner' match but due to LP: #1466234, we can't yet
     /{dev,run}/shm/{,*/,*/*/} rw,
+
+    # Workaround https://launchpad.net/bugs/359338 until upstream handles
+    # stacked filesystems generally.
+    # encrypted ~/.Private and old-style encrypted $HOME
+    owner @{HOME}/.Private/ r,
+    owner @{HOME}/.Private/** mrixwlk,
+    # new-style encrypted $HOME
+    owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
+    owner @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
 }

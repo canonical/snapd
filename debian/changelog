@@ -30,6 +30,10 @@ ubuntu-core-launcher (1.0.29) UNRELEASED; urgency=medium
   * Enable hardening options for snap-confine
   * Build-depend on udev, use udevlibdir instead of hardcoding /lib/udev
 
+  [ Jamie Strandboge ]
+  * debian/usr.bin.snap-confine: allow access to ecryptfs lower files
+    (LP: #1574556, LP: #1592696)
+
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 22 May 2016 16:14:24 +0300
 
 ubuntu-core-launcher (1.0.28) yakkety; urgency=medium
