@@ -42,6 +42,7 @@ int main(int argc, char **argv)
 	}
 	if (argc > 1 && !strcmp(argv[0], "ubuntu-core-launcher")) {
 		debug("shifting arguments by one");
+		argv[1] = argv[0];
 		argv++;
 		argc--;
 	}
