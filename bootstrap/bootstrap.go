@@ -260,6 +260,7 @@ type downloadOptions struct {
 	Architecture string
 }
 
+// FIXME: move to snapstate next to InstallPathWithSideInfo()
 func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error) {
 	if opts == nil {
 		opts = &downloadOptions{}
