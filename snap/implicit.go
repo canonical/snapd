@@ -22,8 +22,8 @@ package snap
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -94,7 +94,7 @@ func addImplicitHooks(snapInfo *Info) error {
 	// First of all, check to ensure the hooks directory exists. If it doesn't,
 	// it's not an error-- there's just nothing to do.
 	hooksDir := snapInfo.HooksDir()
-	if _, err := os.Stat(hooksDir); os.IsNotExist(err) {
+	if !osutil.IsDirectory(hooksDir) {
 		return nil
 	}
 
