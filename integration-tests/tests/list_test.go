@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/config"
-	"github.com/snapcore/snapd/integration-tests/testutils/partition"
 	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
 	"github.com/snapcore/snapd/integration-tests/testutils/store"
 
@@ -38,35 +37,6 @@ var _ = check.Suite(&listSuite{})
 
 type listSuite struct {
 	common.SnappySuite
-}
-
-var verRegexp = `(\d{2}\.\d{2}.*|\w{12})`
-
-func (s *listSuite) TestListMustPrintCoreVersion(c *check.C) {
-	listOutput := cli.ExecCommand(c, "snap", "list")
-
-	expected := "(?ms)" +
-		"Name +Version +Rev +Developer +Notes *\n" +
-		".*" +
-		fmt.Sprintf("^%s +.* +%s +[0-9]+ +canonical +- *\n", partition.OSSnapName(c), verRegexp) +
-		".*"
-	c.Assert(listOutput, check.Matches, expected)
-}
-
-func (s *listSuite) TestListMustPrintAppVersion(c *check.C) {
-	common.InstallSnap(c, "hello-world")
-	s.AddCleanup(func() {
-		common.RemoveSnap(c, "hello-world")
-	})
-
-	listOutput := cli.ExecCommand(c, "snap", "list")
-	expected := "(?ms)" +
-		"Name +Version +Rev +Developer +Notes *\n" +
-		".*" +
-		"^hello-world +(\\d+)(\\.\\d+)* +[0-9]+ +\\S+ +-\n" +
-		".*"
-
-	c.Assert(listOutput, check.Matches, expected)
 }
 
 func (s *listSuite) TestRefreshListSimple(c *check.C) {

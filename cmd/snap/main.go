@@ -172,6 +172,21 @@ func main() {
 
 	// no magic /o\
 	cmd.ExecInCoreSnap()
+
+	// magic \o/
+	snapApp := filepath.Base(os.Args[0])
+	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
+		cmd := &cmdRun{}
+		cmd.Positional.SnapApp = snapApp
+		// this will call syscall.Exec() so it does not return
+		// *unless* there is an error, i.e. we setup a wrong
+		// symlink (or syscall.Exec() fails for strange reasons)
+		err := cmd.Execute(os.Args[1:])
+		fmt.Fprintf(Stderr, "internal error, please report: running %q failed: %s\n", snapApp, err)
+		os.Exit(46)
+	}
+
+	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
 		os.Exit(1)
