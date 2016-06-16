@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([snap-confine], [1.0.29], [snapcraft@lists.ubuntu.com])
+AC_INIT([snap-confine], [1.0.30], [snapcraft@lists.ubuntu.com])
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([config.h])
 AC_USE_SYSTEM_EXTENSIONS
@@ -109,5 +109,5 @@ AS_IF([test "x$enable_nvidia_arch" = "xyes"], [
     AC_DEFINE([NVIDIA_ARCH], [1],
         [Support for propietary nvidia drivers (Arch)])])
 
-AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile compat/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
 AC_OUTPUT

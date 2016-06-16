@@ -67,3 +67,5 @@ endif
 # Ensure that snap-confine is +s (setuid)
 install-exec-hook:
 	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+	install -d -m 755 $(DESTDIR)$(bindir)
+	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher

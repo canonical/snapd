@@ -35,23 +35,30 @@
 
 int main(int argc, char **argv)
 {
-	char *basename = strchr(*argv, '/');
-	if (basename)
-		*argv = basename + 1;
-	if (argc > 1 && !strcmp(*argv, "ubuntu-core-launcher")) {
-		argv++;
-		*argv = "ubuntu-core-launcher";
+	char *basename = strrchr(argv[0], '/');
+	if (basename) {
+		debug("setting argv[0] to %s", basename + 1);
+		argv[0] = basename + 1;
 	}
-		
+	if (argc > 1 && !strcmp(argv[0], "ubuntu-core-launcher")) {
+		debug("shifting arguments by one");
+		argv[1] = argv[0];
+		argv++;
+		argc--;
+	}
+
 	const int NR_ARGS = 2;
 	if (argc < NR_ARGS + 1)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
 
 	const char *appname = argv[1];
+	debug("appname is %s", appname);
 #ifdef STRICT_CONFINEMENT
 	const char *aa_profile = argv[1];
+	debug("security-tag is is %s", aa_profile);
 #endif				// ifdef STRICT_CONFINEMENT
 	const char *binary = argv[2];
+	debug("binary to run is is %s", binary);
 	uid_t real_uid = getuid();
 	gid_t real_gid = getgid();
 
