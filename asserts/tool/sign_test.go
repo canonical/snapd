@@ -172,7 +172,7 @@ func (s *signSuite) TestSignKeyIDNestedYAMLWithBodyAndRevision(c *C) {
 
 		AssertionType:      "model",
 		StatementMediaType: "application/x-yaml",
-		Statement:          []byte(nestedModelYaml + `content-body: "CONTENT"`),
+		Statement:          []byte(nestedModelYaml + `body: "BODY"`),
 
 		Revision: 11,
 	}
@@ -188,11 +188,11 @@ func (s *signSuite) TestSignKeyIDNestedYAMLWithBodyAndRevision(c *C) {
 
 	expectedHeaders := expectedModelHeaders()
 	expectedHeaders["revision"] = "11"
-	expectedHeaders["body-length"] = "7"
+	expectedHeaders["body-length"] = "4"
 
 	c.Check(a.Headers(), DeepEquals, expectedHeaders)
 
-	c.Check(a.Body(), DeepEquals, []byte("CONTENT"))
+	c.Check(a.Body(), DeepEquals, []byte("BODY"))
 }
 
 func (s *signSuite) TestSignKeyIDFlatYAMLRevisionWithinHeaders(c *C) {
@@ -275,8 +275,8 @@ func (s *signSuite) TestSignKeyIDFlatJSONRevisionWithinHeaders(c *C) {
 func (s *signSuite) TestSignKeyIDNestedJSONWithBodyAndRevision(c *C) {
 	hdrs := headersForJSON()
 	statement, err := json.Marshal(map[string]interface{}{
-		"headers":      hdrs,
-		"content-body": "CONTENT",
+		"headers": hdrs,
+		"body":    "BODY",
 	})
 	c.Assert(err, IsNil)
 
@@ -302,11 +302,11 @@ func (s *signSuite) TestSignKeyIDNestedJSONWithBodyAndRevision(c *C) {
 
 	expectedHeaders := expectedModelHeaders()
 	expectedHeaders["revision"] = "11"
-	expectedHeaders["body-length"] = "7"
+	expectedHeaders["body-length"] = "4"
 
 	c.Check(a.Headers(), DeepEquals, expectedHeaders)
 
-	c.Check(a.Body(), DeepEquals, []byte("CONTENT"))
+	c.Check(a.Body(), DeepEquals, []byte("BODY"))
 }
 
 func (s *signSuite) TestSignAccountKeyHandle(c *C) {
@@ -327,5 +327,41 @@ func (s *signSuite) TestSignAccountKeyHandle(c *C) {
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Headers(), DeepEquals, expectedModelHeaders())
+	c.Check(a.Body(), IsNil)
+}
+
+func (s *signSuite) TestSignRequestOverridesHeaders(c *C) {
+	hdrs := headersForJSON()
+	hdrs["revision"] = 12
+	hdrs["authority-id"] = "whatever"
+	statement, err := json.Marshal(hdrs)
+	c.Assert(err, IsNil)
+
+	req := tool.SignRequest{
+		KeyID:       s.testKeyID,
+		AuthorityID: "user-id1",
+
+		AssertionType:      "model",
+		StatementMediaType: "application/json",
+		Statement:          statement,
+
+		Revision: 13,
+	}
+
+	assertText, err := tool.Sign(&req, s.keypairMgr)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode(assertText)
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	c.Check(a.AuthorityID(), Equals, "user-id1")
+	c.Check(a.Revision(), Equals, 13)
+
+	expectedHeaders := expectedModelHeaders()
+	expectedHeaders["revision"] = "13"
+
+	c.Check(a.Headers(), DeepEquals, expectedHeaders)
+
 	c.Check(a.Body(), IsNil)
 }
