@@ -228,6 +228,7 @@ func refreshAll() error {
 	}
 	// nothing to update/list
 	if len(updates) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
 		return nil
 	}
 
@@ -269,7 +270,7 @@ func listRefresh() error {
 		return err
 	}
 	if len(snaps) == 0 {
-		return fmt.Errorf(i18n.G("all snaps are fresh"))
+		return fmt.Errorf(i18n.G("All snaps up-to-date"))
 	}
 
 	sort.Sort(snapsByName(snaps))
