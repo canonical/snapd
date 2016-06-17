@@ -167,7 +167,7 @@ version: 1.0
 type: app
 epoch: 1*
 confinement: devmode`
-	snapPath := makeTestSnap(c, yaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
@@ -186,7 +186,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app`
-	snapPath := makeTestSnap(c, yaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
@@ -204,7 +204,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app`
-	snapPath := makeTestSnap(c, yaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
@@ -356,4 +356,97 @@ version: 1.0`
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
+
+func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, hooks []string, checker func(c *C, info *snap.Info)) {
+	// First check installed snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
+	info := snaptest.MockSnapWithHooks(c, yaml, sideInfo, hooks)
+	info, err := snap.ReadInfo(info.Name(), sideInfo)
+	c.Check(err, IsNil)
+	checker(c, info)
+
+	// Now check snap file
+	snapPath := makeTestSnapWithHooks(c, yaml, hooks)
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+	info, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Check(err, IsNil)
+	checker(c, info)
+}
+
+func (s *infoSuite) TestReadInfoNoHooks(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	s.checkInstalledSnapAndSnapFile(c, yaml, nil, func(c *C, info *snap.Info) {
+		// Verify that no hooks were loaded for this snap
+		c.Check(info.Hooks, HasLen, 0)
+	})
+}
+
+func (s *infoSuite) TestReadInfoSingleImplicitHook(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"test-hook"}, func(c *C, info *snap.Info) {
+		// Verify that the `test-hook` hook has now been loaded, and that it has
+		// no associated plugs.
+		c.Check(info.Hooks, HasLen, 1)
+		verifyImplicitHook(c, info, "test-hook")
+	})
+}
+
+func (s *infoSuite) TestReadInfoMultipleImplicitHooks(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"foo", "bar"}, func(c *C, info *snap.Info) {
+		// Verify that both hooks have now been loaded, and that neither have any
+		// associated plugs.
+		c.Check(info.Hooks, HasLen, 2)
+		verifyImplicitHook(c, info, "foo")
+		verifyImplicitHook(c, info, "bar")
+	})
+}
+
+func (s *infoSuite) TestReadInfoImplicitAndExplicitHooks(c *C) {
+	yaml := `name: foo
+version: 1.0
+hooks:
+  explicit:
+    plugs: [test-plug]`
+	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
+		// Verify that the `implicit` hook has now been loaded, and that it has
+		// no associated plugs. Also verify that the `explicit` hook is still
+		// valid.
+		c.Check(info.Hooks, HasLen, 2)
+		verifyImplicitHook(c, info, "implicit")
+		verifyExplicitHook(c, info, "explicit", []string{"test-plug"})
+	})
+}
+
+func verifyImplicitHook(c *C, info *snap.Info, hookName string) {
+	hook := info.Hooks[hookName]
+	c.Assert(hook, NotNil, Commentf("Expected hooks to contain %q", hookName))
+	c.Check(hook.Name, Equals, hookName)
+	c.Check(hook.Plugs, IsNil)
+}
+
+func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []string) {
+	hook := info.Hooks[hookName]
+	c.Assert(hook, NotNil, Commentf("Expected hooks to contain %q", hookName))
+	c.Check(hook.Name, Equals, hookName)
+	c.Check(hook.Plugs, HasLen, len(plugNames))
+
+	for _, plugName := range plugNames {
+		// Verify that the HookInfo and PlugInfo point to each other
+		plug := hook.Plugs[plugName]
+		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
+		c.Check(plug.Name, Equals, plugName)
+		c.Check(plug.Hooks, HasLen, 1)
+		hook = plug.Hooks[hookName]
+		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
+		c.Check(hook.Name, Equals, hookName)
+
+		// Verify also that the hook plug made it into info.Plugs
+		c.Check(info.Plugs[plugName], DeepEquals, plug)
+	}
 }
