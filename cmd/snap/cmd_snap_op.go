@@ -154,35 +154,25 @@ type channelMixin struct {
 	StableChannel    bool `long:"stable" description:"Install from the stable channel"`
 }
 
-func (x *channelMixin) setChannel(channel string) error {
-	if x.Channel != "" {
-		return fmt.Errorf("Please specify a single channel")
-	}
-	x.Channel = channel
-	return nil
-}
-
 func (x *channelMixin) setChannelFromCommandline() error {
-	if x.StableChannel {
-		if err := x.setChannel("stable"); err != nil {
-			return err
+	for _, ch := range []struct {
+		enabled bool
+		chName  string
+	}{
+		{x.StableChannel, "stable"},
+		{x.CandidateChannel, "candidate"},
+		{x.BetaChannel, "beta"},
+		{x.EdgeChannel, "edge"},
+	} {
+		if !ch.enabled {
+			continue
 		}
-	}
-	if x.CandidateChannel {
-		if err := x.setChannel("candidate"); err != nil {
-			return err
+		if x.Channel != "" {
+			return fmt.Errorf("Please specify a single channel")
 		}
+		x.Channel = ch.chName
 	}
-	if x.BetaChannel {
-		if err := x.setChannel("beta"); err != nil {
-			return err
-		}
-	}
-	if x.EdgeChannel {
-		if err := x.setChannel("edge"); err != nil {
-			return err
-		}
-	}
+
 	return nil
 }
 
