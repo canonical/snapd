@@ -93,21 +93,6 @@ func (s *installSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 		check.Commentf("Wrong error message"))
 }
 
-// SNAP_INSTALL_001: --help - print detailed help text for the install command
-func (s *installSuite) TestInstallShowHelp(c *check.C) {
-	expected := "(?ms)" +
-		"^Usage:\n" +
-		`  snap \[OPTIONS\] install.*\n` +
-		"\n^The install command .*\n" +
-		"^Help Options:\n" +
-		"^  -h, --help +Show this help message\n" +
-		".*"
-
-	actual := cli.ExecCommand(c, "snap", "install", "--help")
-
-	c.Assert(actual, check.Matches, expected)
-}
-
 // SNAP_INSTALL_002: without snap name shows error
 func (s *installSuite) TestInstallWithoutSnapNameMustPrintError(c *check.C) {
 	expected := "error: the required argument `<snap>` was not provided\n"
