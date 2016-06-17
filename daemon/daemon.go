@@ -86,7 +86,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 			return true
 		}
 
-		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
+		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin", "wheel") {
 			// If user is in a group that grants sudo in
 			// the default install, and the command says
 			// that's ok, then it's ok.
