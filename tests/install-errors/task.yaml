@@ -1,0 +1,20 @@
+summary: Checks for cli errors installing snaps
+execute: |
+  echo "Install unexisting snap prints error"
+  expected="(?s)error: cannot perform the following tasks:\n\
+  - Download snap \"unexisting.canonical\" from channel \"stable\" \\(snap not found\\)\n"
+  actual=$(snap install unexisting.canonical 2>&1) || EXPECTED_FAILURE="unexisting"
+  [ "$EXPECTED_FAILURE" = "unexisting" ] || exit 1
+  echo "$actual" | grep -Pzq "$expected"
+
+  echo "Install without snap name shows error"
+  expected="(?s)error: the required argument \`<snap>\` was not provided\n"
+  actual=$(snap install 2>&1) || EXPECTED_FAILURE="nosnap"
+  [ "$EXPECTED_FAILURE" = "nosnap" ] || exit 1
+  echo "$actual" | grep -Pzq "$expected"
+
+  echo "Install points to login when not authenticated"
+  expected="snap login --help"
+  actual=$(sudo -i -u test /bin/sh -c "snap install hello-world 2>&1") || EXPECTED_FAILURE="unauthenticated"
+  [ "$EXPECTED_FAILURE" = "unauthenticated" ] || exit 1
+  echo "$actual" | grep -Pzq "$expected"
