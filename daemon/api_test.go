@@ -2716,7 +2716,7 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
 
-	// ensure schedule
+	// Ensure scheduled
 	c.Check(soon, check.Equals, 1)
 
 	// Verify
