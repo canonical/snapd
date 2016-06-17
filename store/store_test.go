@@ -172,15 +172,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	c.Assert(err, IsNil)
 
-	t.store.setUbuntuStoreHeaders(req, "", nil)
+	t.store.setUbuntuStoreHeaders(req, "", false, nil)
 
 	c.Check(req.Header.Get("X-Ubuntu-Release"), Equals, "16")
 	c.Check(req.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
+	c.Check(req.Header.Get("X-Ubuntu-Confinement"), Equals, "")
 
-	t.store.setUbuntuStoreHeaders(req, "chan", nil)
+	t.store.setUbuntuStoreHeaders(req, "chan", true, nil)
 
 	c.Check(req.Header.Get("Authorization"), Equals, "")
 	c.Check(req.Header.Get("X-Ubuntu-Device-Channel"), Equals, "chan")
+	c.Check(req.Header.Get("X-Ubuntu-Confinement"), Equals, "devmode")
 }
 
 const (
@@ -308,6 +310,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 		q := r.URL.Query()
 		c.Check(q.Get("q"), Equals, "package_name:\"hello-world\"")
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "devmode")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
 		w.WriteHeader(http.StatusOK)
@@ -327,7 +330,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", nil)
+	result, err := repo.Snap("hello-world", "edge", true, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
@@ -388,7 +391,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	snap, err := repo.Snap("hello-world", "edge", authenticator)
+	snap, err := repo.Snap("hello-world", "edge", false, authenticator)
 	c.Assert(snap, NotNil)
 	c.Assert(err, IsNil)
 	c.Check(snap.MustBuy, Equals, false)
@@ -420,7 +423,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	_, err = repo.Snap("hello-world", "edge", nil)
+	_, err = repo.Snap("hello-world", "edge", false, nil)
 	c.Assert(err, ErrorMatches, `Ubuntu CPI service returned unexpected HTTP status code 5.. while looking for snap "hello-world" in channel "edge" \[OOPS-[a-f0-9A-F]*\]`)
 }
 
@@ -473,7 +476,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("no-such-pkg", "edge", nil)
+	result, err := repo.Snap("no-such-pkg", "edge", false, nil)
 	c.Assert(err, NotNil)
 	c.Assert(result, IsNil)
 }
@@ -1045,7 +1048,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "USD")
 
 	// we should soon have a suggested currency
-	result, err := repo.Snap("hello-world", "edge", nil)
+	result, err := repo.Snap("hello-world", "edge", false, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
@@ -1053,7 +1056,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency = "EUR"
 
 	// checking the currency updates
-	result, err = repo.Snap("hello-world", "edge", nil)
+	result, err = repo.Snap("hello-world", "edge", false, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
