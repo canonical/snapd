@@ -1229,8 +1229,10 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot abort change %s with nothing pending", chID)
 	}
 
+	// flag the change
 	chg.Abort()
 
+	// actually ask to proceed with the abort
 	ensureStateSoon(state)
 
 	return SyncResponse(change2changeInfo(chg), nil)
