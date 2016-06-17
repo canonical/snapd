@@ -218,7 +218,7 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 }
 
 // small helper that sets the correct http headers for the ubuntu store
-func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, auther Authenticator) {
+func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, devmode bool, auther Authenticator) {
 	if auther != nil {
 		auther.Authenticate(req)
 	}
@@ -230,6 +230,10 @@ func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, cha
 
 	if channel != "" {
 		req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	}
+
+	if devmode {
+		req.Header.Set("X-Ubuntu-Confinement", "devmode")
 	}
 
 	if s.storeID != "" {
@@ -301,7 +305,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 		return nil, err
 	}
 
-	s.setUbuntuStoreHeaders(req, channel, auther)
+	s.setUbuntuStoreHeaders(req, channel, false, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -414,8 +418,7 @@ func mustBuy(prices map[string]float64, purchases []*purchase) bool {
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authenticator) (*snap.Info, error) {
-
+func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, auther Authenticator) (*snap.Info, error) {
 	u := *s.searchURI // make a copy, so we can mutate it
 
 	q := u.Query()
@@ -429,7 +432,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, auther Authentica
 	}
 
 	// set headers
-	s.setUbuntuStoreHeaders(req, channel, auther)
+	s.setUbuntuStoreHeaders(req, channel, devmode, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -498,7 +501,7 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auth
 	}
 
 	// set headers
-	s.setUbuntuStoreHeaders(req, channel, auther)
+	s.setUbuntuStoreHeaders(req, channel, false, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -616,7 +619,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 	// set headers
 	// the updates call is a special snowflake right now
 	// (see LP: #1427155)
-	s.setUbuntuStoreHeaders(req, "", auther)
+	s.setUbuntuStoreHeaders(req, "", false, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -672,7 +675,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req, "", auther)
+	s.setUbuntuStoreHeaders(req, "", remoteSnap.NeedsDevmode(), auther)
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
