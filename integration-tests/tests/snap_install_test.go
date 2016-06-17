@@ -117,37 +117,6 @@ func (s *installSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail
 	c.Assert(actual, check.Matches, expected)
 }
 
-// SNAP_INSTALL_008: from different channel other than default
-func (s *installSuite) TestInstallFromDifferentChannels(c *check.C) {
-	snapName := "hello-world"
-
-	expected := "(?ms).*\n" +
-		"Name +Version +Rev +Developer +Notes\n" +
-		snapName + " .* canonical +-\n"
-
-	for _, channel := range []string{"edge", "beta", "candidate", "stable"} {
-		actual := cli.ExecCommand(c, "sudo", "snap", "install", snapName, "--channel="+channel)
-
-		c.Check(actual, check.Matches, expected)
-
-		common.RemoveSnap(c, snapName)
-	}
-}
-
-// SNAP_INSTALL_009: with devmode option
-func (s *installSuite) TestInstallWithDevmodeOption(c *check.C) {
-	snapName := "hello-world"
-
-	expected := "(?ms).*\n" +
-		"Name +Version +Rev +Developer +Notes\n" +
-		snapName + " .* canonical +devmode\n"
-
-	actual := cli.ExecCommand(c, "sudo", "snap", "install", snapName, "--devmode")
-	defer common.RemoveSnap(c, snapName)
-
-	c.Assert(actual, check.Matches, expected)
-}
-
 func (s *installSuite) TestInstallsDesktopFile(c *check.C) {
 	snapPath, err := build.LocalSnap(c, data.BasicDesktopSnapName)
 	defer os.Remove(snapPath)
