@@ -26,8 +26,8 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 
