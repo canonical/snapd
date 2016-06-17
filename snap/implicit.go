@@ -120,7 +120,7 @@ func addImplicitHooksFromContainer(snapInfo *Info, snapf Container) error {
 	// Read the hooks directory. If this fails we assume the hooks directory
 	// doesn't exist, which means there are no implicit hooks to load (not an
 	// error).
-	fileNames, err := snapf.ListDir(relativeHooksDir)
+	fileNames, err := snapf.ListDir("meta/hooks")
 	if err != nil {
 		return nil
 	}
