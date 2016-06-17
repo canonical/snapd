@@ -122,7 +122,7 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 	prefixPath := path.Join("_", dirPath)
 	pattern, err := regexp.Compile("(?m)^" + regexp.QuoteMeta(prefixPath) + "/([^/\r\n]+)$")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("internal error: cannot compile squashfs list dir regexp for %q: %s", dirPath, err)
 	}
 
 	var directoryContents []string
