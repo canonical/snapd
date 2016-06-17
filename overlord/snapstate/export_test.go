@@ -34,10 +34,6 @@ func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
 
-func SetSnapstateBackend(b ManagerBackend) {
-	be = b
-}
-
 type ForeignTaskTracker interface {
 	ForeignTask(kind string, status state.Status, ss *SnapSetup)
 }
@@ -75,11 +71,19 @@ func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error))
 	return func() { readInfo = snap.ReadInfo }
 }
 
-var OpenSnapFileImpl = openSnapFileImpl
-
 func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
+	prevOpenSnapFile := openSnapFile
 	openSnapFile = mock
-	return func() { openSnapFile = openSnapFileImpl }
+	return func() { openSnapFile = prevOpenSnapFile }
 }
 
-var CheckSnap = checkSnap
+var (
+	CheckSnap = checkSnap
+	CanRemove = canRemove
+)
+
+// flagscompat
+const (
+	InterimUnusableFlagValueMin  = interimUnusableLegacyFlagValueMin
+	InterimUnusableFlagValueLast = interimUnusableLegacyFlagValueLast
+)

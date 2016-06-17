@@ -1,0 +1,199 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2014-2016 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package boot_test
+
+import (
+	"io/ioutil"
+	"path/filepath"
+	"testing"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
+)
+
+func TestBoot(t *testing.T) { TestingT(t) }
+
+type kernelOSSuite struct {
+	bootloader *boottest.MockBootloader
+}
+
+var _ = Suite(&kernelOSSuite{})
+
+func (s *kernelOSSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	s.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(s.bootloader)
+}
+
+func (s *kernelOSSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+	partition.ForceBootloader(nil)
+}
+
+const packageKernel = `
+name: ubuntu-kernel
+version: 4.0-1
+type: kernel
+vendor: Someone
+`
+
+func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"dtbs/foo.dtb", "g'day, I'm foo.dtb"},
+		{"dtbs/bar.dtb", "hello, I'm bar.dtb"},
+		// must be last
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+
+	si := &snap.SideInfo{
+		OfficialName: "ubuntu-kernel",
+		Revision:     snap.R(42),
+	}
+	snap := snaptest.MockSnap(c, packageKernel, si)
+	snaptest.PopulateDir(snap.MountDir(), files)
+
+	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+
+	// this is where the kernel/initrd is unpacked
+	bootdir := s.bootloader.Dir()
+
+	kernelAssetsDir := filepath.Join(bootdir, "ubuntu-kernel_42.snap")
+
+	for _, def := range files {
+		if def[0] == "meta/kernel.yaml" {
+			break
+		}
+
+		fullFn := filepath.Join(kernelAssetsDir, def[0])
+		content, err := ioutil.ReadFile(fullFn)
+		c.Assert(err, IsNil)
+		c.Assert(string(content), Equals, def[1])
+	}
+
+	// remove
+	err = boot.RemoveKernelAssets(snap, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+
+	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
+}
+
+func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
+	// pretend to be a grub system
+	mockGrub := boottest.NewMockBootloader("grub", c.MkDir())
+	partition.ForceBootloader(mockGrub)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		OfficialName: "ubuntu-kernel",
+		Revision:     snap.R(42),
+	}
+	snap := snaptest.MockSnap(c, packageKernel, si)
+	snaptest.PopulateDir(snap.MountDir(), files)
+
+	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+
+	// kernel is *not* here
+	kernimg := filepath.Join(mockGrub.Dir(), "ubuntu-kernel_42.snap", "kernel.img")
+	c.Assert(osutil.FileExists(kernimg), Equals, false)
+}
+
+func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
+	info := &snap.Info{}
+	info.Type = snap.TypeApp
+
+	err := boot.ExtractKernelAssets(info, nil)
+	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
+}
+
+// SetNextBoot should do nothing on classic LP: #1580403
+func (s *kernelOSSuite) TestSetNextBootOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	// Create a fake OS snap that we try to update
+	snapInfo := snaptest.MockSnap(c, "type: os", &snap.SideInfo{Revision: snap.R(42)})
+	err := boot.SetNextBoot(snapInfo)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootloader.BootVars, HasLen, 0)
+}
+
+func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := &snap.Info{}
+	info.Type = snap.TypeOS
+	info.OfficialName = "core"
+	info.Revision = snap.R(100)
+
+	err := boot.SetNextBoot(info)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snappy_os":   "core_100.snap",
+		"snappy_mode": "try",
+	})
+
+	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
+}
+
+func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	info := &snap.Info{}
+	info.Type = snap.TypeKernel
+	info.OfficialName = "krnl"
+	info.Revision = snap.R(42)
+
+	err := boot.SetNextBoot(info)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
+		"snappy_kernel": "krnl_42.snap",
+		"snappy_mode":   "try",
+	})
+
+	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_40.snap"
+	s.bootloader.BootVars["snappy_kernel"] = "krnl_42.snap"
+	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
+
+	// simulate good boot
+	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_42.snap"
+	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
+}

@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -141,5 +142,5 @@ func (s *Snap) Info() *snap.Info {
 
 // NeedsReboot returns true if the snap becomes active on the next reboot
 func (s *Snap) NeedsReboot() bool {
-	return kernelOrOsRebootRequired(s.info)
+	return boot.KernelOrOsRebootRequired(s.info)
 }

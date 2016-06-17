@@ -57,11 +57,11 @@ func (fsbs *filesystemBackstore) readAssertion(assertType *AssertionType, diskPr
 		return nil, ErrNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, failed to read assertion: %v", err)
+		return nil, fmt.Errorf("broken assertion storage, cannot read assertion: %v", err)
 	}
 	assert, err := Decode(encoded)
 	if err != nil {
-		return nil, fmt.Errorf("broken assertion storage, failed to decode assertion: %v", err)
+		return nil, fmt.Errorf("broken assertion storage, cannot decode assertion: %v", err)
 	}
 	if assert.Type() != assertType {
 		return nil, fmt.Errorf("assertion that is not of type %q under their storage tree", assertType.Name)
@@ -103,7 +103,7 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 	}
 	err = atomicWriteEntry(Encode(assert), false, fsbs.top, assertType.Name, diskPrimaryPath)
 	if err != nil {
-		return fmt.Errorf("broken assertion storage, failed to write assertion: %v", err)
+		return fmt.Errorf("broken assertion storage, cannot write assertion: %v", err)
 	}
 	return nil
 }

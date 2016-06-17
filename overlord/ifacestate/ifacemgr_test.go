@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snappy"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -454,7 +453,7 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	// NOTE: This is not an exact test as it duplicates functionality elsewhere
 	// and is was a pain to update each time. This is correctly handled by the
 	// implicit slot tests in snap/implicit_test.go
-	c.Assert(len(slots) > 17, Equals, true)
+	c.Assert(len(slots) > 18, Equals, true)
 }
 
 func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyReloadsConnectionsWhenInvokedOnPlugSide(c *C) {
@@ -502,8 +501,8 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
-// The setup-profiles task will honor snappy.DeveloperMode flag by storing it
-// in the SnapState.Flags (as DevMode) and by actually setting up security
+// The setup-profiles task will honor snapstate.DevMode flag by storing it
+// in the SnapState.Flags and by actually setting up security
 // using that flag. Old copy of SnapState.Flag's DevMode is saved for the undo
 // handler under `old-devmode`.
 func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
@@ -516,7 +515,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Run the setup-profiles task and let it finish.
 	// Note that the task will see SnapSetup.Flags equal to DeveloperMode.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: snapInfo.Name(), Flags: int(snappy.DeveloperMode), Revision: snapInfo.Revision})
+		Name: snapInfo.Name(), Flags: snapstate.DevMode, Revision: snapInfo.Revision})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -605,7 +604,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 //
 // This variant checks restoring DevMode to true
 func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeTrue(c *C) {
-	s.undoDevModeCheck(c, snappy.InstallFlags(0), true)
+	s.undoDevModeCheck(c, 0, true)
 }
 
 // The undo handler of the setup-profiles task will honor `old-devmode` that
@@ -614,10 +613,10 @@ func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeTrue(c *C) {
 //
 // This variant checks restoring DevMode to false
 func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeFalse(c *C) {
-	s.undoDevModeCheck(c, snappy.InstallFlags(0), false)
+	s.undoDevModeCheck(c, 0, false)
 }
 
-func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snappy.InstallFlags, devMode bool) {
+func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snapstate.Flags, devMode bool) {
 	// Put the OS and sample snaps in place.
 	s.mockSnap(c, osSnapYaml)
 	snapInfo := s.mockSnap(c, sampleSnapYaml)
@@ -627,7 +626,10 @@ func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snappy.InstallFlags
 
 	// Run the setup-profiles task in UndoMode and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: snapInfo.Name(), Flags: int(flags), Revision: snapInfo.Revision})
+		Name:     snapInfo.Name(),
+		Flags:    snapstate.SnapSetupFlags(flags),
+		Revision: snapInfo.Revision,
+	})
 	s.state.Lock()
 	task := change.Tasks()[0]
 	// Inject the old value of DevMode flag for the task handler to restore

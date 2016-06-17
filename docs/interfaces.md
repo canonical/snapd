@@ -55,7 +55,7 @@ Auto-Connect: yes
 
 ### opengl
 
-Can access the opengl hardware. 
+Can access the opengl hardware.
 
 Usage: reserved
 Auto-Connect: yes
@@ -67,8 +67,26 @@ This is restricted because it gives file access to the user's
 `$HOME`.
 
 Usage: reserved
+Auto-Connect: yes
+
+### gsettings
+
+Can access global gsettings of the user's session. This is restricted because
+it gives privileged access to sensitive information stored in gsettings and
+allows adjusting settings of other applications.
+
+Usage: reserved
+Auto-Connect: yes
 
 ## Supported Interfaces - Advanced
+
+### cups-control
+
+Can access cups control socket. This is restricted because it provides
+privileged access to configure printing.
+
+Usage: reserved
+Auto-Connect: no
 
 ### firewall-control
 
@@ -76,18 +94,21 @@ Can configure firewall. This is restricted because it gives privileged access
 to networking and should only be used with trusted apps.
 
 Usage: reserved
+Auto-Connect: no
 
 ### locale-control
 
 Can manage locales directly separate from 'config ubuntu-core'.
 
 Usage: reserved
+Auto-Connect: no
 
 ### log-observe
 
 Can read system logs and set kernel log rate-limiting.
 
 Usage: reserved
+Auto-Connect: no
 
 ### mount-observe
 
@@ -96,6 +117,7 @@ privileged read access to mount arguments and should only be used with trusted
 apps.
 
 Usage: reserved
+Auto-Connect: no
 
 ### network-control
 
@@ -103,6 +125,7 @@ Can configure networking. This is restricted because it gives wide, privileged
 access to networking and should only be used with trusted apps.
 
 Usage: reserved
+Auto-Connect: no
 
 ### network-observe
 
@@ -111,12 +134,14 @@ privileged read-only access to networking information and should only be used
 with trusted apps.
 
 Usage: reserved
+Auto-Connect: no
 
 ### snapd-control
 
 Can manage snaps via snapd.
 
 Usage: reserved
+Auto-Connect: no
 
 ### system-observe
 
@@ -125,16 +150,11 @@ privileged read access to all processes on the system and should only be used
 with trusted apps.
 
 Usage: reserved
+Auto-Connect: no
 
 ### timeserver-control
 
 Can manage timeservers directly separate from config ubuntu-core.
 
 Usage: reserved
-
-### cups-control
-
-Can access cups control socket. This is restricted because it provides
-privileged access to configure printing.
-
-Usage: reserved
+Auto-Connect: no

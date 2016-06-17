@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,19 +17,26 @@
  *
  */
 
-package snappy
+package testutil
 
 import (
+	"os/exec"
+
 	. "gopkg.in/check.v1"
 )
 
-func (s *SnapTestSuite) TestCopySnapDataDirectoryError(c *C) {
-	oldPath := c.MkDir()
-	newPath := "/nonono-i-can-not-write-here"
-	err := copySnapDataDirectory(oldPath, newPath)
-	c.Assert(err, DeepEquals, &ErrDataCopyFailed{
-		OldPath:  oldPath,
-		NewPath:  newPath,
-		ExitCode: 1,
+type mockCommandSuite struct{}
+
+var _ = Suite(&mockCommandSuite{})
+
+func (s *mockCommandSuite) TestMockCommand(c *C) {
+	mock := MockCommand(c, "cmd", "true")
+	err := exec.Command("cmd", "first-run", "--arg1", "arg2", "a space").Run()
+	c.Assert(err, IsNil)
+	err = exec.Command("cmd", "second-run", "--arg1", "arg2", "a %s").Run()
+	c.Assert(err, IsNil)
+	c.Assert(mock.Calls(), DeepEquals, [][]string{
+		{"cmd", "first-run", "--arg1", "arg2", "a space"},
+		{"cmd", "second-run", "--arg1", "arg2", "a %s"},
 	})
 }

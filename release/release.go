@@ -38,6 +38,31 @@ type OS struct {
 	Codename string
 }
 
+// ForceDevMode returns true if the distribution doesn't implement required
+// security features for confinement and devmode is forced.
+func (os *OS) ForceDevMode() bool {
+	switch os.ID {
+	case "neon":
+		fallthrough
+	case "ubuntu":
+		return false
+
+	case "elementary":
+		switch os.Release {
+		case "0.4":
+			return false
+		default:
+			return true
+		}
+	default:
+		// NOTE: Other distributions can move out of devmode by
+		// integrating with the interface security backends. This will
+		// be documented separately in the porting guide.
+		return true
+	}
+
+}
+
 var osReleasePath = "/etc/os-release"
 
 // readOSRelease returns the os-release information of the current system.

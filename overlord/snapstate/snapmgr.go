@@ -22,13 +22,15 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -36,8 +38,34 @@ import (
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
+	store   StoreService
 
 	runner *state.TaskRunner
+}
+
+// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
+type SnapSetupFlags Flags
+
+// backward compatibility: upgrade old flags based on snappy.* flags values
+// to Flags if needed
+// XXX: this can be dropped and potentially the type at the earliest
+// in 2.0.9 (after being out for about two prune cycles), at the
+// latest when we need to recover the reserved unusable flag values,
+// or this gets annoying for other reasons
+func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
+	f, err := strconv.Atoi(string(b))
+	if err != nil {
+		return fmt.Errorf("invalid snap-setup flags: %v", err)
+	}
+	if f >= interimUnusableLegacyFlagValueMin && f < (interimUnusableLegacyFlagValueLast<<1) {
+		// snappy.DeveloperMode was 0x10, TryMode was 0x20,
+		// snapstate values are 1 and 2 so this does what we need
+		f >>= 4
+	}
+
+	*ssfl = SnapSetupFlags(f)
+
+	return nil
 }
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
@@ -47,7 +75,7 @@ type SnapSetup struct {
 	Channel  string        `json:"channel,omitempty"`
 	UserID   int           `json:"user-id,omitempty"`
 
-	Flags int `json:"flags,omitempty"`
+	Flags SnapSetupFlags `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
 }
@@ -60,22 +88,18 @@ func (ss *SnapSetup) MountDir() string {
 	return snap.MountDir(ss.Name, ss.Revision)
 }
 
+// DevMode returns true if the snap is being installed in developer mode.
 func (ss *SnapSetup) DevMode() bool {
-	return ss.Flags&int(snappy.DeveloperMode) != 0
+	return ss.Flags&DevMode != 0
 }
 
+// TryMode returns true if the snap is being installed in try mode directly from a directory.
 func (ss *SnapSetup) TryMode() bool {
-	return ss.Flags&int(snappy.TryMode) != 0
+	return ss.Flags&TryMode != 0
 }
 
 // SnapStateFlags are flags stored in SnapState.
-type SnapStateFlags int
-
-const (
-	// DevMode switches confinement to non-enforcing mode.
-	DevMode = 1 << iota
-	TryMode
-)
+type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
@@ -102,13 +126,22 @@ func (snapst *SnapState) DevMode() bool {
 	return snapst.Flags&DevMode != 0
 }
 
+// SetDevMode sets/clears the DevMode flag in the SnapState.
+func (snapst *SnapState) SetDevMode(active bool) {
+	if active {
+		snapst.Flags |= DevMode
+	} else {
+		snapst.Flags &= ^DevMode
+	}
+}
+
 // TryMode returns true if the snap is installed in `try` mode as an
 // unpacked directory.
 func (snapst *SnapState) TryMode() bool {
 	return snapst.Flags&TryMode != 0
 }
 
-// SetTryMode sets/clears the TryMode flag in the SnapState
+// SetTryMode sets/clears the TryMode flag in the SnapState.
 func (snapst *SnapState) SetTryMode(active bool) {
 	if active {
 		snapst.Flags |= TryMode
@@ -121,9 +154,20 @@ func (snapst *SnapState) SetTryMode(active bool) {
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
 	backend := &defaultBackend{}
+
+	storeID := ""
+	// TODO: set the store-id here from the model information
+	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
+		storeID = cand
+	}
+	store := store.NewUbuntuStoreSnapRepository(nil, storeID)
+	// TODO: if needed we could also put the store on the state using
+	// the Cache mechanism and an accessor function
+
 	m := &SnapManager{
 		state:   s,
 		backend: backend,
+		store:   store,
 		runner:  runner,
 	}
 
@@ -158,6 +202,16 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
+// Store returns the store service used by the manager.
+func (m *SnapManager) Store() StoreService {
+	return m.store
+}
+
+// ReplaceStore replaces the store used by manager.
+func (m *SnapManager) ReplaceStore(store StoreService) {
+	m.store = store
+}
+
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
 	for _, si := range snapst.Sequence {
 		if si.Revision == revision {
@@ -178,8 +232,10 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if ss.Revision.Unset() {
 		// Local revisions start at -1 and go down.
+		// (unless it's a really old local revision in which case it needs fixing)
 		revision := snapst.LocalRevision
-		if revision.Unset() {
+		if revision.Unset() || revision.N > 0 {
+			// if revision.N>0 this fixes it
 			revision = snap.R(-1)
 		} else {
 			revision.N--
@@ -226,11 +282,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	checker := func(info *snap.Info) error {
-		return checkRevisionIsNew(ss.Name, snapst, info.Revision)
-	}
-
-	pb := &TaskProgressAdapter{task: t}
+	meter := &TaskProgressAdapter{task: t}
 
 	var auther store.Authenticator
 	if ss.UserID > 0 {
@@ -243,10 +295,20 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		auther = user.Authenticator()
 	}
 
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, auther)
+	storeInfo, err := m.store.Snap(ss.Name, ss.Channel, auther)
 	if err != nil {
 		return err
 	}
+
+	if err = checkRevisionIsNew(ss.Name, snapst, storeInfo.Revision); err != nil {
+		return err
+	}
+
+	downloadedSnapFile, err := m.store.Download(storeInfo, meter, auther)
+	if err != nil {
+		return err
+	}
+
 	ss.SnapPath = downloadedSnapFile
 	ss.Revision = storeInfo.Revision
 
@@ -376,6 +438,7 @@ func (m *SnapManager) Stop() {
 	m.runner.Stop()
 }
 
+// TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var ss SnapSetup
 
@@ -421,7 +484,8 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoSetupSnap(ss.placeInfo())
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -444,13 +508,14 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.Current(curInfo)
 
-	if err := checkSnap(t.State(), ss.SnapPath, curInfo, snappy.InstallFlags(ss.Flags)); err != nil {
+	if err := checkSnap(t.State(), ss.SnapPath, curInfo, Flags(ss.Flags)); err != nil {
 		return err
 	}
 
+	pb := &TaskProgressAdapter{task: t}
 	// TODO Use ss.Revision to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, ss.Flags)
+	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb)
 }
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -527,7 +592,18 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	return m.backend.UndoCopySnapData(newInfo, ss.Flags)
+	var oldInfo *snap.Info
+	if cur := snapst.Current(); cur != nil {
+		var err error
+		oldInfo, err = readInfo(ss.Name, cur)
+		if err != nil {
+			return err
+		}
+
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoCopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
@@ -553,7 +629,8 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	return m.backend.CopySnapData(newInfo, oldInfo, ss.Flags)
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.CopySnapData(newInfo, oldInfo, pb)
 }
 
 func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -609,6 +686,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
+
+	// if we just installed a core snap, request a restart
+	// so that we switch executing its snapd
+	if newInfo.Type == snap.TypeOS && release.OnClassic {
+		t.Logf("Restarting snapd...")
+		st.Unlock()
+		st.RequestRestart()
+		st.Lock()
+	}
+
 	return nil
 }
 

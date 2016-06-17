@@ -66,11 +66,101 @@ const unity7ConnectedPlugAppArmor = `
 #owner @{HOME}/.themes/**              r,
 
 
+# input methods (ibus)
 # subset of ibus abstraction
 /usr/lib/@{multiarch}/gtk-2.0/[0-9]*/immodules/im-ibus.so mr,
 owner @{HOME}/.config/ibus/      r,
 owner @{HOME}/.config/ibus/bus/  r,
 owner @{HOME}/.config/ibus/bus/* r,
+
+# allow communicating with ibus-daemon (this allows sniffing key events)
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@/tmp/ibus/dbus-*"),
+
+
+# input methods (mozc)
+# allow communicating with mozc server (TODO: investigate if allows sniffing)
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@tmp/.mozc.*"),
+
+
+# input methods (fcitx)
+# allow communicating with fcitx dbus service
+dbus send
+    bus=fcitx
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member={Hello,AddMatch,RemoveMatch,GetNameOwner,NameHasOwner,StartServiceByName}
+    peer=(name=org.freedesktop.DBus),
+
+owner @{HOME}/.config/fcitx/dbus/* r,
+
+# allow creating an input context
+dbus send
+    bus=fcitx
+    path=/inputmethod
+    interface=org.fcitx.Fcitx.InputMethod
+    member=CreateIC*
+    peer=(label=unconfined),
+
+# allow setting up and tearing down the input context
+dbus send
+    bus=fcitx
+    path=/inputcontext_[0-9]*
+    interface=org.fcitx.Fcitx.InputContext
+    member="{Close,Destroy,Enable}IC"
+    peer=(label=unconfined),
+
+dbus send
+    bus=fcitx
+    path=/inputcontext_[0-9]*
+    interface=org.fcitx.Fcitx.InputContext
+    member=Reset
+    peer=(label=unconfined),
+
+# allow service to send us signals
+dbus receive
+    bus=fcitx
+    peer=(label=unconfined),
+
+# use the input context
+dbus send
+    bus=fcitx
+    path=/inputcontext_[0-9]*
+    interface=org.fcitx.Fcitx.InputContext
+    member="Focus{In,Out}"
+    peer=(label=unconfined),
+
+dbus send
+    bus=fcitx
+    path=/inputcontext_[0-9]*
+    interface=org.fcitx.Fcitx.InputContext
+    member="{CommitPreedit,Set*}"
+    peer=(label=unconfined),
+
+# this is an information leak and allows key and mouse sniffing. If the input
+# context path were tied to the process' security label, this would not be an
+# issue.
+dbus send
+    bus=fcitx
+    path=/inputcontext_[0-9]*
+    interface=org.fcitx.Fcitx.InputContext
+    member="{MouseEvent,ProcessKeyEvent}"
+    peer=(label=unconfined),
+
+# this method does not exist with the sunpinyin backend (at least), so allow
+# it for other input methods. This may consitute an information leak (which,
+# again, could be avoided if the path were tied to the process' security
+# label).
+dbus send
+    bus=fcitx
+    path=/inputcontext_[0-9]*
+    interface=org.freedesktop.DBus.Properties
+    member=GetAll
+    peer=(label=unconfined),
+
 
 # subset of freedesktop.org
 /usr/share/mime/**                   r,
@@ -91,11 +181,6 @@ dbus (receive, send)
     bus=accessibility
     path=/org/a11y/atspi/**
     peer=(label=unconfined),
-
-# input methods (ibus)
-unix (connect, receive, send)
-     type=stream
-     peer=(addr="@/tmp/ibus/dbus-*"),
 
 # org.freedesktop.Accounts
 dbus (send)

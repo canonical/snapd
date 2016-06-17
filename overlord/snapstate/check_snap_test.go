@@ -30,72 +30,20 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snap/squashfs"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
-type checkSnapSuite struct {
-	onClassic bool
-}
+type checkSnapSuite struct{}
 
 var _ = Suite(&checkSnapSuite{})
 
 func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	s.onClassic = release.OnClassic
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	release.OnClassic = s.onClassic
-}
-
-func (s *checkSnapSuite) TestOpenSnapFile(c *C) {
-	const yaml = `name: hello
-version: 1.0
-apps:
- bin:
-   command: bin
-`
-
-	snapPath := makeTestSnap(c, yaml)
-	info, snapf, err := snapstate.OpenSnapFileImpl(snapPath, nil)
-	c.Assert(err, IsNil)
-
-	c.Assert(snapf, FitsTypeOf, &squashfs.Snap{})
-	c.Check(info.Name(), Equals, "hello")
-}
-
-func (s *checkSnapSuite) TestOpenSnapFilebSideInfo(c *C) {
-	const yaml = `name: foo
-apps:
- bar:
-  command: bin/bar
-plugs:
-  plug:
-slots:
- slot:
-`
-
-	snapPath := makeTestSnap(c, yaml)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
-	info, _, err := snapstate.OpenSnapFileImpl(snapPath, &si)
-	c.Assert(err, IsNil)
-
-	// check side info
-	c.Check(info.Name(), Equals, "blessed")
-	c.Check(info.Revision, Equals, snap.R(42))
-
-	c.Check(info.SideInfo, DeepEquals, si)
-
-	// ensure that all leaf objects link back to the same snap.Info
-	// and not to some copy.
-	// (we had a bug around this)
-	c.Check(info.Apps["bar"].Snap, Equals, info)
-	c.Check(info.Plugs["plug"].Snap, Equals, info)
-	c.Check(info.Slots["slot"].Snap, Equals, info)
-
 }
 
 func (s *checkSnapSuite) TestCheckSnapErrorOnUnsupportedArchitecture(c *C) {
@@ -231,7 +179,8 @@ version: 2
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
-	release.OnClassic = false
+	reset := release.MockOnClassic(false)
+	defer reset()
 
 	st := state.New(nil)
 	st.Lock()
@@ -258,7 +207,8 @@ version: 1
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetCannotBeInstalledOnClassic(c *C) {
-	release.OnClassic = true
+	reset := release.MockOnClassic(true)
+	defer reset()
 
 	st := state.New(nil)
 	st.Lock()

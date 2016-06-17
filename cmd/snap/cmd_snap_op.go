@@ -41,6 +41,11 @@ func lastLogStr(logs []string) string {
 	return logs[len(logs)-1]
 }
 
+var (
+	maxGoneTime = 5 * time.Second
+	pollTime    = 100 * time.Millisecond
+)
+
 func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
@@ -48,12 +53,29 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 		fmt.Fprint(Stdout, "\n")
 	}()
 
+	tMax := time.Time{}
+
 	var lastID string
 	lastLog := map[string]string{}
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
-			return nil, err
+			// an error here means the server most likely went away
+			// XXX: it actually can be a bunch of other things; fix client to expose it better
+			now := time.Now()
+			if tMax.IsZero() {
+				tMax = now.Add(maxGoneTime)
+			}
+			if now.After(tMax) {
+				return nil, err
+			}
+			pb.Spin("Waiting for server to restart")
+			time.Sleep(pollTime)
+			continue
+		}
+		if !tMax.IsZero() {
+			pb.Finished()
+			tMax = time.Time{}
 		}
 
 		for _, t := range chg.Tasks {
@@ -91,7 +113,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 		// note this very purposely is not a ticker; we want
 		// to sleep 100ms between calls, not call once every
 		// 100ms.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(pollTime)
 	}
 }
 

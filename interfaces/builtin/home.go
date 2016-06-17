@@ -49,5 +49,6 @@ func NewHomeInterface() interfaces.Interface {
 		name: "home",
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
+		autoConnect:           true,
 	}
 }

@@ -39,6 +39,7 @@ var implicitSlots = []string{
 
 var implicitClassicSlots = []string{
 	"cups-control",
+	"gsettings",
 	"network-manager",
 	"opengl",
 	"pulseaudio",

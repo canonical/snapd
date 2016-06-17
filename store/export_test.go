@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,13 +17,6 @@
  *
  */
 
-package snappy
+package store
 
-// RemoveFlags can be used to pass additional flags to the snap removal request
-type RemoveFlags uint
-
-const (
-	// DoRemoveGC will ensure that garbage collection is done, unless a
-	// version is specified.
-	DoRemoveGC RemoveFlags = 1 << iota
-)
+var GetFlags = (*LoggedTransport).getFlags

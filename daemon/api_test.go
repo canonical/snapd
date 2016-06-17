@@ -44,9 +44,10 @@ import (
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snappy"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -58,7 +59,6 @@ type apiSuite struct {
 	searchTerm        string
 	channel           string
 	suggestedCurrency string
-	overlord          *fakeOverlord
 	d                 *Daemon
 	auther            store.Authenticator
 	restoreBackends   func()
@@ -93,19 +93,19 @@ func (s *apiSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
+func (s *apiSuite) Download(*snap.Info, progress.Meter, store.Authenticator) (string, error) {
+	panic("Download not expected to be called")
+}
+
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
 func (s *apiSuite) SetUpSuite(c *check.C) {
-	newRemoteRepo = func() metarepo {
-		return s
-	}
 	muxVars = s.muxVars
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
-	newRemoteRepo = nil
 	muxVars = nil
 }
 
@@ -121,9 +121,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.channel = ""
 	s.err = nil
 	s.vars = nil
-	s.overlord = &fakeOverlord{
-		configs: map[string]string{},
-	}
 	s.auther = nil
 	s.d = nil
 	s.refreshCandidates = nil
@@ -138,6 +135,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	snapstateGet = snapstate.Get
 	snapstateInstallPath = snapstate.InstallPath
 	readSnapInfo = readSnapInfoImpl
+	dirs.SetRootDir("")
 }
 
 func (s *apiSuite) daemon(c *check.C) *Daemon {
@@ -147,24 +145,11 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	d, err := New()
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
+
+	d.overlord.SnapManager().ReplaceStore(s)
+
 	s.d = d
 	return d
-}
-
-func (s *apiSuite) mkManifest(c *check.C, pkgType snap.Type) {
-	// creating the part to get its manifest path is cheating, a little
-	sideInfo := snap.SideInfo{
-		OfficialName:      "foo",
-		Developer:         "bar",
-		Revision:          snap.R(2147483647),
-		EditedDescription: " bla bla bla",
-	}
-
-	c.Assert(snappy.SaveManifest(&snap.Info{
-		Type:     pkgType,
-		Version:  "1",
-		SideInfo: sideInfo,
-	}), check.IsNil)
 }
 
 func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
@@ -195,9 +180,6 @@ version: %s
 	guidir := filepath.Join(metadir, "gui")
 	c.Assert(os.MkdirAll(guidir, 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(filepath.Join(guidir, "icon.svg"), []byte("yadda icon"), 0644), check.IsNil)
-
-	err := snappy.SaveManifest(snapInfo)
-	c.Assert(err, check.IsNil)
 
 	if daemon != nil {
 		st := daemon.overlord.State()
@@ -271,6 +253,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"devmode":     false,
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
+			"apps":        []appJSON{},
 		},
 		Meta: meta,
 	}
@@ -298,9 +281,6 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
-	s.vars = map[string]string{"name": "foo"}
-	s.err = snappy.ErrPackageNotFound
-
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
 	c.Check(getSnapInfo(snapCmd, req, nil).(*resp).Status, check.Equals, http.StatusNotFound)
@@ -360,7 +340,6 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"api",
 		"maxReadBuflen",
 		"muxVars",
-		"newRemoteRepo",
 		"errNothingToInstall",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
@@ -1140,35 +1119,33 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	}
 }
 
-type fakeOverlord struct {
-	configs map[string]string
-}
+var sideLoadBodyWithoutDevMode = "" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+	"\r\n" +
+	"xyzzy\r\n" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+	"\r\n" +
+	"a/b/local.snap\r\n" +
+	"----hello--\r\n"
 
-func (o *fakeOverlord) Configure(s *snappy.Snap, c []byte) ([]byte, error) {
-	if len(c) > 0 {
-		o.configs[s.Name()] = string(c)
-	}
-	config, ok := o.configs[s.Name()]
-	if !ok {
-		return nil, fmt.Errorf("no config for %q", s.Name())
-	}
-	return []byte(config), nil
-}
-
-func (s *apiSuite) TestSideloadSnap(c *check.C) {
+func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
-	body := "" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
-		"\r\n" +
-		"xyzzy\r\n" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
-		"\r\n" +
-		"a/b/local.snap\r\n" +
-		"----hello--\r\n"
+	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
+}
+func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
+	// try a multipart/form-data upload
+	body := sideLoadBodyWithoutDevMode
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	defer restore()
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.DevMode, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1185,7 +1162,9 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	chgSummary := s.sideloadCheck(c, body, head, snappy.DeveloperMode, true)
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.DevMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
@@ -1232,7 +1211,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	tryWasCalled := true
-	snapstateTryPath = func(s *state.State, name, path string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateTryPath = func(s *state.State, name, path string, flags snapstate.Flags) (*state.TaskSet, error) {
 		tryWasCalled = true
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -1278,7 +1257,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snappy.InstallFlags, hasUbuntuCore bool) string {
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasUbuntuCore bool) string {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1296,16 +1275,16 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
-		c.Check(flags, check.Equals, snappy.InstallFlags(0))
+		c.Check(flags, check.Equals, snapstate.Flags(0))
 		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
 
-	snapstateInstallPath = func(s *state.State, name, path, channel string, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstallPath = func(s *state.State, name, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
 		bs, err := ioutil.ReadFile(path)
@@ -1429,15 +1408,24 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 }
 
-func (s *apiSuite) TestInstall(c *check.C) {
-	calledFlags := snappy.InstallFlags(42)
+func (s *apiSuite) TestInstalOnNonDevModeDistro(c *check.C) {
+	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0))
+}
+func (s *apiSuite) TestInstalOnDevModeDistro(c *check.C) {
+	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode)
+}
+
+func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags) {
+	calledFlags := snapstate.Flags(42)
 	installQueue := []string{}
+	restore := release.MockReleaseInfo(releaseInfo)
+	defer restore()
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		installQueue = append(installQueue, name)
 
@@ -1472,7 +1460,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	st.Lock()
 
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
-	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
+	c.Check(calledFlags, check.Equals, flags)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(chg.Kind(), check.Equals, "install-snap")
@@ -1480,7 +1468,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 }
 
 func (s *apiSuite) TestRefresh(c *check.C) {
-	calledFlags := snappy.InstallFlags(42)
+	calledFlags := snapstate.Flags(42)
 	calledUserID := 0
 	installQueue := []string{}
 
@@ -1488,7 +1476,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
 		installQueue = append(installQueue, name)
@@ -1510,7 +1498,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	summary, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
-	c.Check(calledFlags, check.Equals, snappy.DoInstallGC)
+	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
@@ -1524,7 +1512,7 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
 		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
 		installQueue = append(installQueue, t1, t2)
@@ -1573,7 +1561,7 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
 		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
 		installQueue = append(installQueue, t1, t2)
@@ -1605,7 +1593,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 		return nil
 	}
 
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
@@ -1639,9 +1627,10 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
-	calledFlags := snappy.InstallFlags(42)
+	c.Skip("temporarily dropped half-baked support while sorting out flag mess")
+	calledFlags := snapstate.Flags(42)
 
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -1660,14 +1649,14 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	_, _, err := inst.dispatch()(inst, st)
 	c.Assert(err, check.IsNil)
 
-	c.Check(calledFlags, check.Equals, snappy.InstallFlags(0))
+	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
 	c.Check(err, check.IsNil)
 }
 
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
-	var calledFlags snappy.InstallFlags
+	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snappy.InstallFlags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -1687,8 +1676,8 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
-	// DevMode was converted to the snappy.DeveloperMode flag
-	c.Check(calledFlags&snappy.DeveloperMode, check.Equals, snappy.DeveloperMode)
+	// DevMode was converted to the snapstate.DevMode flag
+	c.Check(calledFlags&snapstate.DevMode, check.Equals, snapstate.Flags(snapstate.DevMode))
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {

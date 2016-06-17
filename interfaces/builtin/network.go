@@ -29,6 +29,7 @@ const networkConnectedPlugAppArmor = `
 #include <abstractions/ssl_certs>
 
 @{PROC}/sys/net/core/somaxconn r,
+@{PROC}/sys/net/ipv4/tcp_fastopen r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network
@@ -57,7 +58,7 @@ socket
 # of socket(), bind(), connect(), etc individually. While we could allow it,
 # we wouldn't be able to properly arg filter socketcall for AF_INET/AF_INET6
 # when LP: #1446748 is implemented.
-#socketcall
+socketcall
 `
 
 // NewNetworkInterface returns a new "network" interface.
