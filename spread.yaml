@@ -1,6 +1,7 @@
 project: snapd
 
 environment:
+    REUSE_PROJECT: $(echo $REUSE_PROJECT)
     GOPATH: /gopath
     PATH: /gopath/bin:/snap/bin:$PATH
 
@@ -16,18 +17,19 @@ exclude:
     - .git
 
 prepare: |
+    [ "$REUSE_PROJECT" != 1 ] || exit 0
     apt purge -y snapd || true
     apt update
     apt build-dep -y ./
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
     chown test.test -R ..
-    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -b -Zgzip"
+    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
     apt install -y ../snapd_*.deb
+    rm -f ../snapd_*.deb
 
-restore: |
-    rm -f /gopath/src/github.com/snapcore/*.deb
-    userdel test 2>&1 || true
-    apt purge snapd 2>&1 || true
+    # Disable burst limit so resetting the state quickly doesn't create problems.
+    mkdir -p /etc/systemd/system/snapd.service.d
+    echo "[Unit]\nStartLimitInterval=0" >> /etc/systemd/system/snapd.service.d/local.conf
 
 suites:
     tests/:

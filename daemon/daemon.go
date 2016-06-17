@@ -86,7 +86,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 			return true
 		}
 
-		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
+		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin", "wheel") {
 			// If user is in a group that grants sudo in
 			// the default install, and the command says
 			// that's ok, then it's ok.
@@ -221,6 +221,11 @@ func (d *Daemon) addRoutes() {
 
 // Start the Daemon
 func (d *Daemon) Start() {
+	// die when asked to restart (systemd should get us back up!)
+	d.overlord.SetRestartHandler(func() {
+		d.tomb.Kill(nil)
+	})
+
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
 	d.tomb.Go(func() error {
