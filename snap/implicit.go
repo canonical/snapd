@@ -31,6 +31,7 @@ var implicitSlots = []string{
 	"network-bind",
 	"network-control",
 	"network-observe",
+	"ppp",
 	"snapd-control",
 	"system-observe",
 	"timeserver-control",
@@ -45,6 +46,7 @@ var implicitClassicSlots = []string{
 	"pulseaudio",
 	"unity7",
 	"x11",
+	"modem-manager",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
