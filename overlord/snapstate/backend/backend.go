@@ -20,5 +20,26 @@
 // Package backend implements the low-level primitives to manage the snaps and their installation on disk.
 package backend
 
+import (
+	"github.com/snapcore/snapd/snap"
+)
+
 // Backend exposes all the low-level primitives to manage snaps and their installation on disk.
 type Backend struct{}
+
+// OpenSnapFile opens a snap blob returning both a snap.Info completed
+// with sideInfo (if not nil) and a corresponding snap.Container.
+// Assumes the file was verified beforehand or the user asked for devmode.
+func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
+	snapf, err := snap.Open(snapPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, sideInfo)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return info, snapf, nil
+}

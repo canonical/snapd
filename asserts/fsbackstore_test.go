@@ -58,7 +58,7 @@ func (fsbss *fsBackstoreSuite) TestOpenCreateFail(c *C) {
 	c.Assert(err, IsNil)
 
 	bs, err := asserts.OpenFSBackstore(topDir)
-	c.Assert(err, ErrorMatches, "failed to create assert storage root: .*")
+	c.Assert(err, ErrorMatches, "cannot create assert storage root: .*")
 	c.Check(bs, IsNil)
 }
 

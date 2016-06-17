@@ -273,6 +273,7 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileMode(c *C) {
 	srv := &snap.AppInfo{
+		Name: "foo",
 		Snap: &snap.Info{},
 	}
 

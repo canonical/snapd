@@ -35,21 +35,6 @@ type removeSuite struct {
 	common.SnappySuite
 }
 
-// SNAP_REMOVE_001: --help prints the detailed help test for the command
-func (s *removeSuite) TestRemoveShowsHelp(c *check.C) {
-	expected := "(?ms)" +
-		"^Usage:\n" +
-		`  snap \[OPTIONS\] remove.*\n` +
-		"\n^The remove command .*\n" +
-		"^Help Options:\n" +
-		"^  -h, --help +Show this help message\n" +
-		".*"
-
-	actual := cli.ExecCommand(c, "snap", "remove", "--help")
-
-	c.Assert(actual, check.Matches, expected)
-}
-
 // SNAP_REMOVE_002: - invalid pkg name
 func (s *removeSuite) TestRemoveInvalidPackageShowsError(c *check.C) {
 	invalidPkg := "invalid-package-name"

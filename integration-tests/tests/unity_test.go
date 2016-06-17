@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
@@ -45,6 +46,10 @@ type unitySuite struct {
 }
 
 func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
+	if runtime.GOARCH != "amd64" {
+		c.Skip("all find results are only available on amd64")
+	}
+
 	_, err := cli.ExecCommandErr("sudo", "snap", "install", appName)
 	c.Assert(err, check.IsNil)
 	defer cli.ExecCommand(c, "sudo", "snap", "remove", appName)
@@ -78,7 +83,7 @@ func (s *unitySuite) TestUnitySnapCanBeStarted(c *check.C) {
 	err = mainCmd.Process.Kill()
 	c.Assert(err, check.IsNil, check.Commentf("error interrupting %s, %v", appName, err))
 
-	// at this point the Xvfb, ubuntu-clock-app.clock and qmlscene processes are still alive
+	// at this point the Xvfb and qmlscene processes are still alive
 	//and the snap can't be removed
-	cli.ExecCommand(c, "sudo", "killall", "-9", appBinaryName, "Xvfb", "qmlscene")
+	cli.ExecCommand(c, "sudo", "killall", "-9", "Xvfb", "qmlscene")
 }

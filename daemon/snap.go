@@ -118,10 +118,22 @@ func effectiveConfinement(snapst *snapstate.SnapState) snap.ConfinementType {
 	return snap.StrictConfinement
 }
 
+// appJSON contains the json for snap.AppInfo
+type appJSON struct {
+	Name string `json:"name"`
+}
+
 func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
 	status := "installed"
 	if snapst.Active {
 		status = "active"
+	}
+
+	apps := make([]appJSON, 0, len(localSnap.Apps))
+	for _, app := range localSnap.Apps {
+		apps = append(apps, appJSON{
+			Name: app.Name,
+		})
 	}
 
 	return map[string]interface{}{
@@ -142,6 +154,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"devmode":        snapst.DevMode(),
 		"trymode":        snapst.TryMode(),
 		"private":        localSnap.Private,
+		"apps":           apps,
 	}
 }
 

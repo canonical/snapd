@@ -8,14 +8,12 @@ data/completion/snap /usr/share/bash-completion/completions/
 etc/profile.d
 # etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
 etc/X11
-# etc/ld.so.conf.d contains the SNAP_LIBRARY_PATH directories
-etc/ld.so.conf.d
 
 # systemd stuff
 
 # auto-update
-debian/*.timer /lib/systemd/system/
-debian/snappy-autopilot.service /lib/systemd/system/
+debian/snapd.refresh.timer /lib/systemd/system/
+debian/snapd.refresh.service /lib/systemd/system/
 # snapd
 debian/*.socket /lib/systemd/system/
 debian/snapd.service /lib/systemd/system/

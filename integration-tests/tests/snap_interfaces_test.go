@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !excludeintegration
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +18,30 @@
  *
  */
 
-package snappy
+package tests
 
 import (
-	. "gopkg.in/check.v1"
+	"fmt"
 
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/snap"
+	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/integration-tests/testutils/cli"
+	"github.com/snapcore/snapd/integration-tests/testutils/common"
 )
 
-func (s *SnapTestSuite) TestUnlinkSnapActiveVsNotActive(c *C) {
-	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeApp)
+var _ = check.Suite(&interfacesCliTest{})
 
-	err := unlinkSnap(foo2, &progress.NullProgress{})
-	c.Assert(err, IsNil)
-
-	err = unlinkSnap(foo1, &progress.NullProgress{})
-	c.Assert(err, Equals, ErrSnapNotActive)
+type interfacesCliTest struct {
+	common.SnappySuite
 }
 
-func (s *SnapTestSuite) TestCanRemoveGadget(c *C) {
-	foo1, foo2 := makeTwoTestSnaps(c, snap.TypeGadget)
+// SNAP_INTERFACES_006: snap interfaces -i=<slot>
+func (s *interfacesCliTest) TestFilterBySlot(c *check.C) {
+	plug := "network"
 
-	c.Check(CanRemove(foo2, true), Equals, false)
+	expected := fmt.Sprintf("Slot +Plug\n:%s +-\n", plug)
 
-	c.Check(CanRemove(foo1, false), Equals, true)
+	actual := cli.ExecCommand(c, "snap", "interfaces", "-i", plug)
+
+	c.Assert(actual, check.Matches, expected)
 }

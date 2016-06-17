@@ -58,9 +58,15 @@ type Bootloader interface {
 	Name() string
 }
 
+var forcedBootloader Bootloader
+
 // FindBootloader returns the bootloader for the given system
 // or an error if no bootloader is found
 func FindBootloader() (Bootloader, error) {
+	if forcedBootloader != nil {
+		return forcedBootloader, nil
+	}
+
 	// try uboot
 	if uboot := newUboot(); uboot != nil {
 		return uboot, nil
@@ -73,6 +79,11 @@ func FindBootloader() (Bootloader, error) {
 
 	// no, weeeee
 	return nil, ErrBootloader
+}
+
+// ForceBootloader can be used to force setting a booloader to that FindBootloader will not use the usual lookup process, use nil to reset to normal lookup.
+func ForceBootloader(booloader Bootloader) {
+	forcedBootloader = booloader
 }
 
 // MarkBootSuccessful marks the current boot as sucessful. This means

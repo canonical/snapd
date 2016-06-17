@@ -20,9 +20,14 @@
 package snapenv
 
 import (
+	"fmt"
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/snap"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -31,22 +36,33 @@ type HTestSuite struct{}
 
 var _ = Suite(&HTestSuite{})
 
-func (ts *HTestSuite) TestMakeMapFromEnvList(c *C) {
-	envList := []string{
-		"PATH=/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS=unix:abstract=something1234",
-	}
-	envMap := MakeMapFromEnvList(envList)
-	c.Assert(envMap, DeepEquals, map[string]string{
-		"PATH": "/usr/bin:/bin",
-		"DBUS_SESSION_BUS_ADDRESS": "unix:abstract=something1234",
-	})
+var mockSnapInfo = &snap.Info{
+	SuggestedName: "foo",
+	Version:       "1.0",
+	SideInfo: snap.SideInfo{
+		Revision: snap.R(17),
+	},
 }
 
-func (ts *HTestSuite) TestMakeMapFromEnvListInvalidInput(c *C) {
-	envList := []string{
-		"nonsesne",
-	}
-	envMap := MakeMapFromEnvList(envList)
-	c.Assert(envMap, DeepEquals, map[string]string(nil))
+func (ts *HTestSuite) TestBasic(c *C) {
+	env := Basic(mockSnapInfo)
+	sort.Strings(env)
+
+	c.Assert(env, DeepEquals, []string{
+		"SNAP=/snap/foo/17",
+		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
+		"SNAP_DATA=/var/snap/foo/17",
+		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
+		"SNAP_NAME=foo",
+		"SNAP_REVISION=17",
+		"SNAP_VERSION=1.0",
+	})
+
+}
+
+func (ts *HTestSuite) TestUser(c *C) {
+	env := User(mockSnapInfo, "/root")
+	c.Assert(env, DeepEquals, []string{
+		"SNAP_USER_DATA=/root/snap/foo/17",
+	})
 }

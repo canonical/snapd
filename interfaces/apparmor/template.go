@@ -176,6 +176,11 @@ var defaultTemplate = []byte(`
   @{PROC}/uptime r,
   @{PROC}/loadavg r,
 
+  # lsb-release
+  /usr/bin/lsb_release ixr,
+  /usr/bin/ r,
+  /usr/share/distro-info/*.csv r,
+
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
   # information leak.
@@ -191,6 +196,7 @@ var defaultTemplate = []byte(`
   /etc/lsb-release r,
   /sys/devices/**/read_ahead_kb r,
   /sys/devices/system/cpu/** r,
+  /sys/devices/system/node/node[0-9]*/* r,
   /sys/kernel/mm/transparent_hugepage/enabled r,
   /sys/kernel/mm/transparent_hugepage/defrag r,
   # NOTE: this leaks running process but java seems to want it (even though it
@@ -205,9 +211,14 @@ var defaultTemplate = []byte(`
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
+  @{PROC}/@{pid}/io r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
+  @{PROC}/@{pid}/task/ r,
+  @{PROC}/@{pid}/task/[0-9]*/stat r,
+  @{PROC}/@{pid}/task/[0-9]*/statm r,
+  @{PROC}/@{pid}/task/[0-9]*/status r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,

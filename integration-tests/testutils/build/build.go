@@ -66,7 +66,7 @@ type Config struct {
 
 // Assets builds the snappy and integration tests binaries for the target
 // architecture.
-func Assets(cfg *Config) {
+func Assets(cfg *Config) error {
 	tmp := "/tmp/snappy-build"
 	_, filename, _, _ := runtime.Caller(1)
 	dir, _ := filepath.Abs(filepath.Join(path.Dir(filename), ".."))
@@ -81,36 +81,42 @@ func Assets(cfg *Config) {
 		coverpkg := getCoverPkg()
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		buildSnapd(cfg.Arch, coverpkg)
-		buildSnapCLI(cfg.Arch, coverpkg)
+		if err := buildSnapd(cfg.Arch, coverpkg); err != nil {
+			return err
+		}
+		if err := buildSnapCLI(cfg.Arch, coverpkg); err != nil {
+			return err
+		}
 	}
-	buildSnapbuild(cfg.Arch)
-	buildTests(cfg.Arch, cfg.TestBuildTags)
+	if err := buildSnapbuild(cfg.Arch); err != nil {
+		return err
+	}
+	return buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
-func buildSnapd(arch, coverpkg string) {
+func buildSnapd(arch, coverpkg string) error {
 	fmt.Println("Building snapd...")
 	buildSnapdCmd := getBinaryBuildCmd("snapd", coverpkg)
 
-	goCall(arch, buildSnapdCmd)
+	return goCall(arch, buildSnapdCmd)
 }
 
-func buildSnapCLI(arch, coverpkg string) {
+func buildSnapCLI(arch, coverpkg string) error {
 	fmt.Println("Building snap...")
 
 	buildSnapCliCmd := getBinaryBuildCmd("snap", coverpkg)
-	goCall(arch, buildSnapCliCmd)
+	return goCall(arch, buildSnapCliCmd)
 }
 
-func buildSnapbuild(arch string) {
+func buildSnapbuild(arch string) error {
 	fmt.Println("Building snapbuild...")
 
 	buildSnapbuildCmd := "go build" +
 		" -o " + filepath.Join(testsBinDir, filepath.Base(snapbuildPkg)) + " " + snapbuildPkg
-	goCall(arch, buildSnapbuildCmd)
+	return goCall(arch, buildSnapbuildCmd)
 }
 
-func buildTests(arch, testBuildTags string) {
+func buildTests(arch, testBuildTags string) error {
 	fmt.Println("Building tests...")
 
 	var tagText string
@@ -119,13 +125,15 @@ func buildTests(arch, testBuildTags string) {
 	}
 	cmd := fmt.Sprintf(buildTestCmdFmt, tagText)
 
-	goCall(arch, cmd)
+	if err := goCall(arch, cmd); err != nil {
+		return err
+	}
 	// XXX Go test 1.3 does not have the output flag, so we move the
 	// binaries after they are generated.
-	osRename("tests.test", testsBinDir+IntegrationTestName)
+	return osRename("tests.test", testsBinDir+IntegrationTestName)
 }
 
-func goCall(arch string, cmd string) {
+func goCall(arch string, cmd string) error {
 	if arch != "" {
 		defer osSetenv("GOARCH", osGetenv("GOARCH"))
 		osSetenv("GOARCH", arch)
@@ -144,7 +152,11 @@ func goCall(arch string, cmd string) {
 	cmdElems := strings.Fields(cmd)
 	command := exec.Command(cmdElems[0], cmdElems[1:]...)
 	command.Dir = filepath.Join(os.Getenv("GOPATH"), projectSrcPath)
-	execCommand(command)
+	output, err := execCommand(command)
+	if err != nil {
+		return fmt.Errorf("command %q failed: %q (%s)", cmdElems, err, output)
+	}
+	return nil
 }
 
 func getBinaryBuildCmd(binary, coverpkg string) string {

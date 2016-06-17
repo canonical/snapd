@@ -60,7 +60,7 @@ func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey
 	}
 	encoded, err := encodePrivateKey(privKey)
 	if err != nil {
-		return fmt.Errorf("failed to store private key: %v", err)
+		return fmt.Errorf("cannot store private key: %v", err)
 	}
 
 	fskm.mu.Lock()
@@ -68,7 +68,7 @@ func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey
 
 	err = atomicWriteEntry(encoded, true, fskm.top, escapedAuthorityID, keyID)
 	if err != nil {
-		return fmt.Errorf("failed to store private key: %v", err)
+		return fmt.Errorf("cannot store private key: %v", err)
 	}
 	return nil
 }
@@ -84,11 +84,11 @@ func (fskm *filesystemKeypairManager) Get(authorityID, keyID string) (PrivateKey
 		return nil, errKeypairNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to read key pair: %v", err)
+		return nil, fmt.Errorf("cannot read key pair: %v", err)
 	}
 	privKey, err := decodePrivateKey(encoded)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode key pair: %v", err)
+		return nil, fmt.Errorf("cannot decode key pair: %v", err)
 	}
 	return privKey, nil
 }

@@ -35,6 +35,7 @@ owner @{PROC}/@{pid}/mounts r,
 
 # This is often out of date but some apps insist on using it
 /etc/mtab r,
+/etc/fstab r,
 `
 
 // NewMountObserveInterface returns a new "mount-observe" interface.
