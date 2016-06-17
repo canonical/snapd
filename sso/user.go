@@ -30,6 +30,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // SSOBaseURL is the base url of the SSO service
@@ -37,6 +38,7 @@ var SSOBaseURL string
 
 var (
 	userLookup = user.Lookup
+	httpClient = http.Client{Timeout: 10 * time.Second}
 )
 
 var addUser = func(name string, sshKeys []string) error {
@@ -64,7 +66,7 @@ var addUser = func(name string, sshKeys []string) error {
 
 type keysReply struct {
 	Username         string   `json:"username"`
-	SshKeys          []string `json:"ssh_keys"`
+	SSHKeys          []string `json:"ssh_keys"`
 	OpenIDIdentifier string   `json:"openid_identifier"`
 }
 
@@ -78,7 +80,7 @@ func CreateUser(email string) (username string, err error) {
 	}
 	ssourl = fmt.Sprintf("%s/api/v2/keys/%s", ssourl, url.QueryEscape(email))
 
-	resp, err := http.Get(ssourl)
+	resp, err := httpClient.Get(ssourl)
 	if err != nil {
 		return "", err
 	}
@@ -90,7 +92,7 @@ func CreateUser(email string) (username string, err error) {
 		return "", fmt.Errorf("cannot unmarshal: %s", err)
 	}
 
-	if err := addUser(v.Username, v.SshKeys); err != nil {
+	if err := addUser(v.Username, v.SSHKeys); err != nil {
 		return v.Username, err
 	}
 

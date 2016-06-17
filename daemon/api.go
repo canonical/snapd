@@ -1257,8 +1257,6 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
-	// FIXME: this will block, we really need to make this an
-	//        async operation
 	username, err := ssoCreateUser(createData.EMail)
 	if err != nil {
 		return BadRequest("cannot create user %s: %s", createData.EMail, err)
