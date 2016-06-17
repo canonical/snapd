@@ -22,11 +22,8 @@ package tests
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/integration-tests/testutils/build"
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
@@ -40,33 +37,6 @@ var _ = check.Suite(&installSuite{})
 
 type installSuite struct {
 	common.SnappySuite
-}
-
-func (s *installSuite) TestInstallAppMustPrintPackageInformation(c *check.C) {
-	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
-	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-	installOutput := common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, data.BasicSnapName)
-
-	expected := "(?ms)" +
-		"Name +Version +Rev +Developer +Notes\n" +
-		".*" +
-		"^basic +.* *\n" +
-		".*"
-
-	c.Assert(installOutput, check.Matches, expected)
-}
-
-func (s *installSuite) TestCallSuccessfulBinaryFromInstalledSnap(c *check.C) {
-	snapPath, err := build.LocalSnap(c, data.BasicBinariesSnapName)
-	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-	common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, data.BasicBinariesSnapName)
-
-	// Exec command does not fail.
-	cli.ExecCommand(c, "basic-binaries.success")
 }
 
 func (s *installSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
@@ -146,22 +116,6 @@ func (s *installSuite) TestInstallWithDevmodeOption(c *check.C) {
 	defer common.RemoveSnap(c, snapName)
 
 	c.Assert(actual, check.Matches, expected)
-}
-
-func (s *installSuite) TestInstallsDesktopFile(c *check.C) {
-	snapPath, err := build.LocalSnap(c, data.BasicDesktopSnapName)
-	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-	common.InstallSnap(c, snapPath)
-	defer common.RemoveSnap(c, data.BasicDesktopSnapName)
-
-	content, err := ioutil.ReadFile(filepath.Join(dirs.SnapDesktopFilesDir, "basic-desktop_echo.desktop"))
-	c.Assert(err, check.IsNil)
-	c.Assert(string(content), testutil.Contains, `[Desktop Entry]
-Name=Echo
-Comment=It echos stuff
-Exec=/snap/bin/basic-desktop.echo
-`)
 }
 
 // regression test for lp #1574829
