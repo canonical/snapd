@@ -45,7 +45,7 @@ var _ = Suite(&SquashfsTestSuite{})
 
 func makeSnap(c *C, manifest, data string) *Snap {
 	tmp := c.MkDir()
-	err := os.MkdirAll(filepath.Join(tmp, "meta", "hooks"), 0755)
+	err := os.MkdirAll(filepath.Join(tmp, "meta", "hooks", "dir"), 0755)
 	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
@@ -53,9 +53,13 @@ func makeSnap(c *C, manifest, data string) *Snap {
 	c.Assert(err, IsNil)
 
 	// some hooks
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "hook1"), nil, 0755)
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "foo-hook"), nil, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "hook2"), nil, 0755)
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "bar-hook"), nil, 0755)
+	c.Assert(err, IsNil)
+	// And a file in another directory in there, just for testing (not a valid
+	// hook)
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "dir", "baz"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	// some data
@@ -103,9 +107,10 @@ func (s *SquashfsTestSuite) TestListDir(c *C) {
 
 	fileNames, err := snap.ListDir("meta/hooks")
 	c.Assert(err, IsNil)
-	c.Assert(len(fileNames), Equals, 2)
-	c.Check(fileNames[0], Equals, "hook1")
-	c.Check(fileNames[1], Equals, "hook2")
+	c.Assert(len(fileNames), Equals, 3)
+	c.Check(fileNames[0], Equals, "bar-hook")
+	c.Check(fileNames[1], Equals, "dir")
+	c.Check(fileNames[2], Equals, "foo-hook")
 }
 
 // TestUnpackGlob tests the internal unpack
