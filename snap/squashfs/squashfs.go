@@ -26,7 +26,9 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
@@ -46,8 +48,8 @@ func (s *Snap) Path() string {
 }
 
 // New returns a new Squashfs snap.
-func New(path string) *Snap {
-	return &Snap{path: path}
+func New(snapPath string) *Snap {
+	return &Snap{path: snapPath}
 }
 
 // Install just copies the blob into place (unless it is used in the tests)
@@ -74,12 +76,19 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	return runCommand("cp", "-a", s.path, targetPath)
 }
 
-var runCommand = func(args ...string) error {
+var runCommandWithOutput = func(args ...string) ([]byte, error) {
 	cmd := exec.Command(args[0], args[1:]...)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("cmd: %q failed: %v (%q)", strings.Join(args, " "), err, output)
 	}
-	return nil
+
+	return output, nil
+}
+
+var runCommand = func(args ...string) error {
+	_, err := runCommandWithOutput(args...)
+	return err
 }
 
 func (s *Snap) unpack(src, dstDir string) error {
@@ -87,7 +96,7 @@ func (s *Snap) unpack(src, dstDir string) error {
 }
 
 // ReadFile returns the content of a single file inside a squashfs snap.
-func (s *Snap) ReadFile(path string) (content []byte, err error) {
+func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	tmpdir, err := ioutil.TempDir("", "read-file")
 	if err != nil {
 		return nil, err
@@ -95,37 +104,38 @@ func (s *Snap) ReadFile(path string) (content []byte, err error) {
 	defer os.RemoveAll(tmpdir)
 
 	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := runCommand("unsquashfs", "-i", "-d", unpackDir, s.path, path); err != nil {
+	if err := runCommand("unsquashfs", "-i", "-d", unpackDir, s.path, filePath); err != nil {
 		return nil, err
 	}
 
-	return ioutil.ReadFile(filepath.Join(unpackDir, path))
+	return ioutil.ReadFile(filepath.Join(unpackDir, filePath))
 }
 
 // ListDir returns the content of a single directory inside a squashfs snap.
-func (s *Snap) ListDir(path string) ([]string, error) {
-	tmpdir, err := ioutil.TempDir("", "read-dir")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(tmpdir)
-
-	unpackDir := filepath.Join(tmpdir, "unpack")
-	if err := runCommand("unsquashfs", "-i", "-d", unpackDir, s.path, path); err != nil {
-		return nil, err
-	}
-
-	fileInfos, err := ioutil.ReadDir(filepath.Join(unpackDir, path))
+func (s *Snap) ListDir(dirPath string) ([]string, error) {
+	output, err := runCommandWithOutput(
+		"unsquashfs", "-no-progress", "-dest", "", "-l", s.path, dirPath)
 	if err != nil {
 		return nil, err
 	}
 
-	var fileNames []string
-	for _, fileInfo := range fileInfos {
-		fileNames = append(fileNames, fileInfo.Name())
+	dirPath = path.Clean(dirPath)
+	pattern := regexp.MustCompile(regexp.QuoteMeta(dirPath) + string(os.PathSeparator) + "?(.+)")
+
+	var directoryContents []string
+	for _, groups := range pattern.FindAllSubmatch(output, -1) {
+		if len(groups) > 1 {
+			content := string(groups[1])
+			// unsquashfs -l is recursive. We don't want to include the contents
+			// of subdirectories, so check to ensure this item doesn't contain
+			// a separator.
+			if !strings.ContainsRune(content, os.PathSeparator) {
+				directoryContents = append(directoryContents, content)
+			}
+		}
 	}
 
-	return fileNames, nil
+	return directoryContents, nil
 }
 
 const (
