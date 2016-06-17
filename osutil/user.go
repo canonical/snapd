@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2015 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,32 +17,24 @@
  *
  */
 
-package sso
+package osutil
 
 import (
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
-// SSOBaseURL is the base url of the SSO service
-var SSOBaseURL string
+var userLookup = user.Lookup
 
-var (
-	userLookup = user.Lookup
-	httpClient = http.Client{Timeout: 10 * time.Second}
-)
-
-var addUser = func(name string, sshKeys []string) error {
-	cmd := exec.Command("adduser", "--gecos", "created by snapd", "--extrausers", "--disabled-password", name)
+func AddExtraUser(name string, sshKeys []string) error {
+	// FIXME: put date/time/openid in there
+	gecos := "created by snapd"
+	cmd := exec.Command("adduser", "--gecos", gecos, "--extrausers", "--disabled-password", name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
@@ -62,39 +54,4 @@ var addUser = func(name string, sshKeys []string) error {
 	}
 
 	return nil
-}
-
-type keysReply struct {
-	Username         string   `json:"username"`
-	SSHKeys          []string `json:"ssh_keys"`
-	OpenIDIdentifier string   `json:"openid_identifier"`
-}
-
-func CreateUser(email string) (username string, err error) {
-	ssourl := SSOBaseURL
-	if ssourl == "" {
-		ssourl = os.Getenv("SNAPD_SSO_LOGIN_URL")
-		if ssourl == "" {
-			ssourl = "https://login.ubuntu.com/"
-		}
-	}
-	ssourl = fmt.Sprintf("%s/api/v2/keys/%s", ssourl, url.QueryEscape(email))
-
-	resp, err := httpClient.Get(ssourl)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	var v keysReply
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&v); err != nil {
-		return "", fmt.Errorf("cannot unmarshal: %s", err)
-	}
-
-	if err := addUser(v.Username, v.SSHKeys); err != nil {
-		return v.Username, err
-	}
-
-	return v.Username, nil
 }

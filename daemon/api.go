@@ -48,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/sso"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -1235,8 +1234,9 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 var (
-	ssoCreateUser                = sso.CreateUser
 	postCreateUserUcrednetGetUID = ucrednetGetUID
+	storeUserInfo                = store.UserInfo
+	osutilAddExtraUser           = osutil.AddExtraUser
 )
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1257,15 +1257,19 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
-	username, err := ssoCreateUser(createData.EMail)
+	v, err := storeUserInfo(createData.EMail)
 	if err != nil {
 		return BadRequest("cannot create user %s: %s", createData.EMail, err)
+	}
+
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
 	var createResponseData struct {
 		Username string `json:"username"`
 	}
-	createResponseData.Username = username
+	createResponseData.Username = v.Username
 
 	return SyncResponse(createResponseData, nil)
 }

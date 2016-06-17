@@ -18,30 +18,24 @@
  *
  */
 
-package sso_test
+package store_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os/user"
-	"path/filepath"
-	"testing"
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/sso"
+	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
 
-func Test(t *testing.T) { check.TestingT(t) }
-
-type createUserSuite struct {
+type userInfoSuite struct {
 	testutil.BaseTest
 }
 
-var _ = check.Suite(&createUserSuite{})
+var _ = check.Suite(&userInfoSuite{})
 
 // obtained via:
 //  `curl https://login.staging.ubuntu.com/api/v2/keys/mvo@ubuntu.com`
@@ -55,14 +49,14 @@ var mockServerJSON = `{
     "openid_identifier": "xDPXBdB"
 }`
 
-func (s *createUserSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
+func (s *userInfoSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })
-	sso.SSOBaseURL = server.URL
-	s.BaseTest.AddCleanup(func() { sso.SSOBaseURL = "" })
+	store.SSOBaseURL = server.URL
+	s.BaseTest.AddCleanup(func() { store.SSOBaseURL = "" })
 }
 
-func (s *createUserSuite) TestCreateUser(c *check.C) {
+func (s *userInfoSuite) TestCreateUser(c *check.C) {
 	n := 0
 	s.redirectToTestSSO(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
@@ -77,41 +71,10 @@ func (s *createUserSuite) TestCreateUser(c *check.C) {
 		n++
 	})
 
-	addUserName := ""
-	addUserKeys := []string{}
-	restorer := sso.MockAddUser(func(name string, sshKeys []string) error {
-		addUserName = name
-		addUserKeys = sshKeys
-		return nil
-	})
-	defer restorer()
-
-	name, err := sso.CreateUser("popper@lse.ac.uk")
+	info, err := store.UserInfo("popper@lse.ac.uk")
 	c.Assert(err, check.IsNil)
-	c.Check(name, check.Equals, "mvo")
-	c.Check(addUserName, check.Equals, "mvo")
-	c.Check(addUserKeys, check.DeepEquals, []string{"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAqwsTkky+laeukWyGFmtiAQUFgjD+wKYuRtOj11gjTe3qUNDgMR54W8IUELZ6NwNWs2wium+jQZLY4vlsDq4PkYK8J2qgjRZURCKp4JbjbVNSg2WO7vDtl+0FIC1GaCdglRVWffrwKN1RLlwqBCVXi01nnTk3+hEpWddjqoTXMwM= egon@top",
+	c.Check(info.Username, check.Equals, "mvo")
+	c.Check(info.OpenIDIdentifier, check.Equals, "xDPXBdB")
+	c.Check(info.SSHKeys, check.DeepEquals, []string{"ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAIEAqwsTkky+laeukWyGFmtiAQUFgjD+wKYuRtOj11gjTe3qUNDgMR54W8IUELZ6NwNWs2wium+jQZLY4vlsDq4PkYK8J2qgjRZURCKp4JbjbVNSg2WO7vDtl+0FIC1GaCdglRVWffrwKN1RLlwqBCVXi01nnTk3+hEpWddjqoTXMwM= egon@top",
 		"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDKBFmfD1KNULZv35907+ArIfxdGGzF1XCQj287AgK7k5GWcEdnUQfkSUHRZ4cNOqshY6W3CyDzVAmaDmeB9A7qpmsVlQp2D8y253+F2NMm1bcDdT3weG5vxkdF5qdx99gRMwDYJ4WZgIryrCAOqDLKmoSEuyuh1Zil9pDGPh/grf+EgXzDFnntgE8XJVKIldsbUplCmycSNtk47PtJATJ8q5v2dIazlxwmxKfarXS7x805u4ElrZ2h3JMCOOfL1k3sJbYc4JbZ6zB8DAhSsZ79KrStn3DE+gULmPJjM0HEbtouegZpE5wcHldoo4Oi78uNrwtv1lWp4AnK/Xwm3bl/ egon@bod\r\n"})
-}
-
-func (s *createUserSuite) TestAddUser(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := sso.MockUserLookup(func(string) (*user.User, error) {
-		return &user.User{
-			HomeDir: mockHome,
-		}, nil
-	})
-	defer restorer()
-
-	mc := testutil.MockCommand(c, "adduser", "true")
-	defer mc.Restore()
-
-	err := sso.AddUser("karl", []string{"ssh-key1", "ssh-key2"})
-	c.Assert(err, check.IsNil)
-	c.Check(mc.Calls(), check.DeepEquals, [][]string{
-		{"adduser", "--gecos", "created by snapd", "--extrausers", "--disabled-password", "karl"},
-	})
-	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
-	c.Assert(err, check.IsNil)
-	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
 }
