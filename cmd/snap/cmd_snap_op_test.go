@@ -268,8 +268,8 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"refresh", "--list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
-foo +4.2update1 +bar +- +some summary
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer +Notes
+foo +4.2update1 +17 +bar +-.*
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
@@ -314,4 +314,34 @@ func (s *SnapOpSuite) TestTryNoDevMode(c *check.C) {
 }
 func (s *SnapOpSuite) TestTryDevMode(c *check.C) {
 	s.runTryTest(c, true)
+}
+
+func (s *SnapSuite) TestInstallChannelDuplicationError(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"install", "--edge", "--beta", "some-snap"})
+	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
+}
+
+func (s *SnapSuite) TestRefreshChannelDuplicationError(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--edge", "--beta", "some-snap"})
+	c.Assert(err, check.ErrorMatches, "Please specify a single channel")
+}
+
+func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "install",
+			"name":    "foo",
+			"channel": "edge",
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--edge", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
