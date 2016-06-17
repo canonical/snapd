@@ -34,10 +34,15 @@ var longFindHelp = i18n.G(`
 The find command queries the store for available packages.
 `)
 
-func getPrice(prices map[string]float64, currency string) string {
+func getPrice(prices map[string]float64, currency, status string) string {
 	// If there are no prices, then the snap is free
 	if len(prices) == 0 {
 		return ""
+	}
+
+	// If the snap is priced, but has been purchased
+	if status == "available" {
+		return i18n.G("bought")
 	}
 
 	// Look up the price by currency code
@@ -103,7 +108,7 @@ func findSnaps(opts *client.FindOptions) error {
 		notes := &Notes{
 			Private:     snap.Private,
 			Confinement: snap.Confinement,
-			Price:       getPrice(snap.Prices, resInfo.SuggestedCurrency),
+			Price:       getPrice(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
 		}
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, notes, snap.Summary)

@@ -116,6 +116,7 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 		{id: "elementary", idVersion: "0.4", devmode: false},
 		{id: "fedora", devmode: true},
 		{id: "gentoo", devmode: true},
+		{id: "neon", devmode: false},
 		{id: "opensuse", devmode: true},
 		{id: "rhel", devmode: true},
 		{id: "ubuntu", devmode: false},
