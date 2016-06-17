@@ -675,7 +675,7 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req, "", remoteSnap.NeedsDevmode(), auther)
+	s.setUbuntuStoreHeaders(req, "", remoteSnap.NeedsDevMode(), auther)
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
