@@ -120,18 +120,15 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 	}
 
 	dirPath = path.Clean(dirPath)
-	pattern := regexp.MustCompile(regexp.QuoteMeta(dirPath) + string(os.PathSeparator) + "?(.+)")
+	pattern, err := regexp.Compile("(?m)^/?" + regexp.QuoteMeta(dirPath) + string(os.PathSeparator) + "?([^/\r\n]+)$")
+	if err != nil {
+		return nil, err
+	}
 
 	var directoryContents []string
 	for _, groups := range pattern.FindAllSubmatch(output, -1) {
 		if len(groups) > 1 {
-			content := string(groups[1])
-			// unsquashfs -l is recursive. We don't want to include the contents
-			// of subdirectories, so check to ensure this item doesn't contain
-			// a separator.
-			if !strings.ContainsRune(content, os.PathSeparator) {
-				directoryContents = append(directoryContents, content)
-			}
+			directoryContents = append(directoryContents, string(groups[1]))
 		}
 	}
 
