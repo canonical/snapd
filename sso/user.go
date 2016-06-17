@@ -40,7 +40,7 @@ var (
 )
 
 var addUser = func(name string, sshKeys []string) error {
-	cmd := exec.Command("adduser", "--extrausers", "--disabled-password", name)
+	cmd := exec.Command("adduser", "--gecos", "created by snapd", "--extrausers", "--disabled-password", name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
