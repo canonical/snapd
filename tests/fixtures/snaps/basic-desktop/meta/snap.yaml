@@ -1,0 +1,5 @@
+name: basic-desktop
+version: 1.0
+apps:
+ echo:
+  command: bin/echo
