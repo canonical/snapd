@@ -20,9 +20,7 @@
 package snap
 
 var (
-	ImplicitSlotsForTests         = implicitSlots
-	ImplicitClassicSlotsForTests  = implicitClassicSlots
-	RelativeHooksDir              = relativeHooksDir
-	AddImplicitHooks              = addImplicitHooks
-	AddImplicitHooksFromContainer = addImplicitHooksFromContainer
+	ImplicitSlotsForTests        = implicitSlots
+	ImplicitClassicSlotsForTests = implicitClassicSlots
+	RelativeHooksDir             = relativeHooksDir
 )
