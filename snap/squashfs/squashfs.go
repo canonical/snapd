@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -114,13 +113,13 @@ func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 // ListDir returns the content of a single directory inside a squashfs snap.
 func (s *Snap) ListDir(dirPath string) ([]string, error) {
 	output, err := runCommandWithOutput(
-		"unsquashfs", "-no-progress", "-dest", "", "-l", s.path, dirPath)
+		"unsquashfs", "-no-progress", "-dest", "_", "-l", s.path, dirPath)
 	if err != nil {
 		return nil, err
 	}
 
-	dirPath = path.Clean(dirPath)
-	pattern, err := regexp.Compile("(?m)^/?" + regexp.QuoteMeta(dirPath) + string(os.PathSeparator) + "?([^/\r\n]+)$")
+	prefixPath := filepath.Join("_", dirPath)
+	pattern, err := regexp.Compile("(?m)^" + regexp.QuoteMeta(prefixPath) + "/([^/\r\n]+)$")
 	if err != nil {
 		return nil, err
 	}
