@@ -600,8 +600,10 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps:  currentSnaps,
-		Fields: []string{"snap_id", "package_name", "revision", "version", "download_url"},
+		Snaps: currentSnaps,
+		// TODO: the store expects "origin" currently, we really want
+		// it to take "developer" instead
+		Fields: []string{"snap_id", "package_name", "revision", "version", "download_url", "origin"},
 	})
 	if err != nil {
 		return nil, err

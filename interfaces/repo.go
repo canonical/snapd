@@ -730,10 +730,16 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
+			if isAutoConnectCandidate(plug, slot) {
 				candidates = append(candidates, slot)
 			}
 		}
 	}
 	return candidates
+}
+
+// isAutoConnectCandidate returns true if the plug is a candidate to
+// automatically connect to the given slot.
+func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
+	return slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface
 }

@@ -1,0 +1,19 @@
+summary: Checks for special cases of snap install from the store
+environment:
+  SNAP_NAME: hello-world
+execute: |
+  echo "Install from different channels"
+  expected="(?s)Name +Version +Rev +Developer +Notes\n\
+  $SNAP_NAME .*? canonical +-\n"
+  for channel in edge beta candidate stable
+  do
+    actual=$(sudo snap install $SNAP_NAME --channel=$channel)
+    echo "$actual" | grep -Pzq "$expected" || exit 1
+    sudo snap remove $SNAP_NAME
+  done
+
+  echo "Install with devmode option"
+  expected="(?s)Name +Version +Rev +Developer +Notes\n\
+  $SNAP_NAME .*? canonical +devmode\n"
+  actual=$(sudo snap install $SNAP_NAME --devmode)
+  echo "$actual" | grep -Pzq "$expected" || exit 1
