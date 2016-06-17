@@ -86,7 +86,7 @@ body-length: 0
 openpgpg 2cln
 EOF
 
-$ sudo snap bootstrap bootstramp.yaml
+$ sudo snap bootstrap bootstrap.yaml
 [do the right thing]
 ```
 
