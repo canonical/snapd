@@ -186,8 +186,8 @@ func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
 }
 
-// NeedsDevmode retursn whether the snap needs devmode.
-func (s *Info) NeedsDevmode() bool {
+// NeedsDevMode retursn whether the snap needs devmode.
+func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevmodeConfinement
 }
 
