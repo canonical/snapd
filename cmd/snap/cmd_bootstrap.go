@@ -28,7 +28,7 @@ import (
 
 type cmdBootstrap struct {
 	Positional struct {
-		BootstrapYamlFile string `positional-arg-name:"bootstap-yaml" description:"The bootstrap yaml"`
+		BootstrapYamlFile string `positional-arg-name:"bootstrap-yaml" description:"The bootstrap yaml"`
 	} `positional-args:"yes" required:"yes"`
 }
 
