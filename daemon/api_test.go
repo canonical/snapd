@@ -135,6 +135,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	snapstateGet = snapstate.Get
 	snapstateInstallPath = snapstate.InstallPath
 	readSnapInfo = readSnapInfoImpl
+	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
 }
 
@@ -349,6 +350,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
+		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -757,9 +759,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 }
 
 func (s *apiSuite) TestFindRefreshes(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
@@ -1038,6 +1038,14 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	s.vars = map[string]string{"name": "foo"}
+
 	snapInstructionDispTable["install"] = func(*snapInstruction, *state.State) (string, []*state.TaskSet, error) {
 		return "foooo", nil, nil
 	}
@@ -1058,13 +1066,18 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, "foooo")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
 	st.Unlock()
+
+	c.Check(soon, check.Equals, 1)
 }
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	ensureStateSoon = func(st *state.State) {}
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 		return fmt.Sprintf("<install by user %d>", inst.userID), nil, nil
@@ -1139,6 +1152,7 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
+
 func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
@@ -1169,9 +1183,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
-	d := newTestDaemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	newTestDaemon(c)
 
 	// try a multipart/form-data upload with missing "name"
 	content := "" +
@@ -1198,6 +1210,12 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
 
 	req, err := http.NewRequest("POST", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -1236,7 +1254,18 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 
 	c.Check(chg.Kind(), check.Equals, "try-snap")
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %q`, "foo", tryDir))
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "foo",
+	})
 
+	c.Check(soon, check.Equals, 1)
 }
 
 func (s *apiSuite) TestTrySnapRelative(c *check.C) {
@@ -1261,6 +1290,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
 
 	// setup done
 	installQueue := []string{}
@@ -1321,6 +1356,8 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 
+	c.Check(soon, check.Equals, 1)
+
 	c.Assert(chg.Tasks(), check.HasLen, n)
 
 	st.Unlock()
@@ -1328,6 +1365,17 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	st.Lock()
 
 	c.Check(chg.Kind(), check.Equals, "install-snap")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"local"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "local",
+	})
+
 	return chg.Summary()
 }
 
@@ -2646,6 +2694,11 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+	}
+
 	// Setup
 	d := newTestDaemon(c)
 	st := d.overlord.State()
@@ -2662,6 +2715,9 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	rsp := abortChange(stateChangeCmd, req, nil).(*resp)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
+
+	// ensure schedule
+	c.Check(soon, check.Equals, 1)
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 200)
