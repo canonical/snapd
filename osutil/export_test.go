@@ -17,18 +17,11 @@
  *
  */
 
-package sso
+package osutil
 
 import (
 	"os/user"
 )
-
-func MockAddUser(mock func(string, []string) error) func() {
-	realAddUser := addUser
-	addUser = mock
-
-	return func() { addUser = realAddUser }
-}
 
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 	realUserLookup := userLookup
@@ -36,5 +29,3 @@ func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 
 	return func() { userLookup = realUserLookup }
 }
-
-var AddUser = addUser

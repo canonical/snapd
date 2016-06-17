@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -48,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/sso"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -349,7 +349,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
-		"ssoCreateuser",
+		"osutilAddExtraUser",
+		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -2743,17 +2744,24 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 }
 
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
-	createdUser := ""
-	ssoCreateUser = func(user string) (string, error) {
-		createdUser = user
-		return "karl", nil
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username: "karl",
+			SSHKeys:  []string{"ssh1", "ssh2"},
+		}, nil
+	}
+	osutilAddExtraUser = func(username string, sshKeys []string) error {
+		c.Check(username, check.Equals, "karl")
+		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		return nil
 	}
 
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
 	defer func() {
-		ssoCreateUser = sso.CreateUser
+		osutilAddExtraUser = osutil.AddExtraUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
 
@@ -2764,5 +2772,4 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(createdUser, check.Equals, "popper@lse.ac.uk")
 }
