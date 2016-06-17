@@ -830,8 +830,7 @@ func (s *SnapUbuntuStoreRepository) Buy(snapID, channel string, expectedPrice fl
 	}
 
 	// set headers
-	s.setUbuntuStoreHeaders(req, "", auther)
-	req.Header.Set("X-Ubuntu-Device-Channel", channel)
+	s.setUbuntuStoreHeaders(req, channel, auther)
 
 	// tell the server we're sending JSON
 	req.Header.Set("Content-Type", "application/json")
@@ -867,10 +866,10 @@ func (s *SnapUbuntuStoreRepository) Buy(snapID, channel string, expectedPrice fl
 		if err := dec.Decode(&errorInfo); err != nil {
 			return "", nil, err
 		}
-		return "", nil, fmt.Errorf("buying failed: bad request: %s", errorInfo.ErrorMessage)
+		return "", nil, fmt.Errorf("cannot buy: bad request: %s", errorInfo.ErrorMessage)
 	case http.StatusNotFound:
 		// Snap ID doesn't exist.
-		return "", nil, fmt.Errorf("buying failed: could not find snap with ID %q", snapID)
+		return "", nil, fmt.Errorf("cannot buy: could not find snap with ID %q", snapID)
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
 		return "", nil, ErrInvalidCredentials
@@ -880,6 +879,6 @@ func (s *SnapUbuntuStoreRepository) Buy(snapID, channel string, expectedPrice fl
 		if err := dec.Decode(&errorInfo); err != nil {
 			return "", nil, err
 		}
-		return "", nil, fmt.Errorf("buying failed: unexpected HTTP status code %d for snap ID %q: %s", resp.StatusCode, snapID, errorInfo.ErrorMessage)
+		return "", nil, fmt.Errorf("cannot buy: unexpected HTTP status code %d for snap ID %q: %s", resp.StatusCode, snapID, errorInfo.ErrorMessage)
 	}
 }

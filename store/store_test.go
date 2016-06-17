@@ -1585,7 +1585,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 	c.Check(state, Equals, "")
 	c.Assert(redirect, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "buying failed: bad request: invalid price specified")
+	c.Check(err.Error(), Equals, "cannot buy: bad request: invalid price specified")
 
 	c.Check(searchServerCalled, Equals, true)
 	c.Check(purchaseServerGetCalled, Equals, true)
@@ -1658,7 +1658,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 	c.Check(state, Equals, "")
 	c.Assert(redirect, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "buying failed: could not find snap with ID \"invalid snap ID\"")
+	c.Check(err.Error(), Equals, "cannot buy: could not find snap with ID \"invalid snap ID\"")
 
 	c.Check(searchServerCalled, Equals, true)
 	c.Check(purchaseServerGetCalled, Equals, true)
