@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"path"
 	"regexp"
 	"strings"
 
@@ -118,7 +119,7 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 		return nil, err
 	}
 
-	prefixPath := filepath.Join("_", dirPath)
+	prefixPath := path.Join("_", dirPath)
 	pattern, err := regexp.Compile("(?m)^" + regexp.QuoteMeta(prefixPath) + "/([^/\r\n]+)$")
 	if err != nil {
 		return nil, err
