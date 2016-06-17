@@ -93,21 +93,6 @@ func (s *installSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
 		check.Commentf("Wrong error message"))
 }
 
-// SNAP_INSTALL_001: --help - print detailed help text for the install command
-func (s *installSuite) TestInstallShowHelp(c *check.C) {
-	expected := "(?ms)" +
-		"^Usage:\n" +
-		`  snap \[OPTIONS\] install.*\n` +
-		"\n^The install command .*\n" +
-		"^Help Options:\n" +
-		"^  -h, --help +Show this help message\n" +
-		".*"
-
-	actual := cli.ExecCommand(c, "snap", "install", "--help")
-
-	c.Assert(actual, check.Matches, expected)
-}
-
 // SNAP_INSTALL_002: without snap name shows error
 func (s *installSuite) TestInstallWithoutSnapNameMustPrintError(c *check.C) {
 	expected := "error: the required argument `<snap>` was not provided\n"
@@ -129,37 +114,6 @@ func (s *installSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail
 	actual, err := cli.ExecCommandErr("sudo", "snap", "install", snapName)
 
 	c.Assert(err, check.NotNil)
-	c.Assert(actual, check.Matches, expected)
-}
-
-// SNAP_INSTALL_008: from different channel other than default
-func (s *installSuite) TestInstallFromDifferentChannels(c *check.C) {
-	snapName := "hello-world"
-
-	expected := "(?ms).*\n" +
-		"Name +Version +Rev +Developer +Notes\n" +
-		snapName + " .* canonical +-\n"
-
-	for _, channel := range []string{"edge", "beta", "candidate", "stable"} {
-		actual := cli.ExecCommand(c, "sudo", "snap", "install", snapName, "--channel="+channel)
-
-		c.Check(actual, check.Matches, expected)
-
-		common.RemoveSnap(c, snapName)
-	}
-}
-
-// SNAP_INSTALL_009: with devmode option
-func (s *installSuite) TestInstallWithDevmodeOption(c *check.C) {
-	snapName := "hello-world"
-
-	expected := "(?ms).*\n" +
-		"Name +Version +Rev +Developer +Notes\n" +
-		snapName + " .* canonical +devmode\n"
-
-	actual := cli.ExecCommand(c, "sudo", "snap", "install", snapName, "--devmode")
-	defer common.RemoveSnap(c, snapName)
-
 	c.Assert(actual, check.Matches, expected)
 }
 
