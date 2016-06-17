@@ -22,5 +22,4 @@ package snap
 var (
 	ImplicitSlotsForTests        = implicitSlots
 	ImplicitClassicSlotsForTests = implicitClassicSlots
-	RelativeHooksDir             = relativeHooksDir
 )

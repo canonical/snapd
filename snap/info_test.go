@@ -143,7 +143,7 @@ func makeTestSnapWithHooks(c *C, yaml string, hookNames []string) string {
 
 	// make the requested hooks
 	if len(hookNames) > 0 {
-		hooksDir := filepath.Join(snapSource, snap.RelativeHooksDir)
+		hooksDir := filepath.Join(snapSource, "meta", "hooks")
 		err := os.MkdirAll(filepath.Join(hooksDir), 0755)
 		c.Assert(err, IsNil)
 
