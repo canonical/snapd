@@ -262,13 +262,17 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 // [
 //   {
 //     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "8nzc1x4iim2xj1g2ul64",
+//     "snap_id": {
+//       "16": "8nzc1x4iim2xj1g2ul64"
+//     }
 //     "refundable_until": "2015-07-15 18:46:21",
 //     "state": "Complete"
 //   },
 //   {
 //     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "8nzc1x4iim2xj1g2ul64",
+//     "snap_id": {
+//       "16": "8nzc1x4iim2xj1g2ul64"
+//     }
 //     "item_sku": "item-1-sku",
 //     "purchase_id": "1",
 //     "refundable_until": null,
@@ -276,19 +280,21 @@ func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
 //   },
 //   {
 //     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "12jdhg1j2dgj12dgk1jh",
+//     "snap_id": {
+//       "16": "12jdhg1j2dgj12dgk1jh"
+//     },
 //     "refundable_until": "2015-07-17 11:33:29",
 //     "state": "Complete"
 //   }
 // ]
 type purchase struct {
-	OpenID          string `json:"open_id"`
-	SnapID          string `json:"snap_id"`
-	RefundableUntil string `json:"refundable_until"`
-	State           string `json:"state"`
-	ItemSKU         string `json:"item_sku,omitempty"`
-	PurchaseID      string `json:"purchase_id,omitempty"`
-	RedirectTo      string `json:"redirect_to,omitempty"`
+	OpenID          string            `json:"open_id"`
+	SnapID          map[string]string `json:"snap_id"`
+	RefundableUntil string            `json:"refundable_until"`
+	State           string            `json:"state"`
+	ItemSKU         string            `json:"item_sku,omitempty"`
+	PurchaseID      string            `json:"purchase_id,omitempty"`
+	RedirectTo      string            `json:"redirect_to,omitempty"`
 }
 
 func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, auther Authenticator) ([]*purchase, error) {
@@ -383,7 +389,12 @@ func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channe
 	// Group purchases by snap ID.
 	purchasesByID := make(map[string][]*purchase)
 	for _, purchase := range purchases {
-		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
+		snapID := purchase.SnapID[release.Series]
+		if snapID == "" {
+			logger.Noticef("could not get snap ID from purchase for current series")
+		} else {
+			purchasesByID[snapID] = append(purchasesByID[snapID], purchase)
+		}
 	}
 
 	for _, info := range snaps {

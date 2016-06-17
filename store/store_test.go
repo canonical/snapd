@@ -254,14 +254,18 @@ const mockPurchasesJSON = `[
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
-    "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+    "snap_id": {
+      "16": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+    },
     "refundable_until": "2015-07-15 18:46:21",
     "state": "Complete"
   },
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
-    "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+    "snap_id": {
+      "16": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+    },
     "item_sku": "item-1-sku",
     "purchase_id": "1",
     "refundable_until": null,
@@ -270,7 +274,9 @@ const mockPurchasesJSON = `[
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "8nzc1x4iim2xj1g2ul64.chipaca",
-    "snap_id": "1e21e12ex4iim2xj1g2ul6f12f1",
+    "snap_id": {
+      "16": "1e21e12ex4iim2xj1g2ul6f12f1"
+    },
     "refundable_until": "2015-07-17 11:33:29",
     "state": "Complete"
   }
@@ -281,14 +287,18 @@ const mockPurchaseJSON = `[
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
-    "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+    "snap_id": {
+      "16": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+    },
     "refundable_until": "2015-07-15 18:46:21",
     "state": "Complete"
   },
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
     "package_name": "hello-world.canonical",
-    "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+    "snap_id": {
+      "16": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+    },
     "item_sku": "item-1-sku",
     "purchase_id": "1",
     "refundable_until": null,
