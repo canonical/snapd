@@ -40,7 +40,7 @@ body-length: 0
 openpgpg 2cln
 EOF
 
-$ sudo snap bootstrap bootstramp.yaml
+$ sudo snap bootstrap bootstrap.yaml
 ...
 $ ls /tmp/gadget-unpack-dir/
 boot-assets  canonical-pi2_6.snap  canonical-pi2_6.snap.sideinfo  meta
@@ -86,7 +86,7 @@ body-length: 0
 openpgpg 2cln
 EOF
 
-$ sudo snap bootstrap bootstramp.yaml
+$ sudo snap bootstrap bootstrap.yaml
 [do the right thing]
 ```
 
