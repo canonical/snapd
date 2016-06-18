@@ -6,6 +6,7 @@ all_tests = \
     test_complain \
     test_complain_missed \
     test_noprofile \
+    test_restrictions \
     test_restrictions_working \
     test_unrestricted \
     test_unrestricted_missed \
