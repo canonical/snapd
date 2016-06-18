@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.31) UNRELEASED; urgency=medium
+
+ * New upstream release
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 19 Jun 2016 00:46:10 +0200
+
 ubuntu-core-launcher (1.0.30) yakkety; urgency=medium
 
   [ Zygmunt Krynicki ]
