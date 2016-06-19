@@ -293,3 +293,72 @@ void setup_slave_mount_namespace()
 		die("can not make make / rslave");
 	}
 }
+
+#define BIND_MAX_LINE_LENGTH	512	// arbitrary
+
+void setup_bind_mounts(const char *appname)
+{
+	debug("setup_bind_mounts %s", appname);
+	FILE *f = NULL;
+	const char *bind_profile_dir = "/var/lib/snapd/bind/profiles/";
+
+	// Note that secure_gettenv will always return NULL when suid, so
+	// SNAPPY_LAUNCHER_BIND_MOUNT_PROFILE_DIR can't be (ab)used in
+	// that case.
+	if (secure_getenv("SNAPPY_LAUNCHER_BIND_MOUNT_PROFILE_DIR") != NULL)
+		bind_profile_dir =
+		    secure_getenv("SNAPPY_LAUNCHER_BIND_MOUNT_PROFILE_DIR");
+
+	char profile_path[512];	// arbitrary path name limit
+	int snprintf_rc =
+	    snprintf(profile_path, sizeof(profile_path), "%s/%s.bind",
+		     bind_profile_dir, appname);
+	if (snprintf_rc < 0 || snprintf_rc >= 512) {
+		errno = 0;
+		die("snprintf returned unexpected value");
+	}
+
+	f = fopen(profile_path, "r");
+	// it is ok for the file to not exist
+	if (f == NULL && errno == ENOENT)
+		return;
+	// however any other error is a real error
+	if (f == NULL) {
+		fprintf(stderr, "Can not open %s (%s)\n", profile_path,
+			strerror(errno));
+		die("aborting");
+	}
+	// total line length
+	char buf[BIND_MAX_LINE_LENGTH];
+	// Each line in the bind mount file looks like this:
+	//     /src /dst (ro)
+	// src, dst, attr can be max 512 byte (because thats our max length)
+	char *src = NULL;
+	char *dst = NULL;
+	char *attr = NULL;
+	while (fgets(buf, sizeof(buf), f) != NULL) {
+		// comment or empty
+		if (buf[0] == '#' || buf[0] == '\n')
+			continue;
+		// invalid
+		if (buf[0] != '/') {
+			fprintf(stderr, "invalid line: '%s'", buf);
+		}
+		if (sscanf(buf, "%ms %ms (%ms)", &src, &dst, &attr) != 3)
+			die("can not scan '%s'", buf);
+
+		int flags = MS_BIND;
+		if (strcmp(attr, "ro") == 0)
+			flags |= MS_RDONLY;
+		if (mount(src, dst, NULL, flags, NULL) != 0) {
+			die("unable to bind private /tmp");
+		}
+	}
+
+	if (f != NULL) {
+		if (fclose(f) != 0)
+			die("could not close bind mount file");
+	}
+
+	return;
+}

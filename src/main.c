@@ -90,6 +90,9 @@ int main(int argc, char **argv)
 		if (is_running_on_classic_distribution()) {
 			setup_snappy_os_mounts();
 		}
+		// setup the security backend bind mounts
+		setup_bind_mounts(appname);
+
 #ifdef STRICT_CONFINEMENT
 		// set up private mounts
 		setup_private_mount(appname);

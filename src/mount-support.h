@@ -23,4 +23,6 @@ void setup_private_pts();
 void setup_snappy_os_mounts();
 void setup_slave_mount_namespace();
 
+void setup_bind_mounts(const char *appname);
+
 #endif
