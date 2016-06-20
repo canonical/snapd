@@ -1,0 +1,33 @@
+summary: Checks for snap sideload install
+prepare: |
+  for snap in basic basic-binaries basic-desktop
+  do
+    snapbuild ./../fixtures/snaps/$snap .
+  done
+restore: |
+  for snap in basic basic-binaries basic-desktop
+  do
+    sudo snap remove $snap
+    rm ./${snap}_1.0_all.snap
+  done
+execute: |
+  echo "Sideloaded snap shows status"
+  expected="(?s)Name +Version +Rev +Developer +Notes\n\
+  basic +.*? *\n\
+  .*"
+  actual=$(sudo snap install ./basic_1.0_all.snap)
+  echo "$actual" | grep -Pzq "$expected" || exit 1
+
+  echo "Sideloaded snap executes commands"
+  sudo snap install ./basic-binaries_1.0_all.snap
+  basic-binaries.success
+  [ "$(basic-binaries.echo)" = "From basic-binaries snap" ] || exit 1
+
+  echo "Sideload desktop snap"
+  sudo snap install ./basic-desktop_1.0_all.snap
+  expected="\[Desktop Entry\]\n\
+  Name=Echo\n\
+  Comment=It echos stuff\n\
+  Exec=\/snap\/bin\/basic-desktop.echo\n"
+  actual=$(cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop)
+  echo "$actual" | grep -Pzq "$expected" || exit 1
