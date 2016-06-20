@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -263,8 +264,14 @@ func refreshAll() error {
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}
+	// nothing to update/list
+	if len(updates) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		return nil
+	}
 
-	for _, update := range updates {
+	names := make([]string, len(updates))
+	for i, update := range updates {
 		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
 		if err != nil {
 			return err
@@ -272,9 +279,10 @@ func refreshAll() error {
 		if _, err := wait(cli, changeID); err != nil {
 			return err
 		}
+		names[i] = update.Name
 	}
 
-	return listSnaps(nil)
+	return listSnaps(names)
 }
 
 func refreshOne(name, channel string) error {
@@ -291,15 +299,43 @@ func refreshOne(name, channel string) error {
 	return listSnaps([]string{name})
 }
 
+func listRefresh() error {
+	cli := Client()
+	snaps, _, err := cli.Find(&client.FindOptions{
+		Refresh: true,
+	})
+	if err != nil {
+		return err
+	}
+	if len(snaps) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		return nil
+	}
+
+	sort.Sort(snapsByName(snaps))
+
+	w := tabWriter()
+	defer w.Flush()
+
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
+	for _, snap := range snaps {
+		notes := &Notes{
+			Private: snap.Private,
+			DevMode: snap.DevMode,
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
+	}
+
+	return nil
+}
+
 func (x *cmdRefresh) Execute([]string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
 	}
 
 	if x.List {
-		return findSnaps(&client.FindOptions{
-			Refresh: true,
-		})
+		return listRefresh()
 	}
 	if x.Positional.Snap == "" {
 		return refreshAll()
