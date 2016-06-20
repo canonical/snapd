@@ -20,9 +20,12 @@
 package mount_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -40,6 +43,8 @@ func Test(t *testing.T) {
 
 type backendSuite struct {
 	backendtest.BackendSuite
+
+	iface2 *interfaces.TestInterface
 }
 
 var _ = Suite(&backendSuite{})
@@ -51,6 +56,10 @@ func (s *backendSuite) SetUpTest(c *C) {
 	err := os.MkdirAll(dirs.SnapMountPolicyDir, 0700)
 	c.Assert(err, IsNil)
 
+	// add second iface so that we actually test combining snippets
+	s.iface2 = &interfaces.TestInterface{InterfaceName: "iface2"}
+	err = s.Repo.AddInterface(s.iface2)
+	c.Assert(err, IsNil)
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -86,27 +95,35 @@ apps:
     app2:
 slots:
     iface:
+    iface2:
 `
 
-func (s *backendSuite) TestSetupSetsup(c *C) {
-	fsEntry := "/src-1 /dst-1 none bind,ro 0 0"
+func (s *backendSuite) TestSetupSetsupSimple(c *C) {
+	fsEntryIF1 := "/src-1 /dst-1 none bind,ro 0 0"
+	fsEntryIF2 := "/src-2 /dst-2 none bind,ro 0 0"
+
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte(fsEntry), nil
+		return []byte(fsEntryIF1), nil
+	}
+	s.iface2.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte(fsEntryIF2), nil
 	}
 
 	// devMode is irrelevant for this security backend
 	s.InstallSnap(c, false, mockSnapYaml, 0)
 
-	// FIXME: test combineSnipets implicitely somehow too
-	fn1 := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.app1.fstab")
-	content, err := ioutil.ReadFile(fn1)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, fsEntry+"\n")
-
-	fn2 := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.app2.fstab")
-	content, err = ioutil.ReadFile(fn2)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, fsEntry+"\n")
+	// ensure both security snippets for iface/iface2 are combined
+	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntryIF1, fsEntryIF2), "\n")
+	sort.Strings(expected)
+	// and we have them both for both apps
+	for _, app := range []string{"app1", "app2"} {
+		fn1 := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", app))
+		content, err := ioutil.ReadFile(fn1)
+		c.Assert(err, IsNil)
+		got := strings.Split(string(content), "\n")
+		sort.Strings(got)
+		c.Check(got, DeepEquals, expected)
+	}
 }
 
 func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
