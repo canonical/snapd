@@ -230,7 +230,7 @@ func (iface *LocationObserveInterface) Name() string {
 
 func (iface *LocationObserveInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -277,7 +277,7 @@ func (iface *LocationObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plu
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(locationObserveConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

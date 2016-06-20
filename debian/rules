@@ -5,7 +5,7 @@
 export DH_OPTIONS
 export DH_GOPKG := github.com/snapcore/snapd
 #export DEB_BUILD_OPTIONS=nocheck
-export DH_GOLANG_EXCLUDES=integration-tests
+export DH_GOLANG_EXCLUDES=integration-tests tests
 export DH_GOLANG_GO_GENERATE=1
 
 # we need the builddir; is there a simpler way to get it?
