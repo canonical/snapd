@@ -107,5 +107,17 @@ func (s *backendSuite) TestSetupSetsup(c *C) {
 	content, err = ioutil.ReadFile(fn2)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, fsEntry+"\n")
+}
 
+func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("xxx"), nil
+	}
+
+	// Ensure that backend.Setup() creates the required dir on demand
+	os.Remove(dirs.SnapMountPolicyDir)
+	s.InstallSnap(c, false, mockSnapYaml, 0)
+
+	fn := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.app1.fstab")
+	c.Assert(osutil.FileExists(fn), Equals, true)
 }
