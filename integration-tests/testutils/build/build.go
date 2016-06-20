@@ -39,7 +39,7 @@ const (
 	listCmd         = "go list ./..."
 	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
-	snapbuildPkg = "./integration-tests/testutils/build/snapbuild"
+	snapbuildPkg = "./tests/lib/snapbuild"
 
 	// IntegrationTestName is the name of the test binary.
 	IntegrationTestName = "integration.test"
