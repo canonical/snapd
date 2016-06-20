@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <sched.h>
 #include <string.h>
+#include <mntent.h>
 
 #include "utils.h"
 #include "snap.h"
@@ -328,29 +329,22 @@ void setup_bind_mounts(const char *appname)
 			strerror(errno));
 		die("aborting");
 	}
-	// total line length
-	char buf[BIND_MAX_LINE_LENGTH];
-	// Each line in the bind mount file looks like this:
-	//     /src /dst (ro)
-	// src, dst, attr can be max 512 byte (because thats our max length)
-	char *src = NULL;
-	char *dst = NULL;
-	char *attr = NULL;
-	while (fgets(buf, sizeof(buf), f) != NULL) {
-		// comment or empty
-		if (buf[0] == '#' || buf[0] == '\n')
-			continue;
-		// invalid
-		if (buf[0] != '/') {
-			fprintf(stderr, "invalid line: '%s'", buf);
-		}
-		if (sscanf(buf, "%ms %ms (%ms)", &src, &dst, &attr) != 3)
-			die("can not scan '%s'", buf);
 
+	struct mntent *m = NULL;
+	while ((m = getmntent(f)) != NULL) {
 		int flags = MS_BIND;
-		if (strcmp(attr, "ro") == 0)
+
+		if (strcmp(m->mnt_type, "") != 0) {
+			die("only bind mounts are supported");
+		}
+		if (strstr(m->mnt_opts, "bind") == NULL) {
+			die("need bind mount flag");
+		}
+		if (strstr(m->mnt_opts, "ro") != NULL) {
 			flags |= MS_RDONLY;
-		if (mount(src, dst, NULL, flags, NULL) != 0) {
+		}
+
+		if (mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL) != 0) {
 			die("unable to bind private /tmp");
 		}
 	}
