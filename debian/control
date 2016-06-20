@@ -20,8 +20,8 @@ Vcs-Git: https://github.com/snapcore/snap-confine
 
 Package: snap-confine
 Architecture: any
-Breaks: ubuntu-core-launcher (<< 1.0.29)
-Replaces: ubuntu-core-launcher (<< 1.0.29)
+Breaks: ubuntu-core-launcher (<< 1.0.32)
+Replaces: ubuntu-core-launcher (<< 1.0.32)
 Depends: apparmor, ${misc:Depends}, ${shlibs:Depends}
 Description: Support executable to apply confinement for snappy apps.
  This package contains an internal tool for applying confinement to snappy app.
