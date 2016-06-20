@@ -119,18 +119,20 @@ func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string
 	return out
 }
 
-func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	contentSnippet := bytes.NewBuffer(nil)
+func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
 	dst := plug.Attrs["target"].(string)
 	dst = filepath.Join(plug.Snap.MountDir(), dst)
+	src := filepath.Join(slot.Snap.MountDir(), relSrc)
+	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
+}
 
+func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	contentSnippet := bytes.NewBuffer(nil)
 	for _, r := range iface.path(slot, "read") {
-		src := filepath.Join(slot.Snap.MountDir(), r)
-		fmt.Fprintf(contentSnippet, "%s %s none bind,ro 0 0\n", src, dst)
+		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, r, ",ro"))
 	}
 	for _, w := range iface.path(slot, "write") {
-		src := filepath.Join(slot.Snap.MountDir(), w)
-		fmt.Fprintf(contentSnippet, "%s %s none bind 0 0\n", src, dst)
+		fmt.Fprintln(contentSnippet, mountEntry(plug, slot, w, ""))
 	}
 
 	switch securitySystem {
