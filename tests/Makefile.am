@@ -15,7 +15,9 @@ all_tests = \
 EXTRA_DIST = $(all_tests) common.sh
 
 if STRICT_CONFINEMENT
+if CONFINEMENT_TESTS
 TESTS += $(all_tests)
+endif
 endif
 
 check: ../src/snap-confine
