@@ -13,13 +13,13 @@ environment:
   PLUG: network-bind
   PORT: 8081
   CONNECTED_PATTERN: "(?s)Slot +Plug\n\
-  .*?\n\
-  :$[PLUG] +$[SNAP_NAME]\n"
+  .*?\
+  :$[PLUG] +$[SNAP_NAME]"
   DISCONNECTED_PATTERN: "(?s)Slot +Plug\n\
-  .*?\n\
+  .*?\
   :$[PLUG] +-\n
-  .*?\n\
-  - +$[SNAP_NAME]:$[PLUG]\n"
+  .*?\
+  - +$[SNAP_NAME]:$[PLUG]"
   REQUEST_FILE: ./request.txt
 
 kill-wait: 1m
@@ -44,27 +44,23 @@ restore: |
 
 execute: |
   echo "Then the snap is listed as connected"
-  actual=$(snap interfaces)
-  echo "$actual" | grep -Pzq "$CONNECTED_PATTERN"
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is disconnected"
   sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  actual=$(snap interfaces)
-  echo "$actual" | grep -Pzq "$DISCONNECTED_PATTERN"
+  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the plug can be connected again"
   sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  actual=$(snap interfaces)
-  echo "$actual" | grep -Pzq "$CONNECTED_PATTERN"
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is connected"
   sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  actual=$(snap interfaces)
-  echo "$actual" | grep -Pzq "$CONNECTED_PATTERN"
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the service is accessible by a client"
   response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
@@ -74,8 +70,7 @@ execute: |
 
   echo "When the plug is disconnected"
   sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  actual=$(snap interfaces)
-  echo "$actual" | grep -Pzq "$DISCONNECTED_PATTERN"
+  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the service is not accessible by a client"
   response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
