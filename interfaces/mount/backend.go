@@ -17,7 +17,7 @@
  *
  */
 
-// Package bind implements bind mounts that get mapped into the snap
+// Package mount implements mounts that get mapped into the snap
 //
 // Snappy creates fstab like  configuration files that describe what
 // directories from the system or from other snaps should get mapped
@@ -27,7 +27,7 @@
 //   /src/dir /dst/dir none bind 0 0
 //   /src/dir /dst/dir none bind,rw 0 0
 // but only bind mounts are supported
-package bind
+package mount
 
 import (
 	"bytes"
@@ -40,47 +40,47 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// Backend is responsible for maintaining bind files for snap-confine
+// Backend is responsible for maintaining mount files for snap-confine
 type Backend struct{}
 
 // Name returns the name of the backend.
 func (b *Backend) Name() string {
-	return "bind"
+	return "mount"
 }
 
-// Setup creates bind mount profile files specific to a given snap.
+// Setup creates mount mount profile files specific to a given snap.
 func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
-	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityBindMount)
+	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityMount)
 	if err != nil {
-		return fmt.Errorf("cannot obtain bind security snippets for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain mount security snippets for snap %q: %s", snapName, err)
 	}
 	// Get the files that this snap should have
 	content, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
-		return fmt.Errorf("cannot obtain expected bind configuration files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot obtain expected mount configuration files for snap %q: %s", snapName, err)
 	}
-	glob := fmt.Sprintf("%s.bind", interfaces.SecurityTagGlob(snapName))
-	dir := dirs.SnapBindMountPolicyDir
+	glob := fmt.Sprintf("%s.fstab", interfaces.SecurityTagGlob(snapName))
+	dir := dirs.SnapMountPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("cannot create directory for bind configuration files %q: %s", dir, err)
+		return fmt.Errorf("cannot create directory for mount configuration files %q: %s", dir, err)
 	}
 	_, _, err = osutil.EnsureDirState(dir, glob, content)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize bind configuration files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
 
-// Remove removes bind configuration files of a given snap.
+// Remove removes mount configuration files of a given snap.
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := fmt.Sprintf("%s.bind", interfaces.SecurityTagGlob(snapName))
-	_, _, err := osutil.EnsureDirState(dirs.SnapBindMountPolicyDir, glob, nil)
+	glob := fmt.Sprintf("%s.fstab", interfaces.SecurityTagGlob(snapName))
+	_, _, err := osutil.EnsureDirState(dirs.SnapMountPolicyDir, glob, nil)
 	if err != nil {
-		return fmt.Errorf("cannot synchronize bind configuration files for snap %q: %s", snapName, err)
+		return fmt.Errorf("cannot synchronize mount configuration files for snap %q: %s", snapName, err)
 	}
 	return nil
 }
@@ -101,7 +101,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := fmt.Sprintf("%s.bind", appInfo.SecurityTag())
+		fname := fmt.Sprintf("%s.fstab", appInfo.SecurityTag())
 		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
 	}
 	return content, nil

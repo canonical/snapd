@@ -17,7 +17,7 @@
  *
  */
 
-package bind_test
+package mount_test
 
 import (
 	"io/ioutil"
@@ -30,7 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backendtest"
-	"github.com/snapcore/snapd/interfaces/bind"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -45,10 +45,10 @@ type backendSuite struct {
 var _ = Suite(&backendSuite{})
 
 func (s *backendSuite) SetUpTest(c *C) {
-	s.Backend = &bind.Backend{}
+	s.Backend = &mount.Backend{}
 	s.BackendSuite.SetUpTest(c)
 
-	err := os.MkdirAll(dirs.SnapBindMountPolicyDir, 0700)
+	err := os.MkdirAll(dirs.SnapMountPolicyDir, 0700)
 	c.Assert(err, IsNil)
 
 }
@@ -58,15 +58,15 @@ func (s *backendSuite) TearDownTest(c *C) {
 }
 
 func (s *backendSuite) TestName(c *C) {
-	c.Check(s.Backend.Name(), Equals, "bind")
+	c.Check(s.Backend.Name(), Equals, "mount")
 }
 
 func (s *backendSuite) TestRemove(c *C) {
-	canaryToGo := filepath.Join(dirs.SnapBindMountPolicyDir, "snap.hello-world.hello-world.bind")
+	canaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.hello-world.fstab")
 	err := ioutil.WriteFile(canaryToGo, []byte("ni! ni! ni!"), 0644)
 	c.Assert(err, IsNil)
 
-	canaryToStay := filepath.Join(dirs.SnapBindMountPolicyDir, "snap.i-stay.really.bind")
+	canaryToStay := filepath.Join(dirs.SnapMountPolicyDir, "snap.i-stay.really.fstab")
 	err = ioutil.WriteFile(canaryToStay, []byte("stay!"), 0644)
 	c.Assert(err, IsNil)
 
@@ -98,12 +98,12 @@ func (s *backendSuite) TestSetupSetsup(c *C) {
 	s.InstallSnap(c, false, mockSnapYaml, 0)
 
 	// FIXME: test combineSnipets implicitely somehow too
-	fn1 := filepath.Join(dirs.SnapBindMountPolicyDir, "snap.snap-name.app1.bind")
+	fn1 := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.app1.fstab")
 	content, err := ioutil.ReadFile(fn1)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, fsEntry+"\n")
 
-	fn2 := filepath.Join(dirs.SnapBindMountPolicyDir, "snap.snap-name.app2.bind")
+	fn2 := filepath.Join(dirs.SnapMountPolicyDir, "snap.snap-name.app2.fstab")
 	content, err = ioutil.ReadFile(fn2)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, fsEntry+"\n")

@@ -152,8 +152,8 @@ const (
 	SecurityDBus SecuritySystem = "dbus"
 	// SecurityUDev identifies the UDev security system.
 	SecurityUDev SecuritySystem = "udev"
-	// SecurityBindMount identifies the bind-mount security system.
-	SecurityBindMount SecuritySystem = "bind"
+	// SecurityMount identifies the mount security system.
+	SecurityMount SecuritySystem = "mount"
 )
 
 var (
