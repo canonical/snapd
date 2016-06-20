@@ -79,11 +79,7 @@ func (iface *SerialPortInterface) SanitizePlug(slot *interfaces.Plug) error {
 func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		path, err := iface.path(slot)
-		if err != nil {
-			return nil, fmt.Errorf("cannot compute slot security snippet: %v", err)
-		}
-		return []byte(fmt.Sprintf("\n%s rwk,\n", path)), nil
+		return []byte(fmt.Sprintf("\n%s rwk,\n", iface.path(slot))), nil
 	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
 		return nil, nil
 	default:
@@ -115,13 +111,7 @@ func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		// Allow write and lock on the file designated by the path.
-		// Dereference symbolic links to file path handed out to apparmor
-		path, err := iface.path(slot)
-		if err != nil {
-			return nil, fmt.Errorf("cannot compute plug security snippet: %v", err)
-		}
-		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
+		return []byte(fmt.Sprintf("%s rwk,\n", iface.path(slot))), nil
 	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
 		return nil, nil
 	default:
@@ -129,9 +119,9 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	}
 }
 
-func (iface *SerialPortInterface) path(slot *interfaces.Slot) (string, error) {
+func (iface *SerialPortInterface) path(slot *interfaces.Slot) string {
 	if path, ok := slot.Attrs["path"].(string); ok {
-		return filepath.Clean(path), nil
+		return filepath.Clean(path)
 	}
 	panic("slot is not sanitized")
 }
