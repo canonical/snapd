@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
+// ContentInterface allows sharing content between snaps
 type ContentInterface struct{}
 
 func (iface *ContentInterface) Name() string {
@@ -95,25 +96,41 @@ func (iface *ContentInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 	}
 }
 
+// path is an internal helper that extract the "read" and "write" attribute
+// of the slot
+func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string {
+	if name != "read" && name != "write" {
+		panic("internal error, path can only be used with read/write")
+	}
+
+	paths, ok := slot.Attrs[name].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		out[i], ok = p.(string)
+		if !ok {
+			return nil
+		}
+
+	}
+	return out
+}
+
 func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	contentSnippet := bytes.NewBuffer(nil)
 	dst := plug.Attrs["target"].(string)
 	dst = filepath.Join(plug.Snap.MountDir(), dst)
 
-	// read
-	if readPaths, ok := slot.Attrs["read"].([]interface{}); ok {
-		for _, r := range readPaths {
-			src := filepath.Join(slot.Snap.MountDir(), r.(string))
-			fmt.Fprintf(contentSnippet, "%s %s none bind,ro 0 0\n", src, dst)
-		}
+	for _, r := range iface.path(slot, "read") {
+		src := filepath.Join(slot.Snap.MountDir(), r)
+		fmt.Fprintf(contentSnippet, "%s %s none bind,ro 0 0\n", src, dst)
 	}
-
-	// write
-	if writePaths, ok := slot.Attrs["write"].([]interface{}); ok {
-		for _, r := range writePaths {
-			src := filepath.Join(slot.Snap.MountDir(), r.(string))
-			fmt.Fprintf(contentSnippet, "%s %s none bind 0 0\n", src, dst)
-		}
+	for _, w := range iface.path(slot, "write") {
+		src := filepath.Join(slot.Snap.MountDir(), w)
+		fmt.Fprintf(contentSnippet, "%s %s none bind 0 0\n", src, dst)
 	}
 
 	switch securitySystem {
