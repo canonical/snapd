@@ -17,6 +17,7 @@
  *
  */
 
+// package backendtest contains common code for testing backends
 package backendtest
 
 import (
