@@ -126,7 +126,11 @@ func (c *cmdChange) Execute([]string) error {
 		if t.ReadyTime.IsZero() {
 			readyTime = "-"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, t.Summary)
+		summary := t.Summary
+		if t.Status == "Doing" && t.Progress.Total > 1 {
+			summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(t.Progress.Done)/float64(t.Progress.Total)*100.0)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, summary)
 	}
 
 	w.Flush()
