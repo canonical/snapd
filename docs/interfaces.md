@@ -136,6 +136,14 @@ with trusted apps.
 Usage: reserved
 Auto-Connect: no
 
+### serial-port
+
+Can access serial ports. This is restricted because it provides privileged
+access to configure serial port hardware.
+
+Usage: reserved
+Auto-Connect: no
+
 ### snapd-control
 
 Can manage snaps via snapd.
