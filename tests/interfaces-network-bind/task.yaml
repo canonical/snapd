@@ -44,23 +44,27 @@ restore: |
 
 execute: |
   echo "Then the snap is listed as connected"
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  actual=$(snap interfaces)
+  echo "$actual" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is disconnected"
   sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+  actual=$(snap interfaces)
+  echo "$actual" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the plug can be connected again"
   sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  actual=$(snap interfaces)
+  echo "$actual" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is connected"
   sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  actual=$(snap interfaces)
+  echo "$actual" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the service is accessible by a client"
   response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
@@ -70,7 +74,8 @@ execute: |
 
   echo "When the plug is disconnected"
   sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+  actual=$(snap interfaces)
+  echo "$actual" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the service is not accessible by a client"
   response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
