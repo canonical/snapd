@@ -44,7 +44,7 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	rpath, rok := slot.Attrs["read"].([]interface{})
 	wpath, wok := slot.Attrs["write"].([]interface{})
 	if !rok && !wok {
-		return fmt.Errorf("content must contain a read or write path")
+		return fmt.Errorf("content interface must contain a read or write path")
 	}
 	if len(rpath) == 0 && len(wpath) == 0 {
 		return fmt.Errorf("read or write path must be set")
@@ -54,8 +54,12 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	paths := rpath
 	paths = append(paths, wpath...)
 	for _, p := range paths {
-		if strings.Contains(p.(string), "..") {
-			return fmt.Errorf("relative path not allowed")
+		s, ok := p.(string)
+		if !ok {
+			return fmt.Errorf("read/write must contain only strings")
+		}
+		if strings.Contains(s, "..") {
+			return fmt.Errorf("content interface path is not clean: %q", s)
 		}
 	}
 
@@ -71,7 +75,7 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 		return fmt.Errorf("content plug must contain target path")
 	}
 	if strings.Contains(target, "..") {
-		return fmt.Errorf("relative path not allowed")
+		return fmt.Errorf("content interface target path is not clean: %q", target)
 	}
 
 	return nil
@@ -114,7 +118,6 @@ func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string
 		if !ok {
 			return nil
 		}
-
 	}
 	return out
 }
@@ -155,6 +158,5 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 }
 
 func (iface *ContentInterface) AutoConnect() bool {
-	// FIXME: really?
 	return true
 }

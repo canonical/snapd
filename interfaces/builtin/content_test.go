@@ -70,7 +70,7 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
 
 	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "content must contain a read or write path")
+	c.Assert(err, ErrorMatches, "content interface must contain a read or write path")
 }
 
 func (s *ContentSuite) TestSanitizeSlotEmptyPaths(c *C) {
@@ -104,7 +104,7 @@ slots:
 
 		slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
 		err = s.iface.SanitizeSlot(slot)
-		c.Assert(err, ErrorMatches, "relative path not allowed")
+		c.Assert(err, ErrorMatches, "content interface path is not clean:.*")
 	}
 }
 
@@ -155,7 +155,7 @@ plugs:
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
 	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, ErrorMatches, "relative path not allowed")
+	c.Assert(err, ErrorMatches, "content interface target path is not clean:.*")
 }
 
 func (s *ContentSuite) TestConnectedPlugSnippetSimple(c *C) {
