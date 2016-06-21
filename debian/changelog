@@ -1,8 +1,8 @@
 ubuntu-core-launcher (1.0.32) UNRELEASED; urgency=medium
 
- * New upstream release
- * Break/Replace ubuntu-core-launcher << 1.0.32 so that packages upgrade
-   correctly
+  * New upstream release
+  * Break/Replace ubuntu-core-launcher << 1.0.32 so that packages upgrade
+    correctly
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 19 Jun 2016 00:46:10 +0200
 
