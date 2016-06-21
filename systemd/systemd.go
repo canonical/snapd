@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -93,7 +94,7 @@ type Systemd interface {
 	Status(service string) (string, error)
 	ServiceStatus(service string) (*ServiceStatus, error)
 	Logs(services []string) ([]Log, error)
-	WriteMountUnitFile(name, what, where string) (string, error)
+	WriteMountUnitFile(name, what, where, fstype string) (string, error)
 }
 
 // A Log is a single entry in the systemd journal
@@ -405,16 +406,45 @@ func (l Log) String() string {
 	return fmt.Sprintf("%s %s %s", l.Timestamp(), l.SID(), l.Message())
 }
 
+// UseFuse detects if we should be using squashfuse instead
+func UseFuse() bool {
+	if !osutil.FileExists("/dev/fuse") {
+		return false
+	}
+
+	_, err := exec.LookPath("squashfuse")
+	if err != nil {
+		return false
+	}
+
+	out, err := exec.Command("systemd-detect-virt", "--container").Output()
+	if err != nil {
+		return false
+	}
+
+	virt := strings.TrimSpace(string(out))
+	if virt != "none" {
+		return true
+	}
+
+	return false
+}
+
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir, ext string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
 	return filepath.Join(dirs.SnapServicesDir, fmt.Sprintf("%s.%s", escapedPath, ext))
 }
 
-func (s *systemd) WriteMountUnitFile(name, what, where string) (string, error) {
+func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, error) {
 	extra := ""
 	if osutil.IsDirectory(what) {
-		extra = "Options=bind\nType=none\n"
+		extra = "Options=bind\n"
+		fstype = "none"
+	}
+
+	if fstype == "squashfs" && UseFuse() {
+		fstype = "fuse.squashfuse"
 	}
 
 	c := fmt.Sprintf(`[Unit]
@@ -423,10 +453,11 @@ Description=Mount unit for %s
 [Mount]
 What=%s
 Where=%s
+Type=%s
 %s
 [Install]
 WantedBy=multi-user.target
-`, name, what, where, extra)
+`, name, what, where, fstype, extra)
 
 	mu := MountUnitPath(where, "mount")
 	return filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(c), 0644, 0)
