@@ -53,10 +53,11 @@ suites:
         restore-each: |
             echo Resetting snapd state...
             systemctl stop snapd || true
-            umount /var/lib/snapd/snaps/*.snap 2>&1 || true
-            rm -f /tmp/ubuntu-core*
-            rm -rf /snap/*
+            umount /var/lib/snapd/snaps/*.snap || true
             rm -rf /var/lib/snapd/*
+            rm -rf /snap/*
+            rm -f /tmp/ubuntu-core*
             rm -f /etc/systemd/system/snap-*.{mount,service}
             rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
+            systemctl daemon-reload
             systemctl start snapd
