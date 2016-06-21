@@ -23,6 +23,7 @@ import (
 	"bytes"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
 var mprisPermanentSlotAppArmor = []byte(`
@@ -32,10 +33,11 @@ var mprisPermanentSlotAppArmor = []byte(`
 # DBus accesses
 #include <abstractions/dbus-session-strict>
 
-# FIXME
+# https://specifications.freedesktop.org/mpris-spec/latest/
+# allow binding to the well-known DBus mpris interface based on the snap's name
 dbus (bind)
     bus=session
-    name=org.mpris.MediaPlayer2.vlc,
+    name="org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}",
 
 # register as a player
 dbus (send)
@@ -50,22 +52,22 @@ dbus (send)
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member="GetConnectionUnix{ProcessID,User}"
-    peer=(label=unconfined),
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
     interface=org.freedesktop.DBus.Properties
-    member={GetAll,PropertiesChanged}
-    peer=(label=unconfined),
+    member="{GetAll,PropertiesChanged}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
-    interface=org.mpris.MediaPlayer2.Player
-    peer=(label=unconfined),
+    interface="org.mpris.MediaPlayer2{,.Player}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 
-# we can connect to ourselves
+# we can always connect to ourselves
 dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
@@ -74,19 +76,30 @@ dbus (receive)
 
 var mprisConnectedSlotAppArmor = []byte(`
 # Allow connected clients to interact with the player
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/mpris/MediaPlayer2
+    peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
+    path="/{,org,org/mpris,org/mpris/MediaPlayer2}"
+    peer=(label=###PLUG_SECURITY_TAGS###),
 
-# FIXME: make conditional
-# classic
+dbus (receive)
+    bus=session
+    interface="org.mpris.MediaPlayer2{,.*}"
+    path=/org/mpris/MediaPlayer2
+    peer=(label=###PLUG_SECURITY_TAGS###),
+`)
+
+var mprisConnectedSlotAppArmorClassic = []byte(`
+# Allow unconfined clients to interact with the player on classic
 dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
     peer=(label=unconfined),
-
-# connected snaps
-dbus (receive)
-    bus=session
-    path=/org/mpris/MediaPlayer2
-    peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
 var mprisConnectedPlugAppArmor = []byte(`
@@ -95,6 +108,31 @@ var mprisConnectedPlugAppArmor = []byte(`
 
 #include <abstractions/dbus-session-strict>
 
+# Find the mpris player
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(name="org.freedesktop.DBus", label="unconfined"),
+dbus (send)
+    bus=session
+    path=/{,org,org/mpris,org/mpris/MediaPlayer2}
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(name="org.freedesktop.DBus", label="unconfined"),
+# This reveals all names on the session bus
+dbus (send)
+    bus=session
+    path=/
+    interface=org.freedesktop.DBus
+    member=ListNames
+    peer=(name="org.freedesktop.DBus", label="unconfined"),
+
+# Communicate with the mpris player
+dbus (send)
+    bus=session
+    interface=org.freedesktop.DBus.Properties
+    path=/org/mpris/MediaPlayer2
+    peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
@@ -169,6 +207,9 @@ func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mprisConnectedSlotAppArmor, old, new, -1)
+		if release.OnClassic {
+			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
+		}
 		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
@@ -186,5 +227,5 @@ func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *MprisInterface) AutoConnect() bool {
-	return false
+	return true
 }
