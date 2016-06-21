@@ -64,7 +64,8 @@ Auto-Connect: yes
 
 Can access non-hidden files in user's `$HOME` to read/write/lock.
 This is restricted because it gives file access to the user's
-`$HOME`.
+`$HOME`. This interface is auto-connected on classic systems and
+manually connected on non-classic.
 
 Usage: reserved
 Auto-Connect: yes
