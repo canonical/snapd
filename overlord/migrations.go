@@ -22,6 +22,7 @@ package overlord
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -60,8 +61,10 @@ func migrate(s *state.State) error {
 	}
 
 	for level != patchLevel {
+		logger.Noticef("Running migration from state patch level %d to %d", level, level+1)
 		err := runMigration(s, level)
 		if err != nil {
+			logger.Noticef("Cannnot migrate: %v", err)
 			return fmt.Errorf("cannot migrate from state patch level %d to %d: %v", level, level+1, err)
 		}
 		level++
