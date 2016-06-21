@@ -596,6 +596,20 @@ func withEnsureSnap(st *state.State, withSnap, targetSnap string, userID int, in
 	return []*state.TaskSet{ts}, nil
 }
 
+func defaultProviders(info *snap.Info) []string {
+	out := []string{}
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			dprovider, ok := plug.Attrs["default-provider"].(string)
+			if !ok || dprovider == "" {
+				continue
+			}
+			out = append(out, dprovider)
+		}
+	}
+	return out
+}
+
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags := snapstate.Flags(0)
 	if inst.DevMode || release.ReleaseInfo.ForceDevMode() {
