@@ -1,0 +1,85 @@
+summary: |
+  The network interface allows a snap to access the network as a client.
+
+  A snap which defines the network plug must be shown in the interfaces list.
+  The plug must be autoconnected on install and, as usual, must be able to be
+  reconnected.
+
+  A snap declaring a plug on this interface must be able to access network services.
+
+environment:
+  SNAP_NAME: network-consumer
+  SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
+  PLUG: network
+  PORT: 8081
+  REQUEST_FILE: "./request.txt"
+  SERVICE_FILE: "./service.sh"
+  SERVICE_NAME: "test-service"
+
+kill-wait: 1m
+
+prepare: |
+  echo "Given a snap declaring the $PLUG plug is installed"
+  snapbuild ./../fixtures/snaps/$SNAP_NAME .
+  sudo snap install $SNAP_FILE
+
+  echo "And a service is listening"
+  echo "#!/bin/sh\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+  chmod a+x $SERVICE_FILE
+  sudo systemd-run --unit $SERVICE_NAME $SERVICE_FILE
+  while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+
+  echo "And we store a basic HTTP request"
+  cat > $REQUEST_FILE <<EOF
+  GET / HTTP/1.0
+
+  EOF
+
+restore: |
+  sudo snap remove $SNAP_NAME
+  rm -f $SNAP_FILE $REQUEST_FILE
+  sudo systemctl stop $SERVICE_NAME
+
+execute: |
+  CONNECTED_PATTERN="(?s)Slot +Plug\n\
+  .*?\n\
+  :$PLUG +$SNAP_NAME"
+  DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
+  .*?\n\
+  - +$SNAP_NAME:$PLUG"
+
+  echo "Then the snap is listed as connected"
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+
+  echo "============================================"
+
+  echo "When the plug is disconnected"
+  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+
+  echo "Then the plug can be connected again"
+  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+
+  echo "============================================"
+
+  echo "When the plug is connected"
+  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+
+  echo "Then the snap is able to access a network service"
+  response=$(network-consumer http://127.0.0.1:$PORT)
+  echo "$response" | grep -Pqz "ok\n"
+
+  echo "============================================"
+
+  echo "When the plug is disconnected"
+  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+
+  echo "Then snap can't access a network service"
+  if network-consumer http://127.0.0.1:$PORT; then
+    echo "Network shouldn't be accessible" && exit 1
+  fi
+
+  echo "============================================"
