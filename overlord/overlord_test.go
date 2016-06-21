@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"syscall"
 	"testing"
 	"time"
@@ -239,6 +240,7 @@ func (ovs *overlordSuite) TestMigrationsSanity(c *C) {
 	for l, _ := range overlord.Migrations {
 		from = append(from, l)
 	}
+	sort.Ints(from)
 	// all steps present
 	for i := 1; i < len(from); i++ {
 		c.Check(from[i], Equals, from[i-1]+1)
