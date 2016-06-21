@@ -70,7 +70,7 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
 
 	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "content interface must contain a read or write path")
+	c.Assert(err, ErrorMatches, "read or write path must be set")
 }
 
 func (s *ContentSuite) TestSanitizeSlotEmptyPaths(c *C) {
