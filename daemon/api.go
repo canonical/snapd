@@ -560,25 +560,24 @@ var ensureStateSoon = ensureStateSoonImpl
 
 var errNothingToInstall = errors.New("nothing to install")
 
-func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
-	ubuntuCore := "ubuntu-core"
-
-	if targetSnap == ubuntuCore {
+func ensureWithSnap(st *state.State, withSnap, targetSnap string, userID int) (*state.TaskSet, error) {
+	if targetSnap == withSnap {
 		return nil, errNothingToInstall
 	}
 
 	var ss snapstate.SnapState
 
-	err := snapstateGet(st, ubuntuCore, &ss)
+	err := snapstateGet(st, withSnap, &ss)
 	if err != state.ErrNoState {
 		return nil, err
 	}
 
-	return snapstateInstall(st, ubuntuCore, "stable", userID, 0)
+	// FIXME: do we want stable here or make this confiurable
+	return snapstateInstall(st, withSnap, "stable", userID, 0)
 }
 
-func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
-	ubuCoreTs, err := ensureUbuntuCore(st, targetSnap, userID)
+func withEnsureSnap(st *state.State, withSnap, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
+	ubuCoreTs, err := ensureWithSnap(st, withSnap, targetSnap, userID)
 	if err != nil && err != errNothingToInstall {
 		return nil, err
 	}
@@ -603,7 +602,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		flags |= snapstate.DevMode
 	}
 
-	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
+	tsets, err := withEnsureSnap(st, "ubuntu-core", inst.snap, inst.userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstall(st, inst.snap, inst.Channel, inst.userID, flags)
 		},
@@ -855,7 +854,7 @@ out:
 		userID = user.ID
 	}
 
-	tsets, err := withEnsureUbuntuCore(st, snapName, userID,
+	tsets, err := withEnsureSnap(st, "ubuntu-core", snapName, userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstallPath(st, snapName, tempPath, "", flags)
 		},
