@@ -1480,6 +1480,11 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-snap",
+		},
+	}}
 
 	d := s.daemon(c)
 
@@ -1566,9 +1571,13 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 		installQueue = append(installQueue, t1, t2)
 		return state.NewTaskSet(t1, t2), nil
 	}
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-snap",
+		},
+	}}
 
 	d := s.daemon(c)
-
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
@@ -1617,9 +1626,16 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	}
 
 	d := s.daemon(c)
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "ubuntu-core",
+			Developer:    "canonical",
+		},
+	}}
 	inst := &snapInstruction{
 		Action: "install",
 		snap:   "ubuntu-core",
+		store:  s,
 	}
 
 	st := d.overlord.State()
@@ -1645,6 +1661,11 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "hello-world",
+		},
+	}}
 
 	d := s.daemon(c)
 
@@ -1710,10 +1731,16 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "not-used",
+		},
+	}}
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action: "install",
+		store:  s,
 		// Install the snap in developer mode
 		DevMode: true,
 	}

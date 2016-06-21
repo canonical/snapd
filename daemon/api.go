@@ -544,6 +544,8 @@ type snapInstruction struct {
 	// The fields below should not be unmarshalled into. Do not export them.
 	snap   string
 	userID int
+	auther store.Authenticator
+	store  snapstate.StoreService
 }
 
 var snapstateInstall = snapstate.Install
@@ -605,7 +607,7 @@ func withEnsureSnaps(st *state.State, withSnaps []string, targetSnap string, use
 	return []*state.TaskSet{ts}, nil
 }
 
-func defaultProviders(info *snap.Info) []string {
+func defaultContentPlugProviders(info *snap.Info) []string {
 	out := []string{}
 	for _, plug := range info.Plugs {
 		if plug.Interface == "content" {
@@ -625,7 +627,13 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		flags |= snapstate.DevMode
 	}
 
-	withSnaps := []string{"ubuntu-core"}
+	// ensure we have all default content plug providers installed
+	info, err := inst.store.Snap(inst.snap, inst.Channel, inst.auther)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot get details for %s: %s", inst.snap, err)
+	}
+	withSnaps := defaultContentPlugProviders(info)
+	withSnaps = append(withSnaps, "ubuntu-core")
 	tsets, err := withEnsureSnaps(st, withSnaps, inst.snap, inst.userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstall(st, inst.snap, inst.Channel, inst.userID, flags)
@@ -715,6 +723,10 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	vars := muxVars(r)
 	inst.snap = vars["name"]
+	inst.store = getStore(c)
+	if user != nil {
+		inst.auther = user.Authenticator()
+	}
 
 	impl := inst.dispatch()
 	if impl == nil {
@@ -878,7 +890,8 @@ out:
 		userID = user.ID
 	}
 
-	withSnaps := []string{"ubuntu-core"}
+	withSnaps := defaultContentPlugProviders(info)
+	withSnaps = append(withSnaps, "ubuntu-core")
 	tsets, err := withEnsureSnaps(st, withSnaps, snapName, userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstallPath(st, snapName, tempPath, "", flags)
