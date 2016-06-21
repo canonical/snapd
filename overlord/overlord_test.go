@@ -20,6 +20,8 @@
 package overlord_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -54,6 +56,9 @@ func (ovs *overlordSuite) TearDownTest(c *C) {
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
+	restore := overlord.MockPatches(1, nil)
+	defer restore()
+
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
@@ -65,16 +70,22 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	s := o.State()
 	c.Check(s, NotNil)
 	c.Check(o.Engine().State(), Equals, s)
+
+	s.Lock()
+	defer s.Unlock()
+	var patchLevel int
+	s.Get("patch-level", &patchLevel)
+	c.Check(patchLevel, Equals, 1)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(`{"data":{"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`)
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`, overlord.PatchLevel()))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
 	o, err := overlord.New()
-
 	c.Assert(err, IsNil)
+
 	state := o.State()
 	c.Assert(err, IsNil)
 	state.Lock()
@@ -82,7 +93,14 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 
 	d, err := state.MarshalJSON()
 	c.Assert(err, IsNil)
-	c.Assert(string(d), DeepEquals, string(fakeState))
+
+	var got, expected map[string]interface{}
+	err = json.Unmarshal(d, &got)
+	c.Assert(err, IsNil)
+	err = json.Unmarshal(fakeState, &expected)
+	c.Assert(err, IsNil)
+
+	c.Check(got, DeepEquals, expected)
 }
 
 func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
@@ -92,6 +110,141 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 
 	_, err = overlord.New()
 	c.Assert(err, ErrorMatches, "EOF")
+}
+
+func (ovs *overlordSuite) TestNewNoDowngrade(c *C) {
+	overlord.MockPatches(2, nil)
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`, 3))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	_, err = overlord.New()
+	c.Assert(err, ErrorMatches, `cannot downgrade: snapd is too old for the current state patch level 3`)
+}
+
+func (ovs *overlordSuite) TestNewWithMigrations(c *C) {
+	m12 := func(s *state.State, commit func()) error {
+		s.Lock()
+		s.Set("m12", true)
+		commit()
+		return nil
+	}
+	m23 := func(s *state.State, commit func()) error {
+		s.Lock()
+		s.Set("m23", true)
+		commit()
+		return nil
+	}
+	overlord.MockPatches(3, map[int]func(*state.State, func()) error{
+		1: m12,
+		2: m23,
+	})
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`, 1))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	state := o.State()
+	c.Assert(err, IsNil)
+	state.Lock()
+	defer state.Unlock()
+
+	var level int
+	var m12f, m23f bool
+	err = state.Get("patch-level", &level)
+	c.Assert(err, IsNil)
+	c.Check(level, Equals, 3)
+
+	err = state.Get("m12", &m12f)
+	c.Assert(err, IsNil)
+	c.Check(m12f, Equals, true)
+
+	err = state.Get("m23", &m23f)
+	c.Assert(err, IsNil)
+	c.Check(m12f, Equals, true)
+}
+
+func (ovs *overlordSuite) TestNewWithMissingMigrations(c *C) {
+	m23 := func(s *state.State, commit func()) error {
+		s.Lock()
+		s.Set("m23", true)
+		commit()
+		return nil
+	}
+	overlord.MockPatches(3, map[int]func(*state.State, func()) error{
+		2: m23,
+	})
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`, 1))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	_, err = overlord.New()
+	c.Assert(err, ErrorMatches, `cannot migrate from state patch level 1 to 2: no supported migration`)
+}
+
+func (ovs *overlordSuite) TestNewWithMigrationError(c *C) {
+	m12 := func(s *state.State, commit func()) error {
+		return fmt.Errorf("m12 failed")
+	}
+	m23 := func(s *state.State, commit func()) error {
+		s.Set("m23", true)
+		return nil
+	}
+	overlord.MockPatches(3, map[int]func(*state.State, func()) error{
+		1: m12,
+		2: m23,
+	})
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`, 1))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	_, err = overlord.New()
+	c.Assert(err, ErrorMatches, `cannot migrate from state patch level 1 to 2: m12 failed`)
+
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	defer r.Close()
+
+	s, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	s.Lock()
+	defer s.Unlock()
+
+	var level int
+	var m12f, m23f bool
+	err = s.Get("patch-level", &level)
+	c.Assert(err, IsNil)
+	c.Check(level, Equals, 1)
+
+	err = s.Get("m12", &m12f)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	err = s.Get("m23", &m23f)
+	c.Assert(err, Equals, state.ErrNoState)
+}
+
+func (ovs *overlordSuite) TestMigrationsSanity(c *C) {
+	if overlord.PatchLevel() == 0 {
+		c.Assert(len(overlord.Migrations), Equals, 0)
+		c.Skip("patch level still at 0, no migrations")
+	}
+	from := make([]int, 0, len(overlord.Migrations))
+	for l, _ := range overlord.Migrations {
+		from = append(from, l)
+	}
+	// all steps present
+	for i := 1; i < len(from); i++ {
+		c.Check(from[i], Equals, from[i-1]+1)
+	}
+	// ends at implemented patch level
+	c.Check(from[len(from)-1], Equals, overlord.PatchLevel())
 }
 
 type witnessManager struct {
