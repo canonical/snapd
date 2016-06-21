@@ -118,6 +118,8 @@ scmp_datum_t sc_map_search(char *s)
 void sc_map_add_kvp(const char *key, scmp_datum_t value)
 {
 	struct sc_map_entry *node;
+	scmp_datum_t *value_copy;
+
 	node = malloc(sizeof(*node));
 	if (node == NULL)
 		die("Out of memory creating sc_map_entries");
@@ -130,10 +132,11 @@ void sc_map_add_kvp(const char *key, scmp_datum_t value)
 	if (node->e->key == NULL)
 		die("Out of memory creating e->key");
 
-	node->e->data = malloc(sizeof(scmp_datum_t *));
-	if (node->e->data == NULL)
+	value_copy = malloc(sizeof(*value_copy));
+	if (value_copy == NULL)
 		die("Out of memory creating e->data");
-	*(scmp_datum_t *) node->e->data = value;
+	*value_copy = value;
+	node->e->data = value_copy;
 
 	node->ep = NULL;
 	node->next = NULL;
