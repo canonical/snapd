@@ -1,4 +1,4 @@
-ubuntu-core-launcher (1.0.32) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.33) UNRELEASED; urgency=medium
 
   * New upstream release
   * Break/Replace ubuntu-core-launcher << 1.0.32 so that packages upgrade
