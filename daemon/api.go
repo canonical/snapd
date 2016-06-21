@@ -576,10 +576,16 @@ func ensureWithSnap(st *state.State, withSnap, targetSnap string, userID int) (*
 	return snapstateInstall(st, withSnap, "stable", userID, 0)
 }
 
-func withEnsureSnap(st *state.State, withSnap, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
-	ubuCoreTs, err := ensureWithSnap(st, withSnap, targetSnap, userID)
-	if err != nil && err != errNothingToInstall {
-		return nil, err
+func withEnsureSnaps(st *state.State, withSnaps []string, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
+	allTs := []*state.TaskSet{}
+	for _, withSnap := range withSnaps {
+		withTs, err := ensureWithSnap(st, withSnap, targetSnap, userID)
+		if err != nil && err != errNothingToInstall {
+			return nil, err
+		}
+		if withTs != nil {
+			allTs = append(allTs, withTs)
+		}
 	}
 
 	ts, err := install()
@@ -587,10 +593,13 @@ func withEnsureSnap(st *state.State, withSnap, targetSnap string, userID int, in
 		return nil, err
 	}
 
-	// ensure main install waits on ubuntu core install
-	if ubuCoreTs != nil {
-		ts.WaitAll(ubuCoreTs)
-		return []*state.TaskSet{ubuCoreTs, ts}, nil
+	// ensure main install waits on all the withSnaps installs
+	if len(allTs) > 0 {
+		for _, withTs := range allTs {
+			ts.WaitAll(withTs)
+		}
+		allTs = append(allTs, ts)
+		return allTs, nil
 	}
 
 	return []*state.TaskSet{ts}, nil
@@ -616,7 +625,8 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		flags |= snapstate.DevMode
 	}
 
-	tsets, err := withEnsureSnap(st, "ubuntu-core", inst.snap, inst.userID,
+	withSnaps := []string{"ubuntu-core"}
+	tsets, err := withEnsureSnaps(st, withSnaps, inst.snap, inst.userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstall(st, inst.snap, inst.Channel, inst.userID, flags)
 		},
@@ -868,7 +878,8 @@ out:
 		userID = user.ID
 	}
 
-	tsets, err := withEnsureSnap(st, "ubuntu-core", snapName, userID,
+	withSnaps := []string{"ubuntu-core"}
+	tsets, err := withEnsureSnaps(st, withSnaps, snapName, userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstallPath(st, snapName, tempPath, "", flags)
 		},
