@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/data"
-	"github.com/snapcore/snapd/testutil"
 
 	"gopkg.in/check.v1"
 )
@@ -52,27 +51,6 @@ func (s *installSuite) TestCallFailBinaryFromInstalledSnap(c *check.C) {
 	c.Assert(err, check.NotNil, check.Commentf("The binary did not fail"))
 }
 
-func (s *installSuite) TestInstallUnexistingAppMustPrintError(c *check.C) {
-	output, err := cli.ExecCommandErr("sudo", "snap", "install", "unexisting.canonical")
-
-	c.Check(err, check.NotNil,
-		check.Commentf("Trying to install an unexisting snap did not exit with an error"))
-	c.Assert(string(output), testutil.Contains,
-		"error: cannot perform the following tasks:\n"+
-			"- Download snap \"unexisting.canonical\" from channel \"stable\" (snap not found)\n",
-		check.Commentf("Wrong error message"))
-}
-
-// SNAP_INSTALL_002: without snap name shows error
-func (s *installSuite) TestInstallWithoutSnapNameMustPrintError(c *check.C) {
-	expected := "error: the required argument `<snap>` was not provided\n"
-
-	actual, err := cli.ExecCommandErr("snap", "install")
-
-	c.Assert(err, check.NotNil)
-	c.Assert(actual, check.Matches, expected)
-}
-
 // SNAP_INSTALL_004: with already installed snap name and same version
 func (s *installSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail(c *check.C) {
 	snapName := "hello-world"
@@ -82,18 +60,6 @@ func (s *installSuite) TestInstallWithAlreadyInstalledSnapAndSameVersionMustFail
 
 	expected := fmt.Sprintf(`error: cannot install "%s": snap "%[1]s" already installed\n`, snapName)
 	actual, err := cli.ExecCommandErr("sudo", "snap", "install", snapName)
-
-	c.Assert(err, check.NotNil)
-	c.Assert(actual, check.Matches, expected)
-}
-
-// regression test for lp #1574829
-func (s *installSuite) TestInstallsPointsToLoginWhenNotAuthenticated(c *check.C) {
-	cli.ExecCommandErr("snap", "logout")
-
-	expected := ".*snap login --help.*\n"
-
-	actual, err := cli.ExecCommandErr("snap", "install", "hello-world")
 
 	c.Assert(err, check.NotNil)
 	c.Assert(actual, check.Matches, expected)
