@@ -130,20 +130,20 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets ma
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(appInfo.Name, appInfo.SecurityTag(), snapInfo, devMode, snippets, content)
+		addContent(appInfo.SecurityTag(), snapInfo, devMode, snippets, content)
 	}
 
 	for _, hookInfo := range snapInfo.Hooks {
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		addContent(hookInfo.Name, hookInfo.SecurityTag(), snapInfo, devMode, snippets, content)
+		addContent(hookInfo.SecurityTag(), snapInfo, devMode, snippets, content)
 	}
 
 	return content, nil
 }
 
-func addContent(executableName, securityTag string, snapInfo *snap.Info, devMode bool, snippets map[string][][]byte, content map[string]*osutil.FileState) {
+func addContent(securityTag string, snapInfo *snap.Info, devMode bool, snippets map[string][][]byte, content map[string]*osutil.FileState) {
 	policy := defaultTemplate
 	if devMode {
 		policy = attachPattern.ReplaceAll(policy, attachComplain)
@@ -151,7 +151,7 @@ func addContent(executableName, securityTag string, snapInfo *snap.Info, devMode
 	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 		switch {
 		case bytes.Equal(placeholder, placeholderVar):
-			return templateVariables(executableName, snapInfo)
+			return templateVariables(snapInfo)
 		case bytes.Equal(placeholder, placeholderProfileAttach):
 			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
 		case bytes.Equal(placeholder, placeholderSnippets):

@@ -310,7 +310,6 @@ type combineSnippetsScenario struct {
 }
 
 const commonPrefix = `
-@{APP_NAME}="smbd"
 @{SNAP_NAME}="samba"
 @{SNAP_REVISION}="1"
 @{INSTALL_DIR}="/snap"`
