@@ -29,6 +29,7 @@ var allInterfaces = []interfaces.Interface{
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&ModemManagerInterface{},
+	&MprisInterface{},
 	&NetworkManagerInterface{},
 	&PppInterface{},
 	&SerialPortInterface{},
