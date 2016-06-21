@@ -243,8 +243,8 @@ func (ovs *overlordSuite) TestMigrationsSanity(c *C) {
 	for i := 1; i < len(from); i++ {
 		c.Check(from[i], Equals, from[i-1]+1)
 	}
-	// ends at implemented patch level
-	c.Check(from[len(from)-1], Equals, overlord.PatchLevel())
+	// ends at previous of implemented patch level
+	c.Check(from[len(from)-1], Equals, overlord.PatchLevel()-1)
 }
 
 type witnessManager struct {
