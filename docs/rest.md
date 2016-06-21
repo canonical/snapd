@@ -281,7 +281,6 @@ Sample result:
       "confinement": "strict"
       "description": "Moon-buggy is a simple character graphics game, where you drive some kind of car across the moon's surface.  Unfortunately there are dangerous craters there.  Fortunately your car can jump over them!\r\n",
       "developer": "dholbach",
-      "download-size": 90112,
       "devmode": false,
       "icon": "",
       "id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
@@ -325,7 +324,7 @@ In addition to the fields described in `/v2/find`:
 * `install-date`: the date and time when the snap was installed.
 * `trymode`: ???
 
-furthermore, `price` cannot occur in the output of `/v2/snaps`.
+furthermore, `download-size` and `price` cannot occur in the output of `/v2/snaps`.
 
 ### POST
 
