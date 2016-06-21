@@ -127,11 +127,13 @@ func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 func (s *HomeInterfaceSuite) TestAutoConnectOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	iface := builtin.NewHomeInterface()
+	c.Check(iface.AutoConnect(), Equals, true)
 }
 
 func (s *HomeInterfaceSuite) TestAutoConnectOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	iface := builtin.NewHomeInterface()
+	c.Check(iface.AutoConnect(), Equals, false)
 }
