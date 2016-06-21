@@ -322,7 +322,7 @@ In addition to the fields described in `/v2/find`:
 * `apps`: JSON array of apps the snap provides. Each app has a `name` field to name a binary this app provides.
 * `installed-size`: how much space the snap itself (not its data) uses.
 * `install-date`: the date and time when the snap was installed.
-* `trymode`: ???
+* `trymode`: true if the app was installed in try mode.
 
 furthermore, `download-size` and `price` cannot occur in the output of `/v2/snaps`.
 
