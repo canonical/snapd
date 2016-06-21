@@ -156,8 +156,7 @@ void sc_map_add_kvp(const char *key, scmp_datum_t value)
 void sc_map_init()
 {
 	// initialize the map linked list
-	sc_map_entries =
-	    (struct sc_map_list *)malloc(sizeof(struct sc_map_list));
+	sc_map_entries = malloc(sizeof(*sc_map_entries));
 	if (sc_map_entries == NULL)
 		die("Out of memory creating sc_map_entries");
 	sc_map_entries->list = NULL;
