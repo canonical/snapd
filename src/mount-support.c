@@ -295,15 +295,14 @@ void setup_slave_mount_namespace()
 	}
 }
 
-#define BIND_MAX_LINE_LENGTH	512	// arbitrary
-
 void setup_bind_mounts(const char *appname)
 {
-	debug("setup_bind_mounts %s", appname);
+	debug("%s: %s", __FUNCTION__, appname);
+
 	FILE *f = NULL;
 	const char *bind_profile_dir = "/var/lib/snapd/bind/profiles/";
 
-	char profile_path[512];	// arbitrary path name limit
+	char profile_path[PATH_MAX];
 	int snprintf_rc =
 	    snprintf(profile_path, sizeof(profile_path), "%s/%s.bind",
 		     bind_profile_dir, appname);
@@ -318,8 +317,7 @@ void setup_bind_mounts(const char *appname)
 		return;
 	// however any other error is a real error
 	if (f == NULL) {
-		fprintf(stderr, "Can not open %s (%s)\n", profile_path,
-			strerror(errno));
+                fprintf(stderr, "cannot open %s\n", profile_path);
 		die("aborting");
 	}
 
@@ -330,10 +328,10 @@ void setup_bind_mounts(const char *appname)
 		if (strcmp(m->mnt_type, "") != 0) {
 			die("only bind mounts are supported");
 		}
-		if (strstr(m->mnt_opts, "bind") == NULL) {
+		if (hasmntopt(m, "bind") == NULL) {
 			die("need bind mount flag");
 		}
-		if (strstr(m->mnt_opts, "ro") != NULL) {
+		if (hasmntopt(m, "ro") != NULL) {
 			flags |= MS_RDONLY;
 		}
 
