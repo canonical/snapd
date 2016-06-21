@@ -12,14 +12,6 @@ environment:
   SNAP_FILE: ./$[SNAP_NAME]_1.0_all.snap
   PLUG: network-bind
   PORT: 8081
-  CONNECTED_PATTERN: "(?s)Slot +Plug\n\
-  .*?\
-  :$[PLUG] +$[SNAP_NAME]"
-  DISCONNECTED_PATTERN: "(?s)Slot +Plug\n\
-  .*?\
-  :$[PLUG] +-\n
-  .*?\
-  - +$[SNAP_NAME]:$[PLUG]"
   REQUEST_FILE: ./request.txt
 
 kill-wait: 1m
@@ -43,6 +35,13 @@ restore: |
   rm -f $SNAP_FILE $REQUEST_FILE
 
 execute: |
+  CONNECTED_PATTERN="(?s)Slot +Plug\n\
+  .*?\n\
+  :$PLUG +$SNAP_NAME"
+  DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
+  .*?\n\
+  - +$SNAP_NAME:$PLUG"
+
   echo "Then the snap is listed as connected"
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
