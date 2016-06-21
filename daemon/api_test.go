@@ -2822,3 +2822,66 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 		"message": fmt.Sprintf("cannot abort change %s with nothing pending", ids[0]),
 	})
 }
+
+func (s *apiSuite) TestInstallMissingDefaultProviders(c *check.C) {
+	installQueue := []*state.Task{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// pretend we do not have a state for ubuntu-core
+		return state.ErrNoState
+	}
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		t1 := s.NewTask("fake-install-snap", name)
+		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
+		installQueue = append(installQueue, t1, t2)
+		return state.NewTaskSet(t1, t2), nil
+	}
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-snap",
+		},
+		Plugs: map[string]*snap.PlugInfo{
+			"content-plug": &snap.PlugInfo{
+				Interface: "content",
+				Attrs: map[string]interface{}{
+					"default-provider": "content-slot-snap",
+				},
+			},
+		},
+	}}
+
+	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	buf := bytes.NewBufferString(`{"action": "install"}`)
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "some-snap"}
+	rsp := postSnap(snapCmd, req, nil).(*resp)
+
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+
+	c.Check(chg.Tasks(), check.HasLen, 6)
+
+	c.Check(installQueue, check.HasLen, 6)
+	// the two "content-slot-snap" install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, "content-slot-snap")
+	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
+	// the two "ubuntu-core" install tasks
+	c.Check(installQueue[2].Summary(), check.Equals, "ubuntu-core")
+	c.Check(installQueue[2].WaitTasks(), check.HasLen, 0)
+	c.Check(installQueue[3].WaitTasks(), check.HasLen, 0)
+	// the two "some-snap" install tasks
+	c.Check(installQueue[4].Summary(), check.Equals, "some-snap")
+	c.Check(installQueue[4].WaitTasks(), check.HasLen, 4)
+	c.Check(installQueue[5].WaitTasks(), check.HasLen, 4)
+}
