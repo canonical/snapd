@@ -285,7 +285,7 @@ func (s *SystemdTestSuite) TestWriteMountUnit(c *C) {
 	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
 	c.Assert(err, IsNil)
 
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -297,6 +297,7 @@ Description=Mount unit for foo
 [Mount]
 What=%s
 Where=/apps/foo/1.0
+Type=squashfs
 
 [Install]
 WantedBy=multi-user.target
@@ -306,7 +307,7 @@ WantedBy=multi-user.target
 func (s *SystemdTestSuite) TestWriteMountUnitForDirs(c *C) {
 	// a directory instead of a file produces a different output
 	snapDir := c.MkDir()
-	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", snapDir, "/apps/foo/1.0")
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foodir", snapDir, "/apps/foo/1.0", "squashfs")
 	c.Assert(err, IsNil)
 	defer os.Remove(mountUnitName)
 
@@ -318,8 +319,8 @@ Description=Mount unit for foodir
 [Mount]
 What=%s
 Where=/apps/foo/1.0
-Options=bind
 Type=none
+Options=bind
 
 [Install]
 WantedBy=multi-user.target

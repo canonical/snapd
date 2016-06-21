@@ -44,7 +44,7 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 	whereDir := stripGlobalRootDir(s.MountDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
-	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir)
+	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir, "squashfs")
 	if err != nil {
 		return err
 	}
