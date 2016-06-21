@@ -1146,6 +1146,14 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
 	c.Check(candidateSlots[0].Name, Equals, "exported-content")
 }
 
+func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) {
+	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
+	slotSnap.Type = snap.TypeOS
+
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	c.Check(candidateSlots, HasLen, 0)
+}
+
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
 	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
