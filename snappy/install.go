@@ -119,7 +119,9 @@ func doInstall(name, channel string, flags LegacyInstallFlags, meter progress.Me
 		return "", err
 	}
 
-	snap, err := mStore.Snap(name, channel, nil)
+	// devmode false preserves the old behaviour but we might want
+	// it to be set from flags instead.
+	snap, err := mStore.Snap(name, channel, false, nil)
 	if err != nil {
 		return "", err
 	}
