@@ -41,11 +41,8 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// check that we have either a read or write path
-	rpath, rok := slot.Attrs["read"].([]interface{})
-	wpath, wok := slot.Attrs["write"].([]interface{})
-	if !rok && !wok {
-		return fmt.Errorf("content interface must contain a read or write path")
-	}
+	rpath := iface.path(slot, "read")
+	wpath := iface.path(slot, "write")
 	if len(rpath) == 0 && len(wpath) == 0 {
 		return fmt.Errorf("read or write path must be set")
 	}
@@ -54,12 +51,8 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	paths := rpath
 	paths = append(paths, wpath...)
 	for _, p := range paths {
-		s, ok := p.(string)
-		if !ok {
-			return fmt.Errorf("read/write must contain only strings")
-		}
-		if strings.Contains(s, "..") {
-			return fmt.Errorf("content interface path is not clean: %q", s)
+		if strings.Contains(p, "..") {
+			return fmt.Errorf("content interface path is not clean: %q", p)
 		}
 	}
 
