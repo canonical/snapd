@@ -36,7 +36,12 @@ prepare: |
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
-    echo "[Unit]\nStartLimitInterval=0" >> /etc/systemd/system/snapd.service.d/local.conf
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    [Service]
+    Environment=SNAPD_DEBUG_HTTP=7
+    EOF
 
     # Build snapbuild.
     apt install -y git
@@ -49,6 +54,7 @@ suites:
             echo Resetting snapd state...
             systemctl stop snapd || true
             umount /var/lib/snapd/snaps/*.snap 2>&1 || true
+            rm -f /tmp/ubuntu-core*
             rm -rf /snap/*
             rm -rf /var/lib/snapd/*
             rm -f /etc/systemd/system/snap-*.{mount,service}
