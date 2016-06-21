@@ -230,7 +230,7 @@ snaps is supported via the `refresh` key.
 [//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
 
 * `channel`: which channel the package is currently tracking.
-* `confinement`:
+* `confinement`: the confinement used; one of `strict` or `devmode`.
 * `description`: snap description.
 * `developer`: developer who created the snap.
 * `download-size`: how big the download will be.
