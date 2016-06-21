@@ -276,7 +276,7 @@ Sample result:
 
 ```javascript
 [{
-      "apps": [{"name": "moon-buggie"}]
+      "apps": [{"name": "moon-buggy"}]
       "channel": "stable"
       "confinement": "strict"
       "description": "Moon-buggy is a simple character graphics game, where you drive some kind of car across the moon's surface.  Unfortunately there are dangerous craters there.  Fortunately your car can jump over them!\r\n",
