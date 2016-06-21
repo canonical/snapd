@@ -1,0 +1,38 @@
+project: snap-confine
+
+environment:
+    REUSE_PROJECT: $(echo $REUSE_PROJECT)
+    PATH: /snap/bin:$PATH
+
+backends:
+    linode:
+        key: $(echo $SPREAD_LINODE_KEY)
+        systems:
+            - ubuntu-16.04-64-grub
+            - ubuntu-16.04-32-grub
+
+path: /spread/snap-confine
+
+exclude:
+    - .git
+
+prepare: |
+    [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    apt purge -y snap-confine || true
+    apt update
+    apt install -y snapd fakeroot
+    apt build-dep -y ./
+
+    test -d /home/test || adduser --quiet --disabled-password --gecos '' test
+    chown test.test -R /home/test /spread/
+    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
+    apt install -y ../ubuntu-core-launcher_*.deb ../snap-confine_*.deb 
+    rm -f ../snap-confine_*.deb
+
+suites:
+    spread-tests/:
+        summary: Full-system tests for snap-confinue
+        prepare: |
+            echo Ensure ubuntu-core is installed
+            sudo snap install ubuntu-core

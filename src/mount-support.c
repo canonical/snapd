@@ -303,13 +303,6 @@ void setup_bind_mounts(const char *appname)
 	FILE *f = NULL;
 	const char *bind_profile_dir = "/var/lib/snapd/bind/profiles/";
 
-	// Note that secure_gettenv will always return NULL when suid, so
-	// SNAPPY_LAUNCHER_BIND_MOUNT_PROFILE_DIR can't be (ab)used in
-	// that case.
-	if (secure_getenv("SNAPPY_LAUNCHER_BIND_MOUNT_PROFILE_DIR") != NULL)
-		bind_profile_dir =
-		    secure_getenv("SNAPPY_LAUNCHER_BIND_MOUNT_PROFILE_DIR");
-
 	char profile_path[512];	// arbitrary path name limit
 	int snprintf_rc =
 	    snprintf(profile_path, sizeof(profile_path), "%s/%s.bind",
