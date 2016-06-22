@@ -1,4 +1,6 @@
-summary: |
+summary: Ensure that the home interface works.
+
+details: |
 
   The home interface allows a snap to access non-hidden files in $HOME
 
@@ -9,7 +11,6 @@ summary: |
 environment:
   SNAP_NAME: home-consumer
   SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
-  PLUG: home
   READABLE_FILE: "$HOME/readable"
   HIDDEN_READABLE_FILE: "$HOME/.readable"
   WRITABLE_FILE: "$HOME/writable"
@@ -21,9 +22,9 @@ environment:
 kill-wait: 1m
 
 prepare: |
-  echo "Given a snap declaring the $PLUG plug is installed"
+  echo "Given a snap declaring the home plug is installed"
   snapbuild ../lib/snaps/$SNAP_NAME .
-  sudo snap install $SNAP_FILE
+  snap install $SNAP_FILE
 
   echo "And there is a readable file in HOME"
   echo "$OK_CONTENT" > "$READABLE_FILE"
@@ -35,16 +36,15 @@ prepare: |
   echo "$OK_CONTENT" > "$HIDDEN_READABLE_FILE"
 
 restore: |
-  sudo snap remove $SNAP_NAME
-  rm -f $SNAP_FILE
+  rm -f $SNAP_FILE $READABLE_FILE $WRITABLE_FILE $CREATABLE_FILE $HIDDEN_READABLE_FILE
 
 execute: |
   CONNECTED_PATTERN="(?s)Slot +Plug\n\
   .*?\n\
-  :$PLUG +$SNAP_NAME"
+  :home +$SNAP_NAME"
     DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
   .*?\n\
-  - +$SNAP_NAME:$PLUG"
+  - +$SNAP_NAME:home"
 
   echo "Then the snap is listed as connected"
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
@@ -52,17 +52,17 @@ execute: |
   echo "============================================"
 
   echo "When the plug is disconnected"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the plug can be connected again"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is able to read home files"
@@ -72,7 +72,7 @@ execute: |
   echo "============================================"
 
   echo "When the plug is disconnected"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then snap can't read home files"
@@ -83,7 +83,7 @@ execute: |
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is able to append to home files"
@@ -93,7 +93,7 @@ execute: |
   echo "============================================"
 
   echo "When the plug is disconnected"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then snap can't append to home files"
@@ -104,7 +104,7 @@ execute: |
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is able to create home files"
@@ -114,34 +114,34 @@ execute: |
   echo "============================================"
 
   echo "When the plug is disconnected"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then snap can't create home files"
   if home-consumer.writer "$CREATABLE_FILE"; then
-    echo "Home shouldn't be accessible" && exit 1
+    echo "It should be impossible to create home files" && exit 1
   fi
 
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is not able to read hidden home files"
   if home-consumer.reader "$HIDDEN_READABLE_FILE"; then
-    echo "Home shouldn't be accessible" && exit 1
+    echo "Hidden home files shouldn't be readable" && exit 1
   fi
 
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:home ubuntu-core:home
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is not able to write hidden home files"
   if home-consumer.writer "$HIDDEN_CREATABLE_FILE"; then
-    echo "Home shouldn't be accessible" && exit 1
+    echo "It should be impossible to create hidden home files" && exit 1
   fi
 
   echo "============================================"
