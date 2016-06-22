@@ -125,19 +125,15 @@ func (ovs *overlordSuite) TestNewNoDowngrade(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithMigrations(c *C) {
-	m12 := func(s *state.State, commit func()) error {
-		s.Lock()
+	m12 := func(s *state.State) error {
 		s.Set("m12", true)
-		commit()
 		return nil
 	}
-	m23 := func(s *state.State, commit func()) error {
-		s.Lock()
+	m23 := func(s *state.State) error {
 		s.Set("m23", true)
-		commit()
 		return nil
 	}
-	overlord.MockPatches(3, map[int]func(*state.State, func()) error{
+	overlord.MockPatches(3, map[int]func(*state.State) error{
 		1: m12,
 		2: m23,
 	})
@@ -170,13 +166,11 @@ func (ovs *overlordSuite) TestNewWithMigrations(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithMissingMigrations(c *C) {
-	m23 := func(s *state.State, commit func()) error {
-		s.Lock()
+	m23 := func(s *state.State) error {
 		s.Set("m23", true)
-		commit()
 		return nil
 	}
-	overlord.MockPatches(3, map[int]func(*state.State, func()) error{
+	overlord.MockPatches(3, map[int]func(*state.State) error{
 		2: m23,
 	})
 
@@ -189,14 +183,14 @@ func (ovs *overlordSuite) TestNewWithMissingMigrations(c *C) {
 }
 
 func (ovs *overlordSuite) TestNewWithMigrationError(c *C) {
-	m12 := func(s *state.State, commit func()) error {
+	m12 := func(s *state.State) error {
 		return fmt.Errorf("m12 failed")
 	}
-	m23 := func(s *state.State, commit func()) error {
+	m23 := func(s *state.State) error {
 		s.Set("m23", true)
 		return nil
 	}
-	overlord.MockPatches(3, map[int]func(*state.State, func()) error{
+	overlord.MockPatches(3, map[int]func(*state.State) error{
 		1: m12,
 		2: m23,
 	})
