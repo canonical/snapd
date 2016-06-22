@@ -1,7 +1,6 @@
 summary: Ensure that the home interface works.
 
 details: |
-
   The home interface allows a snap to access non-hidden files in $HOME
 
   A snap which defines the home plug must be shown in the interfaces list.
@@ -18,8 +17,6 @@ environment:
   CREATABLE_FILE: "$HOME/creatable"
   HIDDEN_CREATABLE_FILE: "$HOME/.creatable"
   OK_CONTENT: "ok"
-
-kill-wait: 1m
 
 prepare: |
   echo "Given a snap declaring the home plug is installed"
