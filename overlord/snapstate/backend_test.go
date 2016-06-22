@@ -229,7 +229,7 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	})
 }
 
-func (f *fakeSnappyBackend) Current(curInfo *snap.Info) {
+func (f *fakeSnappyBackend) CurrentSideInfo(curInfo *snap.Info) {
 	old := "<no-current>"
 	if curInfo != nil {
 		old = curInfo.MountDir()

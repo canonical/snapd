@@ -117,7 +117,7 @@ type SnapState struct {
 }
 
 // Current returns the side info for the current revision in the snap revision sequence if there is one.
-func (snapst *SnapState) Current() *snap.SideInfo {
+func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	n := len(snapst.Sequence)
 	if n == 0 {
 		return nil
@@ -506,7 +506,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var curInfo *snap.Info
-	if cur := snapst.Current(); cur != nil {
+	if cur := snapst.CurrentSideInfo(); cur != nil {
 		var err error
 		curInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
@@ -515,7 +515,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	m.backend.Current(curInfo)
+	m.backend.CurrentSideInfo(curInfo)
 
 	if err := checkSnap(t.State(), ss.SnapPath, curInfo, Flags(ss.Flags)); err != nil {
 		return err
@@ -538,7 +538,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := readInfo(ss.Name, snapst.Current())
+	oldInfo, err := readInfo(ss.Name, snapst.CurrentSideInfo())
 	if err != nil {
 		return err
 	}
@@ -568,7 +568,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := readInfo(ss.Name, snapst.Current())
+	oldInfo, err := readInfo(ss.Name, snapst.CurrentSideInfo())
 	if err != nil {
 		return err
 	}
@@ -602,7 +602,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var oldInfo *snap.Info
-	if cur := snapst.Current(); cur != nil {
+	if cur := snapst.CurrentSideInfo(); cur != nil {
 		var err error
 		oldInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
@@ -629,7 +629,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var oldInfo *snap.Info
-	if cur := snapst.Current(); cur != nil {
+	if cur := snapst.CurrentSideInfo(); cur != nil {
 		var err error
 		oldInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
@@ -773,7 +773,7 @@ func (m *SnapManager) doPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Lock()
 	defer st.Unlock()
-	cur := snapst.Current()
+	cur := snapst.CurrentSideInfo()
 	snapst.Block = append(snapst.Block, cur.Revision)
 
 	snapst.Candidate = snapst.Previous()
