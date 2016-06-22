@@ -186,6 +186,11 @@ func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
 }
 
+// NeedsDevMode retursn whether the snap needs devmode.
+func (s *Info) NeedsDevMode() bool {
+	return s.Confinement == DevmodeConfinement
+}
+
 // sanity check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
 
@@ -353,7 +358,17 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 		return nil, err
 	}
 
-	return infoFromSnapYamlWithSideInfo(meta, si)
+	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	if err != nil {
+		return nil, err
+	}
+
+	err = addImplicitHooks(info)
+	if err != nil {
+		return nil, err
+	}
+
+	return info, nil
 }
 
 // ReadInfoFromSnapFile reads the snap information from the given File
@@ -365,6 +380,11 @@ func ReadInfoFromSnapFile(snapf Container, si *SideInfo) (*Info, error) {
 	}
 
 	info, err := infoFromSnapYamlWithSideInfo(meta, si)
+	if err != nil {
+		return nil, err
+	}
+
+	err = addImplicitHooksFromContainer(info, snapf)
 	if err != nil {
 		return nil, err
 	}
