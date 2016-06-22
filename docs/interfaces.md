@@ -79,6 +79,13 @@ allows adjusting settings of other applications.
 Usage: reserved
 Auto-Connect: yes
 
+### optical-drive
+
+Can access the first optical drive in read-only mode. Suitable for CD/DVD playback.
+
+Usage: common
+Auto-Connect: yes
+
 ## Supported Interfaces - Advanced
 
 ### cups-control
