@@ -86,6 +86,14 @@ Can access the first optical drive in read-only mode. Suitable for CD/DVD playba
 Usage: common
 Auto-Connect: yes
 
+### camera
+
+Can access the first video camera. Suitable for programs wanting to use the
+webcams.
+
+Usage: common
+Auto-Connect: no
+
 ## Supported Interfaces - Advanced
 
 ### cups-control
