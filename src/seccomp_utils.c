@@ -100,7 +100,7 @@ scmp_datum_t sc_map_search(char *s)
 {
 	ENTRY e;
 	ENTRY *ep = NULL;
-	scmp_datum_t val = 0;
+	scmp_datum_t *val = NULL;
 	errno = 0;
 
 	e.key = s;
@@ -108,11 +108,11 @@ scmp_datum_t sc_map_search(char *s)
 		die("hsearch_r failed");
 
 	if (ep != NULL)
-		val = *(scmp_datum_t *) ep->data;
+		val = ep->data;
 	else
 		errno = EINVAL;
 
-	return val;
+	return *val;
 }
 
 void sc_map_add_kvp(const char *key, scmp_datum_t value)
