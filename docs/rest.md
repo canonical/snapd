@@ -229,16 +229,16 @@ snaps is supported via the `refresh` key.
 
 [//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
 
-* `channel`: which channel the package is currently tracking.
-* `confinement`: the confinement used; one of `strict` or `devmode`.
+* `channel`: which channel the snap is currently tracking.
+* `confinement`: the confinement requested by the snap itself; one of `strict` or `devmode`.
 * `description`: snap description.
 * `developer`: developer who created the snap.
 * `download-size`: how big the download will be.
 * `icon`: a url to the snap icon, possibly relative to this server.
-* `id`: Unique ID for this snap
+* `id`: unique ID for this snap.
 * `name`: the snap name.
 * `prices`: JSON object with properties named by ISO 4217 currency code. The values of the properties are numerics representing the cost in each currency. For free snaps, the "prices" property is omitted.
-* `private`: true if this is not a publically available snap.
+* `private`: true if this snap is only available to its author.
 * `resource`: HTTP resource for this snap.
 * `revision`: a number representing the revision.
 * `status`: can be either `available`, or `priced` (i.e. needs to be bought to become available).
@@ -320,8 +320,11 @@ In addition to the fields described in `/v2/find`:
 [//]: # keep the fields sorted!
 
 * `apps`: JSON array of apps the snap provides. Each app has a `name` field to name a binary this app provides.
+* `devmode`: true if the snap is currently installed in development mode.
 * `installed-size`: how much space the snap itself (not its data) uses.
 * `install-date`: the date and time when the snap was installed.
+* `status`: can be either `installed` or `active` (i.e. is current).
+
 * `trymode`: true if the app was installed in try mode.
 
 furthermore, `download-size` and `price` cannot occur in the output of `/v2/snaps`.
