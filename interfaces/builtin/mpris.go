@@ -189,7 +189,13 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return mprisPermanentSlotAppArmor, nil
+		snippet := mprisPermanentSlotAppArmor
+		// on classic, allow unconfined remotes to control the player
+		// (eg, indicator-sound)
+		if release.OnClassic {
+			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
+		}
+		return snippet, nil
 	case interfaces.SecurityDBus:
 		return nil, nil
 	case interfaces.SecuritySecComp:
@@ -207,9 +213,6 @@ func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 		old := []byte("###PLUG_SECURITY_TAGS###")
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mprisConnectedSlotAppArmor, old, new, -1)
-		if release.OnClassic {
-			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
-		}
 		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
