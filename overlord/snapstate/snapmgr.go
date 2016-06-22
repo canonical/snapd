@@ -108,6 +108,7 @@ type SnapStateFlags Flags
 type SnapState struct {
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
+	Current   snap.Revision    `json:"current,omitempty"`
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
@@ -122,7 +123,18 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	if n == 0 {
 		return nil
 	}
-	return snapst.Sequence[n-1]
+	// compatiblity
+	if snapst.Current.Unset() {
+		return snapst.Sequence[n-1]
+	}
+	// find "current"
+	for _, si := range snapst.Sequence {
+		if si.Revision == snapst.Current {
+			return si
+		}
+	}
+	// panic?
+	return nil
 }
 
 func (snapst *SnapState) Previous() *snap.SideInfo {
@@ -130,7 +142,18 @@ func (snapst *SnapState) Previous() *snap.SideInfo {
 	if n < 2 {
 		return nil
 	}
-	return snapst.Sequence[n-2]
+	// compatiblity
+	if snapst.Current.Unset() {
+		return snapst.Sequence[n-2]
+	}
+	// find "current" and return the one before that
+	for i, si := range snapst.Sequence {
+		if si.Revision == snapst.Current {
+			return snapst.Sequence[i-1]
+		}
+	}
+	// panic?
+	return nil
 }
 
 // DevMode returns true if the snap is installed in developer mode.
