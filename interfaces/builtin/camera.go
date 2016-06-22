@@ -27,18 +27,11 @@ const cameraConnectedPlugAppArmor = `
 /dev/video0 rw,
 `
 
-const cameraConnectedPlugSecComp = `
-read
-write
-ioctl
-`
-
 // NewCameraInterface returns a new "camera" interface.
 func NewCameraInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "camera",
 		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
-		connectedPlugSecComp:  cameraConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
