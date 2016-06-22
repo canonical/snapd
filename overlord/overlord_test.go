@@ -98,7 +98,7 @@ type witnessManager struct {
 	state          *state.State
 	expectedEnsure int
 	ensureCalled   chan struct{}
-	ensureCallack  func(s *state.State) error
+	ensureCallback func(s *state.State) error
 }
 
 func (wm *witnessManager) Ensure() error {
@@ -106,8 +106,8 @@ func (wm *witnessManager) Ensure() error {
 		close(wm.ensureCalled)
 		return nil
 	}
-	if wm.ensureCallack != nil {
-		return wm.ensureCallack(wm.state)
+	if wm.ensureCallback != nil {
+		return wm.ensureCallback(wm.state)
 	}
 	return nil
 }
@@ -136,7 +136,7 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 
 	witness := &witnessManager{
 		state:          o.State(),
-		expectedEnsure: 2,
+		expectedEnsure: 3,
 		ensureCalled:   make(chan struct{}),
 	}
 	o.Engine().AddManager(witness)
@@ -150,10 +150,40 @@ func (ovs *overlordSuite) TestEnsureLoopRunAndStop(c *C) {
 	case <-time.After(2 * time.Second):
 		c.Fatal("Ensure calls not happening")
 	}
-	c.Check(time.Since(t0) >= 20*time.Millisecond, Equals, true)
+	c.Check(time.Since(t0) >= 10*time.Millisecond, Equals, true)
 
 	err = o.Stop()
 	c.Assert(err, IsNil)
+}
+
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeImmediate(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	ensure := func(s *state.State) error {
+		s.EnsureBefore(0)
+		return nil
+	}
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 2,
+		ensureCalled:   make(chan struct{}),
+		ensureCallback: ensure,
+	}
+	se := o.Engine()
+	se.AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
 }
 
 func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
@@ -162,18 +192,22 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBefore(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
+	ensure := func(s *state.State) error {
+		s.EnsureBefore(10 * time.Millisecond)
+		return nil
+	}
+
 	witness := &witnessManager{
 		state:          o.State(),
-		expectedEnsure: 1,
+		expectedEnsure: 2,
 		ensureCalled:   make(chan struct{}),
+		ensureCallback: ensure,
 	}
 	se := o.Engine()
 	se.AddManager(witness)
 
 	o.Loop()
 	defer o.Stop()
-
-	se.State().EnsureBefore(10 * time.Millisecond)
 
 	select {
 	case <-witness.ensureCalled:
@@ -189,35 +223,8 @@ func (ovs *overlordSuite) TestEnsureBeforeSleepy(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	witness := &witnessManager{
-		state:          o.State(),
-		expectedEnsure: 1,
-		ensureCalled:   make(chan struct{}),
-	}
-	se := o.Engine()
-	se.AddManager(witness)
-
-	o.Loop()
-	defer o.Stop()
-
-	overlord.MockEnsureNext(o, time.Now().Add(-10*time.Hour))
-
-	se.State().EnsureBefore(0)
-
-	select {
-	case <-witness.ensureCalled:
-	case <-time.After(2 * time.Second):
-		c.Fatal("Ensure calls not happening")
-	}
-}
-
-func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
-	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
-	defer restoreIntv()
-	o, err := overlord.New()
-	c.Assert(err, IsNil)
-
 	ensure := func(s *state.State) error {
+		overlord.MockEnsureNext(o, time.Now().Add(-10*time.Hour))
 		s.EnsureBefore(0)
 		return nil
 	}
@@ -226,13 +233,50 @@ func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeInEnsure(c *C) {
 		state:          o.State(),
 		expectedEnsure: 2,
 		ensureCalled:   make(chan struct{}),
-		ensureCallack:  ensure,
+		ensureCallback: ensure,
 	}
 	se := o.Engine()
 	se.AddManager(witness)
 
 	o.Loop()
 	defer o.Stop()
+
+	select {
+	case <-witness.ensureCalled:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
+}
+
+func (ovs *overlordSuite) TestEnsureLoopMediatedEnsureBeforeOutsideEnsure(c *C) {
+	restoreIntv := overlord.MockEnsureInterval(10 * time.Minute)
+	defer restoreIntv()
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	ch := make(chan struct{})
+	ensure := func(s *state.State) error {
+		close(ch)
+		return nil
+	}
+
+	witness := &witnessManager{
+		state:          o.State(),
+		expectedEnsure: 2,
+		ensureCalled:   make(chan struct{}),
+		ensureCallback: ensure,
+	}
+	se := o.Engine()
+	se.AddManager(witness)
+
+	o.Loop()
+	defer o.Stop()
+
+	select {
+	case <-ch:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Ensure calls not happening")
+	}
 
 	se.State().EnsureBefore(0)
 

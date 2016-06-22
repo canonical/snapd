@@ -26,10 +26,10 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-// A StoreService can find, list available updates and offer for download snaps.
+// A StoreService can find, list available updates and download snaps.
 type StoreService interface {
-	Snap(string, string, store.Authenticator) (*snap.Info, error)
-	Find(string, string, store.Authenticator) ([]*snap.Info, error)
+	Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error)
+	Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 
@@ -38,7 +38,6 @@ type StoreService interface {
 
 type managerBackend interface {
 	// install releated
-	Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, store StoreService, auther store.Authenticator) (*snap.Info, string, error)
 	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) error
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
@@ -64,22 +63,3 @@ type defaultBackend struct {
 
 func (b *defaultBackend) Candidate(*snap.SideInfo)   {}
 func (b *defaultBackend) CurrentSideInfo(*snap.Info) {}
-
-func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, stor StoreService, auther store.Authenticator) (*snap.Info, string, error) {
-	snap, err := stor.Snap(name, channel, auther)
-	if err != nil {
-		return nil, "", err
-	}
-
-	err = checker(snap)
-	if err != nil {
-		return nil, "", err
-	}
-
-	downloadedSnapFile, err := stor.Download(snap, meter, auther)
-	if err != nil {
-		return nil, "", err
-	}
-
-	return snap, downloadedSnapFile, nil
-}

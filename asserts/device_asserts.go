@@ -48,9 +48,9 @@ func (mod *Model) Series() string {
 	return mod.Header("series")
 }
 
-// OS returns the OS variant the model uses.
-func (mod *Model) OS() string {
-	return mod.Header("os")
+// Core returns the core snap the model uses.
+func (mod *Model) Core() string {
+	return mod.Header("core")
 }
 
 // Architecture returns the archicteture the model is based on.
@@ -103,7 +103,7 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Model)(nil)
 
-var modelMandatory = []string{"os", "architecture", "gadget", "kernel", "store", "class"}
+var modelMandatory = []string{"core", "architecture", "gadget", "kernel", "store", "class"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
 	if assert.headers["brand-id"] != assert.headers["authority-id"] {

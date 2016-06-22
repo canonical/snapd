@@ -349,6 +349,16 @@ func (safs *signAddFindSuite) TestSignMissingPrimaryKey(c *C) {
 	c.Check(a1, IsNil)
 }
 
+func (safs *signAddFindSuite) TestSignPrimaryKeyWithSlash(c *C) {
+	headers := map[string]string{
+		"authority-id": "canonical",
+		"primary-key":  "baz/9000",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Assert(err, ErrorMatches, `"primary-key" primary key header cannot contain '/'`)
+	c.Check(a1, IsNil)
+}
+
 func (safs *signAddFindSuite) TestSignNoPrivateKey(c *C) {
 	headers := map[string]string{
 		"authority-id": "canonical",
