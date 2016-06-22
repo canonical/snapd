@@ -78,34 +78,19 @@ func runMigration(s *state.State, level int) error {
 	if m == nil {
 		return fmt.Errorf("no supported migration")
 	}
+	s.Lock()
+	defer s.Unlock()
 
-	commit := func() {
-		s.Set("patch-level", level+1)
-		s.Unlock()
-	}
-
-	err := m(s, commit)
+	err := m(s)
 	if err != nil {
 		return err
 	}
 
+	s.Set("patch-level", level+1)
+
 	return nil
 }
 
-// migrations: maps from L to the migration implementation from patch
-// level L to L+1
-// migrations take a commit function that assumes the
-// state is locked and should typically look like:
-//
-//func mLToL+1(s *state.State, commit func()) error {
-// 	s.Lock()
-// 	// get data to migrate from state...
-// 	s.Unlock()
-//
-// 	// prepare migrated data, can return error
-//
-// 	s.Lock()
-// 	// store back migrated data into state with s.Set etc, no error paths
-// 	commit()
-//}
-var migrations = map[int]func(s *state.State, commit func()) error{}
+// migrations maps from patch level L to migration function for L to L+1.
+// Migration functions are run with the state lock held.
+var migrations = map[int]func(s *state.State) error{}
