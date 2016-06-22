@@ -42,8 +42,18 @@ type OS struct {
 // security features for confinement and devmode is forced.
 func (os *OS) ForceDevMode() bool {
 	switch os.ID {
+	case "neon":
+		fallthrough
 	case "ubuntu":
 		return false
+
+	case "elementary":
+		switch os.Release {
+		case "0.4":
+			return false
+		default:
+			return true
+		}
 	default:
 		// NOTE: Other distributions can move out of devmode by
 		// integrating with the interface security backends. This will

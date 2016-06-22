@@ -47,6 +47,17 @@ func checkNotEmpty(headers map[string]string, name string) (string, error) {
 	return value, nil
 }
 
+func checkPrimaryKey(headers map[string]string, primKey string) (string, error) {
+	value, err := checkNotEmpty(headers, primKey)
+	if err != nil {
+		return "", err
+	}
+	if strings.Contains(value, "/") {
+		return "", fmt.Errorf("%q primary key header cannot contain '/'", primKey)
+	}
+	return value, nil
+}
+
 func checkAssertType(assertType *AssertionType) error {
 	if assertType == nil {
 		return fmt.Errorf("internal error: assertion type cannot be nil")

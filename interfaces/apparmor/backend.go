@@ -131,6 +131,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets ma
 		if devMode {
 			policy = attachPattern.ReplaceAll(policy, attachComplain)
 		}
+		securityTag := appInfo.SecurityTag()
 		policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
 			switch {
 			case bytes.Equal(placeholder, placeholderVar):
@@ -138,14 +139,14 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets ma
 			case bytes.Equal(placeholder, placeholderProfileAttach):
 				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
 			case bytes.Equal(placeholder, placeholderSnippets):
-				return bytes.Join(snippets[appInfo.Name], []byte("\n"))
+				return bytes.Join(snippets[securityTag], []byte("\n"))
 			}
 			return nil
 		})
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := appInfo.SecurityTag()
+		fname := securityTag
 		content[fname] = &osutil.FileState{
 			Content: policy,
 			Mode:    0644,

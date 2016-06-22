@@ -33,7 +33,10 @@ import (
 // Container is the interface to interact with the low-level snap files
 type Container interface {
 	// ReadFile returns the content of a single file from the snap.
-	ReadFile(relative string) (content []byte, err error)
+	ReadFile(relative string) ([]byte, error)
+
+	// ListDir returns the content of a single directory inside the snap.
+	ListDir(path string) ([]string, error)
 
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir)
 	Install(targetPath, mountDir string) error
