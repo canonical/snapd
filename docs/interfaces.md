@@ -79,6 +79,21 @@ allows adjusting settings of other applications.
 Usage: reserved
 Auto-Connect: yes
 
+### optical-drive
+
+Can access the first optical drive in read-only mode. Suitable for CD/DVD playback.
+
+Usage: common
+Auto-Connect: yes
+
+### camera
+
+Can access the first video camera. Suitable for programs wanting to use the
+webcams.
+
+Usage: common
+Auto-Connect: no
+
 ## Supported Interfaces - Advanced
 
 ### cups-control
