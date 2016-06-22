@@ -303,13 +303,8 @@ void setup_bind_mounts(const char *appname)
 	const char *bind_profile_dir = "/var/lib/snapd/bind/profiles/";
 
 	char profile_path[PATH_MAX];
-	int snprintf_rc =
-	    snprintf(profile_path, sizeof(profile_path), "%s/%s.bind",
-		     bind_profile_dir, appname);
-	if (snprintf_rc < 0 || snprintf_rc >= 512) {
-		errno = 0;
-		die("snprintf returned unexpected value");
-	}
+	must_snprintf(profile_path, sizeof(profile_path), "%s/%s.bind",
+		      bind_profile_dir, appname);
 
 	f = fopen(profile_path, "r");
 	// it is ok for the file to not exist
