@@ -1,0 +1,38 @@
+summary: Check that snap apps and services can write to writable areas.
+prepare: |
+  snapbuild ../lib/snaps/data-writer .
+restore: |
+  rm data-writer_1.0_all.snap
+execute: |
+  snap install data-writer_1.0_all.snap
+
+  echo "Apps can write to writable areas"
+  data-writer.app
+  [ -f /var/snap/data-writer/x1/from-app ] || exit 1
+  [ -f /var/snap/data-writer/common/from-app ] || exit 1
+  [ -f /root/snap/data-writer/x1/from-app ] || exit 1
+  # TODO: As soon as `snap run` is used (which creates this directory),
+  # uncomment the following line:
+  #[ -f /root/snap/data-writer/common/from-app ] || exit 1
+
+  echo "Waiting for data writer service to finish..."
+  while true; do
+    sleep 1
+    status=$(systemctl status snap.data-writer.service.service | grep "Main PID" | sed 's/.*(.*status=\(.*\))/\1/')
+    [ -z $status ] && continue # The service may have not yet started
+
+    if [ "$status" != "0/SUCCESS" ]; then
+      echo "Service status was $status, expected 0/SUCCESS"
+      exit 1
+    fi
+
+    break
+  done
+
+  echo "Services can write to writable areas"
+  [ -f /var/snap/data-writer/x1/from-service ] || exit 1
+  [ -f /var/snap/data-writer/common/from-service ] || exit 1
+  [ -f /root/snap/data-writer/x1/from-service ] || exit 1
+  # TODO: As soon as `snap run` is used (which creates this directory),
+  # uncomment the following line:
+  #[ -f /root/snap/data-writer/common/from-service ] || exit 1

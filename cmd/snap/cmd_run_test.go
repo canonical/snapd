@@ -78,10 +78,12 @@ func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {
 	c.Check(env, check.DeepEquals, []string{
 		"SNAP=/snap/snapname/42",
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
+		"SNAP_COMMON=/var/snap/snapname/common",
 		"SNAP_DATA=/var/snap/snapname/42",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=snapname",
 		"SNAP_REVISION=42",
+		fmt.Sprintf("SNAP_USER_COMMON=%s/snap/snapname/common", usr.HomeDir),
 		fmt.Sprintf("SNAP_USER_DATA=%s/snap/snapname/42", usr.HomeDir),
 		"SNAP_VERSION=1.0",
 	})
