@@ -11,8 +11,14 @@ snap_confine_SOURCES = \
 	mount-support.h \
 	mount-support-nvidia.c \
 	mount-support-nvidia.h
-snap_confine_CFLAGS = -Wall -Werror
+snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_LDADD =
+
+# This is here to help fix rpmlint hardening issue.
+# https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
+snap_confine_CFLAGS += $(SUID_CFLAGS)
+snap_confine_LDFLAGS += $(SUID_LDFLAGS)
 
 if STRICT_CONFINEMENT
 snap_confine_SOURCES += \
