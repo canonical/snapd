@@ -317,16 +317,16 @@ void setup_bind_mounts(const char *appname)
 
 	struct mntent *m = NULL;
 	while ((m = getmntent(f)) != NULL) {
-		int flags = MS_BIND;
+		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
 
-		if (strcmp(m->mnt_type, "") != 0) {
-			die("only bind mounts are supported");
+		if (strcmp(m->mnt_type, "none") != 0) {
+			die("only 'none' filesystemtype is supported");
 		}
 		if (hasmntopt(m, "bind") == NULL) {
 			die("need bind mount flag");
 		}
-		if (hasmntopt(m, "ro") != NULL) {
-			flags |= MS_RDONLY;
+		if (hasmntopt(m, "rw") != NULL) {
+			flags &= ~MS_RDONLY;
 		}
 
 		if (mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL) != 0) {
