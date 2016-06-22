@@ -75,6 +75,8 @@ type SnapSetup struct {
 	Flags SnapSetupFlags `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
+
+	Revert snap.Revision `json:"revert,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -109,7 +111,7 @@ type SnapState struct {
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
-	RevertR   []snap.Revision  `json:"revert,omitempty"`
+	Block     []snap.Revision  `json:"revert,omitempty"`
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
@@ -657,7 +659,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// in revert mode the snap is already part of the sequence,
 	// do not add it twice
 	if !ss.RevertOp() {
-		snapst.RevertR = nil
+		snapst.Block = nil
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
 	snapst.Candidate = nil
@@ -772,7 +774,7 @@ func (m *SnapManager) doPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 	cur := snapst.Current()
-	snapst.RevertR = append(snapst.RevertR, cur.Revision)
+	snapst.Block = append(snapst.Block, cur.Revision)
 
 	snapst.Candidate = snapst.Previous()
 	Set(st, ss.Name, snapst)
@@ -790,7 +792,7 @@ func (m *SnapManager) undoPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
-	snapst.RevertR = nil
+	snapst.Block = nil
 	Set(st, ss.Name, snapst)
 	return nil
 }

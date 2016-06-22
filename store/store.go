@@ -538,7 +538,7 @@ type RefreshCandidate struct {
 	Revision snap.Revision
 	Epoch    string
 	DevMode  bool
-	RevertR  []snap.Revision
+	Block    []snap.Revision
 
 	// the desired channel
 	Channel string
@@ -632,7 +632,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 			continue
 		}
 		// do not upgade to a version we rolledback back from
-		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].RevertR) {
+		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].Block) {
 			continue
 		}
 		res = append(res, infoFromRemote(rsnap))
