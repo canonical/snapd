@@ -2,7 +2,7 @@
 
 set -e
 
-. "$(pwd)"/common.sh
+. "${srcdir:-.}/common.sh"
 
 get_common_syscalls >"$TMP"/tmpl
 cat >>"$TMP"/tmpl <<EOF
