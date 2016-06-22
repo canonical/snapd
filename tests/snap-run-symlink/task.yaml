@@ -1,10 +1,5 @@
 summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
-systems:
-    # FIXME: Error seems real and needs fixing: http://paste.ubuntu.com/17634391/
-    #        Problem there is confined process can't see /usr/lib/snapd/snap-exec.
-    - -ubuntu-16.04-32-grub
-
 prepare: |
     echo Ensure we have a os snap with snap run
     sudo snap install --channel=beta ubuntu-core
