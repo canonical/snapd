@@ -31,6 +31,9 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
+
 	. "github.com/snapcore/snapd/systemd"
 )
 
@@ -341,4 +344,82 @@ func (s *SystemdTestSuite) TestRestartCondString(c *C) {
 	for name, cond := range RestartMap {
 		c.Check(cond.String(), Equals, name, Commentf(name))
 	}
+}
+
+func (s *SystemdTestSuite) TestFuseInContainer(c *C) {
+	if !osutil.FileExists("/dev/fuse") {
+		c.Skip("No /dev/fuse on the system")
+	}
+
+	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", `
+echo lxc
+exit 0
+	`)
+	defer systemdCmd.Restore()
+
+	fuseCmd := testutil.MockCommand(c, "squashfuse", `
+exit 0
+	`)
+	defer fuseCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
+	c.Assert(err, IsNil)
+	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+Description=Mount unit for foo
+
+[Mount]
+What=%s
+Where=/apps/foo/1.0
+Type=fuse.squashfuse
+
+[Install]
+WantedBy=multi-user.target
+`, mockSnapPath))
+}
+
+func (s *SystemdTestSuite) TestFuseOutsideContainer(c *C) {
+	systemdCmd := testutil.MockCommand(c, "systemd-detect-virt", `
+echo none
+exit 0
+	`)
+	defer systemdCmd.Restore()
+
+	fuseCmd := testutil.MockCommand(c, "squashfuse", `
+exit 0
+	`)
+	defer fuseCmd.Restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	err := os.MkdirAll(filepath.Dir(mockSnapPath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSnapPath, nil, 0644)
+	c.Assert(err, IsNil)
+
+	mountUnitName, err := New("", nil).WriteMountUnitFile("foo", mockSnapPath, "/apps/foo/1.0", "squashfs")
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	mount, err := ioutil.ReadFile(filepath.Join(dirs.SnapServicesDir, mountUnitName))
+	c.Assert(err, IsNil)
+	c.Assert(string(mount), Equals, fmt.Sprintf(`[Unit]
+Description=Mount unit for foo
+
+[Mount]
+What=%s
+Where=/apps/foo/1.0
+Type=squashfs
+
+[Install]
+WantedBy=multi-user.target
+`, mockSnapPath))
 }
