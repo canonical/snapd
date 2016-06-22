@@ -1491,18 +1491,8 @@ func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
 	}
 	snapstate.Set(s.state, "wip", &wipSnapst)
 
-	committed := false
-	commit := func() {
-		s.state.Unlock()
-		committed = true
-	}
-
-	s.state.Unlock()
-	err := snapstate.MigrateToTypeInState(s.state, commit)
-	s.state.Lock()
+	err := snapstate.MigrateToTypeInState(s.state)
 	c.Assert(err, IsNil)
-
-	c.Check(committed, Equals, true)
 
 	expected := []struct {
 		name string
