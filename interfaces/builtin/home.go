@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
@@ -49,6 +50,6 @@ func NewHomeInterface() interfaces.Interface {
 		name: "home",
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
-		autoConnect:           true,
+		autoConnect:           release.OnClassic,
 	}
 }
