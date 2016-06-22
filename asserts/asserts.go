@@ -227,11 +227,11 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //    BODY can be arbitrary,
 //    SIGNATURE is the signature
 //
-// A header entry for a single line value (no "\n" in it) looks like:
+// A header entry for a single line value (no '\n' in it) looks like:
 //
 //   NAME ": " VALUE
 //
-// A header entry for a multiline value (a value with "\n"s in it) looks like:
+// A header entry for a multiline value (a value with '\n's in it) looks like:
 //
 //   NAME ":\n"  1-space indented VALUE
 //
@@ -240,12 +240,17 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //   type
 //   authority-id (the signer id)
 //
+// Further for a given assertion type all the primary key headers
+// must be non empty and must not contain '/'.
+//
 // The following headers expect integer values and if omitted
 // otherwise are assumed to be 0:
 //
 //   revision (a positive int)
 //   body-length (expected to be equal to the length of BODY)
 //
+// Typically list values in headers are expected to be comma separated.
+// Times are expected to be in the RFC3339 format: "2006-01-02T15:04:05Z07:00".
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	// copy to get an independent backstorage that can't be mutated later
 	assertionSnapshot := make([]byte, len(serializedAssertion))
