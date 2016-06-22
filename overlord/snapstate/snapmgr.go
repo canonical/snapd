@@ -95,8 +95,8 @@ func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
 
-func (ss *SnapSetup) RollbackOp() bool {
-	return ss.Flags&RollbackOp != 0
+func (ss *SnapSetup) RevertOp() bool {
+	return ss.Flags&RevertOp != 0
 }
 
 // SnapStateFlags are flags stored in SnapState.
@@ -109,7 +109,7 @@ type SnapState struct {
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
-	RollbackR []snap.Revision  `json:"rollback,omitempty"`
+	RevertR   []snap.Revision  `json:"revert,omitempty"`
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
@@ -201,8 +201,8 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
-	// rollback releated
-	runner.AddHandler("prepare-rollback", m.doPrepareRollback, m.undoPrepareRollback)
+	// revert releated
+	runner.AddHandler("prepare-revert", m.doPrepareRevert, m.undoPrepareRevert)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -654,10 +654,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	cand := snapst.Candidate
 
 	m.backend.Candidate(snapst.Candidate)
-	// in rollback mode the snap is already part of the sequence,
+	// in revert mode the snap is already part of the sequence,
 	// do not add it twice
-	if !ss.RollbackOp() {
-		snapst.RollbackR = nil
+	if !ss.RevertOp() {
+		snapst.RevertR = nil
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
 	snapst.Candidate = nil
@@ -760,7 +760,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) doPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	ss, snapst, err := snapSetupAndState(t)
@@ -772,7 +772,7 @@ func (m *SnapManager) doPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 	cur := snapst.Current()
-	snapst.RollbackR = append(snapst.RollbackR, cur.Revision)
+	snapst.RevertR = append(snapst.RevertR, cur.Revision)
 
 	snapst.Candidate = snapst.Previous()
 	Set(st, ss.Name, snapst)
@@ -780,7 +780,7 @@ func (m *SnapManager) doPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) undoPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) undoPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -790,7 +790,7 @@ func (m *SnapManager) undoPrepareRollback(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
-	snapst.RollbackR = nil
+	snapst.RevertR = nil
 	Set(st, ss.Name, snapst)
 	return nil
 }

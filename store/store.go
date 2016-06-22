@@ -534,11 +534,11 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auth
 // RefreshCandidate contains information for the store about the currently
 // installed snap so that the store can decide what update we should see
 type RefreshCandidate struct {
-	SnapID    string
-	Revision  snap.Revision
-	Epoch     string
-	DevMode   bool
-	RollbackR []snap.Revision
+	SnapID   string
+	Revision snap.Revision
+	Epoch    string
+	DevMode  bool
+	RevertR  []snap.Revision
 
 	// the desired channel
 	Channel string
@@ -632,7 +632,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 			continue
 		}
 		// do not upgade to a version we rolledback back from
-		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].RollbackR) {
+		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].RevertR) {
 			continue
 		}
 		res = append(res, infoFromRemote(rsnap))

@@ -59,9 +59,9 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 	return client.doSnapAction("refresh", name, options)
 }
 
-// Rollback rolls the snap back to the previous on-disk version
-func (client *Client) Rollback(name string, options *SnapOptions) (changeID string, err error) {
-	return client.doSnapAction("rollback", name, options)
+// Revert rolls the snap back to the previous on-disk state
+func (client *Client) Revert(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("revert", name, options)
 }
 
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {

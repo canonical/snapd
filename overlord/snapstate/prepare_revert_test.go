@@ -27,7 +27,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type prepareRollbackSuite struct {
+type prepareRevertSuite struct {
 	state   *state.State
 	snapmgr *snapstate.SnapManager
 
@@ -36,9 +36,9 @@ type prepareRollbackSuite struct {
 	reset func()
 }
 
-var _ = Suite(&prepareRollbackSuite{})
+var _ = Suite(&prepareRevertSuite{})
 
-func (s *prepareRollbackSuite) SetUpTest(c *C) {
+func (s *prepareRevertSuite) SetUpTest(c *C) {
 	s.fakeBackend = &fakeSnappyBackend{}
 	s.state = state.New(nil)
 
@@ -52,11 +52,11 @@ func (s *prepareRollbackSuite) SetUpTest(c *C) {
 	s.reset = snapstate.MockReadInfo(s.fakeBackend.ReadInfo)
 }
 
-func (s *prepareRollbackSuite) TearDownTest(c *C) {
+func (s *prepareRevertSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
-func (s *prepareRollbackSuite) TestPrepareRollbackSuccess(c *C) {
+func (s *prepareRevertSuite) TestPrepareRevertSuccess(c *C) {
 	si1 := &snap.SideInfo{
 		OfficialName: "foo",
 		Revision:     snap.R(1),
@@ -71,7 +71,7 @@ func (s *prepareRollbackSuite) TestPrepareRollbackSuccess(c *C) {
 		Sequence: []*snap.SideInfo{si1, si2},
 		Active:   true,
 	})
-	t := s.state.NewTask("prepare-rollback", "test")
+	t := s.state.NewTask("prepare-revert", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		Name: "foo",
 	})
@@ -89,11 +89,11 @@ func (s *prepareRollbackSuite) TestPrepareRollbackSuccess(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Candidate, DeepEquals, si1)
-	c.Check(snapst.RollbackR, DeepEquals, []snap.Revision{snap.R(2)})
+	c.Check(snapst.RevertR, DeepEquals, []snap.Revision{snap.R(2)})
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *prepareRollbackSuite) TestDoUndoPrepareRollbackSnap(c *C) {
+func (s *prepareRevertSuite) TestDoUndoPrepareRevertSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -110,7 +110,7 @@ func (s *prepareRollbackSuite) TestDoUndoPrepareRollbackSnap(c *C) {
 		Sequence: []*snap.SideInfo{si1, si2},
 		Active:   true,
 	})
-	t := s.state.NewTask("prepare-rollback", "test")
+	t := s.state.NewTask("prepare-revert", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		Name: "foo",
 	})
@@ -134,6 +134,6 @@ func (s *prepareRollbackSuite) TestDoUndoPrepareRollbackSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Candidate, IsNil)
-	c.Check(snapst.RollbackR, IsNil)
+	c.Check(snapst.RevertR, IsNil)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 }

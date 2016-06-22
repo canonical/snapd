@@ -175,17 +175,17 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
-func (s *SnapOpSuite) TestRollback(c *check.C) {
+func (s *SnapOpSuite) TestRevert(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-			"action": "rollback",
+			"action": "revert",
 			"name":   "foo",
 		})
 	}
 
 	s.RedirectClientToTestServer(s.srv.handle)
-	rest, err := snap.Parser().ParseArgs([]string{"rollback", "foo"})
+	rest, err := snap.Parser().ParseArgs([]string{"revert", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `(?sm).*foo\s+1.0\s+42\s+bar.*`)

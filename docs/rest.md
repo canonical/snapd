@@ -333,7 +333,7 @@ named "snap".
 
 ### POST
 
-* Description: Install, refresh, rollback or remove
+* Description: Install, refresh, revert or remove
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
