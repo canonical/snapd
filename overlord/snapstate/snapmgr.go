@@ -112,7 +112,7 @@ type SnapState struct {
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
-	Block     []snap.Revision  `json:"revert,omitempty"`
+
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
@@ -133,8 +133,7 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 			return si
 		}
 	}
-	// panic?
-	return nil
+	panic(fmt.Sprintf("CurrentSideInfo out of sync %#v %v", snapst.Sequence, snapst.Current))
 }
 
 func (snapst *SnapState) Previous() *snap.SideInfo {
@@ -147,13 +146,38 @@ func (snapst *SnapState) Previous() *snap.SideInfo {
 		return snapst.Sequence[n-2]
 	}
 	// find "current" and return the one before that
+	currentIndex := snapst.currentIndex()
+	if currentIndex == 0 {
+		return nil
+	}
+	return snapst.Sequence[currentIndex-1]
+}
+
+func (snapst *SnapState) currentIndex() int {
 	for i, si := range snapst.Sequence {
 		if si.Revision == snapst.Current {
-			return snapst.Sequence[i-1]
+			return i
 		}
 	}
+	return -1
+}
+
+func (snapst *SnapState) Block() []snap.Revision {
+	// compatiblity
+	if snapst.Current.Unset() {
+		return nil
+	}
+	// return revisions from Sequence[currentIndex:]
+	out := []snap.Revision{}
+	currentIndex := snapst.currentIndex()
 	// panic?
-	return nil
+	if currentIndex < 0 {
+		return nil
+	}
+	for _, si := range snapst.Sequence[currentIndex:] {
+		out = append(out, si.Revision)
+	}
+	return out
 }
 
 // DevMode returns true if the snap is installed in developer mode.
@@ -676,22 +700,25 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	cand := snapst.Candidate
+	// store for later
+	oldChannel := snapst.Channel
+	oldCurrent := snapst.Current
+	oldTryMode := snapst.TryMode()
 
+	cand := snapst.Candidate
 	m.backend.Candidate(snapst.Candidate)
 	// in revert mode the snap is already part of the sequence,
 	// do not add it twice
 	if !ss.RevertOp() {
-		snapst.Block = nil
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
+	snapst.Current = snapst.Candidate.Revision
+
 	snapst.Candidate = nil
 	snapst.Active = true
-	oldChannel := snapst.Channel
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
 	}
-	oldTryMode := snapst.TryMode()
 	snapst.SetTryMode(ss.TryMode())
 
 	newInfo, err := readInfo(ss.Name, cand)
@@ -719,6 +746,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-channel", oldChannel)
+	t.Set("old-current", oldCurrent)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
@@ -756,6 +784,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldCurrent snap.Revision
+	err = t.Get("old-current", &oldCurrent)
+	if err != nil {
+		return err
+	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
@@ -763,6 +796,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
 	snapst.Active = false
 	snapst.Channel = oldChannel
+	snapst.Current = oldCurrent
 	snapst.SetTryMode(oldTryMode)
 
 	newInfo, err := readInfo(ss.Name, snapst.Candidate)
@@ -796,8 +830,6 @@ func (m *SnapManager) doPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Lock()
 	defer st.Unlock()
-	cur := snapst.CurrentSideInfo()
-	snapst.Block = append(snapst.Block, cur.Revision)
 
 	snapst.Candidate = snapst.Previous()
 	Set(st, ss.Name, snapst)
@@ -815,7 +847,7 @@ func (m *SnapManager) undoPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
-	snapst.Block = nil
+
 	Set(st, ss.Name, snapst)
 	return nil
 }

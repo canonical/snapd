@@ -1186,6 +1186,11 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
+	siNew := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(77),
+	}
+
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1196,12 +1201,12 @@ func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{&si},
-		Block:    []snap.Revision{snap.R(7)},
+		Sequence: []*snap.SideInfo{&si, &siNew},
+		Current:  snap.R(7),
 	})
 
 	ts, err := snapstate.Revert(s.state, "some-snap", "")
-	c.Assert(err, ErrorMatches, "can only revert once")
+	c.Assert(err, ErrorMatches, "no revision to revert to")
 	c.Assert(ts, IsNil)
 }
 

@@ -89,7 +89,6 @@ func (s *prepareRevertSuite) TestPrepareRevertSuccess(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Candidate, DeepEquals, si1)
-	c.Check(snapst.Block, DeepEquals, []snap.Revision{snap.R(2)})
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
@@ -134,6 +133,5 @@ func (s *prepareRevertSuite) TestDoUndoPrepareRevertSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Candidate, IsNil)
-	c.Check(snapst.Block, IsNil)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 }
