@@ -98,8 +98,8 @@ apps:
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
 
-	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/snap run  foo.bar")
-	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run  foo")
+	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/snap run foo.bar")
+	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/snap run foo")
 }
 
 const sampleYaml = `

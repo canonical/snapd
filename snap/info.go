@@ -284,10 +284,13 @@ func (app *AppInfo) WrapperPath() string {
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
-	if app.Name == app.Snap.Name() {
-		return fmt.Sprintf("/usr/bin/snap run %s %s", command, filepath.Base(app.Name))
+	if command != "" {
+		command = " " + command
 	}
-	return fmt.Sprintf("/usr/bin/snap run %s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
+	if app.Name == app.Snap.Name() {
+		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
+	}
+	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
