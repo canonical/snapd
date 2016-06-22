@@ -1197,7 +1197,7 @@ func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
-		RevertR:  []snap.Revision{snap.R(7)},
+		Block:    []snap.Revision{snap.R(7)},
 	})
 
 	ts, err := snapstate.Revert(s.state, "some-snap", "")
@@ -1224,7 +1224,7 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
