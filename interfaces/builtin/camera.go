@@ -17,21 +17,21 @@
  *
  */
 
-package apparmor
+package builtin
 
 import (
-	"bytes"
-	"fmt"
-
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/interfaces"
 )
 
-// templateVariables returns text defining apparmor variables that can be used in the
-// apparmor template and by apparmor snippets.
-func templateVariables(info *snap.Info) []byte {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.Name())
-	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
-	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
-	return buf.Bytes()
+const cameraConnectedPlugAppArmor = `
+/dev/video0 rw,
+`
+
+// NewCameraInterface returns a new "camera" interface.
+func NewCameraInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "camera",
+		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
+		reservedForOS:         true,
+	}
 }

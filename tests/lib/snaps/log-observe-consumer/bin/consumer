@@ -9,6 +9,7 @@ def run():
     print("ok")
   except Exception as e:
     print("error accessing log")
+    raise
 
 if __name__ == '__main__':
   sys.exit(run())
