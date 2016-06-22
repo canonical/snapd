@@ -321,9 +321,6 @@ func Revert(s *state.State, name, ver string) (*state.TaskSet, error) {
 	if !snapst.Active {
 		return nil, fmt.Errorf("cannot revert inactive snaps")
 	}
-	if len(snapst.Block) > 0 {
-		return nil, fmt.Errorf("can only revert once")
-	}
 	if snapst.Previous() == nil {
 		return nil, fmt.Errorf("no revision to revert to")
 	}

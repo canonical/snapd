@@ -427,7 +427,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 			// the desired channel (not sn.info.Channel!)
 			Channel: sn.snapst.Channel,
 			DevMode: sn.snapst.DevMode(),
-			Block:   sn.snapst.Block,
+			Block:   sn.snapst.Block(),
 
 			SnapID:   sn.info.SnapID,
 			Revision: sn.info.Revision,
