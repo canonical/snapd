@@ -1,0 +1,52 @@
+summary: Check that bootstrap works for grub-systems
+environment:
+  IMAGE: /tmp/diskimage
+restore:
+ rm -rf $IMAGE
+execute: |
+ echo Creating mock grub env
+ mkdir -p $IMAGE/boot/grub
+ touch $IMAGE/boot/grub/grub.cfg
+
+ echo Preparing bootstrap.yaml 
+ cat > bootstrap.yaml <<EOF
+ bootstrap:
+   rootdir: $IMAGE
+   channel: edge
+   model-assertion: model.assertion
+   extra-snaps:
+   - webdm
+ EOF
+
+ echo Creating model assertion
+ cat > model.assertion <<EOF
+ type: model
+ series: 16
+ authority-id: my-brand
+ brand-id: my-brand
+ model: my-model
+ class: my-class
+ allowed-modes:  
+ required-snaps:  
+ architecture: amd64
+ store: canonical
+ gadget: canonical-pc
+ kernel: canonical-pc-linux
+ core: ubuntu-core
+ timestamp: 2016-01-02T10:00:00-05:00
+ body-length: 0
+
+ openpgpg 2cln
+ EOF
+
+ echo Running bootstrap
+ sudo snap bootstrap bootstrap.yaml
+
+ echo Verifying the result
+ ls -lR $IMAGE
+ for f in canonical-pc canonical-pc-linux ubuntu-core webdm; do
+   ls $IMAGE/var/lib/snapd/snaps/${f}*.snap
+   ls $IMAGE/var/lib/snapd/snaps/${f}*.snap.sideinfo
+ done
+ grep snappy_os=ubuntu-core $IMAGE/boot/grub/grubenv
+ grep snappy_kernel=canonical-pc-linux $IMAGE/boot/grub/grubenv
