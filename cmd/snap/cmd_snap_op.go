@@ -288,9 +288,14 @@ type cmdRollback struct {
 	} `positional-args:"yes"`
 }
 
-var shortRollbackHelp = i18n.G("Rollback the given snap to the previous version")
+var shortRollbackHelp = i18n.G("Rollback the given snap to the previous state")
 var longRollbackHelp = i18n.G(`
-The rollback command will rollback the given snap to the previous version.
+The rollback command will revert the given snap to its state before
+the latest refresh. This will reactivate the previous snap revision,
+and will use the original data that was associated with that revision,
+discarding any data changes that were done by the latest revision. As
+an exception, data which the snap explicitly chooses to share across
+revisions is not touched by the rollback process.
 `)
 
 func (x *cmdRollback) Execute(args []string) error {
