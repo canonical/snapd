@@ -1,6 +1,7 @@
 project: snapd
 
 environment:
+    REUSE_PROJECT: $(echo $REUSE_PROJECT)
     GOPATH: /gopath
     PATH: /gopath/bin:/snap/bin:$PATH
 
@@ -8,7 +9,8 @@ backends:
     linode:
         key: $(echo $SPREAD_LINODE_KEY)
         systems:
-            - ubuntu-16.04-grub
+            - ubuntu-16.04-64-grub
+            - ubuntu-16.04-32-grub
 
 path: /gopath/src/github.com/snapcore/snapd
 
@@ -16,18 +18,34 @@ exclude:
     - .git
 
 prepare: |
+    [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    # apt update is hanging on security.ubuntu.com with IPv6.
+    sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+
     apt purge -y snapd || true
     apt update
     apt build-dep -y ./
+
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
     chown test.test -R ..
-    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -b -Zgzip"
+    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
     apt install -y ../snapd_*.deb
+    rm -f ../snapd_*.deb
 
-restore: |
-    rm -f /gopath/src/github.com/snapcore/*.deb
-    userdel test 2>&1 || true
-    apt purge snapd 2>&1 || true
+    # Disable burst limit so resetting the state quickly doesn't create problems.
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    [Service]
+    Environment=SNAPD_DEBUG_HTTP=7
+    EOF
+
+    # Build snapbuild.
+    apt install -y git
+    go get ./tests/lib/snapbuild
 
 suites:
     tests/:
@@ -35,9 +53,11 @@ suites:
         restore-each: |
             echo Resetting snapd state...
             systemctl stop snapd || true
-            umount /var/lib/snapd/snaps/*.snap 2>&1 || true
-            rm -rf /snap/*
+            umount /var/lib/snapd/snaps/*.snap || true
             rm -rf /var/lib/snapd/*
+            rm -rf /snap/*
+            rm -f /tmp/ubuntu-core*
             rm -f /etc/systemd/system/snap-*.{mount,service}
             rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
+            systemctl daemon-reload
             systemctl start snapd
