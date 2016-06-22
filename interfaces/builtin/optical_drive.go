@@ -25,10 +25,7 @@ import (
 
 const opticalDriveConnectedPlugAppArmor = `
 /dev/sr0 r,
-`
-
-const opticalDriveConnectedPlugSecComp = `
-ioctl
+/dev/scd0 r,
 `
 
 // NewOpticalDriveInterface returns a new "optical-drive" interface.
@@ -36,7 +33,6 @@ func NewOpticalDriveInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "optical-drive",
 		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
-		connectedPlugSecComp:  opticalDriveConnectedPlugSecComp,
 		reservedForOS:         true,
 		autoConnect:           true,
 	}
