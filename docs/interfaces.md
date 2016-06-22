@@ -86,6 +86,17 @@ Can access the first optical drive in read-only mode. Suitable for CD/DVD playba
 Usage: common
 Auto-Connect: yes
 
+### mpris
+
+Can access media players implementing the Media Player Remote Interfacing
+Specification (mpris) when the interface is specified as a plug.
+
+Media players implementing mpris can be accessed by connected clients when
+specified as a slot.
+
+Usage: common
+Auto-Connect: no
+
 ### camera
 
 Can access the first video camera. Suitable for programs wanting to use the
