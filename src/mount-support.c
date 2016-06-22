@@ -317,7 +317,7 @@ void setup_bind_mounts(const char *appname)
 		return;
 	// however any other error is a real error
 	if (f == NULL) {
-		die("cannot open %s\n", profile_path);
+		die("cannot open %s", profile_path);
 	}
 
 	struct mntent *m = NULL;
