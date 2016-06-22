@@ -6,4 +6,5 @@ execute: |
     snap install hello-world
     hello-world.echo | grep Hello
     hello-world.env | grep SNAP_NAME=hello-world
-    hello-world.evil && exit 1 || true
+    echo Ensure that we get an error if hello-world.evil does not return an error
+    if hello-world.evil; then exit 1; fi
