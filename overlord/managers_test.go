@@ -447,7 +447,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	return info
 }
 
-func (ms *mgrsSuite) TestHappyRollback(c *C) {
+func (ms *mgrsSuite) TestHappyRevert(c *C) {
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -468,10 +468,10 @@ apps:
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x2")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x2.snap")
 
-	// now do the rollback
-	ts, err := snapstate.Rollback(st, "foo", "")
+	// now do the revert
+	ts, err := snapstate.Revert(st, "foo", "")
 	c.Assert(err, IsNil)
-	chg := st.NewChange("rollback-snap", "...")
+	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)
 
 	st.Unlock()
@@ -479,9 +479,9 @@ apps:
 	st.Lock()
 	c.Assert(err, IsNil)
 
-	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("rollback-snap change failed with: %v", chg.Err()))
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("revert-snap change failed with: %v", chg.Err()))
 
-	// ensure we are back to x1 after the rollback
+	// ensure we are back to x1 after the revert
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
 	mup = systemd.MountUnitPath("/snap/foo/x1", "mount")
 	content, err = ioutil.ReadFile(mup)

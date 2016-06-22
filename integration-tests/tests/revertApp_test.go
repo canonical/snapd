@@ -34,13 +34,13 @@ import (
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&rollbackAppSuite{})
+var _ = check.Suite(&revertAppSuite{})
 
-type rollbackAppSuite struct {
+type revertAppSuite struct {
 	common.SnappySuite
 }
 
-func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
+func (s *revertAppSuite) TestInstallUpdateRevert(c *check.C) {
 	snap := "hello-world"
 
 	// install edge version from the store (which is squashfs)
@@ -71,8 +71,8 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 	output := refresh.CallFakeSnapRefreshForSnap(c, snap, refresh.NoOp, fakeStore)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*fake1.*")
 
-	// NOW do the rollback
-	output = cli.ExecCommand(c, "sudo", "snap", "rollback", snap)
+	// NOW do the revert
+	output = cli.ExecCommand(c, "sudo", "snap", "revert", snap)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*")
 	c.Assert(output, check.Not(testutil.Contains), "fake1")
 
@@ -86,10 +86,10 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 	output = cli.ExecCommand(c, "ls", "/var/snap/hello-world")
 	c.Assert(output, testutil.Contains, "current")
 
-	// rollback again and it errors
-	output, err = cli.ExecCommandErr("sudo", "snap", "rollback", snap)
+	// revert again and it errors
+	output, err = cli.ExecCommandErr("sudo", "snap", "revert", snap)
 	c.Assert(err, check.NotNil)
-	c.Assert(output, check.Matches, "error:.*: can only rollback once\n")
+	c.Assert(output, check.Matches, "error:.*: can only revert once\n")
 
 	// do a `refresh all` and ensure we do not upgrade to the version
 	// we just rolled back from
@@ -103,8 +103,8 @@ func (s *rollbackAppSuite) TestInstallUpdateRollback(c *check.C) {
 	c.Check(output, check.Matches, "(?ms).*^hello-world.*")
 	c.Check(output, testutil.Contains, "fake1")
 
-	// and rollback again (after the refresh) is fine
-	output = cli.ExecCommand(c, "sudo", "snap", "rollback", snap)
+	// and revert again (after the refresh) is fine
+	output = cli.ExecCommand(c, "sudo", "snap", "revert", snap)
 	c.Assert(output, check.Matches, "(?ms).*^hello-world.*")
 	c.Assert(output, check.Not(testutil.Contains), "fake1")
 }

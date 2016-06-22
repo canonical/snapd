@@ -1185,7 +1185,7 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
 
-func (s *snapmgrTestSuite) TestRollbackNoRollbackAgain(c *C) {
+func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1195,17 +1195,17 @@ func (s *snapmgrTestSuite) TestRollbackNoRollbackAgain(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:    true,
-		Sequence:  []*snap.SideInfo{&si},
-		RollbackR: []snap.Revision{snap.R(7)},
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		RevertR:  []snap.Revision{snap.R(7)},
 	})
 
-	ts, err := snapstate.Rollback(s.state, "some-snap", "")
-	c.Assert(err, ErrorMatches, "can only rollback once")
+	ts, err := snapstate.Revert(s.state, "some-snap", "")
+	c.Assert(err, ErrorMatches, "can only revert once")
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRollbackNothingToRollbackTo(c *C) {
+func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1219,12 +1219,12 @@ func (s *snapmgrTestSuite) TestRollbackNothingToRollbackTo(c *C) {
 		Sequence: []*snap.SideInfo{&si},
 	})
 
-	ts, err := snapstate.Rollback(s.state, "some-snap", "")
-	c.Assert(err, ErrorMatches, "no revision to rollback to")
+	ts, err := snapstate.Revert(s.state, "some-snap", "")
+	c.Assert(err, ErrorMatches, "no revision to revert to")
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRollbackRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1242,8 +1242,8 @@ func (s *snapmgrTestSuite) TestRollbackRunThrough(c *C) {
 		Sequence: []*snap.SideInfo{&siOld, &si},
 	})
 
-	chg := s.state.NewChange("rollback", "rollback a snap")
-	ts, err := snapstate.Rollback(s.state, "some-snap", "")
+	chg := s.state.NewChange("revert", "revert a snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", "")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 

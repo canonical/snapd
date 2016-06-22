@@ -282,26 +282,26 @@ func (x *cmdTry) Execute([]string) error {
 	return listSnaps([]string{name})
 }
 
-type cmdRollback struct {
+type cmdRevert struct {
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
-var shortRollbackHelp = i18n.G("Rollback the given snap to the previous state")
-var longRollbackHelp = i18n.G(`
-The rollback command will revert the given snap to its state before
+var shortRevertHelp = i18n.G("Revert the given snap to the previous state")
+var longRevertHelp = i18n.G(`
+The revert command will revert the given snap to its state before
 the latest refresh. This will reactivate the previous snap revision,
 and will use the original data that was associated with that revision,
 discarding any data changes that were done by the latest revision. As
 an exception, data which the snap explicitly chooses to share across
-revisions is not touched by the rollback process.
+revisions is not touched by the revert process.
 `)
 
-func (x *cmdRollback) Execute(args []string) error {
+func (x *cmdRevert) Execute(args []string) error {
 	cli := Client()
 	name := x.Positional.Snap
-	changeID, err := cli.Rollback(name, nil)
+	changeID, err := cli.Revert(name, nil)
 	if err != nil {
 		return err
 	}
@@ -316,6 +316,6 @@ func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
-	addCommand("rollback", shortRollbackHelp, longRollbackHelp, func() flags.Commander { return &cmdRollback{} })
+	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
 }

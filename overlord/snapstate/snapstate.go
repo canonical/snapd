@@ -58,8 +58,8 @@ const (
 type SnapSetupFlags Flags
 
 const (
-	// RollbackOp means the given snap got rolled back
-	RollbackOp SnapSetupFlags = 0x40000000 >> iota
+	// RevertOp means the given snap got rolled back
+	RevertOp SnapSetupFlags = 0x40000000 >> iota
 )
 
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
@@ -305,11 +305,11 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	return full, nil
 }
 
-// Rollback returns a set of tasks for rolling back a snap.
+// Revert returns a set of tasks for rolling back a snap.
 // Note that the state must be locked by the caller.
-func Rollback(s *state.State, name, ver string) (*state.TaskSet, error) {
+func Revert(s *state.State, name, ver string) (*state.TaskSet, error) {
 	if ver != "" {
-		return nil, fmt.Errorf("rollback to arbitrary versions not implemented")
+		return nil, fmt.Errorf("revert to arbitrary versions not implemented")
 	}
 
 	var snapst SnapState
@@ -319,27 +319,27 @@ func Rollback(s *state.State, name, ver string) (*state.TaskSet, error) {
 	}
 
 	if !snapst.Active {
-		return nil, fmt.Errorf("cannot rollback inactive snaps")
+		return nil, fmt.Errorf("cannot revert inactive snaps")
 	}
-	if len(snapst.RollbackR) > 0 {
-		return nil, fmt.Errorf("can only rollback once")
+	if len(snapst.RevertR) > 0 {
+		return nil, fmt.Errorf("can only revert once")
 	}
 	if snapst.Previous() == nil {
-		return nil, fmt.Errorf("no revision to rollback to")
+		return nil, fmt.Errorf("no revision to revert to")
 	}
 
 	ss := SnapSetup{
 		Name:     name,
 		Revision: snapst.Current().Revision,
-		Flags:    RollbackOp,
+		Flags:    RevertOp,
 	}
 	ssPrev := SnapSetup{
 		Name:     name,
 		Revision: snapst.Previous().Revision,
-		Flags:    RollbackOp,
+		Flags:    RevertOp,
 	}
 
-	prepare := s.NewTask("prepare-rollback", fmt.Sprintf(i18n.G("Prepare rollback of %q"), name))
+	prepare := s.NewTask("prepare-revert", fmt.Sprintf(i18n.G("Prepare revert of %q"), name))
 	prepare.Set("snap-setup", ss)
 
 	unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
