@@ -9,7 +9,8 @@ backends:
     linode:
         key: $(echo $SPREAD_LINODE_KEY)
         systems:
-            - ubuntu-16.04-grub
+            - ubuntu-16.04-64-grub
+            - ubuntu-16.04-32-grub
 
 path: /gopath/src/github.com/snapcore/snapd
 
@@ -18,9 +19,15 @@ exclude:
 
 prepare: |
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    # apt update is hanging on security.ubuntu.com with IPv6.
+    sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+
     apt purge -y snapd || true
     apt update
     apt build-dep -y ./
+
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
     chown test.test -R ..
     sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
@@ -29,7 +36,16 @@ prepare: |
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
-    echo "[Unit]\nStartLimitInterval=0" >> /etc/systemd/system/snapd.service.d/local.conf
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    [Service]
+    Environment=SNAPD_DEBUG_HTTP=7
+    EOF
+
+    # Build snapbuild.
+    apt install -y git
+    go get ./tests/lib/snapbuild
 
 suites:
     tests/:
@@ -38,6 +54,7 @@ suites:
             echo Resetting snapd state...
             systemctl stop snapd || true
             umount /var/lib/snapd/snaps/*.snap 2>&1 || true
+            rm -f /tmp/ubuntu-core*
             rm -rf /snap/*
             rm -rf /var/lib/snapd/*
             rm -f /etc/systemd/system/snap-*.{mount,service}

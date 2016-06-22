@@ -37,6 +37,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.LocationControlInterface{})
 	c.Check(all, Contains, &builtin.LocationObserveInterface{})
 	c.Check(all, Contains, &builtin.MirInterface{})
+	c.Check(all, Contains, &builtin.SerialPortInterface{})
 	c.Check(all, DeepContains, builtin.NewFirewallControlInterface())
 	c.Check(all, DeepContains, builtin.NewGsettingsInterface())
 	c.Check(all, DeepContains, builtin.NewHomeInterface())

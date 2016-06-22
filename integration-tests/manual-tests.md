@@ -158,3 +158,30 @@
 3. Build both the mir-server and the mir-client snaps from lp:~mir-team/+junk/mir-server-snap and lp:~mir-team/+junk/snapcraft-mir-client
 4. Copy over the snaps and sideload install the mir-server snap, which should result in a mir-server launching black blank screen with a mouse available.
 5. Now install the mir-client snap with --devmode, which should result in the Qt clock example app being displayed.
+
+# Test serial-port interface using miniterm app
+
+1. Using Ubuntu classic build and install a simple snap containing the Python
+   pySerial module. Define a app that runs the module and starts miniterm.
+
+```yaml
+  name: miniterm
+  version: 1
+  summary: pySerial miniterm in a snap
+  description: |
+    Simple snap that contains the modules necessary to run
+    pySerial. Useful for testing serial ports.
+  confinement: strict
+  apps:
+    open:
+      command: python3 -m serial.tools.miniterm
+      plugs: [serial-port]
+  parts:
+    my-part:
+      plugin: nil
+      stage-packages:
+        - python3-serial
+```
+
+2. Ensure the 'serial-port' interface is connected to miniterm
+3. Use sudo miniterm.open /dev/tty<DEV> to open a serial port
