@@ -59,7 +59,7 @@ func (o *Overlord) Engine() *StateEngine {
 var Migrations = migrations
 
 // MockPatches lets mock the current patch level and available migrations.
-func MockPatches(level int, m map[int]func(*state.State, func()) error) (restore func()) {
+func MockPatches(level int, m map[int]func(*state.State) error) (restore func()) {
 	prevLevel := patchLevel
 	prevMigrations := migrations
 	patchLevel = level
