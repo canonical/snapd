@@ -448,7 +448,7 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 	return nil, state.ErrNoState
 }
 
-// MigrateToTypeInState migrates the state to have a snap type in the snap state of each setup snap.
+// MigrateToTypeInState implements a state migration to have the snap type in the snap state of each setup snap. To be used in overlord/migrations.go.
 func MigrateToTypeInState(s *state.State, commit func()) error {
 	var stateMap map[string]*SnapState
 
