@@ -2,7 +2,7 @@
 
 set -e
 
-. "$(pwd)/common.sh"
+. "${srcdir:-.}/common.sh"
 
 cat >"$TMP/snap.name.app" <<EOF
 # super strict filter
@@ -16,7 +16,7 @@ if "$L" snap.name.app /bin/true 2>/dev/null; then
     # true returned successfully, our filtering is broken!
     FAIL
 else
-    # true returend a error code, check dmesg
+    # true returned a error code, check dmesg
     if dmesg|tail -n1|grep -q "audit"; then
         PASS
     else

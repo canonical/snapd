@@ -2,7 +2,7 @@
 
 set -e
 
-. "$(pwd)/common.sh"
+. "${srcdir:-.}/common.sh"
 
 cat >"$TMP/snap.name.app" <<EOF
 # some comment

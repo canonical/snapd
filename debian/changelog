@@ -1,31 +1,58 @@
-ubuntu-core-launcher (2.0) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.33) UNRELEASED; urgency=medium
+
+  [ Zygmunt Krynicki ]
+  * New upstream release
+  * Break/Replace ubuntu-core-launcher << 1.0.32 so that packages upgrade
+    correctly
+  * Expose /run when --enable-rootfs-is-core-snap is used
+
+  [ Jamie Strandboge ]
+  * implement seccomp argument filtering (LP: #1446748)
+
+ -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 19 Jun 2016 00:46:10 +0200
+
+ubuntu-core-launcher (1.0.30) yakkety; urgency=medium
 
   [ Zygmunt Krynicki ]
   * Rename the package and everything else from ubuntu-core-launcher to
-    snap-run
-  * Allow for graceful migrations from ubuntu-core-launcher to snap-run by
+    snap-confine
+  * Allow for graceful migrations from ubuntu-core-launcher to snap-confine by
     providing both commands as binary packages, with proper dependencies and
     post-installation scripts that manage apparmor profile changes.
-  * Discard the useless duplicate argument. Now snap-run is invoked with
+  * Discard the useless duplicate argument. Now snap-confine is invoked with
     'snap-name $SECURITY_TAG $COMMAND...'. Previously, security tag was
     duplicated. In the future this will change once again, so that security
-    tag is derived from an argument containing $SNAP_NAME and $APP_NAME.
+    tag is derived from an argument containing $SNAP_NAME and $APP_NAME. 
   * Clean up tests so that shellcheck reports no more errors or warnings
   * Ensure that shellcheck reports no errors on each build
   * Add #DEBHELPER# to maintainer scripts (thanks to lintian)
   * Switch to autotools, build-depend on pkg-config, autotools-dev, autoconf
     and automake (thanks to ogra for the missing bits).
   * Use "dh $@ --with autoreconf" to prepare the build system.
+  * Change unreleased version back to 1.0.x after discussion with Michael Vogt.
+  * Don't mark ubuntu-core-launcher as transitional (it isn't yet).
+  * Move rm_conffile to ubuntu-core-launcher.maintscript, remove the now-empty
+    postrm and preinst scripts.
+  * Enable hardening options for snap-confine
+  * Build-depend on udev, use udevlibdir instead of hardcoding /lib/udev
   * Rename executable to snap-confine, to fit the new execution model.
+  * Update Vcs-Git pointer to point to
+    https://github.com/snapcore/snap-confine
+  * Make ubuntu-core-launcher a symlink to snap-confine
+  * Bump version to 1.0.30
+  * SRU for Ubuntu (LP: #1593396)
 
   [ Steve Langasek ]
   * Update Standards-Version.
   * Add lintian override for suid binary.
 
   [ Jamie Strandboge ]
-  * implement seccomp argument filtering (LP: #1446748)
+  * debian/usr.bin.snap-confine: allow access to ecryptfs lower files
+    (LP: #1574556, LP: #1592696)
+  * chdir() to '/' before setting up private /tmp so private /tmp works when
+    user is in /tmp (LP: #1592402)
 
- -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 22 May 2016 16:14:24 +0300
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 17 Jun 2016 09:03:32 +0200
 
 ubuntu-core-launcher (1.0.28) yakkety; urgency=medium
 

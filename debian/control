@@ -2,15 +2,27 @@ Source: ubuntu-core-launcher
 Section: utils
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
-Build-Depends: debhelper (>= 9), libseccomp-dev, libapparmor-dev, libudev-dev, dh-apparmor, indent, shellcheck, pkg-config, autotools-dev, autoconf, automake, dh-autoreconf
+Build-Depends: autoconf,
+               automake,
+               autotools-dev,
+               debhelper (>= 9),
+               dh-apparmor,
+               dh-autoreconf,
+               indent,
+               libapparmor-dev,
+               libseccomp-dev,
+               libudev-dev,
+               pkg-config,
+               shellcheck,
+               udev
 Standards-Version: 3.9.8
-Vcs-Git: https://github.com/ubuntu-core/snap-confine
+Vcs-Git: https://github.com/snapcore/snap-confine
 
 Package: snap-confine
 Architecture: any
-Breaks: ubuntu-core-launcher (<< 2.0)
-Replaces: ubuntu-core-launcher (<< 2.0)
-Depends: ${misc:Depends}, ${shlibs:Depends}, apparmor
+Breaks: ubuntu-core-launcher (<< 1.0.32)
+Replaces: ubuntu-core-launcher (<< 1.0.32)
+Depends: apparmor, ${misc:Depends}, ${shlibs:Depends}
 Description: Support executable to apply confinement for snappy apps.
  This package contains an internal tool for applying confinement to snappy app.
  The executable (snap-confine) is ran internally by snapd to apply confinement
@@ -19,9 +31,7 @@ Description: Support executable to apply confinement for snappy apps.
 
 Package: ubuntu-core-launcher
 Architecture: all
-Depends: ${misc:Depends}, ${shlibs:Depends}, snap-confine
+Depends: snap-confine, ${misc:Depends}, ${shlibs:Depends}
 Pre-Depends: dpkg (>= 1.17.14)
 Description: Launcher for ubuntu-core (snappy) apps
- This is a transitional package that lets existing installation depending on
- ubuntu-core-launcher syntax continue to work as-is. In the future this will become
- an empty transitional package.
+ This package contains the launcher for launching snappy applications

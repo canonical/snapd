@@ -2,7 +2,7 @@
 
 set -e
 
-. "$(pwd)/common.sh"
+. "${srcdir:-.}/common.sh"
 
 get_common_syscalls >"$TMP/snap.name.app"
 cat >>"$TMP/snap.name.app" <<EOF

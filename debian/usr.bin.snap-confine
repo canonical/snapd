@@ -68,22 +68,38 @@
     # change_profile -> **,
 
     # reading seccomp filters
-    /var/lib/snapd/seccomp/profiles/* r,
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/profiles/* r,
 
     # set up snap-specific private /tmp dir
     capability chown,
-    /tmp/ w,
-    /tmp/snap.*/ w,
-    /tmp/snap.*/tmp/ w,
-    mount options=(rw private) -> /tmp/,
-    mount options=(rw bind) /tmp/snap.*/tmp/ -> /tmp/,
-    mount fstype=devpts options=(rw) devpts -> /dev/pts/,
-    mount options=(rw bind) /dev/pts/ptmx -> /dev/ptmx,   # for bind mounting
+    /{tmp/snap.rootfs_*/,}tmp/ w,
+    /{tmp/snap.rootfs_*/,}tmp/snap.*/ w,
+    /{tmp/snap.rootfs_*/,}tmp/snap.*/tmp/ w,
+    mount options=(rw private) ->  /{tmp/snap.rootfs_*/,}tmp/,
+    mount options=(rw bind) /{tmp/snap.rootfs_*/,}tmp/snap.*/tmp/ -> /{tmp/snap.rootfs_*/,}tmp/,
+    mount fstype=devpts options=(rw) devpts -> /{tmp/snap.rootfs_*/,}dev/pts/,
+    mount options=(rw bind) /{tmp/snap.rootfs_*/,}dev/pts/ptmx -> /{tmp/snap.rootfs_*/,}dev/ptmx,   # for bind mounting
 
-    # for running snaps on ubuntu
+    # for running snaps on classic
     mount options=(rw rslave) -> /,
-    /snap/ r,
-    /snap/** r,
+    /{tmp/snap.rootfs_*,}snap/ r,
+    /{tmp/snap.rootfs_*,}snap/** r,
+
+    # This is used when --enable-rootfs-is-core-snap is used
+    mount options=(rw bind) /snap/ubuntu-core/*/ -> /tmp/snap.rootfs_*/,
+
+    mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
+    mount options=(rw rbind) /etc/ -> /tmp/snap.rootfs_*/etc/,
+    mount options=(rw rbind) /home/ -> /tmp/snap.rootfs_*/home/,
+    mount options=(rw rbind) /proc/ -> /tmp/snap.rootfs_*/proc/,
+    mount options=(rw rbind) /snap/ -> /tmp/snap.rootfs_*/snap/,
+    mount options=(rw rbind) /sys/ -> /tmp/snap.rootfs_*/sys/,
+    mount options=(rw rbind) /tmp/ -> /tmp/snap.rootfs_*/tmp/,
+    mount options=(rw rbind) /var/lib/snapd/ -> /tmp/snap.rootfs_*/var/lib/snapd/,
+    mount options=(rw rbind) /var/snap/ -> /tmp/snap.rootfs_*/var/snap/,
+    mount options=(rw rbind) /var/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
+
+    # This is used when --enable-rootfs-is-core-snap is NOT used
     mount options=(rw bind) /snap/ubuntu-core/*/bin/ -> /bin/,
     mount options=(rw bind) /snap/ubuntu-core/*/sbin/ -> /sbin/,
     mount options=(rw bind) /snap/ubuntu-core/*/lib/ -> /lib/,
@@ -91,6 +107,15 @@
     mount options=(rw bind) /snap/ubuntu-core/*/libx32/ -> /libx32/,
     mount options=(rw bind) /snap/ubuntu-core/*/lib64/ -> /lib64/,
     mount options=(rw bind) /snap/ubuntu-core/*/usr/ -> /usr/,
+
+    # nvidia handling, glob needs /usr/** and the launcher must be
+    # able to bind mount the nvidia dir
+    /usr/** r,
+    mount options=(rw bind) /usr/lib/nvidia-*/ -> /var/lib/snapd/lib/gl/,
+
+    # for chroot on steroids, we use pivot_root as a better chroot that makes
+    # apparmor rules behave the same on classic and outside of classic.
+    pivot_root,
 
     # for creating the user data directories: ~/snap, ~/snap/<name> and
     # ~/snap/<name>/<version>
@@ -105,4 +130,13 @@
     /{dev,run}/{,shm/} r,
     # This should both have 'owner' match but due to LP: #1466234, we can't yet
     /{dev,run}/shm/{,*/,*/*/} rw,
+
+    # Workaround https://launchpad.net/bugs/359338 until upstream handles
+    # stacked filesystems generally.
+    # encrypted ~/.Private and old-style encrypted $HOME
+    owner @{HOME}/.Private/ r,
+    owner @{HOME}/.Private/** mrixwlk,
+    # new-style encrypted $HOME
+    owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
+    owner @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
 }

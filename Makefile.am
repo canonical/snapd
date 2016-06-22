@@ -1,2 +1,2 @@
-SUBDIRS = src tests compat
+SUBDIRS = src tests
 EXTRA_DIST = PORTING README.md

@@ -1,7 +1,6 @@
 TESTS =
 
-if STRICT_CONFINEMENT
-TESTS += \
+all_tests = \
     test_bad_seccomp_filter_args \
     test_bad_seccomp_filter_args_null \
     test_bad_seccomp_filter_args_prctl \
@@ -11,8 +10,8 @@ TESTS += \
     test_bad_seccomp_filter_missing_trailing_newline \
     test_complain \
     test_complain_missed \
-    test_create_user_data \
     test_noprofile \
+    test_restrictions \
     test_restrictions_working \
     test_restrictions_working_args \
     test_restrictions_working_args_prctl \
@@ -21,7 +20,16 @@ TESTS += \
     test_unrestricted \
     test_unrestricted_missed \
     test_whitelist
+
+EXTRA_DIST = $(all_tests) common.sh
+
+if STRICT_CONFINEMENT
+if CONFINEMENT_TESTS
+TESTS += $(all_tests)
 endif
+endif
+
+check: ../src/snap-confine
 
 .PHONY: check-syntax
 check-syntax:

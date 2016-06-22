@@ -14,9 +14,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
+#include "config.h"
+#include "seccomp-support.h"
 
 #include <errno.h>
 #include <stdio.h>
@@ -36,7 +35,6 @@
 
 #include <seccomp.h>
 
-#include "seccomp_utils.h"
 #include "utils.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
@@ -411,7 +409,7 @@ int parse_line(char *line, struct seccomp_args *sargs)
 }
 
 // strip whitespace from the end of the given string (inplace)
-size_t trim_right(char *s, size_t slen)
+static size_t trim_right(char *s, size_t slen)
 {
 	while (slen > 0 && isspace(s[slen - 1])) {
 		s[--slen] = 0;
@@ -423,7 +421,7 @@ size_t trim_right(char *s, size_t slen)
 // empty lines and lines with only whitespace (so a caller can easily skip
 // them). The line buffer is right whitespaced trimmed and the final length of
 // the trimmed line is returned.
-size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
+static size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
 {
 	size_t len = 0;
 
@@ -448,7 +446,7 @@ size_t validate_and_trim_line(char *buf, size_t buf_len, size_t lineno)
 	return len;
 }
 
-void preprocess_filter(FILE * f, struct preprocess *p)
+static void preprocess_filter(FILE * f, struct preprocess *p)
 {
 	char buf[SC_MAX_LINE_LENGTH];
 	size_t lineno = 0;

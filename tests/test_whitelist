@@ -2,7 +2,7 @@
 
 set -e
 
-. "$(pwd)/common.sh"
+. "${srcdir:-.}/common.sh"
 
 printf "Test appname whitelist"
 

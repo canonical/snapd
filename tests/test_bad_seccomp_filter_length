@@ -2,7 +2,7 @@
 
 set -e
 
-. "$(pwd)"/common.sh
+. "${srcdir:-.}/common.sh"
 
 printf "Test seccomp filter (bad - too long)"
 
