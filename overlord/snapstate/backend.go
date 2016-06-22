@@ -53,7 +53,7 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
-	Current(cur *snap.Info)
+	CurrentSideInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
 }
 
@@ -62,8 +62,8 @@ type defaultBackend struct {
 	backend.Backend
 }
 
-func (b *defaultBackend) Candidate(*snap.SideInfo) {}
-func (b *defaultBackend) Current(*snap.Info)       {}
+func (b *defaultBackend) Candidate(*snap.SideInfo)   {}
+func (b *defaultBackend) CurrentSideInfo(*snap.Info) {}
 
 func (b *defaultBackend) Download(name, channel string, checker func(*snap.Info) error, meter progress.Meter, stor StoreService, auther store.Authenticator) (*snap.Info, string, error) {
 	snap, err := stor.Snap(name, channel, auther)

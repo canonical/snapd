@@ -915,7 +915,7 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.Current(), DeepEquals, &snap.SideInfo{
+	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
 		OfficialName: "",
 		Channel:      "",
 		Revision:     snap.R(-3),
@@ -965,7 +965,7 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.Current(), DeepEquals, &snap.SideInfo{
+	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
 		OfficialName: "",
 		Channel:      "",
 		Revision:     snap.R(-1),
@@ -1359,12 +1359,12 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	c.Check(info.Description(), Equals, "Lots of text")
 }
 
-func (s *snapmgrQuerySuite) TestCurrent(c *C) {
+func (s *snapmgrQuerySuite) TestCurrentSideInfo(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
 
-	info, err := snapstate.Current(st, "name1")
+	info, err := snapstate.CurrentSideInfo(st, "name1")
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
@@ -1424,8 +1424,8 @@ func (s *snapmgrQuerySuite) TestPrevious(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, "name1", &snapst)
 	c.Assert(err, IsNil)
-	c.Assert(snapst.Current(), NotNil)
-	c.Assert(snapst.Current().Revision, Equals, snap.R(12))
+	c.Assert(snapst.CurrentSideInfo(), NotNil)
+	c.Assert(snapst.CurrentSideInfo().Revision, Equals, snap.R(12))
 	c.Assert(snapst.Previous(), NotNil)
 	c.Assert(snapst.Previous().Revision, Equals, snap.R(11))
 }
@@ -1448,9 +1448,9 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	}
 
 	c.Check(snapst.Active, Equals, true)
-	c.Check(snapst.Current(), NotNil)
+	c.Check(snapst.CurrentSideInfo(), NotNil)
 
-	info12, err := snap.ReadInfo("name1", snapst.Current())
+	info12, err := snap.ReadInfo("name1", snapst.CurrentSideInfo())
 	c.Assert(err, IsNil)
 
 	c.Check(info12.Name(), Equals, "name1")
