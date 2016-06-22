@@ -406,8 +406,8 @@ func (l Log) String() string {
 	return fmt.Sprintf("%s %s %s", l.Timestamp(), l.SID(), l.Message())
 }
 
-// UseFuse detects if we should be using squashfuse instead
-func UseFuse() bool {
+// useFuse detects if we should be using squashfuse instead
+func useFuse() bool {
 	if !osutil.FileExists("/dev/fuse") {
 		return false
 	}
@@ -443,7 +443,7 @@ func (s *systemd) WriteMountUnitFile(name, what, where, fstype string) (string, 
 		fstype = "none"
 	}
 
-	if fstype == "squashfs" && UseFuse() {
+	if fstype == "squashfs" && useFuse() {
 		fstype = "fuse.squashfuse"
 	}
 
