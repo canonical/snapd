@@ -53,6 +53,7 @@ var implicitClassicSlots = []string{
 	"unity7",
 	"x11",
 	"modem-manager",
+	"optical-drive",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
