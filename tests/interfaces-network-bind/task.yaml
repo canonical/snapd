@@ -1,4 +1,6 @@
-summary: |
+summary: Ensure that the network-bind interface works
+
+details: |
   The network-bind interface allows a daemon to access the network as a server.
 
   A snap which defines the network-bind plug must be shown in the interfaces list.
@@ -10,16 +12,13 @@ summary: |
 environment:
   SNAP_NAME: network-bind-consumer
   SNAP_FILE: ./$[SNAP_NAME]_1.0_all.snap
-  PLUG: network-bind
   PORT: 8081
   REQUEST_FILE: ./request.txt
 
-kill-wait: 1m
-
 prepare: |
-  echo "Given a snap declaring the $PLUG plug is installed"
+  echo "Given a snap declaring the network-bind plug is installed"
   snapbuild ../lib/snaps/$SNAP_NAME .
-  sudo snap install $SNAP_FILE
+  snap install $SNAP_FILE
 
   echo "Given the snap's service is listening"
   while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
@@ -31,16 +30,15 @@ prepare: |
   EOF
 
 restore: |
-  sudo snap remove $SNAP_NAME
   rm -f $SNAP_FILE $REQUEST_FILE
 
 execute: |
   CONNECTED_PATTERN="(?s)Slot +Plug\n\
   .*?\n\
-  :$PLUG +$SNAP_NAME"
+  :network-bind +$SNAP_NAME"
   DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
   .*?\n\
-  - +$SNAP_NAME:$PLUG"
+  - +$SNAP_NAME:network-bind"
 
   echo "Then the snap is listed as connected"
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
@@ -48,17 +46,17 @@ execute: |
   echo "============================================"
 
   echo "When the plug is disconnected"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:network-bind ubuntu-core:network-bind
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the plug can be connected again"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:network-bind ubuntu-core:network-bind
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:network-bind ubuntu-core:network-bind
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the service is accessible by a client"
@@ -68,7 +66,7 @@ execute: |
   echo "============================================"
 
   echo "When the plug is disconnected"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:network-bind ubuntu-core:network-bind
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the service is not accessible by a client"
