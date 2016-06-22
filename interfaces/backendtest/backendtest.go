@@ -79,6 +79,26 @@ apps:
 slots:
     iface:
 `
+const SambaYamlWithHook = `
+name: samba
+apps:
+    smbd:
+    nmbd:
+hooks:
+    test-hook:
+        plugs: [iface]
+slots:
+    iface:
+`
+const HookYaml = `
+name: foo
+version: 1
+developer: acme
+hooks:
+    test-hook:
+plugs:
+    iface:
+`
 
 // Support code for tests
 
