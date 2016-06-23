@@ -116,7 +116,11 @@ int main(int argc, char **argv)
 		// diagnostic message and carry on without failing.
 		if (chdir(vanilla_cwd) != 0) {
 			fprintf(stderr,
-				"cannot remain in the original working directory\n");
+				"cannot remain in directory %s, changing to root directory instead\n",
+				vanilla_cwd);
+			if (chdir("/") != 0) {
+				die("cannot change directory to /");
+			}
 		}
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
