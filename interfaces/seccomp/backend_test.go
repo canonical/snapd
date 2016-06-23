@@ -68,12 +68,34 @@ func (s *backendSuite) TestInstallingSnapWritesProfiles(c *C) {
 	c.Check(err, IsNil)
 }
 
+func (s *backendSuite) TestInstallingSnapWritesHookProfiles(c *C) {
+	devMode := false
+	s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+	profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.hook.test-hook")
+
+	// Verify that profile named "snap.foo.hook.test-hook" was created.
+	_, err := os.Stat(profile)
+	c.Check(err, IsNil)
+}
+
 func (s *backendSuite) TestRemovingSnapRemovesProfiles(c *C) {
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.smbd")
 		// file called "snap.sambda.smbd" was removed
+		_, err := os.Stat(profile)
+		c.Check(os.IsNotExist(err), Equals, true)
+	}
+}
+
+func (s *backendSuite) TestRemovingSnapRemovesHookProfiles(c *C) {
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+		s.RemoveSnap(c, snapInfo)
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.foo.hook.test-hook")
+
+		// Verify that profile "snap.foo.hook.test-hook" was removed.
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 	}
@@ -91,12 +113,38 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	}
 }
 
+func (s *backendSuite) TestUpdatingSnapToOneWithHooks(c *C) {
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 0)
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.hook.test-hook")
+
+		// Verify that profile "snap.samba.hook.test-hook" was created.
+		_, err := os.Stat(profile)
+		c.Check(err, IsNil)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1WithNmbd, 0)
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.nmbd")
 		// file called "snap.sambda.nmbd" was removed
+		_, err := os.Stat(profile)
+		c.Check(os.IsNotExist(err), Equals, true)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithNoHooks(c *C) {
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
+		profile := filepath.Join(dirs.SnapSeccompDir, "snap.samba.hook.test-hook")
+
+		// Verify that profile snap.samba.hook.test-hook was removed.
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		s.RemoveSnap(c, snapInfo)

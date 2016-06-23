@@ -95,7 +95,8 @@ func ensureDirState(dir, glob string, content map[string]*osutil.FileState, snap
 // affecting a given snap into a content map applicable to EnsureDirState.
 func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		appSnippets := snippets[appInfo.Name]
+		securityTag := appInfo.SecurityTag()
+		appSnippets := snippets[securityTag]
 		if len(appSnippets) == 0 {
 			continue
 		}
@@ -108,7 +109,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := fmt.Sprintf("70-%s.rules", appInfo.SecurityTag())
+		fname := fmt.Sprintf("70-%s.rules", securityTag)
 		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
 	}
 	return content, nil

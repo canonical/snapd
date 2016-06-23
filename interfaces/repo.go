@@ -451,8 +451,8 @@ func (r *Repository) Interfaces() *Interfaces {
 }
 
 // SecuritySnippetsForSnap collects all of the snippets of a given security
-// system that affect a given snap. The return value is indexed by app name
-// within that snap.
+// system that affect a given snap. The return value is indexed by app/hook
+// security tag within that snap.
 func (r *Repository) SecuritySnippetsForSnap(snapName string, securitySystem SecuritySystem) (map[string][][]byte, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -472,7 +472,8 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		}
 		if snippet != nil {
 			for appName := range slot.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
+				securityTag := snap.AppSecurityTag(snapName, appName)
+				snippets[securityTag] = append(snippets[securityTag], snippet)
 			}
 		}
 		// Add connection-specific snippet specific to each plug
@@ -485,7 +486,8 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 				continue
 			}
 			for appName := range slot.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
+				securityTag := snap.AppSecurityTag(snapName, appName)
+				snippets[securityTag] = append(snippets[securityTag], snippet)
 			}
 		}
 	}
@@ -499,7 +501,12 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 		}
 		if snippet != nil {
 			for appName := range plug.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
+				securityTag := snap.AppSecurityTag(snapName, appName)
+				snippets[securityTag] = append(snippets[securityTag], snippet)
+			}
+			for hookName := range plug.Hooks {
+				securityTag := snap.HookSecurityTag(snapName, hookName)
+				snippets[securityTag] = append(snippets[securityTag], snippet)
 			}
 		}
 		// Add connection-specific snippet specific to each slot
@@ -512,7 +519,12 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 				continue
 			}
 			for appName := range plug.Apps {
-				snippets[appName] = append(snippets[appName], snippet)
+				securityTag := snap.AppSecurityTag(snapName, appName)
+				snippets[securityTag] = append(snippets[securityTag], snippet)
+			}
+			for hookName := range plug.Hooks {
+				securityTag := snap.HookSecurityTag(snapName, hookName)
+				snippets[securityTag] = append(snippets[securityTag], snippet)
 			}
 		}
 	}
