@@ -2,7 +2,7 @@ summary: Check security profile generation for apps and hooks.
 prepare: |
   for snap in basic-binaries basic-hooks
   do
-    snapbuild ../lib/snaps/$snap .
+    snapbuild $TESTSLIB/snaps/$snap .
   done
 restore: |
   for snap in basic-binaries basic-hooks
