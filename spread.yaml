@@ -1,0 +1,37 @@
+project: snap-confine
+
+environment:
+    REUSE_PROJECT: $(echo $REUSE_PROJECT)
+
+backends:
+    linode:
+        key: $(echo $SPREAD_LINODE_KEY)
+        systems:
+            - ubuntu-16.04-64-grub
+
+path: /remote/path/
+
+exclude:
+    - .git
+
+prepare: |
+    [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    # apt update is hanging on security.ubuntu.com with IPv6.
+    sysctl -w net.ipv6.conf.all.disable_ipv6=1
+    trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+
+    apt purge -y snap-confine || true
+    apt install -y fakeroot
+    apt update
+    apt build-dep -y ./
+
+    test -d /home/test || adduser --quiet --disabled-password --gecos '' test
+    chown test.test -R ..
+    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
+    apt install -y ../snap-confine_*.deb ../ubuntu-core-launcher_*.deb
+    rm -f ../snap-confine_*.deb ../ubuntu-core-launcher_*.deb
+
+suites:
+    spread-tests/:
+        summary: Full-system tests for snap-confine 
