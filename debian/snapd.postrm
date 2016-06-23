@@ -1,0 +1,9 @@
+#!/bin/sh
+
+set -e
+
+if [ "$1" = "purge" ]; then
+   # FIXME: should we try to remove all snaps, mount points, services,
+   #        mount units that got created as well?
+   rm -f /var/lib/snapd/state.json
+fi

@@ -1,0 +1,78 @@
+summary: Ensure that the network-bind interface works
+
+details: |
+  The network-bind interface allows a daemon to access the network as a server.
+
+  A snap which defines the network-bind plug must be shown in the interfaces list.
+  The plug must be autoconnected on install and, as usual, must be able to be
+  reconnected.
+
+  A snap declaring a plug on this interface must be accessible by a network client.
+
+environment:
+  SNAP_NAME: network-bind-consumer
+  SNAP_FILE: ./$[SNAP_NAME]_1.0_all.snap
+  PORT: 8081
+  REQUEST_FILE: ./request.txt
+
+prepare: |
+  echo "Given a snap declaring the network-bind plug is installed"
+  snapbuild $TESTSLIB/snaps/$SNAP_NAME .
+  snap install $SNAP_FILE
+
+  echo "Given the snap's service is listening"
+  while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+
+  echo "Given we store a basic HTTP request"
+  cat > $REQUEST_FILE <<EOF
+  GET / HTTP/1.0
+
+  EOF
+
+restore: |
+  echo "FIXME: once the state is properly reset in the upper levels this remove can go away"
+  snap remove $SNAP_NAME
+  rm -f $SNAP_FILE $REQUEST_FILE
+
+execute: |
+  CONNECTED_PATTERN="(?s)Slot +Plug\n\
+  .*?\n\
+  :network-bind +$SNAP_NAME"
+  DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
+  .*?\n\
+  - +$SNAP_NAME:network-bind"
+
+  echo "Then the snap is listed as connected"
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+
+  echo "============================================"
+
+  echo "When the plug is disconnected"
+  snap disconnect $SNAP_NAME:network-bind ubuntu-core:network-bind
+  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+
+  echo "Then the plug can be connected again"
+  snap connect $SNAP_NAME:network-bind ubuntu-core:network-bind
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+
+  echo "============================================"
+
+  echo "When the plug is connected"
+  snap connect $SNAP_NAME:network-bind ubuntu-core:network-bind
+  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+
+  echo "Then the service is accessible by a client"
+  response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
+  echo "$response" | grep -Pqz "ok\n"
+
+  echo "============================================"
+
+  echo "When the plug is disconnected"
+  snap disconnect $SNAP_NAME:network-bind ubuntu-core:network-bind
+  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+
+  echo "Then the service is not accessible by a client"
+  response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
+  [ "$response" = "" ] || exit 1
+
+  echo "============================================"
