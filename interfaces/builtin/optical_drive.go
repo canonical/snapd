@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -18,30 +17,23 @@
  *
  */
 
-package tests
+package builtin
 
 import (
-	"fmt"
-
-	"gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/integration-tests/testutils/cli"
-	"github.com/snapcore/snapd/integration-tests/testutils/common"
+	"github.com/snapcore/snapd/interfaces"
 )
 
-var _ = check.Suite(&interfacesCliTest{})
+const opticalDriveConnectedPlugAppArmor = `
+/dev/sr0 r,
+/dev/scd0 r,
+`
 
-type interfacesCliTest struct {
-	common.SnappySuite
-}
-
-// SNAP_INTERFACES_006: snap interfaces -i=<slot>
-func (s *interfacesCliTest) TestFilterBySlot(c *check.C) {
-	plug := "network"
-
-	expected := fmt.Sprintf("Slot +Plug\n:%s +-\n", plug)
-
-	actual := cli.ExecCommand(c, "snap", "interfaces", "-i", plug)
-
-	c.Assert(actual, check.Matches, expected)
+// NewOpticalDriveInterface returns a new "optical-drive" interface.
+func NewOpticalDriveInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "optical-drive",
+		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
+		reservedForOS:         true,
+		autoConnect:           true,
+	}
 }
