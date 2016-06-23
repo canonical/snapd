@@ -5,13 +5,13 @@ execute: |
   .*?\
   hello-world +.*? *\n\
   .*?\
-  ubuntu-clock-app +.*? *\n\
+  xkcd-webserver +.*? *\n\
   .*"
   actual=$(snap find)
   echo "$actual" | grep -Pzq "$expected" || exit 1
 
   echo "Exact matches"
-  for snapName in hello-world ubuntu-clock-app
+  for snapName in hello-world xkcd-webserver
   do
     expected="(?s)Name +Version +Developer +Notes +Summary *\n\
   .*?\n\

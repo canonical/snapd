@@ -20,11 +20,11 @@
 package interfaces
 
 import (
-	"fmt"
+	"github.com/snapcore/snapd/snap"
 )
 
 // SecurityTagGlob returns a pattern that matches all security tags belonging to
 // the same snap as the given app.
 func SecurityTagGlob(snapName string) string {
-	return fmt.Sprintf("snap.%s.%s", snapName, "*")
+	return snap.AppSecurityTag(snapName, "*")
 }
