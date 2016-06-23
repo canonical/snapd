@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -109,6 +110,7 @@ type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
+	SnapType  string           `json:"type"`     // Use Type and SetType
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
 	Current   snap.Revision    `json:"current,omitempty"`
@@ -118,6 +120,20 @@ type SnapState struct {
 
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
+}
+
+// Type returns the type of the snap or an error.
+// Should never error if Current is not nil.
+func (snapst *SnapState) Type() (snap.Type, error) {
+	if snapst.SnapType == "" {
+		return snap.Type(""), fmt.Errorf("snap type unset")
+	}
+	return snap.Type(snapst.SnapType), nil
+}
+
+// SetType records the type of the snap.
+func (snapst *SnapState) SetType(typ snap.Type) {
+	snapst.SnapType = string(typ)
 }
 
 // Current returns the side info for the current revision in the snap revision sequence if there is one.
@@ -219,7 +235,6 @@ func (snapst *SnapState) SetTryMode(active bool) {
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
-	backend := &defaultBackend{}
 
 	storeID := ""
 	// TODO: set the store-id here from the model information
@@ -232,7 +247,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 
 	m := &SnapManager{
 		state:   s,
-		backend: backend,
+		backend: backend.Backend{},
 		store:   store,
 		runner:  runner,
 	}
@@ -738,6 +753,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// record type
+	snapst.SetType(newInfo.Type)
 
 	st.Unlock()
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
