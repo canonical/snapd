@@ -1,0 +1,38 @@
+summary: Check that upgrade works
+restore: |
+    sed -i -e '/SNAP_REEXEC=0/d' /etc/environment
+execute: |
+    echo Install previous version...
+    apt install -y snapd
+
+    prevsnapdver=$(snap --version|grep "snapd ")
+
+    echo Install a snap with it
+    snap install hello-world
+
+    echo Sanity check install
+    hello-world.echo | grep Hello
+
+    # setup not to reexec
+    export SNAP_REEXEC=0
+    grep SNAP_REEXEC /etc/environment || echo "SNAP_REEXEC=0">>/etc/environment
+    cat /etc/environment
+
+    echo Do upgrade
+    apt install -y ${SPREAD_PATH}/../snapd*.deb
+
+    snapdver=$(snap --version|grep "snapd ")
+    [ "$snapdver" != "$prevsnapdver" ] || exit 1
+
+    echo Sanity check already installed snaps after upgrade
+    snap list | grep core
+    snap list | grep hello-world
+    hello-world.echo | grep Hello
+    hello-world.env | grep SNAP_NAME=hello-world
+    hello-world.evil && exit 1 || true
+
+    echo Check migrating to types in state
+    coreType=$(jq -r '.data.snaps["ubuntu-core"].type' /var/lib/snapd/state.json)
+    helloType=$(jq -r '.data.snaps["hello-world"].type' /var/lib/snapd/state.json)
+    [ "$coreType" = "os" ] || exit 1
+    [ "$helloType" = "app" ] || exit 1
