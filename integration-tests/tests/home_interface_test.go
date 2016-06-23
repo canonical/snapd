@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/data"
+	"github.com/snapcore/snapd/release"
 
 	"gopkg.in/check.v1"
 )
@@ -36,7 +37,9 @@ var _ = check.Suite(&homeInterfaceSuite{
 		sampleSnaps: []string{data.HomeConsumerSnapName},
 		slot:        "home",
 		plug:        "home-consumer",
-		autoconnect: true}})
+		// we only auto-connect on classic
+		autoconnect: release.OnClassic,
+	}})
 
 type homeInterfaceSuite struct {
 	interfaceSuite
