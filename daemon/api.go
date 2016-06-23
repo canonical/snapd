@@ -647,9 +647,8 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// use previous version
-	ver := ""
-	ts, err := snapstate.Revert(st, inst.snap, ver)
+	rev := snap.Revision{}
+	ts, err := snapstate.Revert(st, inst.snap, rev)
 	if err != nil {
 		return "", nil, err
 	}

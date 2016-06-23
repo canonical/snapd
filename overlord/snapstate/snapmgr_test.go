@@ -1236,7 +1236,7 @@ func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 		Current:  snap.R(7),
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", "")
+	ts, err := snapstate.Revert(s.state, "some-snap", snap.Revision{})
 	c.Assert(err, ErrorMatches, "no revision to revert to")
 	c.Assert(ts, IsNil)
 }
@@ -1255,8 +1255,32 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 		Sequence: []*snap.SideInfo{&si},
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", "")
+	ts, err := snapstate.Revert(s.state, "some-snap", snap.Revision{})
 	c.Assert(err, ErrorMatches, "no revision to revert to")
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRevertNoValidVersion(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+	si2 := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(77),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  snap.R(77),
+	})
+
+	ts, err := snapstate.Revert(s.state, "some-snap", snap.R("99"))
+	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "some-snap"`)
 	c.Assert(ts, IsNil)
 }
 
@@ -1278,8 +1302,8 @@ func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 		Sequence: []*snap.SideInfo{&siOld, &si},
 	})
 
-	chg := s.state.NewChange("revert", "revert a snap")
-	ts, err := snapstate.Revert(s.state, "some-snap", "")
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	ts, err := snapstate.Revert(s.state, "some-snap", snap.Revision{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1337,6 +1361,68 @@ func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 		Channel:      "",
 		Revision:     snap.R(7),
 	})
+}
+
+func (s *snapmgrTestSuite) TestRevertToNewVersion(c *C) {
+	siNew := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si, &siNew},
+		Current:  snap.R(2),
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap forward")
+	ts, err := snapstate.Revert(s.state, "some-snap", snap.R(7))
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	expected := []fakeOp{
+		fakeOp{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/2",
+		},
+		fakeOp{
+			op:    "remove-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(2),
+		},
+		fakeOp{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		fakeOp{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				OfficialName: "some-snap",
+				Revision:     snap.R(7),
+			},
+		},
+		fakeOp{
+			op:   "link-snap",
+			name: "/snap/some-snap/7",
+		},
+	}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
 }
 
 type snapmgrQuerySuite struct {
