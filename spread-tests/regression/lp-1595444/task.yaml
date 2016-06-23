@@ -1,0 +1,15 @@
+summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1595444
+# This is blacklisted on debian because we first have to get the dpkg-vendor patches
+systems: [-debian-8]
+execute: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
+
+    echo "We can go to a location that is available in all snaps (/tmp)"
+    echo "We can run the 'cwd' tool from busybox and it reports /tmp" 
+    [ "$(cd /tmp && /snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "/tmp" ]
+
+    echo "But if we go to a location that is not available to snaps (e.g. $HOME/.cache)"
+    echo "Then the same 'cwd' tool reports the root directory instead"
+    mkdir -p $HOME/.cache/
+    [ "$(cd $HOME/.cache && /snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "/" ]
