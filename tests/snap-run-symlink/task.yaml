@@ -2,8 +2,9 @@ summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
 prepare: |
     echo Ensure we have a os snap with snap run
-    sudo snap install --channel=beta ubuntu-core
-    sudo snap install hello-world
+    $SPREAD_PATH/tests/lib/reset.sh
+    snap install --channel=beta ubuntu-core
+    snap install hello-world
 
 environment:
     APP/helloworld: hello-world
@@ -14,8 +15,8 @@ execute: |
     $APP
     $APP > orig.txt 2>&1 
 
-    sudo rm /snap/bin/$APP
-    sudo ln -s /usr/bin/snap /snap/bin/$APP
+    rm /snap/bin/$APP
+    ln -s /usr/bin/snap /snap/bin/$APP
 
     # FIXME: remove "SNAP_REEXEC" once we have `snap run` inside the os snap
     SNAP_REEXEC=0 $APP
