@@ -2,6 +2,8 @@
 Description=Timer to automatically refresh installed snaps
 
 [Timer]
+# spread the requests gently
+# https://bugs.launchpad.net/snappy/+bug/1537793
 OnCalendar=23,05,11,17:00
 RandomizedDelaySec=6h
 AccuracySec=10min

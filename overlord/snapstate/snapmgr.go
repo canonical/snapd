@@ -28,6 +28,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -168,7 +169,6 @@ func (snapst *SnapState) SetTryMode(active bool) {
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
-	backend := &defaultBackend{}
 
 	storeID := ""
 	// TODO: set the store-id here from the model information
@@ -181,7 +181,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 
 	m := &SnapManager{
 		state:   s,
-		backend: backend,
+		backend: backend.Backend{},
 		store:   store,
 		runner:  runner,
 	}
