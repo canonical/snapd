@@ -297,9 +297,23 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	return full, nil
 }
 
-// Revert returns a set of tasks for rolling back a snap.
+// Revert returns a set of tasks for reverting to the pervious version of the snap.
 // Note that the state must be locked by the caller.
-func Revert(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
+func Revert(s *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	pi := snapst.PreviousSideInfo()
+	if pi == nil {
+		return nil, fmt.Errorf("no revision to revert to")
+	}
+	return revertToRevision(s, name, pi.Revision)
+}
+
+func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -309,21 +323,11 @@ func Revert(s *state.State, name string, rev snap.Revision) (*state.TaskSet, err
 	if !snapst.Active {
 		return nil, fmt.Errorf("cannot revert inactive snaps")
 	}
-
-	var revertToRev snap.Revision
-	if !rev.Unset() {
-		i := snapst.findIndex(rev)
-		if i < 0 {
-			return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
-		}
-		revertToRev = snapst.Sequence[i].Revision
-	} else {
-		pi := snapst.PreviousSideInfo()
-		if pi == nil {
-			return nil, fmt.Errorf("no revision to revert to")
-		}
-		revertToRev = pi.Revision
+	i := snapst.findIndex(rev)
+	if i < 0 {
+		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
+	revertToRev := snapst.Sequence[i].Revision
 
 	ss := SnapSetup{
 		Name:     name,

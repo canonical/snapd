@@ -1236,7 +1236,7 @@ func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 		Current:  snap.R(7),
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", snap.Revision{})
+	ts, err := snapstate.Revert(s.state, "some-snap")
 	c.Assert(err, ErrorMatches, "no revision to revert to")
 	c.Assert(ts, IsNil)
 }
@@ -1255,12 +1255,12 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 		Sequence: []*snap.SideInfo{&si},
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", snap.Revision{})
+	ts, err := snapstate.Revert(s.state, "some-snap")
 	c.Assert(err, ErrorMatches, "no revision to revert to")
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestRevertNoValidVersion(c *C) {
+func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1279,7 +1279,7 @@ func (s *snapmgrTestSuite) TestRevertNoValidVersion(c *C) {
 		Current:  snap.R(77),
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap", snap.R("99"))
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R("99"))
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "some-snap"`)
 	c.Assert(ts, IsNil)
 }
@@ -1303,7 +1303,7 @@ func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap backwards")
-	ts, err := snapstate.Revert(s.state, "some-snap", snap.Revision{})
+	ts, err := snapstate.Revert(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1363,7 +1363,7 @@ func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 	})
 }
 
-func (s *snapmgrTestSuite) TestRevertToNewVersion(c *C) {
+func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	siNew := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1384,7 +1384,7 @@ func (s *snapmgrTestSuite) TestRevertToNewVersion(c *C) {
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap forward")
-	ts, err := snapstate.Revert(s.state, "some-snap", snap.R(7))
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R(7))
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
