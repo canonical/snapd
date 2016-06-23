@@ -4,9 +4,9 @@ export LANGUAGE=en
 set -eu
 
 TMP_SPREAD="$(mktemp -d)"
-addtrap "rm -rf \"$TMP_SPREAD\""
+trap 'rm -rf "$TMP_SPREAD"' EXIT
 
 export PATH=$TMP_SPREAD:$PATH
-( cd $TMP_SPREAD && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
+( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-exec spread -v
+spread -v
