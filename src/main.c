@@ -86,6 +86,13 @@ int main(int argc, char **argv)
 		// this launcher
 		setup_slave_mount_namespace();
 
+		// Get the current working directory before we start fiddling with
+		// mounts and possibly pivot_root.  At the end of the whole process, we
+		// will try to re-locate to the same directory (if possible).
+		char vanilla_cwd[512];
+		if (getcwd(vanilla_cwd, sizeof vanilla_cwd) == NULL) {
+			die("cannot get the current working directory");
+		}
 		// do the mounting if run on a non-native snappy system
 		if (is_running_on_classic_distribution()) {
 			setup_snappy_os_mounts();
@@ -104,6 +111,13 @@ int main(int argc, char **argv)
 		snappy_udev_cleanup(&udev_s);
 #endif				// ifdef STRICT_CONFINEMENT
 
+		// Try to re-locate back to vanilla working directory. This can fail
+		// because that directory is no longer present. In that case print a
+		// diagnostic message and carry on without failing.
+		if (chdir(vanilla_cwd) != 0) {
+			fprintf(stderr,
+				"cannot remain in the original working directory\n");
+		}
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
 		if (setegid(real_gid) != 0)
