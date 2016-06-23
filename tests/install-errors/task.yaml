@@ -7,14 +7,14 @@ environment:
 prepare: |
   echo "Given a snap with a failing command is installed"
   snapbuild ../lib/snaps/$SIDELOAD_SNAP_NAME .
-  sudo snap install $SNAP_FILE
+  snap install $SNAP_FILE
 
   echo "And a snap from the store is installed"
-  sudo snap install $STORE_SNAP_NAME
+  snap install $STORE_SNAP_NAME
 
 restore: |
-  sudo snap remove $SIDELOAD_SNAP_NAME
-  sudo snap remove $STORE_SNAP_NAME
+  snap remove $SIDELOAD_SNAP_NAME
+  snap remove $STORE_SNAP_NAME
   rm -f $SNAP_FILE
 
 execute: |
@@ -52,7 +52,7 @@ execute: |
   echo "============================================"
 
   echo "When we try to install a snap already installed from the store"
-  sudo snap install $STORE_SNAP_NAME || EXPECTED_FAILURE="install-failed"
+  snap install $STORE_SNAP_NAME || EXPECTED_FAILURE="install-failed"
 
   echo "Then it must fail"
   [ "$EXPECTED_FAILURE" = "install-failed" ] || exit 1
