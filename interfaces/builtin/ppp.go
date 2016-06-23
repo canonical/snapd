@@ -102,7 +102,7 @@ func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 	}
 }
 
-func (iface *PppInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
