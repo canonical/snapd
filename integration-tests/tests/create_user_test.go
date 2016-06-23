@@ -23,7 +23,6 @@ package tests
 import (
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
-	"github.com/snapcore/snapd/osutil"
 
 	"gopkg.in/check.v1"
 )
@@ -37,7 +36,11 @@ type createUserSuite struct {
 func (s *createUserSuite) TestCreateUserCreatesUser(c *check.C) {
 	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "mvo@ubuntu.com")
 
-	expected := "Created user 'mvo'"
+	expected := `Created user "mvo"\n`
 	c.Assert(createOutput, check.Matches, expected)
-	c.Assert(osutil.FileExists("/home/mvo/.ssh/authorized_keys"), check.Equals, true)
+
+	// file exists and has a size greater than zero
+	cli.ExecCommand(c, "sudo", "test", "-s", "/home/mvo/.ssh/authorized_keys")
+	// content looks sane
+	cli.ExecCommand(c, "sudo", "grep", "ssh-rsa", "/home/mvo/.ssh/authorized_keys")
 }
