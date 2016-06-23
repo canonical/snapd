@@ -416,6 +416,10 @@ func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
-	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
+
+	// FIXME: make visible once everything has landed for revert
+	cmd := addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
+	cmd.hidden = true
+
 }
