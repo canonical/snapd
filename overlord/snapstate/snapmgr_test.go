@@ -1449,7 +1449,7 @@ version: gadget
 	c.Check(info.Type, Equals, snap.TypeGadget)
 }
 
-func (s *snapmgrQuerySuite) TestPrevious(c *C) {
+func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
@@ -1459,8 +1459,8 @@ func (s *snapmgrQuerySuite) TestPrevious(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapst.CurrentSideInfo(), NotNil)
 	c.Assert(snapst.CurrentSideInfo().Revision, Equals, snap.R(12))
-	c.Assert(snapst.Previous(), NotNil)
-	c.Assert(snapst.Previous().Revision, Equals, snap.R(11))
+	c.Assert(snapst.PreviousSideInfo(), NotNil)
+	c.Assert(snapst.PreviousSideInfo().Revision, Equals, snap.R(11))
 }
 
 func (s *snapmgrQuerySuite) TestAll(c *C) {
