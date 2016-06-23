@@ -27,6 +27,12 @@ import (
 // Backend exposes all the low-level primitives to manage snaps and their installation on disk.
 type Backend struct{}
 
+// Candidate is a test hook.
+func (b Backend) Candidate(*snap.SideInfo) {}
+
+// Current is a test hook.
+func (b Backend) Current(*snap.Info) {}
+
 // OpenSnapFile opens a snap blob returning both a snap.Info completed
 // with sideInfo (if not nil) and a corresponding snap.Container.
 // Assumes the file was verified beforehand or the user asked for devmode.
