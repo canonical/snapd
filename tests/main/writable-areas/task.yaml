@@ -1,6 +1,6 @@
 summary: Check that snap apps and services can write to writable areas.
 prepare: |
-  snapbuild ../lib/snaps/data-writer .
+  snapbuild $TESTSLIB/snaps/data-writer .
 restore: |
   rm data-writer_1.0_all.snap
 execute: |
@@ -16,17 +16,19 @@ execute: |
   #[ -f /root/snap/data-writer/common/from-app ] || exit 1
 
   echo "Waiting for data writer service to finish..."
+  unit="snap.data-writer.service.service"
   while true; do
-    sleep 1
-    status=$(systemctl status snap.data-writer.service.service | grep "Main PID" | sed 's/.*(.*status=\(.*\))/\1/')
-    [ -z $status ] && continue # The service may have not yet started
-
-    if [ "$status" != "0/SUCCESS" ]; then
-      echo "Service status was $status, expected 0/SUCCESS"
-      exit 1
+    code=$(sudo systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
+    # The main code will be 0 until the service is no longer running
+    if [ $code -ne 0 ]; then
+      status=$(sudo systemctl show -p ExecMainStatus $unit | sed 's/.*=\([0-9]\+\)/\1/')
+      if [ $status -ne 0 ]; then
+        echo "Service exited $status"
+        exit 1
+      fi
+      break
     fi
-
-    break
+    sleep 0.1
   done
 
   echo "Services can write to writable areas"
