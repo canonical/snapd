@@ -56,7 +56,10 @@ func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
 }
 
-var Migrations = migrations
+var (
+	PopulateStateFromInstalled = populateStateFromInstalled
+	Migrations                 = migrations
+)
 
 // MockPatches lets mock the current patch level and available migrations.
 func MockPatches(level int, m map[int]func(*state.State) error) (restore func()) {

@@ -103,6 +103,7 @@ type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
+	SnapType  string           `json:"type"`     // Use Type and SetType
 	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
 	Active    bool             `json:"active,omitempty"`
@@ -110,6 +111,20 @@ type SnapState struct {
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
+}
+
+// Type returns the type of the snap or an error.
+// Should never error if Current is not nil.
+func (snapst *SnapState) Type() (snap.Type, error) {
+	if snapst.SnapType == "" {
+		return snap.Type(""), fmt.Errorf("snap type unset")
+	}
+	return snap.Type(snapst.SnapType), nil
+}
+
+// SetType records the type of the snap.
+func (snapst *SnapState) SetType(typ snap.Type) {
+	snapst.SnapType = string(typ)
 }
 
 // Current returns the side info for the current revision in the snap revision sequence if there is one.
@@ -661,6 +676,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+
+	// record type
+	snapst.SetType(newInfo.Type)
 
 	st.Unlock()
 	// XXX: this block is slightly ugly, find a pattern when we have more examples
