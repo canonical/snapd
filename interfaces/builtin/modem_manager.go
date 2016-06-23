@@ -1210,7 +1210,7 @@ func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, 
 	}
 }
 
-func (iface *ModemManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *ModemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
