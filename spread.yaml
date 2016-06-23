@@ -47,17 +47,30 @@ prepare: |
     apt install -y git
     go get ./tests/lib/snapbuild
 
+    # Snapshot the state including core.
+    if [ ! -f snapd-state.tar.gz ]; then
+        ! snap list | grep core || exit 1
+        snap install hello-world
+        snap list | grep core
+        snap remove hello-world
+        rmdir /snap/hello-world # Should be done by snapd.
+
+        systemctl stop snapd
+        systemctl daemon-reload
+        mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
+        services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+        for unit in $services $mounts; do
+            systemctl stop $unit
+        done
+        tar czf snapd-state.tar.gz /var/lib/snapd /snap /etc/systemd/system/snap-*core*.mount
+        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
+        for unit in $mounts $services; do
+            systemctl start $unit
+        done
+    fi
+
 suites:
     tests/:
         summary: Full-system tests for snapd
         restore-each: |
-            echo Resetting snapd state...
-            systemctl stop snapd || true
-            umount /var/lib/snapd/snaps/*.snap || true
-            rm -rf /var/lib/snapd/*
-            rm -rf /snap/*
-            rm -f /tmp/ubuntu-core*
-            rm -f /etc/systemd/system/snap-*.{mount,service}
-            rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
-            systemctl daemon-reload
-            systemctl start snapd
+            $SPREAD_PATH/tests/lib/reset.sh --reuse-core
