@@ -68,6 +68,16 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(dirs.SnapSnapsDir, name, revision.String())
 }
 
+// AppSecurityTag returns the application-specific security tag.
+func AppSecurityTag(snapName, appName string) string {
+	return fmt.Sprintf("snap.%s.%s", snapName, appName)
+}
+
+// HookSecurityTag returns the hook-specific security tag.
+func HookSecurityTag(snapName, hookName string) string {
+	return fmt.Sprintf("snap.%s.hook.%s", snapName, hookName)
+}
+
 // SideInfo holds snap metadata that is crucial for the tracking of
 // snaps and for the working of the system offline and which is not
 // included in snap.yaml or for which the store is the canonical
@@ -186,6 +196,11 @@ func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
 }
 
+// NeedsDevMode retursn whether the snap needs devmode.
+func (s *Info) NeedsDevMode() bool {
+	return s.Confinement == DevmodeConfinement
+}
+
 // sanity check that Info is a PlaceInfo
 var _ PlaceInfo = (*Info)(nil)
 
@@ -253,7 +268,7 @@ type HookInfo struct {
 // Security tags are used by various security subsystems as "profile names" and
 // sometimes also as a part of the file name.
 func (app *AppInfo) SecurityTag() string {
-	return fmt.Sprintf("snap.%s.%s", app.Snap.Name(), app.Name)
+	return AppSecurityTag(app.Snap.Name(), app.Name)
 }
 
 // WrapperPath returns the path to wrapper invoking the app binary.
@@ -326,7 +341,7 @@ func (app *AppInfo) Env() []string {
 // Security tags are used by various security subsystems as "profile names" and
 // sometimes also as a part of the file name.
 func (hook *HookInfo) SecurityTag() string {
-	return fmt.Sprintf("snap.%s.hook.%s", hook.Snap.Name(), hook.Name)
+	return HookSecurityTag(hook.Snap.Name(), hook.Name)
 }
 
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
