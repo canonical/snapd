@@ -479,4 +479,9 @@ writev
 pwrite
 pwrite64
 pwritev
+
+# FIXME: remove this after LP: #1446748 is implemented
+# This is an older interface and single entry point that can be used instead
+# of socket(), bind(), connect(), etc individually.
+socketcall
 `)
