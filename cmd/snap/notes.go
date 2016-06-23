@@ -28,6 +28,7 @@ import (
 type Notes struct {
 	Confinement string
 	Price       string
+	Local       bool
 	Private     bool
 	DevMode     bool
 	TryMode     bool
@@ -42,12 +43,16 @@ func (n *Notes) String() string {
 		ns = append(ns, n.Price)
 	}
 
-	if n.Confinement != "" {
-		if n.Confinement != client.StrictConfinement {
-			ns = append(ns, n.Confinement)
+	devmodeSnap := n.Confinement != "" && n.Confinement != client.StrictConfinement
+	if n.Local {
+		if n.DevMode {
+			ns = append(ns, "devmode")
+		} else if devmodeSnap {
+			// snap is devmode, but is not installed in devmode
+			ns = append(ns, "confined")
 		}
-	} else if n.DevMode {
-		ns = append(ns, "devmode")
+	} else if devmodeSnap {
+		ns = append(ns, n.Confinement)
 	}
 
 	if n.Private {

@@ -62,6 +62,10 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 		return err
 	}
 
+	if s.NeedsDevMode() && !flags.DevModeAllowed() {
+		return fmt.Errorf("snap %q has devmode confinement but user has not requested nor overridden", s.Name())
+	}
+
 	// verify we have a valid architecture
 	if !arch.IsSupportedArchitecture(s.Architectures) {
 		return fmt.Errorf("snap %q supported architectures (%s) are incompatible with this system (%s)", s.Name(), strings.Join(s.Architectures, ", "), arch.UbuntuArchitecture())

@@ -53,10 +53,12 @@ func (notesSuite) TestNotesPrivateDevmode(c *check.C) {
 	}).String(), check.Equals, "devmode,private")
 }
 
-func (notesSuite) TestNotesOtherDevmode(c *check.C) {
+func (notesSuite) TestNotesLocalDevmode(c *check.C) {
 	c.Check((&snap.Notes{
-		DevMode: true,
-		TryMode: true,
+		Local:       true,
+		DevMode:     true,
+		Confinement: "strict",
+		TryMode:     true,
 	}).String(), check.Equals, "devmode,try")
 }
 
@@ -64,4 +66,12 @@ func (notesSuite) TestNotesDisabled(c *check.C) {
 	c.Check((&snap.Notes{
 		Disabled: true,
 	}).String(), check.Equals, "disabled")
+}
+
+func (notesSuite) TestNotesLocalConfined(c *check.C) {
+	c.Check((&snap.Notes{
+		Local:       true,
+		DevMode:     false,
+		Confinement: "devmode",
+	}).String(), check.Equals, "confined")
 }
