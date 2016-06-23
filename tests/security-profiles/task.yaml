@@ -24,7 +24,7 @@ execute: |
 
   echo "Security profiles are generated and loaded for hooks"
   snap install basic-hooks_1.0_all.snap
-  loaded_profiles=$(sudo cat /sys/kernel/security/apparmor/profiles)
+  loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
   for profile in snap.basic-hooks.hook.install snap.basic-hooks.hook.upgrade
   do

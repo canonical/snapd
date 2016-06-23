@@ -10,7 +10,7 @@ environment:
   TEXT/goServer: Hello World
 warn-timeout: 3m
 prepare: |
-  sudo snap install $SNAP_NAME
+  snap install $SNAP_NAME
   cat > request.txt <<EOF
   GET / HTTP/1.0
 
@@ -18,8 +18,7 @@ prepare: |
   echo "Wait for the service to be listening, limited to the task kill-timeout"
   while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 restore: |
-  sudo snap remove $SNAP_NAME
-  rm request.txt
+  rm -f request.txt
 execute: |
   response=$(nc -"$IP_VERSION" localhost "$PORT" < request.txt)
 
