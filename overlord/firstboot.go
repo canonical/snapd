@@ -48,9 +48,7 @@ func populateStateFromInstalled() error {
 	if err != nil {
 		return err
 	}
-	ovld.Loop()
 	st := ovld.State()
-	defer ovld.Stop()
 
 	all, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "snaps", "*.snap"))
 	if err != nil {
@@ -102,6 +100,8 @@ func populateStateFromInstalled() error {
 	st.Unlock()
 
 	// do it and wait for ready
+	ovld.Loop()
+
 	st.EnsureBefore(0)
 	<-chg.Ready()
 
@@ -109,10 +109,12 @@ func populateStateFromInstalled() error {
 	status := chg.Status()
 	st.Unlock()
 	if status != state.DoneStatus {
-		return fmt.Errorf("cannot run chg: %s", chg.Err())
+		ovld.Stop()
+		return fmt.Errorf("cannot run seed change: %s", chg.Err())
+
 	}
 
-	return nil
+	return ovld.Stop()
 }
 
 // FirstBoot will do some initial boot setup and then sync the
