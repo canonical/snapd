@@ -68,7 +68,7 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(name, channel string, auther store.Authenticator) (*snap.Info, error) {
+func (s *apiSuite) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
 	s.auther = auther
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
