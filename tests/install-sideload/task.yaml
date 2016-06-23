@@ -2,7 +2,7 @@ summary: Checks for snap sideload install
 prepare: |
   for snap in basic basic-binaries basic-desktop
   do
-    snapbuild ./../fixtures/snaps/$snap .
+    snapbuild ../lib/snaps/$snap .
   done
 restore: |
   for snap in basic basic-binaries basic-desktop

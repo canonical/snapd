@@ -55,28 +55,6 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return snapInfo
 }
 
-// MockSnapWithHooks puts a snap.yaml file on disk along with hooks so to mock an installed snap, based on the provided arguments.
-//
-// The caller is responsible for mocking root directory with dirs.SetRootDir()
-// and for altering the overlord state if required.
-func MockSnapWithHooks(c *check.C, yamlText string, sideInfo *snap.SideInfo, hookNames []string) *snap.Info {
-	snapInfo := MockSnap(c, yamlText, sideInfo)
-
-	// Now create the requested hooks (if any)
-	if len(hookNames) > 0 {
-		hooksDir := snapInfo.HooksDir()
-		err := os.MkdirAll(filepath.Join(hooksDir), 0755)
-		c.Assert(err, check.IsNil)
-
-		for _, hookName := range hookNames {
-			err = ioutil.WriteFile(filepath.Join(hooksDir, hookName), nil, 0644)
-			c.Assert(err, check.IsNil)
-		}
-	}
-
-	return snapInfo
-}
-
 // PopulateDir populates the directory with files specified as pairs of relative file path and its content. Useful to add extra files to a snap.
 func PopulateDir(dir string, files [][]string) {
 	for _, filenameAndContent := range files {

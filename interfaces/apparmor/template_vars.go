@@ -28,11 +28,10 @@ import (
 
 // templateVariables returns text defining apparmor variables that can be used in the
 // apparmor template and by apparmor snippets.
-func templateVariables(appInfo *snap.AppInfo) []byte {
+func templateVariables(info *snap.Info) []byte {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "@{APP_NAME}=\"%s\"\n", appInfo.Name)
-	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", appInfo.Snap.Name())
-	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", appInfo.Snap.Revision)
+	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.Name())
+	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{INSTALL_DIR}=\"/snap\"")
 	return buf.Bytes()
 }

@@ -54,7 +54,7 @@ type fakeStore struct {
 	fakeTotalProgress   int
 }
 
-func (f *fakeStore) Snap(name, channel string, auther store.Authenticator) (*snap.Info, error) {
+func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
 	revno := snap.R(11)
 	if channel == "channel-for-7" {
 		revno.N = 7
