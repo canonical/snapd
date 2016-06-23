@@ -1288,7 +1288,7 @@ func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 7)
+	c.Assert(s.fakeBackend.ops, HasLen, 5)
 	expected := []fakeOp{
 		fakeOp{
 			op:   "unlink-snap",
@@ -1315,31 +1315,28 @@ func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 			op:   "link-snap",
 			name: "/snap/some-snap/2",
 		},
-		fakeOp{
-			op:   "remove-snap-data",
-			name: "/snap/some-snap/7",
-		},
-		fakeOp{
-			op:   "remove-snap-files",
-			name: "/snap/some-snap/7",
-		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
-	// verify that the R(2) version is active now and R(7) is gone
+	// verify that the R(2) version is active now and R(7) is still there
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
-	c.Assert(snapst.Sequence, HasLen, 1)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "some-snap",
 		Channel:      "",
 		Revision:     snap.R(2),
 	})
-
+	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
+		OfficialName: "some-snap",
+		Channel:      "",
+		Revision:     snap.R(7),
+	})
 }
 
 type snapmgrQuerySuite struct {
