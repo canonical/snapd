@@ -21,6 +21,8 @@ package overlord
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // MockEnsureInterval sets the overlord ensure interval for tests.
@@ -52,4 +54,18 @@ func MockEnsureNext(o *Overlord, t time.Time) {
 // Engine exposes the state engine in an Overlord for tests.
 func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
+}
+
+var Migrations = migrations
+
+// MockPatches lets mock the current patch level and available migrations.
+func MockPatches(level int, m map[int]func(*state.State) error) (restore func()) {
+	prevLevel := patchLevel
+	prevMigrations := migrations
+	patchLevel = level
+	migrations = m
+	return func() {
+		patchLevel = prevLevel
+		migrations = prevMigrations
+	}
 }
