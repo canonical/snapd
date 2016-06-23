@@ -34,6 +34,7 @@ import (
 func Basic(info *snap.Info) []string {
 	return []string{
 		fmt.Sprintf("SNAP=%s", info.MountDir()),
+		fmt.Sprintf("SNAP_COMMON=%s", info.CommonDataDir()),
 		fmt.Sprintf("SNAP_DATA=%s", info.DataDir()),
 		fmt.Sprintf("SNAP_NAME=%s", info.Name()),
 		fmt.Sprintf("SNAP_VERSION=%s", info.Version),
@@ -50,7 +51,9 @@ func Basic(info *snap.Info) []string {
 func User(info *snap.Info, home string) []string {
 	// FIXME: should go into PlacementInfo
 	userData := filepath.Join(home, info.MountDir())
+	userCommon := filepath.Clean(filepath.Join(userData, "..", "common"))
 	return []string{
+		fmt.Sprintf("SNAP_USER_COMMON=%s", userCommon),
 		fmt.Sprintf("SNAP_USER_DATA=%s", userData),
 	}
 }
