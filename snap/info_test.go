@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 
 	. "gopkg.in/check.v1"
@@ -40,10 +41,12 @@ var _ = Suite(&infoSuite{})
 
 func (s *infoSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	snap.FakeSupportedHookType(regexp.MustCompile(".*"))
 }
 
 func (s *infoSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	snap.ResetSupportedHookTypes()
 }
 
 func (s *infoSuite) TestSideInfoOverrides(c *C) {

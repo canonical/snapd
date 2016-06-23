@@ -20,6 +20,8 @@
 package snap_test
 
 import (
+	"regexp"
+
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/snap"
@@ -225,6 +227,9 @@ version: 1.0
 }
 
 func (s *ValidateSuite) TestIllegalHookName(c *C) {
+	FakeSupportedHookType(regexp.MustCompile(".*"))
+	defer ResetSupportedHookTypes()
+
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
 hooks:
