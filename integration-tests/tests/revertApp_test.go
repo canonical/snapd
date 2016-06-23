@@ -89,7 +89,7 @@ func (s *revertAppSuite) TestInstallUpdateRevert(c *check.C) {
 	// revert again and it errors
 	output, err = cli.ExecCommandErr("sudo", "snap", "revert", snap)
 	c.Assert(err, check.NotNil)
-	c.Assert(output, check.Matches, "error:.*: can only revert once\n")
+	c.Assert(output, check.Matches, "error:.*: no revision to revert to\n")
 
 	// do a `refresh all` and ensure we do not upgrade to the version
 	// we just rolled back from
