@@ -63,6 +63,8 @@ func populateStateFromInstalled() error {
 
 		st.Lock()
 
+		// XXX: needing to know the name here is too early
+
 		// everything will be sideloaded for now - that is
 		// ok, we will support adding assertions soon
 		snapf, err := snap.Open(snapPath)
@@ -91,8 +93,8 @@ func populateStateFromInstalled() error {
 	}
 
 	st.Lock()
-	msg := fmt.Sprintf("First boot install")
-	chg := st.NewChange("install-snap", msg)
+	msg := fmt.Sprintf("First boot seeding")
+	chg := st.NewChange("seed", msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
