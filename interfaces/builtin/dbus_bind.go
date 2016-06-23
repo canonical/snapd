@@ -20,6 +20,10 @@
 package builtin
 
 import (
+	"fmt"
+	"regexp"
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -115,6 +119,33 @@ func (iface *DbusBindInterface) SanitizePlug(slot *interfaces.Plug) error {
 }
 
 func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+
+	// verify that we have both the bus and the name and they are formatted
+	// properly
+	bus, ok := slot.Attrs["bus"].(string)
+	if !ok || len(bus) == 0 {
+		return fmt.Errorf("bus must be set")
+	}
+	if strings.Compare(bus, "session") != 0 && strings.Compare(bus, "system") != 0 {
+		return fmt.Errorf("bus must be one of 'session' or 'system'")
+	}
+
+	// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+	dbus_name, ok := slot.Attrs["name"].(string)
+	if !ok || len(dbus_name) == 0 {
+		return fmt.Errorf("bus name must be set")
+	} else if len(dbus_name) > 255 {
+		return fmt.Errorf("bus name is too long (must be <= 255)")
+	}
+
+	validBusName := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z0-9_-]+)+$")
+	if !validBusName.MatchString(dbus_name) {
+		return fmt.Errorf("invalid bus name: %q", dbus_name)
+	}
+
 	return nil
 }
 
