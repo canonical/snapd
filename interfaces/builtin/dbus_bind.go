@@ -29,7 +29,7 @@ import (
 )
 
 var dbusBindPermanentSlotAppArmor = []byte(`
-# Description: Allow owning a name on the DBus session bus
+# Description: Allow owning a name on DBus public bus
 # Usage: common
 
 # DBus accesses
@@ -62,6 +62,9 @@ dbus (receive)
 `)
 
 var dbusBindPermanentSlotSecComp = []byte(`
+# Description: Allow owning a name on DBus public bus
+# Usage: common
+
 getsockname
 recvmsg
 sendmsg
