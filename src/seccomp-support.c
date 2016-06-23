@@ -98,19 +98,21 @@ scmp_datum_t sc_map_search(char *s)
 {
 	ENTRY e;
 	ENTRY *ep = NULL;
-	scmp_datum_t *val = NULL;
+	scmp_datum_t val = 0;
+	scmp_datum_t *val_p = NULL;
 	errno = 0;
 
 	e.key = s;
 	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
 		die("hsearch_r failed");
 
-	if (ep != NULL)
-		val = ep->data;
-	else
+	if (ep != NULL) {
+		val_p = ep->data;
+		val = *val_p;
+	} else
 		errno = EINVAL;
 
-	return *val;
+	return val;
 }
 
 void sc_map_add_kvp(const char *key, scmp_datum_t value)
