@@ -2,8 +2,10 @@ project: snapd
 
 environment:
     REUSE_PROJECT: $(echo $REUSE_PROJECT)
+    PROJECT_PATH: /gopath/src/github.com/snapcore/snapd
     GOPATH: /gopath
     PATH: /gopath/bin:/snap/bin:$PATH
+    TESTSLIB: $[PROJECT_PATH]/tests/lib
 
 backends:
     linode:
@@ -12,7 +14,7 @@ backends:
             - ubuntu-16.04-64-grub
             - ubuntu-16.04-32-grub
 
-path: /gopath/src/github.com/snapcore/snapd
+path: $[PROJECT_PATH]
 
 exclude:
     - .git
@@ -26,13 +28,16 @@ prepare: |
 
     apt purge -y snapd || true
     apt update
+    # utilities
+    apt install -y devscripts jq
     apt build-dep -y ./
+
+    # increment version so upgrade can work
+    dch -i "testing build"
 
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
     chown test.test -R ..
     sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
-    apt install -y ../snapd_*.deb
-    rm -f ../snapd_*.deb
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
@@ -47,30 +52,41 @@ prepare: |
     apt install -y git
     go get ./tests/lib/snapbuild
 
-    # Snapshot the state including core.
-    if [ ! -f snapd-state.tar.gz ]; then
-        ! snap list | grep core || exit 1
-        snap install hello-world
-        snap list | grep core
-        snap remove hello-world
-        rmdir /snap/hello-world # Should be done by snapd.
-
-        systemctl stop snapd
-        systemctl daemon-reload
-        mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-        services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
-        for unit in $services $mounts; do
-            systemctl stop $unit
-        done
-        tar czf snapd-state.tar.gz /var/lib/snapd /snap /etc/systemd/system/snap-*core*.mount
-        systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-        for unit in $mounts $services; do
-            systemctl start $unit
-        done
-    fi
-
 suites:
-    tests/:
+    tests/main/:
         summary: Full-system tests for snapd
+        prepare: |
+            apt install -y ${SPREAD_PATH}/../snapd_*.deb
+            # Snapshot the state including core.
+            if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+                ! snap list | grep core || exit 1
+                snap install hello-world
+                snap list | grep core
+                snap remove hello-world
+                rmdir /snap/hello-world # Should be done by snapd.
+
+                systemctl stop snapd
+                systemctl daemon-reload
+                mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
+                services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+                for unit in $services $mounts; do
+                    systemctl stop $unit
+                done
+                tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd /snap /etc/systemd/system/snap-*core*.mount
+                systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
+                for unit in $mounts $services; do
+                    systemctl start $unit
+                done
+            fi
+        restore: |
+            $SPREAD_PATH/tests/lib/reset.sh
+            apt purge -y snapd || true
         restore-each: |
             $SPREAD_PATH/tests/lib/reset.sh --reuse-core
+
+    tests/upgrade/:
+        summary: Tests for snapd upgrade
+        restore:
+            apt purge -y snapd || true
+        restore-each: |
+            $SPREAD_PATH/tests/lib/reset.sh
