@@ -30,7 +30,7 @@ prepare: |
   EOF
 
 restore: |
-  echo "FIXME: no need to remove snaps when the state is reset in an upper level restore"
+  echo "FIXME: once the state is properly reset in the upper levels this remove can go away"
   snap remove $SNAP_NAME
   rm -f $SNAP_FILE $REQUEST_FILE
 
