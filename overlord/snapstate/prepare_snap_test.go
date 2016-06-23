@@ -79,32 +79,3 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
-
-func (s *prepareSnapSuite) TestDoPrepareSnapWithSideInfo(c *C) {
-	s.state.Lock()
-	t := s.state.NewTask("prepare-snap", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name: "foo",
-		SideInfo: &snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(7),
-		},
-	})
-	s.state.NewChange("dummy", "...").AddTask(t)
-
-	s.state.Unlock()
-
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
-		Revision:     snap.R(7),
-		OfficialName: "foo",
-	})
-	c.Check(t.Status(), Equals, state.DoneStatus)
-}

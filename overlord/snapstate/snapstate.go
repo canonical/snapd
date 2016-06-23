@@ -23,7 +23,6 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -167,40 +166,6 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		SnapPath: path,
 		Channel:  channel,
 		Flags:    SnapSetupFlags(flags),
-	}
-
-	return doInstall(s, snapst.Active, ss)
-}
-
-// InstallPathWithSideInfo returns a set of tasks for installing snap from
-// a file path with an additional ".sideinfo" file next to it.
-// Note that the state must be locked by the caller.
-func InstallPathWithSideInfo(s *state.State, path, channel string, flags Flags) (*state.TaskSet, error) {
-
-	var si snap.SideInfo
-	metafn := path + ".sideinfo"
-	j, err := ioutil.ReadFile(metafn)
-	if err != nil {
-		return nil, err
-	}
-	if err := json.Unmarshal(j, &si); err != nil {
-		return nil, fmt.Errorf("cannot read metadata: %s %s", metafn, err)
-	}
-
-	name := si.OfficialName
-	var snapst SnapState
-	err = Get(s, name, &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-
-	ss := &SnapSetup{
-		Name:     name,
-		SnapPath: path,
-		Channel:  channel,
-		Flags:    SnapSetupFlags(flags),
-		SideInfo: &si,
-		Revision: si.Revision,
 	}
 
 	return doInstall(s, snapst.Active, ss)
