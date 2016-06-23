@@ -79,14 +79,14 @@ suites:
                 done
             fi
         restore: |
-            $SPREAD_PATH/tests/lib/reset.sh
+            $TESTSLIB/reset.sh
             apt purge -y snapd || true
         restore-each: |
-            $SPREAD_PATH/tests/lib/reset.sh --reuse-core
+            $TESTSLIB/reset.sh --reuse-core
 
     tests/upgrade/:
         summary: Tests for snapd upgrade
         restore:
             apt purge -y snapd || true
         restore-each: |
-            $SPREAD_PATH/tests/lib/reset.sh
+            $TESTSLIB/reset.sh

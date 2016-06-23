@@ -22,7 +22,7 @@ execute: |
     apt install -y ${SPREAD_PATH}/../snapd*.deb
 
     snapdver=$(snap --version|grep "snapd ")
-    [ "$snapdver" != "$prevsnapdver" ] || exit 1
+    [ "$snapdver" != "$prevsnapdver" ]
 
     echo Sanity check already installed snaps after upgrade
     snap list | grep core
@@ -34,5 +34,5 @@ execute: |
     echo Check migrating to types in state
     coreType=$(jq -r '.data.snaps["ubuntu-core"].type' /var/lib/snapd/state.json)
     helloType=$(jq -r '.data.snaps["hello-world"].type' /var/lib/snapd/state.json)
-    [ "$coreType" = "os" ] || exit 1
-    [ "$helloType" = "app" ] || exit 1
+    [ "$coreType" = "os" ]
+    [ "$helloType" = "app" ]
