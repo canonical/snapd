@@ -1,0 +1,30 @@
+summary: Check snap search
+execute: |
+  echo "List all snaps"
+  expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+  .*?\
+  hello-world +.*? *\n\
+  .*?\
+  xkcd-webserver +.*? *\n\
+  .*"
+  actual=$(snap find)
+  echo "$actual" | grep -Pzq "$expected" || exit 1
+
+  echo "Exact matches"
+  for snapName in hello-world xkcd-webserver
+  do
+    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+  .*?\n\
+  $snapName +.*? *\n\
+  .*"
+    actual=$(snap find $snapName)
+    echo "$actual" | grep -Pzq "$expected" || exit 1
+  done
+
+  echo "Partial terms work too"
+  expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+  .*?\n\
+  hello-world +.*? *\n\
+  .*"
+  actual=$(snap find hello-)
+  echo "$actual" | grep -Pzq "$expected" || exit 1

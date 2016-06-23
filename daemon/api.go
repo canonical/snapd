@@ -552,6 +552,12 @@ var snapstateInstallPath = snapstate.InstallPath
 var snapstateTryPath = snapstate.TryPath
 var snapstateGet = snapstate.Get
 
+func ensureStateSoonImpl(st *state.State) {
+	st.EnsureBefore(0)
+}
+
+var ensureStateSoon = ensureStateSoonImpl
+
 var errNothingToInstall = errors.New("nothing to install")
 
 func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
@@ -593,7 +599,7 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags := snapstate.Flags(0)
-	if inst.DevMode {
+	if inst.DevMode || release.ReleaseInfo.ForceDevMode() {
 		flags |= snapstate.DevMode
 	}
 
@@ -697,17 +703,20 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.snap, err)
 	}
 
-	chg := newChange(state, inst.Action+"-snap", msg, tsets)
-	chg.Set("snap-names", []string{inst.snap})
-	state.EnsureBefore(0)
+	chg := newChange(state, inst.Action+"-snap", msg, tsets, []string{inst.snap})
+
+	ensureStateSoon(state)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *state.Change {
+func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {
 	chg := st.NewChange(kind, summary)
 	for _, ts := range tsets {
 		chg.AddAll(ts)
+	}
+	if snapNames != nil {
+		chg.Set("snap-names", snapNames)
 	}
 	return chg
 }
@@ -737,10 +746,10 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	}
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets}, []string{info.Name()})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
-	st.EnsureBefore(0)
+	ensureStateSoon(st)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -771,6 +780,9 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	var flags snapstate.Flags
 
 	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
+		flags |= snapstate.DevMode
+	}
+	if release.ReleaseInfo.ForceDevMode() {
 		flags |= snapstate.DevMode
 	}
 
@@ -852,9 +864,8 @@ out:
 		return InternalError("cannot install snap file: %v", err)
 	}
 
-	chg := newChange(st, "install-snap", msg, tsets)
+	chg := newChange(st, "install-snap", msg, tsets, []string{snapName})
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
-	chg.Set("snap-names", []string{snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -862,7 +873,7 @@ out:
 		os.Remove(tempPath)
 	}()
 
-	st.EnsureBefore(0)
+	ensureStateSoon(st)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -1218,7 +1229,11 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot abort change %s with nothing pending", chID)
 	}
 
+	// flag the change
 	chg.Abort()
+
+	// actually ask to proceed with the abort
+	ensureStateSoon(state)
 
 	return SyncResponse(change2changeInfo(chg), nil)
 }

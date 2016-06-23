@@ -34,40 +34,27 @@ import (
 type fakeOp struct {
 	op string
 
-	macaroon string
-	name     string
-	revno    snap.Revision
-	channel  string
-	active   bool
-	sinfo    snap.SideInfo
+	name  string
+	revno snap.Revision
+	sinfo snap.SideInfo
 
 	old string
 }
 
-type fakeSnappyBackend struct {
-	ops []fakeOp
-
-	fakeCurrentProgress int
-	fakeTotalProgress   int
-
-	linkSnapFailTrigger string
+type fakeDownload struct {
+	name     string
+	channel  string
+	macaroon string
 }
 
-func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.Info) error, p progress.Meter, stor snapstate.StoreService, auther store.Authenticator) (*snap.Info, string, error) {
-	p.Notify("download")
-	var macaroon string
-	if auther != nil {
-		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
-	}
-	f.ops = append(f.ops, fakeOp{
-		op:       "download",
-		macaroon: macaroon,
-		name:     name,
-		channel:  channel,
-	})
-	p.SetTotal(float64(f.fakeTotalProgress))
-	p.Set(float64(f.fakeCurrentProgress))
+type fakeStore struct {
+	downloads           []fakeDownload
+	fakeBackend         *fakeSnappyBackend
+	fakeCurrentProgress int
+	fakeTotalProgress   int
+}
 
+func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
 	revno := snap.R(11)
 	if channel == "channel-for-7" {
 		revno.N = 7
@@ -82,13 +69,45 @@ func (f *fakeSnappyBackend) Download(name, channel string, checker func(*snap.In
 		},
 		Version: name,
 	}
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revno})
 
-	err := checker(info)
-	if err != nil {
-		return nil, "", err
+	return info, nil
+}
+
+func (f *fakeStore) Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error) {
+	panic("Find called")
+}
+
+func (f *fakeStore) ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error) {
+	panic("ListRefresh called")
+}
+
+func (f *fakeStore) SuggestedCurrency() string {
+	return "XTS"
+}
+
+func (f *fakeStore) Download(snapInfo *snap.Info, pb progress.Meter, auther store.Authenticator) (string, error) {
+	var macaroon string
+	if auther != nil {
+		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
 	}
+	f.downloads = append(f.downloads, fakeDownload{
+		macaroon: macaroon,
+		name:     snapInfo.Name(),
+		channel:  snapInfo.Channel,
+	})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: snapInfo.Name()})
 
-	return info, "downloaded-snap-path", nil
+	pb.SetTotal(float64(f.fakeTotalProgress))
+	pb.Set(float64(f.fakeCurrentProgress))
+
+	return "downloaded-snap-path", nil
+}
+
+type fakeSnappyBackend struct {
+	ops []fakeOp
+
+	linkSnapFailTrigger string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -124,6 +143,9 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	info := &snap.Info{SuggestedName: name, SideInfo: *si}
 	if name == "gadget" {
 		info.Type = snap.TypeGadget
+	}
+	if name == "core" {
+		info.Type = snap.TypeOS
 	}
 	return info, nil
 }

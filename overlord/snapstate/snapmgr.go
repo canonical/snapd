@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -281,11 +282,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	checker := func(info *snap.Info) error {
-		return checkRevisionIsNew(ss.Name, snapst, info.Revision)
-	}
-
-	pb := &TaskProgressAdapter{task: t}
+	meter := &TaskProgressAdapter{task: t}
 
 	var auther store.Authenticator
 	if ss.UserID > 0 {
@@ -298,10 +295,20 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		auther = user.Authenticator()
 	}
 
-	storeInfo, downloadedSnapFile, err := m.backend.Download(ss.Name, ss.Channel, checker, pb, m.store, auther)
+	storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
 	if err != nil {
 		return err
 	}
+
+	if err = checkRevisionIsNew(ss.Name, snapst, storeInfo.Revision); err != nil {
+		return err
+	}
+
+	downloadedSnapFile, err := m.store.Download(storeInfo, meter, auther)
+	if err != nil {
+		return err
+	}
+
 	ss.SnapPath = downloadedSnapFile
 	ss.Revision = storeInfo.Revision
 
@@ -679,6 +686,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
+
+	// if we just installed a core snap, request a restart
+	// so that we switch executing its snapd
+	if newInfo.Type == snap.TypeOS && release.OnClassic {
+		t.Logf("Restarting snapd...")
+		st.Unlock()
+		st.RequestRestart()
+		st.Lock()
+	}
+
 	return nil
 }
 
