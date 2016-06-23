@@ -3,7 +3,19 @@
 set -e
 
 if [ "$1" = "purge" ]; then
-   # FIXME: should we try to remove all snaps, mount points, services,
-   #        mount units that got created as well?
-   rm -f /var/lib/snapd/state.json
+
+    for snap in /var/lib/snapd/snaps/*.snap; do
+        base="$(basename $snap)"
+        # mount units
+        mangledbase="$(echo $base|tr _ -)"
+        mountunit="$(systemd-escape -p "${mangedbase%%.snap}".mount)"
+        rm -f /etc/systemd/system/snap-$mountunit
+        rm -f /etc/systemd/system/multi-user.target.wants/snap-$mountunit
+
+        # FIXME: umount snaps
+        # FIXME: remove /snap
+        # FIXME: remove /var/snap
+    done
+    # state file
+    rm -f /var/lib/snapd/state.json
 fi
