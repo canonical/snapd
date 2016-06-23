@@ -54,28 +54,22 @@ const (
 	firstInterimUsableFlagValue
 )
 
-func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
-	if err := checkChangeConflict(s, snapName); err != nil {
+func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, error) {
+	if err := checkChangeConflict(s, ss.Name); err != nil {
 		return nil, err
 	}
 
-	if snapPath == "" && channel == "" {
-		channel = "stable"
+	if ss.SnapPath == "" && ss.Channel == "" {
+		ss.Channel = "stable"
 	}
 
 	var prepare *state.Task
-	ss := SnapSetup{
-		Channel: channel,
-		UserID:  userID,
-		Flags:   SnapSetupFlags(flags),
-	}
-	ss.Name = snapName
-	ss.SnapPath = snapPath
-	if snapPath != "" {
-		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), snapPath))
+	if ss.SnapPath != "" {
+		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), ss.SnapPath))
 	} else {
-		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q"), snapName, channel))
+		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q"), ss.Name, ss.Channel))
 	}
+
 	prepare.Set("snap-setup", ss)
 
 	tasks := []*state.Task{prepare}
@@ -85,31 +79,31 @@ func doInstall(s *state.State, curActive bool, snapName, snapPath, channel strin
 	}
 
 	// mount
-	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q"), snapName))
+	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q"), ss.Name))
 	addTask(mount)
 	mount.WaitFor(prepare)
 	precopy := mount
 
 	if curActive {
 		// unlink-current-snap (will stop services for copy-data)
-		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), snapName))
+		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), ss.Name))
 		addTask(unlink)
 		unlink.WaitFor(mount)
 		precopy = unlink
 	}
 
 	// copy-data (needs stopped services by unlink)
-	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), snapName))
+	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name))
 	addTask(copyData)
 	copyData.WaitFor(precopy)
 
 	// security
-	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), snapName))
+	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), ss.Name))
 	addTask(setupSecurity)
 	setupSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), snapName))
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), ss.Name))
 	addTask(linkSnap)
 	linkSnap.WaitFor(setupSecurity)
 
@@ -145,7 +139,14 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
-	return doInstall(s, false, name, "", channel, userID, flags)
+	ss := &SnapSetup{
+		Name:    name,
+		Channel: channel,
+		UserID:  userID,
+		Flags:   SnapSetupFlags(flags),
+	}
+
+	return doInstall(s, false, ss)
 }
 
 // InstallPath returns a set of tasks for installing snap from a file path.
@@ -157,7 +158,14 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		return nil, err
 	}
 
-	return doInstall(s, snapst.Active, name, path, channel, 0, flags)
+	ss := &SnapSetup{
+		Name:     name,
+		SnapPath: path,
+		Channel:  channel,
+		Flags:    SnapSetupFlags(flags),
+	}
+
+	return doInstall(s, snapst.Active, ss)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -184,8 +192,14 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		channel = snapst.Channel
 	}
 
-	// TODO: pass the right UserID
-	return doInstall(s, snapst.Active, name, "", channel, userID, flags)
+	ss := &SnapSetup{
+		Name:    name,
+		Channel: channel,
+		UserID:  userID,
+		Flags:   SnapSetupFlags(flags),
+	}
+
+	return doInstall(s, snapst.Active, ss)
 }
 
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
@@ -495,6 +509,9 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		return nil, err
 	}
 	for snapName, snapState := range stateMap {
+		if snapState.CurrentSideInfo() == nil {
+			continue
+		}
 		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
