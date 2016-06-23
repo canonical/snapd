@@ -20,6 +20,7 @@
 package snap_test
 
 import (
+	"regexp"
 	"testing"
 	"time"
 
@@ -33,8 +34,7 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type InfoSnapYamlTestSuite struct {
-}
+type InfoSnapYamlTestSuite struct{}
 
 var _ = Suite(&InfoSnapYamlTestSuite{})
 
@@ -59,6 +59,14 @@ func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 type YamlSuite struct{}
 
 var _ = Suite(&YamlSuite{})
+
+func (s *YamlSuite) SetUpTest(c *C) {
+	snap.FakeSupportedHookType(regexp.MustCompile(".*"))
+}
+
+func (s *YamlSuite) TearDownTest(c *C) {
+	snap.ResetSupportedHookTypes()
+}
 
 func (s *YamlSuite) TestUnmarshalGarbage(c *C) {
 	_, err := snap.InfoFromSnapYaml([]byte(`"`))
@@ -693,6 +701,52 @@ func (s *YamlSuite) TestUnmarshalHook(c *C) {
 name: snap
 hooks:
     test-hook:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 1)
+
+	hook, ok := info.Hooks["test-hook"]
+	c.Assert(ok, Equals, true, Commentf("Expected hooks to include 'test-hook'"))
+
+	c.Check(hook, DeepEquals, &snap.HookInfo{
+		Snap:  info,
+		Name:  "test-hook",
+		Plugs: nil,
+	})
+}
+
+func (s *YamlSuite) TestUnmarshalUnsupportedHook(c *C) {
+	snap.ResetSupportedHookTypes()
+	snap.FakeSupportedHookType(regexp.MustCompile("not-test-hook"))
+
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+hooks:
+    test-hook:
+`))
+	c.Assert(err, IsNil)
+	c.Check(info.Name(), Equals, "snap")
+	c.Check(info.Plugs, HasLen, 0)
+	c.Check(info.Slots, HasLen, 0)
+	c.Check(info.Apps, HasLen, 0)
+	c.Check(info.Hooks, HasLen, 0, Commentf("Expected no hooks to be loaded"))
+}
+
+func (s *YamlSuite) TestUnmarshalHookFiltersOutUnsupportedHooks(c *C) {
+	snap.ResetSupportedHookTypes()
+	snap.FakeSupportedHookType(regexp.MustCompile("test-.*"))
+
+	// NOTE: yaml content cannot use tabs, indent the section with spaces.
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+hooks:
+    test-hook:
+    foo-hook:
 `))
 	c.Assert(err, IsNil)
 	c.Check(info.Name(), Equals, "snap")

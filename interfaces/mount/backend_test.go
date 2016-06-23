@@ -75,7 +75,7 @@ func (s *backendSuite) TestRemove(c *C) {
 	err := ioutil.WriteFile(appCanaryToGo, []byte("ni! ni! ni!"), 0644)
 	c.Assert(err, IsNil)
 
-	hookCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.hook.test-hook.fstab")
+	hookCanaryToGo := filepath.Join(dirs.SnapMountPolicyDir, "snap.hello-world.hook.apply-config.fstab")
 	err = ioutil.WriteFile(hookCanaryToGo, []byte("ni! ni! ni!"), 0644)
 	c.Assert(err, IsNil)
 
@@ -99,7 +99,7 @@ apps:
     app1:
     app2:
 hooks:
-    test-hook:
+    apply-config:
         plugs: [iface, iface2]
 slots:
     iface:
@@ -130,7 +130,7 @@ func (s *backendSuite) TestSetupSetsupSimple(c *C) {
 	expected := strings.Split(fmt.Sprintf("%s\n%s\n", fsEntryIF1, fsEntryIF2), "\n")
 	sort.Strings(expected)
 	// and we have them both for both apps and the hook
-	for _, binary := range []string{"app1", "app2", "hook.test-hook"} {
+	for _, binary := range []string{"app1", "app2", "hook.apply-config"} {
 		fn1 := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
 		content, err := ioutil.ReadFile(fn1)
 		c.Assert(err, IsNil, Commentf("Expected mount file for %q", binary))
@@ -152,7 +152,7 @@ func (s *backendSuite) TestSetupSetsupWithoutDir(c *C) {
 	os.Remove(dirs.SnapMountPolicyDir)
 	s.InstallSnap(c, false, mockSnapYaml, 0)
 
-	for _, binary := range []string{"app1", "app2", "hook.test-hook"} {
+	for _, binary := range []string{"app1", "app2", "hook.apply-config"} {
 		fn := filepath.Join(dirs.SnapMountPolicyDir, fmt.Sprintf("snap.snap-name.%s.fstab", binary))
 		c.Assert(osutil.FileExists(fn), Equals, true, Commentf("Expected mount file for %q", binary))
 	}
