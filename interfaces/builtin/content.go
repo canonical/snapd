@@ -35,6 +35,10 @@ func (iface *ContentInterface) Name() string {
 	return "content"
 }
 
+func cleanSubPath(path string) bool {
+	return filepath.Clean(path) == path && path != ".." && !strings.HasPrefix(path, "../")
+}
+
 func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -51,7 +55,7 @@ func (iface *ContentInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	paths := rpath
 	paths = append(paths, wpath...)
 	for _, p := range paths {
-		if strings.Contains(p, "..") {
+		if !cleanSubPath(p) {
 			return fmt.Errorf("content interface path is not clean: %q", p)
 		}
 	}
@@ -67,7 +71,7 @@ func (iface *ContentInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if !ok || len(target) == 0 {
 		return fmt.Errorf("content plug must contain target path")
 	}
-	if strings.Contains(target, "..") {
+	if !cleanSubPath(target) {
 		return fmt.Errorf("content interface target path is not clean: %q", target)
 	}
 
