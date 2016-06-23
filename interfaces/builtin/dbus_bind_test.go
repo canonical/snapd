@@ -98,3 +98,243 @@ func (s *DbusBindInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
 }
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotSession(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+  name: org.dbus-bind-snap
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotSystem(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: system
+  name: org.dbus-bind-snap
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotFull(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: system
+  name: org.dbus-bind-snap.foo.bar.baz.n0rf_qux
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotMissingBus(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  name: org.dbus-bind-snap
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "bus must be set")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotEmptyBus(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: ""
+  name: org.dbus-bind-snap
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "bus must be set")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotNonexistentBus(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: nonexistent
+  name: org.dbus-bind-snap
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "bus must be one of 'session' or 'system'")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotMissingName(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "bus name must be set")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotEmptyName(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+  name: ""
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "bus name must be set")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameTooLong(c *C) {
+	long_name := make([]byte, 256)
+	for i := range long_name {
+		long_name[i] = 'b'
+	}
+	// make it look otherwise valid (a.bbbb...)
+	long_name[0] = 'a'
+	long_name[1] = '.'
+
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+  name: `)
+	mockSnapYaml = append(mockSnapYaml, long_name...)
+	mockSnapYaml = append(mockSnapYaml, "\n"...)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "bus name is too long \\(must be <= 255\\)")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameStartsWithColon(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+  name: :dbus-bind-snap.bar
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "invalid bus name: \":dbus-bind-snap.bar\"")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameStartsWithNum(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+  name: 0dbus-bind-snap.bar
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "invalid bus name: \"0dbus-bind-snap.bar\"")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameMissingDot(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+  name: dbus-bind-snap
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-bind-snap\"")
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameMissingElement(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  bus: session
+  name: dbus-bind-snap.
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-bind-snap\\.\"")
+}
