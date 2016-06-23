@@ -51,7 +51,7 @@ func populateStateFromInstalled() error {
 	ovld.Loop()
 	st := ovld.State()
 
-	all, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+	all, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "snaps", "*.snap"))
 	if err != nil {
 		return err
 	}
@@ -62,21 +62,19 @@ func populateStateFromInstalled() error {
 		fmt.Printf("Installing %s\n", snapPath)
 
 		st.Lock()
-		var ts *state.TaskSet
-		if osutil.FileExists(snapPath + ".sideinfo") {
-			ts, err = snapstate.InstallPathWithSideInfo(st, snapPath, "", 0)
-		} else {
-			// a sideloaded snap not from the store
-			snapf, err := snap.Open(snapPath)
-			if err != nil {
-				return err
-			}
-			info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-			if err != nil {
-				return err
-			}
-			ts, err = snapstate.InstallPath(st, info.Name(), snapPath, "", 0)
+
+		// everything will be sideloaded for now - that is
+		// ok, we will support adding assertions soon
+		snapf, err := snap.Open(snapPath)
+		if err != nil {
+			return err
 		}
+		info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+		if err != nil {
+			return err
+		}
+		ts, err := snapstate.InstallPath(st, info.Name(), snapPath, "", 0)
+
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
