@@ -23,6 +23,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -42,6 +44,8 @@ var _ = check.Suite(&daemonSuite{})
 
 func (s *daemonSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, check.IsNil)
 }
 
 func (s *daemonSuite) TearDownTest(c *check.C) {
