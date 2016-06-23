@@ -72,6 +72,11 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 		}
 	}
 
+	// nothing to do, happens on e.g. first-boot
+	if s.path == targetPath {
+		return nil
+	}
+
 	// FIXME: cp.CopyFile() has no preserve attribute flag yet
 	return runCommand("cp", "-a", s.path, targetPath)
 }
