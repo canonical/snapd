@@ -42,10 +42,13 @@ var (
 	SnapMetaDir               string
 	SnapdSocket               string
 
+	SnapSeedDir string
+
 	SnapAssertsDBDir      string
 	SnapTrustedAccountKey string
 
-	SnapStateFile string
+	SnapStateFile      string
+	SnapFirstBootStamp string
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
@@ -95,6 +98,12 @@ func SetRootDir(rootdir string) {
 	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snapd/trusted.acckey")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
+
+	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
+
+	// NOTE: if you change stampFile, update the condition in
+	// snapd.firstboot.service to match
+	SnapFirstBootStamp = filepath.Join(rootdir, snappyDir, "firstboot", "stamp")
 
 	SnapBinariesDir = filepath.Join(SnapSnapsDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
