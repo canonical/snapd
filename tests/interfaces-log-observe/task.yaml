@@ -17,10 +17,9 @@ kill-wait: 1m
 prepare: |
   echo "Given a snap declaring the $PLUG plug is installed"
   snapbuild ../lib/snaps/$SNAP_NAME .
-  sudo snap install $SNAP_FILE
+  snap install $SNAP_FILE
 
 restore: |
-  sudo snap remove $SNAP_NAME
   rm -f $SNAP_FILE
 
 execute: |
@@ -37,17 +36,17 @@ execute: |
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the plug can be disconnected again"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is connected"
-  sudo snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is able to access the system logs"
@@ -57,7 +56,7 @@ execute: |
   echo "============================================"
 
   echo "When the plug is disconnected"
-  sudo snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+  snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then snap can't access the system logs"
