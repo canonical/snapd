@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -562,9 +563,10 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action  string `json:"action"`
-	Channel string `json:"channel"`
-	DevMode bool   `json:"devmode"`
+	Action   string `json:"action"`
+	Channel  string `json:"channel"`
+	DevMode  bool   `json:"devmode"`
+	Confined bool   `json:"confined"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -626,10 +628,23 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
+var errNoDevModeAndConfined = errors.New("cannot request both DevMode and Confined")
+var errNoConfinedOnDevModeOS = errors.New("this system cannot install a confined snap")
+
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags := snapstate.Flags(0)
-	if inst.DevMode || release.ReleaseInfo.ForceDevMode() {
+	isDevModeOS := release.ReleaseInfo.ForceDevMode()
+	if inst.DevMode || isDevModeOS {
 		flags |= snapstate.DevMode
+	}
+	if inst.Confined {
+		if isDevModeOS {
+			return "", nil, errNoConfinedOnDevModeOS
+		}
+		if flags.DevMode() {
+			return "", nil, errNoDevModeAndConfined
+		}
+		flags |= snapstate.Confined
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
@@ -803,6 +818,18 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
+func isFormValueTrue(value []string) bool {
+	if len(value) == 0 {
+		return false
+	}
+	b, err := strconv.ParseBool(value[0])
+	if err != nil {
+		return false
+	}
+
+	return b
+}
+
 func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -828,10 +855,19 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	var flags snapstate.Flags
 
-	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
+	if isFormValueTrue(form.Value["devmode"]) {
 		flags |= snapstate.DevMode
 	}
+	if isFormValueTrue(form.Value["confined"]) {
+		if flags.DevMode() {
+			return BadRequest(errNoDevModeAndConfined.Error())
+		}
+		flags |= snapstate.Confined
+	}
 	if release.ReleaseInfo.ForceDevMode() {
+		if flags.Confined() {
+			return BadRequest(errNoConfinedOnDevModeOS.Error())
+		}
 		flags |= snapstate.DevMode
 	}
 

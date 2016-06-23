@@ -360,6 +360,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
+		"errNoDevModeAndConfined",
+		"errNoConfinedOnDevModeOS",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
 		"snapstateInstall",
@@ -1254,6 +1256,80 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
+func (s *apiSuite) TestSideloadSnapConfined(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"confined\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	// try a multipart/form-data upload
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.Confined, true)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
+}
+
+func (s *apiSuite) TestSideloadSnapConfinedAndDevmode(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"confined\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot request both DevMode and Confined")
+}
+
+func (s *apiSuite) TestSideloadSnapConfinedInDevModeOS(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"confined\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	defer restore()
+
+	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "this system cannot install a confined snap")
+}
+
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 	newTestDaemon(c)
 
@@ -1528,10 +1604,10 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 }
 
-func (s *apiSuite) TestInstalOnNonDevModeDistro(c *check.C) {
+func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0))
 }
-func (s *apiSuite) TestInstalOnDevModeDistro(c *check.C) {
+func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode)
 }
 
@@ -1798,6 +1874,63 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 
 	// DevMode was converted to the snapstate.DevMode flag
 	c.Check(calledFlags&snapstate.DevMode, check.Equals, snapstate.Flags(snapstate.DevMode))
+}
+
+func (s *apiSuite) TestInstallConfined(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:   "install",
+		Confined: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags&snapstate.Confined, check.Equals, snapstate.Flags(snapstate.Confined))
+}
+
+func (s *apiSuite) TestInstallConfinedDevModeOS(c *check.C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	defer restore()
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:   "install",
+		Confined: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.ErrorMatches, "this system cannot install a confined snap")
+}
+
+func (s *apiSuite) TestInstallConfinedDevMode(c *check.C) {
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:   "install",
+		DevMode:  true,
+		Confined: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.ErrorMatches, "cannot request both DevMode and Confined")
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {
@@ -2981,4 +3114,14 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 		Currency: "EUR",
 		User:     user,
 	})
+}
+
+func (s *apiSuite) TestIsFormValueTrue(c *check.C) {
+	c.Check(isFormValueTrue(nil), check.Equals, false)
+	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
+		c.Check(isFormValueTrue([]string{f}), check.Equals, false, check.Commentf("expected %q to be false", f))
+	}
+	for _, t := range []string{"true", "1", "True", "t"} {
+		c.Check(isFormValueTrue([]string{t}), check.Equals, true, check.Commentf("expected %q to be true", t))
+	}
 }

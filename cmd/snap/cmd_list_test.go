@@ -106,7 +106,12 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17, "trymode": true}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [
+{"name": "foo", "status": "active", "version": "4.2", "developer": "bar", "revision":17, "trymode": true}
+,{"name": "dm1", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "devmode"}
+,{"name": "dm2", "status": "active", "version": "5", "revision":1, "devmode": true, "confinement": "strict"}
+,{"name": "cf1", "status": "active", "version": "6", "revision":2, "confinement": "devmode"}
+]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -116,8 +121,10 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Developer +Notes
-foo +4.2 +17 +bar +try
-`)
+	c.Check(s.Stdout(), check.Matches, `(?ms)^Name +Version +Rev +Developer +Notes$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^foo +4.2 +17 +bar +try$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm1 +.* +devmode$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm2 +.* +devmode$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^cf1 +.* +confined$`)
 	c.Check(s.Stderr(), check.Equals, "")
 }

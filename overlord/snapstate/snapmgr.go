@@ -109,6 +109,10 @@ func (ss *SnapSetup) DevMode() bool {
 	return ss.Flags&DevMode != 0
 }
 
+func (ss *SnapSetup) DevModeAllowed() bool {
+	return ss.Flags&(DevMode|Confined) != 0
+}
+
 // TryMode returns true if the snap is being installed in try mode directly from a directory.
 func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
@@ -482,7 +486,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := store.Snap(ss.Name(), ss.Channel, ss.DevMode(), user)
+		storeInfo, err := store.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), user)
 		if err != nil {
 			return err
 		}

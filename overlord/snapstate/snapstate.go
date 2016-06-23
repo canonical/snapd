@@ -55,7 +55,20 @@ const (
 	// if we need flags for just SnapSetup it may be easier
 	// to start a new sequence from the other end with:
 	// 0x40000000 >> iota
+	Confined = 0x40000000 >> iota
 )
+
+func (f Flags) DevModeAllowed() bool {
+	return f&(DevMode|Confined) != 0
+}
+
+func (f Flags) DevMode() bool {
+	return f&DevMode != 0
+}
+
+func (f Flags) Confined() bool {
+	return f&Confined != 0
+}
 
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name()); err != nil {

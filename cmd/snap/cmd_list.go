@@ -76,9 +76,11 @@ func listSnaps(names []string) error {
 
 	for _, snap := range snaps {
 		notes := &Notes{
-			Private: snap.Private,
-			DevMode: snap.DevMode,
-			TryMode: snap.TryMode,
+			Confinement: snap.Confinement,
+			Local:       true,
+			Private:     snap.Private,
+			DevMode:     snap.DevMode,
+			TryMode:     snap.TryMode,
 			// FIXME: a bit confusing, a installed snap
 			//        is either "active" or "installed", so
 			//        if it is not "active" it means it is
