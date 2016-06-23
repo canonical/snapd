@@ -17,7 +17,7 @@ environment:
 
 prepare: |
   echo "Given a snap declaring the network-bind plug is installed"
-  snapbuild ../lib/snaps/$SNAP_NAME .
+  snapbuild $TESTSLIB/snaps/$SNAP_NAME .
   snap install $SNAP_FILE
 
   echo "Given the snap's service is listening"
