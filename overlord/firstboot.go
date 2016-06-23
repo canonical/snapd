@@ -103,7 +103,10 @@ func populateStateFromInstalled() error {
 	// do it and wait for ready
 	st.EnsureBefore(0)
 	<-chg.Ready()
-	if chg.Status() != state.DoneStatus {
+	st.Lock()
+	status := chg.Status()
+	st.Unlock()
+	if status != state.DoneStatus {
 		return fmt.Errorf("cannot run chg: %s", chg.Err())
 	}
 
