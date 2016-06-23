@@ -54,14 +54,6 @@ const (
 	firstInterimUsableFlagValue
 )
 
-// SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
-type SnapSetupFlags Flags
-
-const (
-	// RevertOp means the given snap got rolled back
-	RevertOp SnapSetupFlags = 0x40000000 >> iota
-)
-
 func doInstall(s *state.State, curActive bool, snapName, snapPath, channel string, userID int, flags Flags) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, snapName); err != nil {
 		return nil, err
@@ -329,13 +321,12 @@ func Revert(s *state.State, name, ver string) (*state.TaskSet, error) {
 	ss := SnapSetup{
 		Name:     name,
 		Revision: snapst.CurrentSideInfo().Revision,
-		Flags:    RevertOp,
 		Revert:   revertToRev,
 	}
 	ssPrev := SnapSetup{
 		Name:     name,
 		Revision: revertToRev,
-		Flags:    RevertOp,
+		Revert:   revertToRev,
 	}
 
 	prepare := s.NewTask("prepare-revert", fmt.Sprintf(i18n.G("Prepare revert of %q"), name))
