@@ -309,7 +309,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 // Note that the state must be locked by the caller.
 func Revert(s *state.State, name, ver string) (*state.TaskSet, error) {
 	if ver != "" {
-		return nil, fmt.Errorf("revert to arbitrary versions not implemented")
+		return nil, fmt.Errorf("revert to arbitrary versions not implemented yet")
 	}
 
 	var snapst SnapState
@@ -321,18 +321,20 @@ func Revert(s *state.State, name, ver string) (*state.TaskSet, error) {
 	if !snapst.Active {
 		return nil, fmt.Errorf("cannot revert inactive snaps")
 	}
-	if snapst.Previous() == nil {
+	if snapst.PreviousSideInfo() == nil {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
 
+	revertToRev := snapst.PreviousSideInfo().Revision
 	ss := SnapSetup{
 		Name:     name,
 		Revision: snapst.CurrentSideInfo().Revision,
 		Flags:    RevertOp,
+		Revert:   revertToRev,
 	}
 	ssPrev := SnapSetup{
 		Name:     name,
-		Revision: snapst.Previous().Revision,
+		Revision: revertToRev,
 		Flags:    RevertOp,
 	}
 

@@ -73,7 +73,8 @@ func (s *prepareRevertSuite) TestPrepareRevertSuccess(c *C) {
 	})
 	t := s.state.NewTask("prepare-revert", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name: "foo",
+		Name:   "foo",
+		Revert: snap.R(1),
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -111,7 +112,8 @@ func (s *prepareRevertSuite) TestDoUndoPrepareRevertSnap(c *C) {
 	})
 	t := s.state.NewTask("prepare-revert", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name: "foo",
+		Name:   "foo",
+		Revert: snap.R(1),
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)

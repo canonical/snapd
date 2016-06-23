@@ -136,7 +136,7 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	panic(fmt.Sprintf("CurrentSideInfo out of sync %#v %v", snapst.Sequence, snapst.Current))
 }
 
-func (snapst *SnapState) Previous() *snap.SideInfo {
+func (snapst *SnapState) PreviousSideInfo() *snap.SideInfo {
 	n := len(snapst.Sequence)
 	if n < 2 {
 		return nil
@@ -153,13 +153,17 @@ func (snapst *SnapState) Previous() *snap.SideInfo {
 	return snapst.Sequence[currentIndex-1]
 }
 
-func (snapst *SnapState) currentIndex() int {
+func (snapst *SnapState) findIndex(rev snap.Revision) int {
 	for i, si := range snapst.Sequence {
-		if si.Revision == snapst.Current {
+		if si.Revision == rev {
 			return i
 		}
 	}
 	return -1
+}
+
+func (snapst *SnapState) currentIndex() int {
+	return snapst.findIndex(snapst.Current)
 }
 
 func (snapst *SnapState) Block() []snap.Revision {
@@ -838,7 +842,11 @@ func (m *SnapManager) doPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	snapst.Candidate = snapst.Previous()
+	i := snapst.findIndex(ss.Revert)
+	if i < 0 {
+		return fmt.Errorf("cannot find revision %d in snapstate", ss.Revert)
+	}
+	snapst.Candidate = snapst.Sequence[i]
 	Set(st, ss.Name, snapst)
 
 	return nil
