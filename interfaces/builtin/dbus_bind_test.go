@@ -25,31 +25,45 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type DbusBindInterfaceSuite struct {
-	iface interfaces.Interface
-	slot  *interfaces.Slot
-	plug  *interfaces.Plug
+	testutil.BaseTest
+	iface           interfaces.Interface
+	slot            *interfaces.Slot
+	plug            *interfaces.Plug
+	testSessionSlot *interfaces.Slot
+	testSystemSlot  *interfaces.Slot
 }
 
 var _ = Suite(&DbusBindInterfaceSuite{
 	iface: &builtin.DbusBindInterface{},
-	slot: &interfaces.Slot{
-		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "dbus-bind"},
-			Name:      "dbus-bind-player",
-			Interface: "dbus-bind",
-		},
-	},
-	plug: &interfaces.Plug{
-		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "dbus-bind"},
-			Name:      "dbus-bind-client",
-			Interface: "dbus-bind",
-		},
-	},
 })
+
+func (s *DbusBindInterfaceSuite) SetUpTest(c *C) {
+	info, err := snap.InfoFromSnapYaml([]byte(`
+name: test-dbus-bind
+slots:
+  test-slot:
+    interface: dbus-bind
+    bus: session
+    name: org.test-slot
+  test-session:
+    interface: dbus-bind
+    bus: session
+    name: org.test-session
+  test-system:
+    interface: dbus-bind
+    bus: system
+    name: org.test-system
+`))
+	c.Assert(err, IsNil)
+	s.plug = nil
+	s.slot = &interfaces.Slot{SlotInfo: info.Slots["test-slot"]}
+	s.testSessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session"]}
+	s.testSystemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system"]}
+}
 
 func (s *DbusBindInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "dbus-bind")
@@ -60,14 +74,17 @@ func (s *DbusBindInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 		interfaces.SecurityDBus, interfaces.SecurityUDev,
 		interfaces.SecurityMount}
 	for _, system := range systems {
+		// no permanent perms for plug
 		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 
+		// no connected perms for plug
 		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 
+		// no connected perms for slot
 		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
@@ -337,4 +354,36 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
 	err = s.iface.SanitizeSlot(slot)
 	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-bind-snap\\.\"")
+}
+
+func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify bind rule
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session,\n")
+
+	// verify path in rule
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session{,/**}\"\n")
+}
+
+func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.testSystemSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify bind rule
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=system\n    name=org.test-system,\n")
+
+	// verify path in rule
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-system{,/**}\"\n")
+}
+
+func (s *DbusBindInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }

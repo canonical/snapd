@@ -20,6 +20,7 @@
 package builtin
 
 import (
+	"bytes"
 	"fmt"
 	"regexp"
 	"strings"
@@ -34,12 +35,7 @@ var dbusBindPermanentSlotAppArmor = []byte(`
 # DBus accesses
 #include <abstractions/dbus-session-strict>
 
-# FIXME
-dbus (bind)
-    bus=session
-    name="@{SNAP_NAME}{,.*}",
-
-# register as a player
+# register and bind to a well-known DBus name
 dbus (send)
     bus=system
     path=/org/freedesktop/DBus
@@ -54,11 +50,15 @@ dbus (send)
     member="GetConnectionUnix{ProcessID,User}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
-# FIXME
+dbus (bind)
+    bus=###DBUS_BIND_BUS###
+    name=###DBUS_BIND_NAME###,
+
 # Allow unconfined clients to interact with this service
 dbus (receive)
-    bus=session
-    peer=(name="@{SNAP_NAME}{,.*}", label=unconfined),
+    bus=###DBUS_BIND_BUS###
+    path=###DBUS_BIND_PATH###
+    peer=(name=###DBUS_BIND_NAME###, label=unconfined),
 `)
 
 var dbusBindPermanentSlotSecComp = []byte(`
@@ -95,7 +95,26 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return dbusBindPermanentSlotAppArmor, nil
+		old := []byte("###DBUS_BIND_BUS###")
+		new := []byte(slot.Attrs["bus"].(string))
+		snippet := bytes.Replace(dbusBindPermanentSlotAppArmor, old, new, -1)
+
+		old = []byte("###DBUS_BIND_NAME###")
+		new = []byte(slot.Attrs["name"].(string))
+		snippet = bytes.Replace(snippet, old, new, -1)
+
+		// convert name to AppArmor dbus path
+		dot_re := regexp.MustCompile("\\.")
+		var path_buf bytes.Buffer
+		path_buf.WriteString(`"/`)
+		path_buf.WriteString(dot_re.ReplaceAllString(slot.Attrs["name"].(string), "/"))
+		path_buf.WriteString(`{,/**}"`)
+
+		old = []byte("###DBUS_BIND_PATH###")
+		new = path_buf.Bytes()
+		snippet = bytes.Replace(snippet, old, new, -1)
+
+		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return dbusBindPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev:
