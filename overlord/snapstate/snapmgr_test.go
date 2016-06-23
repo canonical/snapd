@@ -1672,6 +1672,76 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	c.Check(snapst.TryMode(), Equals, false)
 }
 
+func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// app
+	var fooSnapst snapstate.SnapState
+	fooSnapst.Sequence = []*snap.SideInfo{
+		{
+			OfficialName: "foo",
+			Revision:     snap.R(23),
+		},
+	}
+	snapstate.Set(s.state, "foo", &fooSnapst)
+
+	// core
+	var coreSnapst snapstate.SnapState
+	coreSnapst.Sequence = []*snap.SideInfo{
+		{
+			OfficialName: "core",
+			Revision:     snap.R(100),
+		},
+	}
+	snapstate.Set(s.state, "core", &coreSnapst)
+
+	// broken
+	var borkenSnapst snapstate.SnapState
+	borkenSnapst.Sequence = []*snap.SideInfo{
+		{
+			OfficialName: "borken",
+			Revision:     snap.R("x1"),
+		},
+	}
+	snapstate.Set(s.state, "borken", &borkenSnapst)
+
+	// wip
+	var wipSnapst snapstate.SnapState
+	wipSnapst.Candidate = &snap.SideInfo{
+		OfficialName: "wip",
+		Revision:     snap.R(11),
+	}
+	snapstate.Set(s.state, "wip", &wipSnapst)
+
+	err := snapstate.MigrateToTypeInState(s.state)
+	c.Assert(err, IsNil)
+
+	expected := []struct {
+		name string
+		typ  snap.Type
+	}{
+		{"foo", snap.TypeApp},
+		{"core", snap.TypeOS},
+		{"borken", snap.TypeApp},
+	}
+
+	for _, exp := range expected {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, exp.name, &snapst)
+		c.Assert(err, IsNil)
+		typ, err := snapst.Type()
+		c.Check(err, IsNil)
+		c.Check(typ, Equals, exp.typ)
+	}
+
+	// wip was left alone
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "wip", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.SnapType, Equals, "")
+}
+
 type snapStateSuite struct{}
 
 var _ = Suite(&snapStateSuite{})
@@ -1707,6 +1777,17 @@ func (s *snapStateSuite) TestSnapStateModeSetters(c *C) {
 	snapst.SetDevMode(true)
 	c.Check(snapst.DevMode(), Equals, true)
 	c.Check(snapst.TryMode(), Equals, false)
+}
+
+func (s *snapStateSuite) TestSnapStateType(c *C) {
+	snapst := &snapstate.SnapState{}
+	_, err := snapst.Type()
+	c.Check(err, ErrorMatches, "snap type unset")
+
+	snapst.SetType(snap.TypeKernel)
+	typ, err := snapst.Type()
+	c.Assert(err, IsNil)
+	c.Check(typ, Equals, snap.TypeKernel)
 }
 
 type snapSetupSuite struct{}
