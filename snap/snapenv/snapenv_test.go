@@ -20,11 +20,13 @@
 package snapenv
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -48,7 +50,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 
 	c.Assert(env, DeepEquals, []string{
 		"SNAP=/snap/foo/17",
-		"SNAP_ARCH=amd64",
+		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_DATA=/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=foo",

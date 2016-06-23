@@ -127,31 +127,43 @@ var (
 // backend delegates writing those files to higher layers.
 func (b *Backend) combineSnippets(snapInfo *snap.Info, devMode bool, snippets map[string][][]byte) (content map[string]*osutil.FileState, err error) {
 	for _, appInfo := range snapInfo.Apps {
-		policy := defaultTemplate
-		if devMode {
-			policy = attachPattern.ReplaceAll(policy, attachComplain)
-		}
-		policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
-			switch {
-			case bytes.Equal(placeholder, placeholderVar):
-				return templateVariables(appInfo)
-			case bytes.Equal(placeholder, placeholderProfileAttach):
-				return []byte(fmt.Sprintf("profile \"%s\"", appInfo.SecurityTag()))
-			case bytes.Equal(placeholder, placeholderSnippets):
-				return bytes.Join(snippets[appInfo.Name], []byte("\n"))
-			}
-			return nil
-		})
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := appInfo.SecurityTag()
-		content[fname] = &osutil.FileState{
-			Content: policy,
-			Mode:    0644,
-		}
+		addContent(appInfo.SecurityTag(), snapInfo, devMode, snippets, content)
 	}
+
+	for _, hookInfo := range snapInfo.Hooks {
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+		addContent(hookInfo.SecurityTag(), snapInfo, devMode, snippets, content)
+	}
+
 	return content, nil
+}
+
+func addContent(securityTag string, snapInfo *snap.Info, devMode bool, snippets map[string][][]byte, content map[string]*osutil.FileState) {
+	policy := defaultTemplate
+	if devMode {
+		policy = attachPattern.ReplaceAll(policy, attachComplain)
+	}
+	policy = templatePattern.ReplaceAllFunc(policy, func(placeholder []byte) []byte {
+		switch {
+		case bytes.Equal(placeholder, placeholderVar):
+			return templateVariables(snapInfo)
+		case bytes.Equal(placeholder, placeholderProfileAttach):
+			return []byte(fmt.Sprintf("profile \"%s\"", securityTag))
+		case bytes.Equal(placeholder, placeholderSnippets):
+			return bytes.Join(snippets[securityTag], []byte("\n"))
+		}
+		return nil
+	})
+
+	content[securityTag] = &osutil.FileState{
+		Content: policy,
+		Mode:    0644,
+	}
 }
 
 func reloadProfiles(profiles []string) error {

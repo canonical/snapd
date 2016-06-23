@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -66,7 +67,7 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(name, channel string, auther store.Authenticator) (*snap.Info, error) {
+func (s *apiSuite) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
 	s.auther = auther
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
@@ -134,6 +135,8 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	snapstateGet = snapstate.Get
 	snapstateInstallPath = snapstate.InstallPath
 	readSnapInfo = readSnapInfoImpl
+	ensureStateSoon = ensureStateSoonImpl
+	dirs.SetRootDir("")
 }
 
 func (s *apiSuite) daemon(c *check.C) *Daemon {
@@ -347,6 +350,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
+		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -755,9 +759,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 }
 
 func (s *apiSuite) TestFindRefreshes(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
@@ -1036,6 +1038,14 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	s.vars = map[string]string{"name": "foo"}
+
 	snapInstructionDispTable["install"] = func(*snapInstruction, *state.State) (string, []*state.TaskSet, error) {
 		return "foooo", nil, nil
 	}
@@ -1056,13 +1066,18 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, "foooo")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
 	st.Unlock()
+
+	c.Check(soon, check.Equals, 1)
 }
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	ensureStateSoon = func(st *state.State) {}
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 		return fmt.Sprintf("<install by user %d>", inst.userID), nil, nil
@@ -1117,20 +1132,34 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestSideloadSnap(c *check.C) {
+var sideLoadBodyWithoutDevMode = "" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+	"\r\n" +
+	"xyzzy\r\n" +
+	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
+	"\r\n" +
+	"a/b/local.snap\r\n" +
+	"----hello--\r\n"
+
+func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
-	body := "" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
-		"\r\n" +
-		"xyzzy\r\n" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
-		"\r\n" +
-		"a/b/local.snap\r\n" +
-		"----hello--\r\n"
+	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
+}
+
+func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
+	// try a multipart/form-data upload
+	body := sideLoadBodyWithoutDevMode
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	defer restore()
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.DevMode, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
 
@@ -1147,14 +1176,14 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, snapstate.DevMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
-	d := newTestDaemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	newTestDaemon(c)
 
 	// try a multipart/form-data upload with missing "name"
 	content := "" +
@@ -1181,6 +1210,12 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
 
 	req, err := http.NewRequest("POST", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -1219,7 +1254,18 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 
 	c.Check(chg.Kind(), check.Equals, "try-snap")
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %q`, "foo", tryDir))
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "foo",
+	})
 
+	c.Check(soon, check.Equals, 1)
 }
 
 func (s *apiSuite) TestTrySnapRelative(c *check.C) {
@@ -1244,6 +1290,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
 
 	// setup done
 	installQueue := []string{}
@@ -1304,6 +1356,8 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 
+	c.Check(soon, check.Equals, 1)
+
 	c.Assert(chg.Tasks(), check.HasLen, n)
 
 	st.Unlock()
@@ -1311,6 +1365,17 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	st.Lock()
 
 	c.Check(chg.Kind(), check.Equals, "install-snap")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"local"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "local",
+	})
+
 	return chg.Summary()
 }
 
@@ -1391,9 +1456,18 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 }
 
-func (s *apiSuite) TestInstall(c *check.C) {
+func (s *apiSuite) TestInstalOnNonDevModeDistro(c *check.C) {
+	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0))
+}
+func (s *apiSuite) TestInstalOnDevModeDistro(c *check.C) {
+	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode)
+}
+
+func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags) {
 	calledFlags := snapstate.Flags(42)
 	installQueue := []string{}
+	restore := release.MockReleaseInfo(releaseInfo)
+	defer restore()
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
 		// we have ubuntu-core
@@ -1434,7 +1508,7 @@ func (s *apiSuite) TestInstall(c *check.C) {
 	st.Lock()
 
 	c.Check(chg.Status(), check.Equals, state.DoneStatus)
-	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
+	c.Check(calledFlags, check.Equals, flags)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(chg.Kind(), check.Equals, "install-snap")
@@ -2620,6 +2694,11 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+	}
+
 	// Setup
 	d := newTestDaemon(c)
 	st := d.overlord.State()
@@ -2636,6 +2715,9 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	rsp := abortChange(stateChangeCmd, req, nil).(*resp)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
+
+	// Ensure scheduled
+	c.Check(soon, check.Equals, 1)
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 200)
