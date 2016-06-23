@@ -94,7 +94,7 @@ struct sc_map_list *sc_map_entries = NULL;
  * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
  * sc_map_destroy()	- destroy the hash map and linked list
  */
-scmp_datum_t sc_map_search(char *s)
+static scmp_datum_t sc_map_search(char *s)
 {
 	ENTRY e;
 	ENTRY *ep = NULL;
@@ -115,7 +115,7 @@ scmp_datum_t sc_map_search(char *s)
 	return val;
 }
 
-void sc_map_add_kvp(const char *key, scmp_datum_t value)
+static void sc_map_add_kvp(const char *key, scmp_datum_t value)
 {
 	struct sc_map_entry *node;
 	scmp_datum_t *value_copy;
@@ -153,7 +153,7 @@ void sc_map_add_kvp(const char *key, scmp_datum_t value)
 	}
 }
 
-void sc_map_init()
+static void sc_map_init()
 {
 	// initialize the map linked list
 	sc_map_entries = malloc(sizeof(*sc_map_entries));
@@ -275,7 +275,7 @@ void sc_map_init()
 	}
 }
 
-void sc_map_destroy()
+static void sc_map_destroy()
 {
 	// this frees all of the nodes' ep so we don't have to below
 	hdestroy_r(&sc_map_htab);
@@ -294,7 +294,7 @@ void sc_map_destroy()
 }
 
 /* Caller must check if errno != 0 */
-scmp_datum_t read_number(char *s)
+static scmp_datum_t read_number(char *s)
 {
 	scmp_datum_t val = 0;
 
@@ -326,7 +326,7 @@ scmp_datum_t read_number(char *s)
 	return val;
 }
 
-int parse_line(char *line, struct seccomp_args *sargs)
+static int parse_line(char *line, struct seccomp_args *sargs)
 {
 	// strtok_r needs a pointer to keep track of where it is in the
 	// string.
