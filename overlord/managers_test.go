@@ -469,7 +469,7 @@ apps:
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x2.snap")
 
 	// now do the revert
-	ts, err := snapstate.Revert(st, "foo", "")
+	ts, err := snapstate.Revert(st, "foo", snap.Revision{})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)
