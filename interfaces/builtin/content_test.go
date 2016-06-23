@@ -46,7 +46,7 @@ slots:
  content-slot:
   interface: content
   read:
-   - ./shared/read
+   - shared/read
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -114,7 +114,7 @@ version: 1.0
 plugs:
  content-plug:
   interface: content
-  target: ./import
+  target: import
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -165,13 +165,13 @@ slots:
  content-slot:
   interface: content
   read:
-   - ./shared/read
+   - shared/read
   write:
-   - ./shared/write
+   - shared/write
 plugs:
  content-plug:
   interface: content
-  target: ./import
+  target: import
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
