@@ -6,7 +6,7 @@ environment:
 
 prepare: |
   echo "Given a snap with a failing command is installed"
-  snapbuild ../lib/snaps/$SIDELOAD_SNAP_NAME .
+  snapbuild $TESTSLIB/snaps/$SIDELOAD_SNAP_NAME .
   snap install $SNAP_FILE
 
   echo "And a snap from the store is installed"

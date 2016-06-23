@@ -23,11 +23,12 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 // patchLevel is the current implemented patch level of the state format and content.
-var patchLevel = 0
+var patchLevel = 1
 
 // PatchLevel returns the implemented patch level for state format and content.
 func PatchLevel() int {
@@ -93,4 +94,7 @@ func runMigration(s *state.State, level int) error {
 
 // migrations maps from patch level L to migration function for L to L+1.
 // Migration functions are run with the state lock held.
-var migrations = map[int]func(s *state.State) error{}
+var migrations = map[int]func(s *state.State) error{
+	// backfill SnapStates with types
+	0: snapstate.MigrateToTypeInState,
+}
