@@ -13,10 +13,10 @@ environment:
   READABLE_FILE: "$HOME/readable"
   HIDDEN_READABLE_FILE: "$HOME/.readable"
   WRITABLE_FILE: "$HOME/writable"
-  PREVIOUS_CONTENT: "previous content"
+  PREVIOUS: "previous content"
   CREATABLE_FILE: "$HOME/creatable"
   HIDDEN_CREATABLE_FILE: "$HOME/.creatable"
-  OK_CONTENT: "ok"
+  OK: "ok"
 
 prepare: |
   echo "Given a snap declaring the home plug is installed"
@@ -24,13 +24,13 @@ prepare: |
   snap install $SNAP_FILE
 
   echo "And there is a readable file in HOME"
-  echo "$OK_CONTENT" > "$READABLE_FILE"
+  echo "$OK" > "$READABLE_FILE"
 
   echo "And there is a writable file in HOME"
-  echo "$PREVIOUS_CONTENT" > "$WRITABLE_FILE"
+  echo "$PREVIOUS" > "$WRITABLE_FILE"
 
   echo "And there is a hidden readable file in HOME"
-  echo "$OK_CONTENT" > "$HIDDEN_READABLE_FILE"
+  echo "$OK" > "$HIDDEN_READABLE_FILE"
 
 restore: |
   rm -f $SNAP_FILE $READABLE_FILE $WRITABLE_FILE $CREATABLE_FILE $HIDDEN_READABLE_FILE
@@ -64,7 +64,7 @@ execute: |
 
   echo "Then the snap is able to read home files"
   response=$(home-consumer.reader $READABLE_FILE)
-  echo "$response" | grep -Pqz "$OK_CONTENT"
+  echo "$response" | grep -Pqz "$OK"
 
   echo "============================================"
 
@@ -85,7 +85,7 @@ execute: |
 
   echo "Then the snap is able to append to home files"
   home-consumer.writer "$WRITABLE_FILE"
-  cat "$WRITABLE_FILE" | grep -Pqz "${PREVIOUS_CONTENT}\n${OK_CONTENT}"
+  cat "$WRITABLE_FILE" | grep -Pqz "${PREVIOUS}\n${OK}"
 
   echo "============================================"
 
@@ -106,7 +106,7 @@ execute: |
 
   echo "Then the snap is able to create home files"
   home-consumer.writer "$CREATABLE_FILE"
-  cat "$CREATABLE_FILE" | grep -Pqz "$OK_CONTENT"
+  cat "$CREATABLE_FILE" | grep -Pqz "$OK"
 
   echo "============================================"
 
