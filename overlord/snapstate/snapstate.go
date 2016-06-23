@@ -356,17 +356,8 @@ func Revert(s *state.State, name, ver string) (*state.TaskSet, error) {
 	linkSnap.WaitFor(setupSecurity)
 	linkSnap.Set("snap-setup-task", setupSecurity.ID())
 
-	// remove the data and the remaining bits of the rolled back snap
-	clearDataPrev := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q"), name))
-	clearDataPrev.Set("snap-setup", ss)
-	clearDataPrev.WaitFor(linkSnap)
-
-	discardSnapPrev := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q from the system"), name))
-	discardSnapPrev.WaitFor(clearDataPrev)
-	discardSnapPrev.Set("snap-setup-task", clearDataPrev.ID())
-
 	// and create a taskset
-	ts := state.NewTaskSet(prepare, unlink, removeSecurity, setupSecurity, linkSnap, clearDataPrev, discardSnapPrev)
+	ts := state.NewTaskSet(prepare, unlink, removeSecurity, setupSecurity, linkSnap)
 
 	return ts, nil
 }

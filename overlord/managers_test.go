@@ -489,4 +489,8 @@ apps:
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
 
+	// ensure that x2 is still there, revert just moves the "current"
+	// pointer
+	snapX2 := filepath.Join(dirs.SnapBlobDir, "foo_x2.snap")
+	c.Assert(osutil.FileExists(snapX2), Equals, true)
 }
