@@ -127,11 +127,8 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
 
+// makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
 func makeTestSnap(c *C, yaml string) string {
-	return makeTestSnapWithHooks(c, yaml, nil)
-}
-
-func makeTestSnapWithHooks(c *C, yaml string, hookNames []string) string {
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
 
@@ -141,24 +138,20 @@ func makeTestSnapWithHooks(c *C, yaml string, hookNames []string) string {
 	err = ioutil.WriteFile(filepath.Join(snapSource, "meta", "snap.yaml"), []byte(yaml), 0644)
 	c.Assert(err, IsNil)
 
-	// make the requested hooks
-	if len(hookNames) > 0 {
-		hooksDir := filepath.Join(snapSource, "meta", "hooks")
-		err := os.MkdirAll(filepath.Join(hooksDir), 0755)
-		c.Assert(err, IsNil)
-
-		for _, hookName := range hookNames {
-			err = ioutil.WriteFile(filepath.Join(hooksDir, hookName), nil, 0644)
-			c.Assert(err, IsNil)
-		}
-	}
-
 	dest := filepath.Join(tmp, "foo.snap")
 	snap := squashfs.New(dest)
 	err = snap.Build(snapSource)
 	c.Assert(err, IsNil)
 
 	return dest
+}
+
+// produce descrs for empty hooks suitable for snaptest.PopulateDir
+func emptyHooks(hookNames ...string) (emptyHooks [][]string) {
+	for _, hookName := range hookNames {
+		emptyHooks = append(emptyHooks, []string{filepath.Join("meta", "hooks", hookName), ""})
+	}
+	return
 }
 
 func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
@@ -349,7 +342,7 @@ hooks:
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	snapPath := makeTestSnapWithHooks(c, yaml, []string{"abc123"})
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("abc123"))
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
@@ -361,13 +354,14 @@ version: 1.0`
 func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, hooks []string, checker func(c *C, info *snap.Info)) {
 	// First check installed snap
 	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
-	info := snaptest.MockSnapWithHooks(c, yaml, sideInfo, hooks)
-	info, err := snap.ReadInfo(info.Name(), sideInfo)
+	info0 := snaptest.MockSnap(c, yaml, sideInfo)
+	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
+	info, err := snap.ReadInfo(info0.Name(), sideInfo)
 	c.Check(err, IsNil)
 	checker(c, info)
 
 	// Now check snap file
-	snapPath := makeTestSnapWithHooks(c, yaml, hooks)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks(hooks...))
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
 	info, err = snap.ReadInfoFromSnapFile(snapf, nil)

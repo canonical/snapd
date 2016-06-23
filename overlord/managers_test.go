@@ -63,6 +63,8 @@ var _ = Suite(&mgrsSuite{})
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
 	dirs.SetRootDir(ms.tempdir)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, IsNil)
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 

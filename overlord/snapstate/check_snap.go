@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -55,7 +56,7 @@ func checkAssumes(s *snap.Info) error {
 var openSnapFile = backend.OpenSnapFile
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
+func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
 	// XXX: actually verify snap before using content from it unless dev-mode
 
 	s, _, err := openSnapFile(snapFilePath, nil)
@@ -77,21 +78,28 @@ func checkSnap(state *state.State, snapFilePath string, curInfo *snap.Info, flag
 	if s.Type != snap.TypeGadget {
 		return nil
 	}
-	state.Lock()
-	defer state.Unlock()
 
-	if currentGadget, err := GadgetInfo(state); err == nil {
-		// TODO: actually compare snap ids, from current gadget and candidate
-		if currentGadget.Name() == s.Name() {
-			return nil
-		}
-
-		return fmt.Errorf("cannot replace gadget snap with a different one")
-	} else if release.OnClassic {
+	// gadget specific checks
+	if release.OnClassic {
 		// for the time being
 		return fmt.Errorf("cannot install a gadget snap on classic")
 	}
 
-	// there should always be a gadget snap on devices
-	return fmt.Errorf("cannot find original gadget snap")
+	st.Lock()
+	defer st.Unlock()
+	currentGadget, err := GadgetInfo(st)
+	// in firstboot we have no gadget yet - that is ok
+	if err == state.ErrNoState && !firstboot.HasRun() {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("cannot find original gadget snap")
+	}
+
+	// TODO: actually compare snap ids, from current gadget and candidate
+	if currentGadget.Name() != s.Name() {
+		return fmt.Errorf("cannot replace gadget snap with a different one")
+	}
+
+	return nil
 }
