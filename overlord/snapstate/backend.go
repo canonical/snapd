@@ -52,7 +52,7 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
-	Current(cur *snap.Info)
+	CurrentSideInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
 }
 
@@ -61,5 +61,5 @@ type defaultBackend struct {
 	backend.Backend
 }
 
-func (b *defaultBackend) Candidate(*snap.SideInfo) {}
-func (b *defaultBackend) Current(*snap.Info)       {}
+func (b *defaultBackend) Candidate(*snap.SideInfo)   {}
+func (b *defaultBackend) CurrentSideInfo(*snap.Info) {}
