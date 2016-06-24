@@ -14,8 +14,7 @@ network connect their plugs there.
 
 The availability of an interface depends on whether snapd is running on a
 classic (eg, traditional desktop or server) or on a native system. Interfaces
-may also be implicit to the OS snap or implemented only via snaps providing the
-slot.
+may be provided by the OS snap or provided solely via snaps providing the slot.
 
 ## Transitional interfaces
 Most interfaces are designed for strong application isolation and user control
@@ -85,12 +84,12 @@ You may disconnect an auto-connected interface:
     :home                -
     -                    bar:home
 
-Whether the slot is implicit or not doesn't matter in terms of snap interfaces
-except that if the slot is not implicit, a snap that implements the slot must
-be installed for it to be connectable. Eg, the ``bluez`` interface is not
-implicit so a snap author implementing the bluez service might use
-``slots: [ bluez ]``. Then after install, the bluez interface shows up as
-available:
+Whether the slot is provided by the OS snap or not doesn't matter in terms of
+snap interfaces except that if the slot is provided by a snap, a snap that
+implements the slot must be installed for it to be connectable. Eg, the
+``bluez`` interface is not provided by the OS snap so a snap author
+implementing the bluez service might use ``slots: [ bluez ]``. Then after
+install, the bluez interface shows up as available:
 
     $ sudo snap install foo-blue
     $ snap interfaces
@@ -118,7 +117,7 @@ Can access the first video camera. Suitable for programs wanting to use
 webcams.
 
 * Auto-Connect: no
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ### gsettings
 
@@ -127,7 +126,7 @@ to sensitive information stored in gsettings and allows adjusting settings of
 other applications.
 
 * Auto-Connect: yes
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ### home
 
@@ -135,7 +134,7 @@ Can access non-hidden files in user's `$HOME` and gvfs mounted directories
 owned by the user to read/write/lock.
 
 * Auto-Connect: yes on classic, no on native
-* Availability: implicit
+* Availability: OS snap
 
 ### mpris
 
@@ -153,21 +152,21 @@ snap's well-known DBus name.
 Can access the network as a client.
 
 * Auto-Connect: yes
-* Availability: implicit
+* Availability: OS snap
 
 ### network-bind
 
 Can access the network as a server.
 
 * Auto-Connect: yes
-* Availability: implicit
+* Availability: OS snap
 
 ### opengl
 
 Can access OpenGL hardware.
 
 * Auto-Connect: yes
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ### optical-drive
 
@@ -175,7 +174,7 @@ Can access the first optical drive in read-only mode. Suitable for CD/DVD
 playback.
 
 * Auto-Connect: yes
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ### pulseaudio
 
@@ -183,7 +182,7 @@ Can access the PulseAudio sound server which allows for sound playback in games
 and media application. Recording not supported but will be in a future release.
 
 * Auto-Connect: yes
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ### unity7
 
@@ -193,7 +192,7 @@ the Unity 7 environment does not prevent eavesdropping or apps interfering with
 one another.
 
 * Auto-Connect: yes
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ### x11
 
@@ -201,7 +200,7 @@ Can access the X server which gives privileged access to the user's session
 since X does not prevent eavesdropping or apps interfering with one another.
 
 * Auto-Connect: yes
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ## Supported Interfaces - Advanced
 
@@ -218,7 +217,7 @@ bluetooth.
 Can access GPIO paths for LED brightness and GPIO values.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 * Attributes:
     * path (slot): path to GPIO bool file
 
@@ -240,21 +239,21 @@ Can access cups control socket which gives privileged access to configure
 printing.
 
 * Auto-Connect: no
-* Availability: implicit (classic)
+* Availability: OS snap (classic)
 
 ### firewall-control
 
 Can configure network firewalling giving privileged access to networking.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### locale-control
 
 Can manage locales directly separate from ``config core``.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### location-control
 
@@ -277,7 +276,7 @@ privileged access to query location services.
 Can read system logs and set kernel log rate-limiting.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### modem-manager
 
@@ -285,7 +284,7 @@ Can access snaps providing the modem-manager interface which gives privileged
 access to configure, observe and use modems.
 
 * Auto-Connect: no
-* Availability: implicit (classic), with providing snap (native)
+* Availability: OS snap (classic), with providing snap (native)
 
 ### mount-observe
 
@@ -294,14 +293,14 @@ privileged read access to mount arguments and should only be used with trusted
 apps.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### network-control
 
 Can configure networking which gives wide, privileged access to networking.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### network-manager
 
@@ -309,7 +308,7 @@ Can access snaps providing the network-manager interface which gives privileged
 access to configure and observe networking.
 
 * Auto-Connect: no
-* Availability: implicit (classic), with providing snap (native)
+* Availability: OS snap (classic), with providing snap (native)
 
 ### network-observe
 
@@ -317,7 +316,7 @@ Can query network status information which gives privileged read-only access to
 networking information.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### ppp
 
@@ -325,7 +324,7 @@ Can access Point-to-Point protocol daemon which gives privileged access to
 configure and observe PPP networking.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### serial-port
 
@@ -333,7 +332,7 @@ Can access serial ports. This is restricted because it provides privileged
 access to configure serial port hardware.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 * Attributes:
     * path (slot): path to serial device
 
@@ -342,7 +341,7 @@ access to configure serial port hardware.
 Can manage snaps via snapd.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### system-observe
 
@@ -350,11 +349,11 @@ Can query system status information which gives privileged read access to all
 processes on the system.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
 
 ### timeserver-control
 
 Can manage timeservers directly separate from ``config core``.
 
 * Auto-Connect: no
-* Availability: implicit
+* Availability: OS snap
