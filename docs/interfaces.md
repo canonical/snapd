@@ -189,9 +189,9 @@ and media application. Recording not supported but will be in a future release.
 ### unity7
 
 Can access Unity7. Unity 7 runs on X and requires access to various DBus
-services which grants privileged access to the user's session since this
-environment does not prevent eavesdropping or apps interfering with one
-another.
+services. This interface grants privileged access to the user's session since
+the Unity 7 environment does not prevent eavesdropping or apps interfering with
+one another.
 
 * Auto-Connect: yes
 * Availability: implicit (classic)
