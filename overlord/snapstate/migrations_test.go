@@ -27,7 +27,8 @@ import (
 )
 
 // makeMigrationTestState creates a test state with a bunch of snaps
-// for migration testing
+// for migration testing - the state looks like it was before
+// we had migrations, i.e. no `Type` and no `Current` inthe SnapState
 func (s *snapmgrTestSuite) makeMigrationTestState() {
 
 	// app
