@@ -48,14 +48,8 @@ type User struct {
 }
 
 func UserInfo(email string) (userinfo *User, err error) {
-	ssourl := SSOBaseURL
-	if ssourl == "" {
-		ssourl = os.Getenv("SNAPD_SSO_LOGIN_URL")
-		if ssourl == "" {
-			ssourl = "https://login.ubuntu.com/"
-		}
-	}
-	ssourl = fmt.Sprintf("%s/api/v2/keys/%s", ssourl, url.QueryEscape(email))
+	ssobaseURL := authURL()
+	ssourl = fmt.Sprintf("%s/keys/%s", ssourl, url.QueryEscape(email))
 
 	resp, err := httpClient.Get(ssourl)
 	if err != nil {

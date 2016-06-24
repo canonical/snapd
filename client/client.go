@@ -293,20 +293,20 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	return &sysInfo, nil
 }
 
-// UserCreationResult holds the result of a user creation
+// CreationUserResult holds the result of a user creation
 type CreateUserResult struct {
 	Username string `json:"username"`
 }
 
-// UserCreationRequest holds the user creation request
-type CreateUserRequest struct {
+// creationUserRequest holds the user creation request
+type createUserRequest struct {
 	EMail string `json:"email"`
 }
 
 // CreateUser creates a user from the given mail address
 func (client *Client) CreateUser(mail string) (*CreateUserResult, error) {
 	var createResult CreateUserResult
-	b, err := json.Marshal(CreateUserRequest{
+	b, err := json.Marshal(createUserRequest{
 		EMail: mail,
 	})
 	if err != nil {
