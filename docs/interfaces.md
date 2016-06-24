@@ -221,7 +221,7 @@ Can access GPIO paths for LED brightness and GPIO values.
 * Auto-Connect: no
 * Availability: implicit
 * Attributes:
-    * path: path to GPIO bool file
+    * path (slot): path to GPIO bool file
 
 ### content
 
@@ -231,8 +231,9 @@ filesystem area.
 * Auto-Connect: yes for snaps from same publisher, no otherwise
 * Availability: with providing snap
 * Attributes:
-    * read: path from providing snap to expose read-only to the consuming snap
-    * write: path from providing snap to expose read-write to the consuming snap
+    * read (slot): read-only path from providing snap to expose to the consuming snap
+    * write (slot): read-write path from providing snap to expose to the consuming snap
+    * target (plug): path in consuming snap to find providing snap's files
 
 ### cups-control
 
@@ -335,7 +336,7 @@ access to configure serial port hardware.
 * Auto-Connect: no
 * Availability: implicit
 * Attributes:
-    * path: path to serial device
+    * path (slot): path to serial device
 
 ### snapd-control
 
