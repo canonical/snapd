@@ -1514,6 +1514,55 @@ func (s *snapStateSuite) TestSnapStateType(c *C) {
 	c.Check(typ, Equals, snap.TypeKernel)
 }
 
+func (s *snapStateSuite) TestCurrentSideInfoEmpty(c *C) {
+	var snapst snapstate.SnapState
+	c.Check(snapst.CurrentSideInfo(), IsNil)
+	c.Check(snapst.Current.Unset(), Equals, true)
+}
+
+func (s *snapStateSuite) TestCurrentSideInfoSimple(c *C) {
+	si1 := &snap.SideInfo{Revision: snap.R(1)}
+	snapst := snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1},
+		Current:  snap.R(1),
+	}
+	c.Check(snapst.CurrentSideInfo(), DeepEquals, si1)
+}
+
+func (s *snapStateSuite) TestCurrentSideInfoInOrder(c *C) {
+	si1 := &snap.SideInfo{Revision: snap.R(1)}
+	si2 := &snap.SideInfo{Revision: snap.R(2)}
+	snapst := snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1, si2},
+		Current:  snap.R(2),
+	}
+	c.Check(snapst.CurrentSideInfo(), DeepEquals, si2)
+}
+
+func (s *snapStateSuite) TestCurrentSideInfoOutOfOrder(c *C) {
+	si1 := &snap.SideInfo{Revision: snap.R(1)}
+	si2 := &snap.SideInfo{Revision: snap.R(2)}
+	snapst := snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1, si2},
+		Current:  snap.R(1),
+	}
+	c.Check(snapst.CurrentSideInfo(), DeepEquals, si1)
+}
+
+func (s *snapStateSuite) TestCurrentSideInfoInconsistent(c *C) {
+	snapst := snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{Revision: snap.R(1)},
+		},
+	}
+	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cnapst.Current and snapst.Sequence out of sync:.*`)
+}
+
+func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
+	snapst := snapstate.SnapState{Current: snap.R(17)}
+	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
+}
+
 type snapSetupSuite struct{}
 
 var _ = Suite(&snapSetupSuite{})
