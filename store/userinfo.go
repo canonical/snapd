@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 )
 
@@ -48,8 +47,10 @@ type User struct {
 }
 
 func UserInfo(email string) (userinfo *User, err error) {
-	ssobaseURL := authURL()
-	ssourl = fmt.Sprintf("%s/keys/%s", ssourl, url.QueryEscape(email))
+	if SSOBaseURL == "" {
+		SSOBaseURL = authURL()
+	}
+	ssourl := fmt.Sprintf("%s/keys/%s", SSOBaseURL, url.QueryEscape(email))
 
 	resp, err := httpClient.Get(ssourl)
 	if err != nil {

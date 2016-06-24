@@ -52,7 +52,7 @@ var mockServerJSON = `{
 func (s *userInfoSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })
-	store.SSOBaseURL = server.URL
+	store.SSOBaseURL = server.URL + "/api/v2"
 	s.BaseTest.AddCleanup(func() { store.SSOBaseURL = "" })
 }
 
