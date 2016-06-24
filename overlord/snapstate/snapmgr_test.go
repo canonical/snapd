@@ -184,6 +184,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 		Active:   true,
 		Channel:  "edge",
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
+		Current:  snap.R(11),
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
@@ -205,6 +206,7 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 		Active:   true,
 		Channel:  "edge",
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
+		Current:  snap.R(11),
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "", s.user.ID, 0)
@@ -223,7 +225,8 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
+		Current:  snap.R(11),
 	})
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
@@ -242,8 +245,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo"},
+			{OfficialName: "foo", Revision: snap.R(11)},
 		},
+		Current: snap.R(11),
 	})
 
 	ts, err := snapstate.Remove(s.state, "foo")
@@ -270,7 +274,8 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap"}},
+		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
+		Current:  snap.R(11),
 	})
 
 	ts, err := snapstate.Remove(s.state, "some-snap")
@@ -397,6 +402,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
@@ -523,6 +529,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
@@ -647,6 +654,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Channel:  "stable",
+		Current:  si.Revision,
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
@@ -777,6 +785,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
@@ -888,6 +897,7 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 		Active:        true,
 		Sequence:      []*snap.SideInfo{{Revision: snap.R(-2)}},
 		LocalRevision: snap.R(-2),
+		Current:       snap.R(-2),
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -965,6 +975,7 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 		Active:        true,
 		Sequence:      []*snap.SideInfo{{Revision: snap.R(100001)}},
 		LocalRevision: snap.R(100001),
+		Current:       snap.R(100001),
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -1016,6 +1027,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
@@ -1106,6 +1118,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si5, &si3, &si7},
+		Current:  si7.Revision,
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
@@ -1209,6 +1222,7 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
 	})
 
 	_, err := snapstate.Remove(s.state, "gadget")
@@ -1247,6 +1261,7 @@ description: |
 	snapstate.Set(st, "name1", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
+		Current:  sideInfo12.Revision,
 	})
 }
 
@@ -1315,6 +1330,7 @@ version: gadget
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoGadget},
+		Current:  sideInfoGadget.Revision,
 	})
 
 	info, err := snapstate.GadgetInfo(st)
