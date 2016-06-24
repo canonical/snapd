@@ -261,8 +261,15 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	active := snapst.Active
 
 	info, err := Info(s, name, revision)
-	if err != nil {
-		return nil, err
+	if _, ok := err.(*snap.SnapVanishedError); ok {
+		info = &snap.Info{
+			SuggestedName: name,
+			Vanished:      true,
+		}
+	} else {
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// check if this is something that can be removed

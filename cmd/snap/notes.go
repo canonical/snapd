@@ -31,6 +31,7 @@ type Notes struct {
 	Private     bool
 	DevMode     bool
 	TryMode     bool
+	Vanished    bool
 }
 
 func (n *Notes) String() string {
@@ -54,6 +55,9 @@ func (n *Notes) String() string {
 
 	if n.TryMode {
 		ns = append(ns, "try")
+	}
+	if n.Vanished {
+		ns = append(ns, "vanished")
 	}
 
 	if len(ns) == 0 {

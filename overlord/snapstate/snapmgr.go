@@ -351,8 +351,15 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	info, err := Info(t.State(), ss.Name, ss.Revision)
-	if err != nil {
-		return err
+	if _, ok := err.(*snap.SnapVanishedError); ok {
+		info = &snap.Info{
+			SuggestedName: ss.Name,
+			Vanished:      true,
+		}
+	} else {
+		if err != nil {
+			return err
+		}
 	}
 
 	pb := &TaskProgressAdapter{task: t}
@@ -380,8 +387,15 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	info, err := Info(t.State(), ss.Name, ss.Revision)
 	t.State().Unlock()
-	if err != nil {
-		return err
+	if _, ok := err.(*snap.SnapVanishedError); ok {
+		info = &snap.Info{
+			SuggestedName: ss.Name,
+			Vanished:      true,
+		}
+	} else {
+		if err != nil {
+			return err
+		}
 	}
 
 	if err = m.backend.RemoveSnapData(info); err != nil {

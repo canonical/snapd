@@ -100,13 +100,17 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 		info, err := snap.ReadInfo(name, snapState.CurrentSideInfo())
 		if err != nil {
 			if _, ok := err.(*snap.SnapVanishedError); ok {
+				info = &snap.Info{
+					SuggestedName: name,
+					Vanished:      true,
+				}
+			} else {
+				// XXX: aggregate instead?
+				if firstErr == nil {
+					firstErr = err
+				}
 				continue
 			}
-			// XXX: aggregate instead?
-			if firstErr == nil {
-				firstErr = err
-			}
-			continue
 		}
 		about = append(about, aboutSnap{info, snapState})
 	}
@@ -158,6 +162,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"trymode":        snapst.TryMode(),
 		"private":        localSnap.Private,
 		"apps":           apps,
+		"vanished":       localSnap.Vanished,
 	}
 }
 
