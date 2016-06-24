@@ -191,6 +191,7 @@ version: %s
 		snapstate.Get(st, name, &snapst)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
+		snapst.Current = snapInfo.SideInfo.Revision
 
 		snapstate.Set(st, name, &snapst)
 	}
