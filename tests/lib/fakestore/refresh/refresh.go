@@ -31,17 +31,15 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-// CallFakeSnapRefreshAll calls snappy update after faking a new version available for the specified snap.
+// CallFakeSnap calls snappy update after faking a new version available for the specified snap.
 // The fake is made copying the currently installed snap.
-func CallFakeSnapRefreshAll(snaps []string, blobDir string) (string, error) {
+func CallFakeSnap(snaps []string, blobDir string) error {
 	for _, snap := range snaps {
 		if err := makeFakeRefreshForSnap(snap, blobDir); err != nil {
-			return "", err
+			return err
 		}
 	}
-
-	output, err := exec.Command("sudo", "snap", "refresh").CombinedOutput()
-	return string(output), err
+	return nil
 }
 
 func makeFakeRefreshForSnap(snap, targetDir string) error {
@@ -106,7 +104,7 @@ func copySnap(snap, targetDir string) error {
 func buildSnap(snapDir, targetDir string) error {
 	// build in /var/tmp (which is not a tempfs)
 	cmd := exec.Command("snapbuild", snapDir, targetDir)
-	cmd.Env = append(cmd.Env, "TMPDIR=/var/tmp")
+	cmd.Env = append(os.Environ(), "TMPDIR=/var/tmp")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("building fake snap :%s : %v", output, err)

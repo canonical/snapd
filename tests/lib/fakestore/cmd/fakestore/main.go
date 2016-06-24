@@ -79,8 +79,5 @@ func runServer(blobDir, addr string) error {
 func runManage(blobDir, snaps string) error {
 	// setup snaps
 	snapList := strings.Split(snaps, ",")
-	if _, err := refresh.CallFakeSnapRefreshAll(snapList, blobDir); err != nil {
-		return err
-	}
-	return nil
+	return refresh.CallFakeSnap(snapList, blobDir)
 }
