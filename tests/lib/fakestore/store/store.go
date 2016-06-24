@@ -91,10 +91,6 @@ func (s *Store) URL() string {
 	return s.url
 }
 
-func (s *Store) SnapsDir() string {
-	return s.blobDir
-}
-
 // Start listening
 func (s *Store) Start() error {
 	l, err := net.Listen("tcp", s.srv.Addr)
