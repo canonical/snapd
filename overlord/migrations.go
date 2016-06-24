@@ -28,7 +28,7 @@ import (
 )
 
 // patchLevel is the current implemented patch level of the state format and content.
-var patchLevel = 1
+var patchLevel = 2
 
 // PatchLevel returns the implemented patch level for state format and content.
 func PatchLevel() int {
@@ -94,6 +94,8 @@ func runMigration(s *state.State, level int) error {
 
 // migrations maps from patch level L to migration function for L to L+1.
 // Migration functions are run with the state lock held.
+//
+// Note that you must increase the "patchLevel" if you add something here.
 var migrations = map[int]func(s *state.State) error{
 	// backfill SnapStates with types
 	0: snapstate.MigrateToTypeInState,
