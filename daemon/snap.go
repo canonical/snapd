@@ -99,6 +99,9 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	for name, snapState := range snapStates {
 		info, err := snap.ReadInfo(name, snapState.CurrentSideInfo())
 		if err != nil {
+			if _, ok := err.(*snap.SnapVanishedError); ok {
+				continue
+			}
 			// XXX: aggregate instead?
 			if firstErr == nil {
 				firstErr = err
