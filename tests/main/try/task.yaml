@@ -1,0 +1,38 @@
+summary: Check that try command works
+
+execute: |
+  echo "Given a buildable snap in a known directory"
+
+  echo "When try is executed on that directory"
+
+  echo "Then the snap is listed as installed with try in the notes"
+
+  echo "And commands from the snap-try binary can be run"
+
+  echo "And commands from the snap-try binary can read in their own dir"
+
+  echo "====================================="
+
+  echo "Given a buildable snap which access confinement-protected resources in a known directory"
+
+  echo "When try is executed on that directory"
+
+  echo "Then the snap command is not able to access the protected resource"
+
+  echo "====================================="
+
+  echo "Given a buildable snap which access confinement-protected resources in a known directory"
+
+  echo "When try is executed on that directory with devmode enabled"
+
+  echo "Then the snap command is able to access the protected resource"
+
+  echo "====================================="
+
+  echo "Given a service listening on a port"
+
+  echo "And a buildable snap which access confinement-enabled network resources in a known directory"
+
+  echo "When try is executed on that directory"
+
+  echo "Then the snap is able to access the network resource"
