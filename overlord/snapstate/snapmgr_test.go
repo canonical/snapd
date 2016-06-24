@@ -1441,6 +1441,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 			Revision:     snap.R(23),
 		},
 	}
+	snapst.Current = snap.R(23)
 	snapstate.Set(s.state, "foo", &snapst)
 	c.Check(snapst.TryMode(), Equals, false)
 
@@ -1481,6 +1482,7 @@ func (s *snapmgrTestSuite) makeMigrationTestState() {
 			Revision:     snap.R(22),
 		},
 	}
+	fooSnapst.Current = snap.R(22)
 	snapstate.Set(s.state, "foo", &fooSnapst)
 
 	// core
@@ -1499,6 +1501,7 @@ func (s *snapmgrTestSuite) makeMigrationTestState() {
 			Revision:     snap.R(111),
 		},
 	}
+	coreSnapst.Current = snap.R(111)
 	snapstate.Set(s.state, "core", &coreSnapst)
 
 	// broken
@@ -1513,6 +1516,7 @@ func (s *snapmgrTestSuite) makeMigrationTestState() {
 			Revision:     snap.R("x2"),
 		},
 	}
+	borkenSnapst.Current = snap.R(-2)
 	snapstate.Set(s.state, "borken", &borkenSnapst)
 
 	var wipSnapst snapstate.SnapState
@@ -1562,7 +1566,18 @@ func (s *snapmgrTestSuite) TestMigrateToCurrentRevision(c *C) {
 	defer s.state.Unlock()
 
 	s.makeMigrationTestState()
-	err := snapstate.MigrateToCurrentRevision(s.state)
+
+	// ensure all Current revs are unset
+	var stateMap map[string]*snapstate.SnapState
+	err := s.state.Get("snaps", &stateMap)
+	c.Assert(err, IsNil)
+	for _, snapState := range stateMap {
+		snapState.Current = snap.Revision{}
+	}
+	s.state.Set("snaps", stateMap)
+
+	// now do the migration
+	err = snapstate.MigrateToCurrentRevision(s.state)
 	c.Assert(err, IsNil)
 
 	expected := []struct {

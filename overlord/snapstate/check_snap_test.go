@@ -126,6 +126,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: gadget
