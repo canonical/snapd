@@ -544,6 +544,8 @@ type snapInstruction struct {
 	// The fields below should not be unmarshalled into. Do not export them.
 	snap   string
 	userID int
+	auther store.Authenticator
+	store  snapstate.StoreService
 }
 
 var snapstateInstall = snapstate.Install
@@ -560,27 +562,32 @@ var ensureStateSoon = ensureStateSoonImpl
 
 var errNothingToInstall = errors.New("nothing to install")
 
-func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
-	ubuntuCore := "ubuntu-core"
-
-	if targetSnap == ubuntuCore {
+func ensureWithSnap(st *state.State, withSnap, targetSnap string, userID int) (*state.TaskSet, error) {
+	if targetSnap == withSnap {
 		return nil, errNothingToInstall
 	}
 
 	var ss snapstate.SnapState
 
-	err := snapstateGet(st, ubuntuCore, &ss)
+	err := snapstateGet(st, withSnap, &ss)
 	if err != state.ErrNoState {
 		return nil, err
 	}
 
-	return snapstateInstall(st, ubuntuCore, "stable", userID, 0)
+	// FIXME: do we want stable here or make this confiurable
+	return snapstateInstall(st, withSnap, "stable", userID, 0)
 }
 
-func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
-	ubuCoreTs, err := ensureUbuntuCore(st, targetSnap, userID)
-	if err != nil && err != errNothingToInstall {
-		return nil, err
+func withEnsureSnaps(st *state.State, withSnaps []string, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
+	allTs := []*state.TaskSet{}
+	for _, withSnap := range withSnaps {
+		withTs, err := ensureWithSnap(st, withSnap, targetSnap, userID)
+		if err != nil && err != errNothingToInstall {
+			return nil, err
+		}
+		if withTs != nil {
+			allTs = append(allTs, withTs)
+		}
 	}
 
 	ts, err := install()
@@ -588,13 +595,30 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 		return nil, err
 	}
 
-	// ensure main install waits on ubuntu core install
-	if ubuCoreTs != nil {
-		ts.WaitAll(ubuCoreTs)
-		return []*state.TaskSet{ubuCoreTs, ts}, nil
+	// ensure main install waits on all the withSnaps installs
+	if len(allTs) > 0 {
+		for _, withTs := range allTs {
+			ts.WaitAll(withTs)
+		}
+		allTs = append(allTs, ts)
+		return allTs, nil
 	}
 
 	return []*state.TaskSet{ts}, nil
+}
+
+func defaultContentPlugProviders(info *snap.Info) []string {
+	out := []string{}
+	for _, plug := range info.Plugs {
+		if plug.Interface == "content" {
+			dprovider, ok := plug.Attrs["default-provider"].(string)
+			if !ok || dprovider == "" {
+				continue
+			}
+			out = append(out, dprovider)
+		}
+	}
+	return out
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -603,7 +627,14 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		flags |= snapstate.DevMode
 	}
 
-	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
+	// ensure we have all default content plug providers installed
+	info, err := inst.store.Snap(inst.snap, inst.Channel, inst.auther)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot get details for %s: %s", inst.snap, err)
+	}
+	withSnaps := defaultContentPlugProviders(info)
+	withSnaps = append(withSnaps, "ubuntu-core")
+	tsets, err := withEnsureSnaps(st, withSnaps, inst.snap, inst.userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstall(st, inst.snap, inst.Channel, inst.userID, flags)
 		},
@@ -692,6 +723,10 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	vars := muxVars(r)
 	inst.snap = vars["name"]
+	inst.store = getStore(c)
+	if user != nil {
+		inst.auther = user.Authenticator()
+	}
 
 	impl := inst.dispatch()
 	if impl == nil {
@@ -855,7 +890,9 @@ out:
 		userID = user.ID
 	}
 
-	tsets, err := withEnsureUbuntuCore(st, snapName, userID,
+	withSnaps := defaultContentPlugProviders(info)
+	withSnaps = append(withSnaps, "ubuntu-core")
+	tsets, err := withEnsureSnaps(st, withSnaps, snapName, userID,
 		func() (*state.TaskSet, error) {
 			return snapstateInstallPath(st, snapName, tempPath, "", flags)
 		},
