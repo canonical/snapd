@@ -1,0 +1,23 @@
+summary: Check that the refresh command works.
+
+details: |
+  In order to control the state of the available snaps a fake store
+  is used in these tests. The store service is controlled by systemd
+  and the snap versions are made directly available on its blob
+  directory
+
+prepare: |
+  echo "Given a controlled store service is up"
+
+  echo "And snapd is configured to use the controlled store"
+
+  echo "And a snap is installed"
+
+
+restore: |
+
+
+execute: |
+    echo "When a new version of that snap put in the controlled store"
+
+    echo "Then the new version is available for the snap to be refreshed"
