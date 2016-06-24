@@ -256,6 +256,22 @@ Can manage locales directly separate from ``config core``.
 * Auto-Connect: no
 * Availability: implicit
 
+### location-control
+
+Can access snaps providing the location-control interface which gives
+privileged access to configure, observe and use location services.
+
+* Auto-Connect: no
+* Availability: with providing snap
+
+### location-observe
+
+Can access snaps providing the location-observe interface which gives
+privileged access to query location services.
+
+* Auto-Connect: no
+* Availability: with providing snap
+
 ### log-observe
 
 Can read system logs and set kernel log rate-limiting.
