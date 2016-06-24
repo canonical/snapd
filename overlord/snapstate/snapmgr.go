@@ -110,10 +110,10 @@ type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
-	SnapType  string           `json:"type"`     // Use Type and SetType
-	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
+	SnapType  string           `json:"type"` // Use Type and SetType
+	Sequence  []*snap.SideInfo `json:"sequence"`
+	Current   snap.Revision    `json:"current"`
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
-	Current   snap.Revision    `json:"current,omitempty"`
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
@@ -136,33 +136,28 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// Current returns the side info for the current revision in the snap revision sequence if there is one.
+// CurrentSideInfo returns the side info for the current revision in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
-	n := len(snapst.Sequence)
-	if n == 0 {
+	if snapst.Current.Unset() {
+		if len(snapst.Sequence) > 0 {
+			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
+		}
+
 		return nil
 	}
-	// compatiblity
-	if snapst.Current.Unset() {
-		return snapst.Sequence[n-1]
-	}
-	// find "current"
-	for _, si := range snapst.Sequence {
-		if si.Revision == snapst.Current {
-			return si
+	seq := snapst.Sequence
+	for i := len(seq) - 1; i >= 0; i-- {
+		if seq[i].Revision == snapst.Current {
+			return seq[i]
 		}
 	}
-	panic(fmt.Sprintf("CurrentSideInfo out of sync %#v %v", snapst.Sequence, snapst.Current))
+	panic("cannot find snapst.Current in the snapst.Sequence")
 }
 
 func (snapst *SnapState) PreviousSideInfo() *snap.SideInfo {
 	n := len(snapst.Sequence)
 	if n < 2 {
 		return nil
-	}
-	// compatiblity
-	if snapst.Current.Unset() {
-		return snapst.Sequence[n-2]
 	}
 	// find "current" and return the one before that
 	currentIndex := snapst.currentIndex()
@@ -477,8 +472,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if snapst.Current == ss.Revision && snapst.Active {
+		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.Name)
+	}
+
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil
+		snapst.Current = snap.Revision{}
 	} else {
 		newSeq := make([]*snap.SideInfo, 0, len(snapst.Sequence))
 		for _, si := range snapst.Sequence {
@@ -489,6 +489,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			newSeq = append(newSeq, si)
 		}
 		snapst.Sequence = newSeq
+		if snapst.Current == ss.Revision {
+			snapst.Current = newSeq[len(newSeq)-1].Revision
+		}
 	}
 
 	pb := &TaskProgressAdapter{task: t}
@@ -590,7 +593,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	m.backend.CurrentSideInfo(curInfo)
+	m.backend.CurrentInfo(curInfo)
 
 	if err := checkSnap(t.State(), ss.SnapPath, curInfo, Flags(ss.Flags)); err != nil {
 		return err
@@ -728,11 +731,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// store for later
-	oldChannel := snapst.Channel
-	oldCurrent := snapst.Current
-	oldTryMode := snapst.TryMode()
-
 	cand := snapst.Candidate
 	m.backend.Candidate(snapst.Candidate)
 	// in revert mode the snap is already part of the sequence,
@@ -740,13 +738,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if !ss.RevertOp() {
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
+	oldCurrent := snapst.Current
 	snapst.Current = snapst.Candidate.Revision
-
 	snapst.Candidate = nil
 	snapst.Active = true
+	oldChannel := snapst.Channel
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
 	}
+	oldTryMode := snapst.TryMode()
 	snapst.SetTryMode(ss.TryMode())
 
 	newInfo, err := readInfo(ss.Name, cand)
@@ -826,6 +826,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Candidate = snapst.Sequence[len(snapst.Sequence)-1]
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
+	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
 	snapst.Current = oldCurrent
