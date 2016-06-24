@@ -6,7 +6,7 @@ set -e
 
 printf "Test seccomp filter (bad - no trailing newline)"
 
-printf "missingnewline" > "$TMP/snap.name.app"
+printf "missingnewline" > "$TMP"/snap.name.app
 
 if "$L" snap.name.app /bin/true 2>/dev/null; then
     # true returned successfully, length test failed
