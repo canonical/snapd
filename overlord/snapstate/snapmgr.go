@@ -418,6 +418,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if snapst.Active {
+		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.Name)
+	}
+
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil
 		snapst.Current = snap.Revision{}

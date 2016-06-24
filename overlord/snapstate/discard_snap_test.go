@@ -94,11 +94,6 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 		Sequence: []*snap.SideInfo{
 			{OfficialName: "foo", Revision: snap.R(3)},
 		},
-		// having candidate ensures the snap is not garbage collect
-		// and we can test that Sequence is empty, current unset below
-		Candidate: &snap.SideInfo{
-			OfficialName: "foo", Revision: snap.R(33),
-		},
 		Current: snap.R(3),
 	})
 	t := s.state.NewTask("discard-snap", "test")
@@ -117,9 +112,34 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	defer s.state.Unlock()
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
+	c.Assert(err, Equals, state.ErrNoState)
+}
 
-	c.Check(snapst.Sequence, HasLen, 0)
-	c.Check(snapst.Current, Equals, snap.Revision{})
-	c.Check(t.Status(), Equals, state.DoneStatus)
+func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "foo", Revision: snap.R(3)},
+		},
+		Current: snap.R(3),
+		Active:  true,
+	})
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Name:     "foo",
+		Revision: snap.R(33),
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*internal error: cannot discard snap "foo": still active.*`)
 }
