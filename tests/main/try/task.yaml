@@ -17,7 +17,6 @@ restore: |
   rm -f $SERVICE_FILE
 
 execute: |
-  exit 1
   echo "Given a buildable snap in a known directory"
   SNAP_NAME="basic-binaries"
   SNAP_PATH="../../lib/snaps/$SNAP_NAME"
