@@ -112,15 +112,13 @@ int main(int argc, char **argv)
 #endif				// ifdef STRICT_CONFINEMENT
 
 		// Try to re-locate back to vanilla working directory. This can fail
-		// because that directory is no longer present. In that case print a
-		// diagnostic message and carry on without failing.
+		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
+			// NOTE: Use exit rather than die as this produces a more refined error message
 			fprintf(stderr,
-				"cannot remain in directory %s, changing to root directory instead\n",
+				"cannot remain in %s, please run this snap from another location\n",
 				vanilla_cwd);
-			if (chdir("/") != 0) {
-				die("cannot change directory to /");
-			}
+			exit(1);
 		}
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)

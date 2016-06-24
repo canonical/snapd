@@ -10,6 +10,12 @@ execute: |
     [ "$(cd /tmp && /snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "/tmp" ]
 
     echo "But if we go to a location that is not available to snaps (e.g. $HOME/.cache)"
-    echo "Then the same 'cwd' tool reports the root directory instead"
-    mkdir -p $HOME/.cache/
-    [ "$(cd $HOME/.cache && /snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "/" ]
+    echo "Then the same 'cwd' tool refuses to run the snap"
+    mkdir -p "$HOME/.cache/"
+    cd "$HOME/.cache" || exit 1
+    # pwd doesn't run
+    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "" ]
+    # there's an accurate error message
+    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox pwd 2>&1)" = "cannot remain in $HOME/.cache, please run this snap from another location" ]
+    # snap-confine returns an error code on exit
+    ! /snap/bin/snapd-hacker-toolbelt.busybox pwd
