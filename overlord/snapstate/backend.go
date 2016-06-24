@@ -51,6 +51,6 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
-	Current(cur *snap.Info)
+	CurrentSideInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
 }
