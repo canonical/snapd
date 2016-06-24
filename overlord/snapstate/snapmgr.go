@@ -134,9 +134,10 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	if snapst.Current.Unset() {
 		return nil
 	}
-	for _, si := range snapst.Sequence {
-		if si.Revision == snapst.Current {
-			return si
+	seq := snapst.Sequence
+	for i := len(seq) - 1; i >= 0; i-- {
+		if seq[i].Revision == snapst.Current {
+			return seq[i]
 		}
 	}
 	panic("cannot find snapst.Current in the snapst.Sequence")
@@ -758,9 +759,9 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Candidate = snapst.Sequence[len(snapst.Sequence)-1]
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
+	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
-	snapst.Current = oldCurrent
 	snapst.SetTryMode(oldTryMode)
 
 	newInfo, err := readInfo(ss.Name, snapst.Candidate)
