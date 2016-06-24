@@ -109,7 +109,7 @@ webcams.
 
 Usage: common
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit (classic)
 
 ### gsettings
 
@@ -119,7 +119,7 @@ allows adjusting settings of other applications.
 
 Usage: reserved
 Auto-Connect: yes
-Availability: classic
+Availability: implicit (classic)
 
 ### home
 
@@ -129,15 +129,15 @@ This is restricted because it gives file access to the user's
 
 Usage: reserved
 Auto-Connect: yes on classic, no on native
-Availability: everywhere
+Availability: implicit
 
 ### mpris
 
-Can access media players implementing the Media Player Remote Interfacing
-Specification (mpris) when the interface is specified as a plug.
+Providing snaps implementing the Media Player Remove Interfacing Specification
+(mpris) may be accessed via their well-known DBus name.
 
-Media players implementing mpris can be accessed by connected clients when
-specified as a slot.
+Consuming snaps can access media players implementing mpris via the providing
+snap's well-known DBus name.
 
 Usage: common
 Auto-Connect: no
@@ -149,7 +149,7 @@ Can access the network as a client.
 
 Usage: common
 Auto-Connect: yes
-Availability: everywhere
+Availability: implicit
 
 ### network-bind
 
@@ -157,7 +157,7 @@ Can access the network as a server.
 
 Usage: common
 Auto-Connect: yes
-Availability: everywhere
+Availability: implicit
 
 ### opengl
 
@@ -165,15 +165,16 @@ Can access the opengl hardware.
 
 Usage: reserved
 Auto-Connect: yes
-Availability: classic
+Availability: implicit (classic)
 
 ### optical-drive
 
-Can access the first optical drive in read-only mode. Suitable for CD/DVD playback.
+Can access the first optical drive in read-only mode. Suitable for CD/DVD
+playback.
 
 Usage: common
 Auto-Connect: yes
-Availability: classic
+Availability: implicit (classic)
 
 ### pulseaudio
 
@@ -182,7 +183,7 @@ media application. It doesn't allow recording.
 
 Usage: common
 Auto-Connect: yes
-Availability: classic
+Availability: implicit (classic)
 
 ### unity7
 
@@ -192,7 +193,7 @@ apps interfering with one another.
 
 Usage: reserved
 Auto-Connect: yes
-Availability: classic
+Availability: implicit (classic)
 
 ### x11
 
@@ -201,9 +202,40 @@ apps interfering with one another.
 
 Usage: reserved
 Auto-Connect: yes
-Availability: classic
+Availability: implicit (classic)
 
 ## Supported Interfaces - Advanced
+
+### bluez
+
+Can access snaps providing the bluez interface which gives privileged access to
+bluetooth.
+
+Usage: reserved
+Auto-Connect: no
+Availability: with providing snap
+
+### bool-file
+
+Can access GPIO paths for LED brightness and GPIO value.
+
+Usage: common
+Auto-Connect: no
+Availability: implicit
+Attributes:
+- path: path to GPIO bool file
+
+### content
+
+Can access content from the providing snap from within the consuming snap's
+filesystem area.
+
+Usage: common
+Auto-Connect: yes for snaps from same publisher, no otherwise
+Availability: with providing snap
+Attributes:
+- read: path from providing snap to expose read-only to the consuming snap
+- write: path from providing snap to expose read-write to the consuming snap
 
 ### cups-control
 
@@ -212,7 +244,7 @@ privileged access to configure printing.
 
 Usage: reserved
 Auto-Connect: no
-Availability: classic
+Availability: implicit (classic)
 
 ### firewall-control
 
@@ -221,7 +253,7 @@ to networking and should only be used with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
 
 ### locale-control
 
@@ -229,7 +261,7 @@ Can manage locales directly separate from 'config core'.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
 
 ### log-observe
 
@@ -237,7 +269,16 @@ Can read system logs and set kernel log rate-limiting.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
+
+### modem-manager
+
+Can access snaps providing the modem-manager interface which gives privileged
+access to configure, observe and use modems.
+
+Usage: reserved
+Auto-Connect: no
+Availability: implicit (classic), with providing snap (native)
 
 ### mount-observe
 
@@ -247,7 +288,7 @@ apps.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
 
 ### network-control
 
@@ -256,7 +297,16 @@ access to networking and should only be used with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
+
+### network-manager
+
+Can access snaps providing the network-manager interface which gives privileged
+access to configure and observe networking.
+
+Usage: reserved
+Auto-Connect: no
+Availability: implicit (classic), with providing snap (native)
 
 ### network-observe
 
@@ -266,7 +316,16 @@ with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
+
+### ppp
+
+Can access Point-to-Point protocol daemon which gives privileged access to
+configure and observe PPP networking.
+
+Usage: reserved
+Auto-Connect: no
+Availability: implicit
 
 ### serial-port
 
@@ -275,7 +334,7 @@ access to configure serial port hardware.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
 
 ### snapd-control
 
@@ -283,7 +342,7 @@ Can manage snaps via snapd.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
 
 ### system-observe
 
@@ -293,7 +352,7 @@ with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
 
 ### timeserver-control
 
@@ -301,4 +360,4 @@ Can manage timeservers directly separate from config core.
 
 Usage: reserved
 Auto-Connect: no
-Availability: everywhere
+Availability: implicit
