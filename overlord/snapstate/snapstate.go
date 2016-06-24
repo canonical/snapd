@@ -349,8 +349,8 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
 }
 
-// CurrentSideInfo returns the information about the current revision of a snap with the given name.
-func CurrentSideInfo(s *state.State, name string) (*snap.Info, error) {
+// CurrentInfo returns the information about the current revision of a snap with the given name.
+func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
