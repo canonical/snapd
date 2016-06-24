@@ -9,7 +9,7 @@ details: |
 environment:
   SNAP_NAME: hello-world
   CONFIG_DIR: /etc/systemd/system/snapd.service.d
-  STORE_CONFIG: $[CONFIG_DIR]/store.cfg
+  STORE_CONFIG: $[CONFIG_DIR]/fakestore.conf
   BLOB_DIR: $(mktemp -d)
   STORE_ADDR: localhost:11028
 
@@ -24,7 +24,8 @@ prepare: |
   systemctl stop snapd.service snapd.socket
   mkdir -p $CONFIG_DIR
   cat > $STORE_CONFIG <<EOF
-  SNAPPY_FORCE_CPI_URL=http://$STORE_ADDR
+  [Service]
+  Environment="SNAPPY_FORCE_CPI_URL=http://$STORE_ADDR"
   EOF
   systemctl daemon-reload
   systemctl start snapd.service
@@ -32,7 +33,7 @@ prepare: |
 restore: |
   systemctl stop fakestore
   systemctl stop snapd.socket
-  rm -f $STORE_CONFIG $BLOB_DIR
+  rm -rf $STORE_CONFIG $BLOB_DIR
   systemctl daemon-reload
   systemctl start snapd.socket
 
@@ -41,7 +42,5 @@ execute: |
   fakestore -action manage -blobdir $BLOB_DIR -snaps $SNAP_NAME
 
   echo "Then the new version is available for the snap to be refreshed"
-  expected="(?s)Name +Version +Rev +Developer +Notes\n\
-  .*?\n\
-  hello-world +\d+\.\d+\+fake1 +\d+ +canonical"
+  expected="$SNAP_NAME +\d+\.\d+\+fake1 +\d+ +canonical"
   echo "$(snap refresh --list)" | grep -Pzq "$expected"

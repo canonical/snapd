@@ -52,8 +52,7 @@ prepare: |
     apt install -y git
     go get ./tests/lib/snapbuild
 
-    # fakestore requirements and build
-    apt install -y squashfs-tools
+    # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
 
 suites:
