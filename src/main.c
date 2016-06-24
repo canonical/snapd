@@ -32,6 +32,7 @@
 #include "seccomp-support.h"
 #include "udev-support.h"
 #endif				// ifdef STRICT_CONFINEMENT
+#include "cleanup-funcs.h"
 
 int main(int argc, char **argv)
 {
@@ -86,6 +87,15 @@ int main(int argc, char **argv)
 		// this launcher
 		setup_slave_mount_namespace();
 
+		// Get the current working directory before we start fiddling with
+		// mounts and possibly pivot_root.  At the end of the whole process, we
+		// will try to re-locate to the same directory (if possible).
+		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
+		    NULL;
+		vanilla_cwd = get_current_dir_name();
+		if (vanilla_cwd == NULL) {
+			die("cannot get the current working directory");
+		}
 		// do the mounting if run on a non-native snappy system
 		if (is_running_on_classic_distribution()) {
 			setup_snappy_os_mounts();
@@ -104,6 +114,11 @@ int main(int argc, char **argv)
 		snappy_udev_cleanup(&udev_s);
 #endif				// ifdef STRICT_CONFINEMENT
 
+		// Try to re-locate back to vanilla working directory. This can fail
+		// because that directory is no longer present.
+		if (chdir(vanilla_cwd) != 0) {
+			die("cannot remain in %s, please run this snap from another location", vanilla_cwd);
+		}
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
 		if (setegid(real_gid) != 0)

@@ -10,7 +10,9 @@ snap_confine_SOURCES = \
 	mount-support.c \
 	mount-support.h \
 	mount-support-nvidia.c \
-	mount-support-nvidia.h
+	mount-support-nvidia.h \
+	cleanup-funcs.c \
+	cleanup-funcs.h
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_LDADD =
