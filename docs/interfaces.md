@@ -14,6 +14,44 @@ network connect their plugs there.
 
 ## Supported Interfaces - Basic
 
+### camera
+
+Can access the first video camera. Suitable for programs wanting to use the
+webcams.
+
+Usage: common
+Auto-Connect: no
+
+### gsettings
+
+Can access global gsettings of the user's session. This is restricted because
+it gives privileged access to sensitive information stored in gsettings and
+allows adjusting settings of other applications.
+
+Usage: reserved
+Auto-Connect: yes
+
+### home
+
+Can access non-hidden files in user's `$HOME` to read/write/lock.
+This is restricted because it gives file access to the user's
+`$HOME`. This interface is auto-connected on classic systems and
+manually connected on non-classic.
+
+Usage: reserved
+Auto-Connect: yes
+
+### mpris
+
+Can access media players implementing the Media Player Remote Interfacing
+Specification (mpris) when the interface is specified as a plug.
+
+Media players implementing mpris can be accessed by connected clients when
+specified as a slot.
+
+Usage: common
+Auto-Connect: no
+
 ### network
 
 Can access the network as a client.
@@ -24,6 +62,28 @@ Auto-Connect: yes
 ### network-bind
 
 Can access the network as a server.
+
+Usage: common
+Auto-Connect: yes
+
+### opengl
+
+Can access the opengl hardware.
+
+Usage: reserved
+Auto-Connect: yes
+
+### optical-drive
+
+Can access the first optical drive in read-only mode. Suitable for CD/DVD playback.
+
+Usage: common
+Auto-Connect: yes
+
+### pulseaudio
+
+Can access the PulseAudio sound server. Allows for sound playback in games and
+media application. It doesn't allow recording.
 
 Usage: common
 Auto-Connect: yes
@@ -44,66 +104,6 @@ apps interfering with one another.
 
 Usage: reserved
 Auto-Connect: yes
-
-### pulseaudio
-
-Can access the PulseAudio sound server. Allows for sound playback in games and
-media application. It doesn't allow recording.
-
-Usage: common
-Auto-Connect: yes
-
-### opengl
-
-Can access the opengl hardware.
-
-Usage: reserved
-Auto-Connect: yes
-
-### home
-
-Can access non-hidden files in user's `$HOME` to read/write/lock.
-This is restricted because it gives file access to the user's
-`$HOME`. This interface is auto-connected on classic systems and
-manually connected on non-classic.
-
-Usage: reserved
-Auto-Connect: yes
-
-### gsettings
-
-Can access global gsettings of the user's session. This is restricted because
-it gives privileged access to sensitive information stored in gsettings and
-allows adjusting settings of other applications.
-
-Usage: reserved
-Auto-Connect: yes
-
-### optical-drive
-
-Can access the first optical drive in read-only mode. Suitable for CD/DVD playback.
-
-Usage: common
-Auto-Connect: yes
-
-### mpris
-
-Can access media players implementing the Media Player Remote Interfacing
-Specification (mpris) when the interface is specified as a plug.
-
-Media players implementing mpris can be accessed by connected clients when
-specified as a slot.
-
-Usage: common
-Auto-Connect: no
-
-### camera
-
-Can access the first video camera. Suitable for programs wanting to use the
-webcams.
-
-Usage: common
-Auto-Connect: no
 
 ## Supported Interfaces - Advanced
 
