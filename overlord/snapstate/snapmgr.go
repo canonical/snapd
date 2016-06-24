@@ -131,11 +131,11 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 
 // CurrentSideInfo returns the side info for the current revision in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
-	if snapst.Current.Unset() && len(snapst.Sequence) > 0 {
-		panic(fmt.Sprintf("cnapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
-	}
-
 	if snapst.Current.Unset() {
+		if len(snapst.Sequence) > 0 {
+			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
+		}
+
 		return nil
 	}
 	seq := snapst.Sequence
@@ -677,15 +677,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// store for undo
-	t.Set("old-current", snapst.Current)
-
 	cand := snapst.Candidate
+	oldCurrent := snapst.Current
 
 	m.backend.Candidate(snapst.Candidate)
 	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	snapst.Current = snapst.Candidate.Revision
-
 	snapst.Candidate = nil
 	snapst.Active = true
 	oldChannel := snapst.Channel
@@ -723,6 +720,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-channel", oldChannel)
+	t.Set("old-current", oldCurrent)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
