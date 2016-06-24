@@ -12,6 +12,91 @@ Slots may support multiple connections to plugs.  For example the OS snap
 exposes the ``network`` slot and all applications that can talk over the
 network connect their plugs there.
 
+## Making connections
+Interfaces may either be auto-connected on install or manually connected after
+install. Interfaces may also be implicit to the OS snap or implemented only via
+snaps providing the slot.
+
+To list the available connectable interfaces and connections:
+
+    $ snap interfaces
+
+To make a connection:
+
+    $ snap connect <snap>:<plug interface> <snap>:<slot interface>
+
+To disconnect snaps:
+
+    $ snap disconnect <snap>:<plug interface> <snap>:<slot interface>
+
+Consider a snap 'foo' that uses 'plugs: [ log-observe ]'. Since 'log-observe'
+is not auto-connected, 'foo' will not have access to the interface upon
+install:
+
+    $ sudo snap install foo
+    $ snap interfaces
+    Slot                 Plug
+    :log-observe         -
+    -                    foo:log-observe
+
+You may manually connect using `snappy connect`:
+
+    $ sudo snap connect foo:log-observe core:log-observe
+    $ snap interfaces
+    Slot                 Plug
+    :log-observe         foo:log-observe
+
+and disconnect using `snappy disconnect`:
+
+    $ sudo snap disconnect foo:log-observe core:log-observe
+    $ snap interfaces # shows they are disconnected
+    Slot                 Plug
+    :log-observe         -
+    -                    foo:log-observe
+
+On the other hand, 'bar' could use 'plugs: [ network ]' and since 'network' is
+auto-connected, 'bar' has access to the interface upon install:
+
+    $ sudo snap install bar
+    $ snap interfaces
+    Slot                 Plug
+    :home                bar:home
+
+You may disconnect an auto-connected interface:
+
+    $ sudo snap disconnect bar:home core:home
+    $ snap interfaces
+    Slot                 Plug
+    :home                -
+    -                    bar:home
+
+Whether the slot is implicit or not doesn't matter in terms of snap interfaces
+except that if the slot is not implicit, a snap that implements the slot must
+be installed for it to be connectable. Eg, the bluez interface is not implicit
+so a snap author implementing the bluez service might use:
+
+    name: foo-blue
+    slots: [ bluez ]
+
+Then after install, the bluez interface shows up as available:
+
+    $ sudo snap install foo-blue
+    $ snap interfaces
+    Slot                 Plug
+    foo-blue:bluez       -
+
+Now install and connect works like before (eg, 'baz' uses 'plugs: [ bluez ]'):
+
+    $ sudo snap install baz
+    $ snap interfaces
+    Slot                 Plug
+    foo-blue:bluez       -
+    -                    baz:bluez
+    $ sudo snap connect baz:bluez foo-blue:bluez
+    $ snap interfaces
+    Slot                 Plug
+    foo-blue:bluez       baz:bluez
+
 ## Supported Interfaces - Basic
 
 ### camera
