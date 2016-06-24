@@ -131,6 +131,10 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 
 // CurrentSideInfo returns the side info for the current revision in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
+	if snapst.Current.Unset() && len(snapst.Sequence) > 0 {
+		panic(fmt.Sprintf("cnapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
+	}
+
 	if snapst.Current.Unset() {
 		return nil
 	}
