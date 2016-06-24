@@ -48,30 +48,29 @@ func makeFakeRefreshForSnap(snap, targetDir string) error {
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
 	if err != nil {
-		return err
+		return fmt.Errorf("creating tmp for fake update: %v", err)
 	}
 	// ensure the "." of the squashfs has sane owner/permissions
 	err = exec.Command("sudo", "chown", "root:root", fakeUpdateDir).Run()
 	if err != nil {
-		return err
+		return fmt.Errorf("changing owner of fake update dir: %v", err)
 	}
 	err = exec.Command("sudo", "chmod", "0755", fakeUpdateDir).Run()
 	if err != nil {
-		return err
+		return fmt.Errorf("changing permissions of fake update dir: %v", err)
 	}
 	defer exec.Command("sudo", "rm", "-rf", fakeUpdateDir)
 
 	err = copySnap(snap, fakeUpdateDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("copying snap: %v", err)
 	}
 
 	// fake new version
 	err = exec.Command("sudo", "sed", "-i", `s/version:\(.*\)/version:\1+fake1/`, filepath.Join(fakeUpdateDir, "meta/snap.yaml")).Run()
 	if err != nil {
-		return err
+		return fmt.Errorf("changing fake snap version: %v", err)
 	}
-
 	return buildSnap(fakeUpdateDir, targetDir)
 }
 
@@ -106,5 +105,11 @@ func copySnap(snap, targetDir string) error {
 
 func buildSnap(snapDir, targetDir string) error {
 	// build in /var/tmp (which is not a tempfs)
-	return exec.Command("sudo", "TMPDIR=/var/tmp", "snapbuild", snapDir, targetDir).Run()
+	cmd := exec.Command("snapbuild", snapDir, targetDir)
+	cmd.Env = append(cmd.Env, "TMPDIR=/var/tmp")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("building fake snap :%s : %v", output, err)
+	}
+	return nil
 }
