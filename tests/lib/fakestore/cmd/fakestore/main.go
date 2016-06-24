@@ -33,9 +33,12 @@ import (
 )
 
 var (
+	action  = flag.String("action", "start", "Action to be performed, one of start and manage")
 	blobDir = flag.String("blobdir", "", "Directory to be used by the store to keep snaps")
-	snaps   = flag.String("snaps", "", "List of snaps with new versions")
+	snaps   = flag.String("snaps", "", "List of snaps with new versions separated by commas")
 	addr    = flag.String("addr", "locahost:11028", "Store address")
+
+	st *store.Store
 )
 
 func main() {
@@ -48,15 +51,21 @@ func main() {
 func run() error {
 	flag.Parse()
 
-	store := store.NewStore(*blobDir, *addr)
-
-	if err := store.Start(); err != nil {
-		return err
+	if *action == "start" {
+		return runServer(*blobDir, *addr)
 	}
 
-	// setup snaps
-	snapList := strings.Fields(*snaps)
-	if _, err := refresh.CallFakeSnapRefreshAll(snapList, *blobDir); err != nil {
+	if *action == "manage" {
+		return runManage(*blobDir, *snaps)
+	}
+
+	return fmt.Errorf("unknown action: %s", *action)
+}
+
+func runServer(blobDir, addr string) error {
+	st = store.NewStore(blobDir, addr)
+
+	if err := st.Start(); err != nil {
 		return err
 	}
 
@@ -64,5 +73,14 @@ func run() error {
 	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	<-ch
 
-	return store.Stop()
+	return st.Stop()
+}
+
+func runManage(blobDir, snaps string) error {
+	// setup snaps
+	snapList := strings.Split(snaps, ",")
+	if _, err := refresh.CallFakeSnapRefreshAll(snapList, blobDir); err != nil {
+		return err
+	}
+	return nil
 }

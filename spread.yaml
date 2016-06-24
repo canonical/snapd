@@ -52,6 +52,10 @@ prepare: |
     apt install -y git
     go get ./tests/lib/snapbuild
 
+    # fakestore requirements and build
+    apt install -y squashfs-tools
+    go get ./tests/lib/fakestore/cmd/fakestore
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd

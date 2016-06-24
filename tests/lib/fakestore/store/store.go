@@ -71,7 +71,7 @@ func NewStore(blobDir, addr string) *Store {
 			Timeout: 2 * time.Second,
 
 			Server: &http.Server{
-				Addr:    defaultAddr,
+				Addr:    addr,
 				Handler: mux,
 			},
 		},
