@@ -99,7 +99,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 		if snapName == snapInfo.Name() {
 			continue
 		}
-		snapInfo, err := snapstate.CurrentSideInfo(task.State(), snapName)
+		snapInfo, err := snapstate.CurrentInfo(task.State(), snapName)
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 			// Skip setup for the snap being removed as this is handled below.
 			continue
 		}
-		affectedSnapInfo, err := snapstate.CurrentSideInfo(task.State(), affectedSnapName)
+		affectedSnapInfo, err := snapstate.CurrentInfo(task.State(), affectedSnapName)
 		if err != nil {
 			return err
 		}

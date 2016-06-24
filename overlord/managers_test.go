@@ -119,7 +119,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	snap, err := snapstate.CurrentSideInfo(st, "foo")
+	snap, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 
 	// ensure that the binary wrapper file got generated with the right
@@ -276,7 +276,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	info, err := snapstate.CurrentSideInfo(st, "foo")
+	info, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 
 	c.Check(info.Revision, Equals, snap.R(42))
@@ -314,7 +314,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
-	info, err = snapstate.CurrentSideInfo(st, "foo")
+	info, err = snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 
 	c.Check(info.Revision, Equals, snap.R(50))
