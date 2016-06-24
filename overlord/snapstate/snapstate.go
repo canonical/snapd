@@ -496,3 +496,28 @@ func MigrateToTypeInState(s *state.State) error {
 	s.Set("snaps", stateMap)
 	return nil
 }
+
+// MigrateToCurrentRevision implements a state migration to have the snap Current revision in the snap state of each setup snap. Used in overlord/migrations.go.
+func MigrateToCurrentRevision(s *state.State) error {
+	var stateMap map[string]*SnapState
+
+	err := s.Get("snaps", &stateMap)
+	if err == state.ErrNoState {
+		// nothing to do
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	for _, snapState := range stateMap {
+		n := len(snapState.Sequence)
+		if n == 0 {
+			continue
+		}
+		snapState.Current = snapState.Sequence[n-1].Revision
+	}
+
+	s.Set("snaps", stateMap)
+	return nil
+}

@@ -1519,6 +1519,67 @@ func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
 	c.Check(snapst.SnapType, Equals, "")
 }
 
+func (s *snapmgrTestSuite) TestMigrateToCurrentRevision(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var fooSnapst snapstate.SnapState
+	fooSnapst.Sequence = []*snap.SideInfo{
+		{
+			OfficialName: "foo1",
+			Revision:     snap.R(2),
+		},
+		{
+			OfficialName: "foo1",
+			Revision:     snap.R(22),
+		},
+	}
+	snapstate.Set(s.state, "foo", &fooSnapst)
+
+	var coreSnapst snapstate.SnapState
+	coreSnapst.Sequence = []*snap.SideInfo{
+		{
+			OfficialName: "core",
+			Revision:     snap.R(1),
+		},
+		{
+			OfficialName: "core",
+			Revision:     snap.R(11),
+		},
+		{
+			OfficialName: "core",
+			Revision:     snap.R(111),
+		},
+	}
+	snapstate.Set(s.state, "core", &coreSnapst)
+
+	var wipSnapst snapstate.SnapState
+	wipSnapst.Candidate = &snap.SideInfo{
+		OfficialName: "wip",
+		Revision:     snap.R(11),
+	}
+	snapstate.Set(s.state, "wip", &wipSnapst)
+
+	err := snapstate.MigrateToCurrentRevision(s.state)
+	c.Assert(err, IsNil)
+
+	expected := []struct {
+		name string
+		rev  snap.Revision
+	}{
+		{"foo", snap.R(22)},
+		{"core", snap.R(111)},
+		{"wip", snap.Revision{}},
+	}
+
+	for _, exp := range expected {
+		var snapst snapstate.SnapState
+		err := snapstate.Get(s.state, exp.name, &snapst)
+		c.Assert(err, IsNil)
+		c.Check(snapst.Current, Equals, exp.rev)
+	}
+}
+
 type snapStateSuite struct{}
 
 var _ = Suite(&snapStateSuite{})
