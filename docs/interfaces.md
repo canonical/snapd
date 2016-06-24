@@ -17,16 +17,15 @@ classic (eg, traditional desktop or server) or on a native system. Interfaces
 may also be implicit to the OS snap or implemented only via snaps providing the
 slot.
 
-## Native vs classic interfaces
-Native interfaces are designed for strong application isolation and user
-control such that auto-connected interfaces are considered safe and users
-choose what applications to trust and to what extent via manually connected
-interfaces.
+## Transitional interfaces
+Most interfaces are designed for strong application isolation and user control
+such that auto-connected interfaces are considered safe and users choose what
+applications to trust and to what extent via manually connected interfaces.
 
-Interfaces available on classic are considered transitional since many of the
-underlying technologies on classic systems were not designed with strong
-application isolation in mind. Users should only install applications using
-these interfaces from trusted sources.
+Some interfaces are considered transitional to support traditional Linux
+desktop environments. Since many of the underlying technologies in these
+environments were not designed with strong application isolation in mind. Users
+should only install applications using these interfaces from trusted sources.
 
 ## Making connections
 Interfaces may either be auto-connected on install or manually connected after
