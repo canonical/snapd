@@ -27,10 +27,12 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortCreateUserHelp = i18n.G("Create user from sso login")
+var shortCreateUserHelp = i18n.G("Creates a local system user")
 var longCreateUserHelp = i18n.G(`
-This command will lookup the given email and create a local user with the
-username and ssh keys obtained from the SSO server.
+The create-user command creates a local system user with the username and SSH
+keys registered on the store account identified by the provided email address.
+
+An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {

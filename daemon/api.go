@@ -1269,9 +1269,13 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
+	if createData.EMail == "" {
+		return BadRequest("cannot create user: 'email' field is empty")
+	}
+
 	v, err := storeUserInfo(createData.EMail)
 	if err != nil {
-		return BadRequest("cannot create user %s: %s", createData.EMail, err)
+		return BadRequest("cannot create user %q: %s", createData.EMail, err)
 	}
 
 	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
