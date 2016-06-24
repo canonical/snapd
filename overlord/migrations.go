@@ -97,4 +97,6 @@ func runMigration(s *state.State, level int) error {
 var migrations = map[int]func(s *state.State) error{
 	// backfill SnapStates with types
 	0: snapstate.MigrateToTypeInState,
+	// backfill SnapStates with Current revision
+	1: snapstate.MigrateToCurrentRevision,
 }

@@ -104,8 +104,9 @@ type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
-	SnapType  string           `json:"type"`     // Use Type and SetType
-	Sequence  []*snap.SideInfo `json:"sequence"` // Last is current
+	SnapType  string           `json:"type"` // Use Type and SetType
+	Sequence  []*snap.SideInfo `json:"sequence"`
+	Current   snap.Revision    `json:"current"`
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
 	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
