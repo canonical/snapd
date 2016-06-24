@@ -1,6 +1,13 @@
-ubuntu-core-launcher (1.0.31) UNRELEASED; urgency=medium
+ubuntu-core-launcher (1.0.33) UNRELEASED; urgency=medium
 
- * New upstream release
+  [ Zygmunt Krynicki ]
+  * New upstream release
+  * Break/Replace ubuntu-core-launcher << 1.0.32 so that packages upgrade
+    correctly
+  * Expose /run when --enable-rootfs-is-core-snap is used
+
+  [ Jamie Strandboge ]
+  * implement seccomp argument filtering (LP: #1446748)
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 19 Jun 2016 00:46:10 +0200
 

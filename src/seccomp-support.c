@@ -21,23 +21,394 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <search.h>
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdlib.h>
+
+// needed for search mappings
+#include <linux/can.h>
 #include <sys/prctl.h>
+#include <sys/resource.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 
 #include <seccomp.h>
 
 #include "utils.h"
 
+#define sc_map_add(X) sc_map_add_kvp(#X, X)
+
+// libseccomp maximum per ARG_COUNT_MAX in src/arch.h
+#define SC_ARGS_MAXLENGTH	6
 #define SC_MAX_LINE_LENGTH	82	// 80 + '\n' + '\0'
 
 char *filter_profile_dir = "/var/lib/snapd/seccomp/profiles/";
+struct hsearch_data sc_map_htab;
+
+enum parse_ret {
+	PARSE_INVALID_SYSCALL = -2,
+	PARSE_ERROR = -1,
+	PARSE_OK = 0,
+};
 
 struct preprocess {
 	bool unrestricted;
 	bool complain;
 };
+
+/*
+ * arg_cmp contains items of type scmp_arg_cmp (from SCMP_CMP macro) and
+ * length is the number of items in arg_cmp that are active such that if
+ * length is '3' arg_cmp[0], arg_cmp[1] and arg_cmp[2] are used, when length
+ * is '1' only arg_cmp[0] and when length is '0', none are used.
+ */
+struct seccomp_args {
+	int syscall_nr;
+	unsigned int length;
+	struct scmp_arg_cmp arg_cmp[SC_ARGS_MAXLENGTH];
+};
+
+struct sc_map_entry {
+	ENTRY *e;
+	ENTRY *ep;
+	struct sc_map_entry *next;
+};
+
+struct sc_map_list {
+	struct sc_map_entry *list;
+	int count;
+};
+
+struct sc_map_list *sc_map_entries = NULL;
+
+/*
+ * Setup an hsearch map to map strings in the policy (eg, AF_UNIX) to
+ * scmp_datum_t values. Abstract away hsearch implementation behind sc_map_*
+ * functions in case we want to swap this out.
+ *
+ * sc_map_init()		- initialize the hash map via linked list of
+ * 				  of entries
+ * sc_map_add_kvp(key, value)	- create entry from key/value pair and add to
+ * 				  linked list
+ * sc_map_search(s)	- if found, return scmp_datum_t for key, else set errno
+ * sc_map_destroy()	- destroy the hash map and linked list
+ */
+static scmp_datum_t sc_map_search(char *s)
+{
+	ENTRY e;
+	ENTRY *ep = NULL;
+	scmp_datum_t val = 0;
+	scmp_datum_t *val_p = NULL;
+	errno = 0;
+
+	e.key = s;
+	if (hsearch_r(e, FIND, &ep, &sc_map_htab) == 0)
+		die("hsearch_r failed");
+
+	if (ep != NULL) {
+		val_p = ep->data;
+		val = *val_p;
+	} else
+		errno = EINVAL;
+
+	return val;
+}
+
+static void sc_map_add_kvp(const char *key, scmp_datum_t value)
+{
+	struct sc_map_entry *node;
+	scmp_datum_t *value_copy;
+
+	node = malloc(sizeof(*node));
+	if (node == NULL)
+		die("Out of memory creating sc_map_entries");
+
+	node->e = malloc(sizeof(*node->e));
+	if (node->e == NULL)
+		die("Out of memory creating ENTRY");
+
+	node->e->key = strdup(key);
+	if (node->e->key == NULL)
+		die("Out of memory creating e->key");
+
+	value_copy = malloc(sizeof(*value_copy));
+	if (value_copy == NULL)
+		die("Out of memory creating e->data");
+	*value_copy = value;
+	node->e->data = value_copy;
+
+	node->ep = NULL;
+	node->next = NULL;
+
+	if (sc_map_entries->list == NULL) {
+		sc_map_entries->count = 1;
+		sc_map_entries->list = node;
+	} else {
+		struct sc_map_entry *p = sc_map_entries->list;
+		while (p->next != NULL)
+			p = p->next;
+		p->next = node;
+		sc_map_entries->count++;
+	}
+}
+
+static void sc_map_init()
+{
+	// initialize the map linked list
+	sc_map_entries = malloc(sizeof(*sc_map_entries));
+	if (sc_map_entries == NULL)
+		die("Out of memory creating sc_map_entries");
+	sc_map_entries->list = NULL;
+	sc_map_entries->count = 0;
+
+	// build up the map linked list
+
+	// man 2 socket - domain
+	sc_map_add(AF_UNIX);
+	sc_map_add(AF_LOCAL);
+	sc_map_add(AF_INET);
+	sc_map_add(AF_INET6);
+	sc_map_add(AF_IPX);
+	sc_map_add(AF_NETLINK);
+	sc_map_add(AF_X25);
+	sc_map_add(AF_AX25);
+	sc_map_add(AF_ATMPVC);
+	sc_map_add(AF_APPLETALK);
+	sc_map_add(AF_PACKET);
+	sc_map_add(AF_ALG);
+	// linux/can.h
+	sc_map_add(AF_CAN);
+
+	// man 2 socket - type
+	sc_map_add(SOCK_STREAM);
+	sc_map_add(SOCK_DGRAM);
+	sc_map_add(SOCK_SEQPACKET);
+	sc_map_add(SOCK_RAW);
+	sc_map_add(SOCK_RDM);
+	sc_map_add(SOCK_PACKET);
+
+	// man 2 prctl
+	sc_map_add(PR_CAP_AMBIENT);
+	sc_map_add(PR_CAP_AMBIENT_RAISE);
+	sc_map_add(PR_CAP_AMBIENT_LOWER);
+	sc_map_add(PR_CAP_AMBIENT_IS_SET);
+	sc_map_add(PR_CAP_AMBIENT_CLEAR_ALL);
+	sc_map_add(PR_CAPBSET_READ);
+	sc_map_add(PR_CAPBSET_DROP);
+	sc_map_add(PR_SET_CHILD_SUBREAPER);
+	sc_map_add(PR_GET_CHILD_SUBREAPER);
+	sc_map_add(PR_SET_DUMPABLE);
+	sc_map_add(PR_GET_DUMPABLE);
+	sc_map_add(PR_SET_ENDIAN);
+	sc_map_add(PR_GET_ENDIAN);
+	sc_map_add(PR_SET_FPEMU);
+	sc_map_add(PR_GET_FPEMU);
+	sc_map_add(PR_SET_FPEXC);
+	sc_map_add(PR_GET_FPEXC);
+	sc_map_add(PR_SET_KEEPCAPS);
+	sc_map_add(PR_GET_KEEPCAPS);
+	sc_map_add(PR_MCE_KILL);
+	sc_map_add(PR_MCE_KILL_GET);
+	sc_map_add(PR_SET_MM);
+	sc_map_add(PR_SET_MM_START_CODE);
+	sc_map_add(PR_SET_MM_END_CODE);
+	sc_map_add(PR_SET_MM_START_DATA);
+	sc_map_add(PR_SET_MM_END_DATA);
+	sc_map_add(PR_SET_MM_START_STACK);
+	sc_map_add(PR_SET_MM_START_BRK);
+	sc_map_add(PR_SET_MM_BRK);
+	sc_map_add(PR_SET_MM_ARG_START);
+	sc_map_add(PR_SET_MM_ARG_END);
+	sc_map_add(PR_SET_MM_ENV_START);
+	sc_map_add(PR_SET_MM_ENV_END);
+	sc_map_add(PR_SET_MM_AUXV);
+	sc_map_add(PR_SET_MM_EXE_FILE);
+	sc_map_add(PR_MPX_ENABLE_MANAGEMENT);
+	sc_map_add(PR_MPX_DISABLE_MANAGEMENT);
+	sc_map_add(PR_SET_NAME);
+	sc_map_add(PR_GET_NAME);
+	sc_map_add(PR_SET_NO_NEW_PRIVS);
+	sc_map_add(PR_GET_NO_NEW_PRIVS);
+	sc_map_add(PR_SET_PDEATHSIG);
+	sc_map_add(PR_GET_PDEATHSIG);
+	sc_map_add(PR_SET_PTRACER);
+	sc_map_add(PR_SET_SECCOMP);
+	sc_map_add(PR_GET_SECCOMP);
+	sc_map_add(PR_SET_SECUREBITS);
+	sc_map_add(PR_GET_SECUREBITS);
+	sc_map_add(PR_SET_THP_DISABLE);
+	sc_map_add(PR_TASK_PERF_EVENTS_DISABLE);
+	sc_map_add(PR_TASK_PERF_EVENTS_ENABLE);
+	sc_map_add(PR_GET_THP_DISABLE);
+	sc_map_add(PR_GET_TID_ADDRESS);
+	sc_map_add(PR_SET_TIMERSLACK);
+	sc_map_add(PR_GET_TIMERSLACK);
+	sc_map_add(PR_SET_TIMING);
+	sc_map_add(PR_GET_TIMING);
+	sc_map_add(PR_SET_TSC);
+	sc_map_add(PR_GET_TSC);
+	sc_map_add(PR_SET_UNALIGN);
+	sc_map_add(PR_GET_UNALIGN);
+
+	// man 2 getpriority
+	sc_map_add(PRIO_PROCESS);
+	sc_map_add(PRIO_PGRP);
+	sc_map_add(PRIO_USER);
+
+	// initialize the htab for our map
+	memset((void *)&sc_map_htab, 0, sizeof(sc_map_htab));
+	if (hcreate_r(sc_map_entries->count, &sc_map_htab) == 0)
+		die("could not create map");
+
+	// add elements from linked list to map
+	struct sc_map_entry *p = sc_map_entries->list;
+	while (p != NULL) {
+		errno = 0;
+		if (hsearch_r(*p->e, ENTER, &p->ep, &sc_map_htab) == 0)
+			die("hsearch_r failed");
+
+		if (&p->ep == NULL)
+			die("could not initialize map");
+
+		p = p->next;
+	}
+}
+
+static void sc_map_destroy()
+{
+	// this frees all of the nodes' ep so we don't have to below
+	hdestroy_r(&sc_map_htab);
+
+	struct sc_map_entry *next = sc_map_entries->list;
+	struct sc_map_entry *p = NULL;
+	while (next != NULL) {
+		p = next;
+		next = p->next;
+		free(p->e->key);
+		free(p->e->data);
+		free(p->e);
+		free(p);
+	}
+	free(sc_map_entries);
+}
+
+/* Caller must check if errno != 0 */
+static scmp_datum_t read_number(char *s)
+{
+	scmp_datum_t val = 0;
+
+	errno = 0;
+
+	// per seccomp.h definition of scmp_datum_t, negative numbers are not
+	// supported, so fail if we see one or if we get one. Also fail if
+	// string is 0 length.
+	if (s[0] == '-' || s[0] == '\0') {
+		errno = EINVAL;
+		return val;
+	}
+	// check if number
+	for (int i = 0; i < strlen(s); i++) {
+		if (isdigit(s[i]) == 0) {
+			errno = EINVAL;
+			break;
+		}
+	}
+	if (errno == 0) {	// found a number, so parse it
+		char *end;
+		// strtol may set errno to ERANGE
+		val = strtoul(s, &end, 10);
+		if (end == s || *end != '\0')
+			errno = EINVAL;
+	} else			// try our map (sc_map_search sets errno)
+		val = sc_map_search(s);
+
+	return val;
+}
+
+static int parse_line(char *line, struct seccomp_args *sargs)
+{
+	// strtok_r needs a pointer to keep track of where it is in the
+	// string.
+	char *buf_saveptr;
+
+	// Initialize our struct
+	sargs->length = 0;
+	sargs->syscall_nr = -1;
+
+	if (strlen(line) == 0)
+		return PARSE_ERROR;
+
+	// Initialize tokenizer and obtain first token.
+	char *buf_token = strtok_r(line, " \t", &buf_saveptr);
+	if (buf_token == NULL)
+		return PARSE_ERROR;
+
+	// syscall not available on this arch/kernel
+	sargs->syscall_nr = seccomp_syscall_resolve_name(buf_token);
+	if (sargs->syscall_nr == __NR_SCMP_ERROR)
+		return PARSE_INVALID_SYSCALL;
+
+	// Parse for syscall arguments. Since we haven't yet searched for the
+	// next token, buf_token is still the syscall itself so start 'pos' as
+	// -1 and only if there is an arg to parse, increment it.
+	int pos = -1;
+	while (pos < SC_ARGS_MAXLENGTH) {
+		buf_token = strtok_r(NULL, " \t", &buf_saveptr);
+		if (buf_token == NULL)
+			break;
+		// we found a token, so increment position and process it
+		pos++;
+		if (strcmp(buf_token, "-") == 0)	// skip arg
+			continue;
+
+		enum scmp_compare op = -1;
+		scmp_datum_t value = 0;
+		if (strlen(buf_token) == 0) {
+			return PARSE_ERROR;
+		} else if (strlen(buf_token) == 1) {
+			// syscall N (length of '1' indicates a single digit)
+			op = SCMP_CMP_EQ;
+			value = read_number(buf_token);
+		} else if (strncmp(buf_token, ">=", 2) == 0) {
+			// syscall >=N
+			op = SCMP_CMP_GE;
+			value = read_number(&buf_token[2]);
+		} else if (strncmp(buf_token, "<=", 2) == 0) {
+			// syscall <=N
+			op = SCMP_CMP_LE;
+			value = read_number(&buf_token[2]);
+		} else if (strncmp(buf_token, "!", 1) == 0) {
+			// syscall !N
+			op = SCMP_CMP_NE;
+			value = read_number(&buf_token[1]);
+		} else if (strncmp(buf_token, ">", 1) == 0) {
+			// syscall >N
+			op = SCMP_CMP_GT;
+			value = read_number(&buf_token[1]);
+		} else if (strncmp(buf_token, "<", 1) == 0) {
+			// syscall <N
+			op = SCMP_CMP_LT;
+			value = read_number(&buf_token[1]);
+		} else {
+			// syscall NNN
+			op = SCMP_CMP_EQ;
+			value = read_number(buf_token);
+		}
+		if (errno != 0)
+			return PARSE_ERROR;
+
+		sargs->arg_cmp[sargs->length] = SCMP_CMP(pos, op, value);
+		sargs->length++;
+
+		//printf("\nDEBUG: SCMP_CMP(%d, %d, %llu)\n", pos, op, value);
+	}
+	// too many args
+	if (pos >= SC_ARGS_MAXLENGTH)
+		return PARSE_ERROR;
+
+	return PARSE_OK;
+}
 
 // strip whitespace from the end of the given string (inplace)
 static size_t trim_right(char *s, size_t slen)
@@ -112,12 +483,15 @@ void seccomp_load_filters(const char *filter_profile)
 {
 	debug("seccomp_load_filters %s", filter_profile);
 	int rc = 0;
-	int syscall_nr = -1;
 	scmp_filter_ctx ctx = NULL;
 	FILE *f = NULL;
 	size_t lineno = 0;
 	uid_t real_uid, effective_uid, saved_uid;
 	struct preprocess pre;
+	struct seccomp_args sargs;
+
+	// initialize hsearch map
+	sc_map_init();
 
 	ctx = seccomp_init(SCMP_ACT_KILL);
 	if (ctx == NULL) {
@@ -178,21 +552,31 @@ void seccomp_load_filters(const char *filter_profile)
 		if (validate_and_trim_line(buf, sizeof(buf), lineno) == 0)
 			continue;
 
-		// syscall not available on this arch/kernel
-		// as this is a syscall whitelist its ok and the error can be
-		// ignored
-		syscall_nr = seccomp_syscall_resolve_name(buf);
-		if (syscall_nr == __NR_SCMP_ERROR)
-			continue;
+		char *buf_copy = strdup(buf);
+		if (buf_copy == NULL)
+			die("Out of memory");
 
-		// a normal line with a syscall
-		rc = seccomp_rule_add_exact(ctx, SCMP_ACT_ALLOW, syscall_nr, 0);
+		int pr_rc = parse_line(buf_copy, &sargs);
+		free(buf_copy);
+		if (pr_rc != PARSE_OK) {
+			// as this is a syscall whitelist an invalid syscall
+			// is ok and the error can be ignored
+			if (pr_rc == PARSE_INVALID_SYSCALL)
+				continue;
+			die("could not parse line");
+		}
+
+		rc = seccomp_rule_add_exact_array(ctx, SCMP_ACT_ALLOW,
+						  sargs.syscall_nr,
+						  sargs.length, sargs.arg_cmp);
 		if (rc != 0) {
-			rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, syscall_nr,
-					      0);
+			rc = seccomp_rule_add_array(ctx, SCMP_ACT_ALLOW,
+						    sargs.syscall_nr,
+						    sargs.length,
+						    sargs.arg_cmp);
 			if (rc != 0) {
 				fprintf(stderr,
-					"seccomp_rule_add failed with %i for '%s'\n",
+					"seccomp_rule_add_array failed with %i for '%s'\n",
 					rc, buf);
 				errno = 0;
 				die("aborting");
@@ -230,5 +614,7 @@ void seccomp_load_filters(const char *filter_profile)
 			die("could not close seccomp file");
 	}
 	seccomp_release(ctx);
+
+	sc_map_destroy();
 	return;
 }

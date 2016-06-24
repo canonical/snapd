@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([snap-confine], [1.0.31], [snapcraft@lists.ubuntu.com])
+AC_INIT([snap-confine], [1.0.33], [snapcraft@lists.ubuntu.com])
 AC_CONFIG_SRCDIR([src/main.c])
 AC_CONFIG_HEADERS([config.h])
 AC_USE_SYSTEM_EXTENSIONS
@@ -44,6 +44,7 @@ AC_ARG_ENABLE([confinement],
         *) AC_MSG_ERROR([bad value ${enableval} for --disable-confinement])
     esac], [enable_confinement=yes])
 AM_CONDITIONAL([STRICT_CONFINEMENT], [test "x$enable_confinement" = "xyes"])
+AM_CONDITIONAL([CONFINEMENT_TESTS], [test "x$enable_confinement" = "xyes" && (test "x$host_cpu" = "xx86_64" && test "x$build_cpu" = "xx86_64") || (test "x$host_cpu" = "xi686" && test "x$build_cpu" = "xi686")])
 
 # Check for required external libraries when confinement is enabled.
 AS_IF([test "x$enable_confinement" = "xyes"], [

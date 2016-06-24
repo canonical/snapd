@@ -1,7 +1,10 @@
 summary: Check that basic install works
+# This is blacklisted on debian because we first have to get the dpkg-vendor patches
+systems: [-debian-8]
 restore: |
     snap remove hello-world
 execute: |
+    cd /
     echo Run some hello-world stuff
     snap install hello-world
     hello-world.echo | grep Hello

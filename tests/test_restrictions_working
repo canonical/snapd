@@ -4,28 +4,8 @@ set -e
 
 . "${srcdir:-.}/common.sh"
 
-cat >"$TMP/snap.name.app" <<EOF
-# filter that works ok for true
-open
-close
-
-mmap
-munmap
-mprotect
-
-fstat
-access
-read
-
-brk
-execve
-
-arch_prctl
-exit_group
-
-geteuid
-getuid
-
+get_common_syscalls >"$TMP/snap.name.app"
+cat >>"$TMP/snap.name.app" <<EOF
 # unknown syscalls are ignore
 i-dont-exit
 

@@ -9,30 +9,49 @@ backends:
         key: $(echo $SPREAD_LINODE_KEY)
         systems:
             - ubuntu-16.04-64-grub
-            - ubuntu-16.04-32-grub
+            # - ubuntu-16.04-32-grub
+            - debian-8
 
-path: /spread/snap-confine
+path: /root/spread/
 
 exclude:
     - .git
 
 prepare: |
+    echo "Spread is running as $(id)"
     [ "$REUSE_PROJECT" != 1 ] || exit 0
-
-    apt purge -y snap-confine || true
-    apt update
-    apt install -y snapd fakeroot
-    apt build-dep -y ./
-
-    test -d /home/test || adduser --quiet --disabled-password --gecos '' test
-    chown test.test -R /home/test /spread/
-    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
-    apt install -y ../ubuntu-core-launcher_*.deb ../snap-confine_*.deb 
-    rm -f ../snap-confine_*.deb
+    release_ID="$( . /etc/os-release && echo "${ID:-linux}" )"
+    case $release_ID in
+        ubuntu)
+            # apt update is hanging on security.ubuntu.com with IPv6.
+            sysctl -w net.ipv6.conf.all.disable_ipv6=1
+            trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
+            ;;
+        debian)
+            echo "deb http://ftp.de.debian.org/debian sid main" > /etc/apt/sources.list.d/snappy.list
+            ;;
+    esac
+    case $release_ID in
+        ubuntu|debian)
+            apt-get update
+            apt-get install --quiet -y fakeroot
+            # Build a local copy of snap-confine
+            apt-get install --quiet -y autoconf automake autotools-dev debhelper dh-apparmor dh-autoreconf indent libapparmor-dev libseccomp-dev libudev-dev pkg-config shellcheck udev
+            test -d /home/test || adduser --quiet --disabled-password --gecos '' test
+            chown test.test -R ..
+            sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
+            dpkg -i ../snap-confine_*.deb || apt-get -f install -y
+            dpkg -i ../ubuntu-core-launcher_*.deb || apt-get -f install -y
+            rm -f ../snap-confine_*.deb ../ubuntu-core-launcher_*.deb
+            # Install snapd (testes require it)
+            apt-get install -y snapd
+            ;;
+    esac
+    # Install the core snap
+    snap list | grep -q ubuntu-core || snap install ubuntu-core
 
 suites:
     spread-tests/:
-        summary: Full-system tests for snap-confinue
-        prepare: |
-            echo Ensure ubuntu-core is installed
-            sudo snap install ubuntu-core
+        summary: Full-system tests for snap-confine 
+    spread-tests/regression/:
+        summary: Regression tests for past bug-fixes

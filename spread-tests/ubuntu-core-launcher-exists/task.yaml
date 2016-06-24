@@ -1,0 +1,6 @@
+summary: Check that ubuntu-core-launcher executes correctly
+# This is blacklisted on debian because we first have to get the dpkg-vendor patches
+systems: [-debian-8]
+execute: |
+    echo "ubuntu-core-launcher is installed and responds to --help"
+    ubuntu-core-launcher --help 2>&1 | grep -F -q 'Usage: ubuntu-core-launcher <security-tag> <binary>'
