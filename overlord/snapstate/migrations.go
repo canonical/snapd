@@ -39,11 +39,13 @@ func MigrateToTypeInState(s *state.State) error {
 	}
 
 	for snapName, snapState := range stateMap {
-		if snapState.CurrentSideInfo() == nil {
+		// we can not use Current()/CurrentSideInfo() here
+		seq := snapState.Sequence
+		if len(seq) == 0 {
 			continue
 		}
 		typ := snap.TypeApp
-		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
+		snapInfo, err := readInfo(snapName, snapState.Sequence[len(seq)-1])
 		if err != nil {
 			logger.Noticef("Recording type for snap %q: cannot retrieve info, assuming it's a app: %v", snapName, err)
 		} else {
