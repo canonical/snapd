@@ -32,6 +32,7 @@
 #include "seccomp-support.h"
 #include "udev-support.h"
 #endif				// ifdef STRICT_CONFINEMENT
+#include "cleanup-funcs.h"
 
 int main(int argc, char **argv)
 {
@@ -89,8 +90,10 @@ int main(int argc, char **argv)
 		// Get the current working directory before we start fiddling with
 		// mounts and possibly pivot_root.  At the end of the whole process, we
 		// will try to re-locate to the same directory (if possible).
-		char vanilla_cwd[512];
-		if (getcwd(vanilla_cwd, sizeof vanilla_cwd) == NULL) {
+		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
+		    NULL;
+		vanilla_cwd = get_current_dir_name();
+		if (vanilla_cwd == NULL) {
 			die("cannot get the current working directory");
 		}
 		// do the mounting if run on a non-native snappy system

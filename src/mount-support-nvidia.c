@@ -78,11 +78,6 @@ static const char *nvidia_globs[] = {
 static const size_t nvidia_globs_len =
     sizeof nvidia_globs / sizeof *nvidia_globs;
 
-static void cleanup_string(char **ptr)
-{
-	free(*ptr);
-}
-
 // Populate libgl_dir with a symlink farm to files matching glob_list.
 //
 // The symbolic links are made in one of two ways. If the library found is a
@@ -113,7 +108,8 @@ static void sc_populate_libgl_with_hostfs_symlinks(const char *libgl_dir,
 		char symlink_name[512];
 		char symlink_target[512];
 		const char *pathname = glob_res.gl_pathv[i];
-		char *pathname_copy __attribute__ ((cleanup(cleanup_string))) =
+		char *pathname_copy
+		    __attribute__ ((cleanup(sc_cleanup_string))) =
 		    strdup(pathname);
 		char *filename = basename(pathname_copy);
 		struct stat stat_buf;
