@@ -69,8 +69,8 @@ func (iface *BoolFileInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (iface *BoolFileInterface) SanitizePlug(slot *interfaces.Plug) error {
-	if iface.Name() != slot.Interface {
+func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 	// NOTE: currently we don't check anything on the plug side.
