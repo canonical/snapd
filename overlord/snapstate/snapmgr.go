@@ -416,6 +416,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	if len(snapst.Sequence) == 1 {
 		snapst.Sequence = nil
+		snapst.Current = snap.Revision{}
 	} else {
 		newSeq := make([]*snap.SideInfo, 0, len(snapst.Sequence))
 		for _, si := range snapst.Sequence {
