@@ -104,7 +104,7 @@ func (s *trySuite) TestTryConfinmentAllows(c *check.C) {
 	defer common.RemoveSnap(c, data.NetworkConsumerSnapName)
 
 	// confinment works in try mode:
-	wait.ForActiveService(c, "snap.network-bind-consumer.network-consumer.service")
+	wait.ForServerOnPort(c, "tcp", 8081)
 	providerURL := "http://127.0.0.1:8081"
 	output := cli.ExecCommand(c, "network-consumer", providerURL)
 	c.Assert(output, check.Equals, "ok\n")

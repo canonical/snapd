@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -191,6 +192,7 @@ version: %s
 		snapstate.Get(st, name, &snapst)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
+		snapst.Current = snapInfo.SideInfo.Revision
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -350,6 +352,9 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
+		"osutilAddExtraUser",
+		"storeUserInfo",
+		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -2794,4 +2799,35 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
 		"message": fmt.Sprintf("cannot abort change %s with nothing pending", ids[0]),
 	})
+}
+
+func (s *apiSuite) TestPostCreateUser(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username: "karl",
+			SSHKeys:  []string{"ssh1", "ssh2"},
+		}, nil
+	}
+	osutilAddExtraUser = func(username string, sshKeys []string) error {
+		c.Check(username, check.Equals, "karl")
+		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		return nil
+	}
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		osutilAddExtraUser = osutil.AddExtraUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 }
