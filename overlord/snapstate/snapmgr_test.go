@@ -1274,7 +1274,7 @@ func (s *snapmgrQuerySuite) TestCurrent(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	info, err := snapstate.CurrentSideInfo(st, "name1")
+	info, err := snapstate.CurrentInfo(st, "name1")
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
