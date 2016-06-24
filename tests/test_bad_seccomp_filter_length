@@ -6,7 +6,7 @@ set -e
 
 printf "Test seccomp filter (bad - too long)"
 
-cat >"$TMP/snap.name.app" <<EOF
+cat >"$TMP"/snap.name.app <<EOF
 # some comment
 baddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
 EOF

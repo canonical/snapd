@@ -1,5 +1,35 @@
 #!/bin/sh
 
+get_common_syscalls() {
+    cat <<EOF
+# filter that works ok for true
+open
+close
+
+mmap
+mmap2
+munmap
+mprotect
+
+fstat
+fstat64
+access
+read
+
+brk
+execve
+
+arch_prctl
+exit_group
+
+geteuid
+geteuid32
+getuid
+
+set_thread_area
+EOF
+}
+
 L="$(pwd)/../src/snap-confine"
 export L
 

@@ -16,6 +16,6 @@ execute: |
     # pwd doesn't run
     [ "$(/snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "" ]
     # there's an accurate error message
-    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox pwd 2>&1)" = "cannot remain in $HOME/.cache, please run this snap from another location" ]
+    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox pwd 2>&1)" = "cannot remain in $HOME/.cache, please run this snap from another location. errmsg: No such file or directory" ]
     # snap-confine returns an error code on exit
     ! /snap/bin/snapd-hacker-toolbelt.busybox pwd
