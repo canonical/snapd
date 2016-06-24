@@ -241,7 +241,7 @@ func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 	}
 }
 
-func (iface *BluezInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *BluezInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
