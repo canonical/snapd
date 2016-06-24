@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 
 	"gopkg.in/check.v1"
 
@@ -52,8 +53,8 @@ var mockServerJSON = `{
 func (s *userInfoSuite) redirectToTestSSO(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })
-	store.SSOBaseURL = server.URL + "/api/v2"
-	s.BaseTest.AddCleanup(func() { store.SSOBaseURL = "" })
+	os.Setenv("SNAPPY_FORCE_SSO_URL", server.URL+"/api/v2")
+	s.BaseTest.AddCleanup(func() { os.Unsetenv("SNAPPY_FORCE_SSO_URL") })
 }
 
 func (s *userInfoSuite) TestCreateUser(c *check.C) {
