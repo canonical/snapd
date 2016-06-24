@@ -1449,16 +1449,20 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	c.Check(snapst.TryMode(), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
+// makeMigrationTestState creates a test state with a bunch of snaps
+// for migration testing
+func (s *snapmgrTestSuite) makeMigrationTestState() {
 
 	// app
 	var fooSnapst snapstate.SnapState
 	fooSnapst.Sequence = []*snap.SideInfo{
 		{
-			OfficialName: "foo",
-			Revision:     snap.R(23),
+			OfficialName: "foo1",
+			Revision:     snap.R(2),
+		},
+		{
+			OfficialName: "foo1",
+			Revision:     snap.R(22),
 		},
 	}
 	snapstate.Set(s.state, "foo", &fooSnapst)
@@ -1468,7 +1472,15 @@ func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
 	coreSnapst.Sequence = []*snap.SideInfo{
 		{
 			OfficialName: "core",
-			Revision:     snap.R(100),
+			Revision:     snap.R(1),
+		},
+		{
+			OfficialName: "core",
+			Revision:     snap.R(11),
+		},
+		{
+			OfficialName: "core",
+			Revision:     snap.R(111),
 		},
 	}
 	snapstate.Set(s.state, "core", &coreSnapst)
@@ -1480,10 +1492,13 @@ func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
 			OfficialName: "borken",
 			Revision:     snap.R("x1"),
 		},
+		{
+			OfficialName: "borken",
+			Revision:     snap.R("x2"),
+		},
 	}
 	snapstate.Set(s.state, "borken", &borkenSnapst)
 
-	// wip
 	var wipSnapst snapstate.SnapState
 	wipSnapst.Candidate = &snap.SideInfo{
 		OfficialName: "wip",
@@ -1491,6 +1506,13 @@ func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
 	}
 	snapstate.Set(s.state, "wip", &wipSnapst)
 
+}
+
+func (s *snapmgrTestSuite) TestMigrateToTypeInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeMigrationTestState()
 	err := snapstate.MigrateToTypeInState(s.state)
 	c.Assert(err, IsNil)
 
@@ -1523,43 +1545,7 @@ func (s *snapmgrTestSuite) TestMigrateToCurrentRevision(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var fooSnapst snapstate.SnapState
-	fooSnapst.Sequence = []*snap.SideInfo{
-		{
-			OfficialName: "foo1",
-			Revision:     snap.R(2),
-		},
-		{
-			OfficialName: "foo1",
-			Revision:     snap.R(22),
-		},
-	}
-	snapstate.Set(s.state, "foo", &fooSnapst)
-
-	var coreSnapst snapstate.SnapState
-	coreSnapst.Sequence = []*snap.SideInfo{
-		{
-			OfficialName: "core",
-			Revision:     snap.R(1),
-		},
-		{
-			OfficialName: "core",
-			Revision:     snap.R(11),
-		},
-		{
-			OfficialName: "core",
-			Revision:     snap.R(111),
-		},
-	}
-	snapstate.Set(s.state, "core", &coreSnapst)
-
-	var wipSnapst snapstate.SnapState
-	wipSnapst.Candidate = &snap.SideInfo{
-		OfficialName: "wip",
-		Revision:     snap.R(11),
-	}
-	snapstate.Set(s.state, "wip", &wipSnapst)
-
+	s.makeMigrationTestState()
 	err := snapstate.MigrateToCurrentRevision(s.state)
 	c.Assert(err, IsNil)
 
@@ -1569,6 +1555,7 @@ func (s *snapmgrTestSuite) TestMigrateToCurrentRevision(c *C) {
 	}{
 		{"foo", snap.R(22)},
 		{"core", snap.R(111)},
+		{"borken", snap.R(-2)},
 		{"wip", snap.Revision{}},
 	}
 
