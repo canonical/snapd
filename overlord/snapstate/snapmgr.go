@@ -418,7 +418,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if snapst.Active {
+	if snapst.Current == ss.Revision && snapst.Active {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.Name)
 	}
 
@@ -435,7 +435,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			newSeq = append(newSeq, si)
 		}
 		snapst.Sequence = newSeq
-		// update Current if it just got removed
 		if snapst.Current == ss.Revision {
 			snapst.Current = newSeq[len(newSeq)-1].Revision
 		}

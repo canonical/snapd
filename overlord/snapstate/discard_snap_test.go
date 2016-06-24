@@ -127,7 +127,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 	t := s.state.NewTask("discard-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		Name:     "foo",
-		Revision: snap.R(33),
+		Revision: snap.R(3),
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -142,4 +142,39 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `(?s).*internal error: cannot discard snap "foo": still active.*`)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "foo", Revision: snap.R(3)},
+			{OfficialName: "foo", Revision: snap.R(33)},
+		},
+		Current: snap.R(33),
+		Active:  true,
+	})
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Name:     "foo",
+		Revision: snap.R(3),
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.snapmgr.Ensure()
+	s.snapmgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(33))
+	c.Check(t.Status(), Equals, state.DoneStatus)
 }
