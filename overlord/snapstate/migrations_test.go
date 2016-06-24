@@ -42,7 +42,6 @@ func (s *snapmgrTestSuite) makeMigrationTestState() {
 			Revision:     snap.R(22),
 		},
 	}
-	fooSnapst.Current = snap.R(22)
 	snapstate.Set(s.state, "foo", &fooSnapst)
 
 	// core
@@ -61,7 +60,6 @@ func (s *snapmgrTestSuite) makeMigrationTestState() {
 			Revision:     snap.R(111),
 		},
 	}
-	coreSnapst.Current = snap.R(111)
 	snapstate.Set(s.state, "core", &coreSnapst)
 
 	// broken
@@ -76,7 +74,6 @@ func (s *snapmgrTestSuite) makeMigrationTestState() {
 			Revision:     snap.R("x2"),
 		},
 	}
-	borkenSnapst.Current = snap.R(-2)
 	snapstate.Set(s.state, "borken", &borkenSnapst)
 
 	var wipSnapst snapstate.SnapState
