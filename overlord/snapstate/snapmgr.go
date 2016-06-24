@@ -431,6 +431,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 			newSeq = append(newSeq, si)
 		}
 		snapst.Sequence = newSeq
+		// update Current if it just got removed
+		if snapst.Current == ss.Revision {
+			snapst.Current = newSeq[len(newSeq)-1].Revision
+		}
 	}
 
 	pb := &TaskProgressAdapter{task: t}
