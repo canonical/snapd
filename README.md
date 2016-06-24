@@ -1,7 +1,7 @@
 [![Build Status][travis-image]][travis-url] [![Coverage Status][coveralls-image]][coveralls-url]
 # snapd
 
-Snapd is a tasteful, transactional packaging system designed for reliability and scalability.
+The snapd and snap tools enable systems to work with .snap files.
 
 ## Development
 
