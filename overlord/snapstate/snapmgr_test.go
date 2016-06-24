@@ -1555,7 +1555,7 @@ func (s *snapStateSuite) TestCurrentSideInfoInconsistent(c *C) {
 			{Revision: snap.R(1)},
 		},
 	}
-	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cnapst.Current and snapst.Sequence out of sync:.*`)
+	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `snapst.Current and snapst.Sequence out of sync:.*`)
 }
 
 func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
