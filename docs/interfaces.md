@@ -132,8 +132,8 @@ other applications.
 
 ### home
 
-Can access non-hidden files in user's `$HOME` to read/write/lock and files in
-gvfs mounted directories owned by the user.
+Can access non-hidden files in user's `$HOME` and gvfs mounted directories
+owned by the user to read/write/lock.
 
 * Auto-Connect: yes on classic, no on native
 * Availability: implicit
