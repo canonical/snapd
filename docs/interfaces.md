@@ -210,7 +210,7 @@ Auto-Connect: no
 
 ### locale-control
 
-Can manage locales directly separate from 'config ubuntu-core'.
+Can manage locales directly separate from 'config core'.
 
 Usage: reserved
 Auto-Connect: no
@@ -274,7 +274,7 @@ Auto-Connect: no
 
 ### timeserver-control
 
-Can manage timeservers directly separate from config ubuntu-core.
+Can manage timeservers directly separate from config core.
 
 Usage: reserved
 Auto-Connect: no
