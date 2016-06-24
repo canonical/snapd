@@ -72,6 +72,6 @@ execute: |
   snap try $SNAP_PATH
 
   echo "Then the snap is able to access the network resource"
-  echo "$(network-consumer http://127.0.0.1:$PORT)" | grep -Pq "ok\n"
+  echo "$(network-consumer http://127.0.0.1:$PORT)" | grep -Pq "ok"
 
   echo "====================================="
