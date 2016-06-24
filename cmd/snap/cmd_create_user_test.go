@@ -27,8 +27,6 @@ import (
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/client"
-
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -39,12 +37,12 @@ func (s *SnapSuite) TestCreateUser(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "POST")
 			c.Check(r.URL.Path, check.Equals, "/v2/create-user")
-			var body client.CreateUserRequest
+			var body map[string]string
 			dec := json.NewDecoder(r.Body)
 			err := dec.Decode(&body)
 			c.Assert(err, check.IsNil)
-			c.Check(body, check.DeepEquals, client.CreateUserRequest{
-				EMail: "popper@lse.ac.uk",
+			c.Check(body, check.DeepEquals, map[string]string{
+				"email": "popper@lse.ac.uk",
 			})
 			fmt.Fprintln(w, `{"type": "sync", "result": {"username": "karl"}}`)
 		default:

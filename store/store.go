@@ -130,6 +130,11 @@ func authURL() string {
 	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
 		return "https://login.staging.ubuntu.com/api/v2"
 	}
+
+	if os.Getenv("SNAPPY_FORCE_SSO_URL") != "" {
+		return os.Getenv("SNAPPY_FORCE_SSO_URL")
+	}
+
 	return "https://login.ubuntu.com/api/v2"
 }
 

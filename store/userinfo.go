@@ -27,9 +27,6 @@ import (
 	"time"
 )
 
-// SSOBaseURL is the base url of the SSO service
-var SSOBaseURL string
-
 var (
 	httpClient = http.Client{Timeout: 10 * time.Second}
 )
@@ -47,10 +44,7 @@ type User struct {
 }
 
 func UserInfo(email string) (userinfo *User, err error) {
-	if SSOBaseURL == "" {
-		SSOBaseURL = authURL()
-	}
-	ssourl := fmt.Sprintf("%s/keys/%s", SSOBaseURL, url.QueryEscape(email))
+	ssourl := fmt.Sprintf("%s/keys/%s", authURL(), url.QueryEscape(email))
 
 	resp, err := httpClient.Get(ssourl)
 	if err != nil {

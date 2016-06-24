@@ -293,12 +293,12 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	return &sysInfo, nil
 }
 
-// CreationUserResult holds the result of a user creation
+// CreateUserResult holds the result of a user creation
 type CreateUserResult struct {
 	Username string `json:"username"`
 }
 
-// creationUserRequest holds the user creation request
+// createUserRequest holds the user creation request
 type createUserRequest struct {
 	EMail string `json:"email"`
 }
