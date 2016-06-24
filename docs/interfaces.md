@@ -12,10 +12,14 @@ Slots may support multiple connections to plugs.  For example the OS snap
 exposes the ``network`` slot and all applications that can talk over the
 network connect their plugs there.
 
+The availability of an interface depends on whether snapd is running on a
+classic (eg, traditional desktop or server) or on a native system. Interfaces
+may also be implicit to the OS snap or implemented only via snaps providing the
+slot.
+
 ## Making connections
 Interfaces may either be auto-connected on install or manually connected after
-install. Interfaces may also be implicit to the OS snap or implemented only via
-snaps providing the slot.
+install.
 
 To list the available connectable interfaces and connections:
 
@@ -105,6 +109,7 @@ webcams.
 
 Usage: common
 Auto-Connect: no
+Availability: everywhere
 
 ### gsettings
 
@@ -114,16 +119,17 @@ allows adjusting settings of other applications.
 
 Usage: reserved
 Auto-Connect: yes
+Availability: classic
 
 ### home
 
 Can access non-hidden files in user's `$HOME` to read/write/lock.
 This is restricted because it gives file access to the user's
-`$HOME`. This interface is auto-connected on classic systems and
-manually connected on non-classic.
+`$HOME`.
 
 Usage: reserved
-Auto-Connect: yes
+Auto-Connect: yes on classic, no on native
+Availability: everywhere
 
 ### mpris
 
@@ -135,6 +141,7 @@ specified as a slot.
 
 Usage: common
 Auto-Connect: no
+Availability: with providing snap
 
 ### network
 
@@ -142,6 +149,7 @@ Can access the network as a client.
 
 Usage: common
 Auto-Connect: yes
+Availability: everywhere
 
 ### network-bind
 
@@ -149,6 +157,7 @@ Can access the network as a server.
 
 Usage: common
 Auto-Connect: yes
+Availability: everywhere
 
 ### opengl
 
@@ -156,6 +165,7 @@ Can access the opengl hardware.
 
 Usage: reserved
 Auto-Connect: yes
+Availability: classic
 
 ### optical-drive
 
@@ -163,6 +173,7 @@ Can access the first optical drive in read-only mode. Suitable for CD/DVD playba
 
 Usage: common
 Auto-Connect: yes
+Availability: classic
 
 ### pulseaudio
 
@@ -171,6 +182,7 @@ media application. It doesn't allow recording.
 
 Usage: common
 Auto-Connect: yes
+Availability: classic
 
 ### unity7
 
@@ -180,6 +192,7 @@ apps interfering with one another.
 
 Usage: reserved
 Auto-Connect: yes
+Availability: classic
 
 ### x11
 
@@ -188,6 +201,7 @@ apps interfering with one another.
 
 Usage: reserved
 Auto-Connect: yes
+Availability: classic
 
 ## Supported Interfaces - Advanced
 
@@ -198,6 +212,7 @@ privileged access to configure printing.
 
 Usage: reserved
 Auto-Connect: no
+Availability: classic
 
 ### firewall-control
 
@@ -206,6 +221,7 @@ to networking and should only be used with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### locale-control
 
@@ -213,6 +229,7 @@ Can manage locales directly separate from 'config core'.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### log-observe
 
@@ -220,6 +237,7 @@ Can read system logs and set kernel log rate-limiting.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### mount-observe
 
@@ -229,6 +247,7 @@ apps.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### network-control
 
@@ -237,6 +256,7 @@ access to networking and should only be used with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### network-observe
 
@@ -246,6 +266,7 @@ with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### serial-port
 
@@ -254,6 +275,7 @@ access to configure serial port hardware.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### snapd-control
 
@@ -261,6 +283,7 @@ Can manage snaps via snapd.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### system-observe
 
@@ -270,6 +293,7 @@ with trusted apps.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
 
 ### timeserver-control
 
@@ -277,3 +301,4 @@ Can manage timeservers directly separate from config core.
 
 Usage: reserved
 Auto-Connect: no
+Availability: everywhere
