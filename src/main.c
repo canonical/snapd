@@ -114,11 +114,7 @@ int main(int argc, char **argv)
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
-			// NOTE: Use exit rather than die as this produces a more refined error message
-			fprintf(stderr,
-				"cannot remain in %s, please run this snap from another location\n",
-				vanilla_cwd);
-			exit(1);
+			die("cannot remain in %s, please run this snap from another location", vanilla_cwd);
 		}
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
