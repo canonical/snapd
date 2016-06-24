@@ -131,11 +131,15 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 
 // CurrentSideInfo returns the side info for the current revision in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
-	n := len(snapst.Sequence)
-	if n == 0 {
+	if snapst.Current.Unset() {
 		return nil
 	}
-	return snapst.Sequence[n-1]
+	for _, si := range snapst.Sequence {
+		if si.Revision == snapst.Current {
+			return si
+		}
+	}
+	panic("cannot find snapst.Current in the snapst.Sequence")
 }
 
 // DevMode returns true if the snap is installed in developer mode.
@@ -660,10 +664,15 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// store for undo
+	t.Set("old-current", snapst.Current)
+
 	cand := snapst.Candidate
 
 	m.backend.Candidate(snapst.Candidate)
 	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+	snapst.Current = snapst.Candidate.Revision
+
 	snapst.Candidate = nil
 	snapst.Active = true
 	oldChannel := snapst.Channel
@@ -739,6 +748,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldCurrent snap.Revision
+	err = t.Get("old-current", &oldCurrent)
+	if err != nil {
+		return err
+	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 
@@ -746,6 +760,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
 	snapst.Active = false
 	snapst.Channel = oldChannel
+	snapst.Current = oldCurrent
 	snapst.SetTryMode(oldTryMode)
 
 	newInfo, err := readInfo(ss.Name, snapst.Candidate)
