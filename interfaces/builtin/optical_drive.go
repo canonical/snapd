@@ -24,8 +24,8 @@ import (
 )
 
 const opticalDriveConnectedPlugAppArmor = `
-/dev/sr0 r,
-/dev/scd0 r,
+/dev/sr[0-9]* r,
+/dev/scd[0-9]* r,
 `
 
 // NewOpticalDriveInterface returns a new "optical-drive" interface.
