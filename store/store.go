@@ -51,6 +51,10 @@ const (
 	UbuntuCoreWireProtocol = "1"
 )
 
+// UserAgent to send
+// xxx: this should actually be set per client request, and include the client user agent
+var UserAgent = "unset"
+
 func infoFromRemote(d snapDetails) *snap.Info {
 	info := &snap.Info{}
 	info.Architectures = d.Architectures
@@ -228,6 +232,7 @@ func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, cha
 		auther.Authenticate(req)
 	}
 
+	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("Accept", "application/hal+json,application/json")
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Release", release.Series)
@@ -737,6 +742,7 @@ func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType,
 	if auther != nil {
 		auther.Authenticate(req)
 	}
+	req.Header.Set("User-Agent", UserAgent)
 	req.Header.Set("Accept", asserts.MediaType)
 
 	resp, err := s.client.Do(req)
