@@ -322,7 +322,7 @@ void setup_bind_mounts(const char *appname)
 		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
 
 		if (strcmp(m->mnt_type, "none") != 0) {
-			die("only 'none' filesystemtype is supported");
+			die("only 'none' filesystem type is supported");
 		}
 		if (hasmntopt(m, "bind") == NULL) {
 			die("need bind mount flag");
