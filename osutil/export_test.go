@@ -17,23 +17,15 @@
  *
  */
 
-package builtin
+package osutil
 
 import (
-	"github.com/snapcore/snapd/interfaces"
+	"os/user"
 )
 
-const opticalDriveConnectedPlugAppArmor = `
-/dev/sr[0-9]* r,
-/dev/scd[0-9]* r,
-`
+func MockUserLookup(mock func(name string) (*user.User, error)) func() {
+	realUserLookup := userLookup
+	userLookup = mock
 
-// NewOpticalDriveInterface returns a new "optical-drive" interface.
-func NewOpticalDriveInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "optical-drive",
-		connectedPlugAppArmor: opticalDriveConnectedPlugAppArmor,
-		reservedForOS:         true,
-		autoConnect:           true,
-	}
+	return func() { userLookup = realUserLookup }
 }
