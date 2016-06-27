@@ -91,18 +91,11 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	for name, snapState := range snapStates {
 		info, err := snapstate.CurrentInfo(st, name)
 		if err != nil {
-			if _, ok := err.(*snap.NotFoundError); ok {
-				info = &snap.Info{
-					SuggestedName: name,
-					Broken:        true,
-				}
-			} else {
-				// XXX: aggregate instead?
-				if firstErr == nil {
-					firstErr = err
-				}
-				continue
+			// XXX: aggregate instead?
+			if firstErr == nil {
+				firstErr = err
 			}
+			continue
 		}
 		about = append(about, aboutSnap{info, snapState})
 	}

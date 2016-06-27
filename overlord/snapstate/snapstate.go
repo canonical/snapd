@@ -324,6 +324,14 @@ func Rollback(s *state.State, snap, ver string) (*state.TaskSet, error) {
 
 var readInfo = snap.ReadInfo
 
+func readInfoHandleBroken(name string, si *snap.SideInfo) (*snap.Info, error) {
+	info, err := readInfo(name, si)
+	if _, ok := err.(*snap.NotFoundError); ok {
+		return &snap.Info{SuggestedName: name, Broken: true}, nil
+	}
+	return info, err
+}
+
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
 func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, error) {
@@ -338,16 +346,12 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 
 	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
 		if si := snapst.Sequence[i]; si.Revision == revision {
-			return readInfo(name, si)
+			return readInfoHandleBroken(name, si)
 		}
 	}
 
 	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
-		info, err := readInfo(name, snapst.Candidate)
-		if _, ok := err.(*snap.NotFoundError); ok {
-			return &snap.Info{SuggestedName: name, Broken: true}, nil
-		}
-		return info, err
+		return readInfoHandleBroken(name, snapst.Candidate)
 	}
 
 	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
@@ -360,11 +364,7 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if sideInfo := snapst.currentSideInfo(); sideInfo != nil {
-		return readInfo(name, sideInfo)
-	}
-
-	return nil, &snap.NotFoundError{Snap: name}
+	return Info(s, name, snapst.Current)
 }
 
 // Get retrieves the SnapState of the given snap.
