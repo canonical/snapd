@@ -206,7 +206,6 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 
 	// Put a side info into the state
 	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
 		Current:  sideInfo.Revision,
 	})

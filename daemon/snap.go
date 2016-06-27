@@ -132,7 +132,8 @@ type appJSON struct {
 
 func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
 	status := "installed"
-	if snapst.Active {
+
+	if snapst.Current == localSnap.Revision {
 		status = "active"
 	}
 

@@ -106,7 +106,6 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	c.Check(err, IsNil)
 	c.Check(typ, Equals, snap.TypeApp)
 
-	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Candidate, IsNil)
@@ -148,7 +147,6 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
 	c.Check(snapst.Current, Equals, snap.Revision{})
 	c.Check(snapst.Candidate, DeepEquals, si)
@@ -185,7 +183,6 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
 	c.Check(snapst.Candidate, DeepEquals, si)
 	c.Check(snapst.Channel, Equals, "")

@@ -124,7 +124,6 @@ type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 	})
@@ -164,7 +163,6 @@ type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 	})
