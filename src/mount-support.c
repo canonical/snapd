@@ -302,11 +302,11 @@ void sc_setup_mount_profiles(const char *appname)
 	debug("%s: %s", __FUNCTION__, appname);
 
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	const char *bind_profile_dir = "/var/lib/snapd/mount";
+	const char *mount_profile_dir = "/var/lib/snapd/mount";
 
 	char profile_path[PATH_MAX];
 	must_snprintf(profile_path, sizeof(profile_path), "%s/%s.fstab",
-		      bind_profile_dir, appname);
+		      mount_profile_dir, appname);
 
 	f = setmntent(profile_path, "r");
 	// it is ok for the file to not exist
