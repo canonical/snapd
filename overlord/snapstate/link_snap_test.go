@@ -108,6 +108,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Candidate, IsNil)
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -149,6 +150,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
+	c.Check(snapst.Current, Equals, snap.Revision{})
 	c.Check(snapst.Candidate, DeepEquals, si)
 	c.Check(snapst.Channel, Equals, "")
 	c.Check(t.Status(), Equals, state.UndoneStatus)
