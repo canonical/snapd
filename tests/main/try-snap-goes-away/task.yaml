@@ -16,3 +16,6 @@ execute: |
 
   echo A snap in broken state can be removed
   snap remove basic-binaries
+
+  echo Ensure that the symlink to the snapdir is gone
+  test -h /var/lib/snapd/snaps/basic-binaries_x1.snap && exit 1
