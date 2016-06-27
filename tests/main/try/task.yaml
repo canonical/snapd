@@ -36,10 +36,10 @@ execute: |
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
   echo "When try is executed on that directory"
-  snap try ../../lib/snaps/dev-kmsg
+  snap try ../../lib/snaps/basic-binaries
 
   echo "Then the snap command is not able to access the protected resource"
-  if dev-kmsg.reader; then
+  if basic-binaries.disallowed; then
     echo "Expected confinement denial in try mode not worked" && exit 1
   fi
 
@@ -47,10 +47,10 @@ execute: |
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
   echo "When try is executed on that directory with devmode enabled"
-  snap try ../../lib/snaps/dev-kmsg --devmode
+  snap try ../../lib/snaps/basic-binaries --devmode
 
   echo "Then the snap command is able to access the protected resource"
-  result=$(dev-kmsg.reader)
+  result=$(basic-binaries.disallowed)
   [ ${#result} -ge 0 ]
 
   echo "====================================="
