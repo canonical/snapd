@@ -23,12 +23,22 @@ package hookstate
 
 import (
 	"fmt"
+	"os/exec"
 	"regexp"
+	"strings"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+)
+
+var (
+	runCommand = doRunCommand
+
+	// Function that actually runs a hook. Make public here for testing
+	// purposes.
+	RunHook = doRunHook
 )
 
 // HookManager is responsible for the maintenance of hooks in the system state.
@@ -143,13 +153,38 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	// TODO: Actually dispatch the hook.
+	_, err = RunHook(setup.Snap, setup.Revision, setup.Hook)
+	if err != nil {
+		exitErr, ok := err.(*exec.ExitError)
+		if ok {
+			// "exit code 1" is not particularly helpful. So rewrite the error
+			// using stderr instead.
+			err = fmt.Errorf("%s", strings.Trim(string(exitErr.Stderr), " \n"))
+		}
 
-	// Done with the hook. TODO: Check the result, if success call Done(), if
-	// error, call Error(). Since we have no hooks, for now we just call Done().
-	if err := handler.Done(); err != nil {
+		if handlerErr := handler.Error(err); handlerErr != nil {
+			return handlerErr
+		}
+
+		return err
+	}
+
+	if err = handler.Done(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func doRunHook(snapName string, revision snap.Revision, hookName string) ([]byte, error) {
+	revisionString := ""
+	if !revision.Unset() {
+		revisionString = revision.String()
+	}
+
+	return runCommand("snap", "run", snapName, "--hook", hookName, "-r", revisionString)
+}
+
+func doRunCommand(name string, args ...string) ([]byte, error) {
+	return exec.Command(name, args...).Output()
 }
