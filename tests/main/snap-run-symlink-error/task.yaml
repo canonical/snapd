@@ -1,0 +1,27 @@
+summary: Check error handling in symlinks to /usr/bin/snap
+restore: |
+    echo Resetting snapd state...
+    systemctl stop snapd || true
+    umount /var/lib/snapd/snaps/*.snap 2>&1 || true
+    rm -rf /snap/*
+    rm -rf /var/lib/snapd/*
+    rm -f /etc/systemd/system/snap-*.{mount,service}
+    rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
+    systemctl start snapd
+execute: |
+    # FIXME: remove "SNAP_REEXEC" once we have `snap run` inside the os snap
+    export SNAP_REEXEC=0
+    echo Setting up incorrect symlink for snap run
+    mkdir -p /snap/bin
+    ln -s /usr/bin/snap /snap/bin/xxx
+    echo Running unknown command
+    expected='internal error, please report: running "xxx" failed: cannot find snap "xxx"'
+    output="$(/snap/bin/xxx 2>&1 )" && exit 1
+    echo $output
+    err=$?
+    echo Verifying error message
+    if [ $err -ne 46 ]; then
+       echo Wrong error code $err
+    fi
+    [ "$output" = "$expected" ] || exit 1
+

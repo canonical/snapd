@@ -20,6 +20,8 @@
 package overlord_test
 
 import (
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -34,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -54,6 +57,9 @@ func (ovs *overlordSuite) TearDownTest(c *C) {
 }
 
 func (ovs *overlordSuite) TestNew(c *C) {
+	restore := patch.Mock(42, nil)
+	defer restore()
+
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	c.Check(o, NotNil)
@@ -65,16 +71,22 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	s := o.State()
 	c.Check(s, NotNil)
 	c.Check(o.Engine().State(), Equals, s)
+
+	s.Lock()
+	defer s.Unlock()
+	var patchLevel int
+	s.Get("patch-level", &patchLevel)
+	c.Check(patchLevel, Equals, 42)
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
-	fakeState := []byte(`{"data":{"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`)
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":%d,"some":"data"},"changes":null,"tasks":null,"last-change-id":0,"last-task-id":0}`, patch.Level))
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
 	o, err := overlord.New()
-
 	c.Assert(err, IsNil)
+
 	state := o.State()
 	c.Assert(err, IsNil)
 	state.Lock()
@@ -82,7 +94,14 @@ func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
 
 	d, err := state.MarshalJSON()
 	c.Assert(err, IsNil)
-	c.Assert(string(d), DeepEquals, string(fakeState))
+
+	var got, expected map[string]interface{}
+	err = json.Unmarshal(d, &got)
+	c.Assert(err, IsNil)
+	err = json.Unmarshal(fakeState, &expected)
+	c.Assert(err, IsNil)
+
+	c.Check(got, DeepEquals, expected)
 }
 
 func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
@@ -92,6 +111,36 @@ func (ovs *overlordSuite) TestNewWithInvalidState(c *C) {
 
 	_, err = overlord.New()
 	c.Assert(err, ErrorMatches, "EOF")
+}
+
+func (ovs *overlordSuite) TestNewWithPatches(c *C) {
+	p := func(s *state.State) error {
+		s.Set("patched", true)
+		return nil
+	}
+	patch.Mock(1, map[int]func(*state.State) error{1: p})
+
+	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0}}`))
+	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
+	c.Assert(err, IsNil)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+
+	state := o.State()
+	c.Assert(err, IsNil)
+	state.Lock()
+	defer state.Unlock()
+
+	var level int
+	err = state.Get("patch-level", &level)
+	c.Assert(err, IsNil)
+	c.Check(level, Equals, 1)
+
+	var b bool
+	err = state.Get("patched", &b)
+	c.Assert(err, IsNil)
+	c.Check(b, Equals, true)
 }
 
 type witnessManager struct {

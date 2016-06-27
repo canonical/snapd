@@ -1,0 +1,36 @@
+summary: Checks for special cases of snap install from the store
+environment:
+  SNAP_NAME: hello-world
+  DEVMODE_SNAP: devmode-world
+execute: |
+  echo "Install from different channels"
+  expected="(?s)Name +Version +Rev +Developer +Notes\n\
+  $SNAP_NAME .*? canonical +-\n"
+  for channel in edge beta candidate stable
+  do
+    actual=$(snap install $SNAP_NAME --channel=$channel)
+    echo "$actual" | grep -Pzq "$expected" || exit 1
+    snap remove $SNAP_NAME
+  done
+
+  echo "Install non-devmode snap with devmode option"
+  expected="(?s)Name +Version +Rev +Developer +Notes\n\
+  $SNAP_NAME .*? canonical +devmode\n"
+  actual=$(snap install $SNAP_NAME --devmode)
+  echo "$actual" | grep -Pzq "$expected" || exit 1
+
+  echo "Install devmode snap without devmode option"
+  expected="snap not found"
+  actual=$(snap install --channel beta $DEVMODE_SNAP 2>&1 && exit 1 || true)
+  echo "$actual" | grep -Pzq "$expected"
+
+  echo "Install devmode snap from stable"
+  expected="snap not found"
+  actual=$(snap install --devmode $DEVMODE_SNAP 2>&1 && exit 1 || true)
+  echo "$actual" | grep -Pzq "$expected"
+
+  echo "Install devmode snap from beta with devmode option"
+  expected="(?s)Name +Version +Rev +Developer +Notes\n\
+  $DEVMODE_SNAP .* +devmode"
+  actual=$(snap install --channel beta --devmode $DEVMODE_SNAP)
+  echo "$actual" | grep -Pzq "$expected"

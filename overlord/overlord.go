@@ -23,6 +23,7 @@ package overlord
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -107,16 +109,34 @@ func New() (*Overlord, error) {
 
 func loadState(backend state.Backend) (*state.State, error) {
 	if !osutil.FileExists(dirs.SnapStateFile) {
-		return state.New(backend), nil
+		// fail fast, mostly interesting for tests, this dir is setup
+		// by the snapd package
+		stateDir := filepath.Dir(dirs.SnapStateFile)
+		if !osutil.IsDirectory(stateDir) {
+			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
+		}
+		s := state.New(backend)
+		patch.Init(s)
+		return s, nil
 	}
 
 	r, err := os.Open(dirs.SnapStateFile)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read the state file: %s", err)
+		return nil, fmt.Errorf("cannot read the state file: %s", err)
 	}
 	defer r.Close()
 
-	return state.ReadState(backend, r)
+	s, err := state.ReadState(backend, r)
+	if err != nil {
+		return nil, err
+	}
+
+	// one-shot migrations
+	err = patch.Apply(s)
+	if err != nil {
+		return nil, err
+	}
+	return s, nil
 }
 
 func (o *Overlord) ensureTimerSetup() {

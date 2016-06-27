@@ -68,6 +68,7 @@ var api = []*Command{
 	eventsCmd,
 	stateChangeCmd,
 	stateChangesCmd,
+	createUserCmd,
 }
 
 var (
@@ -164,6 +165,12 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
+	}
+
+	createUserCmd = &Command{
+		Path:   "/v2/create-user",
+		UserOK: false,
+		POST:   postCreateUser,
 	}
 )
 
@@ -552,6 +559,12 @@ var snapstateInstallPath = snapstate.InstallPath
 var snapstateTryPath = snapstate.TryPath
 var snapstateGet = snapstate.Get
 
+func ensureStateSoonImpl(st *state.State) {
+	st.EnsureBefore(0)
+}
+
+var ensureStateSoon = ensureStateSoonImpl
+
 var errNothingToInstall = errors.New("nothing to install")
 
 func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
@@ -697,17 +710,20 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.snap, err)
 	}
 
-	chg := newChange(state, inst.Action+"-snap", msg, tsets)
-	chg.Set("snap-names", []string{inst.snap})
-	state.EnsureBefore(0)
+	chg := newChange(state, inst.Action+"-snap", msg, tsets, []string{inst.snap})
+
+	ensureStateSoon(state)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet) *state.Change {
+func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, snapNames []string) *state.Change {
 	chg := st.NewChange(kind, summary)
 	for _, ts := range tsets {
 		chg.AddAll(ts)
+	}
+	if snapNames != nil {
+		chg.Set("snap-names", snapNames)
 	}
 	return chg
 }
@@ -737,10 +753,10 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	}
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
-	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets})
+	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets}, []string{info.Name()})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
-	st.EnsureBefore(0)
+	ensureStateSoon(st)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -855,9 +871,8 @@ out:
 		return InternalError("cannot install snap file: %v", err)
 	}
 
-	chg := newChange(st, "install-snap", msg, tsets)
+	chg := newChange(st, "install-snap", msg, tsets, []string{snapName})
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
-	chg.Set("snap-names", []string{snapName})
 
 	go func() {
 		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
@@ -865,7 +880,7 @@ out:
 		os.Remove(tempPath)
 	}()
 
-	st.EnsureBefore(0)
+	ensureStateSoon(st)
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -1221,7 +1236,56 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot abort change %s with nothing pending", chID)
 	}
 
+	// flag the change
 	chg.Abort()
 
+	// actually ask to proceed with the abort
+	ensureStateSoon(state)
+
 	return SyncResponse(change2changeInfo(chg), nil)
+}
+
+var (
+	postCreateUserUcrednetGetUID = ucrednetGetUID
+	storeUserInfo                = store.UserInfo
+	osutilAddExtraUser           = osutil.AddExtraUser
+)
+
+func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use create-user as non-root")
+	}
+
+	var createData struct {
+		EMail string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&createData); err != nil {
+		return BadRequest("cannot decode create-user data from request body: %v", err)
+	}
+
+	if createData.EMail == "" {
+		return BadRequest("cannot create user: 'email' field is empty")
+	}
+
+	v, err := storeUserInfo(createData.EMail)
+	if err != nil {
+		return BadRequest("cannot create user %q: %s", createData.EMail, err)
+	}
+
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+		return BadRequest("cannot create user %s: %s", v.Username, err)
+	}
+
+	var createResponseData struct {
+		Username string `json:"username"`
+	}
+	createResponseData.Username = v.Username
+
+	return SyncResponse(createResponseData, nil)
 }

@@ -65,7 +65,7 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
-	cur := snapst.Current()
+	cur := snapst.CurrentSideInfo()
 	if cur == nil {
 		return nil, nil, errNoSnap
 	}
@@ -97,8 +97,15 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 
 	var firstErr error
 	for name, snapState := range snapStates {
-		info, err := snap.ReadInfo(name, snapState.Current())
+		info, err := snap.ReadInfo(name, snapState.CurrentSideInfo())
 		if err != nil {
+			// FIXME: this is just a tiny step forward to not
+			//        totally break if a snap can no longer
+			//        be found. we will add more smartness to
+			//        this
+			if _, ok := err.(*snap.NotFoundError); ok {
+				continue
+			}
 			// XXX: aggregate instead?
 			if firstErr == nil {
 				firstErr = err

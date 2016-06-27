@@ -63,6 +63,8 @@ var _ = Suite(&mgrsSuite{})
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
 	dirs.SetRootDir(ms.tempdir)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, IsNil)
 
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 
@@ -117,7 +119,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	snap, err := snapstate.Current(st, "foo")
+	snap, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 
 	// ensure that the binary wrapper file got generated with the right
@@ -289,7 +291,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
-	info, err := snapstate.Current(st, "foo")
+	info, err := snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 
 	c.Check(info.Revision, Equals, snap.R(42))
@@ -327,7 +329,7 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
-	info, err = snapstate.Current(st, "foo")
+	info, err = snapstate.CurrentInfo(st, "foo")
 	c.Assert(err, IsNil)
 
 	c.Check(info.Revision, Equals, snap.R(50))

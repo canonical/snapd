@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -123,6 +124,16 @@ func (s *HomeInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+func (s *HomeInterfaceSuite) TestAutoConnectOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	iface := builtin.NewHomeInterface()
+	c.Check(iface.AutoConnect(), Equals, true)
+}
+
+func (s *HomeInterfaceSuite) TestAutoConnectOnCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	iface := builtin.NewHomeInterface()
+	c.Check(iface.AutoConnect(), Equals, false)
 }
