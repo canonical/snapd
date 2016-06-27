@@ -23,6 +23,19 @@ void setup_private_pts();
 void setup_snappy_os_mounts();
 void setup_slave_mount_namespace();
 
+/**
+ * Setup mount profiles as described by snapd.
+ *
+ * This function reads /var/lib/snapd/mount/$appname.fstab as a fstab(5) file
+ * and executes the mount requests described there.
+ *
+ * Currently only bind mounts are allowed. All bind mounts are read only by
+ * default though the `rw` flag can be used.
+ *
+ * This function is called with the rootfs being "consistent" so that it is
+ * either the core snap on an all-snap system or the core snap + punched holes
+ * on a classic system.
+ **/
 void sc_setup_mount_profiles(const char *appname);
 
 #endif
