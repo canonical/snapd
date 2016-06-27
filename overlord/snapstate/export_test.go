@@ -87,3 +87,7 @@ const (
 	InterimUnusableFlagValueMin  = interimUnusableLegacyFlagValueMin
 	InterimUnusableFlagValueLast = interimUnusableLegacyFlagValueLast
 )
+
+func CurrentSideInfo(snapst *SnapState) *snap.SideInfo {
+	return snapst.currentSideInfo()
+}

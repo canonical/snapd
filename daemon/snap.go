@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,8 +29,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
-
-var errNoSnap = errors.New("no snap installed")
 
 // snapIcon tries to find the icon inside the snap
 func snapIcon(info *snap.Info) string {
@@ -65,14 +62,9 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
-	cur := snapst.CurrentSideInfo()
-	if cur == nil {
-		return nil, nil, errNoSnap
-	}
-
-	info, err := snap.ReadInfo(name, cur)
+	info, err := snapstate.CurrentInfo(st, name)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
+		return nil, nil, err
 	}
 
 	return info, &snapst, nil
@@ -97,7 +89,7 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 
 	var firstErr error
 	for name, snapState := range snapStates {
-		info, err := snap.ReadInfo(name, snapState.CurrentSideInfo())
+		info, err := snapstate.CurrentInfo(st, name)
 		if err != nil {
 			if _, ok := err.(*snap.NotFoundError); ok {
 				info = &snap.Info{
