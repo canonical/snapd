@@ -4,17 +4,16 @@ systems: [-debian-8]
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt
-    rm -f /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
 execute: |
     echo "Having installed the snapd-hacker-toolbelt snap"
     snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
 
     echo "We can change its mount profile externally to mount tmpfs at /var/snap/snapd-hacker-toolbelt/mnt"
     mkdir -p /var/lib/snapd/mount
-    echo "none /var/snap/snapd-hacker-toolbelt/mnt tmpfs defaults 0 0" > /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+    echo "none /var/snap/snapd-hacker-toolbelt/common/mnt tmpfs rw 0 0" > /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
     
     echo "We can now create the test mount directory"
-    mkdir -p /var/snap/snapd-hacker-toolbelt/mnt
+    mkdir -p /var/snap/snapd-hacker-toolbelt/common/mnt
     
     echo "We can now run busybox.stat and expect it to fail"
-    ( cd / && ! /snap/bin/snapd-hacker-toolbelt.busybox stat /var/snap/snapd-hacker-toolbelt/mnt )
+    ( cd / && ! /snap/bin/snapd-hacker-toolbelt.busybox stat /var/snap/snapd-hacker-toolbelt/common/mnt )

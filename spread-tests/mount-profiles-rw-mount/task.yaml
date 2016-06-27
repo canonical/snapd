@@ -1,0 +1,27 @@
+summary: Check that write-only bind mounts can be created
+# This is blacklisted on debian because we first have to get the dpkg-vendor patches
+systems: [-debian-8]
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -rf /var/snap/snapd-hacker-toolbelt
+execute: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
+
+    echo "We can change its mount profile externally to create a writable bind-mount"
+    echo "/var/snap/snapd-hacker-toolbelt/common/src -> /var/snap/snapd-hacker-toolbelt/common/dst"
+    mkdir -p /var/lib/snapd/mount
+    echo "/var/snap/snapd-hacker-toolbelt/common/src /var/snap/snapd-hacker-toolbelt/common/dst none bind,rw 0 0" > /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+    
+    echo "We can now create both test directories"
+    mkdir -p /var/snap/snapd-hacker-toolbelt/common/src
+    mkdir -p /var/snap/snapd-hacker-toolbelt/common/dst
+    chmod 0777 /var/snap/snapd-hacker-toolbelt/common/dst
+    
+    value="canary-$(dd if=/dev/urandom bs=4 count=1 2>/dev/null | od -A none -t x4 | cut -f 2 -d ' ')"
+
+    echo "We can now run busybox.tee to write to the file in the destination directory"
+    ( cd / && echo "$value" | /snap/bin/snapd-hacker-toolbelt.busybox tee /var/snap/snapd-hacker-toolbelt/common/dst/canary )
+
+    echo "And we should see the written value from the source directory"
+    [ "$(cat /var/snap/snapd-hacker-toolbelt/common/src/canary)" = "$value" ]
