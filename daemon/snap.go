@@ -102,7 +102,7 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 			if _, ok := err.(*snap.NotFoundError); ok {
 				info = &snap.Info{
 					SuggestedName: name,
-					Vanished:      true,
+					Broken:        true,
 				}
 			} else {
 				// XXX: aggregate instead?
@@ -162,7 +162,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"trymode":        snapst.TryMode(),
 		"private":        localSnap.Private,
 		"apps":           apps,
-		"vanished":       localSnap.Vanished,
+		"broken":         localSnap.Broken,
 	}
 }
 

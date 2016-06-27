@@ -137,7 +137,7 @@ type Info struct {
 	MustBuy bool
 
 	// should really be a flag
-	Vanished bool
+	Broken bool
 }
 
 // Name returns the blessed name for the snap.

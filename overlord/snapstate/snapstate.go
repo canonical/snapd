@@ -261,15 +261,8 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	active := snapst.Active
 
 	info, err := Info(s, name, revision)
-	if _, ok := err.(*snap.SnapVanishedError); ok {
-		info = &snap.Info{
-			SuggestedName: name,
-			Vanished:      true,
-		}
-	} else {
-		if err != nil {
-			return nil, err
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	// check if this is something that can be removed
@@ -350,7 +343,11 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 	}
 
 	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
-		return readInfo(name, snapst.Candidate)
+		info, err := readInfo(name, snapst.Candidate)
+		if _, ok := err.(*snap.NotFoundError); ok {
+			return &snap.Info{SuggestedName: name, Broken: true}, nil
+		}
+		return info, err
 	}
 
 	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
