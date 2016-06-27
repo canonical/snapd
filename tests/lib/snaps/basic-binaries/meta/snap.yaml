@@ -11,3 +11,5 @@ apps:
   command: bin/block
  cat:
   command: bin/cat
+ disallowed:
+  command: bin/disallowed
