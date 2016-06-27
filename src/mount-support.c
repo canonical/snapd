@@ -332,7 +332,8 @@ void setup_bind_mounts(const char *appname)
 		}
 
 		if (mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL) != 0) {
-			die("unable to bind private /tmp");
+			die("cannot mount %s at %s with", m->mnt_fsname,
+			    m->mnt_dir);
 		}
 	}
 }
