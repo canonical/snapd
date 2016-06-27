@@ -766,53 +766,77 @@ func (s *SnapUbuntuStoreRepository) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-// Optionally specify parameters to the store purchase.
-// Currency: ISO 4217 code as string
-// BackendID: The payment backend to use, e.g. "credit_card", "paypal".
-// MethodID: The unique identifier for the payment method, retrieved from the pay server.
-type BuyOptions struct {
-	Currency  string
-	BackendID string
-	MethodID  int64
+// BuyParameters specifies parameters for store purchases.
+type BuyParameters struct {
+	// Required parameters
+	SnapID        string
+	Name          string
+	Channel       string
+	ExpectedPrice float64
+	Currency      string // ISO 4217 code as string
+	Auther        Authenticator
+
+	// Optional paramters
+	BackendID string // The payment backend to use, e.g. "credit_card", "paypal".
+	MethodID  int    // Identifier for a specific payment method, e.g. a particularly credit card or paypal account.
 }
 
-// When the purchase state is "InProgress" (i.e. requires user interaction to complete)
-// this struct contains the information required to complete the purchase.
-type BuyRedirect struct {
+// BuyResult holds information required to complete the purchase when state
+// is InProgress, case in which it requires user interaction to complete.
+type BuyResult struct {
+	State      string
 	RedirectTo string
 	PartnerID  string
 }
 
-// purchaseInstruction encapsulates the data that must be sent in order to make a purchase from the store.
-// The Device ID can be sent in the extended header "X-Device-Id".
-// The Partner ID (e.g. "bq") can be sent in the extended header "X-Partner-Id".
+// purchaseInstruction holds data sent to the store for purchases.
+// X-Device-Id and X-Partner-Id (e.g. "bq") may be sent as headers.
 type purchaseInstruction struct {
 	SnapID    string  `json:"snap_id"`
 	ItemSKU   string  `json:"item_sku,omitempty"`
 	Amount    float64 `json:"amount,omitempty"`
 	Currency  string  `json:"currency,omitempty"`
 	BackendID string  `json:"backend_id,omitempty"`
-	MethodID  int64   `json:"method_id,omitempty"`
+	MethodID  int     `json:"method_id,omitempty"`
 }
 
 type buyError struct {
 	ErrorMessage string `json:"error_message"`
 }
 
-// Buy the specified snap using the default currency and payment method.
+// Buy sends a purchase request for the specified snap.
 // Returns the state of the purchase: Complete, Cancelled, InProgress or Pending.
-func (s *SnapUbuntuStoreRepository) Buy(snapID, channel string, expectedPrice float64, options BuyOptions, auther Authenticator) (string, *BuyRedirect, error) {
-	if auther == nil {
-		return "", nil, fmt.Errorf("cannot make purchase request from store: no authentication credentials provided")
+func (s *SnapUbuntuStoreRepository) Buy(parameters BuyParameters) (*BuyResult, error) {
+	if parameters.SnapID == "" {
+		return nil, &ErrBuyParameterMissing{parameters.Name, parameters.SnapID, "snap ID"}
 	}
 
-	// Create the purchase instruction
+	if parameters.Name == "" {
+		return nil, &ErrBuyParameterMissing{parameters.Name, parameters.SnapID, "name"}
+	}
+
+	if parameters.Channel == "" {
+		return nil, &ErrBuyParameterMissing{parameters.Name, parameters.SnapID, "channel"}
+	}
+
+	if parameters.ExpectedPrice <= 0 {
+		return nil, &ErrBuyParameterMissing{parameters.Name, parameters.SnapID, "price"}
+	}
+
+	if parameters.Currency == "" {
+		return nil, &ErrBuyParameterMissing{parameters.Name, parameters.SnapID, "currency"}
+	}
+
+	if parameters.Auther == nil {
+		return nil, &ErrBuyParameterMissing{parameters.Name, parameters.SnapID, "authentication credentials"}
+	}
+
 	instruction := purchaseInstruction{
-		SnapID:    snapID,
-		Amount:    expectedPrice,
-		Currency:  options.Currency,
-		BackendID: options.BackendID,
-		MethodID:  options.MethodID,
+		SnapID:    parameters.SnapID,
+		Amount:    parameters.ExpectedPrice,
+		Currency:  parameters.Currency,
+		BackendID: parameters.BackendID,
+		MethodID:  parameters.MethodID,
 	}
 
 	if instruction.Currency == "" {
@@ -821,64 +845,67 @@ func (s *SnapUbuntuStoreRepository) Buy(snapID, channel string, expectedPrice fl
 
 	jsonData, err := json.Marshal(instruction)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
 	req, err := http.NewRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData))
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 
-	// set headers
-	s.setUbuntuStoreHeaders(req, channel, auther)
-
-	// tell the server we're sending JSON
+	s.setUbuntuStoreHeaders(req, parameters.Channel, parameters.Auther)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
-		return "", nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// check statusCode
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
 		// user already purchased or purchase successful
 		var purchaseDetails purchase
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&purchaseDetails); err != nil {
-			return "", nil, err
+			return nil, err
 		}
 
-		var redirect *BuyRedirect
-		if purchaseDetails.State == "InProgress" {
-			redirect = &BuyRedirect{
-				RedirectTo: purchaseDetails.RedirectTo,
-				PartnerID:  resp.Header.Get("X-Partner-Id"),
-			}
-		}
-		return purchaseDetails.State, redirect, nil
+		return &BuyResult{
+			State:      purchaseDetails.State,
+			RedirectTo: purchaseDetails.RedirectTo,
+			PartnerID:  resp.Header.Get("X-Partner-Id"),
+		}, nil
 	case http.StatusBadRequest:
-		// Invalid price was specified.
+		// Invalid price was specified, etc.
 		var errorInfo buyError
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errorInfo); err != nil {
-			return "", nil, err
+			return nil, err
 		}
-		return "", nil, fmt.Errorf("cannot buy: bad request: %s", errorInfo.ErrorMessage)
+		return nil, &ErrBadBuyRequest{
+			Name:    parameters.Name,
+			Message: errorInfo.ErrorMessage,
+		}
 	case http.StatusNotFound:
-		// Snap ID doesn't exist.
-		return "", nil, fmt.Errorf("cannot buy: could not find snap with ID %q", snapID)
+		// Likely because snap ID doesn't exist.
+		return nil, &ErrBuySnapNotFound{
+			Name: parameters.Name,
+		}
+
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
-		return "", nil, ErrInvalidCredentials
+		return nil, ErrInvalidCredentials
 	default:
 		var errorInfo buyError
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errorInfo); err != nil {
-			return "", nil, err
+			return nil, err
 		}
-		return "", nil, fmt.Errorf("cannot buy: unexpected HTTP status code %d for snap ID %q: %s", resp.StatusCode, snapID, errorInfo.ErrorMessage)
+		return nil, &ErrBuyUnexpectedCode{
+			Name:       parameters.Name,
+			StatusCode: resp.StatusCode,
+			Message:    errorInfo.ErrorMessage,
+		}
 	}
 }
