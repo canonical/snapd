@@ -103,10 +103,6 @@ func readOSRelease() (*OS, error) {
 		return nil, fmt.Errorf("cannot read os-release: %s", err)
 	}
 
-	if osRelease.Name == "ubuntu" && osRelease.Codename == "" {
-		osRelease.Codename = "xenial" // or maybe "rolling"?
-	}
-
 	return osRelease, nil
 }
 
