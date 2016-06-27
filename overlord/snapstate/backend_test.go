@@ -139,8 +139,12 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p 
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+	if name == "borken" {
+		return nil, errors.New(`cannot read info for "borken" snap`)
+	}
 	// naive emulation for now, always works
 	info := &snap.Info{SuggestedName: name, SideInfo: *si}
+	info.Type = snap.TypeApp
 	if name == "gadget" {
 		info.Type = snap.TypeGadget
 	}
@@ -248,7 +252,7 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	})
 }
 
-func (f *fakeSnappyBackend) Current(curInfo *snap.Info) {
+func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	old := "<no-current>"
 	if curInfo != nil {
 		old = curInfo.MountDir()

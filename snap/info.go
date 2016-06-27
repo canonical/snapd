@@ -361,12 +361,21 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+type NotFoundError struct {
+	Snap     string
+	Revision Revision
+}
+
+func (e NotFoundError) Error() string {
+	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
+}
+
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("cannot find mounted snap %q at revision %s", name, si.Revision)
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision}
 	}
 	if err != nil {
 		return nil, err

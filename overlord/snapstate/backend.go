@@ -20,7 +20,6 @@
 package snapstate
 
 import (
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -52,14 +51,6 @@ type managerBackend interface {
 	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
-	Current(cur *snap.Info)
+	CurrentInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
 }
-
-type defaultBackend struct {
-	// XXX defaultBackend will go away and be replaced by this in the end.
-	backend.Backend
-}
-
-func (b *defaultBackend) Candidate(*snap.SideInfo) {}
-func (b *defaultBackend) Current(*snap.Info)       {}

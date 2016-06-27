@@ -51,6 +51,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	c.Assert(env, DeepEquals, []string{
 		"SNAP=/snap/foo/17",
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
+		"SNAP_COMMON=/var/snap/foo/common",
 		"SNAP_DATA=/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=foo",
@@ -66,6 +67,7 @@ func (ts *HTestSuite) TestUser(c *C) {
 
 	c.Assert(env, DeepEquals, []string{
 		"HOME=/root/snap/foo/17",
+		"SNAP_USER_COMMON=/root/snap/foo/common",
 		"SNAP_USER_DATA=/root/snap/foo/17",
 	})
 }

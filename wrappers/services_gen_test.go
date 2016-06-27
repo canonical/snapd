@@ -42,7 +42,7 @@ Description=Service for snap application snap.app
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/snap run  snap.app
+ExecStart=/usr/bin/snap run snap.app
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
 ExecStop=/usr/bin/snap run --command=stop snap.app
@@ -67,7 +67,7 @@ Description=Service for snap application xkcd-webserver.xkcd-webserver
 X-Snappy=yes
 
 [Service]
-ExecStart=/usr/bin/snap run  xkcd-webserver
+ExecStart=/usr/bin/snap run xkcd-webserver
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
 ExecStop=/usr/bin/snap run --command=stop xkcd-webserver

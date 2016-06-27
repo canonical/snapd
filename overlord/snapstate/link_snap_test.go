@@ -101,8 +101,14 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
+
+	typ, err := snapst.Type()
+	c.Check(err, IsNil)
+	c.Check(typ, Equals, snap.TypeApp)
+
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Candidate, IsNil)
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -144,6 +150,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
+	c.Check(snapst.Current, Equals, snap.Revision{})
 	c.Check(snapst.Candidate, DeepEquals, si)
 	c.Check(snapst.Channel, Equals, "")
 	c.Check(t.Status(), Equals, state.UndoneStatus)
@@ -225,6 +232,15 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "core", &snapst)
+	c.Assert(err, IsNil)
+
+	typ, err := snapst.Type()
+	c.Check(err, IsNil)
+	c.Check(typ, Equals, snap.TypeOS)
+
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, Equals, true)
 	c.Check(t.Log(), HasLen, 1)

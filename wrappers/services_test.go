@@ -76,9 +76,9 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	verbs := []string{"Start", "Stop", "StopPost"}
-	cmds := []string{"", "--command=stop", "--command=post-stop"}
+	cmds := []string{"", " --command=stop", " --command=post-stop"}
 	for i := range verbs {
-		expected := fmt.Sprintf("Exec%s=/usr/bin/snap run %s hello-snap.svc1", verbs[i], cmds[i])
+		expected := fmt.Sprintf("Exec%s=/usr/bin/snap run%s hello-snap.svc1", verbs[i], cmds[i])
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 
