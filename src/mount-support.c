@@ -297,7 +297,7 @@ void setup_slave_mount_namespace()
 	}
 }
 
-void setup_bind_mounts(const char *appname)
+void sc_setup_mount_profiles(const char *appname)
 {
 	debug("%s: %s", __FUNCTION__, appname);
 

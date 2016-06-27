@@ -101,7 +101,7 @@ int main(int argc, char **argv)
 			setup_snappy_os_mounts();
 		}
 		// setup the security backend bind mounts
-		setup_bind_mounts(appname);
+		sc_setup_mount_profiles(appname);
 
 #ifdef STRICT_CONFINEMENT
 		// set up private mounts

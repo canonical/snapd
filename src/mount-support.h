@@ -23,6 +23,6 @@ void setup_private_pts();
 void setup_snappy_os_mounts();
 void setup_slave_mount_namespace();
 
-void setup_bind_mounts(const char *appname);
+void sc_setup_mount_profiles(const char *appname);
 
 #endif
