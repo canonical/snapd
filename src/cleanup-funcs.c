@@ -16,8 +16,15 @@
  */
 
 #include <stdlib.h>
+#include <stdio.h>
 
 void sc_cleanup_string(char **ptr)
 {
 	free(*ptr);
+}
+
+void sc_cleanup_file(FILE ** ptr)
+{
+	if (*ptr != NULL)
+		fclose(*ptr);
 }

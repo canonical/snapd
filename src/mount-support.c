@@ -36,6 +36,7 @@
 #include "snap.h"
 #include "classic.h"
 #include "mount-support-nvidia.h"
+#include "cleanup-funcs.h"
 
 #define MAX_BUF 1000
 
@@ -300,7 +301,7 @@ void setup_bind_mounts(const char *appname)
 {
 	debug("%s: %s", __FUNCTION__, appname);
 
-	FILE *f = NULL;
+	FILE *f __attribute__((cleanup(sc_cleanup_file))) = NULL;
 	const char *bind_profile_dir = "/var/lib/snapd/bind/profiles/";
 
 	char profile_path[PATH_MAX];
@@ -334,11 +335,4 @@ void setup_bind_mounts(const char *appname)
 			die("unable to bind private /tmp");
 		}
 	}
-
-	if (f != NULL) {
-		if (fclose(f) != 0)
-			die("could not close bind mount file");
-	}
-
-	return;
 }
