@@ -799,7 +799,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Status(), Equals, state.ErrorStatus)
-	c.Check(chg.Err(), ErrorMatches, `(?s).*revision 7 of snap "some-snap" already installed.*`)
+	c.Check(chg.Err(), ErrorMatches, `(?s).*revision 7 of snap "some-snap" already current.*`)
 
 	// ensure all our tasks ran
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{{
@@ -821,6 +821,53 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 		Channel:      "",
 		Revision:     snap.R(7),
 	})
+}
+
+func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
+	si7 := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+	si11 := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(11),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si11.Revision,
+	})
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
+
+	// ensure all our tasks ran
+	c.Assert(s.fakeBackend.ops, HasLen, 9)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	// verify current got updated
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current, Equals, snap.R(7))
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
