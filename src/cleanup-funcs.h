@@ -36,4 +36,12 @@ void sc_cleanup_string(char **ptr);
  **/
 void sc_cleanup_file(FILE ** ptr);
 
+/**
+ * Close an open file with endmntent(3)
+ *
+ * This function is designed to be used with
+ * __attribute__((cleanup(sc_cleanup_endmntent))).
+ **/
+void sc_cleanup_endmntent(FILE ** ptr);
+
 #endif

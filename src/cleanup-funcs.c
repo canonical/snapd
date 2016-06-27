@@ -17,6 +17,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <mntent.h>
 
 void sc_cleanup_string(char **ptr)
 {
@@ -27,4 +28,10 @@ void sc_cleanup_file(FILE ** ptr)
 {
 	if (*ptr != NULL)
 		fclose(*ptr);
+}
+
+void sc_cleanup_endmntent(FILE ** ptr)
+{
+	if (*ptr != NULL)
+		endmntent(*ptr);
 }
