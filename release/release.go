@@ -20,11 +20,13 @@
 package release
 
 import (
+	"bufio"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	"github.com/snapcore/snapd/osutil"
+	"unicode"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.
@@ -32,10 +34,11 @@ var Series = "16"
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	VersionID string `json:"version-id,omitempty"`
-	Codename  string `json:"codename,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	VersionID  string `json:"version-id,omitempty"`
+	Codename   string `json:"codename,omitempty"`
+	PrettyName string `json:"pretty-name,omitempty"`
 }
 
 // ForceDevMode returns true if the distribution doesn't implement required
@@ -48,7 +51,7 @@ func (os *OS) ForceDevMode() bool {
 		return false
 
 	case "elementary":
-		switch os.Release {
+		switch os.VersionID {
 		case "0.4":
 			return false
 		default:
@@ -69,31 +72,39 @@ var osReleasePath = "/etc/os-release"
 func readOSRelease() (*OS, error) {
 	osRelease := &OS{}
 
-	content, err := ioutil.ReadFile(osReleasePath)
+	f, err := os.Open(osReleasePath)
 	if err != nil {
+		return nil, fmt.Errorf("cannot open os-release: %s", err)
+	}
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		ws := strings.SplitN(scanner.Text(), "=", 2)
+		if len(ws) < 2 {
+			continue
+		}
+
+		k := strings.TrimSpace(ws[0])
+		v := strings.TrimFunc(ws[1], func(r rune) bool { return r == '"' || unicode.IsSpace(r) })
+		switch k {
+		case "ID":
+			osRelease.ID = v
+		case "NAME":
+			osRelease.Name = v
+		case "VERSION_ID":
+			osRelease.VersionID = v
+		case "UBUNTU_CODENAME":
+			osRelease.Codename = v
+		case "PRETTY_NAME":
+			osRelease.PrettyName = v
+		}
+	}
+	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("cannot read os-release: %s", err)
 	}
 
-	for _, line := range strings.Split(string(content), "\n") {
-		if strings.HasPrefix(line, "ID=") {
-			tmp := strings.SplitN(line, "=", 2)
-			osRelease.ID = strings.Trim(tmp[1], "\"")
-		}
-		if strings.HasPrefix(line, "NAME=") {
-			tmp := strings.SplitN(line, "=", 2)
-			osRelease.Name = strings.Trim(tmp[1], "\"")
-		}
-		if strings.HasPrefix(line, "VERSION_ID=") {
-			tmp := strings.SplitN(line, "=", 2)
-			osRelease.VersionID = strings.Trim(tmp[1], "\"")
-		}
-		if strings.HasPrefix(line, "UBUNTU_CODENAME=") {
-			tmp := strings.SplitN(line, "=", 2)
-			osRelease.Codename = strings.Trim(tmp[1], "\"")
-		}
-	}
-	if osRelease.Codename == "" {
-		osRelease.Codename = "xenial"
+	if osRelease.Name == "ubuntu" && osRelease.Codename == "" {
+		osRelease.Codename = "xenial" // or maybe "rolling"?
 	}
 
 	return osRelease, nil

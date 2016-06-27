@@ -221,12 +221,16 @@ func (client *Client) ServerVersion() (string, error) {
 		serverVersion = "unknown"
 	}
 
-	versionStr := fmt.Sprintf(""+
-		"snapd:  %s\n"+
-		"series: %s\n", serverVersion, sysInfo.Series)
-	if sysInfo.OnClassic {
-		versionStr += fmt.Sprintf("%s %s\n", sysInfo.OSRelease.ID, sysInfo.OSRelease.VersionID)
+	what := "classic"
+	if !sysInfo.OnClassic {
+		what = "unspecified"
+		// what = machine info (e.g. RPi3 etc)
 	}
+
+	// where := "localhost" ... :-)
+
+	versionStr := fmt.Sprintf("%s/%s/%s/%s", serverVersion, sysInfo.Series, sysInfo.OSRelease.PrettyName, what)
+
 	return versionStr, nil
 }
 
@@ -273,10 +277,11 @@ func IsTwoFactorError(err error) bool {
 
 // OSRelease contains information about the system extracted from /etc/os-release.
 type OSRelease struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	VersionID string `json:"version-id,omitempty"`
-	Codename  string `json:"codename,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	VersionID  string `json:"version-id,omitempty"`
+	Codename   string `json:"codename,omitempty"`
+	PrettyName string `json:"pretty-name,omitempty"`
 }
 
 // SysInfo holds system information
