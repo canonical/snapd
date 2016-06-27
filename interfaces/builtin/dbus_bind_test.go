@@ -57,9 +57,26 @@ slots:
     interface: dbus-bind
     bus: system
     name: org.test-system
+plugs:
+  test-plug:
+    interface: dbus-bind
+
+apps:
+  test-provider:
+    slots:
+    - test-slot
+  test-session-provider:
+    slots:
+    - test-session
+  test-system-provider:
+    slots:
+    - test-system
+  test-consumer:
+    plugs:
+    - test-plug
 `))
 	c.Assert(err, IsNil)
-	s.plug = nil
+	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["test-plug"]}
 	s.slot = &interfaces.Slot{SlotInfo: info.Slots["test-slot"]}
 	s.testSessionSlot = &interfaces.Slot{SlotInfo: info.Slots["test-session"]}
 	s.testSystemSlot = &interfaces.Slot{SlotInfo: info.Slots["test-system"]}
@@ -70,25 +87,30 @@ func (s *DbusBindInterfaceSuite) TestName(c *C) {
 }
 
 func (s *DbusBindInterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
-		interfaces.SecurityDBus, interfaces.SecurityUDev,
-		interfaces.SecurityMount}
+	systems := [...]interfaces.SecuritySystem{interfaces.SecurityDBus,
+		interfaces.SecurityUDev, interfaces.SecurityMount}
 	for _, system := range systems {
-		// no permanent perms for plug
-		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
+		snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 
-		// no connected perms for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-
-		// no connected perms for slot
 		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
+
+		snippet, err = s.iface.PermanentPlugSnippet(s.plug, system)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
 	}
+
+	// no connected slot seccomp policy either
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 }
 
 func (s *DbusBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
@@ -98,7 +120,16 @@ func (s *DbusBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, Not(IsNil))
+
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, Not(IsNil))
 	}
+
+	// connected slot apparmor policty too
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *DbusBindInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
