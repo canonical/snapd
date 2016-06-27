@@ -372,8 +372,6 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// mark as inactive
-	snapst.Current = snap.R(0)
 	Set(st, ss.Name, snapst)
 	return nil
 }
@@ -415,10 +413,6 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 	if err != nil {
 		return err
-	}
-
-	if snapst.Current == ss.Revision {
-		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.Name)
 	}
 
 	if len(snapst.Sequence) == 1 {

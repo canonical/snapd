@@ -1028,6 +1028,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
+	c.Assert(chg.Err(), IsNil)
 	c.Assert(s.fakeBackend.ops, HasLen, 6)
 	expected := []fakeOp{
 		{
@@ -1118,6 +1119,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
+	c.Assert(chg.Err(), IsNil)
 	c.Assert(s.fakeBackend.ops, HasLen, 10)
 	expected := []fakeOp{
 		{
