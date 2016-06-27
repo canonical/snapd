@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
@@ -41,6 +42,10 @@ owner @{HOME}/sn[^a]**            rwk,
 owner @{HOME}/sna[^p]**           rwk,
 # allow creating a few files not caught above
 owner @{HOME}/{s,sn,sna}{,/} rwk,
+
+# allow access to gvfs mounts (only allow writes to files, not mount point)
+owner /run/user/[0-9]*/gvfs/**   r,
+owner /run/user/[0-9]*/gvfs/*/** w,
 `
 
 // NewHomeInterface returns a new "home" interface.
@@ -49,6 +54,6 @@ func NewHomeInterface() interfaces.Interface {
 		name: "home",
 		connectedPlugAppArmor: homeConnectedPlugAppArmor,
 		reservedForOS:         true,
-		autoConnect:           true,
+		autoConnect:           release.OnClassic,
 	}
 }

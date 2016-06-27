@@ -21,6 +21,9 @@ package snapstate_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -107,6 +110,9 @@ assumes: [common-data-dir]`
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -120,6 +126,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: gadget
@@ -143,6 +150,9 @@ version: 2
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
@@ -156,6 +166,7 @@ version: 1
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: zgadget
@@ -179,6 +190,11 @@ version: 2
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
+	err := os.MkdirAll(filepath.Dir(dirs.SnapFirstBootStamp), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapFirstBootStamp, nil, 0644)
+	c.Assert(err, IsNil)
+
 	reset := release.MockOnClassic(false)
 	defer reset()
 

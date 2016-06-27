@@ -54,7 +54,7 @@ type fakeStore struct {
 	fakeTotalProgress   int
 }
 
-func (f *fakeStore) Snap(name, channel string, auther store.Authenticator) (*snap.Info, error) {
+func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
 	revno := snap.R(11)
 	if channel == "channel-for-7" {
 		revno.N = 7
@@ -139,8 +139,12 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath string, si *snap.SideInfo, p 
 }
 
 func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
+	if name == "borken" {
+		return nil, errors.New(`cannot read info for "borken" snap`)
+	}
 	// naive emulation for now, always works
 	info := &snap.Info{SuggestedName: name, SideInfo: *si}
+	info.Type = snap.TypeApp
 	if name == "gadget" {
 		info.Type = snap.TypeGadget
 	}
@@ -248,7 +252,7 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	})
 }
 
-func (f *fakeSnappyBackend) Current(curInfo *snap.Info) {
+func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	old := "<no-current>"
 	if curInfo != nil {
 		old = curInfo.MountDir()
