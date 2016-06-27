@@ -138,7 +138,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.CurrentSideInfo() != nil {
+	if snapst.currentSideInfo() != nil {
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
@@ -187,7 +187,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.CurrentSideInfo() == nil {
+	if snapst.currentSideInfo() == nil {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
@@ -252,12 +252,12 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	cur := snapst.CurrentSideInfo()
+	cur := snapst.currentSideInfo()
 	if cur == nil {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	revision := snapst.CurrentSideInfo().Revision
+	revision := snapst.currentSideInfo().Revision
 	active := snapst.Active
 
 	info, err := Info(s, name, revision)
@@ -356,7 +356,7 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if sideInfo := snapst.CurrentSideInfo(); sideInfo != nil {
+	if sideInfo := snapst.currentSideInfo(); sideInfo != nil {
 		return readInfo(name, sideInfo)
 	}
 
@@ -391,7 +391,7 @@ func All(s *state.State) (map[string]*SnapState, error) {
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
 	for snapName, snapState := range stateMap {
-		if snapState.CurrentSideInfo() != nil {
+		if snapState.currentSideInfo() != nil {
 			curStates[snapName] = snapState
 		}
 	}
@@ -450,7 +450,7 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		return nil, err
 	}
 	for snapName, snapState := range stateMap {
-		if snapState.CurrentSideInfo() == nil {
+		if snapState.currentSideInfo() == nil {
 			continue
 		}
 		snapInfo, err := CurrentInfo(s, snapName)
