@@ -1,0 +1,24 @@
+summary: Check that mount profiles are honored by snap-confine
+# This is blacklisted on debian because we first have to get the dpkg-vendor patches
+systems: [-debian-8]
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -rf /var/snap/snapd-hacker-toolbelt
+execute: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
+
+    echo "We can change its mount profile externally to bind-mount /var/snap/snapd-hacker-toolbelt/{src,dst}"
+    mkdir -p /var/lib/snapd/mount
+    echo "/var/snap/snapd-hacker-toolbelt/src /var/snap/snapd-hacker-toolbelt/dst none bind,ro 0 0" > /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+    
+    echo "We can now create both test directories"
+    mkdir -p /var/snap/snapd-hacker-toolbelt/src
+    mkdir -p /var/snap/snapd-hacker-toolbelt/dst
+    
+    echo "And put a canary file with a random value inside"
+    value="trololo-$RANDOM"
+    echo "$value" > /var/snap/snapd-hacker-toolbelt/src/canary
+
+    echo "We can now run busybox.cat from the destination directory and expect the random value to match"
+    [ "$(cd / && /snap/bin/snapd-hacker-toolbelt.busybox cat /var/snap/snapd-hacker-toolbelt/dst/canary)" = "$value" ]
