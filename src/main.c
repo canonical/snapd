@@ -100,9 +100,6 @@ int main(int argc, char **argv)
 		if (is_running_on_classic_distribution()) {
 			setup_snappy_os_mounts();
 		}
-		// setup the security backend bind mounts
-		sc_setup_mount_profiles(appname);
-
 #ifdef STRICT_CONFINEMENT
 		// set up private mounts
 		setup_private_mount(appname);
@@ -116,6 +113,9 @@ int main(int argc, char **argv)
 			setup_devices_cgroup(appname, &udev_s);
 		snappy_udev_cleanup(&udev_s);
 #endif				// ifdef STRICT_CONFINEMENT
+
+		// setup the security backend bind mounts
+		sc_setup_mount_profiles(appname);
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
