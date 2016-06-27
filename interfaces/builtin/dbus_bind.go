@@ -58,7 +58,12 @@ dbus (bind)
 dbus (receive)
     bus=###DBUS_BIND_BUS###
     path=###DBUS_BIND_PATH###
-    peer=(name=###DBUS_BIND_NAME###, label=unconfined),
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+dbus (send)
+    bus=###DBUS_BIND_BUS###
+    path=###DBUS_BIND_PATH###
+    interface=org.freedesktop.DBus.Properties
+    peer=(name=org.freedesktop.DBus, label=unconfined),
 `)
 
 var dbusBindPermanentSlotSecComp = []byte(`
