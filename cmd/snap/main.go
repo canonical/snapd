@@ -103,7 +103,7 @@ func Parser() *flags.Parser {
 			cv = i18n.G("unavailable") + "\n"
 		}
 
-		fmt.Fprintf(Stdout, "snap:   %s\n%s", cmd.Version, cv)
+		fmt.Fprintf(Stdout, "snap:  %s\nsnapd: %s\n", cmd.Version, cv)
 
 		os.Exit(0)
 	}
