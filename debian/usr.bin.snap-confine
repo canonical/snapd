@@ -71,7 +71,7 @@
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/profiles/* r,
  
     # reading mount profiles
-    /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/profiles/* r,
+    /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
 
     # set up snap-specific private /tmp dir
     capability chown,
