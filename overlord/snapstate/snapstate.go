@@ -359,7 +359,8 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	if sideInfo := snapst.CurrentSideInfo(); sideInfo != nil {
 		return readInfo(name, sideInfo)
 	}
-	return nil, fmt.Errorf("cannot find snap %q", name)
+
+	return nil, &snap.NotFoundError{Snap: name}
 }
 
 // Get retrieves the SnapState of the given snap.
@@ -431,7 +432,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		if !snapState.Active {
 			continue
 		}
-		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
+		snapInfo, err := CurrentInfo(s, snapName)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
@@ -452,7 +453,7 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		if snapState.CurrentSideInfo() == nil {
 			continue
 		}
-		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
+		snapInfo, err := CurrentInfo(s, snapName)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
