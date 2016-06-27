@@ -716,6 +716,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	t.Logf("snap %q at rev %s linked", newInfo.Name(), newInfo.Revision)
 
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
