@@ -116,7 +116,7 @@ func loadState(backend state.Backend) (*state.State, error) {
 			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
-		patch.SetCurrent(s)
+		patch.Init(s)
 		return s, nil
 	}
 

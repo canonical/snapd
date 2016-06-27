@@ -36,6 +36,33 @@ type patchSuite struct{}
 
 var _ = Suite(&patchSuite{})
 
+func (s *patchSuite) TestInit(c *C) {
+	restore := patch.Mock(2, nil)
+	defer restore()
+
+	st := state.New(nil)
+	patch.Init(st)
+
+	st.Lock()
+	defer st.Unlock()
+	var patchLevel int
+	err := st.Get("patch-level", &patchLevel)
+	c.Assert(err, IsNil)
+	c.Check(patchLevel, Equals, 2)
+}
+
+func (s *patchSuite) TestNothingToDo(c *C) {
+	restore := patch.Mock(2, nil)
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	st.Set("patch-level", 2)
+	st.Unlock()
+	err := patch.Apply(st)
+	c.Assert(err, IsNil)
+}
+
 func (s *patchSuite) TestNoDowngrade(c *C) {
 	restore := patch.Mock(2, nil)
 	defer restore()

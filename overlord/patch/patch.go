@@ -33,12 +33,12 @@ var Level = 1
 // patches maps from patch level L to the function that moves from L-1 to L.
 var patches = make(map[int]func(s *state.State) error)
 
-// SetCurrent sets state to the current patch level.
-func SetCurrent(s *state.State) {
+// Init initializes an empty state to the current implemented patch level.
+func Init(s *state.State) {
 	s.Lock()
 	defer s.Unlock()
 	if s.Get("patch-level", new(int)) != state.ErrNoState {
-		panic("internal error: attempting to override patch-level without actual patching")
+		panic("internal error: expected empty state, attempting to override patch-level without actual patching")
 	}
 	s.Set("patch-level", Level)
 }
@@ -46,21 +46,22 @@ func SetCurrent(s *state.State) {
 // Apply applies any necessary patches to update the provided state to
 // conventions required by the current patch level of the system.
 func Apply(s *state.State) error {
-	var level int
+	var stateLevel int
 	s.Lock()
-	err := s.Get("patch-level", &level)
+	err := s.Get("patch-level", &stateLevel)
 	s.Unlock()
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if level == Level {
+	if stateLevel == Level {
 		// already at right level, nothing to do
 		return nil
 	}
-	if level > Level {
-		return fmt.Errorf("cannot downgrade: snapd is too old for the current system state (patch level %d)", level)
+	if stateLevel > Level {
+		return fmt.Errorf("cannot downgrade: snapd is too old for the current system state (patch level %d)", stateLevel)
 	}
 
+	level := stateLevel
 	for level < Level {
 		logger.Noticef("Patching system state from level %d to %d", level, level+1)
 		patch := patches[level+1]
