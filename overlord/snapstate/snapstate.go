@@ -168,7 +168,7 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		Flags:    SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, snapst.Active, ss)
+	return doInstall(s, !snapst.Current.Unset(), ss)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -202,7 +202,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		Flags:   SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, snapst.Active, ss)
+	return doInstall(s, true, ss)
 }
 
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
@@ -258,7 +258,6 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	revision := snapst.CurrentSideInfo().Revision
-	active := snapst.Active
 
 	info, err := Info(s, name, revision)
 	if err != nil {
@@ -266,6 +265,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	// check if this is something that can be removed
+	active := snapst.Current == info.Revision
 	if !canRemove(info, active) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
 	}
@@ -428,7 +428,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		return nil, err
 	}
 	for snapName, snapState := range stateMap {
-		if !snapState.Active {
+		if snapState.Current.Unset() {
 			continue
 		}
 		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())

@@ -108,7 +108,6 @@ type SnapState struct {
 	Sequence  []*snap.SideInfo `json:"sequence"`
 	Current   snap.Revision    `json:"current"`
 	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
-	Active    bool             `json:"active,omitempty"`
 	Channel   string           `json:"channel,omitempty"`
 	Flags     SnapStateFlags   `json:"flags,omitempty"`
 	// incremented revision used for local installs
@@ -374,7 +373,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// mark as inactive
-	snapst.Active = false
+	snapst.Current = snap.R(0)
 	Set(st, ss.Name, snapst)
 	return nil
 }
@@ -418,7 +417,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if snapst.Current == ss.Revision && snapst.Active {
+	if snapst.Current == ss.Revision {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.Name)
 	}
 
@@ -567,7 +566,6 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	snapst.Active = true
 	st.Unlock()
 	err = m.backend.LinkSnap(oldInfo)
 	st.Lock()
@@ -596,8 +594,6 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-
-	snapst.Active = false
 
 	pb := &TaskProgressAdapter{task: t}
 	st.Unlock() // pb itself will ask for locking
@@ -684,7 +680,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldCurrent := snapst.Current
 	snapst.Current = snapst.Candidate.Revision
 	snapst.Candidate = nil
-	snapst.Active = true
 	oldChannel := snapst.Channel
 	if ss.Channel != "" {
 		snapst.Channel = ss.Channel
@@ -770,7 +765,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Candidate = snapst.Sequence[len(snapst.Sequence)-1]
 	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
 	snapst.Current = oldCurrent
-	snapst.Active = false
 	snapst.Channel = oldChannel
 	snapst.SetTryMode(oldTryMode)
 

@@ -181,7 +181,6 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Channel:  "edge",
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
 		Current:  snap.R(11),
@@ -203,7 +202,6 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Channel:  "edge",
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
 		Current:  snap.R(11),
@@ -224,7 +222,6 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
 		Current:  snap.R(11),
 	})
@@ -243,7 +240,6 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active: true,
 		Sequence: []*snap.SideInfo{
 			{OfficialName: "foo", Revision: snap.R(11)},
 		},
@@ -273,7 +269,6 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
 		Current:  snap.R(11),
 	})
@@ -379,7 +374,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	snapst := snaps["some-snap"]
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(11))
 	c.Assert(snapst.Channel, Equals, "some-channel")
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -400,7 +395,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
 	})
@@ -501,7 +495,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(11))
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -527,7 +521,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
 	})
@@ -631,7 +624,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(7))
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -651,7 +644,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Channel:  "stable",
 		Current:  si.Revision,
@@ -762,7 +754,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(7))
 	c.Assert(snapst.Channel, Equals, "stable")
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
@@ -783,7 +775,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
 	})
@@ -813,7 +804,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(7))
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -876,7 +867,7 @@ version: 1.0`)
 	err = snapstate.Get(s.state, "mock", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(-1))
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		OfficialName: "",
@@ -894,7 +885,6 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
-		Active:        true,
 		Sequence:      []*snap.SideInfo{{Revision: snap.R(-2)}},
 		LocalRevision: snap.R(-2),
 		Current:       snap.R(-2),
@@ -953,7 +943,7 @@ version: 1.0`)
 	err = snapstate.Get(s.state, "mock", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(-3))
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
@@ -972,7 +962,6 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
-		Active:        true,
 		Sequence:      []*snap.SideInfo{{Revision: snap.R(100001)}},
 		LocalRevision: snap.R(100001),
 		Current:       snap.R(100001),
@@ -1004,7 +993,7 @@ version: 1.0`)
 	err = snapstate.Get(s.state, "mock", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(-1))
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
@@ -1025,7 +1014,6 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
 	})
@@ -1116,7 +1104,6 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{&si5, &si3, &si7},
 		Current:  si7.Revision,
 	})
@@ -1220,7 +1207,6 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
 	})
@@ -1259,7 +1245,6 @@ version: 1.2
 description: |
     Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 		Current:  sideInfo12.Revision,
 	})
@@ -1328,7 +1313,6 @@ type: gadget
 version: gadget
 `, sideInfoGadget)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
-		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoGadget},
 		Current:  sideInfoGadget.Revision,
 	})
@@ -1359,7 +1343,7 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 		snapst = sst
 	}
 
-	c.Check(snapst.Active, Equals, true)
+	c.Check(snapst.Current, Equals, snap.R(12))
 	c.Check(snapst.CurrentSideInfo(), NotNil)
 
 	info12, err := snap.ReadInfo("name1", snapst.CurrentSideInfo())
@@ -1549,17 +1533,23 @@ func (s *snapStateSuite) TestCurrentSideInfoOutOfOrder(c *C) {
 	c.Check(snapst.CurrentSideInfo(), DeepEquals, si1)
 }
 
-func (s *snapStateSuite) TestCurrentSideInfoInconsistent(c *C) {
+func (s *snapStateSuite) TestCurrentSideInfoCurrentUnset(c *C) {
 	snapst := snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{Revision: snap.R(1)},
 		},
 	}
+	c.Check(snapst.Current.Unset(), Equals, true)
 	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `snapst.Current and snapst.Sequence out of sync:.*`)
 }
 
 func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
-	snapst := snapstate.SnapState{Current: snap.R(17)}
+	snapst := snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{Revision: snap.R(1)},
+		},
+		Current: snap.R(17),
+	}
 	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
 }
 
