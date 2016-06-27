@@ -18,11 +18,8 @@ restore: |
 
 execute: |
   echo "Given a buildable snap in a known directory"
-  SNAP_NAME="basic-binaries"
-  SNAP_PATH="../../lib/snaps/$SNAP_NAME"
-
   echo "When try is executed on that directory"
-  snap try $SNAP_PATH
+  snap try ../../lib/snaps/basic-binaries
 
   echo "Then the snap is listed as installed with try in the notes"
   expected="(?s)Name +Version +Rev +Developer +Notes\n\
@@ -38,11 +35,8 @@ execute: |
   echo "====================================="
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
-  SNAP_NAME="dev-kmsg"
-  SNAP_PATH="../../lib/snaps/$SNAP_NAME"
-
   echo "When try is executed on that directory"
-  snap try $SNAP_PATH
+  snap try ../../lib/snaps/dev-kmsg
 
   echo "Then the snap command is not able to access the protected resource"
   if dev-kmsg.reader; then
@@ -52,11 +46,8 @@ execute: |
   echo "====================================="
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
-  SNAP_NAME="dev-kmsg"
-  SNAP_PATH="../../lib/snaps/$SNAP_NAME"
-
   echo "When try is executed on that directory with devmode enabled"
-  snap try $SNAP_PATH --devmode
+  snap try ../../lib/snaps/dev-kmsg --devmode
 
   echo "Then the snap command is able to access the protected resource"
   result=$(dev-kmsg.reader)
@@ -65,11 +56,8 @@ execute: |
   echo "====================================="
 
   echo "Given a buildable snap which access confinement-enabled network resources in a known directory"
-  SNAP_NAME="network-consumer"
-  SNAP_PATH="../../lib/snaps/$SNAP_NAME"
-
   echo "When try is executed on that directory"
-  snap try $SNAP_PATH
+  snap try ../../lib/snaps/network-consumer
 
   echo "Then the snap is able to access the network resource"
   echo "$(network-consumer http://127.0.0.1:$PORT)" | grep -Pq "ok"
