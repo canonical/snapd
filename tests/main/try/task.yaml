@@ -51,7 +51,7 @@ execute: |
 
   echo "Then the snap command is able to access the protected resource"
   result=$(dev-kmsg.reader)
-  [ ${#result} > 0 ]
+  [ ${#result} -ge 0 ]
 
   echo "====================================="
 
