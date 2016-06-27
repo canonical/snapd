@@ -2,7 +2,7 @@
 
 set -e -x
 
-systemctl stop snapd || true
+systemctl stop snapd.{service,socket} || true
 mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
 services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
 for unit in $services $mounts; do
@@ -24,7 +24,7 @@ if [ "$1" = "--reuse-core" ]; then
 	    systemctl start $unit
 	done
 fi
-systemctl start snapd
+systemctl start snapd.socket
 
 # wait for snapd listening
 while ! printf "GET / HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket; do sleep 0.5; done
