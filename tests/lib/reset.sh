@@ -2,7 +2,7 @@
 
 set -e -x
 
-systemctl stop snapd.{service,socket} || true
+systemctl stop snapd.service snapd.socket
 mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
 services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
 for unit in $services $mounts; do

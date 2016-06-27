@@ -65,7 +65,7 @@ suites:
                 snap remove hello-world
                 rmdir /snap/hello-world # Should be done by snapd.
 
-                systemctl stop snapd.{service,socket} || true
+                systemctl stop snapd.service snapd.socket
                 systemctl daemon-reload
                 mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
                 services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
