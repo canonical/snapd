@@ -302,7 +302,7 @@ void sc_setup_mount_profiles(const char *appname)
 	debug("%s: %s", __FUNCTION__, appname);
 
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
-	const char *bind_profile_dir = "/var/lib/snapd/mount/";
+	const char *bind_profile_dir = "/var/lib/snapd/mount";
 
 	char profile_path[PATH_MAX];
 	must_snprintf(profile_path, sizeof(profile_path), "%s/%s.fstab",
