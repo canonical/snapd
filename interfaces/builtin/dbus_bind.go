@@ -193,7 +193,7 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return dbusBindPermanentSlotSecComp, nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
