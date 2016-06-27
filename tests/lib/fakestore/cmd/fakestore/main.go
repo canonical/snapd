@@ -32,12 +32,10 @@ import (
 )
 
 var (
-	action  = flag.String("action", "start", "Action to be performed, one of start and manage")
-	blobDir = flag.String("blobdir", "", "Directory to be used by the store to keep snaps")
-	snaps   = flag.String("snaps", "", "List of snaps with new versions separated by commas")
-	addr    = flag.String("addr", "locahost:11028", "Store address")
-
-	st *store.Store
+	start           = flag.Bool("start", false, "Start the store service")
+	blobDir         = flag.String("blobdir", "", "Directory to be used by the store to keep snaps")
+	makeRefreshable = flag.String("make-refreshable", "", "List of snaps with new versions separated by commas")
+	addr            = flag.String("addr", "locahost:11028", "Store address")
 )
 
 func main() {
@@ -50,19 +48,19 @@ func main() {
 func run() error {
 	flag.Parse()
 
-	if *action == "start" {
+	if *start {
 		return runServer(*blobDir, *addr)
 	}
 
-	if *action == "manage" {
-		return runManage(*blobDir, *snaps)
+	if *makeRefreshable != "" {
+		return runManage(*blobDir, *makeRefreshable)
 	}
 
-	return fmt.Errorf("unknown action: %s", *action)
+	return fmt.Errorf("please specify either start or make-refreshable")
 }
 
 func runServer(blobDir, addr string) error {
-	st = store.NewStore(blobDir, addr)
+	st := store.NewStore(blobDir, addr)
 
 	if err := st.Start(); err != nil {
 		return err

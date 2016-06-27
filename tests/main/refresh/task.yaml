@@ -15,7 +15,7 @@ environment:
 
 prepare: |
   echo "Given a controlled store service is up"
-  systemd-run --unit fakestore $(which fakestore) -blobdir $BLOB_DIR -addr $STORE_ADDR
+  systemd-run --unit fakestore $(which fakestore) -start -blobdir $BLOB_DIR -addr $STORE_ADDR
 
   echo "And a snap is installed"
   snap install $SNAP_NAME
@@ -39,7 +39,7 @@ restore: |
 
 execute: |
   echo "When a new version of that snap put in the controlled store"
-  fakestore -action manage -blobdir $BLOB_DIR -snaps $SNAP_NAME
+  fakestore -blobdir $BLOB_DIR -make-refreshable $SNAP_NAME
 
   echo "Then the new version is available for the snap to be refreshed"
   expected="$SNAP_NAME +\d+\.\d+\+fake1 +\d+ +canonical"
