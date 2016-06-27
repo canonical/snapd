@@ -4,6 +4,7 @@ systems: [-debian-8]
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt
+    rm -f /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
 execute: |
     echo "Having installed the snapd-hacker-toolbelt snap"
     snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
