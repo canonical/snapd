@@ -52,6 +52,9 @@ prepare: |
     apt install -y git
     go get ./tests/lib/snapbuild
 
+    # Build fakestore.
+    go get ./tests/lib/fakestore/cmd/fakestore
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd
