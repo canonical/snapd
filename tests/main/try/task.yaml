@@ -19,47 +19,47 @@ restore: |
 execute: |
   echo "Given a buildable snap in a known directory"
   echo "When try is executed on that directory"
-  snap try ../../lib/snaps/basic-binaries
+  snap try $TESTSLIB/snaps/basic-binaries
 
   echo "Then the snap is listed as installed with try in the notes"
   expected="(?s)Name +Version +Rev +Developer +Notes\n\
   basic-binaries +.*?try"
-  echo "$(snap list)" | grep -Pzq "$expected"
+  snap list | grep -Pzq "$expected"
 
   echo "And commands from the snap-try binary can be run"
   basic-binaries.success
 
   echo "And commands from the snap-try binary can read in their own dir"
-  echo "$(basic-binaries.cat)" | grep -Pzq "I output myself"
+  basic-binaries.cat | grep -q "I output myself"
 
   echo "====================================="
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
   echo "When try is executed on that directory"
-  snap try ../../lib/snaps/basic-binaries
+  snap try $TESTSLIB/snaps/basic-binaries
 
   echo "Then the snap command is not able to access the protected resource"
-  if basic-binaries.disallowed; then
-    echo "Expected confinement denial in try mode not worked" && exit 1
+  if basic-binaries.head -1 /dev/kmsg; then
+    echo "Expected confinement denial in try mode didn't work"
+    exit 1
   fi
 
   echo "====================================="
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
   echo "When try is executed on that directory with devmode enabled"
-  snap try ../../lib/snaps/basic-binaries --devmode
+  snap try $TESTSLIB/snaps/basic-binaries --devmode
 
   echo "Then the snap command is able to access the protected resource"
-  result=$(basic-binaries.disallowed)
-  [ ${#result} -ge 0 ]
+  basic-binaries.head -1 /dev/kmsg
 
   echo "====================================="
 
   echo "Given a buildable snap which access confinement-enabled network resources in a known directory"
   echo "When try is executed on that directory"
-  snap try ../../lib/snaps/network-consumer
+  snap try $TESTSLIB/snaps/network-consumer
 
   echo "Then the snap is able to access the network resource"
-  echo "$(network-consumer http://127.0.0.1:$PORT)" | grep -Pq "ok"
+  network-consumer http://127.0.0.1:$PORT | grep -q "ok"
 
   echo "====================================="
