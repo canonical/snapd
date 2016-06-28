@@ -356,11 +356,16 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if sideInfo := snapst.currentSideInfo(); sideInfo != nil {
-		return readInfo(name, sideInfo)
-	}
+	return CurrentInfoWithSnapState(name, &snapst)
+}
 
-	return nil, &snap.NotFoundError{Snap: name}
+// CurrentInfoWithSnapState returns the information about the current revision of a snap with the given name and SnapState
+func CurrentInfoWithSnapState(name string, snapst *SnapState) (*snap.Info, error) {
+	sideInfo := snapst.currentSideInfo()
+	if sideInfo == nil {
+		return nil, &snap.NotFoundError{Snap: name}
+	}
+	return readInfo(name, sideInfo)
 }
 
 // Get retrieves the SnapState of the given snap.

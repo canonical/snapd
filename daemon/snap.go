@@ -62,7 +62,7 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
-	info, err := snapstate.CurrentInfo(st, name)
+	info, err := snapstate.CurrentInfoWithSnapState(name, &snapst)
 	if err != nil {
 		return nil, nil, err
 	}
