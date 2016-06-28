@@ -162,22 +162,15 @@ func (cs *clientSuite) TestServerVersion(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
                       "version": "2",
-                      "os-release": {"pretty-name": "Ubuntu 16.04 LTS"}}}`
+                      "os-release": {"id": "zyggy", "version-id": "123"}}}`
 	version, err := cs.cli.ServerVersion()
 	c.Check(err, check.IsNil)
-	c.Check(version, check.Equals, "2/16/Ubuntu 16.04 LTS/unspecified")
-
-}
-
-func (cs *clientSuite) TestServerVersionOnClassic(c *check.C) {
-	cs.rsp = `{"type": "sync", "result":
-                     {"series": "16",
-                      "version": "2",
-                      "os-release": {"pretty-name": "Ubuntu 16.04 LTS"},
-                      "on-classic": true}}`
-	version, err := cs.cli.ServerVersion()
-	c.Check(err, check.IsNil)
-	c.Check(version, check.Equals, "2/16/Ubuntu 16.04 LTS/classic")
+	c.Check(version, check.DeepEquals, &client.ServerVersion{
+		Version:     "2",
+		Series:      "16",
+		OSID:        "zyggy",
+		OSVersionID: "123",
+	})
 }
 
 func (cs *clientSuite) TestClientIntegration(c *check.C) {

@@ -21,7 +21,6 @@ package release
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"strings"
 
@@ -34,11 +33,8 @@ var Series = "16"
 
 // OS contains information about the system extracted from /etc/os-release.
 type OS struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	VersionID  string `json:"version-id,omitempty"`
-	Codename   string `json:"codename,omitempty"`
-	PrettyName string `json:"pretty-name,omitempty"`
+	ID        string `json:"id"`
+	VersionID string `json:"version-id,omitempty"`
 }
 
 // ForceDevMode returns true if the distribution doesn't implement required
@@ -66,15 +62,27 @@ func (os *OS) ForceDevMode() bool {
 
 }
 
-var osReleasePath = "/etc/os-release"
+var (
+	osReleasePath         = "/etc/os-release"
+	fallbackOsReleasePath = "/usr/lib/os-release"
+)
 
 // readOSRelease returns the os-release information of the current system.
-func readOSRelease() (*OS, error) {
-	osRelease := &OS{}
+func readOSRelease() OS {
+	// TODO: separate this out into its own thing maybe (if made more general)
+	osRelease := OS{
+		VersionID: "unknown",
+		// from os-release(5): If not set, defaults to "ID=linux".
+		ID: "linux",
+	}
 
 	f, err := os.Open(osReleasePath)
 	if err != nil {
-		return nil, fmt.Errorf("cannot open os-release: %s", err)
+		// this fallback is as per os-release(5)
+		f, err = os.Open(fallbackOsReleasePath)
+		if err != nil {
+			return osRelease
+		}
 	}
 
 	scanner := bufio.NewScanner(f)
@@ -86,24 +94,16 @@ func readOSRelease() (*OS, error) {
 
 		k := strings.TrimSpace(ws[0])
 		v := strings.TrimFunc(ws[1], func(r rune) bool { return r == '"' || unicode.IsSpace(r) })
+		// XXX: should also unquote things as per os-release(5) but not needed yet in practice
 		switch k {
 		case "ID":
 			osRelease.ID = v
-		case "NAME":
-			osRelease.Name = v
 		case "VERSION_ID":
 			osRelease.VersionID = v
-		case "UBUNTU_CODENAME":
-			osRelease.Codename = v
-		case "PRETTY_NAME":
-			osRelease.PrettyName = v
 		}
 	}
-	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("cannot read os-release: %s", err)
-	}
 
-	return osRelease, nil
+	return osRelease
 }
 
 // OnClassic states whether the process is running inside a
@@ -114,21 +114,13 @@ var OnClassic bool
 var ReleaseInfo OS
 
 func init() {
-	osRelease, err := readOSRelease()
-	if err != nil {
-		// Values recommended by os-release(5) as defaults
-		osRelease = &OS{
-			Name: "Linux",
-			ID:   "linux",
-		}
-	}
-	ReleaseInfo = *osRelease
+	ReleaseInfo = readOSRelease()
 	// Assume that we are running on Classic
 	OnClassic = true
 	// On Ubuntu, dpkg is not present in an all-snap image so the presence of
 	// dpkg status file can be used as an indicator for a classic vs all-snap
 	// system.
-	if osRelease.ID == "ubuntu" {
+	if ReleaseInfo.ID == "ubuntu" {
 		OnClassic = osutil.FileExists("/var/lib/dpkg/status")
 	}
 }
