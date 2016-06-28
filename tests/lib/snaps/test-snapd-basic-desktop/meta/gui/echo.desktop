@@ -1,7 +1,7 @@
 [Desktop Entry]
 Name=Echo
 Comment=It echos stuff
-Exec=basic-desktop.echo
+Exec=test-snapd-basic-desktop.echo
 Icon=${SNAP}/meta/gui/icon.png
 Terminal=true
 Type=Application
