@@ -215,6 +215,24 @@ void setup_snappy_os_mounts()
 			die("cannot bind mount %s to %s", src, dst);
 		}
 	}
+	// Since we mounted /etc from the host above, we need to put
+	// /etc/alternatives from the os snap back.
+	// https://bugs.launchpad.net/snap-confine/+bug/1580018
+	const char *etc_alternatives = "/etc/alternatives";
+	if (access(etc_alternatives, F_OK) == 0) {
+		char src[512];
+		char dst[512];
+		must_snprintf(src, sizeof src, "%s%s", core_snap_dir,
+			      etc_alternatives);
+		must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir,
+			      etc_alternatives);
+		debug("bind mounting %s to %s", src, dst);
+		// NOTE: MS_SLAVE so that the started process cannot maliciously mount
+		// anything into those places and affect the system on the outside.
+		if (mount(src, dst, NULL, MS_BIND | MS_SLAVE, NULL) != 0) {
+			die("cannot bind mount %s to %s", src, dst);
+		}
+	}
 #ifdef NVIDIA_ARCH
 	// Make this conditional on Nvidia support for Arch as Ubuntu doesn't use
 	// this so far and it requires a very recent version of the core snap.
@@ -252,7 +270,9 @@ void setup_snappy_os_mounts()
 	// passwd,groups} is in sync between the two systems (probably via
 	// selected bind mounts of those files).
 	const char *mounts[] =
-	    { "/bin", "/sbin", "/lib", "/lib32", "/libx32", "/lib64", "/usr" };
+	    { "/bin", "/sbin", "/lib", "/lib32", "/libx32", "/lib64", "/usr",
+		"/etc/alternatives"
+	};
 	for (int i = 0; i < sizeof(mounts) / sizeof(char *); i++) {
 		// we mount the OS snap /bin over the real /bin in this NS
 		const char *dst = mounts[i];
