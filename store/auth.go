@@ -64,7 +64,7 @@ func RequestPackageAccessMacaroon() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
 
@@ -115,7 +115,7 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("User-Agent", UserAgent)
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
 

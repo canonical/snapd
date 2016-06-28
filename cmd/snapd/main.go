@@ -47,7 +47,7 @@ func main() {
 }
 
 func run() error {
-	store.UserAgent = "snapd/" + cmd.Version
+	store.SetUserAgentFromVersion(cmd.Version)
 
 	d, err := daemon.New()
 	if err != nil {
