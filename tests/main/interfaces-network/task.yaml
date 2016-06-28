@@ -10,7 +10,7 @@ details: |
   A snap declaring a plug on this interface must be able to access network services.
 
 environment:
-  SNAP_NAME: network-consumer
+  SNAP_NAME: test-snapd-network-consumer
   SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
   PORT: 8081
   SERVICE_FILE: "./service.sh"
@@ -59,7 +59,7 @@ execute: |
   echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is able to access a network service"
-  response=$(network-consumer http://127.0.0.1:$PORT)
+  response=$(test-snapd-network-consumer http://127.0.0.1:$PORT)
   echo "$response" | grep -Pqz "ok\n"
 
   echo "============================================"
@@ -69,7 +69,7 @@ execute: |
   echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then snap can't access a network service"
-  if network-consumer http://127.0.0.1:$PORT; then
+  if test-snapd-network-consumer http://127.0.0.1:$PORT; then
     echo "Network shouldn't be accessible" && exit 1
   fi
 

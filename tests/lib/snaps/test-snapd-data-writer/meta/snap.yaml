@@ -1,4 +1,4 @@
-name: data-writer
+name: test-snapd-data-writer
 version: 1.0
 apps:
  app:

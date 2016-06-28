@@ -1,22 +1,22 @@
 summary: Check that snap apps and services can write to writable areas.
 prepare: |
-  snapbuild $TESTSLIB/snaps/data-writer .
+  snapbuild $TESTSLIB/snaps/test-snapd-data-writer .
 restore: |
-  rm data-writer_1.0_all.snap
+  rm test-snapd-data-writer_1.0_all.snap
 execute: |
-  snap install data-writer_1.0_all.snap
+  snap install test-snapd-data-writer_1.0_all.snap
 
   echo "Apps can write to writable areas"
-  data-writer.app
-  [ -f /var/snap/data-writer/x1/from-app ] || exit 1
-  [ -f /var/snap/data-writer/common/from-app ] || exit 1
-  [ -f /root/snap/data-writer/x1/from-app ] || exit 1
+  test-snapd-data-writer.app
+  [ -f /var/snap/test-snapd-data-writer/x1/from-app ] || exit 1
+  [ -f /var/snap/test-snapd-data-writer/common/from-app ] || exit 1
+  [ -f /root/snap/test-snapd-data-writer/x1/from-app ] || exit 1
   # TODO: As soon as `snap run` is used (which creates this directory),
   # uncomment the following line:
   #[ -f /root/snap/data-writer/common/from-app ] || exit 1
 
   echo "Waiting for data writer service to finish..."
-  unit="snap.data-writer.service.service"
+  unit="snap.test-snapd-data-writer.service.service"
   while true; do
     code=$(sudo systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
     # The main code will be 0 until the service is no longer running
@@ -32,9 +32,9 @@ execute: |
   done
 
   echo "Services can write to writable areas"
-  [ -f /var/snap/data-writer/x1/from-service ] || exit 1
-  [ -f /var/snap/data-writer/common/from-service ] || exit 1
-  [ -f /root/snap/data-writer/x1/from-service ] || exit 1
+  [ -f /var/snap/test-snapd-data-writer/x1/from-service ] || exit 1
+  [ -f /var/snap/test-snapd-data-writer/common/from-service ] || exit 1
+  [ -f /root/snap/test-snapd-data-writer/x1/from-service ] || exit 1
   # TODO: As soon as `snap run` is used (which creates this directory),
   # uncomment the following line:
   #[ -f /root/snap/data-writer/common/from-service ] || exit 1

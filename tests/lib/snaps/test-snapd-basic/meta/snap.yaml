@@ -1,4 +1,4 @@
-name: basic
+name: test-snapd-basic
 version: 1.0
 summary: Basic snap
 description: A basic buildable snap

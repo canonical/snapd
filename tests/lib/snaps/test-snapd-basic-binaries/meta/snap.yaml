@@ -1,4 +1,4 @@
-name: basic-binaries
+name: test-snapd-basic-binaries
 version: 1.0
 apps:
  echo:

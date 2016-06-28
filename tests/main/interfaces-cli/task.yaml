@@ -1,7 +1,7 @@
 summary: Check the interfaces command
 
 environment:
-  SNAP_NAME: network-consumer
+  SNAP_NAME: test-snapd-network-consumer
   SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
   PLUG: network
 

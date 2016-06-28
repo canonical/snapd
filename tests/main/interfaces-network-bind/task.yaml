@@ -10,7 +10,7 @@ details: |
   A snap declaring a plug on this interface must be accessible by a network client.
 
 environment:
-  SNAP_NAME: network-bind-consumer
+  SNAP_NAME: test-snapd-network-bind-consumer
   SNAP_FILE: ./$[SNAP_NAME]_1.0_all.snap
   PORT: 8081
   REQUEST_FILE: ./request.txt

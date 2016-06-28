@@ -1,4 +1,4 @@
-name: basic-desktop
+name: test-snapd-basic-desktop
 version: 1.0
 apps:
  echo:
