@@ -263,9 +263,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
-	// revert releated
-	runner.AddHandler("prepare-revert", m.doPrepareRevert, m.undoPrepareRevert)
-
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
@@ -320,15 +317,12 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
-	} else {
-		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
-			return err
-		}
+
+		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	}
 
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
@@ -845,42 +839,5 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
-	return nil
-}
-
-func (m *SnapManager) doPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	ss, snapst, err := snapSetupAndState(t)
-	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	i := snapst.findIndex(ss.Revert)
-	if i < 0 {
-		return fmt.Errorf("cannot find revision %d in snapstate", ss.Revert)
-	}
-	snapst.Candidate = snapst.Sequence[i]
-	Set(st, ss.Name, snapst)
-
-	return nil
-}
-
-func (m *SnapManager) undoPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	ss, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Candidate = nil
-
-	Set(st, ss.Name, snapst)
 	return nil
 }
