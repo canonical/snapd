@@ -1838,3 +1838,42 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	c.Check(snapstate.CanRemove(kernel, false), Equals, true)
 	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
 }
+
+func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si1 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(2)}
+	si3 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(3)}
+	si4 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(4)}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{si1, si2, si3, si4},
+		Current:  snap.R(2),
+	})
+
+	// run the update
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	c.Assert(err, IsNil)
+
+	// and ensure that it will remove the revisions after "current"
+	// (si3, si4)
+	var ss snapstate.SnapSetup
+	tasks := ts.Tasks()
+	c.Check(tasks[len(tasks)-1].Kind(), Equals, "discard-snap")
+	c.Check(tasks[len(tasks)-2].Kind(), Equals, "clear-snap")
+	err = tasks[len(tasks)-2].Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Check(ss.Revision, Equals, si4.Revision)
+
+	c.Check(tasks[len(tasks)-3].Kind(), Equals, "discard-snap")
+	c.Check(tasks[len(tasks)-4].Kind(), Equals, "clear-snap")
+	err = tasks[len(tasks)-4].Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Check(ss.Revision, Equals, si3.Revision)
+
+	// ensure only si3, si4 are removed
+	c.Check(tasks[len(tasks)-5].Kind(), Not(Equals), "discard-snap")
+}

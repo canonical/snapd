@@ -54,7 +54,7 @@ const (
 	firstInterimUsableFlagValue
 )
 
-func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, error) {
+func doInstall(s *state.State, curActive bool, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name); err != nil {
 		return nil, err
 	}
@@ -107,6 +107,19 @@ func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, e
 	addTask(linkSnap)
 	linkSnap.WaitFor(setupSecurity)
 
+	// discard everything after "current" (we may have reverted to
+	// a previous versions earlier)
+	if !snapst.Current.Unset() {
+		seq := snapst.Sequence
+		currentIndex := snapst.currentIndex()
+		for i := currentIndex + 1; i < len(seq); i++ {
+			si := seq[i]
+			ts := removeInactiveRevision(s, ss.Name, si.Revision)
+			ts.WaitFor(linkSnap)
+			tasks = append(tasks, ts.Tasks()...)
+		}
+	}
+
 	return state.NewTaskSet(tasks...), nil
 }
 
@@ -146,7 +159,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		Flags:   SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, false, ss)
+	return doInstall(s, false, &snapst, ss)
 }
 
 // InstallPath returns a set of tasks for installing snap from a file path.
@@ -165,7 +178,7 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		Flags:    SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, snapst.Active, ss)
+	return doInstall(s, snapst.Active, &snapst, ss)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -199,7 +212,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		Flags:   SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, snapst.Active, ss)
+	return doInstall(s, snapst.Active, &snapst, ss)
 }
 
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
