@@ -31,6 +31,7 @@ import (
 	"path"
 
 	"github.com/snapcore/snapd/dirs"
+	"time"
 )
 
 func unixDialer(_, _ string) (net.Conn, error) {
@@ -122,13 +123,33 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	return client.doer.Do(req)
 }
 
+var (
+	doRetry   = 250 * time.Millisecond
+	doTimeout = 5 * time.Second
+)
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
 func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) error {
-	rsp, err := client.raw(method, path, query, headers, body)
+	retry := time.NewTicker(doRetry)
+	timeout := time.After(doTimeout)
+	var rsp *http.Response
+	var err error
+	for {
+		rsp, err = client.raw(method, path, query, headers, body)
+		if err == nil || method != "GET" {
+			break
+		}
+		select {
+		case <-retry.C:
+			continue
+		case <-timeout:
+		}
+		break
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot communicate with server: %s", err)
 	}
 	defer rsp.Body.Close()
 
@@ -147,9 +168,9 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 // response payload into the given value.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-
-	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
-		return nil, fmt.Errorf("cannot communicate with server: %s", err)
+	err := client.do(method, path, query, headers, body, &rsp)
+	if err != nil {
+		return nil, err
 	}
 	if err := rsp.err(); err != nil {
 		return nil, err
@@ -171,7 +192,7 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	var rsp response
 
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
-		return "", fmt.Errorf("cannot communicate with server: %v", err)
+		return "", err
 	}
 	if err := rsp.err(); err != nil {
 		return "", err
