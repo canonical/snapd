@@ -142,12 +142,34 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
 func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
-                      "version": "2"}}`
+                      "version": "2",
+                      "os-release": {"id": "ubuntu", "version-id": "16.04"},
+                      "on-classic": true}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(sysInfo, check.DeepEquals, &client.SysInfo{
 		Version: "2",
 		Series:  "16",
+		OSRelease: client.OSRelease{
+			ID:        "ubuntu",
+			VersionID: "16.04",
+		},
+		OnClassic: true,
+	})
+}
+
+func (cs *clientSuite) TestServerVersion(c *check.C) {
+	cs.rsp = `{"type": "sync", "result":
+                     {"series": "16",
+                      "version": "2",
+                      "os-release": {"id": "zyggy", "version-id": "123"}}}`
+	version, err := cs.cli.ServerVersion()
+	c.Check(err, check.IsNil)
+	c.Check(version, check.DeepEquals, &client.ServerVersion{
+		Version:     "2",
+		Series:      "16",
+		OSID:        "zyggy",
+		OSVersionID: "123",
 	})
 }
 
