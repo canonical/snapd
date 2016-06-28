@@ -19,42 +19,42 @@ restore: |
 
 execute: |
   echo "Install unexisting snap prints error"
-  expected="(?s)error: cannot perform the following tasks:\n\
-  - Download snap \"unexisting.canonical\" from channel \"stable\" \\(snap not found\\)\n"
-  actual=$(snap install unexisting.canonical 2>&1) || EXPECTED_FAILURE="unexisting"
-  [ "$EXPECTED_FAILURE" = "unexisting" ] || exit 1
-  echo "$actual" | grep -Pzq "$expected"
+  if snap install unexisting.canonical; then
+    echo "Installing unexisting snap should fail"
+    exit 1
+  fi
 
   echo "============================================"
 
   echo "Install without snap name shows error"
-  expected="(?s)error: the required argument \`<snap>\` was not provided\n"
-  actual=$(snap install 2>&1) || EXPECTED_FAILURE="nosnap"
-  [ "$EXPECTED_FAILURE" = "nosnap" ] || exit 1
-  echo "$actual" | grep -Pzq "$expected"
+  if snap install; then
+    echo "Installing without snap name should fail"
+    exit 1
+  fi
 
   echo "============================================"
 
   echo "Install points to login when not authenticated"
-  expected="snap login --help"
-  actual=$(sudo -i -u test /bin/sh -c "snap install hello-world 2>&1") || EXPECTED_FAILURE="unauthenticated"
-  [ "$EXPECTED_FAILURE" = "unauthenticated" ] || exit 1
-  echo "$actual" | grep -Pzq "$expected"
+  if sudo -i -u test /bin/sh -c "snap install hello-world 2>${PWD}/install.output"; then
+    echo "Unauthenticated install should fail"
+    exit 1
+  fi
+  grep "snap login --help" install.output
 
   echo "============================================"
 
-  echo "When a failing command from a snap is called"
-  basic-binaries.fail || EXPECTED_FAILURE="command-failed"
-
-  echo "Then it must fail"
-  [ "$EXPECTED_FAILURE" = "command-failed" ] || exit 1
+  echo "Calñling a failing command from a snap should fail"
+  if basic-binaries.fail; then
+    echo "Failing snap commands should keep failing after installed"
+    exit 1
+  fi
 
   echo "============================================"
 
-  echo "When we try to install a snap already installed from the store"
-  snap install $STORE_SNAP_NAME || EXPECTED_FAILURE="install-failed"
-
-  echo "Then it must fail"
-  [ "$EXPECTED_FAILURE" = "install-failed" ] || exit 1
+  echo "Install a snap already installed fails"
+  if snap install $STORE_SNAP_NAME; then
+    echo "Trying to install an already installed snap should fail"
+    exit 1
+  fi
 
   echo "============================================"

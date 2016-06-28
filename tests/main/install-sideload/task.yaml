@@ -14,13 +14,12 @@ execute: |
   expected="(?s)Name +Version +Rev +Developer +Notes\n\
   basic +.*? *\n\
   .*"
-  actual=$(snap install ./basic_1.0_all.snap)
-  echo "$actual" | grep -Pzq "$expected" || exit 1
+  snap install ./basic_1.0_all.snap | grep -Pzq "$expected"
 
   echo "Sideloaded snap executes commands"
   snap install ./basic-binaries_1.0_all.snap
   basic-binaries.success
-  [ "$(basic-binaries.echo)" = "From basic-binaries snap" ] || exit 1
+  [ "$(basic-binaries.echo)" = "From basic-binaries snap" ]
 
   echo "Sideload desktop snap"
   snap install ./basic-desktop_1.0_all.snap
@@ -28,5 +27,4 @@ execute: |
   Name=Echo\n\
   Comment=It echos stuff\n\
   Exec=\/snap\/bin\/basic-desktop.echo\n"
-  actual=$(cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop)
-  echo "$actual" | grep -Pzq "$expected" || exit 1
+  cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
