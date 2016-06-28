@@ -827,24 +827,24 @@ func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 
 // Buy sends a purchase request for the specified snap.
 // Returns the state of the purchase: Complete, Cancelled, InProgress or Pending.
-func (s *SnapUbuntuStoreRepository) Buy(options BuyOptions) (*BuyResult, error) {
+func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error) {
 	if options.SnapID == "" {
-		return buyOptionError(&options, "snap ID missing")
+		return buyOptionError(options, "snap ID missing")
 	}
 	if options.SnapName == "" {
-		return buyOptionError(&options, "snap name missing")
+		return buyOptionError(options, "snap name missing")
 	}
 	if options.Channel == "" {
-		return buyOptionError(&options, "channel missing")
+		return buyOptionError(options, "channel missing")
 	}
 	if options.ExpectedPrice <= 0 {
-		return buyOptionError(&options, "invalid expected price")
+		return buyOptionError(options, "invalid expected price")
 	}
 	if options.Currency == "" {
-		return buyOptionError(&options, "currency missing")
+		return buyOptionError(options, "currency missing")
 	}
 	if options.Auther == nil {
-		return buyOptionError(&options, "authentication credentials missing")
+		return buyOptionError(options, "authentication credentials missing")
 	}
 
 	instruction := purchaseInstruction{
