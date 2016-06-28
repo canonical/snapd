@@ -68,6 +68,7 @@ var api = []*Command{
 	eventsCmd,
 	stateChangeCmd,
 	stateChangesCmd,
+	createUserCmd,
 }
 
 var (
@@ -164,6 +165,12 @@ var (
 		Path:   "/v2/changes",
 		UserOK: true,
 		GET:    getChanges,
+	}
+
+	createUserCmd = &Command{
+		Path:   "/v2/create-user",
+		UserOK: false,
+		POST:   postCreateUser,
 	}
 )
 
@@ -1235,4 +1242,49 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	ensureStateSoon(state)
 
 	return SyncResponse(change2changeInfo(chg), nil)
+}
+
+var (
+	postCreateUserUcrednetGetUID = ucrednetGetUID
+	storeUserInfo                = store.UserInfo
+	osutilAddExtraUser           = osutil.AddExtraUser
+)
+
+func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use create-user as non-root")
+	}
+
+	var createData struct {
+		EMail string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&createData); err != nil {
+		return BadRequest("cannot decode create-user data from request body: %v", err)
+	}
+
+	if createData.EMail == "" {
+		return BadRequest("cannot create user: 'email' field is empty")
+	}
+
+	v, err := storeUserInfo(createData.EMail)
+	if err != nil {
+		return BadRequest("cannot create user %q: %s", createData.EMail, err)
+	}
+
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+		return BadRequest("cannot create user %s: %s", v.Username, err)
+	}
+
+	var createResponseData struct {
+		Username string `json:"username"`
+	}
+	createResponseData.Username = v.Username
+
+	return SyncResponse(createResponseData, nil)
 }

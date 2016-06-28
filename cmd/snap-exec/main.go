@@ -112,5 +112,7 @@ func snapExec(snapApp, revision, command string, args []string) error {
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
-	return syscallExec(fullCmd, args, env)
+	fullCmdArgs := []string{fullCmd}
+	fullCmdArgs = append(fullCmdArgs, args...)
+	return syscallExec(fullCmd, fullCmdArgs, env)
 }
