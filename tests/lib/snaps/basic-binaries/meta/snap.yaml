@@ -11,3 +11,5 @@ apps:
   command: bin/block
  cat:
   command: bin/cat
+ head:
+  command: bin/head
