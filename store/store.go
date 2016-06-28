@@ -700,9 +700,7 @@ func (s *SnapUbuntuStoreRepository) Download(name string, remoteSnap *snap.Downl
 	if err != nil {
 		return "", err
 	}
-	if auther != nil {
-		auther.Authenticate(req)
-	}
+	s.setUbuntuStoreHeaders(req, "", false, auther)
 
 	if err := download(name, w, req, pbar); err != nil {
 		return "", err
