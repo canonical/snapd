@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -115,7 +116,7 @@ func loadState(backend state.Backend) (*state.State, error) {
 			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
-		initialize(s)
+		patch.Init(s)
 		return s, nil
 	}
 
@@ -131,7 +132,7 @@ func loadState(backend state.Backend) (*state.State, error) {
 	}
 
 	// one-shot migrations
-	err = migrate(s)
+	err = patch.Apply(s)
 	if err != nil {
 		return nil, err
 	}

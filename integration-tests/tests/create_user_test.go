@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
+// +build !excludeintegration,!classic
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -21,28 +21,26 @@
 package tests
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 
 	"gopkg.in/check.v1"
 )
 
-var _ = check.Suite(&changesSuite{})
+var _ = check.Suite(&createUserSuite{})
 
-type changesSuite struct {
+type createUserSuite struct {
 	common.SnappySuite
 }
 
-// SNAP_CHANGES_004: with invalid id
-func (s *changesSuite) TestChangesWithInvalidIdShowsError(c *check.C) {
-	invalidID := "10000000"
+func (s *createUserSuite) TestCreateUserCreatesUser(c *check.C) {
+	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "mvo@ubuntu.com")
 
-	expected := fmt.Sprintf(`error: cannot find change with id "%s"\n`, invalidID)
+	expected := `Created user "mvo"\n`
+	c.Assert(createOutput, check.Matches, expected)
 
-	actual, err := cli.ExecCommandErr("snap", "change", invalidID)
-
-	c.Assert(err, check.NotNil)
-	c.Assert(actual, check.Matches, expected)
+	// file exists and has a size greater than zero
+	cli.ExecCommand(c, "sudo", "test", "-s", "/home/mvo/.ssh/authorized_keys")
+	// content looks sane
+	cli.ExecCommand(c, "sudo", "grep", "ssh-rsa", "/home/mvo/.ssh/authorized_keys")
 }

@@ -113,6 +113,6 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	err := snapExec("snapname.app", "42", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapSnapsDir))
-	c.Check(execArgs, DeepEquals, []string{"arg1", "arg2"})
+	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
