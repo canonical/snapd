@@ -180,7 +180,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		Channel:      channel,
 		UserID:       userID,
 		Flags:        SnapSetupFlags(flags),
-		DownloadInfo: snapInfo.DownloadInfo,
+		DownloadInfo: &snapInfo.DownloadInfo,
 		SideInfo:     &snapInfo.SideInfo,
 	}
 
@@ -217,7 +217,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		Channel:      channel,
 		UserID:       userID,
 		Flags:        SnapSetupFlags(flags),
-		DownloadInfo: updateInfo.DownloadInfo,
+		DownloadInfo: &updateInfo.DownloadInfo,
 		SideInfo:     &updateInfo.SideInfo,
 	}
 
