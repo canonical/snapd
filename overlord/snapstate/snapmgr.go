@@ -237,13 +237,13 @@ func (m *SnapManager) ReplaceStore(store StoreService) {
 	m.store = store
 }
 
-func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
+func revisionIsLocal(name string, snapst *SnapState, revision snap.Revision) bool {
 	for _, si := range snapst.Sequence {
 		if si.Revision == revision {
-			return fmt.Errorf("revision %s of snap %q already installed", revision, name)
+			return true
 		}
 	}
-	return nil
+	return false
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -271,8 +271,8 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		snapst.LocalRevision = revision
 		ss.Revision = revision
 	} else {
-		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
-			return err
+		if revisionIsLocal(ss.Name, snapst, ss.Revision) {
+			return fmt.Errorf("revision %s of snap %q already installed", ss.Name, ss.Revision)
 		}
 	}
 
@@ -325,13 +325,19 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err = checkRevisionIsNew(ss.Name, snapst, storeInfo.Revision); err != nil {
-		return err
+	if snapst.Current == storeInfo.Revision {
+		return fmt.Errorf("revision %s of snap %q already current", storeInfo.Revision, ss.Name)
 	}
 
-	downloadedSnapFile, err := m.store.Download(storeInfo, meter, auther)
-	if err != nil {
-		return err
+	var downloadedSnapFile string
+	if revisionIsLocal(ss.Name, snapst, storeInfo.Revision) {
+		downloadedSnapFile = storeInfo.MountFile()
+	} else {
+		tmpf, err := m.store.Download(storeInfo, meter, auther)
+		if err != nil {
+			return err
+		}
+		downloadedSnapFile = tmpf
 	}
 
 	ss.SnapPath = downloadedSnapFile
@@ -680,7 +686,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	cand := snapst.Candidate
 
 	m.backend.Candidate(snapst.Candidate)
-	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+	if !revisionIsLocal(ss.Name, snapst, snapst.Candidate.Revision) {
+		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+	}
 	oldCurrent := snapst.Current
 	snapst.Current = snapst.Candidate.Revision
 	snapst.Candidate = nil
@@ -716,6 +724,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	t.Logf("snap %q at rev %s linked", newInfo.Name(), newInfo.Revision)
 
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
