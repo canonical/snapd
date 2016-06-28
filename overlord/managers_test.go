@@ -312,6 +312,7 @@ apps:
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
 	info, err = snapstate.CurrentInfo(st, "foo")
