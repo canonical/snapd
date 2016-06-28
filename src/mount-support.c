@@ -215,8 +215,8 @@ void setup_snappy_os_mounts()
 			die("cannot bind mount %s to %s", src, dst);
 		}
 	}
-	// Don't expose /etc/alternatives from the host, ensure that
-	// /etc/alternatives is always the version from the core snap.
+	// Since we mounted /etc from the host above, we need to put
+	// /etc/alternatives from the os snap back.
 	// https://bugs.launchpad.net/snap-confine/+bug/1580018
 	const char *etc_alternatives = "/etc/alternatives";
 	if (access(etc_alternatives, F_OK) == 0) {
@@ -227,6 +227,8 @@ void setup_snappy_os_mounts()
 		must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir,
 			      etc_alternatives);
 		debug("bind mounting %s to %s", src, dst);
+		// NOTE: MS_SLAVE so that the started process cannot maliciously mount
+		// anything into those places and affect the system on the outside.
 		if (mount(src, dst, NULL, MS_BIND | MS_SLAVE, NULL) != 0) {
 			die("cannot bind mount %s to %s", src, dst);
 		}
