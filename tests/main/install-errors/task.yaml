@@ -35,10 +35,11 @@ execute: |
   echo "============================================"
 
   echo "Install points to login when not authenticated"
-  expected="snap login --help"
-  actual=$(sudo -i -u test /bin/sh -c "snap install hello-world 2>&1") || EXPECTED_FAILURE="unauthenticated"
-  [ "$EXPECTED_FAILURE" = "unauthenticated" ]
-  echo "$actual" | grep -q "$expected"
+  if sudo -i -u test /bin/sh -c "snap install hello-world 2>${PWD}/install.output"; then
+    echo "Unauthenticated install should fail"
+    exit 1
+  fi
+  grep "snap login --help" install.output
 
   echo "============================================"
 
