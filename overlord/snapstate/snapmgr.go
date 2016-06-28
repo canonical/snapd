@@ -360,10 +360,12 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// compatiblity with old tasks
 	var downloadedSnapFile string
 	var sideInfo *snap.SideInfo
 	if ss.DownloadInfo == nil {
+		// COMPATIBILITY - this task was created from an older version
+		// of snapd that did not store the DownloadInfo in the state
+		// yet.
 		storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
 		if err != nil {
 			return err
