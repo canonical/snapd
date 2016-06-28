@@ -66,11 +66,16 @@ func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, e
 		ss.Channel = "stable"
 	}
 
+	revisionStr := ""
+	if ss.SideInfo != nil {
+		revisionStr = fmt.Sprintf(" (rev %s)", ss.SideInfo.Revision)
+	}
+
 	var prepare *state.Task
 	if ss.SnapPath != "" {
-		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), ss.SnapPath))
+		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), ss.SnapPath, revisionStr))
 	} else {
-		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q"), ss.Name, ss.Channel))
+		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q%s"), ss.Name, ss.Channel, revisionStr))
 	}
 
 	prepare.Set("snap-setup", ss)
@@ -82,7 +87,7 @@ func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, e
 	}
 
 	// mount
-	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q"), ss.Name))
+	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), ss.Name, revisionStr))
 	addTask(mount)
 	mount.WaitFor(prepare)
 	precopy := mount
@@ -101,12 +106,12 @@ func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, e
 	copyData.WaitFor(precopy)
 
 	// security
-	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), ss.Name))
+	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles%s"), ss.Name, revisionStr))
 	addTask(setupSecurity)
 	setupSecurity.WaitFor(copyData)
 
 	// finalize (wrappers+current symlink)
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), ss.Name))
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system%s"), ss.Name, revisionStr))
 	addTask(linkSnap)
 	linkSnap.WaitFor(setupSecurity)
 
