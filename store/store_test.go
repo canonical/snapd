@@ -1439,9 +1439,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	// Now buy the snap using the suggested currency
-	result, err := repo.Buy(BuyParameters{
+	result, err := repo.Buy(BuyOptions{
 		SnapID:        snap.SnapID,
-		Name:          snap.Name(),
+		SnapName:      snap.Name(),
 		Channel:       snap.Channel,
 		Currency:      repo.SuggestedCurrency(),
 		ExpectedPrice: snap.Prices[repo.SuggestedCurrency()],
@@ -1524,9 +1524,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 	c.Assert(err, IsNil)
 
 	// Attempt to buy the snap using the wrong price in USD
-	result, err := repo.Buy(BuyParameters{
+	result, err := repo.Buy(BuyOptions{
 		SnapID:        snap.SnapID,
-		Name:          snap.Name(),
+		SnapName:      snap.Name(),
 		Channel:       snap.Channel,
 		ExpectedPrice: 0.99,
 		Currency:      "USD",
@@ -1604,9 +1604,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 	c.Assert(err, IsNil)
 
 	// Now try and buy the snap, but with an invalid ID
-	result, err := repo.Buy(BuyParameters{
+	result, err := repo.Buy(BuyOptions{
 		SnapID:        "invalid snap ID",
-		Name:          snap.Name(),
+		SnapName:      snap.Name(),
 		Channel:       snap.Channel,
 		ExpectedPrice: snap.Prices[repo.SuggestedCurrency()],
 		Currency:      repo.SuggestedCurrency(),
@@ -1626,8 +1626,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	c.Assert(repo, NotNil)
 
 	// no snap ID
-	result, err := repo.Buy(BuyParameters{
-		Name:          "snap name",
+	result, err := repo.Buy(BuyOptions{
+		SnapName:      "snap name",
 		Channel:       "channel",
 		ExpectedPrice: 1.0,
 		Currency:      "USD",
@@ -1635,10 +1635,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": no snap ID specified")
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": snap ID missing")
 
 	// no name
-	result, err = repo.Buy(BuyParameters{
+	result, err = repo.Buy(BuyOptions{
 		SnapID:        "snap ID",
 		Channel:       "channel",
 		ExpectedPrice: 1.0,
@@ -1647,53 +1647,53 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": no name specified")
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": snap name missing")
 
 	// no channel
-	result, err = repo.Buy(BuyParameters{
+	result, err = repo.Buy(BuyOptions{
 		SnapID:        "snap ID",
-		Name:          "snap name",
+		SnapName:      "snap name",
 		ExpectedPrice: 1.0,
 		Currency:      "USD",
 		Auther:        &fakeAuthenticator{},
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": no channel specified")
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": channel missing")
 
 	// no price
-	result, err = repo.Buy(BuyParameters{
+	result, err = repo.Buy(BuyOptions{
 		SnapID:   "snap ID",
-		Name:     "snap name",
+		SnapName: "snap name",
 		Channel:  "channel",
 		Currency: "USD",
 		Auther:   &fakeAuthenticator{},
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": no price specified")
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": invalid expected price")
 
 	// no currency
-	result, err = repo.Buy(BuyParameters{
+	result, err = repo.Buy(BuyOptions{
 		SnapID:        "snap ID",
-		Name:          "snap name",
+		SnapName:      "snap name",
 		Channel:       "channel",
 		ExpectedPrice: 1.0,
 		Auther:        &fakeAuthenticator{},
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": no currency specified")
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": currency missing")
 
 	// no authenticator
-	result, err = repo.Buy(BuyParameters{
+	result, err = repo.Buy(BuyOptions{
 		SnapID:        "snap ID",
-		Name:          "snap name",
+		SnapName:      "snap name",
 		Channel:       "channel",
 		ExpectedPrice: 1.0,
 		Currency:      "USD",
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": no authentication credentials specified")
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": authentication credentials missing")
 }
