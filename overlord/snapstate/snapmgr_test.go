@@ -374,6 +374,9 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		Channel:  "some-channel",
 		UserID:   s.user.ID,
 		SnapPath: "downloaded-snap-path",
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
 	})
 
 	// verify snaps in the system state
@@ -497,6 +500,9 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Revision: snap.R(11),
 
 		SnapPath: "downloaded-snap-path",
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
 	})
 
 	// verify snaps in the system state
