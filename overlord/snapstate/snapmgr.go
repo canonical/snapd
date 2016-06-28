@@ -356,11 +356,21 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	downloadedSnapFile, err := store.Download(
-		&snap.Info{
-			DownloadInfo: ss.DownloadInfo,
-			SideInfo:     *snapst.Candidate,
-		}, meter, auther)
+	var downloadedSnapFile string
+	// compatiblity with old tasks
+	if ss.DownloadInfo.DownloadURL == "" && ss.DownloadInfo.AnonDownloadURL == "" {
+		storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
+		if err != nil {
+			return err
+		}
+		downloadedSnapFile, err = m.store.Download(storeInfo, meter, auther)
+	} else {
+		downloadedSnapFile, err = store.Download(
+			&snap.Info{
+				DownloadInfo: ss.DownloadInfo,
+				SideInfo:     *snapst.Candidate,
+			}, meter, auther)
+	}
 	if err != nil {
 		return err
 	}

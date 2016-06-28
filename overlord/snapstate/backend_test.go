@@ -68,6 +68,9 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authen
 			Revision:     revno,
 		},
 		Version: name,
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
 	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revno})
 
