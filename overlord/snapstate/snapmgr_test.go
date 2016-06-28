@@ -362,6 +362,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
+	c.Check(task.Summary(), Equals, `Download snap "some-snap" from channel "some-channel" (rev 11)`)
 
 	// verify snap-setup in the task state
 	var ss snapstate.SnapSetup
