@@ -176,6 +176,20 @@ func (snapst *SnapState) SetTryMode(active bool) {
 	}
 }
 
+func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
+	var auther store.Authenticator
+	if userID > 0 {
+		st.Lock()
+		user, err := auth.User(st, userID)
+		st.Unlock()
+		if err != nil {
+			return nil, err
+		}
+		auther = user.Authenticator()
+	}
+	return auther, nil
+}
+
 func ubuntuStore() StoreService {
 	storeID := ""
 	// TODO: set the store-id here from the model information
@@ -313,17 +327,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	meter := &TaskProgressAdapter{task: t}
 
-	var auther store.Authenticator
-	if ss.UserID > 0 {
-		st.Lock()
-		user, err := auth.User(st, ss.UserID)
-		st.Unlock()
-		if err != nil {
-			return err
-		}
-		auther = user.Authenticator()
+	auther, err := autherForUserID(st, ss.UserID)
+	if err != nil {
+		return err
 	}
-
 	storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
 	if err != nil {
 		return err
