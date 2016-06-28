@@ -69,14 +69,6 @@ func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-type StoreUpdateInfo struct {
-	AnonDownloadURL string
-	DownloadURL     string
-	Confinement     string
-
-	snap.SideInfo
-}
-
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	Name     string        `json:"name"`
@@ -88,7 +80,7 @@ type SnapSetup struct {
 
 	SnapPath string `json:"snap-path,omitempty"`
 
-	UpdateInfo *StoreUpdateInfo `json:"update-info,omitempty"`
+	DownloadInfo snap.DownloadInfo `json:"download-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -198,22 +190,23 @@ func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
 	return auther, nil
 }
 
-func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*StoreUpdateInfo, error) {
+func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
 	auther, err := autherForUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	devmode := flags&DevMode > 0
-	remoteInfo, err := Store().Snap(name, channel, devmode, auther)
+	// FIXME: call the snap update endpoint  here instead
+	return Store().Snap(name, channel, devmode, auther)
+}
+
+func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+	auther, err := autherForUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
-	return &StoreUpdateInfo{
-		DownloadURL:     remoteInfo.DownloadURL,
-		AnonDownloadURL: remoteInfo.AnonDownloadURL,
-		Confinement:     string(remoteInfo.Confinement),
-		SideInfo:        remoteInfo.SideInfo,
-	}, nil
+	devmode := flags&DevMode > 0
+	return Store().Snap(name, channel, devmode, auther)
 }
 
 // Manager returns a new snap manager.
@@ -368,37 +361,21 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var storeInfo *snap.Info
-	if ss.UpdateInfo != nil {
-		storeInfo = &snap.Info{
-			AnonDownloadURL: ss.UpdateInfo.AnonDownloadURL,
-			DownloadURL:     ss.UpdateInfo.DownloadURL,
-			Confinement:     snap.ConfinementType(ss.UpdateInfo.Confinement),
-			SideInfo:        ss.UpdateInfo.SideInfo,
-		}
-	} else {
-		storeInfo, err = Store().Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
-		if err != nil {
-			return err
-		}
-	}
-
-	if err = checkRevisionIsNew(ss.Name, snapst, storeInfo.Revision); err != nil {
-		return err
-	}
-
-	downloadedSnapFile, err := Store().Download(storeInfo, meter, auther)
+	downloadedSnapFile, err := Store().Download(
+		&snap.Info{
+			DownloadInfo: ss.DownloadInfo,
+			SideInfo:     *snapst.Candidate,
+		}, meter, auther)
 	if err != nil {
 		return err
 	}
 
 	ss.SnapPath = downloadedSnapFile
-	ss.Revision = storeInfo.Revision
+	ss.Revision = snapst.Candidate.Revision
 
 	// update the snap setup and state for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = &storeInfo.SideInfo
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 
