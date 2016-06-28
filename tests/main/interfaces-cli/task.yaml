@@ -18,17 +18,13 @@ execute: |
   :$PLUG +$SNAP_NAME"
 
   echo "When the interfaces list is restricted by slot"
-  actual=$(snap interfaces -i $PLUG)
-
   echo "Then only the requested slots are shown"
-  echo "$actual" | grep -Pzq "$expected"
+  snap interfaces -i $PLUG | grep -Pzq "$expected"
 
   echo "==============================================="
 
   echo "When the interfaces list is restricted by slot and snap"
-  actual=$(snap interfaces -i $PLUG $SNAP_NAME)
-
   echo "Then only the requested slots are shown"
-  echo "$actual" | grep -Pzq "$expected"
+  snap interfaces -i $PLUG $SNAP_NAME | grep -Pzq "$expected"
 
   echo "==============================================="
