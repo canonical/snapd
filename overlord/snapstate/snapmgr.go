@@ -80,8 +80,8 @@ type SnapSetup struct {
 
 	SnapPath string `json:"snap-path,omitempty"`
 
-	DownloadInfo snap.DownloadInfo `json:"download-info,omitempty"`
-	SideInfo     *snap.SideInfo    `json:"side-info,omitempty"`
+	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
+	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -360,7 +360,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	// compatiblity with old tasks
 	var downloadedSnapFile string
 	var sideInfo *snap.SideInfo
-	if ss.DownloadInfo.DownloadURL == "" && ss.DownloadInfo.AnonDownloadURL == "" {
+	if ss.DownloadInfo == nil {
 		storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
 		if err != nil {
 			return err
@@ -370,7 +370,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	} else {
 		downloadedSnapFile, err = store.Download(
 			&snap.Info{
-				DownloadInfo: ss.DownloadInfo,
+				DownloadInfo: *ss.DownloadInfo,
 				SideInfo:     *ss.SideInfo,
 			}, meter, auther)
 		sideInfo = ss.SideInfo
