@@ -197,7 +197,7 @@ func updateInfo(st *state.State, name, channel string, userID int, flags Flags) 
 	}
 	devmode := flags&DevMode > 0
 	// FIXME: call the snap update endpoint  here instead
-	return Store().Snap(name, channel, devmode, auther)
+	return Store(st).Snap(name, channel, devmode, auther)
 }
 
 func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
@@ -206,15 +206,12 @@ func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*
 		return nil, err
 	}
 	devmode := flags&DevMode > 0
-	return Store().Snap(name, channel, devmode, auther)
+	return Store(st).Snap(name, channel, devmode, auther)
 }
 
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
-
-	// TODO: if needed we could also put the store on the state using
-	// the Cache mechanism and an accessor function
 
 	m := &SnapManager{
 		state:   s,
@@ -254,16 +251,13 @@ func Manager(s *state.State) (*SnapManager, error) {
 }
 
 // ReplaceStore replaces the store used by the manager.
-func ReplaceStore(store StoreService) {
-	ubuntuStore = store
+func ReplaceStore(state *state.State, store StoreService) {
+	state.Cache("store", store)
 }
 
-var ubuntuStore StoreService
-
-// Store returns the snapstate store
-func Store() StoreService {
-	if ubuntuStore != nil {
-		return ubuntuStore
+func Store(s *state.State) StoreService {
+	if ubuntuStore := s.Cached("store"); ubuntuStore != nil {
+		return ubuntuStore.(StoreService)
 	}
 
 	storeID := ""
@@ -271,8 +265,8 @@ func Store() StoreService {
 	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
 		storeID = cand
 	}
-	ubuntuStore = store.NewUbuntuStoreSnapRepository(nil, storeID)
-	return ubuntuStore
+	s.Cache("store", store.NewUbuntuStoreSnapRepository(nil, storeID))
+	return Store(s)
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
@@ -355,13 +349,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	meter := &TaskProgressAdapter{task: t}
 
 	st.Lock()
+	store := Store(st)
 	auther, err := autherForUserID(st, ss.UserID)
 	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	downloadedSnapFile, err := Store().Download(
+	downloadedSnapFile, err := store.Download(
 		&snap.Info{
 			DownloadInfo: ss.DownloadInfo,
 			SideInfo:     *snapst.Candidate,
