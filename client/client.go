@@ -133,6 +133,7 @@ var (
 // usually use a higher level interface that builds on this.
 func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) error {
 	retry := time.NewTicker(doRetry)
+	defer retry.Stop()
 	timeout := time.After(doTimeout)
 	var rsp *http.Response
 	var err error
