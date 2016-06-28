@@ -101,10 +101,6 @@ func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
 
-func (ss *SnapSetup) RevertOp() bool {
-	return !ss.Revert.Unset()
-}
-
 // SnapStateFlags are flags stored in SnapState.
 type SnapStateFlags Flags
 
@@ -160,7 +156,7 @@ func (snapst *SnapState) PreviousSideInfo() *snap.SideInfo {
 		return nil
 	}
 	// find "current" and return the one before that
-	currentIndex := snapst.currentIndex()
+	currentIndex := snapst.findIndex(snapst.Current)
 	if currentIndex == 0 {
 		return nil
 	}
@@ -176,18 +172,15 @@ func (snapst *SnapState) findIndex(rev snap.Revision) int {
 	return -1
 }
 
-func (snapst *SnapState) currentIndex() int {
-	return snapst.findIndex(snapst.Current)
-}
-
+// Block returns revisions that should be blocked on refreshes,
+// computed as Sequence[currentRevisionIndex:].
 func (snapst *SnapState) Block() []snap.Revision {
 	// return revisions from Sequence[currentIndex:]
-	out := []snap.Revision{}
-	currentIndex := snapst.currentIndex()
-	// panic?
+	currentIndex := snapst.findIndex(snapst.Current)
 	if currentIndex < 0 {
 		return nil
 	}
+	out := make([]snap.Revision, 0, len(snapst.Sequence))
 	for _, si := range snapst.Sequence[currentIndex:] {
 		out = append(out, si.Revision)
 	}
@@ -723,9 +716,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	cand := snapst.Candidate
 	m.backend.Candidate(snapst.Candidate)
-	// in revert mode the snap is already part of the sequence,
-	// do not add it twice
-	if !ss.RevertOp() {
+	if snapst.findIndex(snapst.Candidate.Revision) < 0 {
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
 	oldCurrent := snapst.Current
