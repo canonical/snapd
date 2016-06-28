@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -58,8 +57,8 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	info, err := snapstate.CurrentInfoWithSnapState(name, &snapst)
@@ -98,6 +97,7 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 			if _, ok := err.(*snap.NotFoundError); ok {
 				continue
 			}
+
 			// XXX: aggregate instead?
 			if firstErr == nil {
 				firstErr = err

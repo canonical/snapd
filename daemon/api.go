@@ -309,7 +309,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
-		if _, ok := err.(*snap.NotFoundError); ok {
+		if err == state.ErrNoState {
 			return NotFound("cannot find snap %q", name)
 		}
 
@@ -899,7 +899,7 @@ var readSnapInfo = readSnapInfoImpl
 func iconGet(st *state.State, name string) Response {
 	info, _, err := localSnapInfo(st, name)
 	if err != nil {
-		if _, ok := err.(*snap.NotFoundError); ok {
+		if err == state.ErrNoState {
 			return NotFound("cannot find snap %q", name)
 		}
 		return InternalError("%v", err)

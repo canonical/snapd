@@ -349,11 +349,19 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
 }
 
+type NoCurrentSnapError struct {
+	Snap string
+}
+
+func (e NoCurrentSnapError) Error() string {
+	return fmt.Sprintf("cannot find a 'current' revision for snap %q", e.Snap)
+}
+
 // CurrentInfo returns the information about the current revision of a snap with the given name.
 func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err != nil {
 		return nil, err
 	}
 	return CurrentInfoWithSnapState(name, &snapst)
@@ -363,7 +371,7 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 func CurrentInfoWithSnapState(name string, snapst *SnapState) (*snap.Info, error) {
 	sideInfo := snapst.currentSideInfo()
 	if sideInfo == nil {
-		return nil, &snap.NotFoundError{Snap: name}
+		return nil, &NoCurrentSnapError{Snap: name}
 	}
 	return readInfo(name, sideInfo)
 }
