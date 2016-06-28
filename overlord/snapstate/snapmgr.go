@@ -69,6 +69,14 @@ func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
+type StoreUpdateInfo struct {
+	AnonDownloadURL string
+	DownloadURL     string
+	Confinement     string
+
+	snap.SideInfo
+}
+
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	Name     string        `json:"name"`
@@ -79,6 +87,8 @@ type SnapSetup struct {
 	Flags SnapSetupFlags `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
+
+	UpdateInfo *StoreUpdateInfo `json:"update-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -188,13 +198,22 @@ func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
 	return auther, nil
 }
 
-func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*StoreUpdateInfo, error) {
 	auther, err := autherForUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	devmode := flags&DevMode > 0
-	return Store().Snap(name, channel, devmode, auther)
+	remoteInfo, err := Store().Snap(name, channel, devmode, auther)
+	if err != nil {
+		return nil, err
+	}
+	return &StoreUpdateInfo{
+		DownloadURL:     remoteInfo.DownloadURL,
+		AnonDownloadURL: remoteInfo.AnonDownloadURL,
+		Confinement:     string(remoteInfo.Confinement),
+		SideInfo:        remoteInfo.SideInfo,
+	}, nil
 }
 
 // Manager returns a new snap manager.
@@ -349,9 +368,19 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	storeInfo, err := Store().Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
-	if err != nil {
-		return err
+	var storeInfo *snap.Info
+	if ss.UpdateInfo != nil {
+		storeInfo = &snap.Info{
+			AnonDownloadURL: ss.UpdateInfo.AnonDownloadURL,
+			DownloadURL:     ss.UpdateInfo.DownloadURL,
+			Confinement:     snap.ConfinementType(ss.UpdateInfo.Confinement),
+			SideInfo:        ss.UpdateInfo.SideInfo,
+		}
+	} else {
+		storeInfo, err = Store().Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
+		if err != nil {
+			return err
+		}
 	}
 
 	if err = checkRevisionIsNew(ss.Name, snapst, storeInfo.Revision); err != nil {
