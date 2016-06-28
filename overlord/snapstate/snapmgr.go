@@ -81,6 +81,7 @@ type SnapSetup struct {
 	SnapPath string `json:"snap-path,omitempty"`
 
 	DownloadInfo snap.DownloadInfo `json:"download-info,omitempty"`
+	SideInfo     *snap.SideInfo    `json:"side-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -356,31 +357,35 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var downloadedSnapFile string
 	// compatiblity with old tasks
+	var downloadedSnapFile string
+	var sideInfo *snap.SideInfo
 	if ss.DownloadInfo.DownloadURL == "" && ss.DownloadInfo.AnonDownloadURL == "" {
 		storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
 		if err != nil {
 			return err
 		}
 		downloadedSnapFile, err = m.store.Download(storeInfo, meter, auther)
+		sideInfo = &storeInfo.SideInfo
 	} else {
 		downloadedSnapFile, err = store.Download(
 			&snap.Info{
 				DownloadInfo: ss.DownloadInfo,
-				SideInfo:     *snapst.Candidate,
+				SideInfo:     *ss.SideInfo,
 			}, meter, auther)
+		sideInfo = ss.SideInfo
 	}
 	if err != nil {
 		return err
 	}
 
 	ss.SnapPath = downloadedSnapFile
-	ss.Revision = snapst.Candidate.Revision
+	ss.Revision = sideInfo.Revision
 
 	// update the snap setup and state for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
+	snapst.Candidate = sideInfo
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 
