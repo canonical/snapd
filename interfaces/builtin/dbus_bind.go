@@ -22,9 +22,7 @@ package builtin
 import (
 	"bytes"
 	"fmt"
-	//"reflect"
 	"regexp"
-	//"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -114,6 +112,7 @@ sendmsg
 sendto
 `)
 
+var dbusBindBusNames (map[string][]string)
 
 type DbusBindInterface struct{}
 
@@ -224,12 +223,50 @@ func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 		snippet = bytes.Replace(snippet, old, new, -1)
 
 		//fmt.Printf("CONNECTED SLOT:\n %s\n", snippet)
+		fmt.Printf("DEBUG1: %s\n", dbusBindBusNames)
 		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
+}
+
+func getBusNames(slot *interfaces.Slot) (map[string][]string, error) {
+	busNames := make(map[string][]string)
+	for attr := range slot.Attrs {
+		bus := attr
+		if bus != "session" && bus != "system" {
+			return nil, fmt.Errorf("bus must be one of 'session' or 'system'")
+		}
+		busNamesList, ok := slot.Attrs[bus].([]interface{})
+		if !ok {
+			return nil, fmt.Errorf("bus attribute is not a list")
+		}
+
+		for _, item := range busNamesList {
+			busName, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("session element is not a string")
+			}
+
+			// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+			if !ok || len(busName) == 0 {
+				return nil, fmt.Errorf("bus name must be set")
+			} else if len(busName) > 255 {
+				return nil, fmt.Errorf("bus name is too long (must be <= 255)")
+			}
+
+			validBusName := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z0-9_-]+)+$")
+			if !validBusName.MatchString(busName) {
+				return nil, fmt.Errorf("invalid bus name: %q", busName)
+			}
+
+			busNames[bus] = append(busNames[bus], busName)
+		}
+	}
+
+	return busNames, nil
 }
 
 func (iface *DbusBindInterface) SanitizePlug(slot *interfaces.Plug) error {
@@ -240,72 +277,11 @@ func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
-	return nil
-}
 
-func (iface *DbusBindInterface) getBusNames(slot *interfaces.Slot) map[string]string {
-	fmt.Printf("%#+v\n", slot.Attrs)
-
-	sessionAttr, ok := slot.Attrs["session"]
-	if !ok {
-		panic(fmt.Sprintf("could not find session bus"))
-	}
-	sessionList, ok := sessionAttr.([]interface{})
-	if !ok {
-		panic(fmt.Sprintf("session attribute is not a list"))
-	}
-
-	var busNames []string
-	for _, item := range sessionList {
-		busName, ok := item.(string)
-		if !ok {
-			panic("session element is not a string")
-		}
-		busNames = append(busNames, busName)
-		fmt.Printf("  %s\n", busName)
-	}
-
-	return nil
-/*
-	for bus, bus_names := range slot.Attrs {
-		fmt.Printf("bus=%s\n", bus)
-		fmt.Printf("bus_names=%+v\n", bus_names)
-		if bus != "session" && bus != "system" {
-			return fmt.Errorf("bus must be one of 'session' or 'system'")
-		}
-		for _, dbus_name := range bus_names.([]string) {
-			fmt.Printf("  %s\n", dbus_name)
-		}
-	}
-
-	fmt.Printf("HERE\n")
-	return nil
-
-	// verify that we have both the bus and the name and they are formatted
-	// properly
-	bus, ok := slot.Attrs["bus"].(string)
-	if !ok || len(bus) == 0 {
-		return fmt.Errorf("bus must be set")
-	}
-	if strings.Compare(bus, "session") != 0 && strings.Compare(bus, "system") != 0 {
-		return fmt.Errorf("bus must be one of 'session' or 'system'")
-	}
-
-	// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
-	dbus_name, ok := slot.Attrs["name"].(string)
-	if !ok || len(dbus_name) == 0 {
-		return fmt.Errorf("bus name must be set")
-	} else if len(dbus_name) > 255 {
-		return fmt.Errorf("bus name is too long (must be <= 255)")
-	}
-
-	validBusName := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z0-9_-]+)+$")
-	if !validBusName.MatchString(dbus_name) {
-		return fmt.Errorf("invalid bus name: %q", dbus_name)
-	}
-
-	return nil
-*/
+	var err error
+	// set dbusBindBusNames for later use
+	dbusBindBusNames, err = getBusNames(slot)
+	return err
 }
 
 func (iface *DbusBindInterface) AutoConnect() bool {

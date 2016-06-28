@@ -157,8 +157,8 @@ slots:
  dbus-bind-slot:
   interface: dbus-bind
   session:
-  - org.dbus-bind-snap-JAMIE1
-  - org.dbus-bind-snap-JAMIE2
+  - org.dbus-bind-snap.session-1
+  - org.dbus-bind-snap.session-2
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -169,15 +169,15 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-/*
 func (s *DbusBindInterfaceSuite) TestSanitizeSlotSystem(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: system
-  name: org.dbus-bind-snap
+  system:
+  - org.dbus-bind-snap.system-1
+  - org.dbus-bind-snap.system-2
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -194,8 +194,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: system
-  name: org.dbus-bind-snap.foo.bar.baz.n0rf_qux
+  system:
+  - org.dbus-bind-snap.foo.bar.baz.n0rf_qux
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -204,40 +204,6 @@ slots:
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
 	err = s.iface.SanitizeSlot(slot)
 	c.Assert(err, IsNil)
-}
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotMissingBus(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-bind-snap
-version: 1.0
-slots:
- dbus-bind-slot:
-  interface: dbus-bind
-  name: org.dbus-bind-snap
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "bus must be set")
-}
-
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotEmptyBus(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-bind-snap
-version: 1.0
-slots:
- dbus-bind-slot:
-  interface: dbus-bind
-  bus: ""
-  name: org.dbus-bind-snap
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "bus must be set")
 }
 
 func (s *DbusBindInterfaceSuite) TestSanitizeSlotNonexistentBus(c *C) {
@@ -246,8 +212,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: nonexistent
-  name: org.dbus-bind-snap
+  nonexistent:
+  - org.dbus-bind-snap
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -264,7 +230,7 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: session
+  session: null
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -272,7 +238,7 @@ slots:
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
 	err = s.iface.SanitizeSlot(slot)
-	c.Assert(err, ErrorMatches, "bus name must be set")
+	c.Assert(err, ErrorMatches, "bus attribute is not a list")
 }
 
 func (s *DbusBindInterfaceSuite) TestSanitizeSlotEmptyName(c *C) {
@@ -281,8 +247,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: session
-  name: ""
+  session:
+  - ""
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -307,8 +273,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: session
-  name: `)
+  session:
+  - `)
 	mockSnapYaml = append(mockSnapYaml, long_name...)
 	mockSnapYaml = append(mockSnapYaml, "\n"...)
 
@@ -326,8 +292,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: session
-  name: :dbus-bind-snap.bar
+  session:
+  - :dbus-bind-snap.bar
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -344,8 +310,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: session
-  name: 0dbus-bind-snap.bar
+  session:
+  - 0dbus-bind-snap.bar
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -362,8 +328,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: session
-  name: dbus-bind-snap
+  session:
+  - dbus-bind-snap
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -380,8 +346,8 @@ version: 1.0
 slots:
  dbus-bind-slot:
   interface: dbus-bind
-  bus: session
-  name: dbus-bind-snap.
+  session:
+  - dbus-bind-snap.
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -392,6 +358,7 @@ slots:
 	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-bind-snap\\.\"")
 }
 
+/*
 func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
