@@ -956,7 +956,7 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
+	c.Assert(snapstate.CurrentSideInfo(&snapst), DeepEquals, &snap.SideInfo{
 		OfficialName: "",
 		Channel:      "",
 		Revision:     snap.R(-3),
@@ -1007,7 +1007,7 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
+	c.Assert(snapstate.CurrentSideInfo(&snapst), DeepEquals, &snap.SideInfo{
 		OfficialName: "",
 		Channel:      "",
 		Revision:     snap.R(-1),
@@ -1091,8 +1091,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	}
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	var snapst *snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", snapst)
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -1205,8 +1205,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	}
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	var snapst *snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", snapst)
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -1360,9 +1360,9 @@ func (s *snapmgrQuerySuite) TestAll(c *C) {
 	}
 
 	c.Check(snapst.Active, Equals, true)
-	c.Check(snapst.CurrentSideInfo(), NotNil)
+	c.Check(snapstate.CurrentSideInfo(snapst), NotNil)
 
-	info12, err := snap.ReadInfo("name1", snapst.CurrentSideInfo())
+	info12, err := snap.ReadInfo("name1", snapstate.CurrentSideInfo(snapst))
 	c.Assert(err, IsNil)
 
 	c.Check(info12.Name(), Equals, "name1")
@@ -1434,7 +1434,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	defer s.state.Unlock()
 
 	// simulate existing state for foo
-	var snapst snapstate.SnapState
+	snapst := &snapstate.SnapState{}
 	snapst.Sequence = []*snap.SideInfo{
 		{
 			OfficialName: "foo",
@@ -1442,7 +1442,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 		},
 	}
 	snapst.Current = snap.R(23)
-	snapstate.Set(s.state, "foo", &snapst)
+	snapstate.Set(s.state, "foo", snapst)
 	c.Check(snapst.TryMode(), Equals, false)
 
 	chg := s.state.NewChange("try", "try snap")
@@ -1461,7 +1461,7 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	s.state.Lock()
 
 	// verify snap is not in try mode, the state got undone
-	err = snapstate.Get(s.state, "foo", &snapst)
+	err = snapstate.Get(s.state, "foo", snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.TryMode(), Equals, false)
 }
@@ -1514,53 +1514,53 @@ func (s *snapStateSuite) TestSnapStateType(c *C) {
 	c.Check(typ, Equals, snap.TypeKernel)
 }
 
-func (s *snapStateSuite) TestCurrentSideInfoEmpty(c *C) {
-	var snapst snapstate.SnapState
-	c.Check(snapst.CurrentSideInfo(), IsNil)
+func (s *snapStateSuite) TestcurrentSideInfoEmpty(c *C) {
+	snapst := &snapstate.SnapState{}
+	c.Check(snapstate.CurrentSideInfo(snapst), IsNil)
 	c.Check(snapst.Current.Unset(), Equals, true)
 }
 
-func (s *snapStateSuite) TestCurrentSideInfoSimple(c *C) {
+func (s *snapStateSuite) TestcurrentSideInfoSimple(c *C) {
 	si1 := &snap.SideInfo{Revision: snap.R(1)}
-	snapst := snapstate.SnapState{
+	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1},
 		Current:  snap.R(1),
 	}
-	c.Check(snapst.CurrentSideInfo(), DeepEquals, si1)
+	c.Check(snapstate.CurrentSideInfo(snapst), DeepEquals, si1)
 }
 
-func (s *snapStateSuite) TestCurrentSideInfoInOrder(c *C) {
+func (s *snapStateSuite) TestcurrentSideInfoInOrder(c *C) {
 	si1 := &snap.SideInfo{Revision: snap.R(1)}
 	si2 := &snap.SideInfo{Revision: snap.R(2)}
-	snapst := snapstate.SnapState{
+	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1, si2},
 		Current:  snap.R(2),
 	}
-	c.Check(snapst.CurrentSideInfo(), DeepEquals, si2)
+	c.Check(snapstate.CurrentSideInfo(snapst), DeepEquals, si2)
 }
 
-func (s *snapStateSuite) TestCurrentSideInfoOutOfOrder(c *C) {
+func (s *snapStateSuite) TestcurrentSideInfoOutOfOrder(c *C) {
 	si1 := &snap.SideInfo{Revision: snap.R(1)}
 	si2 := &snap.SideInfo{Revision: snap.R(2)}
-	snapst := snapstate.SnapState{
+	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1, si2},
 		Current:  snap.R(1),
 	}
-	c.Check(snapst.CurrentSideInfo(), DeepEquals, si1)
+	c.Check(snapstate.CurrentSideInfo(snapst), DeepEquals, si1)
 }
 
-func (s *snapStateSuite) TestCurrentSideInfoInconsistent(c *C) {
-	snapst := snapstate.SnapState{
+func (s *snapStateSuite) TestcurrentSideInfoInconsistent(c *C) {
+	snapst := &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
 			{Revision: snap.R(1)},
 		},
 	}
-	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `snapst.Current and snapst.Sequence out of sync:.*`)
+	c.Check(func() { snapstate.CurrentSideInfo(snapst) }, PanicMatches, `snapst.Current and snapst.Sequence out of sync:.*`)
 }
 
-func (s *snapStateSuite) TestCurrentSideInfoInconsistentWithCurrent(c *C) {
-	snapst := snapstate.SnapState{Current: snap.R(17)}
-	c.Check(func() { snapst.CurrentSideInfo() }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
+func (s *snapStateSuite) TestcurrentSideInfoInconsistentWithCurrent(c *C) {
+	snapst := &snapstate.SnapState{Current: snap.R(17)}
+	c.Check(func() { snapstate.CurrentSideInfo(snapst) }, PanicMatches, `cannot find snapst.Current in the snapst.Sequence`)
 }
 
 type snapSetupSuite struct{}

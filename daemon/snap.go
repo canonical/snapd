@@ -20,8 +20,6 @@
 package daemon
 
 import (
-	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -30,8 +28,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
-
-var errNoSnap = errors.New("no snap installed")
 
 // snapIcon tries to find the icon inside the snap
 func snapIcon(info *snap.Info) string {
@@ -61,18 +57,13 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, name, &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
-	}
-
-	cur := snapst.CurrentSideInfo()
-	if cur == nil {
-		return nil, nil, errNoSnap
-	}
-
-	info, err := snap.ReadInfo(name, cur)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
+		return nil, nil, err
+	}
+
+	info, err := snapstate.CurrentInfoWithSnapState(name, &snapst)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	return info, &snapst, nil
@@ -97,7 +88,7 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 
 	var firstErr error
 	for name, snapState := range snapStates {
-		info, err := snap.ReadInfo(name, snapState.CurrentSideInfo())
+		info, err := snapstate.CurrentInfo(st, name)
 		if err != nil {
 			// FIXME: this is just a tiny step forward to not
 			//        totally break if a snap can no longer
@@ -106,6 +97,7 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 			if _, ok := err.(*snap.NotFoundError); ok {
 				continue
 			}
+
 			// XXX: aggregate instead?
 			if firstErr == nil {
 				firstErr = err
