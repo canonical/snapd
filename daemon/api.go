@@ -363,7 +363,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
-	auther, err := c.d.auther(r)
+	auther, err := c.d.auther(user)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
@@ -434,7 +434,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 
-	auther, err := c.d.auther(r)
+	auther, err := c.d.auther(user)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}

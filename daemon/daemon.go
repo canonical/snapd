@@ -245,15 +245,9 @@ func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
 }
 
-func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
+func (d *Daemon) auther(user *auth.UserState) (store.Authenticator, error) {
 	overlord := d.overlord
 	state := overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, r)
-	state.Unlock()
-	if err != nil && err != auth.ErrInvalidAuth {
-		return nil, err
-	}
 	var userID int
 	if user != nil {
 		userID = user.ID
