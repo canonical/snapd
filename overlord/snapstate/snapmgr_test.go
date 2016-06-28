@@ -308,7 +308,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
-		channel:  "some-channel",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		{
@@ -478,7 +477,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
-		channel:  "some-channel",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -633,7 +631,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
-		channel:  "some-channel",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -764,7 +761,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
-		channel:  "some-channel",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
