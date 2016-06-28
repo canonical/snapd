@@ -13,6 +13,7 @@ Build-Depends: autoconf,
                libseccomp-dev,
                libudev-dev,
                pkg-config,
+               python3-docutils,
                shellcheck,
                udev
 Standards-Version: 3.9.8
