@@ -24,7 +24,7 @@ import (
 	"fmt"
 	//"reflect"
 	"regexp"
-	"strings"
+	//"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -240,85 +240,33 @@ func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
+	return nil
+}
 
+func (iface *DbusBindInterface) getBusNames(slot *interfaces.Slot) map[string]string {
 	fmt.Printf("%#+v\n", slot.Attrs)
-	fmt.Printf("%#+v\n", slot.Attrs["session"])
-	//fmt.Printf("%d\n", len(slot.Attrs["session"].(string)))
 
-	for p, ok := range slot.Attrs.(interface{}) {
-		fmt.Printf("%#+v\n", p)
-
+	sessionAttr, ok := slot.Attrs["session"]
+	if !ok {
+		panic(fmt.Sprintf("could not find session bus"))
 	}
-	/*
-	for i, n := range names {
-		fmt.Printf("bus=%s\n", n)
-		buses[i] = slot.Attrs[n].(string)
-	}
-	fmt.Printf("%#+v\n", buses)
-	*/
-
-	/*
-	stringSlice, found := slot.Attrs["session"].([]string)
-	if !found {
-		fmt.Printf("couldn't find []string\n")
-	}
-	stringSlice, found := slot.Attrs["session"].(string)
-	if !found {
-		fmt.Printf("couldn't find []string\n")
-	}
-	stringSlice, found := slot.Attrs["session"].([]string)
-	if !found {
-		fmt.Printf("couldn't find []string\n")
+	sessionList, ok := sessionAttr.([]interface{})
+	if !ok {
+		panic(fmt.Sprintf("session attribute is not a list"))
 	}
 
-	if !found {
-		fmt.Printf("slot.Attrs=%+v\n", slot.Attrs)
-		fmt.Printf("slot.Attrs[session]=%+v\n", slot.Attrs["session"])
-		fmt.Printf("slot.Attrs[session]=%s\n", (slot.Attrs["session"]).([]string))
-		fmt.Printf("couldn't find []string\n")
-		fmt.Printf("type=%s\n", reflect.TypeOf(slot.Attrs["session"]))
-		return nil
-	}
-	fmt.Printf("stringSlice=%+v\n", stringSlice)
-
-	names := []string{"session", "system"}
-	vals := make([]string, len(names))
-	for i, v := range names {
-		fmt.Println(i)
-		fmt.Println(v)
-		vals[i] = slot.Attrs[v].(string)
-		fmt.Println(vals[i])
-	}
-	*/
-	/*
-	for _, val := range vals {
-		//fmt.Printf("  %s\n", val)
-		fmt.Println(val)
+	var busNames []string
+	for _, item := range sessionList {
+		busName, ok := item.(string)
+		if !ok {
+			panic("session element is not a string")
+		}
+		busNames = append(busNames, busName)
+		fmt.Printf("  %s\n", busName)
 	}
 
 	return nil
-
-	names := []string{"session", "system"}
-	vals := make([]interface{}, len(names))
-	for i, v := range names {
-		vals[i] = v
-		fmt.Println(v)
-	}
-	for _, val := range vals {
-		//fmt.Printf("  %s\n", val)
-		fmt.Println(val)
-	}
-
-	return nil
-
-	for bus := range slot.Attrs {
-		fmt.Printf("bus=%s\n", bus)
-		fmt.Printf("bus_names=%s\n", slot.Attrs[bus])
-		fmt.Printf("len=%d\n", len(slot.Attrs[bus]))
-	}
-	*/
-
-	return nil
+/*
 	for bus, bus_names := range slot.Attrs {
 		fmt.Printf("bus=%s\n", bus)
 		fmt.Printf("bus_names=%+v\n", bus_names)
@@ -357,6 +305,7 @@ func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	return nil
+*/
 }
 
 func (iface *DbusBindInterface) AutoConnect() bool {
