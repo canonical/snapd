@@ -15,8 +15,17 @@ export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
+TAGS=
+ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
+	TAGS=-tags withtestkeys
+endif
+
+
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
+
+override_dh_auto_build:
+	dh_auto_build -- $(TAGS)
 
 override_dh_systemd_enable:
 	# enable boot-ok

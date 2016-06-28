@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build withtestkeys
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,30 +18,13 @@
  *
  */
 
-package asserts
+package assertstate
 
 import (
-	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/asserts/testkeys"
 )
 
-func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
-	bs, err := OpenFSBackstore(path)
-	if err != nil {
-		return nil, err
-	}
-	keypairMgr, err := OpenFSKeypairManager(path)
-	if err != nil {
-		return nil, err
-	}
-	cfg.Backstore = bs
-	cfg.KeypairManager = keypairMgr
-	return OpenDatabase(cfg)
-}
-
-// OpenSysDatabase opens the installation-wide assertion database.
-func OpenSysDatabase() (*Database, error) {
-	cfg := &DatabaseConfig{
-		Trusted: trustedAssertions,
-	}
-	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
+// init inject the test trusted assertion (if this module build tag is defined)
+func init() {
+	testkeys.Inject()
 }

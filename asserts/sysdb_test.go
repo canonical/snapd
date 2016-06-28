@@ -20,7 +20,6 @@
 package asserts_test
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -32,7 +31,8 @@ import (
 )
 
 type sysDBSuite struct {
-	probeAssert asserts.Assertion
+	extraTrustedAccKey asserts.Assertion
+	probeAssert        asserts.Assertion
 }
 
 var _ = Suite(&sysDBSuite{})
@@ -46,8 +46,8 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	// self-signed
 	headers := map[string]string{
-		"authority-id":           "canonical",
-		"account-id":             "canonical",
+		"authority-id":           "can0nical",
+		"account-id":             "can0nical",
 		"public-key-id":          trustedPubKey.ID(),
 		"public-key-fingerprint": trustedPubKey.Fingerprint(),
 		"since":                  "2015-11-20T15:04:00Z",
@@ -55,19 +55,15 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	}
 	trustedAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, trustedPubKeyEncoded, pk)
 	c.Assert(err, IsNil)
+	sdbs.extraTrustedAccKey = trustedAccKey
 
 	fakeRoot := filepath.Join(tmpdir, "root")
 	err = os.Mkdir(fakeRoot, os.ModePerm)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(fakeRoot)
 
-	err = os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), os.ModePerm)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapTrustedAccountKey, asserts.Encode(trustedAccKey), os.ModePerm)
-	c.Assert(err, IsNil)
-
 	headers = map[string]string{
-		"authority-id": "canonical",
+		"authority-id": "can0nical",
 		"primary-key":  "0",
 	}
 	sdbs.probeAssert, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, pk)
@@ -79,7 +75,35 @@ func (sdbs *sysDBSuite) TearDownTest(c *C) {
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
-	db, err := asserts.OpenSysDatabase(dirs.SnapTrustedAccountKey)
+	db, err := asserts.OpenSysDatabase()
+	c.Assert(err, IsNil)
+	c.Check(db, NotNil)
+
+	// check trusted
+	_, err = db.Find(asserts.AccountKeyType, map[string]string{
+		"account-id":    "canonical",
+		"public-key-id": "d4a55bea97d83720",
+	})
+	c.Assert(err, IsNil)
+
+	trustedAcc, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": "canonical",
+	})
+	c.Assert(err, IsNil)
+
+	err = db.Check(trustedAcc)
+	c.Check(err, IsNil)
+
+	// extraneous
+	err = db.Check(sdbs.probeAssert)
+	c.Check(err, ErrorMatches, "no matching public key.*")
+}
+
+func (sdbs *sysDBSuite) TestOpenSysDatabaseExtras(c *C) {
+	restore := asserts.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
+	defer restore()
+
+	db, err := asserts.OpenSysDatabase()
 	c.Assert(err, IsNil)
 	c.Check(db, NotNil)
 
@@ -93,7 +117,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := asserts.OpenSysDatabase(dirs.SnapTrustedAccountKey)
+	db, err := asserts.OpenSysDatabase()
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }
@@ -104,14 +128,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseKeypairManagerOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := asserts.OpenSysDatabase(dirs.SnapTrustedAccountKey)
+	db, err := asserts.OpenSysDatabase()
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
-}
-
-func (sdbs *sysDBSuite) TestOpenSysDatabaseTemporaryFallback(c *C) {
-	// XXX: this is supported only temporarely
-	db, err := asserts.OpenSysDatabase("")
-	c.Assert(err, IsNil)
-	c.Check(db, NotNil)
 }
