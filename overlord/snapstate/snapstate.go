@@ -342,6 +342,9 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
 	revertToRev := snapst.Sequence[i].Revision
+	// set candidate early, it will be used in the prepare-snap task
+	snapst.Candidate = snapst.Sequence[i]
+	Set(s, name, &snapst)
 
 	ss := SnapSetup{
 		Name:     name,
@@ -354,7 +357,7 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 		Revert:   revertToRev,
 	}
 
-	prepare := s.NewTask("prepare-revert", fmt.Sprintf(i18n.G("Prepare revert of %q"), name))
+	prepare := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare revert of %q"), name))
 	prepare.Set("snap-setup", ss)
 
 	unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
