@@ -7,8 +7,7 @@ execute: |
   .*?\
   xkcd-webserver +.*? *\n\
   .*"
-  actual=$(snap find)
-  echo "$actual" | grep -Pzq "$expected" || exit 1
+  snap find | grep -Pzq "$expected"
 
   echo "Exact matches"
   for snapName in hello-world xkcd-webserver
@@ -17,8 +16,7 @@ execute: |
   .*?\n\
   $snapName +.*? *\n\
   .*"
-    actual=$(snap find $snapName)
-    echo "$actual" | grep -Pzq "$expected" || exit 1
+    snap find $snapName | grep -Pzq "$expected"
   done
 
   echo "Partial terms work too"
@@ -26,5 +24,4 @@ execute: |
   .*?\n\
   hello-world +.*? *\n\
   .*"
-  actual=$(snap find hello-)
-  echo "$actual" | grep -Pzq "$expected" || exit 1
+  snap find hello- | grep -Pzq "$expected"
