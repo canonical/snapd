@@ -200,10 +200,10 @@ func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevmodeConfinement
 }
 
-// DownlaodInfo contaisn the download URLs of a snap
+// DownloadInfo contains the download of a snap and can be marshalled.
 type DownloadInfo struct {
-	AnonDownloadURL string
-	DownloadURL     string
+	AnonDownloadURL string `json:"anon-download-url,omitempty"`
+	DownloadURL     string `json:"download-url,omitempty"`
 }
 
 // sanity check that Info is a PlaceInfo
