@@ -82,16 +82,14 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 
 func (s *prepareSnapSuite) TestDoPrepareSnapDoesNotOverrideCandidate(c *C) {
 	s.state.Lock()
-	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Candidate: &snap.SideInfo{
-			Revision: snap.R(7),
-		},
-	})
 
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		Name:     "foo",
 		Revision: snap.R(17),
+		SideInfo: &snap.SideInfo{
+			Revision: snap.R(7),
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
