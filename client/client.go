@@ -168,8 +168,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 // response payload into the given value.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-	err := client.do(method, path, query, headers, body, &rsp)
-	if err != nil {
+	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
 		return nil, err
 	}
 	if err := rsp.err(); err != nil {
