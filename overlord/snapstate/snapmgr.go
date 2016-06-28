@@ -179,9 +179,7 @@ func (snapst *SnapState) SetTryMode(active bool) {
 func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
 	var auther store.Authenticator
 	if userID > 0 {
-		st.Lock()
 		user, err := auth.User(st, userID)
-		st.Unlock()
 		if err != nil {
 			return nil, err
 		}
@@ -190,27 +188,25 @@ func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
 	return auther, nil
 }
 
-func ubuntuStore() StoreService {
-	storeID := ""
-	// TODO: set the store-id here from the model information
-	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
-		storeID = cand
+func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+	auther, err := autherForUserID(st, userID)
+	if err != nil {
+		return nil, err
 	}
-	return store.NewUbuntuStoreSnapRepository(nil, storeID)
+	devmode := flags&DevMode > 0
+	return Store().Snap(name, channel, devmode, auther)
 }
 
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
 
-	store := ubuntuStore()
 	// TODO: if needed we could also put the store on the state using
 	// the Cache mechanism and an accessor function
 
 	m := &SnapManager{
 		state:   s,
 		backend: backend.Backend{},
-		store:   store,
 		runner:  runner,
 	}
 
@@ -245,23 +241,42 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-// Store returns the store service used by the manager.
-func (m *SnapManager) Store() StoreService {
-	return m.store
+// ReplaceStore replaces the store used by the manager.
+func ReplaceStore(store StoreService) {
+	ubuntuStore = store
 }
 
-// ReplaceStore replaces the store used by manager.
-func (m *SnapManager) ReplaceStore(store StoreService) {
-	m.store = store
+var ubuntuStore StoreService
+
+// Store returns the snapstate store
+func Store() StoreService {
+	if ubuntuStore != nil {
+		return ubuntuStore
+	}
+
+	storeID := ""
+	// TODO: set the store-id here from the model information
+	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
+		storeID = cand
+	}
+	ubuntuStore = store.NewUbuntuStoreSnapRepository(nil, storeID)
+	return ubuntuStore
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
-	for _, si := range snapst.Sequence {
-		if si.Revision == revision {
-			return fmt.Errorf("revision %s of snap %q already installed", revision, name)
-		}
+	if revisionInSequence(snapst, revision) {
+		return fmt.Errorf("revision %s of snap %q already installed", revision, name)
 	}
 	return nil
+}
+
+func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
+	for _, si := range snapst.Sequence {
+		if si.Revision == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -327,11 +342,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	meter := &TaskProgressAdapter{task: t}
 
+	st.Lock()
 	auther, err := autherForUserID(st, ss.UserID)
+	st.Unlock()
 	if err != nil {
 		return err
 	}
-	storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
+
+	storeInfo, err := Store().Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
 	if err != nil {
 		return err
 	}
@@ -340,7 +358,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	downloadedSnapFile, err := m.store.Download(storeInfo, meter, auther)
+	downloadedSnapFile, err := Store().Download(storeInfo, meter, auther)
 	if err != nil {
 		return err
 	}

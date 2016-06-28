@@ -273,7 +273,7 @@ apps:
 
 	mStore := store.NewUbuntuStoreSnapRepository(&storeCfg, "")
 
-	ms.o.SnapManager().ReplaceStore(mStore)
+	snapstate.ReplaceStore(mStore)
 
 	st := ms.o.State()
 	st.Lock()

@@ -154,6 +154,12 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	return info, nil
 }
 
+func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
+	return f.ReadInfo(name, &snap.SideInfo{
+		OfficialName: name,
+	})
+}
+
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter) error {
 	p.Notify("copy-data")
 	old := "<no-old>"
