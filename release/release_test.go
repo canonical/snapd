@@ -67,21 +67,17 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	reset := release.MockOSReleasePath(mockOSRelease(c))
 	defer reset()
 
-	os, err := release.ReadOSRelease()
-	c.Assert(err, IsNil)
+	os := release.ReadOSRelease()
 	c.Check(os.ID, Equals, "ubuntu")
-	c.Check(os.Name, Equals, "Ubuntu")
 	c.Check(os.VersionID, Equals, "18.09")
-	c.Check(os.Codename, Equals, "awesome")
-	c.Check(os.PrettyName, Equals, "I'm not real!")
 }
 
 func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
 	reset := release.MockOSReleasePath("not-there")
 	defer reset()
 
-	_, err := release.ReadOSRelease()
-	c.Assert(err, ErrorMatches, "cannot open os-release:.*")
+	os := release.ReadOSRelease()
+	c.Assert(os, DeepEquals, release.OS{ID: "linux", VersionID: "unknown"})
 }
 
 func (s *ReleaseTestSuite) TestOnClassic(c *C) {

@@ -394,7 +394,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 
 	s.daemon(c).Version = "42b1"
 
-	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", Name: "distro-name"})
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
 	defer restore()
 	restore = release.MockOnClassic(true)
 	defer restore()
@@ -406,8 +406,8 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 		"series":  "16",
 		"version": "42b1",
 		"os-release": map[string]interface{}{
-			"id":   "distro-id",
-			"name": "distro-name",
+			"id":         "distro-id",
+			"version-id": "1.2",
 		},
 		"on-classic": true,
 	}

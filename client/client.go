@@ -29,9 +29,9 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
-	"time"
 )
 
 func unixDialer(_, _ string) (net.Conn, error) {
@@ -210,28 +210,25 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	return rsp.Change, nil
 }
 
-func (client *Client) ServerVersion() (string, error) {
+type ServerVersion struct {
+	Version     string
+	Series      string
+	OSID        string
+	OSVersionID string
+}
+
+func (client *Client) ServerVersion() (*ServerVersion, error) {
 	sysInfo, err := client.SysInfo()
 	if err != nil {
-		return "unknown", err
+		return nil, err
 	}
 
-	serverVersion := sysInfo.Version
-	if serverVersion == "" {
-		serverVersion = "unknown"
-	}
-
-	what := "classic"
-	if !sysInfo.OnClassic {
-		what = "unspecified"
-		// what = machine info (e.g. RPi3 etc)
-	}
-
-	// where := "localhost" ... :-)
-
-	versionStr := fmt.Sprintf("%s/%s/%s/%s", serverVersion, sysInfo.Series, sysInfo.OSRelease.PrettyName, what)
-
-	return versionStr, nil
+	return &ServerVersion{
+		Version:     sysInfo.Version,
+		Series:      sysInfo.Series,
+		OSID:        sysInfo.OSRelease.ID,
+		OSVersionID: sysInfo.OSRelease.VersionID,
+	}, nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -277,11 +274,8 @@ func IsTwoFactorError(err error) bool {
 
 // OSRelease contains information about the system extracted from /etc/os-release.
 type OSRelease struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	VersionID  string `json:"version-id,omitempty"`
-	Codename   string `json:"codename,omitempty"`
-	PrettyName string `json:"pretty-name,omitempty"`
+	ID        string `json:"id"`
+	VersionID string `json:"version-id,omitempty"`
 }
 
 // SysInfo holds system information
