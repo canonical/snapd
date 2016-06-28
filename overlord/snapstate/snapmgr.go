@@ -253,11 +253,14 @@ func Manager(s *state.State) (*SnapManager, error) {
 
 // ReplaceStore replaces the store used by the manager.
 func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache("store", store)
+	state.Cache(cachedStore{}, store)
 }
 
+//
+type cachedStore struct{}
+
 func Store(s *state.State) StoreService {
-	if ubuntuStore := s.Cached("store"); ubuntuStore != nil {
+	if ubuntuStore := s.Cached(cachedStore{}); ubuntuStore != nil {
 		return ubuntuStore.(StoreService)
 	}
 
@@ -266,7 +269,7 @@ func Store(s *state.State) StoreService {
 	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
 		storeID = cand
 	}
-	s.Cache("store", store.NewUbuntuStoreSnapRepository(nil, storeID))
+	s.Cache(cachedStore{}, store.NewUbuntuStoreSnapRepository(nil, storeID))
 	return Store(s)
 }
 

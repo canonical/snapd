@@ -173,7 +173,6 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	if err != nil {
 		return nil, err
 	}
-	Set(s, name, &snapst)
 
 	ss := &SnapSetup{
 		Name:         name,
@@ -210,7 +209,6 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
 		return nil, err
 	}
-	Set(s, name, &snapst)
 
 	ss := &SnapSetup{
 		Name:         name,
