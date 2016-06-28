@@ -148,7 +148,10 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
-	snapstate.ReplaceStore(s)
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d

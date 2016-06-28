@@ -68,7 +68,6 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		fakeTotalProgress:   100,
 		fakeBackend:         s.fakeBackend,
 	}
-	snapstate.ReplaceStore(s.fakeStore)
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state)
@@ -86,6 +85,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	}
 
 	s.state.Lock()
+	snapstate.ReplaceStore(s.state, s.fakeStore)
 	s.user, err = auth.NewUser(s.state, "username", "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
 	s.state.Unlock()
@@ -96,10 +96,13 @@ func (s *snapmgrTestSuite) TearDownTest(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestStore(c *C) {
-	c.Check(snapstate.Store(), NotNil)
+	s.state.Lock()
+	defer s.state.Unlock()
 
-	snapstate.ReplaceStore(s.fakeStore)
-	c.Check(snapstate.Store(), Equals, s.fakeStore)
+	c.Check(snapstate.Store(s.state), NotNil)
+
+	snapstate.ReplaceStore(s.state, s.fakeStore)
+	c.Check(snapstate.Store(s.state), Equals, s.fakeStore)
 }
 
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
