@@ -35,18 +35,20 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"time"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
 type clientSuite struct {
-	cli    *client.Client
-	req    *http.Request
-	rsp    string
-	err    error
-	header http.Header
-	status int
+	cli     *client.Client
+	req     *http.Request
+	rsp     string
+	err     error
+	doCalls int
+	header  http.Header
+	status  int
 }
 
 var _ = check.Suite(&clientSuite{})
@@ -59,6 +61,7 @@ func (cs *clientSuite) SetUpTest(c *check.C) {
 	cs.req = nil
 	cs.header = nil
 	cs.status = http.StatusOK
+	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
 }
@@ -70,6 +73,7 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 		Header:     cs.header,
 		StatusCode: cs.status,
 	}
+	cs.doCalls++
 	return rsp, cs.err
 }
 
@@ -78,10 +82,16 @@ func (cs *clientSuite) TestNewPanics(c *check.C) {
 		client.New(&client.Config{BaseURL: ":"})
 	}, check.PanicMatches, `cannot parse server base URL: ":" \(parse :: missing protocol scheme\)`)
 }
+
 func (cs *clientSuite) TestClientDoReportsErrors(c *check.C) {
+	restore := client.MockDoRetry(10*time.Millisecond, 100*time.Millisecond)
+	defer restore()
 	cs.err = errors.New("ouchie")
 	err := cs.cli.Do("GET", "/", nil, nil, nil)
-	c.Check(err, check.Equals, cs.err)
+	c.Check(err, check.ErrorMatches, "cannot communicate with server: ouchie")
+	if cs.doCalls < 2 {
+		c.Fatalf("do did not retry")
+	}
 }
 
 func (cs *clientSuite) TestClientWorks(c *check.C) {
