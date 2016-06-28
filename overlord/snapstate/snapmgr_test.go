@@ -421,12 +421,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
-		// FIXME: yes, we do this twice :/
-		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
 		{
 			op:   "storesvc-download",
 			name: "some-snap",
@@ -499,7 +493,16 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 		Revision: snap.R(11),
 
-		SnapPath: "downloaded-snap-path",
+		SnapPath:   "downloaded-snap-path",
+		UpdateInfo: ss.UpdateInfo,
+	})
+	c.Assert(ss.UpdateInfo, DeepEquals, &snapstate.StoreUpdateInfo{
+		SideInfo: snap.SideInfo{
+			OfficialName: "some-snap",
+			SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
+			Revision:     snap.R(11),
+			Channel:      "some-channel",
+		},
 	})
 
 	// verify snaps in the system state
@@ -556,13 +559,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
-		// FIXME: yes, we do this twice :/
-		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-
 		{
 			op:   "storesvc-download",
 			name: "some-snap",
@@ -693,13 +689,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name:  "some-snap",
 			revno: snap.R(11),
 		},
-		// FIXME: yes, we do this twice :/
-		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
-			revno: snap.R(11),
-		},
-
 		{
 			op:   "storesvc-download",
 			name: "some-snap",
@@ -809,7 +798,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
-	c.Assert(err, ErrorMatches, "already installed locally")
+	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
@@ -1604,7 +1593,7 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
+func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 	si7 := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1624,5 +1613,5 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
-	c.Assert(err, ErrorMatches, "already installed locally")
+	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
 }

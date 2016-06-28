@@ -195,20 +195,20 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		channel = snapst.Channel
 	}
 
-	// FIXME: race if we do the lookup here and in doDownloadTask again
-	snapInfo, err := updateInfo(s, name, channel, userID, flags)
+	updateInfo, err := updateInfo(s, name, channel, userID, flags)
 	if err != nil {
 		return nil, err
 	}
-	if revisionInSequence(&snapst, snapInfo.Revision) {
-		return nil, fmt.Errorf("already installed locally")
+	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
+		return nil, err
 	}
 
 	ss := &SnapSetup{
-		Name:    name,
-		Channel: channel,
-		UserID:  userID,
-		Flags:   SnapSetupFlags(flags),
+		Name:       name,
+		Channel:    channel,
+		UserID:     userID,
+		Flags:      SnapSetupFlags(flags),
+		UpdateInfo: updateInfo,
 	}
 
 	return doInstall(s, snapst.Active, ss)
