@@ -130,28 +130,6 @@ func checkChangeConflict(s *state.State, snapName string) error {
 	return nil
 }
 
-// Install returns a set of tasks for installing snap.
-// Note that the state must be locked by the caller.
-func Install(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
-	if err != nil && err != state.ErrNoState {
-		return nil, err
-	}
-	if snapst.CurrentSideInfo() != nil {
-		return nil, fmt.Errorf("snap %q already installed", name)
-	}
-
-	ss := &SnapSetup{
-		Name:    name,
-		Channel: channel,
-		UserID:  userID,
-		Flags:   SnapSetupFlags(flags),
-	}
-
-	return doInstall(s, false, ss)
-}
-
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
 func InstallPath(s *state.State, name, path, channel string, flags Flags) (*state.TaskSet, error) {
@@ -179,6 +157,36 @@ func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, er
 	return InstallPath(s, name, path, "", flags)
 }
 
+// Install returns a set of tasks for installing snap.
+// Note that the state must be locked by the caller.
+func Install(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if snapst.CurrentSideInfo() != nil {
+		return nil, fmt.Errorf("snap %q already installed", name)
+	}
+
+	snapInfo, err := snapInfo(s, name, channel, userID, flags)
+	if err != nil {
+		return nil, err
+	}
+	snapst.Candidate = &snapInfo.SideInfo
+	Set(s, name, &snapst)
+
+	ss := &SnapSetup{
+		Name:         name,
+		Channel:      channel,
+		UserID:       userID,
+		Flags:        SnapSetupFlags(flags),
+		DownloadInfo: snapInfo.DownloadInfo,
+	}
+
+	return doInstall(s, false, ss)
+}
+
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 func Update(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
@@ -202,13 +210,15 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
 		return nil, err
 	}
+	snapst.Candidate = &updateInfo.SideInfo
+	Set(s, name, &snapst)
 
 	ss := &SnapSetup{
-		Name:       name,
-		Channel:    channel,
-		UserID:     userID,
-		Flags:      SnapSetupFlags(flags),
-		UpdateInfo: updateInfo,
+		Name:         name,
+		Channel:      channel,
+		UserID:       userID,
+		Flags:        SnapSetupFlags(flags),
+		DownloadInfo: updateInfo.DownloadInfo,
 	}
 
 	return doInstall(s, snapst.Active, ss)

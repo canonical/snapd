@@ -493,16 +493,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 		Revision: snap.R(11),
 
-		SnapPath:   "downloaded-snap-path",
-		UpdateInfo: ss.UpdateInfo,
-	})
-	c.Assert(ss.UpdateInfo, DeepEquals, &snapstate.StoreUpdateInfo{
-		SideInfo: snap.SideInfo{
-			OfficialName: "some-snap",
-			SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision:     snap.R(11),
-			Channel:      "some-channel",
-		},
+		SnapPath: "downloaded-snap-path",
 	})
 
 	// verify snaps in the system state
