@@ -23,7 +23,7 @@ Architecture: any
 Breaks: ubuntu-core-launcher (<< 1.0.32)
 Replaces: ubuntu-core-launcher (<< 1.0.32)
 Depends: apparmor, ${misc:Depends}, ${shlibs:Depends}
-Description: Support executable to apply confinement for snappy apps.
+Description: Support executable to apply confinement for snappy apps
  This package contains an internal tool for applying confinement to snappy app.
  The executable (snap-confine) is ran internally by snapd to apply confinement
  to the started application process. The tool is written in C and carefully
