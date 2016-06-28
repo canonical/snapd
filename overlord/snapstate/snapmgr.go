@@ -176,16 +176,20 @@ func (snapst *SnapState) SetTryMode(active bool) {
 	}
 }
 
-// Manager returns a new snap manager.
-func Manager(s *state.State) (*SnapManager, error) {
-	runner := state.NewTaskRunner(s)
-
+func ubuntuStore() StoreService {
 	storeID := ""
 	// TODO: set the store-id here from the model information
 	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
 		storeID = cand
 	}
-	store := store.NewUbuntuStoreSnapRepository(nil, storeID)
+	return store.NewUbuntuStoreSnapRepository(nil, storeID)
+}
+
+// Manager returns a new snap manager.
+func Manager(s *state.State) (*SnapManager, error) {
+	runner := state.NewTaskRunner(s)
+
+	store := ubuntuStore()
 	// TODO: if needed we could also put the store on the state using
 	// the Cache mechanism and an accessor function
 
