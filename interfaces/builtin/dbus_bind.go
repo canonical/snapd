@@ -24,7 +24,7 @@ import (
 	"fmt"
 	//"reflect"
 	"regexp"
-	//"strings"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -242,16 +242,118 @@ func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	fmt.Printf("%#+v\n", slot.Attrs)
+	fmt.Printf("%#+v\n", slot.Attrs["session"])
+	//fmt.Printf("%d\n", len(slot.Attrs["session"].(string)))
+
+	for p, ok := range slot.Attrs.(interface{}) {
+		fmt.Printf("%#+v\n", p)
+
+	}
+	/*
+	for i, n := range names {
+		fmt.Printf("bus=%s\n", n)
+		buses[i] = slot.Attrs[n].(string)
+	}
+	fmt.Printf("%#+v\n", buses)
+	*/
+
+	/*
+	stringSlice, found := slot.Attrs["session"].([]string)
+	if !found {
+		fmt.Printf("couldn't find []string\n")
+	}
+	stringSlice, found := slot.Attrs["session"].(string)
+	if !found {
+		fmt.Printf("couldn't find []string\n")
+	}
+	stringSlice, found := slot.Attrs["session"].([]string)
+	if !found {
+		fmt.Printf("couldn't find []string\n")
+	}
+
+	if !found {
+		fmt.Printf("slot.Attrs=%+v\n", slot.Attrs)
+		fmt.Printf("slot.Attrs[session]=%+v\n", slot.Attrs["session"])
+		fmt.Printf("slot.Attrs[session]=%s\n", (slot.Attrs["session"]).([]string))
+		fmt.Printf("couldn't find []string\n")
+		fmt.Printf("type=%s\n", reflect.TypeOf(slot.Attrs["session"]))
+		return nil
+	}
+	fmt.Printf("stringSlice=%+v\n", stringSlice)
+
+	names := []string{"session", "system"}
+	vals := make([]string, len(names))
+	for i, v := range names {
+		fmt.Println(i)
+		fmt.Println(v)
+		vals[i] = slot.Attrs[v].(string)
+		fmt.Println(vals[i])
+	}
+	*/
+	/*
+	for _, val := range vals {
+		//fmt.Printf("  %s\n", val)
+		fmt.Println(val)
+	}
+
+	return nil
+
+	names := []string{"session", "system"}
+	vals := make([]interface{}, len(names))
+	for i, v := range names {
+		vals[i] = v
+		fmt.Println(v)
+	}
+	for _, val := range vals {
+		//fmt.Printf("  %s\n", val)
+		fmt.Println(val)
+	}
+
+	return nil
+
 	for bus := range slot.Attrs {
-		fmt.Printf("%#+v\n", slot.Attrs[bus])
-		// broken
-		for i, name := range slot.Attrs[bus] {
-			fmt.Printf("%#+v %s\n", i, name)
+		fmt.Printf("bus=%s\n", bus)
+		fmt.Printf("bus_names=%s\n", slot.Attrs[bus])
+		fmt.Printf("len=%d\n", len(slot.Attrs[bus]))
+	}
+	*/
+
+	return nil
+	for bus, bus_names := range slot.Attrs {
+		fmt.Printf("bus=%s\n", bus)
+		fmt.Printf("bus_names=%+v\n", bus_names)
+		if bus != "session" && bus != "system" {
+			return fmt.Errorf("bus must be one of 'session' or 'system'")
 		}
-		/* doesn't work */
-		//for i, name := range bus {
-		//	fmt.Printf("%#+v %s %s\n", i, name, bus[i])
-		//}
+		for _, dbus_name := range bus_names.([]string) {
+			fmt.Printf("  %s\n", dbus_name)
+		}
+	}
+
+	fmt.Printf("HERE\n")
+	return nil
+
+	// verify that we have both the bus and the name and they are formatted
+	// properly
+	bus, ok := slot.Attrs["bus"].(string)
+	if !ok || len(bus) == 0 {
+		return fmt.Errorf("bus must be set")
+	}
+	if strings.Compare(bus, "session") != 0 && strings.Compare(bus, "system") != 0 {
+		return fmt.Errorf("bus must be one of 'session' or 'system'")
+	}
+
+	// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
+	dbus_name, ok := slot.Attrs["name"].(string)
+	if !ok || len(dbus_name) == 0 {
+		return fmt.Errorf("bus name must be set")
+	} else if len(dbus_name) > 255 {
+		return fmt.Errorf("bus name is too long (must be <= 255)")
+	}
+
+	validBusName := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z0-9_-]+)+$")
+	if !validBusName.MatchString(dbus_name) {
+		return fmt.Errorf("invalid bus name: %q", dbus_name)
 	}
 
 	return nil
