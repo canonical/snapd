@@ -43,7 +43,7 @@ execute: |
 
   echo "Then the new version is available for the snap to be refreshed"
   expected="$SNAP_NAME +\d+\.\d+\+fake1 +\d+ +canonical"
-  echo "$(snap refresh --list)" | grep -Pzq "$expected"
+  snap refresh --list | grep -Pzq "$expected"
 
   echo "================================="
 
@@ -52,6 +52,6 @@ execute: |
 
   echo "Then the new version is listed"
   expected="$SNAP_NAME +\d+\.\d+\+fake1 +\d+ +canonical"
-  echo "$(snap list)" | grep -Pzq "$expected"
+  snap list | grep -Pzq "$expected"
 
   echo "================================="

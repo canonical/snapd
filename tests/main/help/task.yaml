@@ -9,5 +9,4 @@ environment:
 execute: |
   echo "Checking help for command $CMD"
   expected="(?s)Usage:\n  snap \[OPTIONS\] $CMD.*?\n\nThe $CMD command .*?\nHelp Options:\n  -h, --help +Show this help message\n.*?"
-  actual=$(snap $CMD --help)
-  echo "$actual" | grep -Pzq "$expected" || exit 1
+  snap $CMD --help | grep -Pzq "$expected" || exit 1

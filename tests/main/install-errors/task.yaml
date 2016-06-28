@@ -22,7 +22,7 @@ execute: |
   expected="(?s)error: cannot perform the following tasks:\n\
   - Download snap \"unexisting.canonical\" from channel \"stable\" \\(snap not found\\)\n"
   actual=$(snap install unexisting.canonical 2>&1) || EXPECTED_FAILURE="unexisting"
-  [ "$EXPECTED_FAILURE" = "unexisting" ] || exit 1
+  [ "$EXPECTED_FAILURE" = "unexisting" ]
   echo "$actual" | grep -Pzq "$expected"
 
   echo "============================================"
@@ -30,7 +30,7 @@ execute: |
   echo "Install without snap name shows error"
   expected="(?s)error: the required argument \`<snap>\` was not provided\n"
   actual=$(snap install 2>&1) || EXPECTED_FAILURE="nosnap"
-  [ "$EXPECTED_FAILURE" = "nosnap" ] || exit 1
+  [ "$EXPECTED_FAILURE" = "nosnap" ]
   echo "$actual" | grep -Pzq "$expected"
 
   echo "============================================"
@@ -38,7 +38,7 @@ execute: |
   echo "Install points to login when not authenticated"
   expected="snap login --help"
   actual=$(sudo -i -u test /bin/sh -c "snap install hello-world 2>&1") || EXPECTED_FAILURE="unauthenticated"
-  [ "$EXPECTED_FAILURE" = "unauthenticated" ] || exit 1
+  [ "$EXPECTED_FAILURE" = "unauthenticated" ]
   echo "$actual" | grep -Pzq "$expected"
 
   echo "============================================"
@@ -47,7 +47,7 @@ execute: |
   basic-binaries.fail || EXPECTED_FAILURE="command-failed"
 
   echo "Then it must fail"
-  [ "$EXPECTED_FAILURE" = "command-failed" ] || exit 1
+  [ "$EXPECTED_FAILURE" = "command-failed" ]
 
   echo "============================================"
 
@@ -55,6 +55,6 @@ execute: |
   snap install $STORE_SNAP_NAME || EXPECTED_FAILURE="install-failed"
 
   echo "Then it must fail"
-  [ "$EXPECTED_FAILURE" = "install-failed" ] || exit 1
+  [ "$EXPECTED_FAILURE" = "install-failed" ]
 
   echo "============================================"
