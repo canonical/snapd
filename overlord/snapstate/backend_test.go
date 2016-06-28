@@ -89,17 +89,16 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(snapInfo *snap.Info, pb progress.Meter, auther store.Authenticator) (string, error) {
+func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, auther store.Authenticator) (string, error) {
 	var macaroon string
 	if auther != nil {
 		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
 	}
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
-		name:     snapInfo.Name(),
-		channel:  snapInfo.Channel,
+		name:     name,
 	})
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: snapInfo.Name()})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
 
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))

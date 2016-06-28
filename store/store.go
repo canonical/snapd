@@ -656,8 +656,8 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 // Download downloads the given snap and returns its filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progress.Meter, auther Authenticator) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.Name())
+func (s *SnapUbuntuStoreRepository) Download(name string, remoteSnap *snap.DownloadInfo, pbar progress.Meter, auther Authenticator) (path string, err error) {
+	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
 	}
@@ -680,9 +680,11 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req, "", remoteSnap.NeedsDevMode(), auther)
+	if auther != nil {
+		auther.Authenticate(req)
+	}
 
-	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
+	if err := download(name, w, req, pbar); err != nil {
 		return "", err
 	}
 
