@@ -85,8 +85,8 @@ func makeMockLxdIndexSystem() string {
 
 	s := fmt.Sprintf(`
 ubuntu;xenial;otherarch;default;20151126_03:49;/images/ubuntu/xenial/armhf/default/20151126_03:49/
-ubuntu;%s;%s;default;20151126_03:49;/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/
-`, release.ReleaseInfo.Codename, arch)
+ubuntu;xenial;%s;default;20151126_03:49;/images/ubuntu/CODENAME/ARCH/default/20151126_03:49/
+`, arch)
 
 	return s
 }
