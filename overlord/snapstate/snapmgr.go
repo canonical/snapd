@@ -259,6 +259,7 @@ func ReplaceStore(state *state.State, store StoreService) {
 //
 type cachedStore struct{}
 
+// Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
 	if ubuntuStore := s.Cached(cachedStore{}); ubuntuStore != nil {
 		return ubuntuStore.(StoreService)
