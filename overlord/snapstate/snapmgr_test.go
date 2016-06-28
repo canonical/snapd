@@ -377,6 +377,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		SideInfo: ss.SideInfo,
 	})
 
 	// verify snaps in the system state
@@ -503,6 +504,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
+		SideInfo: ss.SideInfo,
 	})
 
 	// verify snaps in the system state

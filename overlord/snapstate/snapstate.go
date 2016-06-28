@@ -173,7 +173,6 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	if err != nil {
 		return nil, err
 	}
-	snapst.Candidate = &snapInfo.SideInfo
 	Set(s, name, &snapst)
 
 	ss := &SnapSetup{
@@ -182,6 +181,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		UserID:       userID,
 		Flags:        SnapSetupFlags(flags),
 		DownloadInfo: snapInfo.DownloadInfo,
+		SideInfo:     &snapInfo.SideInfo,
 	}
 
 	return doInstall(s, false, ss)
@@ -210,7 +210,6 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
 		return nil, err
 	}
-	snapst.Candidate = &updateInfo.SideInfo
 	Set(s, name, &snapst)
 
 	ss := &SnapSetup{
@@ -219,6 +218,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		UserID:       userID,
 		Flags:        SnapSetupFlags(flags),
 		DownloadInfo: updateInfo.DownloadInfo,
+		SideInfo:     &updateInfo.SideInfo,
 	}
 
 	return doInstall(s, snapst.Active, ss)
