@@ -181,10 +181,6 @@ func (snapst *SnapState) currentIndex() int {
 }
 
 func (snapst *SnapState) Block() []snap.Revision {
-	// compatiblity
-	if snapst.Current.Unset() {
-		return nil
-	}
 	// return revisions from Sequence[currentIndex:]
 	out := []snap.Revision{}
 	currentIndex := snapst.currentIndex()
