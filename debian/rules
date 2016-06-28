@@ -7,10 +7,10 @@ include /usr/share/dpkg/buildflags.mk
 	dh $@ --with autoreconf
 
 override_dh_auto_configure:
-	./configure --enable-nvidia-ubuntu --enable-rootfs-is-core-snap --prefix=/usr --libexecdir=/usr/lib/snap-confine
+	./configure --enable-nvidia-ubuntu --enable-rootfs-is-core-snap --prefix=/usr --libexecdir=/usr/lib/snapd
 
 override_dh_fixperms:
-	dh_fixperms -Xusr/lib/snap-confine/snap-confine
+	dh_fixperms -Xusr/lib/snapd/snap-confine
 
 override_dh_installdeb:
 	dh_apparmor --profile-name=usr.bin.snap-confine -psnap-confine
