@@ -408,6 +408,9 @@ func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
+	// verify abstraction rule
+	c.Check(string(snippet), testutil.Contains, "#include <abstractions/dbus-strict>\n")
+
 	// verify bind rule
 	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=system\n    name=org.test-system,\n")
 
