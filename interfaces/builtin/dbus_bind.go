@@ -167,41 +167,6 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 	}
 }
 
-func getAppArmorAbstraction(bus string) (string, error) {
-	var abstraction string
-	if bus == "system" {
-		abstraction = "dbus-strict"
-	} else if bus == "session" {
-		abstraction = "dbus-session-strict"
-	} else {
-		return "", fmt.Errorf("unknown abstraction for specified bus '%s'", bus)
-	}
-	return abstraction, nil
-}
-
-func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte {
-	old := []byte("###DBUS_BIND_BUS###")
-	new := []byte(bus)
-	snippet := bytes.Replace(policy, old, new, -1)
-
-	old = []byte("###DBUS_BIND_NAME###")
-	new = []byte(name)
-	snippet = bytes.Replace(snippet, old, new, -1)
-
-	// convert name to AppArmor dbus path
-	dot_re := regexp.MustCompile("\\.")
-	var path_buf bytes.Buffer
-	path_buf.WriteString(`"/`)
-	path_buf.WriteString(dot_re.ReplaceAllString(name, "/"))
-	path_buf.WriteString(`{,/**}"`)
-
-	old = []byte("###DBUS_BIND_PATH###")
-	new = path_buf.Bytes()
-	snippet = bytes.Replace(snippet, old, new, -1)
-
-	return snippet
-}
-
 func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	dbusBindBusNames, err := getBusNames(slot)
 	if err != nil {
@@ -230,6 +195,7 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 				snippets.Write(snippet)
 
 				if release.OnClassic {
+					// classic-only policy
 					snippet := getAppArmorIndividualSnippet(dbusBindPermanentSlotAppArmorIndividualClassic, bus, name)
 					snippets.Write(snippet)
 				}
@@ -277,6 +243,7 @@ func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 	}
 }
 
+// Obtain yaml-specified DBus well-known names by bus
 func getBusNames(slot *interfaces.Slot) (map[string][]string, error) {
 	busNames := make(map[string][]string)
 	for attr := range slot.Attrs {
@@ -312,6 +279,43 @@ func getBusNames(slot *interfaces.Slot) (map[string][]string, error) {
 	}
 
 	return busNames, nil
+}
+
+// Determine AppArmor dbus abstraction to use based on bus
+func getAppArmorAbstraction(bus string) (string, error) {
+	var abstraction string
+	if bus == "system" {
+		abstraction = "dbus-strict"
+	} else if bus == "session" {
+		abstraction = "dbus-session-strict"
+	} else {
+		return "", fmt.Errorf("unknown abstraction for specified bus '%s'", bus)
+	}
+	return abstraction, nil
+}
+
+// Calculate individual snippet policy based on bus and name
+func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte {
+	old := []byte("###DBUS_BIND_BUS###")
+	new := []byte(bus)
+	snippet := bytes.Replace(policy, old, new, -1)
+
+	old = []byte("###DBUS_BIND_NAME###")
+	new = []byte(name)
+	snippet = bytes.Replace(snippet, old, new, -1)
+
+	// convert name to AppArmor dbus path
+	dot_re := regexp.MustCompile("\\.")
+	var path_buf bytes.Buffer
+	path_buf.WriteString(`"/`)
+	path_buf.WriteString(dot_re.ReplaceAllString(name, "/"))
+	path_buf.WriteString(`{,/**}"`)
+
+	old = []byte("###DBUS_BIND_PATH###")
+	new = path_buf.Bytes()
+	snippet = bytes.Replace(snippet, old, new, -1)
+
+	return snippet
 }
 
 func (iface *DbusBindInterface) SanitizePlug(slot *interfaces.Plug) error {
