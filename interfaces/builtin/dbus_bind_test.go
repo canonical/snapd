@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -358,17 +359,48 @@ slots:
 	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-bind-snap\\.\"")
 }
 
-/*
 func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
-	// verify bind rule
-	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session,\n")
+	// verify abstraction rule
+	c.Check(string(snippet), testutil.Contains, "#include <abstractions/dbus-session-strict>\n")
 
-	// verify path in rule
-	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session{,/**}\"\n")
+	// verify shared permanent slot policy
+	c.Check(string(snippet), testutil.Contains, "dbus (send)\n    bus=system\n    path=/org/freedesktop/DBus\n    interface=org.freedesktop.DBus\n    member=\"{Request,Release}Name\"\n    peer=(name=org.freedesktop.DBus, label=unconfined),\n")
+
+	// verify individual bind rules
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session1,\n")
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session2,\n")
+
+	// verify individual path in rules
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session1{,/**}\"\n")
+	c.Check(string(snippet), testutil.Contains, "path=\"/org/test-session2{,/**}\"\n")
+}
+
+func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	iface := &builtin.DbusBindInterface{}
+	snippet, err := iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify classic rule not present
+	c.Check(string(snippet), Not(testutil.Contains), "# allow unconfined clients talk to org.test-session1 on classic\n")
+}
+
+func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSessionClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	iface := &builtin.DbusBindInterface{}
+	snippet, err := iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify classic rule
+	c.Check(string(snippet), testutil.Contains, "# allow unconfined clients talk to org.test-session1 on classic\n")
 }
 
 func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
@@ -390,4 +422,3 @@ func (s *DbusBindInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
 
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
-*/

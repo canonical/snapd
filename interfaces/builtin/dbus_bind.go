@@ -25,17 +25,15 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
-var dbusBindPermanentSlotAppArmor = []byte(`
+var dbusBindPermanentSlotAppArmorShared = []byte(`
 # Description: Allow owning a name on DBus public bus
-# Usage: common
 
-# DBus accesses
-# FIXME
-#include <abstractions/dbus-session-strict>
+#include <abstractions/###DBUS_BIND_ABSTRACTION###>
 
-# register and bind to a well-known DBus name
+# register on DBus
 dbus (send)
     bus=system
     path=/org/freedesktop/DBus
@@ -49,7 +47,10 @@ dbus (send)
     interface=org.freedesktop.DBus
     member="GetConnectionUnix{ProcessID,User}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
+`)
 
+var dbusBindPermanentSlotAppArmorIndividual = []byte(`
+# bind to a well-known DBus name: ###DBUS_BIND_NAME###
 dbus (bind)
     bus=###DBUS_BIND_BUS###
     name=###DBUS_BIND_NAME###,
@@ -64,13 +65,18 @@ dbus (send)
     path=###DBUS_BIND_PATH###
     interface=org.freedesktop.DBus.Properties
     peer=(name=org.freedesktop.DBus, label=unconfined),
+`)
 
-# TODO: allow unconfined clients talk to us
+var dbusBindPermanentSlotAppArmorIndividualClassic = []byte(`
+# allow unconfined clients talk to ###DBUS_BIND_NAME### on classic
+dbus (receive)
+    bus=###DBUS_BIND_BUS###
+    path=###DBUS_BIND_PATH###
+    peer=(label=unconfined),
 `)
 
 var dbusBindPermanentSlotSecComp = []byte(`
 # Description: Allow owning a name on DBus public bus
-# Usage: common
 
 getsockname
 recvmsg
@@ -78,10 +84,10 @@ sendmsg
 sendto
 `)
 
-var dbusBindConnectedSlotAppArmor = []byte(`
-# Description: Allow DBus consumer to connect to us
-# FIXME
-#include <abstractions/dbus-session-strict>
+var dbusBindConnectedSlotAppArmorIndividual = []byte(`
+# Description: Allow DBus consumer to connect to ###DBUS_BIND_NAME###
+
+#include <abstractions/###DBUS_BIND_ABSTRACTION###>
 
 # Communicate with the well-known named DBus service
 dbus (receive, send)
@@ -91,12 +97,10 @@ dbus (receive, send)
 `)
 
 
-var dbusBindConnectedPlugAppArmor = []byte(`
-# Description: Allow connecting to DBus service on well-known name
-# Usage: common
+var dbusBindConnectedPlugAppArmorIndividual = []byte(`
+# Description: Allow connecting to DBus service on ###DBUS_BIND_NAME###
 
-# DBus accesses
-#include <abstractions/dbus-session-strict>
+#include <abstractions/###DBUS_BIND_ABSTRACTION###>
 
 # Communicate with the well-known named DBus service
 dbus (receive, send)
@@ -132,7 +136,7 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 	case interfaces.SecurityAppArmor:
 		old := []byte("###DBUS_BIND_BUS###")
 		new := []byte(slot.Attrs["bus"].(string))
-		snippet := bytes.Replace(dbusBindConnectedPlugAppArmor, old, new, -1)
+		snippet := bytes.Replace(dbusBindConnectedPlugAppArmorIndividual, old, new, -1)
 
 		old = []byte("###DBUS_BIND_NAME###")
 		new = []byte(slot.Attrs["name"].(string))
@@ -153,7 +157,6 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 		new = slotAppLabelExpr(slot)
 		snippet = bytes.Replace(snippet, old, new, -1)
 
-		//fmt.Printf("CONNECTED PLUG:\n %s\n", snippet)
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return dbusBindPermanentSlotSecComp, nil
@@ -173,13 +176,24 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 	case interfaces.SecurityAppArmor:
 		var snippets bytes.Buffer
 		snippets.WriteString(``)
+
 		for bus, names := range dbusBindBusNames {
-			fmt.Printf("DEBUG1: %s\n", bus)
+			// common permanent slot policy
+			// FIXME: abstract
+			old := []byte("###DBUS_BIND_ABSTRACTION###")
+			new := []byte("dbus-strict")
+			if bus == "session" {
+				new = []byte("dbus-session-strict")
+			}
+			snippet := bytes.Replace(dbusBindPermanentSlotAppArmorShared, old, new, -1)
+			snippets.Write(snippet)
+
 			for _, name := range names {
-				fmt.Printf("DEBUG2: %s\n", name)
+				// well-known DBus name-specific permanent slot
+				// policy
 				old := []byte("###DBUS_BIND_BUS###")
 				new := []byte(bus)
-				snippet := bytes.Replace(dbusBindPermanentSlotAppArmor, old, new, -1)
+				snippet := bytes.Replace(dbusBindPermanentSlotAppArmorIndividual, old, new, -1)
 
 				old = []byte("###DBUS_BIND_NAME###")
 				new = []byte(name)
@@ -197,9 +211,34 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 				snippet = bytes.Replace(snippet, old, new, -1)
 
 				snippets.Write(snippet)
+
+				// TODO: abstract this too
+				if release.OnClassic {
+					old := []byte("###DBUS_BIND_BUS###")
+					new := []byte(bus)
+					snippet := bytes.Replace(dbusBindPermanentSlotAppArmorIndividualClassic, old, new, -1)
+
+					old = []byte("###DBUS_BIND_NAME###")
+					new = []byte(name)
+					snippet = bytes.Replace(snippet, old, new, -1)
+
+					// convert name to AppArmor dbus path
+					dot_re := regexp.MustCompile("\\.")
+					var path_buf bytes.Buffer
+					path_buf.WriteString(`"/`)
+					path_buf.WriteString(dot_re.ReplaceAllString(name, "/"))
+					path_buf.WriteString(`{,/**}"`)
+
+					old = []byte("###DBUS_BIND_PATH###")
+					new = path_buf.Bytes()
+					snippet = bytes.Replace(snippet, old, new, -1)
+
+					snippets.Write(snippet)
+				}
+
 			}
 		}
-		fmt.Printf("PERMANENT SLOT:\n %s\n", snippets.Bytes())
+		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
 		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return dbusBindPermanentSlotSecComp, nil
@@ -215,7 +254,7 @@ func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 	case interfaces.SecurityAppArmor:
 		old := []byte("###DBUS_BIND_BUS###")
 		new := []byte(slot.Attrs["bus"].(string))
-		snippet := bytes.Replace(dbusBindConnectedSlotAppArmor, old, new, -1)
+		snippet := bytes.Replace(dbusBindConnectedSlotAppArmorIndividual, old, new, -1)
 
 		// TODO: break this out
 		// convert name to AppArmor dbus path
@@ -233,7 +272,6 @@ func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 		new = plugAppLabelExpr(plug)
 		snippet = bytes.Replace(snippet, old, new, -1)
 
-		//fmt.Printf("CONNECTED SLOT:\n %s\n", snippet)
 		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
