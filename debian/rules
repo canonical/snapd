@@ -27,10 +27,12 @@ override_dh_auto_build:
 	dh_auto_build -- $(TAGS)
 
 override_dh_auto_test:
-	dh_auth_test
+	dh_auto_test
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-key is included
 	[ $$(strings ${BUILDDIR}/bin/snapd|grep -c -E "public-key-id: [a-f0-9]{16}") -eq 1 ]
 	strings ${BUILDDIR}/bin/snapd|grep -c "^public-key-id: d4a55bea97d83720$$"
+endif
 
 override_dh_systemd_enable:
 	# enable boot-ok
