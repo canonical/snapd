@@ -388,7 +388,7 @@ type cmdRevert struct {
 	} `positional-args:"yes"`
 }
 
-var shortRevertHelp = i18n.G("Revert the given snap to the previous state")
+var shortRevertHelp = i18n.G("Reverts the given snap to the previous state")
 var longRevertHelp = i18n.G(`
 The revert command reverts the given snap to its state before
 the latest refresh. This will reactivate the previous snap revision,
