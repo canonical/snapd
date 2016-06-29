@@ -487,7 +487,7 @@ func (s *DbusBindInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
 }
 
 func (s *DbusBindInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug , s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -496,7 +496,7 @@ func (s *DbusBindInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 }
 
 func (s *DbusBindInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug , s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 
@@ -511,4 +511,3 @@ func (s *DbusBindInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
 
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
-
