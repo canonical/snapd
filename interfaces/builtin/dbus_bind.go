@@ -87,8 +87,6 @@ sendto
 var dbusBindConnectedSlotAppArmorIndividual = []byte(`
 # Description: Allow DBus consumer to connect to ###DBUS_BIND_NAME###
 
-#include <abstractions/###DBUS_BIND_ABSTRACTION###>
-
 # Communicate with the well-known named DBus service
 dbus (receive, send)
     bus=###DBUS_BIND_BUS###
@@ -97,12 +95,12 @@ dbus (receive, send)
 `)
 
 
-var dbusBindConnectedPlugAppArmorIndividual = []byte(`
-# Description: Allow connecting to DBus service on ###DBUS_BIND_NAME###
-
+var dbusBindConnectedPlugAppArmorShared = []byte(`
 #include <abstractions/###DBUS_BIND_ABSTRACTION###>
+`)
 
-# Communicate with the well-known named DBus service
+var dbusBindConnectedPlugAppArmorIndividual = []byte(`
+# Communicate with the well-known named DBus service ###DBUS_BIND_NAME###
 dbus (receive, send)
     bus=###DBUS_BIND_BUS###
     path=###DBUS_BIND_PATH###
@@ -132,32 +130,39 @@ func (iface *DbusBindInterface) PermanentPlugSnippet(plug *interfaces.Plug, secu
 }
 
 func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	dbusBindBusNames, err := iface.GetBusNames(slot.Attrs)
+	if err != nil {
+		return nil, err
+	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		old := []byte("###DBUS_BIND_BUS###")
-		new := []byte(slot.Attrs["bus"].(string))
-		snippet := bytes.Replace(dbusBindConnectedPlugAppArmorIndividual, old, new, -1)
+		var snippets bytes.Buffer
+		snippets.WriteString(``)
 
-		old = []byte("###DBUS_BIND_NAME###")
-		new = []byte(slot.Attrs["name"].(string))
-		snippet = bytes.Replace(snippet, old, new, -1)
+		for bus, names := range dbusBindBusNames {
+			// common connected plug policy
+			abstraction, err := getAppArmorAbstraction(bus)
+			if err != nil {
+				return nil, err
+			}
+			old := []byte("###DBUS_BIND_ABSTRACTION###")
+			new := []byte(abstraction)
+			snippet := bytes.Replace(dbusBindConnectedPlugAppArmorShared, old, new, -1)
+			snippets.Write(snippet)
 
-		// convert name to AppArmor dbus path
-		dot_re := regexp.MustCompile("\\.")
-		var path_buf bytes.Buffer
-		path_buf.WriteString(`"/`)
-		path_buf.WriteString(dot_re.ReplaceAllString(slot.Attrs["name"].(string), "/"))
-		path_buf.WriteString(`{,/**}"`)
+			for _, name := range names {
+				snippet := getAppArmorIndividualSnippet(dbusBindConnectedPlugAppArmorIndividual, bus, name)
 
-		old = []byte("###DBUS_BIND_PATH###")
-		new = path_buf.Bytes()
-		snippet = bytes.Replace(snippet, old, new, -1)
+				old := []byte("###SLOT_SECURITY_TAGS###")
+				new := slotAppLabelExpr(slot)
+				snippet = bytes.Replace(snippet, old, new, -1)
 
-		old = []byte("###SLOT_SECURITY_TAGS###")
-		new = slotAppLabelExpr(slot)
-		snippet = bytes.Replace(snippet, old, new, -1)
+				snippets.Write(snippet)
+			}
 
-		return snippet, nil
+		}
+		//fmt.Printf("DEBUG - CONNECTED PLUG:\n %s\n", snippets.Bytes())
+		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return dbusBindPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
@@ -168,7 +173,7 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 }
 
 func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	dbusBindBusNames, err := getBusNames(slot)
+	dbusBindBusNames, err := iface.GetBusNames(slot.Attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -213,29 +218,28 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 }
 
 func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	dbusBindBusNames, err := iface.GetBusNames(slot.Attrs)
+	if err != nil {
+		return nil, err
+	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		old := []byte("###DBUS_BIND_BUS###")
-		new := []byte(slot.Attrs["bus"].(string))
-		snippet := bytes.Replace(dbusBindConnectedSlotAppArmorIndividual, old, new, -1)
+		var snippets bytes.Buffer
+		snippets.WriteString(``)
+		for bus, names := range dbusBindBusNames {
+			for _, name := range names {
+				snippet := getAppArmorIndividualSnippet(dbusBindConnectedSlotAppArmorIndividual, bus, name)
 
-		// TODO: break this out
-		// convert name to AppArmor dbus path
-		dot_re := regexp.MustCompile("\\.")
-		var path_buf bytes.Buffer
-		path_buf.WriteString(`"/`)
-		path_buf.WriteString(dot_re.ReplaceAllString(slot.Attrs["name"].(string), "/"))
-		path_buf.WriteString(`{,/**}"`)
+				old := []byte("###PLUG_SECURITY_TAGS###")
+				new := plugAppLabelExpr(plug)
+				snippet = bytes.Replace(snippet, old, new, -1)
 
-		old = []byte("###DBUS_BIND_PATH###")
-		new = path_buf.Bytes()
-		snippet = bytes.Replace(snippet, old, new, -1)
+				snippets.Write(snippet)
+			}
 
-		old = []byte("###PLUG_SECURITY_TAGS###")
-		new = plugAppLabelExpr(plug)
-		snippet = bytes.Replace(snippet, old, new, -1)
-
-		return snippet, nil
+		}
+		//fmt.Printf("DEBUG - CONNECTED SLOT:\n %s\n", snippets.Bytes())
+		return snippets.Bytes(), nil
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
@@ -244,14 +248,14 @@ func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 }
 
 // Obtain yaml-specified DBus well-known names by bus
-func getBusNames(slot *interfaces.Slot) (map[string][]string, error) {
+func (iface *DbusBindInterface) GetBusNames(attribs map[string]interface{}) (map[string][]string, error) {
 	busNames := make(map[string][]string)
-	for attr := range slot.Attrs {
+	for attr := range attribs {
 		bus := attr
 		if bus != "session" && bus != "system" {
 			return nil, fmt.Errorf("bus must be one of 'session' or 'system'")
 		}
-		busNamesList, ok := slot.Attrs[bus].([]interface{})
+		busNamesList, ok := attribs[bus].([]interface{})
 		if !ok {
 			return nil, fmt.Errorf("bus attribute is not a list")
 		}
@@ -318,8 +322,13 @@ func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte
 	return snippet
 }
 
-func (iface *DbusBindInterface) SanitizePlug(slot *interfaces.Plug) error {
-	return nil
+func (iface *DbusBindInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+
+	_, err := iface.GetBusNames(plug.Attrs)
+	return err
 }
 
 func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -327,7 +336,7 @@ func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 
-	_, err := getBusNames(slot)
+	_, err := iface.GetBusNames(slot.Attrs)
 	return err
 }
 

@@ -115,7 +115,6 @@ func (s *DbusBindInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-/*
 func (s *DbusBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}
@@ -134,7 +133,6 @@ func (s *DbusBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
-*/
 
 func (s *DbusBindInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
@@ -151,7 +149,7 @@ func (s *DbusBindInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotSession(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesSession(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -166,11 +164,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, IsNil)
+	c.Assert(names, Not(IsNil))
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotSystem(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesSystem(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -185,11 +185,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, IsNil)
+	c.Assert(names, Not(IsNil))
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotFull(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesFull(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -203,11 +205,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, IsNil)
+	c.Assert(names, Not(IsNil))
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotNonexistentBus(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesNonexistentBus(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -221,11 +225,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "bus must be one of 'session' or 'system'")
+	c.Assert(names, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotMissingName(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesMissingName(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -238,11 +244,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "bus attribute is not a list")
+	c.Assert(names, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotEmptyName(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesEmptyName(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -256,11 +264,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "bus name must be set")
+	c.Assert(names, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameTooLong(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesNameTooLong(c *C) {
 	long_name := make([]byte, 256)
 	for i := range long_name {
 		long_name[i] = 'b'
@@ -283,11 +293,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "bus name is too long \\(must be <= 255\\)")
+	c.Assert(names, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameStartsWithColon(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesNameStartsWithColon(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -301,11 +313,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "invalid bus name: \":dbus-bind-snap.bar\"")
+	c.Assert(names, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameStartsWithNum(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesNameStartsWithNum(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -319,11 +333,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "invalid bus name: \"0dbus-bind-snap.bar\"")
+	c.Assert(names, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameMissingDot(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesNameMissingDot(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -337,11 +353,13 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-bind-snap\"")
+	c.Assert(names, IsNil)
 }
 
-func (s *DbusBindInterfaceSuite) TestSanitizeSlotNameMissingElement(c *C) {
+func (s *DbusBindInterfaceSuite) TestGetBusNamesNameMissingElement(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
 version: 1.0
 slots:
@@ -355,8 +373,50 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
-	err = s.iface.SanitizeSlot(slot)
+	iface := &builtin.DbusBindInterface{}
+	names, err := iface.GetBusNames(slot.Attrs)
 	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-bind-snap\\.\"")
+	c.Assert(names, IsNil)
+}
+
+// most of SanitizePlug and SanitizeSlot is GetBusNames(), so just do a cursory
+// test for these
+func (s *DbusBindInterfaceSuite) TestSanitizeSlotSystem(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  session:
+  - org.dbus-bind-snap.system-1
+  - org.dbus-bind-snap.system-2
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, IsNil)
+}
+
+func (s *DbusBindInterfaceSuite) TestSanitizePlugSession(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+plugs:
+ dbus-bind-plug:
+  interface: dbus-bind
+  session:
+  - org.dbus-bind-snap.session-1
+  - org.dbus-bind-snap.session-2
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-bind-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
 }
 
 func (s *DbusBindInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
@@ -425,3 +485,30 @@ func (s *DbusBindInterfaceSuite) TestPermanentSlotSeccomp(c *C) {
 
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
+
+func (s *DbusBindInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug , s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify individual path in rules
+	c.Check(string(snippet), testutil.Contains, "dbus (receive, send)\n    bus=session\n    path=\"/org/test-slot{,/**}\"\n    peer=(label=\"snap.test-dbus-bind.test-consumer\"),\n")
+}
+
+func (s *DbusBindInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug , s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify individual path in rules
+	c.Check(string(snippet), testutil.Contains, "dbus (receive, send)\n    bus=session\n    path=\"/org/test-slot{,/**}\"\n    peer=(label=\"snap.test-dbus-bind.test-provider\"),\n")
+}
+
+func (s *DbusBindInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "getsockname\n")
+}
+
