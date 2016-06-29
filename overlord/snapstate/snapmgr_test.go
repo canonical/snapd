@@ -1298,7 +1298,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
+func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1484,7 +1484,7 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	c.Check(info.Description(), Equals, "Lots of text")
 }
 
-func (s *snapmgrQuerySuite) TestCurrentSideInfo(c *C) {
+func (s *snapmgrQuerySuite) TestCurrentInfo(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()

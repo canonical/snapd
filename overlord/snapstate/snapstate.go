@@ -52,6 +52,9 @@ const (
 	// for use in the interim time while we have the backward compatible
 	// support
 	firstInterimUsableFlagValue
+	// if we need flags for just SnapSetup it may be easier
+	// to start a new sequence from the other end with:
+	// 0x40000000 >> iota
 )
 
 func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, error) {
