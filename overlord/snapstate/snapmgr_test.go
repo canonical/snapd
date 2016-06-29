@@ -530,6 +530,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
+		SnapType: "app",
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
@@ -1028,6 +1029,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
+		SnapType: "app",
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
@@ -1119,6 +1121,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si5, &si3, &si7},
 		Current:  si7.Revision,
+		SnapType: "app",
 	})
 
 	chg := s.state.NewChange("remove", "remove a snap")
@@ -1223,6 +1226,7 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
+		SnapType: "app",
 	})
 
 	_, err := snapstate.Remove(s.state, "gadget")
@@ -1262,6 +1266,7 @@ description: |
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 		Current:  sideInfo12.Revision,
+		SnapType: "app",
 	})
 }
 
