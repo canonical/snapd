@@ -26,6 +26,10 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
+    # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
+    # in trusty
+    add-apt-repository ppa:snappy-dev/image || true
+
     apt purge -y snapd || true
     apt update
     # utilities
