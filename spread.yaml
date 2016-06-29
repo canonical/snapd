@@ -35,7 +35,7 @@ prepare: |
     # in trusty
     add-apt-repository --update ppa:snappy-dev/image
     # this should not be needed but apparently it is :/
-    sudo apt update
+    apt update
 
     apt build-dep -y ./
 
