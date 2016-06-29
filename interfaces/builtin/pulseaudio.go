@@ -33,10 +33,6 @@ capability dac_override,
 
 /{run,dev}/shm/pulse-shm-* rwk,
 
-# FIXME Desktop-only
-owner /{,var/}run/user/*/pulse/ rwk,
-owner /{,var/}run/user/*/pulse/native rwk,
-
 # Running as system instance
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
