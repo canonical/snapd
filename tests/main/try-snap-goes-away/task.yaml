@@ -13,3 +13,9 @@ execute: |
   echo Removing a snap try dir does not break everything
   rm -rf $TRYDIR
   snap list |grep core
+
+  echo A snap in broken state can be removed
+  snap remove basic-binaries
+
+  echo And is gone afterwards
+  snap list |grep basic
