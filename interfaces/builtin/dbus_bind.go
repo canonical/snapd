@@ -158,6 +158,8 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 			snippets.Write(snippet)
 
 			for _, name := range names {
+				// Specifying a name that the slot doesn't
+				// support is an error
 				if !iface.verifyNameInAttributes(bus, name, slot.Attrs) {
 					return nil, fmt.Errorf("'%s' on '%s' does not exist in slot", name, bus)
 				}
@@ -238,8 +240,10 @@ func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 		snippets.WriteString(``)
 		for bus, names := range dbusBindBusNames {
 			for _, name := range names {
+				// Skip any names that the plug doesn't support
+				// (it may specify a subset of the slot)
 				if !iface.verifyNameInAttributes(bus, name, plug.Attrs) {
-					return nil, fmt.Errorf("'%s' on '%s' does not exist in plug", name, bus)
+					continue
 				}
 				snippet := getAppArmorIndividualSnippet(dbusBindConnectedSlotAppArmorIndividual, bus, name)
 
