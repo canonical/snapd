@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"bytes"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
 )
@@ -36,7 +38,7 @@ owner /{,var/}run/user/*/pulse/ rwk,
 owner /{,var/}run/user/*/pulse/native rwk,
 
 # Running as system instance
-owner /{,var/}run/pulse rwk,
+owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
 `)
 
@@ -98,6 +100,7 @@ owner /{,var/}run/pulse/.config/pulse/cookie rwk,
 `)
 
 var pulseaudioPermanentSlotSecComp = []byte(`
+# The following are needed for UNIX sockets
 personality
 setpriority
 setsockopt
@@ -138,7 +141,11 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		// If we're running on classic then allow access to the pulse config
 		// directory
 		if release.OnClassic {
-			return pulseaudioConnectedPlugAppArmorDesktop, nil
+			b := bytes.NewBuffer(pulseaudioConnectedPlugAppArmorDesktop)
+			// Add these bytes to the connected plug apparmor rules
+			b.Write([]byte("owner /{,var/}run/user/*/pulse/ rwk,\n"))
+			b.Write([]byte("owner /{,var/}run/user/*/pulse/native rwk,\n"))
+			return b.Bytes(), nil
 		} else {
 			return pulseaudioConnectedPlugAppArmor, nil
 		}
