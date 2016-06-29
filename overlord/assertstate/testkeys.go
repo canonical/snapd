@@ -24,7 +24,7 @@ import (
 	"github.com/snapcore/snapd/asserts/testkeys"
 )
 
-// init inject the test trusted assertion (if this module build tag is defined)
+// init will inject the test trusted assertions when this module build tag "withtestkeys" is defined.
 func init() {
 	testkeys.Inject()
 }
