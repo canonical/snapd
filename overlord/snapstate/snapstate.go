@@ -348,7 +348,6 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 		Name:     name,
 		Revision: snapst.CurrentSideInfo().Revision,
 		Revert:   revertToRev,
-		SideInfo: snapst.Sequence[i],
 	}
 	ssPrev := SnapSetup{
 		Name:     name,
