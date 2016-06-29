@@ -57,9 +57,10 @@ prepare: |
 
   if [ "$STORE_TYPE" = "fake" ]; then
     setup_fake_store
-  elif [ "$STORE_TYPE" = "staging" ]; then
-    setup_staging_store
   else
+    if [ "$STORE_TYPE" = "staging" ]; then
+      setup_staging_store
+    fi
     echo "Given a refreshable snap is installed"
     snap install $SNAP_NAME
   fi
