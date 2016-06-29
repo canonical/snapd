@@ -99,10 +99,13 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(snapstate.Store(s.state), NotNil)
+	defaultStore := snapstate.Store(s.state)
+	c.Check(defaultStore, NotNil)
+	c.Check(snapstate.CachedStore(s.state), Equals, defaultStore)
 
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	c.Check(snapstate.Store(s.state), Equals, s.fakeStore)
+	c.Check(snapstate.CachedStore(s.state), Equals, s.fakeStore)
 }
 
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {

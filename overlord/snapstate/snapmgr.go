@@ -251,17 +251,25 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-type cachedStore struct{}
+type cachedStoreKey struct{}
 
 // ReplaceStore replaces the store used by the manager.
 func ReplaceStore(state *state.State, store StoreService) {
-	state.Cache(cachedStore{}, store)
+	state.Cache(cachedStoreKey{}, store)
+}
+
+func cachedStore(s *state.State) StoreService {
+	ubuntuStore := s.Cached(cachedStoreKey{})
+	if ubuntuStore == nil {
+		return nil
+	}
+	return ubuntuStore.(StoreService)
 }
 
 // Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
-	if ubuntuStore := s.Cached(cachedStore{}); ubuntuStore != nil {
-		return ubuntuStore.(StoreService)
+	if cachedStore := cachedStore(s); cachedStore != nil {
+		return cachedStore
 	}
 
 	storeID := ""
@@ -269,8 +277,9 @@ func Store(s *state.State) StoreService {
 	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
 		storeID = cand
 	}
-	s.Cache(cachedStore{}, store.NewUbuntuStoreSnapRepository(nil, storeID))
-	return Store(s)
+
+	s.Cache(cachedStoreKey{}, store.NewUbuntuStoreSnapRepository(nil, storeID))
+	return cachedStore(s)
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
