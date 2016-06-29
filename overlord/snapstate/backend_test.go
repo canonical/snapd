@@ -184,7 +184,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, p progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p progress.Meter) error {
 	p.Notify("setup-snap")
 	f.ops = append(f.ops, fakeOp{
 		op:   "undo-setup-snap",
@@ -216,7 +216,7 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
 	meter.Notify("remove-snap-files")
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-files",

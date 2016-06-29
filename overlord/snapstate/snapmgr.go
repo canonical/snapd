@@ -441,7 +441,11 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	err = m.backend.RemoveSnapFiles(ss.placeInfo(), typ, pb)
 	if err != nil {
 		st.Lock()
 		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
@@ -511,14 +515,18 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, _, err := snapSetupAndState(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoSetupSnap(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
