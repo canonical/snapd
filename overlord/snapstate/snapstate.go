@@ -138,7 +138,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.CurrentSideInfo() != nil {
+	if snapst.HasCurrent() {
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
@@ -187,7 +187,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.CurrentSideInfo() == nil {
+	if !snapst.HasCurrent() {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
@@ -252,12 +252,11 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	cur := snapst.CurrentSideInfo()
-	if cur == nil {
+	if !snapst.HasCurrent() {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	revision := snapst.CurrentSideInfo().Revision
+	revision := snapst.Current
 	active := snapst.Active
 
 	info, err := Info(s, name, revision)
@@ -356,10 +355,11 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if sideInfo := snapst.CurrentSideInfo(); sideInfo != nil {
-		return readInfo(name, sideInfo)
+	info, err := snapst.CurrentInfo(name)
+	if err == ErrNoCurrent {
+		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
-	return nil, fmt.Errorf("cannot find snap %q", name)
+	return info, err
 }
 
 // Get retrieves the SnapState of the given snap.
@@ -390,7 +390,7 @@ func All(s *state.State) (map[string]*SnapState, error) {
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
 	for snapName, snapState := range stateMap {
-		if snapState.CurrentSideInfo() != nil {
+		if snapState.HasCurrent() {
 			curStates[snapName] = snapState
 		}
 	}
@@ -431,7 +431,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		if !snapState.Active {
 			continue
 		}
-		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
+		snapInfo, err := snapState.CurrentInfo(snapName)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
@@ -449,10 +449,10 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		return nil, err
 	}
 	for snapName, snapState := range stateMap {
-		if snapState.CurrentSideInfo() == nil {
+		snapInfo, err := snapState.CurrentInfo(snapName)
+		if err == ErrNoCurrent {
 			continue
 		}
-		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
