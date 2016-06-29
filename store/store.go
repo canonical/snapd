@@ -145,16 +145,20 @@ func cpiURL() string {
 	return "https://search.apps.ubuntu.com/api/v1/"
 }
 
-func authURL() string {
+func authLocation() string {
 	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
-		return "https://login.staging.ubuntu.com/api/v2"
+		return "login.staging.ubuntu.com"
 	}
 
+	return "login.ubuntu.com"
+}
+
+func authURL() string {
 	if os.Getenv("SNAPPY_FORCE_SSO_URL") != "" {
 		return os.Getenv("SNAPPY_FORCE_SSO_URL")
 	}
 
-	return "https://login.ubuntu.com/api/v2"
+	return "https://" + authLocation() + "/api/v2"
 }
 
 func assertsURL() string {
@@ -170,7 +174,7 @@ func assertsURL() string {
 }
 
 func myappsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
+	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
 		return "https://myapps.developer.staging.ubuntu.com/"
 	}
 	return "https://myapps.developer.ubuntu.com/"
