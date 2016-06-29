@@ -122,8 +122,9 @@ Allows access for binding to a well-known name on DBus on Classic systems.
 Usage: common
 Auto-Connect: yes
 Attributes:
-* bus: public DBus bus to use (session or system)
-* name: DBus name to bind (eg, org.foo.bar)
+* session|system (slot): DBus public bus to register names. Set to list of
+  well-known DBus names to bind.
+* session|system (plugs): Set to list of well-known DBus names to connect.
 
 ### firewall-control
 
