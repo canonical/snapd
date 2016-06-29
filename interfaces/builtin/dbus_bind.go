@@ -137,7 +137,7 @@ func (iface *DbusBindInterface) PermanentPlugSnippet(plug *interfaces.Plug, secu
 }
 
 func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	dbusBindBusNames, err := iface.GetBusNames(slot.Attrs)
+	dbusBindBusNames, err := iface.GetBusNames(plug.Attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 		//fmt.Printf("DEBUG - CONNECTED PLUG:\n %s\n", snippets.Bytes())
 		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
-		return dbusBindPermanentSlotSecComp, nil
+		return dbusBindConnectedPlugSecComp, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
