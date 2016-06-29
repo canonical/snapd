@@ -135,6 +135,9 @@ type Info struct {
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 	MustBuy bool
+
+	// should really be a flag
+	Broken bool
 }
 
 // Name returns the blessed name for the snap.

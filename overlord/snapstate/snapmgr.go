@@ -129,8 +129,8 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// CurrentSideInfo returns the side info for the current revision in the snap revision sequence if there is one.
-func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
+// currentSideInfo returns the side info for the current revision in the snap revision sequence if there is one.
+func (snapst *SnapState) currentSideInfo() *snap.SideInfo {
 	if snapst.Current.Unset() {
 		if len(snapst.Sequence) > 0 {
 			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
@@ -441,7 +441,11 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	err = m.backend.RemoveSnapFiles(ss.placeInfo(), typ, pb)
 	if err != nil {
 		st.Lock()
 		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
@@ -511,14 +515,18 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, _, err := snapSetupAndState(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoSetupSnap(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -530,7 +538,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var curInfo *snap.Info
-	if cur := snapst.CurrentSideInfo(); cur != nil {
+	if cur := snapst.currentSideInfo(); cur != nil {
 		var err error
 		curInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
@@ -562,7 +570,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := readInfo(ss.Name, snapst.CurrentSideInfo())
+	oldInfo, err := readInfo(ss.Name, snapst.currentSideInfo())
 	if err != nil {
 		return err
 	}
@@ -592,7 +600,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := readInfo(ss.Name, snapst.CurrentSideInfo())
+	oldInfo, err := readInfo(ss.Name, snapst.currentSideInfo())
 	if err != nil {
 		return err
 	}
@@ -626,7 +634,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var oldInfo *snap.Info
-	if cur := snapst.CurrentSideInfo(); cur != nil {
+	if cur := snapst.currentSideInfo(); cur != nil {
 		var err error
 		oldInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
@@ -653,7 +661,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var oldInfo *snap.Info
-	if cur := snapst.CurrentSideInfo(); cur != nil {
+	if cur := snapst.currentSideInfo(); cur != nil {
 		var err error
 		oldInfo, err = readInfo(ss.Name, cur)
 		if err != nil {
