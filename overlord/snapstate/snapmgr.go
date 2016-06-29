@@ -39,7 +39,6 @@ import (
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
-	store   StoreService
 
 	runner *state.TaskRunner
 }
@@ -375,11 +374,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
+		storeInfo, err := store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = m.store.Download(ss.Name, &storeInfo.DownloadInfo, meter, auther)
+		downloadedSnapFile, err = store.Download(ss.Name, &storeInfo.DownloadInfo, meter, auther)
 		sideInfo = &storeInfo.SideInfo
 	} else {
 		downloadedSnapFile, err = store.Download(ss.Name, ss.DownloadInfo, meter, auther)
