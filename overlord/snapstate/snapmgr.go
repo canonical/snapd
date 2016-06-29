@@ -251,13 +251,12 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
+type cachedStore struct{}
+
 // ReplaceStore replaces the store used by the manager.
 func ReplaceStore(state *state.State, store StoreService) {
 	state.Cache(cachedStore{}, store)
 }
-
-//
-type cachedStore struct{}
 
 // Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
