@@ -100,7 +100,9 @@ func init() {
 	trustedAssertions = []Assertion{canonicalAccount, canonicalRootAccountKey}
 }
 
-// InjectTrusted injects further trusted assertions for OpenSysDatabase. Returns a restore function to reinstate the previous set.
+// InjectTrusted injects further trusted assertions for OpenSysDatabase.
+// Returns a restore function to reinstate the previous set. Useful for
+// tests or called globally without worrying about restoring.
 func InjectTrusted(extra []Assertion) (restore func()) {
 	prev := trustedAssertions
 	trustedAssertions = make([]Assertion, len(prev)+len(extra))
