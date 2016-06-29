@@ -74,6 +74,17 @@ func (sdbs *sysDBSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 }
 
+func (sdbs *sysDBSuite) TestTrusted(c *C) {
+	trusted := asserts.Trusted()
+	c.Check(trusted, HasLen, 2)
+
+	restore := asserts.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
+	defer restore()
+
+	trustedEx := asserts.Trusted()
+	c.Check(trustedEx, HasLen, 3)
+}
+
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 	db, err := asserts.OpenSysDatabase()
 	c.Assert(err, IsNil)

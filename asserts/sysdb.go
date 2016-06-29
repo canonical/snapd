@@ -37,10 +37,10 @@ func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
 	return OpenDatabase(cfg)
 }
 
-// OpenSysDatabase opens the system-wide assertion database with the trusted assertions.
+// OpenSysDatabase opens the system-wide assertion database with the trusted assertions set configured.
 func OpenSysDatabase() (*Database, error) {
 	cfg := &DatabaseConfig{
-		Trusted: trustedAssertions,
+		Trusted: Trusted(),
 	}
 	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
 }
