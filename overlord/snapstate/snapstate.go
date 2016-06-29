@@ -63,49 +63,53 @@ func doInstall(s *state.State, curActive bool, snapst *SnapState, ss *SnapSetup)
 		ss.Channel = "stable"
 	}
 
-	var prepare *state.Task
-	if ss.SnapPath != "" {
+	var prepare, prev *state.Task
+	// if we have a revision here we know we need to go back to that
+	// revision
+	if ss.SnapPath != "" || !ss.Revision.Unset() {
 		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), ss.SnapPath))
 	} else {
 		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q"), ss.Name, ss.Channel))
 	}
-
 	prepare.Set("snap-setup", ss)
 
 	tasks := []*state.Task{prepare}
 	addTask := func(t *state.Task) {
 		t.Set("snap-setup-task", prepare.ID())
+		t.WaitFor(prev)
 		tasks = append(tasks, t)
 	}
 
 	// mount
-	mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q"), ss.Name))
-	addTask(mount)
-	mount.WaitFor(prepare)
-	precopy := mount
+	prev = prepare
+	if ss.Revision.Unset() {
+		mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q"), ss.Name))
+		addTask(mount)
+		prev = mount
+	}
 
 	if curActive {
 		// unlink-current-snap (will stop services for copy-data)
 		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), ss.Name))
 		addTask(unlink)
-		unlink.WaitFor(mount)
-		precopy = unlink
+		prev = unlink
 	}
 
 	// copy-data (needs stopped services by unlink)
-	copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name))
-	addTask(copyData)
-	copyData.WaitFor(precopy)
+	if ss.Revision.Unset() {
+		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name))
+		addTask(copyData)
+		prev = copyData
+	}
 
 	// security
 	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), ss.Name))
 	addTask(setupSecurity)
-	setupSecurity.WaitFor(copyData)
+	prev = setupSecurity
 
 	// finalize (wrappers+current symlink)
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), ss.Name))
 	addTask(linkSnap)
-	linkSnap.WaitFor(setupSecurity)
 
 	// discard everything after "current" (we may have reverted to
 	// a previous versions earlier)
@@ -356,41 +360,11 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	}
 	revertToRev := snapst.Sequence[i].Revision
 
-	ss := SnapSetup{
-		Name:     name,
-		Revision: snapst.CurrentSideInfo().Revision,
-		Revert:   revertToRev,
-	}
-	ssPrev := SnapSetup{
+	ss := &SnapSetup{
 		Name:     name,
 		Revision: revertToRev,
-		Revert:   revertToRev,
 	}
-
-	prepare := s.NewTask("prepare-revert", fmt.Sprintf(i18n.G("Prepare revert of %q"), name))
-	prepare.Set("snap-setup", ss)
-
-	unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
-	unlink.WaitFor(prepare)
-	unlink.Set("snap-setup-task", prepare.ID())
-
-	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
-	removeSecurity.WaitFor(unlink)
-	removeSecurity.Set("snap-setup-task", prepare.ID())
-
-	// now make the previous version active
-	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), name))
-	setupSecurity.WaitFor(removeSecurity)
-	setupSecurity.Set("snap-setup", ssPrev)
-
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), name))
-	linkSnap.WaitFor(setupSecurity)
-	linkSnap.Set("snap-setup-task", setupSecurity.ID())
-
-	// and create a taskset
-	ts := state.NewTaskSet(prepare, unlink, removeSecurity, setupSecurity, linkSnap)
-
-	return ts, nil
+	return doInstall(s, true, ss)
 }
 
 // Retrieval functions
