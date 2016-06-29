@@ -33,9 +33,16 @@
 #include "udev-support.h"
 #endif				// ifdef STRICT_CONFINEMENT
 #include "cleanup-funcs.h"
+#ifdef _SANITY_TESTING
+#include "sanity.h"
+#endif
 
 int main(int argc, char **argv)
 {
+#ifdef _SANITY_TESTING
+	struct sc_test_context ctx = {.stdtest = stdout };
+	return sc_run_test_list(sc_all_tests, &ctx);
+#else				// _SANITY_TESTING
 	char *basename = strrchr(argv[0], '/');
 	if (basename) {
 		debug("setting argv[0] to %s", basename + 1);
@@ -163,4 +170,5 @@ int main(int argc, char **argv)
 	execv(binary, (char *const *)&argv[NR_ARGS]);
 	perror("execv failed");
 	return 1;
+#endif				// _SANITY_TESTING
 }

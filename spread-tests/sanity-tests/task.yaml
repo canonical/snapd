@@ -1,0 +1,9 @@
+summary: Run internal unit tests
+# This is blacklisted on debian because we first have to get the dpkg-vendor patches
+systems: [-debian-8]
+execute: |
+    cd /remote/path/
+    autoreconf --install --force
+    ./configure --enable-rootfs-is-core-snap
+    make -C src check-sanity
+
