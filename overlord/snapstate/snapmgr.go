@@ -313,8 +313,13 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		for _, si := range snapst.Sequence {
 			if si.Revision == ss.Revision {
 				snapst.Candidate = si
+				break
 			}
 		}
+	}
+
+	if snapst.Candidate == nil {
+		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name, ss.Revision)
 	}
 
 	st.Lock()
@@ -813,7 +818,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
-	snapst.Current = oldCurrent
 	snapst.SetTryMode(oldTryMode)
 
 	newInfo, err := readInfo(ss.Name, snapst.Candidate)
