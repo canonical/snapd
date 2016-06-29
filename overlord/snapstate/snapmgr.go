@@ -81,8 +81,6 @@ type SnapSetup struct {
 	SnapPath string `json:"snap-path,omitempty"`
 
 	Revert snap.Revision `json:"revert,omitempty"`
-
-	SideInfo *snap.SideInfo `json:"side-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -312,13 +310,15 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
-
+		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	}
 
-	if ss.SideInfo != nil {
-		snapst.Candidate = ss.SideInfo
-	} else {
-		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
+	if !ss.Revert.Unset() {
+		for _, si := range snapst.Sequence {
+			if si.Revision == ss.Revert {
+				snapst.Candidate = si
+			}
+		}
 	}
 
 	st.Lock()

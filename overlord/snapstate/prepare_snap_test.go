@@ -80,16 +80,27 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *prepareSnapSuite) TestDoPrepareSnapDoesNotOverrideCandidate(c *C) {
+func (s *prepareSnapSuite) TestDoPrepareSnapSetsCandidate(c *C) {
 	s.state.Lock()
+
+	si1 := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     snap.R(2),
+	}
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si1, si2},
+		Active:   true,
+		Current:  si2.Revision,
+	})
 
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		Revision: snap.R(17),
-		SideInfo: &snap.SideInfo{
-			Revision: snap.R(7),
-		},
+		Name:   "foo",
+		Revert: snap.R(1),
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -103,9 +114,7 @@ func (s *prepareSnapSuite) TestDoPrepareSnapDoesNotOverrideCandidate(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
-		Revision: snap.R(7),
-	})
+	c.Check(snapst.Candidate, DeepEquals, si1)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
