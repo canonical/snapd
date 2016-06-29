@@ -87,7 +87,6 @@ func (s *DbusBindInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "dbus-bind")
 }
 
-/*
 func (s *DbusBindInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityDBus,
 		interfaces.SecurityUDev, interfaces.SecurityMount}
@@ -115,6 +114,7 @@ func (s *DbusBindInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
+/*
 func (s *DbusBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}
@@ -133,6 +133,7 @@ func (s *DbusBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
+*/
 
 func (s *DbusBindInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
@@ -148,7 +149,6 @@ func (s *DbusBindInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
 }
-*/
 
 func (s *DbusBindInterfaceSuite) TestSanitizeSlotSession(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-bind-snap
