@@ -18,4 +18,4 @@ execute: |
   snap remove basic-binaries
 
   echo And is gone afterwards
-  snap list |grep basic
+  snap list |grep -v basic
