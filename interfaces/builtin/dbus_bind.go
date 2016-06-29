@@ -98,7 +98,6 @@ dbus (receive)
     peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
-
 var dbusBindConnectedPlugAppArmorShared = []byte(`
 #include <abstractions/###DBUS_BIND_ABSTRACTION###>
 `)
