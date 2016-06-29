@@ -211,8 +211,14 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err != nil {
 		return nil, err
 	}
-	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
-		return nil, err
+
+	if snapst.Current == updateInfo.Revision {
+		return nil, fmt.Errorf("revision %s of snap %q already installed", updateInfo.Revision, name)
+	}
+
+	revision := snap.Revision{}
+	if revisionInSequence(&snapst, updateInfo.Revision) {
+		revision = updateInfo.Revision
 	}
 
 	ss := &SnapSetup{
@@ -222,6 +228,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		Flags:        SnapSetupFlags(flags),
 		DownloadInfo: &updateInfo.DownloadInfo,
 		SideInfo:     &updateInfo.SideInfo,
+		Revision:     revision,
 	}
 
 	return doInstall(s, snapst.Active, ss)

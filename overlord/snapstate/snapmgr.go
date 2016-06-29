@@ -734,7 +734,9 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	cand := snapst.Candidate
 
 	m.backend.Candidate(snapst.Candidate)
-	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+	if !revisionInSequence(snapst, snapst.Candidate.Revision) {
+		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+	}
 	oldCurrent := snapst.Current
 	snapst.Current = snapst.Candidate.Revision
 	snapst.Candidate = nil

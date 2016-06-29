@@ -1,0 +1,15 @@
+summary: Check that snaps can be refreshed to local revisions
+restore: |
+  rm -rf $TRYDIR
+execute: |
+  echo Installing beta of hello-world
+  snap install --beta hello-world|grep 6.0
+
+  echo Refresh to stable
+  snap refresh --stable hello-world|grep 6.1
+
+  echo Refresh back to beta
+  snap refresh --beta hello-world|grep 6.0
+
+  echo Refresh back to stable
+  snap refresh --stable hello-world|grep 6.1

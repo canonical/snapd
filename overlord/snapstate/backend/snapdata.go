@@ -26,6 +26,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -108,8 +109,14 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 	return nil
 }
 
-// Lowlevel copy the snap data (but never override existing data)
+// Lowlevel copy the snap data
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
+	if osutil.FileExists(newPath) {
+		if err := os.RemoveAll(newPath); err != nil {
+			return err
+		}
+	}
+
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
 			// there is no golang "CopyFile"
