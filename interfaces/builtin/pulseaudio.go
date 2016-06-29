@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
 var pulseaudioConnectedPlugAppArmor = []byte(`
@@ -40,7 +41,7 @@ owner /{,var/}run/pulse/native rwk,
 `)
 
 var pulseaudioConnectedPlugAppArmorDesktop = []byte(`
-# Only on desktop we need access to /etc/pulse for any PulseAudio client
+# Only on desktop do we need access to /etc/pulse for any PulseAudio client
 # to read available client side configuration settings. On an Ubuntu Core
 # device those things will be stored inside the snap directory.
 /etc/pulse/ r,
@@ -134,7 +135,13 @@ func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return pulseaudioConnectedPlugAppArmor, nil
+		// If we're running on classic then allow access to the pulse config
+		// directory
+		if release.OnClassic {
+			return pulseaudioConnectedPlugAppArmorDesktop, nil
+		} else {
+			return pulseaudioConnectedPlugAppArmor, nil
+		}
 	case interfaces.SecuritySecComp:
 		return pulseaudioConnectedPlugSecComp, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev:
