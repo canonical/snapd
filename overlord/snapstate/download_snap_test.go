@@ -156,3 +156,44 @@ func (s *downloadSnapSuite) TestDoPrepareSnapNormal(c *C) {
 	c.Check(snapst.Candidate, DeepEquals, si)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
+
+func (s *downloadSnapSuite) TestDoUndoLinkSnap(c *C) {
+	s.state.Lock()
+	si := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     snap.R(33),
+	}
+	t := s.state.NewTask("download-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Name:     "foo",
+		SideInfo: si,
+		DownloadInfo: &snap.DownloadInfo{
+			DownloadURL: "http://something.com/snap",
+		},
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// task was undone
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+
+	// and nothing is in the state for "foo"
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+}
