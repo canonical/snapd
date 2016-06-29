@@ -43,7 +43,6 @@ type fakeOp struct {
 
 type fakeDownload struct {
 	name     string
-	channel  string
 	macaroon string
 }
 
