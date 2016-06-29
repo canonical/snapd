@@ -92,6 +92,10 @@ dbus (receive, send)
     bus=###DBUS_BIND_BUS###
     path=###DBUS_BIND_PATH###
     peer=(label=###PLUG_SECURITY_TAGS###),
+dbus (receive)
+    bus=###DBUS_BIND_BUS###
+    interface=org.freedesktop.DBus.Introspectable
+    peer=(label=###PLUG_SECURITY_TAGS###),
 `)
 
 
@@ -104,6 +108,10 @@ var dbusBindConnectedPlugAppArmorIndividual = []byte(`
 dbus (receive, send)
     bus=###DBUS_BIND_BUS###
     path=###DBUS_BIND_PATH###
+    peer=(label=###SLOT_SECURITY_TAGS###),
+dbus (send)
+    bus=###DBUS_BIND_BUS###
+    interface=org.freedesktop.DBus.Introspectable
     peer=(label=###SLOT_SECURITY_TAGS###),
 `)
 
