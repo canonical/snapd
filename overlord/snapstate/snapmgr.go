@@ -79,8 +79,6 @@ type SnapSetup struct {
 	Flags SnapSetupFlags `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
-
-	Revert snap.Revision `json:"revert,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -99,10 +97,6 @@ func (ss *SnapSetup) DevMode() bool {
 // TryMode returns true if the snap is being installed in try mode directly from a directory.
 func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
-}
-
-func (ss *SnapSetup) RevertOp() bool {
-	return !ss.Revert.Unset()
 }
 
 // SnapStateFlags are flags stored in SnapState.
@@ -160,7 +154,7 @@ func (snapst *SnapState) PreviousSideInfo() *snap.SideInfo {
 		return nil
 	}
 	// find "current" and return the one before that
-	currentIndex := snapst.currentIndex()
+	currentIndex := snapst.findIndex(snapst.Current)
 	if currentIndex == 0 {
 		return nil
 	}
@@ -176,18 +170,15 @@ func (snapst *SnapState) findIndex(rev snap.Revision) int {
 	return -1
 }
 
-func (snapst *SnapState) currentIndex() int {
-	return snapst.findIndex(snapst.Current)
-}
-
+// Block returns revisions that should be blocked on refreshes,
+// computed as Sequence[currentRevisionIndex:].
 func (snapst *SnapState) Block() []snap.Revision {
 	// return revisions from Sequence[currentIndex:]
-	out := []snap.Revision{}
-	currentIndex := snapst.currentIndex()
-	// panic?
+	currentIndex := snapst.findIndex(snapst.Current)
 	if currentIndex < 0 {
 		return nil
 	}
+	out := make([]snap.Revision, 0, len(snapst.Sequence))
 	for _, si := range snapst.Sequence[currentIndex:] {
 		out = append(out, si.Revision)
 	}
@@ -263,9 +254,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
 
-	// revert releated
-	runner.AddHandler("prepare-revert", m.doPrepareRevert, m.undoPrepareRevert)
-
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
 		return nil
@@ -320,15 +308,17 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
+		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	} else {
-		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
-			return err
+		for _, si := range snapst.Sequence {
+			if si.Revision == ss.Revision {
+				snapst.Candidate = si
+			}
 		}
 	}
 
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
@@ -729,9 +719,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	cand := snapst.Candidate
 	m.backend.Candidate(snapst.Candidate)
-	// in revert mode the snap is already part of the sequence,
-	// do not add it twice
-	if !ss.RevertOp() {
+	if snapst.findIndex(snapst.Candidate.Revision) < 0 {
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
 	}
 	oldCurrent := snapst.Current
@@ -845,42 +833,5 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
-	return nil
-}
-
-func (m *SnapManager) doPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	ss, snapst, err := snapSetupAndState(t)
-	st.Unlock()
-	if err != nil {
-		return err
-	}
-
-	st.Lock()
-	defer st.Unlock()
-
-	i := snapst.findIndex(ss.Revert)
-	if i < 0 {
-		return fmt.Errorf("cannot find revision %d in snapstate", ss.Revert)
-	}
-	snapst.Candidate = snapst.Sequence[i]
-	Set(st, ss.Name, snapst)
-
-	return nil
-}
-
-func (m *SnapManager) undoPrepareRevert(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	ss, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-	snapst.Candidate = nil
-
-	Set(st, ss.Name, snapst)
 	return nil
 }
