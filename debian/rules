@@ -20,7 +20,6 @@ ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
 
-
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
 
