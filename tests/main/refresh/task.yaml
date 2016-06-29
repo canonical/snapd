@@ -16,9 +16,23 @@ environment:
   STORE_CONFIG: $[CONFIG_DIR]/fakestore.conf
   BLOB_DIR: $(mktemp -d)
   STORE_ADDR: localhost:11028
-  STORE_TYPE: $(echo -n $STORE_TYPE)
+  STORE_TYPE/fake: fakestore
+  STORE_TYPE/staging: staging
+  STORE_TYPE/production: production
 
 prepare: |
+  configure_store_backend(){
+    local store_url=$1
+    systemctl stop snapd.service snapd.socket
+    mkdir -p $CONFIG_DIR
+    cat > $STORE_CONFIG <<EOF
+  [Service]
+  Environment="SNAPPY_FORCE_CPI_URL=http://$store_url"
+  EOF
+    systemctl daemon-reload
+    systemctl start snapd.socket
+  }
+
   setup_fake_store(){
     echo "Given a controlled store service is up"
     systemd-run --unit fakestore $(which fakestore) -start -blobdir $BLOB_DIR -addr $STORE_ADDR
@@ -27,14 +41,7 @@ prepare: |
     snap install $SNAP_NAME
 
     echo "And snapd is configured to use the controlled store"
-    systemctl stop snapd.service snapd.socket
-    mkdir -p $CONFIG_DIR
-    cat > $STORE_CONFIG <<EOF
-  [Service]
-  Environment="SNAPPY_FORCE_CPI_URL=http://$STORE_ADDR"
-  EOF
-    systemctl daemon-reload
-    systemctl start snapd.socket
+    configure_store_backend $STORE_ADDR
 
     echo "And a new version of that snap put in the controlled store"
     fakestore -blobdir $BLOB_DIR -make-refreshable $SNAP_NAME
@@ -45,29 +52,20 @@ prepare: |
     snap install hello-world
 
     echo "And snapd is configured to use the staging store"
-    systemctl stop snapd.service snapd.socket
-
-    mkdir -p $CONFIG_DIR
-    cat > $STORE_CONFIG <<EOF
-  [Service]
-  Environment="SNAPPY_FORCE_CPI_URL=https://search.apps.staging.ubuntu.com/api/v1/"
-  EOF
-    systemctl daemon-reload
-    systemctl start snapd.service
+    configure_store_backend search.apps.staging.ubuntu.com/api/v1/
   }
 
-  if [ -z "$STORE_TYPE" ]; then
+  if [ "$STORE_TYPE" = "fake" ]; then
     setup_fake_store
+  elif [ "$STORE_TYPE" = "staging" ]; then
+    setup_staging_store
   else
-    if [ "$STORE_TYPE" = "staging" ]; then
-      setup_staging_store
-    fi
     echo "Given a refreshable snap is installed"
     snap install $SNAP_NAME
   fi
 
 restore: |
-  if [ -z "$STORE_TYPE" ]; then
+  if [ "$STORE_TYPE" = "fake" ]; then
     systemctl stop fakestore
   fi
 
