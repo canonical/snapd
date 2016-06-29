@@ -135,6 +135,8 @@ type Info struct {
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 	MustBuy bool
+
+	Broken bool
 }
 
 // Name returns the blessed name for the snap.
@@ -368,6 +370,18 @@ func (e NotFoundError) Error() string {
 
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
+	info, err := readInfoWithError(name, si)
+	if _, ok := err.(*NotFoundError); ok {
+		info := &Info{SuggestedName: name, Broken: true}
+		if si != nil {
+			info.SideInfo = *si
+		}
+		return info, nil
+	}
+	return info, err
+}
+
+func readInfoWithError(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
