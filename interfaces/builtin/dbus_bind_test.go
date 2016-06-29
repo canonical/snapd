@@ -628,3 +628,8 @@ func (s *DbusBindInterfaceSuite) TestConnectedPlugSeccomp(c *C) {
 
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
+
+func (s *HomeInterfaceSuite) TestAutoConnect(c *C) {
+	iface := &builtin.DbusBindInterface{}
+	c.Check(iface.AutoConnect(), Equals, false)
+}
