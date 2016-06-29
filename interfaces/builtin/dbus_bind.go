@@ -167,6 +167,17 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 	}
 }
 
+func getAppArmorAbstraction(bus string) (string, error) {
+	var abstraction string
+	if bus == "system" {
+		abstraction = "dbus-strict"
+	} else if bus == "session" {
+		abstraction = "dbus-session-strict"
+	} else {
+		return "", fmt.Errorf("unknown abstraction for specified bus '%s'", bus)
+	}
+	return abstraction, nil
+}
 func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	dbusBindBusNames, err := getBusNames(slot)
 	if err != nil {
@@ -179,12 +190,12 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 
 		for bus, names := range dbusBindBusNames {
 			// common permanent slot policy
-			// FIXME: abstract
-			old := []byte("###DBUS_BIND_ABSTRACTION###")
-			new := []byte("dbus-strict")
-			if bus == "session" {
-				new = []byte("dbus-session-strict")
+			abstraction, err := getAppArmorAbstraction(bus)
+			if err != nil {
+				return nil, err
 			}
+			old := []byte("###DBUS_BIND_ABSTRACTION###")
+			new := []byte(abstraction)
 			snippet := bytes.Replace(dbusBindPermanentSlotAppArmorShared, old, new, -1)
 			snippets.Write(snippet)
 
@@ -235,7 +246,6 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 
 					snippets.Write(snippet)
 				}
-
 			}
 		}
 		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
