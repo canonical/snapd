@@ -497,6 +497,34 @@ func (s *DbusBindInterfaceSuite) TestConnectedSlotAppArmorSession(c *C) {
 	c.Check(string(snippet), testutil.Contains, "dbus (receive, send)\n    bus=session\n    path=\"/org/test-slot{,/**}\"\n    peer=(label=\"snap.test-dbus-bind.test-consumer\"),\n")
 }
 
+func (s *DbusBindInterfaceSuite) TestConnectedSlotAppArmorMismatchPlug(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  session:
+  - org.dbus-bind-snap.session-1
+  - org.dbus-bind-snap.session-2
+plugs:
+ dbus-bind-plug:
+  interface: dbus-bind
+  system:
+  - org.dbus-bind-snap.system-1
+  - org.dbus-bind-snap.system-2
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-bind-plug"]}
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+
+	snippet, err := s.iface.ConnectedSlotSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, ErrorMatches, "'org.dbus-bind-snap.session-1' on 'session' does not exist in plug")
+	c.Assert(snippet, IsNil)
+}
+
 func (s *DbusBindInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -504,6 +532,34 @@ func (s *DbusBindInterfaceSuite) TestConnectedPlugAppArmorSession(c *C) {
 
 	// verify individual path in rules
 	c.Check(string(snippet), testutil.Contains, "dbus (receive, send)\n    bus=session\n    path=\"/org/test-slot{,/**}\"\n    peer=(label=\"snap.test-dbus-bind.test-provider\"),\n")
+}
+
+func (s *DbusBindInterfaceSuite) TestConnectedPlugAppArmorMismatchSlot(c *C) {
+	var mockSnapYaml = []byte(`name: dbus-bind-snap
+version: 1.0
+slots:
+ dbus-bind-slot:
+  interface: dbus-bind
+  session:
+  - org.dbus-bind-snap.session-1
+  - org.dbus-bind-snap.session-2
+plugs:
+ dbus-bind-plug:
+  interface: dbus-bind
+  system:
+  - org.dbus-bind-snap.system-1
+  - org.dbus-bind-snap.system-2
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-bind-plug"]}
+	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-bind-slot"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityAppArmor)
+	c.Assert(err, ErrorMatches, "'org.dbus-bind-snap.system-1' on 'system' does not exist in slot")
+	c.Assert(snippet, IsNil)
 }
 
 func (s *DbusBindInterfaceSuite) TestConnectedPlugSeccomp(c *C) {

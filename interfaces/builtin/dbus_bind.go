@@ -158,6 +158,9 @@ func (iface *DbusBindInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 			snippets.Write(snippet)
 
 			for _, name := range names {
+				if !iface.verifyNameInAttributes(bus, name, slot.Attrs) {
+					return nil, fmt.Errorf("'%s' on '%s' does not exist in slot", name, bus)
+				}
 				snippet := getAppArmorIndividualSnippet(dbusBindConnectedPlugAppArmorIndividual, bus, name)
 
 				old := []byte("###SLOT_SECURITY_TAGS###")
@@ -235,6 +238,9 @@ func (iface *DbusBindInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot
 		snippets.WriteString(``)
 		for bus, names := range dbusBindBusNames {
 			for _, name := range names {
+				if !iface.verifyNameInAttributes(bus, name, plug.Attrs) {
+					return nil, fmt.Errorf("'%s' on '%s' does not exist in plug", name, bus)
+				}
 				snippet := getAppArmorIndividualSnippet(dbusBindConnectedSlotAppArmorIndividual, bus, name)
 
 				old := []byte("###PLUG_SECURITY_TAGS###")
@@ -290,6 +296,24 @@ func (iface *DbusBindInterface) GetBusNames(attribs map[string]interface{}) (map
 	}
 
 	return busNames, nil
+}
+
+// verify that name for bus is in list
+func (iface *DbusBindInterface) verifyNameInAttributes(bus string, name string, attribs map[string]interface{}) bool {
+	otherBusNames, err := iface.GetBusNames(attribs)
+	if err != nil {
+		return false
+	}
+
+	if otherNames, ok := otherBusNames[bus]; ok {
+		for _, otherName := range otherNames {
+			if name == otherName {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // Determine AppArmor dbus abstraction to use based on bus
