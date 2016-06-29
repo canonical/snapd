@@ -62,6 +62,8 @@ slots:
 plugs:
   test-plug:
     interface: dbus-bind
+    session:
+    - org.test-slot
 
 apps:
   test-provider:
