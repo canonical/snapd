@@ -6,7 +6,8 @@ details: |
   vairiable, if it is empty, a fake local store is used, if it has a value of
   staginig or production the corresponding remote store is used.
   When executing against the remote stores the tests rely in the existence of
-  a given snap with an updatable version in the edge channel.
+  a given snap with an updatable version (version string like 2.0+fake1) in the
+  edge channel.
 
 environment:
   SNAP_NAME: test-snapd-tools
