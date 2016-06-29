@@ -3,6 +3,7 @@ summary: Check that try command works
 environment:
   PORT: 8081
   SERVICE_FILE: "./service.sh"
+  READABLE_FILE: "/var/snap/test-snapd-tools/x1/file.txt"
   SERVICE_NAME: "test-service"
 
 prepare: |
@@ -14,32 +15,33 @@ prepare: |
 
 restore: |
   systemctl stop $SERVICE_NAME
-  rm -f $SERVICE_FILE
+  rm -f $SERVICE_FILE $READABLE_FILE
 
 execute: |
   echo "Given a buildable snap in a known directory"
   echo "When try is executed on that directory"
-  snap try $TESTSLIB/snaps/basic-binaries
+  snap try $TESTSLIB/snaps/test-snapd-tools
 
   echo "Then the snap is listed as installed with try in the notes"
   expected="(?s)Name +Version +Rev +Developer +Notes\n\
-  basic-binaries +.*?try"
+  test-snapd-tools +.*?try"
   snap list | grep -Pzq "$expected"
 
   echo "And commands from the snap-try binary can be run"
-  basic-binaries.success
+  test-snapd-tools.success
 
-  echo "And commands from the snap-try binary can read in their own dir"
-  basic-binaries.cat | grep -q "I output myself"
+  echo "And commands from the snap-try binary can read in a readable dir"
+  echo -n "Hello World" > $READABLE_FILE
+  test-snapd-tools.cat $READABLE_FILE | grep -q "Hello World"
 
   echo "====================================="
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
   echo "When try is executed on that directory"
-  snap try $TESTSLIB/snaps/basic-binaries
+  snap try $TESTSLIB/snaps/test-snapd-tools
 
   echo "Then the snap command is not able to access the protected resource"
-  if basic-binaries.head -1 /dev/kmsg; then
+  if test-snapd-tools.head -1 /dev/kmsg; then
     echo "Expected confinement denial in try mode didn't work"
     exit 1
   fi
@@ -48,10 +50,10 @@ execute: |
 
   echo "Given a buildable snap which access confinement-protected resources in a known directory"
   echo "When try is executed on that directory with devmode enabled"
-  snap try $TESTSLIB/snaps/basic-binaries --devmode
+  snap try $TESTSLIB/snaps/test-snapd-tools --devmode
 
   echo "Then the snap command is able to access the protected resource"
-  basic-binaries.head -1 /dev/kmsg
+  test-snapd-tools.head -1 /dev/kmsg
 
   echo "====================================="
 
