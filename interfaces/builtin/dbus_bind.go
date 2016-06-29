@@ -178,6 +178,30 @@ func getAppArmorAbstraction(bus string) (string, error) {
 	}
 	return abstraction, nil
 }
+
+func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte {
+	old := []byte("###DBUS_BIND_BUS###")
+	new := []byte(bus)
+	snippet := bytes.Replace(policy, old, new, -1)
+
+	old = []byte("###DBUS_BIND_NAME###")
+	new = []byte(name)
+	snippet = bytes.Replace(snippet, old, new, -1)
+
+	// convert name to AppArmor dbus path
+	dot_re := regexp.MustCompile("\\.")
+	var path_buf bytes.Buffer
+	path_buf.WriteString(`"/`)
+	path_buf.WriteString(dot_re.ReplaceAllString(name, "/"))
+	path_buf.WriteString(`{,/**}"`)
+
+	old = []byte("###DBUS_BIND_PATH###")
+	new = path_buf.Bytes()
+	snippet = bytes.Replace(snippet, old, new, -1)
+
+	return snippet
+}
+
 func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	dbusBindBusNames, err := getBusNames(slot)
 	if err != nil {
@@ -202,48 +226,11 @@ func (iface *DbusBindInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 			for _, name := range names {
 				// well-known DBus name-specific permanent slot
 				// policy
-				old := []byte("###DBUS_BIND_BUS###")
-				new := []byte(bus)
-				snippet := bytes.Replace(dbusBindPermanentSlotAppArmorIndividual, old, new, -1)
-
-				old = []byte("###DBUS_BIND_NAME###")
-				new = []byte(name)
-				snippet = bytes.Replace(snippet, old, new, -1)
-
-				// convert name to AppArmor dbus path
-				dot_re := regexp.MustCompile("\\.")
-				var path_buf bytes.Buffer
-				path_buf.WriteString(`"/`)
-				path_buf.WriteString(dot_re.ReplaceAllString(name, "/"))
-				path_buf.WriteString(`{,/**}"`)
-
-				old = []byte("###DBUS_BIND_PATH###")
-				new = path_buf.Bytes()
-				snippet = bytes.Replace(snippet, old, new, -1)
-
+				snippet := getAppArmorIndividualSnippet(dbusBindPermanentSlotAppArmorIndividual, bus, name)
 				snippets.Write(snippet)
 
-				// TODO: abstract this too
 				if release.OnClassic {
-					old := []byte("###DBUS_BIND_BUS###")
-					new := []byte(bus)
-					snippet := bytes.Replace(dbusBindPermanentSlotAppArmorIndividualClassic, old, new, -1)
-
-					old = []byte("###DBUS_BIND_NAME###")
-					new = []byte(name)
-					snippet = bytes.Replace(snippet, old, new, -1)
-
-					// convert name to AppArmor dbus path
-					dot_re := regexp.MustCompile("\\.")
-					var path_buf bytes.Buffer
-					path_buf.WriteString(`"/`)
-					path_buf.WriteString(dot_re.ReplaceAllString(name, "/"))
-					path_buf.WriteString(`{,/**}"`)
-
-					old = []byte("###DBUS_BIND_PATH###")
-					new = path_buf.Bytes()
-					snippet = bytes.Replace(snippet, old, new, -1)
-
+					snippet := getAppArmorIndividualSnippet(dbusBindPermanentSlotAppArmorIndividualClassic, bus, name)
 					snippets.Write(snippet)
 				}
 			}
