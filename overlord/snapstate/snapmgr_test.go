@@ -1327,16 +1327,11 @@ func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	expected := []fakeOp{
 		fakeOp{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
-		},
-		fakeOp{
-			op:    "remove-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(7),
 		},
 		fakeOp{
 			op:    "setup-profiles:Doing",
@@ -1408,16 +1403,11 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 5)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
 	expected := []fakeOp{
 		fakeOp{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/2",
-		},
-		fakeOp{
-			op:    "remove-profiles:Doing",
-			name:  "some-snap",
-			revno: snap.R(2),
 		},
 		fakeOp{
 			op:    "setup-profiles:Doing",

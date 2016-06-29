@@ -346,13 +346,7 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 
 	ss := SnapSetup{
 		Name:     name,
-		Revision: snapst.CurrentSideInfo().Revision,
-		Revert:   revertToRev,
-	}
-	ssPrev := SnapSetup{
-		Name:     name,
 		Revision: revertToRev,
-		Revert:   revertToRev,
 	}
 
 	prepare := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare revert of %q"), name))
@@ -362,21 +356,17 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	unlink.WaitFor(prepare)
 	unlink.Set("snap-setup-task", prepare.ID())
 
-	removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q"), name))
-	removeSecurity.WaitFor(unlink)
-	removeSecurity.Set("snap-setup-task", prepare.ID())
-
-	// now make the previous version active
+	// make the previous version active
 	setupSecurity := s.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q security profiles"), name))
-	setupSecurity.WaitFor(removeSecurity)
-	setupSecurity.Set("snap-setup", ssPrev)
+	setupSecurity.WaitFor(unlink)
+	setupSecurity.Set("snap-setup-task", prepare.ID())
 
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), name))
 	linkSnap.WaitFor(setupSecurity)
-	linkSnap.Set("snap-setup-task", setupSecurity.ID())
+	linkSnap.Set("snap-setup-task", prepare.ID())
 
 	// and create a taskset
-	ts := state.NewTaskSet(prepare, unlink, removeSecurity, setupSecurity, linkSnap)
+	ts := state.NewTaskSet(prepare, unlink, setupSecurity, linkSnap)
 
 	return ts, nil
 }
