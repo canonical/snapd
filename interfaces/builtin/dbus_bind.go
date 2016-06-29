@@ -376,5 +376,5 @@ func (iface *DbusBindInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *DbusBindInterface) AutoConnect() bool {
-	return true
+	return false
 }
