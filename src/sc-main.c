@@ -54,19 +54,15 @@ int sc_main(int argc, char **argv)
 	if (argc < NR_ARGS + 1)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
 
-	const char *appname = argv[1];
-	debug("appname is %s", appname);
-#ifdef STRICT_CONFINEMENT
-	const char *aa_profile = argv[1];
-	debug("security-tag is is %s", aa_profile);
-#endif				// ifdef STRICT_CONFINEMENT
+	const char *security_tag = argv[1];
+	debug("security tag is %s", security_tag);
 	const char *binary = argv[2];
-	debug("binary to run is is %s", binary);
+	debug("binary to run is %s", binary);
 	uid_t real_uid = getuid();
 	gid_t real_gid = getgid();
 
-	if (!verify_appname(appname))
-		die("appname %s not allowed", appname);
+	if (!verify_security_tag(security_tag))
+		die("security tag %s not allowed", security_tag);
 
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
@@ -103,20 +99,20 @@ int sc_main(int argc, char **argv)
 		}
 #ifdef STRICT_CONFINEMENT
 		// set up private mounts
-		setup_private_mount(appname);
+		setup_private_mount(security_tag);
 
 		// set up private /dev/pts
 		setup_private_pts();
 
 		// this needs to happen as root
 		struct snappy_udev udev_s;
-		if (snappy_udev_init(appname, &udev_s) == 0)
-			setup_devices_cgroup(appname, &udev_s);
+		if (snappy_udev_init(security_tag, &udev_s) == 0)
+			setup_devices_cgroup(security_tag, &udev_s);
 		snappy_udev_cleanup(&udev_s);
 #endif				// ifdef STRICT_CONFINEMENT
 
 		// setup the security backend bind mounts
-		sc_setup_mount_profiles(appname);
+		sc_setup_mount_profiles(security_tag);
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
@@ -140,13 +136,13 @@ int sc_main(int argc, char **argv)
 #ifdef STRICT_CONFINEMENT
 	int rc = 0;
 	// set apparmor rules
-	rc = aa_change_onexec(aa_profile);
+	rc = aa_change_onexec(security_tag);
 	if (rc != 0) {
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
 	// set seccomp (note: seccomp_load_filters die()s on all failures)
-	seccomp_load_filters(aa_profile);
+	seccomp_load_filters(security_tag);
 #endif				// ifdef STRICT_CONFINEMENT
 
 	// Permanently drop if not root
