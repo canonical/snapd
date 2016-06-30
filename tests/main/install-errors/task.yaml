@@ -1,6 +1,6 @@
 summary: Checks for cli errors installing snaps
 environment:
-  SIDELOAD_SNAP_NAME: basic-binaries
+  SIDELOAD_SNAP_NAME: test-snapd-tools
   STORE_SNAP_NAME: hello-world
   SNAP_FILE: "./$[SIDELOAD_SNAP_NAME]_1.0_all.snap"
 
@@ -44,7 +44,7 @@ execute: |
   echo "============================================"
 
   echo "Calñling a failing command from a snap should fail"
-  if basic-binaries.fail; then
+  if test-snapd-tools.fail; then
     echo "Failing snap commands should keep failing after installed"
     exit 1
   fi
