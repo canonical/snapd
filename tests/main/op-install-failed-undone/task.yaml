@@ -1,0 +1,20 @@
+summary: Check that all tasks of a failed installtion are undone
+
+execute: |
+  echo "Given we make a snap uninstallable"
+
+  echo "And we try to install it"
+
+  echo "Then it should't be installed"
+
+  echo "And the installation task should be reported as an error"
+
+  echo "And the installation subtasks up to the error should be reported as undone"
+
+  echo "And the Download subtask is actually undone"
+
+  echo "And the Mount msubtask is actually undone"
+
+  echo "And the Data Copy subtask is actually undone"
+
+  echo "And the Security Profiles Setup subtask is actually undone"
