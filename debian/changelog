@@ -8,6 +8,8 @@ ubuntu-core-launcher (1.0.33) UNRELEASED; urgency=medium
 
   [ Jamie Strandboge ]
   * implement seccomp argument filtering (LP: #1446748)
+  * debian/usr.bin.snap-confine: allow read of /dev/random and /dev/urandom
+    (LP: #1595029)
 
   [ Zygmunt Krynicki ]
   * Set libexecdir to /usr/lib/snapd. This is done so that snapd can reliably
