@@ -28,9 +28,9 @@ import (
 
 var (
 	myappsAPIBase = myappsURL()
-	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
-	MyAppsPackageAccessAPI = myappsAPIBase + "api/2.0/acl/package_access/"
-	ubuntuoneAPIBase       = authURL()
+	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
+	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
+	ubuntuoneAPIBase     = authURL()
 	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
 	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
@@ -57,12 +57,16 @@ func httpStatusCodeClientError(httpStatusCode int) bool {
 	return httpStatusCode/100 == 4
 }
 
-// RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store.
-func RequestPackageAccessMacaroon() (string, error) {
-	const errorPrefix = "cannot get package access macaroon from store: "
+// RequestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
+func RequestStoreMacaroon() (string, error) {
+	const errorPrefix = "cannot get access permission from store: "
 
-	emptyJSONData := "{}"
-	req, err := http.NewRequest("POST", MyAppsPackageAccessAPI, strings.NewReader(emptyJSONData))
+	data := map[string]interface{}{
+		"permissions": []string{"package_access", "package_purchase"},
+	}
+	macaroonJSONData, err := json.Marshal(data)
+
+	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, strings.NewReader(string(macaroonJSONData)))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}

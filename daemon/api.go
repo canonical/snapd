@@ -206,7 +206,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode login data from request body: %v", err)
 	}
 
-	macaroon, err := store.RequestPackageAccessMacaroon()
+	macaroon, err := store.RequestStoreMacaroon()
 	if err != nil {
 		return InternalError(err.Error())
 	}
