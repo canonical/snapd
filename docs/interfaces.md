@@ -96,6 +96,9 @@ specified as a slot.
 
 Usage: common
 Auto-Connect: no
+Attributes:
+* name (slot): optional, media player name to use for DBus well-known name (ie,
+  `org.mpris.MediaPlayer2.$name`). If omitted, use the snap's name.
 
 ### camera
 
