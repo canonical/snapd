@@ -33,8 +33,8 @@ struct snappy_udev {
 };
 
 void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path);
-int snappy_udev_init(const char *appname, struct snappy_udev *udev_s);
+int snappy_udev_init(const char *security_tag, struct snappy_udev *udev_s);
 void snappy_udev_cleanup(struct snappy_udev *udev_s);
-void setup_devices_cgroup(const char *appname, struct snappy_udev *udev_s);
+void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s);
 
 #endif

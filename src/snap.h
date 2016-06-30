@@ -20,6 +20,6 @@
 
 #include <stdbool.h>
 
-bool verify_executable_name(const char *executable_name);
+bool verify_security_tag(const char *security_tag);
 
 #endif

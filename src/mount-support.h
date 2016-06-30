@@ -18,7 +18,7 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
-void setup_private_mount(const char *appname);
+void setup_private_mount(const char *security_tag);
 void setup_private_pts();
 void setup_snappy_os_mounts();
 void setup_slave_mount_namespace();
@@ -26,7 +26,7 @@ void setup_slave_mount_namespace();
 /**
  * Setup mount profiles as described by snapd.
  *
- * This function reads /var/lib/snapd/mount/$appname.fstab as a fstab(5) file
+ * This function reads /var/lib/snapd/mount/$security_tag.fstab as a fstab(5) file
  * and executes the mount requests described there.
  *
  * Currently only bind mounts are allowed. All bind mounts are read only by
@@ -36,6 +36,6 @@ void setup_slave_mount_namespace();
  * either the core snap on an all-snap system or the core snap + punched holes
  * on a classic system.
  **/
-void sc_setup_mount_profiles(const char *appname);
+void sc_setup_mount_profiles(const char *security_tag);
 
 #endif
