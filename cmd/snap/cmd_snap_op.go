@@ -122,6 +122,8 @@ var (
 	shortRemoveHelp  = i18n.G("Remove a snap from the system")
 	shortRefreshHelp = i18n.G("Refresh a snap in the system")
 	shortTryHelp     = i18n.G("Try an unpacked snap in the system")
+	shortEnableHelp  = i18n.G("Enable a snap in the system")
+	shortDisableHelp = i18n.G("Disable a snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
@@ -144,6 +146,14 @@ The try command installs an unpacked snap into the system for testing purposes.
 The unpacked snap content continues to be used even after installation, so
 non-metadata changes there go live instantly. Metadata changes such as those
 performed in snap.yaml will require reinstallation to go live.
+`)
+
+var longEnableHelp = i18n.G(`
+The enable command enables a snap.
+`)
+
+var longDisableHelp = i18n.G(`
+The disable command enables a snap.
 `)
 
 type cmdRemove struct {
@@ -382,9 +392,57 @@ func (x *cmdTry) Execute([]string) error {
 	return listSnaps([]string{name})
 }
 
+type cmdEnable struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *cmdEnable) Execute([]string) error {
+	cli := Client()
+	name := x.Positional.Snap
+	opts := &client.SnapOptions{}
+	changeID, err := cli.Enable(name, opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	return listSnaps([]string{name})
+}
+
+type cmdDisable struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *cmdDisable) Execute([]string) error {
+	cli := Client()
+	name := x.Positional.Snap
+	opts := &client.SnapOptions{}
+	changeID, err := cli.Disable(name, opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	return listSnaps([]string{name})
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
+	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} })
+	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} })
 }
