@@ -3,29 +3,34 @@ environment:
   SNAP_NAME: hello-world
 execute: |
   echo "Abort with invalid id"
-  invalidID="10000000"
-  expected="error: cannot find change with id \"$invalidID\""
-  actual=$(snap abort $invalidID 2>&1) || EXPECTED_FAILED="abort-invalid"
-  [ "$EXPECTED_FAILED" = "abort-invalid" ] || exit 1
-  echo "$actual" | grep -Pq "$expected" || exit 1
+  if snap abort 10000000; then
+    echo "abort with invalid id should fail"
+    exit 1
+  fi
+
+  echo "===================================="
 
   echo "Abort with valid id - error"
   subdirPath="/snap/$SNAP_NAME/current/foo"
   mkdir -p $subdirPath
-  snap install $SNAP_NAME || EXPECTED_FAILED=install
-  [ "$EXPECTED_FAILED" = "install" ] || exit 1
-  id="1"
-  expected="error: cannot abort change $id with nothing pending"
-  actual=$(snap abort $id 2>&1) || EXPECTED_FAILED="abort-error"
-  [ "$EXPECTED_FAILED" = "abort-error" ] || exit 1
-  echo "$actual" | grep -Pq "$expected" || exit 1
-
+  if snap install $SNAP_NAME; then
+    echo "install should fail when the target directory exists"
+    exit 1
+  fi
+  if snap abort 1; then
+    echo "abort with valid failed id should fail"
+    exit 1
+  fi
   rm -rf $subdirPath
+
+  echo "===================================="
+
 
   echo "Abort with valid id - done"
   snap install $SNAP_NAME
-  id="2"
-  expected="error: cannot abort change $id with nothing pending"
-  actual=$(snap abort $id 2>&1) || EXPECTED_FAILED="abort-done"
-  [ "$EXPECTED_FAILED" = "abort-done" ] || exit 1
-  echo "$actual" | grep -Pq "$expected" || exit 1
+  if snap abort 2; then
+    echo "abort with valid done id should fail"
+    exit 1
+  fi
+
+  echo "===================================="
