@@ -4,8 +4,6 @@ execute: |
   expected="(?s)Name +Version +Developer +Notes +Summary *\n\
   .*?\
   hello-world +.*? *\n\
-  .*?\
-  xkcd-webserver +.*? *\n\
   .*"
   snap find | grep -Pzq "$expected"
 
