@@ -84,7 +84,6 @@ dbus (receive)
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path="/{,org,org/mpris,org/mpris/MediaPlayer2}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive)
@@ -99,6 +98,10 @@ var mprisConnectedSlotAppArmorClassic = []byte(`
 dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
+    peer=(label=unconfined),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
     peer=(label=unconfined),
 `)
 
@@ -128,11 +131,6 @@ dbus (send)
     peer=(name="org.freedesktop.DBus", label="unconfined"),
 
 # Communicate with the mpris player
-dbus (send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/mpris/MediaPlayer2
-    peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
