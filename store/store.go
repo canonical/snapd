@@ -172,7 +172,7 @@ func assertsURL() string {
 }
 
 func myappsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
 		return "https://myapps.developer.staging.ubuntu.com/"
 	}
 	return "https://myapps.developer.ubuntu.com/"
