@@ -176,6 +176,15 @@ func (snapst *SnapState) SetTryMode(active bool) {
 	}
 }
 
+func (snapst *SnapState) findIndex(rev snap.Revision) int {
+	for i, si := range snapst.Sequence {
+		if si.Revision == rev {
+			return i
+		}
+	}
+	return -1
+}
+
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
