@@ -16,7 +16,7 @@ environment:
   STORE_CONFIG: $[CONFIG_DIR]/fakestore.conf
   BLOB_DIR: $(mktemp -d)
   STORE_ADDR: localhost:11028
-  STORE_TYPE/fake: fakestore
+  STORE_TYPE/fake: fake
   STORE_TYPE/staging: staging
   STORE_TYPE/production: production
 
