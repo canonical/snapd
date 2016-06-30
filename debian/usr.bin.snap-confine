@@ -22,6 +22,8 @@
     /dev/null rw,
     /dev/full rw,
     /dev/zero rw,
+    /dev/random r,
+    /dev/urandom r,
 
     # cgroups
     capability sys_admin,
