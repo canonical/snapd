@@ -18,10 +18,7 @@
 #include "config.h"
 #endif
 
-#include "sanity.h"
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/wait.h>
+#include "unit-tests.h"
 #include <glib.h>
 
 static void simple_test_case(void)
@@ -30,7 +27,7 @@ static void simple_test_case(void)
 	g_assert_cmpint(g_bit_storage(1), ==, 1);
 }
 
-int sc_run_sanity_checks(int *argc, char ***argv)
+int sc_run_unit_tests(int *argc, char ***argv)
 {
 	g_test_init(argc, argv, NULL);
 	g_test_add_func("/Simple Test Case", simple_test_case);
