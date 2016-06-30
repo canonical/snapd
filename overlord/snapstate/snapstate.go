@@ -441,25 +441,24 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-// GadgetInfo finds the current gadget snap's info
+// GadgetInfo finds the current gadget snap's info.
 func GadgetInfo(s *state.State) (*snap.Info, error) {
-	// XXX this would be so much prettier if state had the type
 	var stateMap map[string]*SnapState
 	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	for snapName, snapState := range stateMap {
-		snapInfo, err := snapState.CurrentInfo(snapName)
-		if err == ErrNoCurrent {
+		if !snapState.HasCurrent() {
 			continue
 		}
+		typ, err := snapState.Type()
 		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			return nil, err
+		}
+		if typ != snap.TypeGadget {
 			continue
 		}
-		if snapInfo.Type == snap.TypeGadget {
-			return snapInfo, nil
-		}
+		return snapState.CurrentInfo(snapName)
 	}
 
 	return nil, state.ErrNoState
