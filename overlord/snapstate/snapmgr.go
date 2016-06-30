@@ -105,13 +105,16 @@ type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
-	SnapType  string           `json:"type"` // Use Type and SetType
-	Sequence  []*snap.SideInfo `json:"sequence"`
-	Active    bool             `json:"active,omitempty"`
-	Current   snap.Revision    `json:"current"` // Indicates the current active revision if Active is true or the last active revision if Active is false
-	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
-	Channel   string           `json:"channel,omitempty"`
-	Flags     SnapStateFlags   `json:"flags,omitempty"`
+	SnapType string           `json:"type"` // Use Type and SetType
+	Sequence []*snap.SideInfo `json:"sequence"`
+	Active   bool             `json:"active,omitempty"`
+	// Current indicates the current active revision if Active is
+	// true or the last active revision if Active is false
+	// (usually while a snap is being operated on or disabled)
+	Current   snap.Revision  `json:"current"`
+	Candidate *snap.SideInfo `json:"candidate,omitempty"`
+	Channel   string         `json:"channel,omitempty"`
+	Flags     SnapStateFlags `json:"flags,omitempty"`
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
@@ -141,6 +144,8 @@ func (snapst *SnapState) HasCurrent() bool {
 	}
 	return true
 }
+
+// TODO: unexport CurrentSideInfo?
 
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
