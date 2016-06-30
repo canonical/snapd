@@ -834,14 +834,15 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
+
 	// relinking of the old snap is done in the undo of unlink-current-snap
-	snapst.Candidate = snapst.Sequence[snapst.findIndex(snapst.Current)]
+	currentIndex := snapst.findIndex(snapst.Current)
+	if currentIndex < 0 {
+		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", snapst.Candidate.Revision, snapst.Sequence)
+	}
+	snapst.Candidate = snapst.Sequence[currentIndex]
 	if !hadCandidate {
-		i := snapst.findIndex(snapst.Current)
-		if i < 0 {
-			return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", snapst.Candidate.Revision, snapst.Sequence)
-		}
-		snapst.Sequence = append(snapst.Sequence[:i], snapst.Sequence[i+1:]...)
+		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
 	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
