@@ -22,18 +22,23 @@
 
 #include <glib.h>
 
-static void test_get_nextpath()
+static void replace_slashes_with_NUL(char *path, size_t len)
 {
-	char path[] = "/some/path";
-	int offset = 0;
-	int fulllen = strlen(path);
-
-	// Prepare path for useage with get_nextpath() by replacing
-	// all path separators with the NUL byte.
-	for (int i = 0; i < fulllen; i++) {
+	for (size_t i = 0; i < len; i++) {
 		if (path[i] == '/')
 			path[i] = '\0';
 	}
+}
+
+static void test_get_nextpath__typical()
+{
+	char path[] = "/some/path";
+	size_t offset = 0;
+	size_t fulllen = strlen(path);
+
+	// Prepare path for useage with get_nextpath() by replacing
+	// all path separators with the NUL byte.
+	replace_slashes_with_NUL(path, fulllen);
 
 	// Run get_nextpath a few times to see what happens.
 	char *result;
@@ -45,7 +50,27 @@ static void test_get_nextpath()
 	g_assert_cmpstr(result, ==, NULL);
 }
 
+static void test_get_nextpath__weird()
+{
+	char path[] = "..///path";
+	size_t offset = 0;
+	size_t fulllen = strlen(path);
+
+	// Prepare path for useage with get_nextpath() by replacing
+	// all path separators with the NUL byte.
+	replace_slashes_with_NUL(path, fulllen);
+
+	// Run get_nextpath a few times to see what happens.
+	char *result;
+	result = get_nextpath(path, &offset, fulllen);
+	g_assert_cmpstr(result, ==, "path");
+	result = get_nextpath(path, &offset, fulllen);
+	g_assert_cmpstr(result, ==, NULL);
+}
+
 static void __attribute__ ((constructor)) init()
 {
-	g_test_add_func("/mount/get_nextpath", test_get_nextpath);
+	g_test_add_func("/mount/get_nextpath/typical",
+			test_get_nextpath__typical);
+	g_test_add_func("/mount/get_nextpath/weird", test_get_nextpath__weird);
 }
