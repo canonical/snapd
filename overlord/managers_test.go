@@ -473,6 +473,10 @@ apps:
 	ms.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
 
 	// ensure we are on x2
+	var snapst snapstate.SnapState
+	snapstate.Get(st, "foo", &snapst)
+	c.Assert(snapst.Current, Equals, snap.R("x2"))
+
 	apparmorUsesSnapRevision(c, filepath.Join(dirs.SnapAppArmorDir, "snap.foo.bar"), "x2")
 
 	// now do the revert
@@ -497,4 +501,8 @@ apps:
 		p := filepath.Join(dirs.SnapBlobDir, fn)
 		c.Assert(osutil.FileExists(p), Equals, true)
 	}
+
+	// also check that the state is correct
+	snapstate.Get(st, "foo", &snapst)
+	c.Assert(snapst.Current, Equals, snap.R("x1"))
 }
