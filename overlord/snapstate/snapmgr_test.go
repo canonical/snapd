@@ -1679,9 +1679,15 @@ version: 1.2
 description: |
     Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
+		SnapType: "app",
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 		Current:  sideInfo12.Revision,
+	})
+
+	// have also a snap being installed
+	snapstate.Set(st, "installing", &snapstate.SnapState{
+		Candidate: &snap.SideInfo{OfficialName: "installing", Revision: snap.R(1)},
 	})
 }
 
@@ -1704,6 +1710,32 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	c.Check(info.Description(), Equals, "Lots of text")
 }
 
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "name1", &snapst)
+	c.Assert(err, IsNil)
+
+	info, err := snapst.CurrentInfo("name1")
+	c.Assert(err, IsNil)
+
+	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.Revision, Equals, snap.R(12))
+	c.Check(info.Summary(), Equals, "s12")
+	c.Check(info.Version, Equals, "1.2")
+	c.Check(info.Description(), Equals, "Lots of text")
+}
+
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoErrNoCurrent(c *C) {
+	snapst := new(snapstate.SnapState)
+	_, err := snapst.CurrentInfo("notthere")
+	c.Assert(err, Equals, snapstate.ErrNoCurrent)
+
+}
+
 func (s *snapmgrQuerySuite) TestCurrentInfo(c *C) {
 	st := s.st
 	st.Lock()
@@ -1714,6 +1746,15 @@ func (s *snapmgrQuerySuite) TestCurrentInfo(c *C) {
 
 	c.Check(info.Name(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(12))
+}
+
+func (s *snapmgrQuerySuite) TestCurrentInfoAbsent(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapstate.CurrentInfo(st, "absent")
+	c.Assert(err, ErrorMatches, `cannot find snap "absent"`)
 }
 
 func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
@@ -1748,6 +1789,7 @@ type: gadget
 version: gadget
 `, sideInfoGadget)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoGadget},
 		Current:  sideInfoGadget.Revision,
