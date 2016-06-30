@@ -394,8 +394,8 @@ static char * __attribute__ ((used))
 }
 
 /*
- * Check that @subdir is a subdir of @dir.  @len is the length of
- * @dir (to avoid having to recalculate it).
+ * Check that @subdir is a subdir of @dir.
+ * @len is the length of @dir (to avoid having to recalculate it).
 **/
 static bool __attribute__ ((used))
     is_subdir(const char *subdir, const char *dir, size_t len)

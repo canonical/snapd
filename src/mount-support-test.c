@@ -68,9 +68,24 @@ static void test_get_nextpath__weird()
 	g_assert_cmpstr(result, ==, NULL);
 }
 
+static void test_is_subdir()
+{
+	g_assert_true(is_subdir("/dir/subdir", "/dir", strlen("/dir")));
+	g_assert_true(is_subdir("/dir/", "/dir", strlen("/dir")));
+	g_assert_true(is_subdir("/dir", "/dir", strlen("/dir")));
+	g_assert_true(is_subdir("", "", 0));
+	g_assert_true(is_subdir("//", "/", strlen("/")));
+	g_assert_true(is_subdir("/", "/", strlen("/")));
+	// but this is not true:
+	g_assert_false(is_subdir("/", "/dir", strlen("/dir")));
+	g_assert_false(is_subdir("/rid", "/dir", strlen("/dir")));
+	g_assert_false(is_subdir("/different/dir", "/dir", strlen("/dir")));
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount/get_nextpath/typical",
 			test_get_nextpath__typical);
 	g_test_add_func("/mount/get_nextpath/weird", test_get_nextpath__weird);
+	g_test_add_func("/mount/is_subdir", test_is_subdir);
 }
