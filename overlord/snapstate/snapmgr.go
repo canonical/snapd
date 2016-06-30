@@ -21,6 +21,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -104,13 +105,16 @@ type SnapStateFlags Flags
 
 // SnapState holds the state for a snap installed in the system.
 type SnapState struct {
-	SnapType  string           `json:"type"` // Use Type and SetType
-	Sequence  []*snap.SideInfo `json:"sequence"`
-	Current   snap.Revision    `json:"current"`
-	Candidate *snap.SideInfo   `json:"candidate,omitempty"`
-	Active    bool             `json:"active,omitempty"`
-	Channel   string           `json:"channel,omitempty"`
-	Flags     SnapStateFlags   `json:"flags,omitempty"`
+	SnapType string           `json:"type"` // Use Type and SetType
+	Sequence []*snap.SideInfo `json:"sequence"`
+	Active   bool             `json:"active,omitempty"`
+	// Current indicates the current active revision if Active is
+	// true or the last active revision if Active is false
+	// (usually while a snap is being operated on or disabled)
+	Current   snap.Revision  `json:"current"`
+	Candidate *snap.SideInfo `json:"candidate,omitempty"`
+	Channel   string         `json:"channel,omitempty"`
+	Flags     SnapStateFlags `json:"flags,omitempty"`
 
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
@@ -130,13 +134,23 @@ func (snapst *SnapState) SetType(typ snap.Type) {
 	snapst.SnapType = string(typ)
 }
 
-// CurrentSideInfo returns the side info for the current revision in the snap revision sequence if there is one.
-func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
+// HasCurrent returns whether snapst.Current is set.
+func (snapst *SnapState) HasCurrent() bool {
 	if snapst.Current.Unset() {
 		if len(snapst.Sequence) > 0 {
 			panic(fmt.Sprintf("snapst.Current and snapst.Sequence out of sync: %#v %#v", snapst.Current, snapst.Sequence))
 		}
 
+		return false
+	}
+	return true
+}
+
+// TODO: unexport CurrentSideInfo and HasCurrent?
+
+// CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
+func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
+	if !snapst.HasCurrent() {
 		return nil
 	}
 	seq := snapst.Sequence
@@ -183,6 +197,17 @@ func (snapst *SnapState) Block() []snap.Revision {
 		out = append(out, si.Revision)
 	}
 	return out
+}
+
+var ErrNoCurrent = errors.New("snap has no current revision")
+
+// CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
+func (snapst *SnapState) CurrentInfo(name string) (*snap.Info, error) {
+	cur := snapst.CurrentSideInfo()
+	if cur == nil {
+		return nil, ErrNoCurrent
+	}
+	return readInfo(name, cur)
 }
 
 // DevMode returns true if the snap is installed in developer mode.
@@ -574,14 +599,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var curInfo *snap.Info
-	if cur := snapst.CurrentSideInfo(); cur != nil {
-		var err error
-		curInfo, err = readInfo(ss.Name, cur)
-		if err != nil {
-			return err
-		}
-
+	curInfo, err := snapst.CurrentInfo(ss.Name)
+	if err != nil && err != ErrNoCurrent {
+		return err
 	}
 
 	m.backend.CurrentInfo(curInfo)
@@ -607,7 +627,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := readInfo(ss.Name, snapst.CurrentSideInfo())
+	oldInfo, err := snapst.CurrentInfo(ss.Name)
 	if err != nil {
 		return err
 	}
@@ -637,7 +657,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := readInfo(ss.Name, snapst.CurrentSideInfo())
+	oldInfo, err := snapst.CurrentInfo(ss.Name)
 	if err != nil {
 		return err
 	}
@@ -670,14 +690,9 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var oldInfo *snap.Info
-	if cur := snapst.CurrentSideInfo(); cur != nil {
-		var err error
-		oldInfo, err = readInfo(ss.Name, cur)
-		if err != nil {
-			return err
-		}
-
+	oldInfo, err := snapst.CurrentInfo(ss.Name)
+	if err != nil && err != ErrNoCurrent {
+		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
@@ -697,14 +712,9 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var oldInfo *snap.Info
-	if cur := snapst.CurrentSideInfo(); cur != nil {
-		var err error
-		oldInfo, err = readInfo(ss.Name, cur)
-		if err != nil {
-			return err
-		}
-
+	oldInfo, err := snapst.CurrentInfo(ss.Name)
+	if err != nil && err != ErrNoCurrent {
+		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
