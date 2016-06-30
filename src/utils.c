@@ -49,7 +49,7 @@ bool error(const char *msg, ...)
 
 void debug(const char *msg, ...)
 {
-	if (getenv("UBUNTU_CORE_LAUNCHER_DEBUG") == NULL)
+	if (getenv("SNAP_CONFINE_DEBUG") == NULL)
 		return;
 
 	va_list va;

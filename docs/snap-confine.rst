@@ -78,7 +78,7 @@ ENVIRONMENT
 
 `snap-confine` responds to the following environment variables
 
-`UBUNTU_CORE_LAUNCHER_DEBUG`:
+`SNAP_CONFINE_DEBUG`:
 	When defined the program will print additional diagnostic information about
 	the actions being performed. All the output goes to stderr.
 
