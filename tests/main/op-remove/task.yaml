@@ -17,5 +17,3 @@ execute: |
 
   echo "Then the two revisions are removed from disk"
   [ $(find /snap/basic/ -maxdepth 1 -type d -name "x*" | wc -l) -eq 0 ]
-
-  echo "================================================"
