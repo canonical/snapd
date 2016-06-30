@@ -341,6 +341,10 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 		return nil, err
 	}
 
+	if snapst.Current == rev {
+		return nil, fmt.Errorf("already on requested revision")
+	}
+
 	if !snapst.Active {
 		return nil, fmt.Errorf("cannot revert inactive snaps")
 	}
