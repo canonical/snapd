@@ -42,10 +42,6 @@ sanity_test_SOURCES = \
 	utils-test.c \
 	cleanup-funcs-test.c \
 	mount-support-test.c
-# Comple sanity-tests from the same sources as snap-confine but
-# define the _UNIT_TESTING macro so that test code can be
-# included. This lets us put tests right next to actual static
-# functions for better visiblitiy.
 sanity_test_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 sanity_test_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 sanity_test_LDFLAGS = $(snap_confine_LDFLAGS)
