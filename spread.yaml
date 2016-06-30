@@ -34,7 +34,7 @@ prepare: |
             apt-get update
             apt-get install --quiet -y fakeroot
             # Build a local copy of snap-confine
-            apt-get install --quiet -y autoconf automake autotools-dev debhelper dh-apparmor dh-autoreconf indent libapparmor-dev libseccomp-dev libudev-dev pkg-config shellcheck udev python3-docutils
+            apt-get install --quiet -y autoconf automake autotools-dev debhelper dh-apparmor dh-autoreconf indent libapparmor-dev libseccomp-dev libudev-dev pkg-config shellcheck udev python3-docutils libglib2.0-dev
             test -d /home/test || adduser --quiet --disabled-password --gecos '' test
             chown test.test -R ..
             sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
@@ -50,6 +50,6 @@ prepare: |
 
 suites:
     spread-tests/:
-        summary: Full-system tests for snap-confine 
+        summary: Full-system tests for snap-confine
     spread-tests/regression/:
         summary: Regression tests for past bug-fixes

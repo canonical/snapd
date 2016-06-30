@@ -1,5 +1,7 @@
 src/snap-confine
+src/sanity-test
 *~
+*.o
 
 # test-driver
 *.log

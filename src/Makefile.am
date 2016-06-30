@@ -1,4 +1,5 @@
 libexec_PROGRAMS = snap-confine
+noinst_PROGRAMS = sanity-test
 snap_confine_SOURCES = \
 	main.c \
 	utils.c \
@@ -32,6 +33,22 @@ snap_confine_CFLAGS += $(APPARMOR_CFLAGS) $(SECCOMP_CFLAGS) $(LIBUDEV_CFLAGS)
 snap_confine_LDADD += $(APPARMOR_LIBS) $(SECCOMP_LIBS) $(LIBUDEV_LIBS)
 endif
 
+sanity_test_SOURCES = \
+	sanity.c \
+	sanity.h \
+	$(snap_confine_SOURCES)
+# Comple sanity-tests from the same sources as snap-confine but
+# define the _SANITY_TESTING macro so that test code can be
+# included. This lets us put tests right next to actual static
+# functions for better visiblitiy.
+sanity_test_CFLAGS = $(snap_confine_CFLAGS)
+sanity_test_LDADD = $(snap_confine_LDADD)
+sanity_test_LDFLAGS = $(snap_confine_LDFLAGS)
+sanity_test_CFLAGS += -D_SANITY_TESTING
+# Sanity tests are using glib's testing facilities
+sanity_test_CFLAGS += $(GLIB_CFLAGS)
+sanity_test_LDADD += $(GLIB_LIBS)
+
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax
 check-syntax:
@@ -44,9 +61,14 @@ check-syntax:
 	       diff -Naur "$$f" "$$out" || exit 1; \
 	done;
 
+.PHONY: check-sanity
+check-sanity: sanity-test
+	./sanity-test
+
+
 # Run check-syntax when checking
 # TODO: conver those to autotools-style tests later
-check: check-syntax
+check: check-syntax check-sanity
 
 .PHONY: fmt
 fmt:
