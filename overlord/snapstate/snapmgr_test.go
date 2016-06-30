@@ -1327,6 +1327,30 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 	c.Assert(ts, IsNil)
 }
 
+func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+	si2 := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(77),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  snap.R(77),
+	})
+
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R("77"))
+	c.Assert(err, ErrorMatches, `already on requested revision`)
+	c.Assert(ts, IsNil)
+}
+
 func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
