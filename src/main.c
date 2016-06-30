@@ -34,13 +34,13 @@
 #endif				// ifdef STRICT_CONFINEMENT
 #include "cleanup-funcs.h"
 #ifdef _SANITY_TESTING
-#include "sanity.h"
+#include "unit-tests.h"
 #endif
 
 int main(int argc, char **argv)
 {
 #ifdef _SANITY_TESTING
-	return sc_run_sanity_checks(&argc, &argv);
+	return sc_run_unit_tests(&argc, &argv);
 #else				// _SANITY_TESTING
 	char *basename = strrchr(argv[0], '/');
 	if (basename) {

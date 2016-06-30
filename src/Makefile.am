@@ -34,8 +34,8 @@ snap_confine_LDADD += $(APPARMOR_LIBS) $(SECCOMP_LIBS) $(LIBUDEV_LIBS)
 endif
 
 sanity_test_SOURCES = \
-	sanity.c \
-	sanity.h \
+	unit-tests.c \
+	unit-tests.h \
 	$(snap_confine_SOURCES)
 # Comple sanity-tests from the same sources as snap-confine but
 # define the _SANITY_TESTING macro so that test code can be

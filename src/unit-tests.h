@@ -15,9 +15,15 @@
  *
  */
 
-#ifndef SNAP_CONFINE_SANITY_H
-#define SNAP_CONFINE_SANITY_H
+#ifndef SNAP_CONFINE_UNIT_TESTS_H
+#define SNAP_CONFINE_UNIT_TESTS_H
 
-int sc_run_sanity_checks(int *argc, char ***argv);
+/**
+ * Run unit tests and exit.
+ *
+ * The function inspects and modifies command line arguments.
+ * Internally it is using glib-test functions.
+ */
+int sc_run_unit_tests(int *argc, char ***argv);
 
 #endif				// SNAP_CONFINE_SANITY_H
