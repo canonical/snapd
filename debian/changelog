@@ -1,3 +1,9 @@
+ubuntu-core-launcher (1.0.33ubuntu1) UNRELEASED; urgency=medium
+
+  * Bring in changes from 1.0.33-1 from debian:
+
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Fri, 01 Jul 2016 09:42:00 +1200
+
 ubuntu-core-launcher (1.0.33) UNRELEASED; urgency=medium
 
   [ Zygmunt Krynicki ]
