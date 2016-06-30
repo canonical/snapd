@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -76,7 +77,7 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.*"),`)
 }
 
-// The label uses alternation when some, but not all, apps is bound to the mpris slot
+// The label uses alternation when some, but not all, apps are bound to the mpris slot
 func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
 	app2 := &snap.AppInfo{Name: "app2"}
@@ -95,6 +96,14 @@ func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelSome(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.{app1,app2}"),`)
+}
+
+func (s *MprisInterfaceSuite) TestConnectedPlugSecComp(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
 
 // The label uses short form when exactly one app is bound to the mpris slot
@@ -174,6 +183,47 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.mpris.app"),`)
+}
+
+func (s *MprisInterfaceSuite) TestPermanentSlotAppArmor(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify bind rule
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}\",\n")
+}
+
+func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorNative(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	iface := &builtin.MprisInterface{}
+	snippet, err := iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify classic rule not present
+	c.Check(string(snippet), Not(testutil.Contains), "# Allow unconfined clients to interact with the player on classic\n")
+}
+
+func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+	iface := &builtin.MprisInterface{}
+	snippet, err := iface.PermanentSlotSnippet(s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify classic rule present
+	c.Check(string(snippet), testutil.Contains, "# Allow unconfined clients to interact with the player on classic\n")
+}
+
+func (s *MprisInterfaceSuite) TestPermanentSlotSecComp(c *C) {
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
 
 func (s *MprisInterfaceSuite) TestUnusedSecuritySystems(c *C) {
