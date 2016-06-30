@@ -22,6 +22,7 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -449,6 +450,14 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	return info
 }
 
+func apparmorUsesSnapRevision(c *C, fn, revision string) {
+	content, err := ioutil.ReadFile(fn)
+	c.Assert(err, IsNil)
+	needle := fmt.Sprintf(`@{SNAP_REVISION}="%s"`+"\n", revision)
+	fmt.Println(needle, string(content))
+	c.Assert(strings.Contains(string(content), needle), Equals, true)
+}
+
 func (ms *mgrsSuite) TestHappyRevert(c *C) {
 	st := ms.o.State()
 	st.Lock()
@@ -458,17 +467,13 @@ func (ms *mgrsSuite) TestHappyRevert(c *C) {
 apps:
  bar:
   command: bin/bar
+  daemon: forking
 `
 	ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 	ms.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
 
-	// ensure we are on r2
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x2.snap")), Equals, true)
-	mup := systemd.MountUnitPath("/snap/foo/x2", "mount")
-	content, err := ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x2")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x2.snap")
+	// ensure we are on x2
+	apparmorUsesSnapRevision(c, filepath.Join(dirs.SnapAppArmorDir, "snap.foo.bar"), "x2")
 
 	// now do the revert
 	ts, err := snapstate.Revert(st, "foo")
@@ -483,16 +488,13 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("revert-snap change failed with: %v", chg.Err()))
 
-	// ensure we are back to x1 after the revert
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
-	mup = systemd.MountUnitPath("/snap/foo/x1", "mount")
-	content, err = ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
+	// ensure that we use x1 now
+	apparmorUsesSnapRevision(c, filepath.Join(dirs.SnapAppArmorDir, "snap.foo.bar"), "x1")
 
-	// ensure that x2 is still there, revert just moves the "current"
+	// ensure that x1,x2 is still there, revert just moves the "current"
 	// pointer
-	snapX2 := filepath.Join(dirs.SnapBlobDir, "foo_x2.snap")
-	c.Assert(osutil.FileExists(snapX2), Equals, true)
+	for _, fn := range []string{"foo_x2.snap", "foo_x1.snap"} {
+		p := filepath.Join(dirs.SnapBlobDir, fn)
+		c.Assert(osutil.FileExists(p), Equals, true)
+	}
 }
