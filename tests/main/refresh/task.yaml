@@ -48,7 +48,7 @@ prepare: |
   }
 
   setup_staging_store(){
-    echo "And ubuntu-core snap is available before switching to staging"
+    echo "Given ubuntu-core snap is available before switching to staging"
     snap install hello-world
 
     echo "And snapd is configured to use the staging store"
