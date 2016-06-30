@@ -177,23 +177,35 @@ func (s *MprisInterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 }
 
 func (s *MprisInterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
-		interfaces.SecurityDBus, interfaces.SecurityUDev}
+	systems := [...]interfaces.SecuritySystem{interfaces.SecurityDBus,
+		interfaces.SecurityUDev, interfaces.SecurityMount}
 	for _, system := range systems {
 		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
+
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+
+		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+
 		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
+
+	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
+
+	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityAppArmor)
+
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }

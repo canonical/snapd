@@ -173,11 +173,9 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(mprisConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus:
-		return nil, nil
 	case interfaces.SecuritySecComp:
 		return mprisConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -194,11 +192,9 @@ func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
 		}
 		return snippet, nil
-	case interfaces.SecurityDBus:
-		return nil, nil
 	case interfaces.SecuritySecComp:
 		return mprisPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
