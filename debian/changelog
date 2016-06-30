@@ -1,3 +1,12 @@
+snap-confine (1.0.33ubuntu1) UNRELEASED; urgency=medium
+
+  * Bring in changes from 1.0.33-1 from debian:
+    - Rename source package to snap-confine.
+    - Add debian/watch for upstream tarballs.
+    - Use dpkg-vendor so that we can use a single debian/rules for both Debian and Ubuntu.
+
+ -- Michael Hudson-Doyle <michael.hudson@ubuntu.com>  Fri, 01 Jul 2016 09:42:00 +1200
+
 ubuntu-core-launcher (1.0.33) UNRELEASED; urgency=medium
 
   [ Zygmunt Krynicki ]
