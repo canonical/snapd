@@ -393,22 +393,34 @@ static char * __attribute__ ((used))
 	return (offset < fulllen) ? &path[offset] : NULL;
 }
 
-/*
+/**
  * Check that @subdir is a subdir of @dir.
- * @len is the length of @dir (to avoid having to recalculate it).
 **/
 static bool __attribute__ ((used))
-    is_subdir(const char *subdir, const char *dir, size_t len)
+    is_subdir(const char *subdir, const char *dir)
 {
+	size_t dirlen = strlen(dir);
 	size_t subdirlen = strlen(subdir);
 
-	if (subdirlen < len)
+	// @dir has to be at least as long as @subdir
+	if (subdirlen < dirlen)
 		return false;
-	if (strncmp(subdir, dir, len) != 0)
+	// @dir has to be a prefix of @subdir
+	if (strncmp(subdir, dir, dirlen) != 0)
 		return false;
-	if (dir[len - 1] == '/')
+	// @dir can look like "path/" (that is, end with the directory separator).
+	// When that is the case then given the test above we can be sure @subdir
+	// is a real subdirectory.
+	if (dirlen > 0 && dir[dirlen - 1] == '/')
 		return true;
-	if (subdir[len] == '/' || subdirlen == len)
+	// @subdir can look like "path/stuff" and when the directory separator
+	// is exactly at the spot where @dir ends (that is, it was not caught
+	// by the test above) then @subdir is a real subdirectory.
+	if (subdir[dirlen] == '/' && dirlen > 0)
+	 	return true;
+	// If both @dir and @subdir have identical length then given that the
+	// prefix check above @subdir is a real subdirectory.
+	if (subdirlen == dirlen)
 		return true;
 	return false;
 }
