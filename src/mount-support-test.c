@@ -33,8 +33,8 @@ static void replace_slashes_with_NUL(char *path, size_t len)
 static void test_get_nextpath__typical()
 {
 	char path[] = "/some/path";
-	int offset = 0;
-	int fulllen = strlen(path);
+	size_t offset = 0;
+	size_t fulllen = strlen(path);
 
 	// Prepare path for useage with get_nextpath() by replacing
 	// all path separators with the NUL byte.
@@ -53,8 +53,8 @@ static void test_get_nextpath__typical()
 static void test_get_nextpath__weird()
 {
 	char path[] = "..///path";
-	int offset = 0;
-	int fulllen = strlen(path);
+	size_t offset = 0;
+	size_t fulllen = strlen(path);
 
 	// Prepare path for useage with get_nextpath() by replacing
 	// all path separators with the NUL byte.

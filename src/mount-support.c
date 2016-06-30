@@ -377,7 +377,7 @@ void sc_setup_mount_profiles(const char *appname)
  * Returns a pointer to the next path segment, or NULL if done.
  */
 static char * __attribute__ ((used))
-    get_nextpath(char *path, int *offsetp, int fulllen)
+    get_nextpath(char *path, size_t * offsetp, size_t fulllen)
 {
 	int offset = *offsetp;
 
