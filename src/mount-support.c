@@ -40,7 +40,7 @@
 
 #define MAX_BUF 1000
 
-void setup_private_mount(const char *appname)
+void setup_private_mount(const char *security_tag)
 {
 #ifdef STRICT_CONFINEMENT
 	uid_t uid = getuid();
@@ -53,7 +53,7 @@ void setup_private_mount(const char *appname)
 	// Under that basedir, we put a 1777 /tmp dir that is then bind
 	// mounted for the applications to use
 	must_snprintf(tmpdir, sizeof(tmpdir), "/tmp/snap.%d_%s_XXXXXX", uid,
-		      appname);
+		      security_tag);
 	if (mkdtemp(tmpdir) == NULL) {
 		die("unable to create tmpdir");
 	}
@@ -317,16 +317,16 @@ void setup_slave_mount_namespace()
 	}
 }
 
-void sc_setup_mount_profiles(const char *appname)
+void sc_setup_mount_profiles(const char *security_tag)
 {
-	debug("%s: %s", __FUNCTION__, appname);
+	debug("%s: %s", __FUNCTION__, security_tag);
 
 	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
 	const char *mount_profile_dir = "/var/lib/snapd/mount";
 
 	char profile_path[PATH_MAX];
 	must_snprintf(profile_path, sizeof(profile_path), "%s/%s.fstab",
-		      mount_profile_dir, appname);
+		      mount_profile_dir, security_tag);
 
 	debug("opening mount profile %s", profile_path);
 	f = setmntent(profile_path, "r");

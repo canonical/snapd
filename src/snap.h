@@ -20,6 +20,6 @@
 
 #include <stdbool.h>
 
-bool verify_appname(const char *appname);
+bool verify_security_tag(const char *security_tag);
 
 #endif
