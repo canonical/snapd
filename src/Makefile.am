@@ -45,6 +45,9 @@ sanity_test_CFLAGS = $(snap_confine_CFLAGS)
 sanity_test_LDADD = $(snap_confine_LDADD)
 sanity_test_LDFLAGS = $(snap_confine_LDFLAGS)
 sanity_test_CFLAGS += -D_SANITY_TESTING
+# Sanity tests are using glib's testing facilities
+sanity_test_CFLAGS += $(GLIB_CFLAGS)
+sanity_test_LDADD += $(GLIB_LIBS)
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax

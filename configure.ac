@@ -63,6 +63,9 @@ AS_IF([test "x$enable_confinement" = "xyes"], [
     XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX])
 ])
 
+# Check for glib that we use for unit testing
+PKG_CHECK_MODULES([GLIB], [glib-2.0])
+
 # Allow to use the new execution environment based on pivot_root and bind-mount
 # of the core snap. This is closer to how an all-snap system would execute
 # applications (the root file system is a read only core snap) and is more

@@ -40,8 +40,7 @@
 int main(int argc, char **argv)
 {
 #ifdef _SANITY_TESTING
-	struct sc_test_context ctx = {.stdtest = stdout };
-	return sc_run_test_list(sc_all_tests, &ctx);
+	return sc_run_sanity_checks(&argc, &argv);
 #else				// _SANITY_TESTING
 	char *basename = strrchr(argv[0], '/');
 	if (basename) {

@@ -22,80 +22,17 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <glib.h>
 
-struct sc_test_list *sc_all_tests = NULL;
-
-/** Run a single test. */
-static int
-sc_run_test(const struct sc_test_def *test_def,
-	    struct sc_test_context *test_ctx)
+static void simple_test_case(void)
 {
-	fprintf(test_ctx->stdtest, "(%s) BEGIN\n", test_def->fn_name);
-
-	pid_t pid = fork();
-	if (pid == -1) {
-		fprintf(test_ctx->stdtest, "cannot fork, aborting\n");
-		abort();
-	}
-	if (pid == 0) {
-		int result = test_def->check_fn(test_def, test_ctx);
-		exit(result);
-	}
-	int status = 0;
-	int result;
-	if (waitpid(pid, &status, 0) != pid) {
-		perror("waitpid failed");
-		abort();
-	}
-
-	if (WIFEXITED(status)) {
-		result = WEXITSTATUS(status);
-	} else {
-		result = 1;
-	}
-	if (test_def->flags & SC_XFAIL) {
-		result = !result;
-	}
-	if (result == 0) {
-		fprintf(test_ctx->stdtest, "(%s) PASS\n", test_def->fn_name);
-	} else {
-		fprintf(test_ctx->stdtest, "(%s) FAIL\n", test_def->fn_name);
-	}
-	return result;
+	g_assert(g_bit_storage(1) == 1);
+	g_assert_cmpint(g_bit_storage(1), ==, 1);
 }
 
-SC_TEST_FN(pass)
+int sc_run_sanity_checks(int *argc, char ***argv)
 {
-	SC_MSG("Test that returns zero should PASS\n");
-	return 0;
-}
-
-SC_TEST_FN(fail)
-{
-	SC_MSG("Test that returns non-zero should FAIL\n");
-	return 1;
-}
-
-SC_TEST_FN(abort)
-{
-	SC_MSG("Test that exits abnormally should FAIL\n");
-	abort();
-	return 0;
-}
-
-SC_MODULE_TESTS()
-{
-	SC_LINK_TEST(sc_all_tests, pass, 0);
-	SC_LINK_TEST(sc_all_tests, fail, SC_XFAIL);
-	SC_LINK_TEST(sc_all_tests, abort, SC_XFAIL);
-}
-
-int
-sc_run_test_list(const struct sc_test_list *list, struct sc_test_context *ctx)
-{
-	int result = 0;
-	for (; list != NULL; list = list->next) {
-		result += sc_run_test(list->test_def, ctx);
-	}
-	return result;
+	g_test_init(argc, argv, NULL);
+	g_test_add_func("/Simple Test Case", simple_test_case);
+	return g_test_run();
 }
