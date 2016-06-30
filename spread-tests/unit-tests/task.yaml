@@ -5,5 +5,4 @@ execute: |
     cd /remote/path/
     autoreconf --install --force
     ./configure --enable-rootfs-is-core-snap
-    make -C src check-sanity
-
+    make -C src check-unit-tests

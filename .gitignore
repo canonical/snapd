@@ -1,5 +1,5 @@
 src/snap-confine
-src/sanity-test
+src/snap-confine-unit-tests
 *~
 *.o
 
