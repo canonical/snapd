@@ -145,7 +145,7 @@ func (snapst *SnapState) HasCurrent() bool {
 	return true
 }
 
-// TODO: unexport CurrentSideInfo?
+// TODO: unexport CurrentSideInfo and HasCurrent?
 
 // CurrentSideInfo returns the side info for the revision indicated by snapst.Current in the snap revision sequence if there is one.
 func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
