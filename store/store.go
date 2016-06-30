@@ -243,6 +243,30 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 	}
 }
 
+// build a new http.Request with headers for the store
+func (s *SnapUbuntuStoreRepository) newRequest(method, urlStr string, body io.Reader, auther Authenticator) (*http.Request, error) {
+	req, err := http.NewRequest(method, urlStr, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if auther != nil {
+		auther.Authenticate(req)
+	}
+
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/hal+json")
+	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
+	req.Header.Set("X-Ubuntu-Series", release.Series)
+	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if s.storeID != "" {
+		req.Header.Set("X-Ubuntu-Store", s.storeID)
+	}
+
+	return req, nil
+}
+
 // small helper that sets the correct http headers for the ubuntu store
 func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, devmode bool, auther Authenticator) {
 	if auther != nil {
@@ -322,17 +346,15 @@ type purchase struct {
 	RedirectTo      string `json:"redirect_to,omitempty"`
 }
 
-func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, auther Authenticator) ([]*purchase, error) {
+func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, auther Authenticator) ([]*purchase, error) {
 	if auther == nil {
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
 
-	req, err := http.NewRequest("GET", url.String(), nil)
+	req, err := s.newRequest("GET", url.String(), nil, auther)
 	if err != nil {
 		return nil, err
 	}
-
-	s.setUbuntuStoreHeaders(req, channel, false, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -377,7 +399,7 @@ func hasPriced(snaps []*snap.Info) bool {
 }
 
 // decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
-func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
+func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, auther Authenticator) error {
 	// Mark every non-free snap as must buy until we know better.
 	setMustBuy(snaps)
 
@@ -406,7 +428,7 @@ func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channe
 		purchasesURL = s.purchasesURI
 	}
 
-	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, auther)
+	purchases, err := s.getPurchasesFromURL(purchasesURL, auther)
 	if err != nil {
 		return err
 	}
@@ -501,7 +523,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 
 	info := infoFromRemote(searchData.Payload.Packages[0])
 
-	err = s.decoratePurchases([]*snap.Info{info}, channel, auther)
+	err = s.decoratePurchases([]*snap.Info{info}, auther)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
@@ -510,25 +532,22 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 
 }
 
-// Find finds  (installable) snaps from the store, matching the
+type FindFlags int
+
+// Find finds (installable) snaps from the store, matching the
 // given search term.
-func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auther Authenticator) ([]*snap.Info, error) {
-	if channel == "" {
-		channel = "stable"
-	}
+func (s *SnapUbuntuStoreRepository) Find(searchTerm string, _ FindFlags, auther Authenticator) ([]*snap.Info, error) {
 
 	u := *s.searchURI // make a copy, so we can mutate it
 	q := u.Query()
+
 	q.Set("q", searchTerm)
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := s.newRequest("GET", u.String(), nil, auther)
 	if err != nil {
 		return nil, err
 	}
-
-	// set headers
-	s.setUbuntuStoreHeaders(req, channel, false, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -556,7 +575,7 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auth
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, channel, auther)
+	err = s.decoratePurchases(snaps, auther)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}

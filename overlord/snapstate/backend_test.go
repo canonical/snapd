@@ -76,7 +76,7 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authen
 	return info, nil
 }
 
-func (f *fakeStore) Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error) {
+func (f *fakeStore) Find(query string, flags store.FindFlags, auther store.Authenticator) ([]*snap.Info, error) {
 	panic("Find called")
 }
 

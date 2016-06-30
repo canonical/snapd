@@ -179,14 +179,11 @@ Reserved for human-readable content describing the service.
 
 Query.
 
-#### `channel`
-
-Which channel to search in.
-
 #### `select`
 
-Filter from the given selection. Currently only limiting to refreshable
-snaps is supported via the `refresh` key.
+Filter from the given selection. Currently only limiting to
+refreshable snaps is supported via the `refresh` key. This cannot be
+used with any other parameter.
 
 #### Sample result:
 
