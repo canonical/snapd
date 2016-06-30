@@ -734,10 +734,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	cand := snapst.Candidate
 	m.backend.Candidate(snapst.Candidate)
-	hadCandidateInSeq := false
+	var addedCandidate snap.Revision
 	if snapst.findIndex(snapst.Candidate.Revision) < 0 {
 		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
-		hadCandidateInSeq = true
+		addedCandidate = snapst.Candidate.Revision
 	}
 	oldCurrent := snapst.Current
 	snapst.Current = snapst.Candidate.Revision
@@ -780,7 +780,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
-	t.Set("had-candidate-in-seq", hadCandidateInSeq)
+	t.Set("added-candidate", addedCandidate)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
@@ -824,16 +824,23 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	var hadCandidateInSeq bool
-	err = t.Get("had-candidate-in-seq", &hadCandidateInSeq)
-	if err != nil {
+	var addedCandidate snap.Revision
+	err = t.Get("added-candidate", &addedCandidate)
+	// compatiblity with tasks
+	if err == state.ErrNoState {
+		addedCandidate = snapst.Sequence[len(snapst.Sequence)-1].Revision
+	} else if err != nil {
 		return err
 	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 	snapst.Candidate = snapst.Sequence[snapst.findIndex(snapst.Current)]
-	if hadCandidateInSeq {
-		snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
+	if !addedCandidate.Unset() {
+		i := snapst.findIndex(addedCandidate)
+		if i < 0 {
+			return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", addedCandidate, snapst.Sequence)
+		}
+		snapst.Sequence = append(snapst.Sequence[:i], snapst.Sequence[i+1:]...)
 	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
