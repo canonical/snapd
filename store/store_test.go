@@ -947,11 +947,11 @@ func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", ""), IsNil)
 	before := myappsURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "")
 	after := myappsURL()
 
 	c.Check(before, Not(Equals), after)
