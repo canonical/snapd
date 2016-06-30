@@ -88,20 +88,20 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
  * are assigned, else return -1. Callers should use snappy_udev_cleanup() to
  * cleanup.
  */
-int snappy_udev_init(const char *executable_name, struct snappy_udev *udev_s)
+int snappy_udev_init(const char *security_tag, struct snappy_udev *udev_s)
 {
 	debug("%s", __func__);
 	int rc = 0;
 
 	// extra paranoia
-	if (!verify_executable_name(executable_name))
-		die("executable name %s not allowed", executable_name);
+	if (!verify_security_tag(security_tag))
+		die("security tag %s not allowed", security_tag);
 
 	udev_s->tagname[0] = '\0';
 	udev_s->tagname_len = 0;
-	// TAG+="snap_<executable name>" (udev doesn't like '.' in the tag name)
+	// TAG+="snap_<security tag>" (udev doesn't like '.' in the tag name)
 	udev_s->tagname_len = must_snprintf(udev_s->tagname, MAX_BUF,
-					    "%s", executable_name);
+					    "%s", security_tag);
 	for (int i = 0; i < udev_s->tagname_len; i++)
 		if (udev_s->tagname[i] == '.')
 			udev_s->tagname[i] = '_';
@@ -137,8 +137,7 @@ void snappy_udev_cleanup(struct snappy_udev *udev_s)
 		udev_unref(udev_s->udev);
 }
 
-void setup_devices_cgroup(const char *executable_name,
-			  struct snappy_udev *udev_s)
+void setup_devices_cgroup(const char *security_tag, struct snappy_udev *udev_s)
 {
 	debug("%s", __func__);
 	// Devices that must always be present
@@ -155,8 +154,8 @@ void setup_devices_cgroup(const char *executable_name,
 	};
 
 	// extra paranoia
-	if (!verify_executable_name(executable_name))
-		die("executable name %s not allowed", executable_name);
+	if (!verify_security_tag(security_tag))
+		die("security tag %s not allowed", security_tag);
 	if (udev_s == NULL)
 		die("snappy_udev is NULL");
 	if (udev_s->udev == NULL)
@@ -175,7 +174,7 @@ void setup_devices_cgroup(const char *executable_name,
 	char cgroup_dir[PATH_MAX];
 
 	must_snprintf(cgroup_dir, sizeof(cgroup_dir),
-		      "/sys/fs/cgroup/devices/%s/", executable_name);
+		      "/sys/fs/cgroup/devices/%s/", security_tag);
 
 	if (mkdir(cgroup_dir, 0755) < 0 && errno != EEXIST)
 		die("mkdir failed");

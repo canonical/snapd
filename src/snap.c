@@ -23,7 +23,7 @@
 
 #include "utils.h"
 
-bool verify_executable_name(const char *executable_name)
+bool verify_security_tag(const char *security_tag)
 {
 	// The executable name is of form:
 	// snap.<name>.(<appname>|hook.<hookname>)
@@ -38,7 +38,7 @@ bool verify_executable_name(const char *executable_name)
 	if (regcomp(&re, whitelist_re, REG_EXTENDED | REG_NOSUB) != 0)
 		die("can not compile regex %s", whitelist_re);
 
-	int status = regexec(&re, executable_name, 0, NULL, 0);
+	int status = regexec(&re, security_tag, 0, NULL, 0);
 	regfree(&re);
 
 	return (status == 0);
