@@ -224,5 +224,5 @@ func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *MprisInterface) AutoConnect() bool {
-	return true
+	return false
 }

@@ -240,3 +240,8 @@ func (s *MprisInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
 }
+
+func (s *MprisInterfaceSuite) TestAutoConnect(c *C) {
+	iface := &builtin.MprisInterface{}
+	c.Check(iface.AutoConnect(), Equals, false)
+}
