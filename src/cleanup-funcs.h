@@ -19,6 +19,7 @@
 #define SNAP_CONFINE_CLEANUP_FUNCS_H
 
 #include <stdlib.h>
+#include <stdio.h>
 
 /**
  * Free a dynamically allocated string.
