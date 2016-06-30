@@ -666,6 +666,26 @@ func snapRollback(inst *snapInstruction, st *state.State) (string, []*state.Task
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Enable(st, inst.snap)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Enable %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Disable(st, inst.snap)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Disable %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -673,6 +693,8 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	"refresh":  snapUpdate,
 	"remove":   snapRemove,
 	"rollback": snapRollback,
+	"enable":   snapEnable,
+	"disable":  snapDisable,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {

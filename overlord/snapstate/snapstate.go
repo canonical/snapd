@@ -205,6 +205,53 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	return doInstall(s, snapst.Active, ss)
 }
 
+// Enable sets a snap to the active state
+func Enable(s *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if snapst.Active {
+		return nil, fmt.Errorf("snap %q already active", name)
+	}
+
+	ss := &SnapSetup{
+		Name:     name,
+		Revision: snapst.Current,
+	}
+
+	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), ss.Name))
+	prepareSnap.Set("snap-setup", &ss)
+
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), ss.Name))
+	linkSnap.Set("snap-setup", &ss)
+	linkSnap.WaitFor(prepareSnap)
+
+	return state.NewTaskSet(prepareSnap, linkSnap), nil
+}
+
+// Disable sets a snap to the inactive state
+func Disable(s *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !snapst.Active {
+		return nil, fmt.Errorf("snap %q already inactive", name)
+	}
+
+	ss := &SnapSetup{
+		Name: name,
+	}
+
+	unlinkSnap := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), ss.Name))
+	unlinkSnap.Set("snap-setup", &ss)
+
+	return state.NewTaskSet(unlinkSnap), nil
+}
+
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
 	ss := SnapSetup{
 		Name:     name,

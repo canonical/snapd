@@ -59,6 +59,13 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 	return client.doSnapAction("refresh", name, options)
 }
 
+func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("enable", name, options)
+}
+func (client *Client) Disable(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("disable", name, options)
+}
+
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
 	action := actionData{
 		Action:      actionName,

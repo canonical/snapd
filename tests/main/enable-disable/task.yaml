@@ -1,0 +1,19 @@
+summary: Check that enable/disable works
+
+execute: |
+ echo Install hello-world
+ snap install hello-world
+
+ echo Disable it
+ snap disable hello-world|grep inactive
+
+ echo It is no longer there
+ if ls /snap/bin/hello-world*; then
+   echo "hello-world binaries are not disabled"
+   exit 1
+ fi
+
+ echo Enable it again
+ snap enable hello-world|grep -v inactive
+ hello-world|grep "Hello World"
+ 
