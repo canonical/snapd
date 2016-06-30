@@ -39,9 +39,9 @@ sanity_test_SOURCES = \
     unit-tests-main.c \
 	unit-tests.c \
 	unit-tests.h \
-	utils_test.c \
-	cleanup-funcs_test.c \
-	mount-support_test.c
+	utils-test.c \
+	cleanup-funcs-test.c \
+	mount-support-test.c
 # Comple sanity-tests from the same sources as snap-confine but
 # define the _UNIT_TESTING macro so that test code can be
 # included. This lets us put tests right next to actual static
