@@ -326,7 +326,7 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	pi := snapst.PreviousSideInfo()
+	pi := snapst.previousSideInfo()
 	if pi == nil {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
