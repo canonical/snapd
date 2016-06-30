@@ -438,13 +438,8 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
-
-	// ensure its different from before
-	var newSnapst snapstate.SnapState
-	snapstate.Get(st, snapName, &newSnapst)
-	c.Assert(newSnapst.CurrentSideInfo().Revision.Unset(), Equals, false)
-	c.Assert(snapst.CurrentSideInfo(), Not(DeepEquals), newSnapst.CurrentSideInfo())
 
 	return info
 }
