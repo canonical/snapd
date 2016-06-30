@@ -1,0 +1,12 @@
+summary: Check snap remove operations.
+
+execute: |
+  echo "Given two revisions of a snap have been installed"
+
+  echo "Then the two revisions are available on disk"
+
+  echo "When the snap is removed"
+
+  echo "Then the two revisions are removed from disk"
+
+  echo "================================================"
