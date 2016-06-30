@@ -20,6 +20,6 @@
 
 #include <stdbool.h>
 
-bool verify_appname(const char *appname);
+bool verify_executable_name(const char *executable_name);
 
 #endif

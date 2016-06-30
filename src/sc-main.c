@@ -54,19 +54,19 @@ int sc_main(int argc, char **argv)
 	if (argc < NR_ARGS + 1)
 		die("Usage: %s <security-tag> <binary>", argv[0]);
 
-	const char *appname = argv[1];
-	debug("appname is %s", appname);
+	const char *executable_name = argv[1];
+	debug("executable name is %s", executable_name);
 #ifdef STRICT_CONFINEMENT
 	const char *aa_profile = argv[1];
-	debug("security-tag is is %s", aa_profile);
+	debug("security-tag is %s", aa_profile);
 #endif				// ifdef STRICT_CONFINEMENT
 	const char *binary = argv[2];
-	debug("binary to run is is %s", binary);
+	debug("binary to run is %s", binary);
 	uid_t real_uid = getuid();
 	gid_t real_gid = getgid();
 
-	if (!verify_appname(appname))
-		die("appname %s not allowed", appname);
+	if (!verify_executable_name(executable_name))
+		die("executable name %s not allowed", executable_name);
 
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
@@ -103,20 +103,20 @@ int sc_main(int argc, char **argv)
 		}
 #ifdef STRICT_CONFINEMENT
 		// set up private mounts
-		setup_private_mount(appname);
+		setup_private_mount(executable_name);
 
 		// set up private /dev/pts
 		setup_private_pts();
 
 		// this needs to happen as root
 		struct snappy_udev udev_s;
-		if (snappy_udev_init(appname, &udev_s) == 0)
-			setup_devices_cgroup(appname, &udev_s);
+		if (snappy_udev_init(executable_name, &udev_s) == 0)
+			setup_devices_cgroup(executable_name, &udev_s);
 		snappy_udev_cleanup(&udev_s);
 #endif				// ifdef STRICT_CONFINEMENT
 
 		// setup the security backend bind mounts
-		sc_setup_mount_profiles(appname);
+		sc_setup_mount_profiles(executable_name);
 
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.

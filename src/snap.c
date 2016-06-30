@@ -23,19 +23,22 @@
 
 #include "utils.h"
 
-bool verify_appname(const char *appname)
+bool verify_executable_name(const char *executable_name)
 {
-	// snappy appname is of form:
-	// snap.<name>.<app>
+	// The executable name is of form:
+	// snap.<name>.(<appname>|hook.<hookname>)
 	// - <name> must start with lowercase letter, then may contain
 	//   lowercase alphanumerics and '-'
-	// - <app> may contain alphanumerics and '-'
-	const char *whitelist_re = "^snap\\.[a-z][a-z0-9-]*\\.[a-zA-Z0-9-]+$";
+	// - <appname> may contain alphanumerics and '-'
+	// - <hookname must start with a lowercase letter, then may
+	//   contain lowercase letters and '-'
+	const char *whitelist_re =
+	    "^snap\\.[a-z](-?[a-z0-9])*\\.([a-zA-Z0-9](-?[a-zA-Z0-9])*|hook\\.[a-z](-?[a-z])*)$";
 	regex_t re;
 	if (regcomp(&re, whitelist_re, REG_EXTENDED | REG_NOSUB) != 0)
 		die("can not compile regex %s", whitelist_re);
 
-	int status = regexec(&re, appname, 0, NULL, 0);
+	int status = regexec(&re, executable_name, 0, NULL, 0);
 	regfree(&re);
 
 	return (status == 0);
