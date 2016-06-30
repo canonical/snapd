@@ -53,7 +53,7 @@ it.
 
 The file is read and parsed using a custom syntax that describes the set of
 allowed system calls and optionally their arguments. The profile is then used
-to confine the started application. 
+to confine the started application.
 
 As a security precaution disallowed system calls cause the started application
 executable to be killed by the kernel. In the future this restriction may be
@@ -78,7 +78,7 @@ ENVIRONMENT
 
 `snap-confine` responds to the following environment variables
 
-`UBUNTU_CORE_LAUNCHER_DEBUG`:
+`SNAP_CONFINE_DEBUG`:
 	When defined the program will print additional diagnostic information about
 	the actions being performed. All the output goes to stderr.
 
@@ -88,7 +88,7 @@ This is only applicable when testing the program itself.
 `SNAPPY_LAUNCHER_INSIDE_TESTS`:
 	Internal variable that should not be relied upon.
 
-`UBUNTU_CORE_LAUNCHER_NO_ROOT`:
+`SNAP_CONFINE_NO_ROOT`:
 	Internal variable that should not be relied upon.
 
 `SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR`:
@@ -114,4 +114,3 @@ BUGS
 ====
 
 Please report all bugs with https://bugs.launchpad.net/snap-confine/+filebug
-
