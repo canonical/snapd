@@ -20,6 +20,7 @@
 package auth_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -246,6 +247,15 @@ func (as *authSuite) makeTestMacaroon() (*macaroon.Macaroon, error) {
 	return m, nil
 }
 
+func (as *authSuite) makeTestDischarge() (*macaroon.Macaroon, error) {
+	m, err := macaroon.New([]byte("shared-key"), "third-party-caveat", store.UbuntuoneLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
 func (as *authSuite) TestMacaroonSerialize(c *C) {
 	m, err := as.makeTestMacaroon()
 	c.Check(err, IsNil)
@@ -312,8 +322,18 @@ func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
 }
 
 func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
+	root, err := as.makeTestMacaroon()
+	c.Check(err, IsNil)
+	discharge, err := as.makeTestDischarge()
+	c.Check(err, IsNil)
+
+	serializedMacaroon, err := auth.MacaroonSerialize(root)
+	c.Check(err, IsNil)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
+	c.Check(err, IsNil)
+
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", serializedMacaroon, []string{serializedDischarge})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -321,6 +341,12 @@ func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
 	authenticator := user.Authenticator()
 	authenticator.Authenticate(req)
 
+	// discharge macaroon should be bound to the root macaroon
+	discharge.Bind(root.Signature())
+	serializedPreparedDischarge, err := auth.MacaroonSerialize(discharge)
+	c.Check(err, IsNil)
+
 	authorization := req.Header.Get("Authorization")
-	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
+	expected := fmt.Sprintf(`Macaroon root="%s", discharge="%s"`, serializedMacaroon, serializedPreparedDischarge)
+	c.Check(authorization, Equals, expected)
 }

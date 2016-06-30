@@ -101,13 +101,13 @@ func RequestStoreMacaroon() (string, error) {
 }
 
 // DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
-func DischargeAuthCaveat(username, password, macaroon, otp string) (string, error) {
+func DischargeAuthCaveat(username, password, caveat, otp string) (string, error) {
 	const errorPrefix = "cannot get discharge macaroon from store: "
 
 	data := map[string]string{
-		"email":    username,
-		"password": password,
-		"macaroon": macaroon,
+		"email":     username,
+		"password":  password,
+		"caveat_id": caveat,
 	}
 	if otp != "" {
 		data["otp"] = otp
