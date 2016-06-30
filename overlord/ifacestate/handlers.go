@@ -92,7 +92,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 		return err
 	}
 	if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
-		return state.Retry
+		return err
 	}
 	for _, snapName := range affectedSnaps {
 		// The affected snap is setup explicitly so skip it here.
@@ -105,7 +105,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 		}
 		snap.AddImplicitSlots(snapInfo)
 		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
-			return state.Retry
+			return err
 		}
 	}
 	return nil
@@ -163,7 +163,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 			return err
 		}
 		if err := setupSnapSecurity(task, affectedSnapInfo, m.repo); err != nil {
-			return state.Retry
+			return err
 		}
 	}
 
@@ -269,10 +269,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
 	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
-		return state.Retry
+		return err
 	}
 	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
-		return state.Retry
+		return err
 	}
 
 	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
@@ -304,10 +304,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
 	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
-		return state.Retry
+		return err
 	}
 	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
-		return state.Retry
+		return err
 	}
 
 	delete(conns, connID(plugRef, slotRef))

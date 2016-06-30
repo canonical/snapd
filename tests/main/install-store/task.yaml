@@ -8,16 +8,14 @@ execute: |
   $SNAP_NAME .*? canonical +-\n"
   for channel in edge beta candidate stable
   do
-    actual=$(snap install $SNAP_NAME --channel=$channel)
-    echo "$actual" | grep -Pzq "$expected" || exit 1
+    snap install $SNAP_NAME --channel=$channel | grep -Pzq "$expected"
     snap remove $SNAP_NAME
   done
 
   echo "Install non-devmode snap with devmode option"
   expected="(?s)Name +Version +Rev +Developer +Notes\n\
   $SNAP_NAME .*? canonical +devmode\n"
-  actual=$(snap install $SNAP_NAME --devmode)
-  echo "$actual" | grep -Pzq "$expected" || exit 1
+  snap install $SNAP_NAME --devmode | grep -Pzq "$expected"
 
   echo "Install devmode snap without devmode option"
   expected="snap not found"

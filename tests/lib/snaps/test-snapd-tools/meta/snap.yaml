@@ -1,4 +1,4 @@
-name: basic-binaries
+name: test-snapd-tools
 version: 1.0
 apps:
  echo:
@@ -11,3 +11,5 @@ apps:
   command: bin/block
  cat:
   command: bin/cat
+ head:
+  command: bin/head

@@ -47,6 +47,7 @@ ptrace (read),
 deny ptrace (trace),
 
 # Other miscellaneous accesses for observing the system
+@{PROC}/stat r,
 @{PROC}/vmstat r,
 
 # These are not process-specific (/proc/*/... and /proc/*/task/*/...)
