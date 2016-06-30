@@ -88,7 +88,7 @@ This is only applicable when testing the program itself.
 `SNAPPY_LAUNCHER_INSIDE_TESTS`:
 	Internal variable that should not be relied upon.
 
-`UBUNTU_CORE_LAUNCHER_NO_ROOT`:
+`SNAP_CONFINE_NO_ROOT`:
 	Internal variable that should not be relied upon.
 
 `SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR`:
