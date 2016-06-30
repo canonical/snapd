@@ -57,6 +57,103 @@ func (s *MprisInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "mpris")
 }
 
+func (s *MprisInterfaceSuite) TestGetName(c *C) {
+	var mockSnapYaml = []byte(`name: mpris-client
+version: 1.0
+slots:
+ mpris-slot:
+  interface: mpris
+  name: foo
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
+	iface := &builtin.MprisInterface{}
+	name, err := iface.GetName(slot.Attrs)
+	c.Assert(err, IsNil)
+	c.Assert(name, Equals, "foo")
+}
+
+func (s *MprisInterfaceSuite) TestGetNameMissing(c *C) {
+	var mockSnapYaml = []byte(`name: mpris-client
+version: 1.0
+slots:
+ mpris-slot:
+  interface: mpris
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
+	iface := &builtin.MprisInterface{}
+	name, err := iface.GetName(slot.Attrs)
+	c.Assert(err, IsNil)
+	c.Assert(name, Equals, "@{SNAP_NAME}")
+}
+func (s *MprisInterfaceSuite) TestGetNameBadDot(c *C) {
+	var mockSnapYaml = []byte(`name: mpris-client
+version: 1.0
+slots:
+ mpris-slot:
+  interface: mpris
+  name: foo.bar
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
+	iface := &builtin.MprisInterface{}
+	name, err := iface.GetName(slot.Attrs)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "invalid name element: \"foo.bar\"")
+	c.Assert(name, Equals, "")
+}
+
+func (s *MprisInterfaceSuite) TestGetNameBadList(c *C) {
+	var mockSnapYaml = []byte(`name: mpris-client
+version: 1.0
+slots:
+ mpris-slot:
+  interface: mpris
+  name:
+  - foo
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
+	iface := &builtin.MprisInterface{}
+	name, err := iface.GetName(slot.Attrs)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "name element is not a string")
+	c.Assert(name, Equals, "")
+}
+
+func (s *MprisInterfaceSuite) TestGetNameUnknownAttribute(c *C) {
+	var mockSnapYaml = []byte(`name: mpris-client
+version: 1.0
+slots:
+ mpris-slot:
+  interface: mpris
+  unknown: foo
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
+	iface := &builtin.MprisInterface{}
+	name, err := iface.GetName(slot.Attrs)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "unknown attribute 'unknown'")
+	c.Assert(name, Equals, "")
+}
+
 // The label glob when all apps are bound to the mpris slot
 func (s *MprisInterfaceSuite) TestConnectedPlugSnippetUsesSlotLabelAll(c *C) {
 	app1 := &snap.AppInfo{Name: "app1"}
@@ -192,6 +289,28 @@ func (s *MprisInterfaceSuite) TestPermanentSlotAppArmor(c *C) {
 
 	// verify bind rule
 	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}\",\n")
+}
+
+func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorWithName(c *C) {
+	var mockSnapYaml = []byte(`name: mpris-client
+version: 1.0
+slots:
+ mpris-slot:
+  interface: mpris
+  name: foo
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
+	iface := &builtin.MprisInterface{}
+	snippet, err := iface.PermanentSlotSnippet(slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+
+	// verify bind rule
+	c.Check(string(snippet), testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.mpris.MediaPlayer2.foo{,.*}\",\n")
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorNative(c *C) {

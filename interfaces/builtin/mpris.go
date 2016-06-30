@@ -21,6 +21,8 @@ package builtin
 
 import (
 	"bytes"
+	"fmt"
+	"regexp"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
@@ -37,7 +39,7 @@ var mprisPermanentSlotAppArmor = []byte(`
 # allow binding to the well-known DBus mpris interface based on the snap's name
 dbus (bind)
     bus=session
-    name="org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}",
+    name="org.mpris.MediaPlayer2.###MPRIS_NAME###{,.*}",
 
 # register as a player
 dbus (send)
@@ -185,7 +187,14 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := mprisPermanentSlotAppArmor
+		name, err := iface.GetName(slot.Attrs)
+		if err != nil {
+			return nil, err
+		}
+
+		old := []byte("###MPRIS_NAME###")
+		new := []byte(name)
+		snippet := bytes.Replace(mprisPermanentSlotAppArmor, old, new, -1)
 		// on classic, allow unconfined remotes to control the player
 		// (eg, indicator-sound)
 		if release.OnClassic {
@@ -215,12 +224,38 @@ func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 	}
 }
 
+func (iface *MprisInterface) GetName(attribs map[string]interface{}) (string, error) {
+	// default to snap name if 'name' attribute not set
+	mprisName := "@{SNAP_NAME}"
+	for attr := range attribs {
+		if attr != "name" {
+			return "", fmt.Errorf("unknown attribute '%s'", attr)
+		}
+		name, ok := attribs[attr].(string)
+		if !ok {
+			return "", fmt.Errorf("name element is not a string")
+		}
+
+		validDBusElement := regexp.MustCompile("^[a-zA-Z0-9_-]*$")
+		if !validDBusElement.MatchString(name) {
+			return "", fmt.Errorf("invalid name element: %q", name)
+		}
+		mprisName = name
+	}
+	return mprisName, nil
+}
+
 func (iface *MprisInterface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
 func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+
+	_, err := iface.GetName(slot.Attrs)
+	return err
 }
 
 func (iface *MprisInterface) AutoConnect() bool {
