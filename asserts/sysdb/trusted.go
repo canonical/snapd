@@ -17,10 +17,12 @@
  *
  */
 
-package asserts
+package sysdb
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 const (
@@ -86,31 +88,31 @@ FnH2O7WswtPHB16rpFBt6fVbrrWVkQzVTbBtDcamn1GGSX8=
 `
 )
 
-var trustedAssertions []Assertion
+var trustedAssertions []asserts.Assertion
 
 func init() {
-	canonicalAccount, err := Decode([]byte(encodedCanonicalAccount))
+	canonicalAccount, err := asserts.Decode([]byte(encodedCanonicalAccount))
 	if err != nil {
 		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
 	}
-	canonicalRootAccountKey, err := Decode([]byte(encodedCanonicalRootAccountKey))
+	canonicalRootAccountKey, err := asserts.Decode([]byte(encodedCanonicalRootAccountKey))
 	if err != nil {
 		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
 	}
-	trustedAssertions = []Assertion{canonicalAccount, canonicalRootAccountKey}
+	trustedAssertions = []asserts.Assertion{canonicalAccount, canonicalRootAccountKey}
 }
 
-// Trusted returns a copy of the current set of trusted assertions as used by OpenSysDatabase.
-func Trusted() []Assertion {
-	return append([]Assertion{}, trustedAssertions...)
+// Trusted returns a copy of the current set of trusted assertions as used by Open.
+func Trusted() []asserts.Assertion {
+	return append([]asserts.Assertion(nil), trustedAssertions...)
 }
 
-// InjectTrusted injects further trusted assertions for OpenSysDatabase.
-// Returns a restore function to reinstate the previous set. Useful for
-// tests or called globally without worrying about restoring.
-func InjectTrusted(extra []Assertion) (restore func()) {
+// InjectTrusted injects further assertions into the trusted set for Open.
+// Returns a restore function to reinstate the previous set. Useful
+// for tests or called globally without worrying about restoring.
+func InjectTrusted(extra []asserts.Assertion) (restore func()) {
 	prev := trustedAssertions
-	trustedAssertions = make([]Assertion, len(prev)+len(extra))
+	trustedAssertions = make([]asserts.Assertion, len(prev)+len(extra))
 	copy(trustedAssertions, prev)
 	copy(trustedAssertions[len(prev):], extra)
 	return func() {

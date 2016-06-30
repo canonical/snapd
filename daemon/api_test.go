@@ -39,6 +39,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -2320,7 +2321,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
 	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
-	restore := asserts.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
 	defer restore()
 	d := s.daemon(c)
 	buf := bytes.NewBufferString(encTestAccKey)
@@ -2371,7 +2372,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Setup
 	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
-	restore := asserts.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
 	defer restore()
 	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(encTestAccKey))
@@ -2411,7 +2412,7 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	// Setup
 	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
-	restore := asserts.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
 	defer restore()
 	d := s.daemon(c)
 	a, err := asserts.Decode([]byte(encTestAccKey))
@@ -2440,7 +2441,7 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	// Setup
 	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
-	restore := asserts.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
 	defer restore()
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)

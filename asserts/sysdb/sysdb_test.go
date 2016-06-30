@@ -17,18 +17,27 @@
  *
  */
 
-package asserts_test
+package sysdb_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"os"
 	"path/filepath"
 	"syscall"
+	"testing"
+	"time"
 
+	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 )
+
+func TestSysDB(t *testing.T) { TestingT(t) }
 
 type sysDBSuite struct {
 	extraTrustedAccKey asserts.Assertion
@@ -40,10 +49,22 @@ var _ = Suite(&sysDBSuite{})
 func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 
-	pk := testPrivKey0
+	priv, err := rsa.GenerateKey(rand.Reader, 752)
+	c.Assert(err, IsNil)
+	pk := asserts.OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Now(), priv))
+
 	trustedPubKey := pk.PublicKey()
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
 	c.Assert(err, IsNil)
+
+	keypairMgr := asserts.NewMemoryKeypairManager()
+	err = keypairMgr.Put("can0nical", pk)
+	c.Assert(err, IsNil)
+	signingDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: keypairMgr,
+	})
+	c.Assert(err, IsNil)
+
 	// self-signed
 	headers := map[string]string{
 		"authority-id":           "can0nical",
@@ -53,7 +74,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"since":                  "2015-11-20T15:04:00Z",
 		"until":                  "2500-11-20T15:04:00Z",
 	}
-	trustedAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, trustedPubKeyEncoded, pk)
+	trustedAccKey, err := signingDB.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, trustedPubKey.ID())
 	c.Assert(err, IsNil)
 	sdbs.extraTrustedAccKey = trustedAccKey
 
@@ -64,9 +85,12 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	headers = map[string]string{
 		"authority-id": "can0nical",
-		"primary-key":  "0",
+		"account-id":   "acct1",
+		"display-name": "Acct 1",
+		"validation":   "unproven",
+		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	sdbs.probeAssert, err = asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, pk)
+	sdbs.probeAssert, err = signingDB.Sign(asserts.AccountType, headers, nil, trustedPubKey.ID())
 	c.Assert(err, IsNil)
 }
 
@@ -75,18 +99,18 @@ func (sdbs *sysDBSuite) TearDownTest(c *C) {
 }
 
 func (sdbs *sysDBSuite) TestTrusted(c *C) {
-	trusted := asserts.Trusted()
+	trusted := sysdb.Trusted()
 	c.Check(trusted, HasLen, 2)
 
-	restore := asserts.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
+	restore := sysdb.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
 	defer restore()
 
-	trustedEx := asserts.Trusted()
+	trustedEx := sysdb.Trusted()
 	c.Check(trustedEx, HasLen, 3)
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
-	db, err := asserts.OpenSysDatabase()
+	db, err := sysdb.Open()
 	c.Assert(err, IsNil)
 	c.Check(db, NotNil)
 
@@ -111,10 +135,10 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabaseExtras(c *C) {
-	restore := asserts.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
+	restore := sysdb.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
 	defer restore()
 
-	db, err := asserts.OpenSysDatabase()
+	db, err := sysdb.Open()
 	c.Assert(err, IsNil)
 	c.Check(db, NotNil)
 
@@ -128,7 +152,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseBackstoreOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "asserts-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := asserts.OpenSysDatabase()
+	db, err := sysdb.Open()
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }
@@ -139,7 +163,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabaseKeypairManagerOpenFail(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapAssertsDBDir, "private-keys-v0"), 0777)
 	syscall.Umask(oldUmask)
 
-	db, err := asserts.OpenSysDatabase()
+	db, err := sysdb.Open()
 	c.Assert(err, ErrorMatches, "assert storage root unexpectedly world-writable: .*")
 	c.Check(db, IsNil)
 }

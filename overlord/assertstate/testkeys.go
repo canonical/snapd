@@ -21,10 +21,10 @@
 package assertstate
 
 import (
-	"github.com/snapcore/snapd/asserts/testkeys"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 )
 
 // init will inject the test trusted assertions when this module build tag "withtestkeys" is defined.
 func init() {
-	testkeys.Inject()
+	systestkeys.Inject()
 }

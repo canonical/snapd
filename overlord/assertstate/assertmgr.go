@@ -18,11 +18,13 @@
  */
 
 // Package assertstate implements the manager and state aspects responsible
-// for the enforcement of assertions in the system.
+// for the enforcement of assertions in the system and manages the system-wide
+// assertion database.
 package assertstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -36,7 +38,7 @@ type AssertManager struct {
 
 // Manager returns a new assertion manager.
 func Manager(s *state.State) (*AssertManager, error) {
-	db, err := asserts.OpenSysDatabase()
+	db, err := sysdb.Open()
 	if err != nil {
 		return nil, err
 	}
