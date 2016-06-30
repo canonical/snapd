@@ -573,6 +573,7 @@ type RefreshCandidate struct {
 	Revision snap.Revision
 	Epoch    string
 	DevMode  bool
+	Block    []snap.Revision
 
 	// the desired channel
 	Channel string
@@ -667,12 +668,25 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
 			continue
 		}
+		// do not upgade to a version we rolledback back from
+		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].Block) {
+			continue
+		}
 		res = append(res, infoFromRemote(rsnap))
 	}
 
 	s.checkStoreResponse(resp)
 
 	return res, nil
+}
+
+func findRev(needle snap.Revision, haystack []snap.Revision) bool {
+	for _, r := range haystack {
+		if needle == r {
+			return true
+		}
+	}
+	return false
 }
 
 // Download downloads the given snap and returns its filename.
