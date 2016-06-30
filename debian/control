@@ -1,4 +1,4 @@
-Source: ubuntu-core-launcher
+Source: snap-confine
 Section: utils
 Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
