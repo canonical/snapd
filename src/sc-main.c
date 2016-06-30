@@ -70,8 +70,7 @@ int sc_main(int argc, char **argv)
 
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
-	if (geteuid() != 0
-	    && secure_getenv("SNAP_CONFINE_NO_ROOT") == NULL) {
+	if (geteuid() != 0 && secure_getenv("SNAP_CONFINE_NO_ROOT") == NULL) {
 		die("need to run as root or suid");
 	}
 
