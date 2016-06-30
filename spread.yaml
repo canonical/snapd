@@ -37,7 +37,7 @@ prepare: |
 
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
     chown test.test -R ..
-    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
+    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip"
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d

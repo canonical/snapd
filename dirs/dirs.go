@@ -95,7 +95,6 @@ func SetRootDir(rootdir string) {
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
-	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snapd/trusted.acckey")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
