@@ -2,6 +2,8 @@ libexec_PROGRAMS = snap-confine
 noinst_PROGRAMS = sanity-test
 snap_confine_SOURCES = \
 	main.c \
+	sc-main.c \
+	sc-main.h \
 	utils.c \
 	utils.h \
 	snap.c \
