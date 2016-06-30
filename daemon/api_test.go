@@ -429,7 +429,7 @@ func (s *apiSuite) makeMyAppsServer(statusCode int, data string) *httptest.Serve
 		w.WriteHeader(statusCode)
 		io.WriteString(w, data)
 	}))
-	store.MyAppsPackageAccessAPI = mockMyAppsServer.URL + "/acl/package_access/"
+	store.MyAppsMacaroonACLAPI = mockMyAppsServer.URL + "/acl/"
 	return mockMyAppsServer
 }
 
@@ -529,7 +529,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get package access macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get access permission")
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {

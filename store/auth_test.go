@@ -72,39 +72,39 @@ const mockStoreReturnDischarge = `
 
 const mockStoreReturnNoMacaroon = `{}`
 
-func (s *authTestSuite) TestRequestPackageAccessMacaroon(c *C) {
+func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestPackageAccessMacaroon()
+	macaroon, err := RequestStoreMacaroon()
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
 
-func (s *authTestSuite) TestRequestPackageAccessMacaroonMissingData(c *C) {
+func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestPackageAccessMacaroon()
-	c.Assert(err, ErrorMatches, "cannot get package access macaroon from store: empty macaroon returned")
+	macaroon, err := RequestStoreMacaroon()
+	c.Assert(err, ErrorMatches, "cannot get access permission from store: empty macaroon returned")
 	c.Assert(macaroon, Equals, "")
 }
 
-func (s *authTestSuite) TestRequestPackageAccessMacaroonError(c *C) {
+func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
-	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestPackageAccessMacaroon()
-	c.Assert(err, ErrorMatches, "cannot get package access macaroon from store: store server returned status 500")
+	macaroon, err := RequestStoreMacaroon()
+	c.Assert(err, ErrorMatches, "cannot get access permission from store: store server returned status 500")
 	c.Assert(macaroon, Equals, "")
 }
 
