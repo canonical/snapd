@@ -27,6 +27,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 	"os"
 	"path"
@@ -705,6 +706,9 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 		return "", err
 	}
 	s.setUbuntuStoreHeaders(req, "", remoteSnap.NeedsDevMode(), auther)
+
+	dump, err := httputil.DumpRequest(req, true)
+	fmt.Println(string(dump))
 
 	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
 		return "", err
