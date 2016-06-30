@@ -36,20 +36,19 @@ snap_confine_LDADD += $(APPARMOR_LIBS) $(SECCOMP_LIBS) $(LIBUDEV_LIBS)
 endif
 
 sanity_test_SOURCES = \
+        unit-tests-main.c \
 	unit-tests.c \
 	unit-tests.h \
-	$(snap_confine_SOURCES)
+	utils_test.c \
+	cleanup-funcs_test.c \
+	mount-support_test.c
 # Comple sanity-tests from the same sources as snap-confine but
 # define the _UNIT_TESTING macro so that test code can be
 # included. This lets us put tests right next to actual static
 # functions for better visiblitiy.
-sanity_test_CFLAGS = $(snap_confine_CFLAGS)
-sanity_test_LDADD = $(snap_confine_LDADD)
+sanity_test_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
+sanity_test_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 sanity_test_LDFLAGS = $(snap_confine_LDFLAGS)
-sanity_test_CFLAGS += -D_UNIT_TESTING
-# Sanity tests are using glib's testing facilities
-sanity_test_CFLAGS += $(GLIB_CFLAGS)
-sanity_test_LDADD += $(GLIB_LIBS)
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax
