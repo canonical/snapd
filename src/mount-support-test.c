@@ -68,9 +68,33 @@ static void test_get_nextpath__weird()
 	g_assert_cmpstr(result, ==, NULL);
 }
 
+static void test_is_subdir()
+{
+	// Sensible exaples are sensible
+	g_assert_true(is_subdir("/dir/subdir", "/dir/"));
+	g_assert_true(is_subdir("/dir/subdir", "/dir"));
+	g_assert_true(is_subdir("/dir/", "/dir"));
+	g_assert_true(is_subdir("/dir", "/dir"));
+	// Also without leading slash
+	g_assert_true(is_subdir("dir/subdir", "dir/"));
+	g_assert_true(is_subdir("dir/subdir", "dir"));
+	g_assert_true(is_subdir("dir/", "dir"));
+	g_assert_true(is_subdir("dir", "dir"));
+	// Some more ideas
+	g_assert_true(is_subdir("//", "/"));
+	g_assert_true(is_subdir("/", "/"));
+	g_assert_true(is_subdir("", ""));
+	// but this is not true
+	g_assert_false(is_subdir("/", "/dir"));
+	g_assert_false(is_subdir("/rid", "/dir"));
+	g_assert_false(is_subdir("/different/dir", "/dir"));
+	g_assert_false(is_subdir("/", ""));
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mount/get_nextpath/typical",
 			test_get_nextpath__typical);
 	g_test_add_func("/mount/get_nextpath/weird", test_get_nextpath__weird);
+	g_test_add_func("/mount/is_subdir", test_is_subdir);
 }
