@@ -36,7 +36,7 @@ snap_confine_LDADD += $(APPARMOR_LIBS) $(SECCOMP_LIBS) $(LIBUDEV_LIBS)
 endif
 
 sanity_test_SOURCES = \
-        unit-tests-main.c \
+    unit-tests-main.c \
 	unit-tests.c \
 	unit-tests.h \
 	utils_test.c \

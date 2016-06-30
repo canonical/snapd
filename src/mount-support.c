@@ -392,4 +392,3 @@ static char * __attribute__ ((used))
 	*offsetp = offset;
 	return (offset < fulllen) ? &path[offset] : NULL;
 }
-
