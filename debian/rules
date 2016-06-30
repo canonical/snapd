@@ -3,11 +3,23 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 DPKG_EXPORT_BUILDFLAGS = 1
 include /usr/share/dpkg/buildflags.mk
 
+
+# Currently, we enable confinement for Ubuntu only, not for derivatives,
+# because derivatives may have different kernels that don't support all the
+# required confinement features and we don't to mislead anyone about the
+# security of the system.  Discuss a proper approach to this for downstreams
+# if and when they approach us
+ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
+    VENDOR_ARGS=--enable-rootfs-is-core-snap
+else
+    VENDOR_ARGS=--disable-confinement
+endif
+
 %:
 	dh $@ --with autoreconf
 
 override_dh_auto_configure:
-	./configure --enable-nvidia-ubuntu --enable-rootfs-is-core-snap --prefix=/usr --libexecdir=/usr/lib/snapd
+	./configure --enable-nvidia-ubuntu --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS)
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
