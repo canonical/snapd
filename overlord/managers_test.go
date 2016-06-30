@@ -22,7 +22,6 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -450,34 +449,33 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	return info
 }
 
-func apparmorUsesSnapRevision(c *C, fn, revision string) {
-	content, err := ioutil.ReadFile(fn)
-	c.Assert(err, IsNil)
-	needle := fmt.Sprintf(`@{SNAP_REVISION}="%s"`+"\n", revision)
-	fmt.Println(needle, string(content))
-	c.Assert(strings.Contains(string(content), needle), Equals, true)
-}
-
 func (ms *mgrsSuite) TestHappyRevert(c *C) {
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
 
-	snapYamlContent := `name: foo
+	x1Yaml := `name: foo
+version: 1.0
 apps:
- bar:
+ x1:
   command: bin/bar
-  daemon: forking
 `
-	ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
-	ms.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
+	x1binary := filepath.Join(dirs.SnapBinariesDir, "foo.x1")
+
+	x2Yaml := `name: foo
+version: 2.0
+apps:
+ x2:
+  command: bin/bar
+`
+	x2binary := filepath.Join(dirs.SnapBinariesDir, "foo.x2")
+
+	ms.installLocalTestSnap(c, x1Yaml)
+	ms.installLocalTestSnap(c, x2Yaml)
 
 	// ensure we are on x2
-	var snapst snapstate.SnapState
-	snapstate.Get(st, "foo", &snapst)
-	c.Assert(snapst.Current, Equals, snap.R("x2"))
-
-	apparmorUsesSnapRevision(c, filepath.Join(dirs.SnapAppArmorDir, "snap.foo.bar"), "x2")
+	c.Assert(osutil.FileExists(x2binary), Equals, true)
+	c.Assert(osutil.FileExists(x1binary), Equals, false)
 
 	// now do the revert
 	ts, err := snapstate.Revert(st, "foo")
@@ -493,7 +491,8 @@ apps:
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("revert-snap change failed with: %v", chg.Err()))
 
 	// ensure that we use x1 now
-	apparmorUsesSnapRevision(c, filepath.Join(dirs.SnapAppArmorDir, "snap.foo.bar"), "x1")
+	c.Assert(osutil.FileExists(x1binary), Equals, true)
+	c.Assert(osutil.FileExists(x2binary), Equals, false)
 
 	// ensure that x1,x2 is still there, revert just moves the "current"
 	// pointer
@@ -501,8 +500,4 @@ apps:
 		p := filepath.Join(dirs.SnapBlobDir, fn)
 		c.Assert(osutil.FileExists(p), Equals, true)
 	}
-
-	// also check that the state is correct
-	snapstate.Get(st, "foo", &snapst)
-	c.Assert(snapst.Current, Equals, snap.R("x1"))
 }
