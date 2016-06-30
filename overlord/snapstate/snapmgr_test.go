@@ -1259,6 +1259,7 @@ version: 1.2
 description: |
     Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
+		SnapType: "app",
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 		Current:  sideInfo12.Revision,
@@ -1368,6 +1369,7 @@ type: gadget
 version: gadget
 `, sideInfoGadget)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoGadget},
 		Current:  sideInfoGadget.Revision,
