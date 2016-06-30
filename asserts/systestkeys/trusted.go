@@ -17,13 +17,14 @@
  *
  */
 
-// Package testkeys defines trusted assertions and keys to use in tests.
-package testkeys
+// Package systestkeys defines trusted assertions and keys to use in tests.
+package systestkeys
 
 import (
 	"fmt"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 )
 
 const (
@@ -211,5 +212,5 @@ func init() {
 
 // Inject includes the test trusted assertions in the system trusted set.
 func Inject() {
-	asserts.InjectTrusted([]asserts.Assertion{TestRootAccount, TestRootAccountKey})
+	sysdb.InjectTrusted([]asserts.Assertion{TestRootAccount, TestRootAccountKey})
 }

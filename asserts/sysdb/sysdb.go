@@ -17,29 +17,31 @@
  *
  */
 
-package asserts
+// Package sysdb supports the system-wide assertion database with ways to open it and to manage the trusted set of assertions founding it.
+package sysdb
 
 import (
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 )
 
-func openDatabaseAt(path string, cfg *DatabaseConfig) (*Database, error) {
-	bs, err := OpenFSBackstore(path)
+func openDatabaseAt(path string, cfg *asserts.DatabaseConfig) (*asserts.Database, error) {
+	bs, err := asserts.OpenFSBackstore(path)
 	if err != nil {
 		return nil, err
 	}
-	keypairMgr, err := OpenFSKeypairManager(path)
+	keypairMgr, err := asserts.OpenFSKeypairManager(path)
 	if err != nil {
 		return nil, err
 	}
 	cfg.Backstore = bs
 	cfg.KeypairManager = keypairMgr
-	return OpenDatabase(cfg)
+	return asserts.OpenDatabase(cfg)
 }
 
-// OpenSysDatabase opens the system-wide assertion database with the trusted assertions set configured.
-func OpenSysDatabase() (*Database, error) {
-	cfg := &DatabaseConfig{
+// Open opens the system-wide assertion database with the trusted assertions set configured.
+func Open() (*asserts.Database, error) {
+	cfg := &asserts.DatabaseConfig{
 		Trusted: Trusted(),
 	}
 	return openDatabaseAt(dirs.SnapAssertsDBDir, cfg)
