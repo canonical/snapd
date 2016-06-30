@@ -29,8 +29,18 @@ prepare: |
     apt purge -y snapd || true
     apt update
     # utilities
-    apt install -y devscripts jq
+    apt install -y devscripts jq  software-properties-common
+
+    # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
+    # in trusty
+    add-apt-repository --update ppa:snappy-dev/image
+    # this should not be needed but apparently it is :/
+    apt update
+
     apt build-dep -y ./
+
+    # and remove the image PPA again
+    add-apt-repository --remove ppa:snappy-dev/image
 
     # increment version so upgrade can work
     dch -i "testing build"
