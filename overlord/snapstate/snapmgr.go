@@ -163,6 +163,9 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 }
 
 func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
+	if !snapst.HasCurrent() {
+		return nil
+	}
 	n := len(snapst.Sequence)
 	if n < 2 {
 		return nil
