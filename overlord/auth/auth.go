@@ -171,31 +171,14 @@ func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	encoded := base64.URLEncoding.EncodeToString(marshalled)
+	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
 	return encoded, nil
-}
-
-// base64Decode decodes base64 data that might be missing trailing pad characters
-// (copied from macaroon package; store serialized macaroons miss trailing padding)
-func base64Decode(b64String string) ([]byte, error) {
-	paddedLen := (len(b64String) + 3) / 4 * 4
-	b64data := make([]byte, len(b64String), paddedLen)
-	copy(b64data, b64String)
-	for i := len(b64String); i < paddedLen; i++ {
-		b64data = append(b64data, '=')
-	}
-	data := make([]byte, base64.URLEncoding.DecodedLen(len(b64data)))
-	n, err := base64.URLEncoding.Decode(data, b64data)
-	if err != nil {
-		return nil, err
-	}
-	return data[0:n], nil
 }
 
 // MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
 func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
 	var m macaroon.Macaroon
-	decoded, err := base64Decode(serializedMacaroon)
+	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
 	if err != nil {
 		return nil, err
 	}
