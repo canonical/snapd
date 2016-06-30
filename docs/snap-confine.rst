@@ -53,7 +53,7 @@ it.
 
 The file is read and parsed using a custom syntax that describes the set of
 allowed system calls and optionally their arguments. The profile is then used
-to confine the started application. 
+to confine the started application.
 
 As a security precaution disallowed system calls cause the started application
 executable to be killed by the kernel. In the future this restriction may be
@@ -114,4 +114,3 @@ BUGS
 ====
 
 Please report all bugs with https://bugs.launchpad.net/snap-confine/+filebug
-
