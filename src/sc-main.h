@@ -14,17 +14,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifdef _SANITY_TESTING
-#include "unit-tests.h"
-#else
-#include "sc-main.h"
-#endif
 
-int main(int argc, char **argv)
-{
-#ifdef _SANITY_TESTING
-	return sc_run_unit_tests(&argc, &argv);
-#else				// _SANITY_TESTING
-	return sc_main(argc, argv);
-#endif				// _SANITY_TESTING
-}
+#ifndef SNAP_CONFINE_MAIN
+#define SNAP_CONFINE_MAIN
+
+int sc_main(int argc, char **argv);
+
+#endif				// SNAP_CONFINE_MAIN
