@@ -1296,6 +1296,7 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
 	})
 
 	ts, err := snapstate.Revert(s.state, "some-snap")
@@ -1816,6 +1817,15 @@ func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	c.Assert(snapst.CurrentSideInfo().Revision, Equals, snap.R(12))
 	c.Assert(snapstate.PreviousSideInfo(&snapst), NotNil)
 	c.Assert(snapstate.PreviousSideInfo(&snapst).Revision, Equals, snap.R(11))
+}
+
+func (s *snapmgrQuerySuite) TestPreviousSideInfoNoCurrent(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	snapst := &snapstate.SnapState{}
+	c.Assert(snapstate.PreviousSideInfo(snapst), IsNil)
 }
 
 func (s *snapmgrQuerySuite) TestAll(c *C) {
