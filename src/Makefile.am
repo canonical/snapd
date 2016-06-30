@@ -79,7 +79,6 @@ fmt:
 
 EXTRA_DIST = 80-snappy-assign.rules snappy-app-dev
 
-if STRICT_CONFINEMENT
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
@@ -92,7 +91,6 @@ install-data-local:
 install-exec-local:
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
 	install -m 755 $(srcdir)/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
-endif
 
 # Ensure that snap-confine is +s (setuid)
 install-exec-hook:

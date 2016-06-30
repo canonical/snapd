@@ -113,5 +113,5 @@ AS_IF([test "x$enable_nvidia_arch" = "xyes"], [
     AC_DEFINE([NVIDIA_ARCH], [1],
         [Support for propietary nvidia drivers (Arch)])])
 
-AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile])
+AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile docs/Makefile])
 AC_OUTPUT

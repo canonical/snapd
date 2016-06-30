@@ -28,3 +28,6 @@ install-sh
 missing
 stamp-h1
 test-driver
+
+# manual pages
+docs/*.[1-9]
