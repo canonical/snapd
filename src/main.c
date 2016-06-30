@@ -120,6 +120,9 @@ int main(int argc, char **argv)
 		snappy_udev_cleanup(&udev_s);
 #endif				// ifdef STRICT_CONFINEMENT
 
+		// setup the security backend bind mounts
+		sc_setup_mount_profiles(appname);
+
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {

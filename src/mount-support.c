@@ -30,11 +30,13 @@
 #include <errno.h>
 #include <sched.h>
 #include <string.h>
+#include <mntent.h>
 
 #include "utils.h"
 #include "snap.h"
 #include "classic.h"
 #include "mount-support-nvidia.h"
+#include "cleanup-funcs.h"
 
 #define MAX_BUF 1000
 
@@ -312,5 +314,57 @@ void setup_slave_mount_namespace()
 	// (i.e. we see new media mounts)
 	if (mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL) != 0) {
 		die("can not make make / rslave");
+	}
+}
+
+void sc_setup_mount_profiles(const char *appname)
+{
+	debug("%s: %s", __FUNCTION__, appname);
+
+	FILE *f __attribute__ ((cleanup(sc_cleanup_endmntent))) = NULL;
+	const char *mount_profile_dir = "/var/lib/snapd/mount";
+
+	char profile_path[PATH_MAX];
+	must_snprintf(profile_path, sizeof(profile_path), "%s/%s.fstab",
+		      mount_profile_dir, appname);
+
+	debug("opening mount profile %s", profile_path);
+	f = setmntent(profile_path, "r");
+	// it is ok for the file to not exist
+	if (f == NULL && errno == ENOENT) {
+		debug("mount profile %s doesn't exist, ignoring", profile_path);
+		return;
+	}
+	// however any other error is a real error
+	if (f == NULL) {
+		die("cannot open %s", profile_path);
+	}
+
+	struct mntent *m = NULL;
+	while ((m = getmntent(f)) != NULL) {
+		debug("read mount entry\n"
+		      "\tmnt_fsname: %s\n"
+		      "\tmnt_dir: %s\n"
+		      "\tmnt_type: %s\n"
+		      "\tmnt_opts: %s\n"
+		      "\tmnt_freq: %d\n"
+		      "\tmnt_passno: %d",
+		      m->mnt_fsname, m->mnt_dir, m->mnt_type,
+		      m->mnt_opts, m->mnt_freq, m->mnt_passno);
+		int flags = MS_BIND | MS_RDONLY | MS_NODEV | MS_NOSUID;
+		debug("initial flags are: bind,ro,nodev,nosuid");
+		if (strcmp(m->mnt_type, "none") != 0) {
+			die("only 'none' filesystem type is supported");
+		}
+		if (hasmntopt(m, "bind") == NULL) {
+			die("the bind mount flag is mandatory");
+		}
+		if (hasmntopt(m, "rw") != NULL) {
+			flags &= ~MS_RDONLY;
+		}
+		if (mount(m->mnt_fsname, m->mnt_dir, NULL, flags, NULL) != 0) {
+			die("cannot mount %s at %s with options %s",
+			    m->mnt_fsname, m->mnt_dir, m->mnt_opts);
+		}
 	}
 }

@@ -2,15 +2,17 @@ project: snap-confine
 
 environment:
     REUSE_PROJECT: $(echo $REUSE_PROJECT)
+    PATH: /snap/bin:$PATH
 
 backends:
     linode:
         key: $(echo $SPREAD_LINODE_KEY)
         systems:
             - ubuntu-16.04-64-grub
+            # - ubuntu-16.04-32-grub
             - debian-8
 
-path: /remote/path/
+path: /root/spread/
 
 exclude:
     - .git
