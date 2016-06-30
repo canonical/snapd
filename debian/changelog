@@ -14,6 +14,7 @@ ubuntu-core-launcher (1.0.33) UNRELEASED; urgency=medium
     locate and execute snap-confine regardless of the distribution install
     location. In the past we relied on ubuntu-core-launcher but with it going
     away (soon) we need a reliable way to find snap-confine now.
+  * Build-depend on python3-docutils for rst2man
 
  -- Zygmunt Krynicki <zygmunt.krynicki@canonical.com>  Sun, 19 Jun 2016 00:46:10 +0200
 
