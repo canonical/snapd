@@ -14,7 +14,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#ifdef _SANITY_TESTING
+#ifdef _UNIT_TESTING
 #include "unit-tests.h"
 #else
 #include "sc-main.h"
@@ -22,9 +22,9 @@
 
 int main(int argc, char **argv)
 {
-#ifdef _SANITY_TESTING
+#ifdef _UNIT_TESTING
 	return sc_run_unit_tests(&argc, &argv);
-#else				// _SANITY_TESTING
+#else				// _UNIT_TESTING
 	return sc_main(argc, argv);
-#endif				// _SANITY_TESTING
+#endif				// _UNIT_TESTING
 }

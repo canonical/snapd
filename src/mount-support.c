@@ -393,7 +393,7 @@ static char * __attribute__ ((used))
 	return (offset < fulllen) ? &path[offset] : NULL;
 }
 
-#ifdef _SANITY_TESTING
+#ifdef _UNIT_TESTING
 
 #include <glib.h>
 
