@@ -1814,8 +1814,8 @@ func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapst.CurrentSideInfo(), NotNil)
 	c.Assert(snapst.CurrentSideInfo().Revision, Equals, snap.R(12))
-	c.Assert(snapst.PreviousSideInfo(), NotNil)
-	c.Assert(snapst.PreviousSideInfo().Revision, Equals, snap.R(11))
+	c.Assert(snapstate.PreviousSideInfo(&snapst), NotNil)
+	c.Assert(snapstate.PreviousSideInfo(&snapst).Revision, Equals, snap.R(11))
 }
 
 func (s *snapmgrQuerySuite) TestAll(c *C) {

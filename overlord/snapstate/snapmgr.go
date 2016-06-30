@@ -162,7 +162,7 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	panic("cannot find snapst.Current in the snapst.Sequence")
 }
 
-func (snapst *SnapState) PreviousSideInfo() *snap.SideInfo {
+func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 	n := len(snapst.Sequence)
 	if n < 2 {
 		return nil
