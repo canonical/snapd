@@ -197,9 +197,9 @@ func (snapst *SnapState) Block() []snap.Revision {
 	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence) {
 		return nil
 	}
-	out := make([]snap.Revision, 0, len(snapst.Sequence))
-	for _, si := range snapst.Sequence[currentIndex+1:] {
-		out = append(out, si.Revision)
+	out := make([]snap.Revision, len(snapst.Sequence)-currentIndex-1)
+	for i, si := range snapst.Sequence[currentIndex+1:] {
+		out[i] = si.Revision
 	}
 	return out
 }
