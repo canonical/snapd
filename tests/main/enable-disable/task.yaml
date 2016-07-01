@@ -5,7 +5,7 @@ execute: |
  snap install hello-world
 
  echo Disable it
- snap disable hello-world|grep inactive
+ snap disable hello-world|grep disabled
 
  echo It is no longer there
  if ls /snap/bin/hello-world*; then
@@ -14,6 +14,6 @@ execute: |
  fi
 
  echo Enable it again
- snap enable hello-world|grep -v inactive
+ snap enable hello-world|grep -v disabled
  hello-world|grep "Hello World"
  
