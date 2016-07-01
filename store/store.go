@@ -78,10 +78,11 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Epoch = "0"
 	info.OfficialName = d.Name
 	info.SnapID = d.SnapID
-	info.Revision = d.Revision
+	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
-	info.Developer = d.Developer
+	info.DeveloperID = d.DeveloperID
+	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	info.Channel = d.Channel
 	info.Sha512 = d.DownloadSha512
 	info.Size = d.DownloadSize
@@ -99,6 +100,7 @@ type SnapUbuntuStoreConfig struct {
 	BulkURI       *url.URL
 	AssertionsURI *url.URL
 	PurchasesURI  *url.URL
+	DetailFields  []string
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
@@ -108,6 +110,8 @@ type SnapUbuntuStoreRepository struct {
 	bulkURI       *url.URL
 	assertionsURI *url.URL
 	purchasesURI  *url.URL
+
+	detailFields []string
 	// reused http client
 	client *http.Client
 
@@ -190,15 +194,11 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-	v := url.Values{}
-	v.Set("fields", strings.Join(getStructFields(snapDetails{}), ","))
-	defaultConfig.SearchURI.RawQuery = v.Encode()
 
-	defaultConfig.BulkURI, err = storeBaseURI.Parse("metadata")
+	defaultConfig.BulkURI, err = storeBaseURI.Parse("snaps/metadata")
 	if err != nil {
 		panic(err)
 	}
-	defaultConfig.BulkURI.RawQuery = v.Encode()
 
 	assertsBaseURI, err := url.Parse(assertsURL())
 	if err != nil {
@@ -222,18 +222,39 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
+// The fields we are interested in
+var detailFields = getStructFields(snapDetails{})
+
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository with the given access configuration and for given the store id.
 func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *SnapUbuntuStoreRepository {
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
+
+	fields := cfg.DetailFields
+	if fields == nil {
+		fields = detailFields
+	}
+
+	var searchURI *url.URL
+	if cfg.SearchURI != nil {
+		uri := *cfg.SearchURI
+		if len(fields) != 0 {
+			v := url.Values{}
+			v.Set("fields", strings.Join(fields, ","))
+			uri.RawQuery = v.Encode()
+		}
+		searchURI = &uri
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
 		storeID:       storeID,
-		searchURI:     cfg.SearchURI,
+		searchURI:     searchURI,
 		bulkURI:       cfg.BulkURI,
 		assertionsURI: cfg.AssertionsURI,
 		purchasesURI:  cfg.PurchasesURI,
+		detailFields:  fields,
 		client: &http.Client{
 			Transport: &LoggedTransport{
 				Transport: http.DefaultTransport,
@@ -631,10 +652,8 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
-		Snaps: currentSnaps,
-		// TODO: the store expects "origin" currently, we really want
-		// it to take "developer" instead
-		Fields: []string{"snap_id", "package_name", "revision", "version", "download_url", "origin"},
+		Snaps:  currentSnaps,
+		Fields: s.detailFields,
 	})
 	if err != nil {
 		return nil, err
@@ -644,9 +663,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 	if err != nil {
 		return nil, err
 	}
-	// set headers
-	// the updates call is a special snowflake right now
-	// (see LP: #1427155)
+
 	s.setUbuntuStoreHeaders(req, "", false, auther)
 
 	resp, err := s.client.Do(req)
@@ -663,13 +680,16 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
 	for _, rsnap := range updateData.Payload.Packages {
+		rrev := snap.R(rsnap.Revision)
+		cand := candidateMap[rsnap.SnapID]
+
 		// the store also gives us identical revisions, filter those
 		// out, we are not interested
-		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
+		if rrev == cand.Revision {
 			continue
 		}
 		// do not upgade to a version we rolledback back from
-		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].Block) {
+		if findRev(rrev, cand.Block) {
 			continue
 		}
 		res = append(res, infoFromRemote(rsnap))
