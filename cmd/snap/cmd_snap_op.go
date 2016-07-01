@@ -118,12 +118,12 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 }
 
 var (
-	shortInstallHelp = i18n.G("Install a snap to the system")
-	shortRemoveHelp  = i18n.G("Remove a snap from the system")
-	shortRefreshHelp = i18n.G("Refresh a snap in the system")
-	shortTryHelp     = i18n.G("Try an unpacked snap in the system")
-	shortEnableHelp  = i18n.G("Enable a snap in the system")
-	shortDisableHelp = i18n.G("Disable a snap in the system")
+	shortInstallHelp = i18n.G("Installs a snap to the system")
+	shortRemoveHelp  = i18n.G("Removes a snap from the system")
+	shortRefreshHelp = i18n.G("Refreshes a snap in the system")
+	shortTryHelp     = i18n.G("Tests a snap in the system")
+	shortEnableHelp  = i18n.G("Enables a snap in the system")
+	shortDisableHelp = i18n.G("Disables a snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
@@ -149,11 +149,13 @@ performed in snap.yaml will require reinstallation to go live.
 `)
 
 var longEnableHelp = i18n.G(`
-The enable command enables a snap.
+The enable command enables a snap that was previously disabled.
 `)
 
 var longDisableHelp = i18n.G(`
-The disable command enables a snap.
+The disable command disables a snap. The binaries and services of the
+snap will no longer be available. But all the data is still available
+and the snap can easily be enabled again.
 `)
 
 type cmdRemove struct {

@@ -75,7 +75,7 @@ func listSnaps(names []string) error {
 			Private:  snap.Private,
 			DevMode:  snap.DevMode,
 			TryMode:  snap.TryMode,
-			Inactive: snap.Status == client.StatusInstalled,
+			Disabled: snap.Status == client.StatusInstalled,
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
 	}
