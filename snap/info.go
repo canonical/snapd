@@ -129,8 +129,7 @@ type Info struct {
 	SideInfo
 
 	// The information in these fields is ephemeral, available only from the store.
-	AnonDownloadURL string
-	DownloadURL     string
+	DownloadInfo
 
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
@@ -199,6 +198,13 @@ func (s *Info) CommonDataHomeDir() string {
 // NeedsDevMode retursn whether the snap needs devmode.
 func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevmodeConfinement
+}
+
+// DownloadInfo contains the information to download a snap.
+// It can be marshalled.
+type DownloadInfo struct {
+	AnonDownloadURL string `json:"anon-download-url,omitempty"`
+	DownloadURL     string `json:"download-url,omitempty"`
 }
 
 // sanity check that Info is a PlaceInfo

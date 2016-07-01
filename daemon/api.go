@@ -355,7 +355,11 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 }
 
 func getStore(c *Command) snapstate.StoreService {
-	return c.d.overlord.SnapManager().Store()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	return snapstate.Store(st)
 }
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
