@@ -213,18 +213,22 @@ func (ma *MacaroonAuthenticator) Authenticate(r *http.Request) {
 	// deserialize root macaroon (we need its signature to do the discharge binding)
 	root, err := MacaroonDeserialize(ma.Macaroon)
 	if err != nil {
-		logger.Noticef("cannot deserialize root macaroon: %v", err)
+		logger.Debugf("cannot deserialize root macaroon: %v", err)
 		return
 	}
 
 	for _, d := range ma.Discharges {
 		// prepare discharge for request
 		discharge, err := MacaroonDeserialize(d)
+		if err != nil {
+			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
+			return
+		}
 		discharge.Bind(root.Signature())
 
 		serializedDischarge, err := MacaroonSerialize(discharge)
 		if err != nil {
-			logger.Noticef("cannot re-serialize discharge macaroon: %v", err)
+			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
 			return
 		}
 		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
