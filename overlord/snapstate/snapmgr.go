@@ -40,7 +40,6 @@ import (
 type SnapManager struct {
 	state   *state.State
 	backend managerBackend
-	store   StoreService
 
 	runner *state.TaskRunner
 }
@@ -80,6 +79,9 @@ type SnapSetup struct {
 	Flags SnapSetupFlags `json:"flags,omitempty"`
 
 	SnapPath string `json:"snap-path,omitempty"`
+
+	DownloadInfo *snap.DownloadInfo `json:"download-info,omitempty"`
+	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
@@ -242,23 +244,44 @@ func (snapst *SnapState) SetTryMode(active bool) {
 	}
 }
 
+func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
+	var auther store.Authenticator
+	if userID > 0 {
+		user, err := auth.User(st, userID)
+		if err != nil {
+			return nil, err
+		}
+		auther = user.Authenticator()
+	}
+	return auther, nil
+}
+
+func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+	auther, err := autherForUserID(st, userID)
+	if err != nil {
+		return nil, err
+	}
+	devmode := flags&DevMode > 0
+	// FIXME: call the snap update endpoint  here instead
+	return Store(st).Snap(name, channel, devmode, auther)
+}
+
+func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+	auther, err := autherForUserID(st, userID)
+	if err != nil {
+		return nil, err
+	}
+	devmode := flags&DevMode > 0
+	return Store(st).Snap(name, channel, devmode, auther)
+}
+
 // Manager returns a new snap manager.
 func Manager(s *state.State) (*SnapManager, error) {
 	runner := state.NewTaskRunner(s)
 
-	storeID := ""
-	// TODO: set the store-id here from the model information
-	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
-		storeID = cand
-	}
-	store := store.NewUbuntuStoreSnapRepository(nil, storeID)
-	// TODO: if needed we could also put the store on the state using
-	// the Cache mechanism and an accessor function
-
 	m := &SnapManager{
 		state:   s,
 		backend: backend.Backend{},
-		store:   store,
 		runner:  runner,
 	}
 
@@ -293,23 +316,51 @@ func Manager(s *state.State) (*SnapManager, error) {
 	return m, nil
 }
 
-// Store returns the store service used by the manager.
-func (m *SnapManager) Store() StoreService {
-	return m.store
+type cachedStoreKey struct{}
+
+// ReplaceStore replaces the store used by the manager.
+func ReplaceStore(state *state.State, store StoreService) {
+	state.Cache(cachedStoreKey{}, store)
 }
 
-// ReplaceStore replaces the store used by manager.
-func (m *SnapManager) ReplaceStore(store StoreService) {
-	m.store = store
+func cachedStore(s *state.State) StoreService {
+	ubuntuStore := s.Cached(cachedStoreKey{})
+	if ubuntuStore == nil {
+		return nil
+	}
+	return ubuntuStore.(StoreService)
+}
+
+// Store returns the store service used by the snapstate package.
+func Store(s *state.State) StoreService {
+	if cachedStore := cachedStore(s); cachedStore != nil {
+		return cachedStore
+	}
+
+	storeID := ""
+	// TODO: set the store-id here from the model information
+	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
+		storeID = cand
+	}
+
+	s.Cache(cachedStoreKey{}, store.NewUbuntuStoreSnapRepository(nil, storeID))
+	return cachedStore(s)
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
-	for _, si := range snapst.Sequence {
-		if si.Revision == revision {
-			return fmt.Errorf("revision %s of snap %q already installed", revision, name)
-		}
+	if revisionInSequence(snapst, revision) {
+		return fmt.Errorf("revision %s of snap %q already installed", revision, name)
 	}
 	return nil
+}
+
+func revisionInSequence(snapst *SnapState, needle snap.Revision) bool {
+	for _, si := range snapst.Sequence {
+		if si.Revision == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -382,38 +433,41 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	meter := &TaskProgressAdapter{task: t}
 
-	var auther store.Authenticator
-	if ss.UserID > 0 {
-		st.Lock()
-		user, err := auth.User(st, ss.UserID)
-		st.Unlock()
-		if err != nil {
-			return err
-		}
-		auther = user.Authenticator()
-	}
-
-	storeInfo, err := m.store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
+	st.Lock()
+	store := Store(st)
+	auther, err := autherForUserID(st, ss.UserID)
+	st.Unlock()
 	if err != nil {
 		return err
 	}
 
-	if err = checkRevisionIsNew(ss.Name, snapst, storeInfo.Revision); err != nil {
-		return err
+	var downloadedSnapFile string
+	var sideInfo *snap.SideInfo
+	if ss.DownloadInfo == nil {
+		// COMPATIBILITY - this task was created from an older version
+		// of snapd that did not store the DownloadInfo in the state
+		// yet.
+		storeInfo, err := store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
+		if err != nil {
+			return err
+		}
+		downloadedSnapFile, err = store.Download(ss.Name, &storeInfo.DownloadInfo, meter, auther)
+		sideInfo = &storeInfo.SideInfo
+	} else {
+		downloadedSnapFile, err = store.Download(ss.Name, ss.DownloadInfo, meter, auther)
+		sideInfo = ss.SideInfo
 	}
-
-	downloadedSnapFile, err := m.store.Download(storeInfo, meter, auther)
 	if err != nil {
 		return err
 	}
 
 	ss.SnapPath = downloadedSnapFile
-	ss.Revision = storeInfo.Revision
+	ss.Revision = sideInfo.Revision
 
 	// update the snap setup and state for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = &storeInfo.SideInfo
+	snapst.Candidate = sideInfo
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 
@@ -779,7 +833,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	t.Logf("snap %q at revision %s made available to the system.", newInfo.Name(), newInfo.Revision)
 
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
