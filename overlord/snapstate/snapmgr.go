@@ -667,6 +667,14 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	defer func() {
+		// cleanup the downloaded snap after it got installed
+		// in SetupSnap (if we downloaded it)
+		if ss.DownloadInfo != nil {
+			os.Remove(ss.SnapPath)
+		}
+	}()
+
 	pb := &TaskProgressAdapter{task: t}
 	// TODO Use ss.Revision to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
