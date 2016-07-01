@@ -21,9 +21,12 @@ package auth
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"sort"
+
+	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
@@ -172,6 +175,45 @@ func newMacaroonAuthenticator(macaroon string, discharges []string) *MacaroonAut
 		Macaroon:   macaroon,
 		Discharges: discharges,
 	}
+}
+
+// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
+func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
+	marshalled, err := m.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
+	return encoded, nil
+}
+
+// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
+func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
+	var m macaroon.Macaroon
+	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+	err = m.UnmarshalBinary(decoded)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// LoginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
+func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
+	caveatID := ""
+	for _, caveat := range m.Caveats() {
+		if caveat.Location == store.UbuntuoneLocation {
+			caveatID = caveat.Id
+			break
+		}
+	}
+	if caveatID == "" {
+		return "", fmt.Errorf("missing login caveat")
+	}
+	return caveatID, nil
 }
 
 // Authenticate will add the store expected Authorization header for macaroons

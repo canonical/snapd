@@ -22,15 +22,34 @@ package main
 
 import (
 	"os/user"
+	"time"
 )
 
 var RunMain = run
 
 var (
-	SnapExecAppEnv     = snapExecAppEnv
-	SnapRun            = snapRun
+	SnapExecEnv        = snapExecEnv
 	CreateUserDataDirs = createUserDataDirs
+	SnapRunApp         = snapRunApp
+	SnapRunHook        = snapRunHook
+	Wait               = wait
 )
+
+func MockPollTime(d time.Duration) (restore func()) {
+	d0 := pollTime
+	pollTime = d
+	return func() {
+		pollTime = d0
+	}
+}
+
+func MockMaxGoneTime(d time.Duration) (restore func()) {
+	d0 := maxGoneTime
+	maxGoneTime = d
+	return func() {
+		maxGoneTime = d0
+	}
+}
 
 func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
 	syscallExecOrig := syscallExec

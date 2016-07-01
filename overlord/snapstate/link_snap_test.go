@@ -101,8 +101,14 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
+
+	typ, err := snapst.Type()
+	c.Check(err, IsNil)
+	c.Check(typ, Equals, snap.TypeApp)
+
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(snapst.Candidate, IsNil)
 	c.Check(snapst.Channel, Equals, "beta")
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -144,6 +150,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
+	c.Check(snapst.Current, Equals, snap.Revision{})
 	c.Check(snapst.Candidate, DeepEquals, si)
 	c.Check(snapst.Channel, Equals, "")
 	c.Check(t.Status(), Equals, state.UndoneStatus)
@@ -225,6 +232,109 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "core", &snapst)
+	c.Assert(err, IsNil)
+
+	typ, err := snapst.Type()
+	c.Check(err, IsNil)
+	c.Check(typ, Equals, snap.TypeOS)
+
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, Equals, true)
+	c.Check(t.Log(), HasLen, 1)
+	c.Check(t.Log()[0], Matches, `.*INFO Restarting snapd\.\.\.`)
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapRevertNotHadIndex(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     snap.R(2),
+	}
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence:  []*snap.SideInfo{si1},
+		Candidate: si2,
+		Current:   si1.Revision,
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Name:    "foo",
+		Channel: "beta",
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(1))
+	c.Check(snapst.Candidate, DeepEquals, si2)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
+}
+
+func (s *linkSnapSuite) TestDoUndoLinkSnapRevertHadIndex(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	si1 := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		OfficialName: "foo",
+		Revision:     snap.R(2),
+	}
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence:  []*snap.SideInfo{si1, si2},
+		Candidate: si1,
+		Current:   si2.Revision,
+	})
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		Name:    "foo",
+		Channel: "beta",
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(t)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+
+	for i := 0; i < 3; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+
+	s.state.Lock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Sequence, HasLen, 2)
+	c.Check(snapst.Current, Equals, snap.R(2))
+	c.Check(snapst.Candidate, DeepEquals, si1)
+	c.Check(t.Status(), Equals, state.UndoneStatus)
 }

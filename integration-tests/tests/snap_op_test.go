@@ -45,44 +45,6 @@ type snapOpSuite struct {
 	common.SnappySuite
 }
 
-func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string) {
-	installOutput := common.InstallSnap(c, snapName)
-	expected := "(?ms)" +
-		"Name +Version +Rev +Developer +Notes\n" +
-		".*" +
-		displayName + " +.*\n" +
-		".*"
-	c.Assert(installOutput, check.Matches, expected)
-
-	removeOutput := common.RemoveSnap(c, snapName)
-	c.Assert(removeOutput, check.Not(testutil.Contains), snapName)
-}
-
-func (s *snapOpSuite) TestInstallRemoveAliasWorks(c *check.C) {
-	s.testInstallRemove(c, "hello-world", "hello-world")
-}
-
-func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
-	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
-	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-
-	// install two revisions
-	common.InstallSnap(c, snapPath)
-	installOutput := common.InstallSnap(c, snapPath)
-	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
-	// double check, sideloaded snaps have revnos like xNN
-	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "x*"))
-	c.Check(len(revnos) >= 2, check.Equals, true)
-
-	removeOutput := common.RemoveSnap(c, data.BasicSnapName)
-	c.Assert(removeOutput, check.Not(testutil.Contains), data.BasicSnapName)
-	// gone from disk
-	revnos, err = filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
-	c.Assert(err, check.IsNil)
-	c.Check(revnos, check.HasLen, 0)
-}
-
 // TestRemoveBusyRetries is a regression test for LP:#1571721
 func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 	// install the binaries snap
@@ -108,8 +70,12 @@ func (s *snapOpSuite) TestRemoveBusyRetries(c *check.C) {
 		wait.ForCommand(c, needle, "snap", "changes")
 
 		// find change id of the remove
+		pattern := `(?m)([0-9]+).*Doing.*Remove.*"`
+		err := wait.ForCommand(c, pattern, "snap", "changes", data.BasicBinariesSnapName)
+		c.Assert(err, check.IsNil)
+
 		output := cli.ExecCommand(c, "snap", "changes", data.BasicBinariesSnapName)
-		id := regexp.MustCompile(`(?m)([0-9]+).*Doing.*Remove.*"`).FindStringSubmatch(output)[1]
+		id := regexp.MustCompile(pattern).FindStringSubmatch(output)[1]
 		needle = `will retry: `
 		wait.ForCommand(c, needle, "snap", "change", id)
 
@@ -175,7 +141,7 @@ func checkDownloadUndone(c *check.C, snapName, output string) {
 }
 
 func checkMountUndone(c *check.C, snapName, output string) {
-	expected := fmt.Sprintf(`(?ms).*Undone +.*Mount snap %q\n.*`, snapName)
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Mount snap %q.*`, snapName)
 	c.Assert(output, check.Matches, expected)
 
 	// MountDir is removed /snap/<name>/<revision>
@@ -198,7 +164,7 @@ func checkDataCopyUndone(c *check.C, snapName, output string) {
 }
 
 func checkSecProfilesSetupUndone(c *check.C, snapName, output string) {
-	expected := fmt.Sprintf(`(?ms).*Undone +.*Setup snap %q security profiles\n.*`, snapName)
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Setup snap %q security profiles.*`, snapName)
 	c.Assert(output, check.Matches, expected)
 
 	// security artifacts are removed for each backend: apparmor, seccomp, dbus, udev

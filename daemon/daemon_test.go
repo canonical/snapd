@@ -20,13 +20,18 @@
 package daemon
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 )
 
@@ -36,6 +41,16 @@ func Test(t *testing.T) { check.TestingT(t) }
 type daemonSuite struct{}
 
 var _ = check.Suite(&daemonSuite{})
+
+func (s *daemonSuite) SetUpTest(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, check.IsNil)
+}
+
+func (s *daemonSuite) TearDownTest(c *check.C) {
+	dirs.SetRootDir("")
+}
 
 // build a new daemon, with only a little of Init(), suitable for the tests
 func newTestDaemon(c *check.C) *Daemon {
@@ -235,4 +250,55 @@ func (s *daemonSuite) TestAutherWithUser(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 	c.Check(auther, check.DeepEquals, expected)
+}
+
+type witnessAcceptListener struct {
+	net.Listener
+	accept chan struct{}
+}
+
+func (l *witnessAcceptListener) Accept() (net.Conn, error) {
+	close(l.accept)
+	return l.Listener.Accept()
+}
+
+func (s *daemonSuite) TestStartStop(c *check.C) {
+	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	accept := make(chan struct{})
+	d.listener = &witnessAcceptListener{l, accept}
+	d.Start()
+	select {
+	case <-accept:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Accept was not called")
+	}
+	err = d.Stop()
+	c.Check(err, check.IsNil)
+}
+
+func (s *daemonSuite) TestRestartWiring(c *check.C) {
+	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
+
+	accept := make(chan struct{})
+	d.listener = &witnessAcceptListener{l, accept}
+	d.Start()
+	defer d.Stop()
+	select {
+	case <-accept:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Accept was not called")
+	}
+
+	d.overlord.State().RequestRestart()
+
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+	}
 }

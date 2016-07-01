@@ -67,20 +67,17 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	reset := release.MockOSReleasePath(mockOSRelease(c))
 	defer reset()
 
-	os, err := release.ReadOSRelease()
-	c.Assert(err, IsNil)
-	c.Assert(os.ID, Equals, "ubuntu")
-	c.Assert(os.Name, Equals, "Ubuntu")
-	c.Assert(os.Release, Equals, "18.09")
-	c.Assert(os.Codename, Equals, "awesome")
+	os := release.ReadOSRelease()
+	c.Check(os.ID, Equals, "ubuntu")
+	c.Check(os.VersionID, Equals, "18.09")
 }
 
 func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
 	reset := release.MockOSReleasePath("not-there")
 	defer reset()
 
-	_, err := release.ReadOSRelease()
-	c.Assert(err, ErrorMatches, "cannot read os-release:.*")
+	os := release.ReadOSRelease()
+	c.Assert(os, DeepEquals, release.OS{ID: "linux", VersionID: "unknown"})
 }
 
 func (s *ReleaseTestSuite) TestOnClassic(c *C) {
@@ -105,21 +102,26 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 	// Restore real OS info at the end of this function.
 	defer release.MockReleaseInfo(&release.OS{})()
 	distros := []struct {
-		id      string
-		devmode bool
+		id        string
+		idVersion string
+		devmode   bool
 	}{
 		// Please keep this list sorted
-		{"arch", true},
-		{"debian", true},
-		{"fedora", true},
-		{"gentoo", true},
-		{"opensuse", true},
-		{"rhel", true},
-		{"ubuntu", false},
+		{id: "arch", devmode: true},
+		{id: "debian", devmode: true},
+		{id: "elementary", devmode: true},
+		{id: "elementary", idVersion: "0.4", devmode: false},
+		{id: "fedora", devmode: true},
+		{id: "gentoo", devmode: true},
+		{id: "neon", devmode: false},
+		{id: "opensuse", devmode: true},
+		{id: "rhel", devmode: true},
+		{id: "ubuntu", devmode: false},
 	}
 	for _, distro := range distros {
-		c.Logf("checking distribution %q", distro.id)
-		release.MockReleaseInfo(&release.OS{ID: distro.id})
+		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
+		c.Logf("checking distribution %#v", rel)
+		release.MockReleaseInfo(rel)
 		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode)
 	}
 }

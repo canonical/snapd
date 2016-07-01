@@ -7,7 +7,7 @@
 msgid   ""
 msgstr  "Project-Id-Version: snappy\n"
         "Report-Msgid-Bugs-To: snappy-devel@lists.ubuntu.com\n"
-        "POT-Creation-Date: 2016-06-07 10:40+0100\n"
+        "POT-Creation-Date: 2016-06-27 11:23+0100\n"
         "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
         "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
         "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -20,6 +20,9 @@ msgid   "Abort a pending change"
 msgstr  ""
 
 msgid   "Adds an assertion to the system"
+msgstr  ""
+
+msgid   "All snaps up-to-date."
 msgstr  ""
 
 msgid   "Authenticates on snapd and the store"
@@ -54,6 +57,13 @@ msgstr  ""
 
 #, c-format
 msgid   "Copy snap %q data"
+msgstr  ""
+
+#, c-format
+msgid   "Created user %q\n"
+msgstr  ""
+
+msgid   "Creates a local system user"
 msgstr  ""
 
 #, c-format
@@ -186,6 +196,12 @@ msgstr  ""
 msgid   "Rollback %q snap"
 msgstr  ""
 
+msgid   "Run the given snap command"
+msgstr  ""
+
+msgid   "Run the given snap command with the right confinement and environment"
+msgstr  ""
+
 msgid   "Runs unsupported experimental commands"
 msgstr  ""
 
@@ -268,6 +284,13 @@ msgid   "\n"
 msgstr  ""
 
 msgid   "\n"
+        "The create-user command creates a local system user with the username and SSH\n"
+        "keys registered on the store account identified by the provided email address.\n"
+        "\n"
+        "An account can be setup at https://login.ubuntu.com.\n"
+msgstr  ""
+
+msgid   "\n"
         "The disconnect command disconnects a plug from a slot.\n"
         "It may be called in the following ways:\n"
         "\n"
@@ -332,7 +355,7 @@ msgid   "\n"
         "into the ~/.snap/auth.json file. Further communication with snapd will then be made\n"
         "using those credentials.\n"
         "\n"
-        "Login only works for local users in the sudo or admin groups.\n"
+        "Login only works for local users in the sudo, admin or wheel groups.\n"
         "\n"
         "An account can be setup at https://login.ubuntu.com\n"
 msgstr  ""
@@ -359,6 +382,9 @@ msgid   "\n"
         "\n"
         "The home directory is shared between snappy and the classic dimension.\n"
         "Run \"exit\" to leave the classic shell.\n"
+msgstr  ""
+
+msgid   "bought"
 msgstr  ""
 
 msgid   "no changes found"

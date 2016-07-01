@@ -33,13 +33,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -67,7 +70,7 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(name, channel string, auther store.Authenticator) (*snap.Info, error) {
+func (s *apiSuite) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
 	s.auther = auther
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
@@ -93,7 +96,7 @@ func (s *apiSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiSuite) Download(*snap.Info, progress.Meter, store.Authenticator) (string, error) {
+func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error) {
 	panic("Download not expected to be called")
 }
 
@@ -135,6 +138,8 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	snapstateGet = snapstate.Get
 	snapstateInstallPath = snapstate.InstallPath
 	readSnapInfo = readSnapInfoImpl
+	ensureStateSoon = ensureStateSoonImpl
+	dirs.SetRootDir("")
 }
 
 func (s *apiSuite) daemon(c *check.C) *Daemon {
@@ -145,7 +150,10 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
-	d.overlord.SnapManager().ReplaceStore(s)
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -189,6 +197,7 @@ version: %s
 		snapstate.Get(st, name, &snapst)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
+		snapst.Current = snapInfo.SideInfo.Revision
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -356,6 +365,10 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
+		"osutilAddExtraUser",
+		"storeUserInfo",
+		"postCreateUserUcrednetGetUID",
+		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -394,6 +407,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 
 	s.daemon(c).Version = "42b1"
 
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -401,6 +418,11 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	expected := map[string]interface{}{
 		"series":  "16",
 		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"on-classic": true,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -764,9 +786,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 }
 
 func (s *apiSuite) TestFindRefreshes(c *check.C) {
-	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	s.daemon(c)
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
@@ -1053,6 +1073,14 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
+
+	s.vars = map[string]string{"name": "foo"}
+
 	snapInstructionDispTable["install"] = func(*snapInstruction, *state.State) (string, []*state.TaskSet, error) {
 		return "foooo", nil, nil
 	}
@@ -1073,13 +1101,18 @@ func (s *apiSuite) TestPostSnap(c *check.C) {
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 	c.Check(chg.Summary(), check.Equals, "foooo")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
 	st.Unlock()
+
+	c.Check(soon, check.Equals, 1)
 }
 
 func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 	d := s.daemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	ensureStateSoon = func(st *state.State) {}
 
 	snapInstructionDispTable["install"] = func(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 		return fmt.Sprintf("<install by user %d>", inst.userID), nil, nil
@@ -1123,7 +1156,7 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"install", snapInstall},
 		{"refresh", snapUpdate},
 		{"remove", snapRemove},
-		{"rollback", snapRollback},
+		{"revert", snapRevert},
 		{"xyzzy", nil},
 	}
 
@@ -1154,6 +1187,7 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
+
 func (s *apiSuite) TestSideloadSnapOnDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
@@ -1184,9 +1218,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
-	d := newTestDaemon(c)
-	d.overlord.Loop()
-	defer d.overlord.Stop()
+	newTestDaemon(c)
 
 	// try a multipart/form-data upload with missing "name"
 	content := "" +
@@ -1213,6 +1245,12 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
 
 	req, err := http.NewRequest("POST", "/v2/snaps", nil)
 	c.Assert(err, check.IsNil)
@@ -1251,7 +1289,18 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 
 	c.Check(chg.Kind(), check.Equals, "try-snap")
 	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %q`, "foo", tryDir))
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"foo"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "foo",
+	})
 
+	c.Check(soon, check.Equals, 1)
 }
 
 func (s *apiSuite) TestTrySnapRelative(c *check.C) {
@@ -1276,6 +1325,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
+
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+		ensureStateSoonImpl(st)
+	}
 
 	// setup done
 	installQueue := []string{}
@@ -1336,6 +1391,8 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	chg := st.Change(rsp.Change)
 	c.Assert(chg, check.NotNil)
 
+	c.Check(soon, check.Equals, 1)
+
 	c.Assert(chg.Tasks(), check.HasLen, n)
 
 	st.Unlock()
@@ -1343,6 +1400,17 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	st.Lock()
 
 	c.Check(chg.Kind(), check.Equals, "install-snap")
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"local"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "local",
+	})
+
 	return chg.Summary()
 }
 
@@ -2224,7 +2292,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 }
 
 const (
-	testTrustedKey = `type: account-key
+	encTestTrustedKey = `type: account-key
 authority-id: can0nical
 account-id: can0nical
 public-key-id: 844efa9730eec4be
@@ -2245,7 +2313,7 @@ APybmSYoDVRQPAPop44UF0aCrTIw4Xds3E56d2Rsn+CkNML03kRc/i0Q53uYzZwxXVnzW/gVOXDL
 u/IZtjeo3KsB645MVEUxJLQmjlgMOwMvCHJgWhSvZOuf7wC0soBCN9Ufa/0M/PZFXzzn8LpjKVrX
 iDXhV7cY5PceG8ZV7Duo1JadOCzpkOHmai4DcrN7ZeY8bJnuNjOwvTLkrouw9xci4IxpPDRu0T/i
 K9qaJtUo4cA=`
-	testAccKey = `type: account-key
+	encTestAccKey = `type: account-key
 authority-id: can0nical
 account-id: developer1
 public-key-id: adea89b00094c337
@@ -2270,11 +2338,12 @@ ZF5jSvRDLgI=`
 
 func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	buf := bytes.NewBufferString(testAccKey)
+	buf := bytes.NewBufferString(encTestAccKey)
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -2307,7 +2376,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 func (s *apiSuite) TestAssertError(c *check.C) {
 	s.daemon(c)
 	// Setup
-	buf := bytes.NewBufferString(testAccKey)
+	buf := bytes.NewBufferString(encTestAccKey)
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -2320,11 +2389,12 @@ func (s *apiSuite) TestAssertError(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2337,7 +2407,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Verify
 	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "2")
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "3")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -2346,20 +2416,25 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	a2, err := dec.Decode()
 	c.Assert(err, check.IsNil)
 
+	a3, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+
 	_, err = dec.Decode()
 	c.Assert(err, check.Equals, io.EOF)
 
-	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID()}
-	c.Check(ids, check.DeepEquals, []string{"can0nical", "developer1"})
+	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID(), a3.(*asserts.AccountKey).AccountID()}
+	sort.Strings(ids)
+	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1"})
 }
 
 func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2383,11 +2458,13 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
+	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2661,6 +2738,11 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
 
+	soon := 0
+	ensureStateSoon = func(st *state.State) {
+		soon++
+	}
+
 	// Setup
 	d := newTestDaemon(c)
 	st := d.overlord.State()
@@ -2677,6 +2759,9 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 	rsp := abortChange(stateChangeCmd, req, nil).(*resp)
 	rec := httptest.NewRecorder()
 	rsp.ServeHTTP(rec, req)
+
+	// Ensure scheduled
+	c.Check(soon, check.Equals, 1)
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 200)
@@ -2753,4 +2838,35 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
 		"message": fmt.Sprintf("cannot abort change %s with nothing pending", ids[0]),
 	})
+}
+
+func (s *apiSuite) TestPostCreateUser(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username: "karl",
+			SSHKeys:  []string{"ssh1", "ssh2"},
+		}, nil
+	}
+	osutilAddExtraUser = func(username string, sshKeys []string) error {
+		c.Check(username, check.Equals, "karl")
+		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		return nil
+	}
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		osutilAddExtraUser = osutil.AddExtraUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 }
