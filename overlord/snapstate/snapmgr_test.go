@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -99,13 +100,13 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	defaultStore := snapstate.Store(s.state)
-	c.Check(defaultStore, NotNil)
-	c.Check(snapstate.CachedStore(s.state), Equals, defaultStore)
+	snapstate.ReplaceStore(s.state, nil)
+	store1 := snapstate.Store(s.state)
+	c.Check(store1, FitsTypeOf, &store.SnapUbuntuStoreRepository{})
 
-	snapstate.ReplaceStore(s.state, s.fakeStore)
-	c.Check(snapstate.Store(s.state), Equals, s.fakeStore)
-	c.Check(snapstate.CachedStore(s.state), Equals, s.fakeStore)
+	// cached
+	store2 := snapstate.Store(s.state)
+	c.Check(store1, Equals, store2)
 }
 
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
@@ -1410,6 +1411,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		Channel:      "",
 		Revision:     snap.R(7),
 	})
+	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
 }
 
 func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
@@ -1467,6 +1469,17 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
+	// verify that the R(7) version is active now
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(7))
+	c.Assert(snapst.Sequence, HasLen, 2)
+
+	c.Assert(snapst.Block(), HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
