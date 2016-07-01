@@ -213,7 +213,7 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 	if snapst.Active {
-		return nil, fmt.Errorf("snap %q already active", name)
+		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
 	ss := &SnapSetup{
@@ -239,7 +239,7 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 	if !snapst.Active {
-		return nil, fmt.Errorf("snap %q already inactive", name)
+		return nil, fmt.Errorf("snap %q already disabled", name)
 	}
 
 	ss := &SnapSetup{

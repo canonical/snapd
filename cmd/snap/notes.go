@@ -31,7 +31,7 @@ type Notes struct {
 	Private     bool
 	DevMode     bool
 	TryMode     bool
-	Inactive    bool
+	Disabled    bool
 }
 
 func (n *Notes) String() string {
@@ -57,8 +57,8 @@ func (n *Notes) String() string {
 		ns = append(ns, "try")
 	}
 
-	if n.Inactive {
-		ns = append(ns, "inactive")
+	if n.Disabled {
+		ns = append(ns, "disabled")
 	}
 
 	if len(ns) == 0 {
