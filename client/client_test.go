@@ -35,18 +35,20 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"time"
 )
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { check.TestingT(t) }
 
 type clientSuite struct {
-	cli    *client.Client
-	req    *http.Request
-	rsp    string
-	err    error
-	header http.Header
-	status int
+	cli     *client.Client
+	req     *http.Request
+	rsp     string
+	err     error
+	doCalls int
+	header  http.Header
+	status  int
 }
 
 var _ = check.Suite(&clientSuite{})
@@ -59,6 +61,7 @@ func (cs *clientSuite) SetUpTest(c *check.C) {
 	cs.req = nil
 	cs.header = nil
 	cs.status = http.StatusOK
+	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
 }
@@ -70,6 +73,7 @@ func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
 		Header:     cs.header,
 		StatusCode: cs.status,
 	}
+	cs.doCalls++
 	return rsp, cs.err
 }
 
@@ -78,10 +82,16 @@ func (cs *clientSuite) TestNewPanics(c *check.C) {
 		client.New(&client.Config{BaseURL: ":"})
 	}, check.PanicMatches, `cannot parse server base URL: ":" \(parse :: missing protocol scheme\)`)
 }
+
 func (cs *clientSuite) TestClientDoReportsErrors(c *check.C) {
+	restore := client.MockDoRetry(10*time.Millisecond, 100*time.Millisecond)
+	defer restore()
 	cs.err = errors.New("ouchie")
 	err := cs.cli.Do("GET", "/", nil, nil, nil)
-	c.Check(err, check.Equals, cs.err)
+	c.Check(err, check.ErrorMatches, "cannot communicate with server: ouchie")
+	if cs.doCalls < 2 {
+		c.Fatalf("do did not retry")
+	}
 }
 
 func (cs *clientSuite) TestClientWorks(c *check.C) {
@@ -132,12 +142,34 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
 func (cs *clientSuite) TestClientSysInfo(c *check.C) {
 	cs.rsp = `{"type": "sync", "result":
                      {"series": "16",
-                      "version": "2"}}`
+                      "version": "2",
+                      "os-release": {"id": "ubuntu", "version-id": "16.04"},
+                      "on-classic": true}}`
 	sysInfo, err := cs.cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(sysInfo, check.DeepEquals, &client.SysInfo{
 		Version: "2",
 		Series:  "16",
+		OSRelease: client.OSRelease{
+			ID:        "ubuntu",
+			VersionID: "16.04",
+		},
+		OnClassic: true,
+	})
+}
+
+func (cs *clientSuite) TestServerVersion(c *check.C) {
+	cs.rsp = `{"type": "sync", "result":
+                     {"series": "16",
+                      "version": "2",
+                      "os-release": {"id": "zyggy", "version-id": "123"}}}`
+	version, err := cs.cli.ServerVersion()
+	c.Check(err, check.IsNil)
+	c.Check(version, check.DeepEquals, &client.ServerVersion{
+		Version:     "2",
+		Series:      "16",
+		OSID:        "zyggy",
+		OSVersionID: "123",
 	})
 }
 
@@ -242,4 +274,20 @@ func (cs *clientSuite) TestIsTwoFactor(c *check.C) {
 	c.Check(client.IsTwoFactorError(errors.New("test")), check.Equals, false)
 	c.Check(client.IsTwoFactorError(nil), check.Equals, false)
 	c.Check(client.IsTwoFactorError((*client.Error)(nil)), check.Equals, false)
+}
+
+func (cs *clientSuite) TestClientCreateUser(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": {
+                        "username": "karl"
+		}
+	}`
+	rsp, err := cs.cli.CreateUser("popper@lse.ac.uk")
+	c.Assert(cs.req.Method, check.Equals, "POST")
+	c.Assert(cs.req.URL.Path, check.Equals, "/v2/create-user")
+	c.Assert(err, check.IsNil)
+	c.Assert(rsp, check.DeepEquals, &client.CreateUserResult{
+		Username: "karl",
+	})
 }

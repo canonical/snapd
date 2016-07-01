@@ -1,3 +1,167 @@
+snapd (2.0.10) xenial; urgency=medium
+
+  *  New upstream release: LP: #1597329
+    - interfaces: also allow @{PROC}/@{pid}/mountinfo and
+      @{PROC}/@{pid}/mountstats
+    - interfaces: allow read access to /etc/machine-id and
+      @{PROC}/@{pid}/smaps
+    - interfaces: miscelleneous policy updates for default, log-observe
+      and system-observe
+    - snapstate: add logging after a successful doLinkSnap
+    - tests, integration-tests: port try tests to spread
+    - store, cmd/snapd: send a basic user-agent to the store
+    - store: add buy method
+    - client: retry on failed GETs
+    - tests: actual refresh test
+    - docs: REST API update
+    - interfaces: add mount support for hooks.
+    - interfaces: add udev support for hooks.
+    - interfaces: add dbus support for hooks.
+    - tests, integration-tests: port refresh test to spread
+    - tests, integration-tests: port change errors test to spread
+    - overlord/ifacestate: don't retry snap security setup
+    - integration-tests: remove unused file
+    - tests: manage the socket unit when reseting state
+    - overlord: improve organization of state patches
+    - tests: wait for snapd listening after reset
+    - interfaces/builtin: allow other sr*/scd* optical devices
+    - systemd: add support for squashfuse
+    - snap: make snaps vanishing less fatal for the system
+    - snap-exec: os.Exec() needs argv0 in the args[] slice too
+    - many: add new `create-user` command
+    - interfaces: auto-connect content interfaces with the same content
+      and developer
+    - snapstate: add Current revision to SnapState
+    - readme: tweak readme blurb
+    - integration-tests: wait for listening port instead of active
+      service reported by systemd
+    - many: rename Current -> {CurrentSideInfo,CurrentInfo}
+    - spread: fix home interface test after suite move
+    - many: name unversioned data.
+    - interfaces: add "content" interface
+    - overlord/snapstate: defaultBackend can go away now
+    - debian: comment to remember why the timer is setup like it is
+    - tests,spread.yaml: introduce an upgrade test, support/split into
+      two suites for this
+    - overlord,overlord/snapstate: ensure we keep snap type in snapstate
+      of each snap
+    - many: rework the firstboot support
+    - integration-tests: fix test failure
+    - spread: keep core on suite restore
+    - tests: temporary fix for state reset
+    - overlord: add infrastructure for simple state format/content
+      migrations
+    - interfaces: add seccomp support for hooks.
+    - interfaces: allow gvfs shares in home and temporarily allow
+      socketcall by default (LP: #1592901, LP: #1594675)
+    - tests, integration-tests: port network-bind interface tests to
+      spread
+    - snap,snap/snaptest: use PopulateDir/MakeTestSnapWithFiles directly
+      and remove MockSnapWithHooks
+    - interfaces: add mpris interface
+    - tests: enable `snap run` on i386
+    - tests, integration-tests: port network interface test to spread
+    - tests, integration-tests: port interfaces cli to spread
+    - tests, integration-tests: port leftover install tests to spread
+    - interfaces: add apparmor support for hooks.
+    - tests, integration-tests: port log-observe interface tests to
+      spread
+    - asserts: improve Decode doc comment about assertion format
+    - tests: moved snaps to lib
+    - many: add the camera interface
+    - many: add optical-drive interface
+    - interfaces: auto-connect home if running on classic
+    - spread: bump gccgo test timeout
+    - interfaces: use security tags to index security snippets.
+    - daemon, overlord/snapstate, store: send confinement header to the
+      store for install
+    - spread: run tests on 16.04 i386 concurrently
+    - tests,integration-tests: port install error tests to spread
+    - interfaces: add a serial-port interface
+    - tests, integration-tests, debian: port sideload install tests to
+      spread
+    - interfaces: add new bind security backend and refactor
+      backendtests
+    - snap: load and validate implicit hooks.
+    - tests: add a build/run test for gccgo in spread
+    - cmd/snap/cmd_login: Adjust message after adding support for wheel
+      group
+    - tests, integration-tests: ported install from store tests to
+      spread
+    - snap: make `snap change <taskid>` show task progress
+    - tests, integration-tests: port search tests to spread
+    - overlord/state,daemon: make abort proceed immediately, fix doc
+      comment, improve tests
+    - daemon: extend privileged access to users in "wheel" group
+    - snap: tweak `snap refresh` and `snap refresh --list` outputTiny
+      branch that does three things:
+    - interfaces: refactor auto-connection candidate check
+    - snap: add support for snap {install,refresh}
+      --{edge,beta,candidate,stable}
+    - release: don't force KDE Neon into devmode.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 29 Jun 2016 21:02:39 +0200
+
+snapd (2.0.9) xenial; urgency=medium
+
+  * New upstream release: LP: #1593201
+    - snap: add the magic redirect part of `snap run`
+    - tests, integration-tests: port server related tests to spread
+    - overlord/snapstate: log restarting in the task
+    - daemon: test restart wiring, fix setup/teardown
+    - cmd: don't show the price if a snap has already been purchased
+    - tests, integration-tests: port listing tests to spread
+    - integration-tests: do not try to kill ubuntu-clock-app.clock (no
+      longer a process)
+    - several: tie up overlord's restart handler into daemon; adjust
+      snap to cope
+    - tests, integration-tests: port abort tests to spread
+    - integration-tests: fix flaky TestRemoveBusyRetries
+    - testutils: refactor/mock exec
+    - snap,cmd: add hook support to snap run.
+    - overlord/snapstate: remove Download from backend
+    - store: use a custom logging transport
+    - overlord/hookstate: implement basic HookManager.
+    - spread: move the suite restore to restore-each
+    - asserts: turn model os into model core field, making it also more
+      like the kernel and gadget fields
+    - asserts: / is not allowed in primary key headers, follow the store
+      in this
+    - release: enable full confinement on Elementary 0.4
+    - integration-tests: fix another i386 autopkgtest failure.
+    - cmd/snap: create SNAP_USER_DATA and common dirs in `snap run`
+    - many: have the installation of the core snap request a restart (on
+      classic)
+    - asserts: allow to load also account assertions into the trusted
+      set
+    - many: install snaps in devmode on distributions without complete
+      apparmor and seccomp support
+    - spread: run on travis
+    - snapenv: do not hardcode amd64 in tests
+    - spread: initial harness and first test
+    - interfaces: miscelleneous policy updates for chromium, x86,
+      opengl, etc
+    - integration-tests: remove daemon to use the log-observe interface
+    - client: remove client.Revision and import snap.Revision instead
+    - integration-tests: wait for network-bind service in try test
+    - many: move over from snappy to snapstate/backend SetupSnap and
+      related code
+    - integration-tests: add interfaces cli tests
+    - snapenv: cleanup snapenv.{Basic,User}
+    - cmd/snap: also print slots that connect to the wanted snap (LP:
+      #1590704)
+    - asserts: error style, use "cannot" instead of "failed to"
+      following the main decided style
+    - integration-tests: wait until the network-bind service is up
+      before testing
+    - many: add new `snap run` command
+    - snappy: unexport snappy.Install and snappy.Overlord.{Un,}Install
+    - many: add some shared testing helpers to snap/snaptest and to
+      boot/boottest
+    - rest-api: support to send apps per snap (LP: #1564076)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 16 Jun 2016 13:56:12 +0200
+
 snapd (2.0.8.1) UNRELEASED; urgency=medium
 
   * New upstream release

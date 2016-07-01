@@ -78,7 +78,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	needle := fmt.Sprintf(`
-/usr/bin/ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello %s/snap/hello-snap/11/bin/hello "$@"
+exec /usr/bin/ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello %s/snap/hello-snap/11/bin/hello "$@"
 `, s.tempdir)
 
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")

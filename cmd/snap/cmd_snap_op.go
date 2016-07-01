@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -40,6 +41,11 @@ func lastLogStr(logs []string) string {
 	return logs[len(logs)-1]
 }
 
+var (
+	maxGoneTime = 5 * time.Second
+	pollTime    = 100 * time.Millisecond
+)
+
 func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
@@ -47,12 +53,29 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 		fmt.Fprint(Stdout, "\n")
 	}()
 
+	tMax := time.Time{}
+
 	var lastID string
 	lastLog := map[string]string{}
 	for {
 		chg, err := client.Change(id)
 		if err != nil {
-			return nil, err
+			// an error here means the server most likely went away
+			// XXX: it actually can be a bunch of other things; fix client to expose it better
+			now := time.Now()
+			if tMax.IsZero() {
+				tMax = now.Add(maxGoneTime)
+			}
+			if now.After(tMax) {
+				return nil, err
+			}
+			pb.Spin("Waiting for server to restart")
+			time.Sleep(pollTime)
+			continue
+		}
+		if !tMax.IsZero() {
+			pb.Finished()
+			tMax = time.Time{}
 		}
 
 		for _, t := range chg.Tasks {
@@ -90,7 +113,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 		// note this very purposely is not a ticker; we want
 		// to sleep 100ms between calls, not call once every
 		// 100ms.
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(pollTime)
 	}
 }
 
@@ -144,15 +167,52 @@ func (x *cmdRemove) Execute([]string) error {
 	return nil
 }
 
+type channelMixin struct {
+	Channel string `long:"channel" description:"Use this channel instead of stable"`
+
+	// shortcuts
+	EdgeChannel      bool `long:"edge" description:"Install from the edge channel"`
+	BetaChannel      bool `long:"beta" description:"Install from the beta channel"`
+	CandidateChannel bool `long:"candidate" description:"Install from the candidate channel"`
+	StableChannel    bool `long:"stable" description:"Install from the stable channel"`
+}
+
+func (x *channelMixin) setChannelFromCommandline() error {
+	for _, ch := range []struct {
+		enabled bool
+		chName  string
+	}{
+		{x.StableChannel, "stable"},
+		{x.CandidateChannel, "candidate"},
+		{x.BetaChannel, "beta"},
+		{x.EdgeChannel, "edge"},
+	} {
+		if !ch.enabled {
+			continue
+		}
+		if x.Channel != "" {
+			return fmt.Errorf("Please specify a single channel")
+		}
+		x.Channel = ch.chName
+	}
+
+	return nil
+}
+
 type cmdInstall struct {
-	Channel    string `long:"channel" description:"Install from this channel instead of the device's default"`
-	DevMode    bool   `long:"devmode" description:"Install the snap with non-enforcing security"`
+	channelMixin
+
+	DevMode    bool `long:"devmode" description:"Install the snap with non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdInstall) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+
 	var changeID string
 	var err error
 	var installFromFile bool
@@ -189,8 +249,9 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
-	List       bool   `long:"list" description:"show available snaps for refresh"`
-	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
+	channelMixin
+
+	List       bool `long:"list" description:"show available snaps for refresh"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -203,8 +264,14 @@ func refreshAll() error {
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}
+	// nothing to update/list
+	if len(updates) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		return nil
+	}
 
-	for _, update := range updates {
+	names := make([]string, len(updates))
+	for i, update := range updates {
 		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
 		if err != nil {
 			return err
@@ -212,9 +279,10 @@ func refreshAll() error {
 		if _, err := wait(cli, changeID); err != nil {
 			return err
 		}
+		names[i] = update.Name
 	}
 
-	return listSnaps(nil)
+	return listSnaps(names)
 }
 
 func refreshOne(name, channel string) error {
@@ -231,11 +299,43 @@ func refreshOne(name, channel string) error {
 	return listSnaps([]string{name})
 }
 
+func listRefresh() error {
+	cli := Client()
+	snaps, _, err := cli.Find(&client.FindOptions{
+		Refresh: true,
+	})
+	if err != nil {
+		return err
+	}
+	if len(snaps) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		return nil
+	}
+
+	sort.Sort(snapsByName(snaps))
+
+	w := tabWriter()
+	defer w.Flush()
+
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
+	for _, snap := range snaps {
+		notes := &Notes{
+			Private: snap.Private,
+			DevMode: snap.DevMode,
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
+	}
+
+	return nil
+}
+
 func (x *cmdRefresh) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+
 	if x.List {
-		return findSnaps(&client.FindOptions{
-			Refresh: true,
-		})
+		return listRefresh()
 	}
 	if x.Positional.Snap == "" {
 		return refreshAll()
@@ -282,9 +382,44 @@ func (x *cmdTry) Execute([]string) error {
 	return listSnaps([]string{name})
 }
 
+type cmdRevert struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes"`
+}
+
+var shortRevertHelp = i18n.G("Reverts the given snap to the previous state")
+var longRevertHelp = i18n.G(`
+The revert command reverts the given snap to its state before
+the latest refresh. This will reactivate the previous snap revision,
+and will use the original data that was associated with that revision,
+discarding any data changes that were done by the latest revision. As
+an exception, data which the snap explicitly chooses to share across
+revisions is not touched by the revert process.
+`)
+
+func (x *cmdRevert) Execute(args []string) error {
+	cli := Client()
+	name := x.Positional.Snap
+	changeID, err := cli.Revert(name, nil)
+	if err != nil {
+		return err
+	}
+
+	if _, err := wait(cli, changeID); err != nil {
+		return err
+	}
+	return listSnaps([]string{name})
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
+
+	// FIXME: make visible once everything has landed for revert
+	cmd := addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
+	cmd.hidden = true
+
 }

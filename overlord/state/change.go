@@ -418,7 +418,7 @@ func (c *Change) Tasks() []*Task {
 	return c.state.tasksIn(c.taskIDs)
 }
 
-// Abort cancels the change, whether in progress or not.
+// Abort flags the change for cancellation, whether in progress or not. Cancellation will proceed at the next ensure pass.
 func (c *Change) Abort() {
 	c.state.writing()
 	for _, tid := range c.taskIDs {

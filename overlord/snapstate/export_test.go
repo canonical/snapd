@@ -78,8 +78,9 @@ func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, sna
 }
 
 var (
-	CheckSnap = checkSnap
-	CanRemove = canRemove
+	CheckSnap   = checkSnap
+	CanRemove   = canRemove
+	CachedStore = cachedStore
 )
 
 // flagscompat
@@ -87,3 +88,10 @@ const (
 	InterimUnusableFlagValueMin  = interimUnusableLegacyFlagValueMin
 	InterimUnusableFlagValueLast = interimUnusableLegacyFlagValueLast
 )
+
+// make revertToRevision public for the tests
+var RevertToRevision = revertToRevision
+
+func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
+	return snapst.previousSideInfo()
+}

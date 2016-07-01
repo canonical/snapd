@@ -1,0 +1,15 @@
+summary: Check snap ack
+execute: |
+  echo "Ack when missing matching key fails"
+  snap ack developer1.account || EXPECTED_FAILED="error"
+  [ "$EXPECTED_FAILED" = "error" ]
+
+  echo "Ack the test store key"
+  snap ack testrootorg-store.account-key
+
+  snap known account-key public-key-id=190213b78d289b59|grep "^public-key-fingerprint: 1088202d73bdfeb8402cdd68190213b78d289b59$"
+
+  echo "Ack a developer account signed by that"
+  snap ack developer1.account
+
+  snap known account account-id=developer1|grep "^username: developer1$"
