@@ -4,7 +4,7 @@ restore: |
 execute: |
   TRYDIR="$(mktemp -d)"
   export TRYDIR
-  cp -ar  $TESTSLIB/snaps/basic-binaries/* $TRYDIR
+  cp -ar  $TESTSLIB/snaps/basic/* $TRYDIR
 
   echo Trying a snap
   snap try $TRYDIR

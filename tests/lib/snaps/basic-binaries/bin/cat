@@ -1,4 +1,0 @@
-#!/bin/sh
-
-echo "I output myself (how meta!)"
-cat "$0"
