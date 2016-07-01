@@ -913,6 +913,17 @@ func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
+func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := authLocation()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := authLocation()
+
+	c.Check(before, Not(Equals), after)
+}
+
 func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
 	before := authURL()
