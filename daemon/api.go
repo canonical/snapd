@@ -369,8 +369,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	query := r.URL.Query()
 
-	if query.Get("select") == "refresh" {
-		if query.Get("q") != "" {
+	searchTerm := query.Get("q")
+
+	if sel := query.Get("select"); sel != "" {
+		if sel != "refresh" {
+			return BadRequest("invalid value for select: %q", sel)
+		}
+		if searchTerm != "" {
 			return BadRequest("cannot use 'q' with 'select=refresh'")
 		}
 		return storeUpdates(c, r, user)
@@ -382,7 +387,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	store := getStore(c)
-	found, err := store.Find(query.Get("q"), query.Get("channel"), auther)
+	found, err := store.Find(searchTerm, 0, auther)
 	if err != nil {
 		return InternalError("%v", err)
 	}

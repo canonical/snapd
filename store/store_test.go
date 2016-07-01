@@ -584,7 +584,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
+	snaps, err := repo.Find("hello", 0, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].Name(), Equals, "hello-world")
@@ -609,7 +609,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
+	snaps, err := repo.Find("hello", 0, nil)
 	c.Check(err, ErrorMatches, `received an unexpected http response code \(418 I'm a teapot\) when trying to search via "http://[^?]+\?q=hello"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -631,7 +631,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
+	snaps, err := repo.Find("hello", 0, nil)
 	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://[^?]+\?q=hello"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -654,7 +654,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBoody(c *C) {
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
+	snaps, err := repo.Find("hello", 0, nil)
 	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://[^?]+\?q=hello"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -697,7 +697,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	snaps, err := repo.Find("foo", "", authenticator)
+	snaps, err := repo.Find("foo", 0, authenticator)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
@@ -719,7 +719,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	defer mockServer.Close()
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "stable")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -741,7 +740,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	c.Assert(repo, NotNil)
 
 	authenticator := &fakeAuthenticator{}
-	snaps, err := repo.Find("foo", "", authenticator)
+	snaps, err := repo.Find("foo", 0, authenticator)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.
@@ -1162,7 +1161,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 		io.WriteString(w, mockPurchasesJSON)
@@ -1198,7 +1196,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, authenticator)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
@@ -1209,7 +1207,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -1246,7 +1243,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C)
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, authenticator)
 	c.Assert(err, NotNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -1277,7 +1274,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesNoAuth(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err := repo.decoratePurchases(snaps, "edge", nil)
+	err := repo.decoratePurchases(snaps, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -1319,14 +1316,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesAllFree(c *C) {
 	authenticator := &fakeAuthenticator{}
 
 	// There should be no request to the purchases server.
-	err = repo.decoratePurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, authenticator)
 	c.Assert(err, IsNil)
 	c.Check(requestRecieved, Equals, false)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
@@ -1352,7 +1348,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 	snaps := []*snap.Info{helloWorld}
 
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, authenticator)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
@@ -1368,14 +1364,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleFreeSnap(c *C) {
 	snaps := []*snap.Info{helloWorld}
 
 	authenticator := &fakeAuthenticator{}
-	err := repo.decoratePurchases(snaps, "edge", authenticator)
+	err := repo.decoratePurchases(snaps, authenticator)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
@@ -1402,14 +1397,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 	snaps := []*snap.Info{helloWorld}
 
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, authenticator)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 		c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
@@ -1436,7 +1430,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	snaps := []*snap.Info{helloWorld}
 
 	authenticator := &fakeAuthenticator{}
-	err = repo.decoratePurchases(snaps, "edge", authenticator)
+	err = repo.decoratePurchases(snaps, authenticator)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
@@ -1486,14 +1480,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 			io.WriteString(w, "{}")
 			purchaseServerGetCalled = true
 		case "POST":
-			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 			jsonReq, err := ioutil.ReadAll(r.Body)
@@ -1570,14 +1562,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 			io.WriteString(w, "{}")
 			purchaseServerGetCalled = true
 		case "POST":
-			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 			jsonReq, err := ioutil.ReadAll(r.Body)
@@ -1650,14 +1640,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 			io.WriteString(w, "{}")
 			purchaseServerGetCalled = true
 		case "POST":
-			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
 			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 			jsonReq, err := ioutil.ReadAll(r.Body)

@@ -61,6 +61,7 @@ type apiSuite struct {
 	vars              map[string]string
 	searchTerm        string
 	channel           string
+	findFlags         store.FindFlags
 	suggestedCurrency string
 	d                 *Daemon
 	auther            store.Authenticator
@@ -78,10 +79,10 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, auther store.Authent
 	return nil, s.err
 }
 
-func (s *apiSuite) Find(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
+func (s *apiSuite) Find(searchTerm string, flags store.FindFlags, auther store.Authenticator) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
-	s.channel = channel
 	s.auther = auther
+	s.findFlags = flags
 
 	return s.rsnaps, s.err
 }
@@ -122,6 +123,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.suggestedCurrency = ""
 	s.searchTerm = ""
 	s.channel = ""
+	s.findFlags = 0
 	s.err = nil
 	s.vars = nil
 	s.auther = nil
@@ -760,7 +762,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=hi&channel=potato", nil)
+	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := searchStore(findCmd, req, nil).(*resp)
@@ -773,7 +775,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
 	c.Check(s.searchTerm, check.Equals, "hi")
-	c.Check(s.channel, check.Equals, "potato")
+	c.Check(s.findFlags, check.Equals, store.FindFlags(0))
 	c.Check(s.refreshCandidates, check.HasLen, 0)
 }
 
@@ -800,13 +802,24 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
-	req, err := http.NewRequest("GET", "/v2/find?select=refresh&q=foo", nil)
+	extra := "q=foo"
+	req, err := http.NewRequest("GET", "/v2/find?select=refresh&"+extra, nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := searchStore(findCmd, req, nil).(*resp)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use 'q' with 'select=refresh'")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `cannot use 'q' with 'select=refresh'`, check.Commentf(extra))
+}
+
+func (s *apiSuite) TestFindSelectVeg(c *check.C) {
+	req, err := http.NewRequest("GET", "/v2/find?select=potato", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `invalid value for select: "potato"`)
 }
 
 func (s *apiSuite) TestFindPriced(c *check.C) {
