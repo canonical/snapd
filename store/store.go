@@ -78,7 +78,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Epoch = "0"
 	info.OfficialName = d.Name
 	info.SnapID = d.SnapID
-	info.Revision = d.Revision
+	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
 	info.Developer = d.Developer
@@ -663,13 +663,16 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
 	for _, rsnap := range updateData.Payload.Packages {
+		rrev := snap.R(rsnap.Revision)
+		cand := candidateMap[rsnap.SnapID]
+
 		// the store also gives us identical revisions, filter those
 		// out, we are not interested
-		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
+		if rrev == cand.Revision {
 			continue
 		}
 		// do not upgade to a version we rolledback back from
-		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].Block) {
+		if findRev(rrev, cand.Block) {
 			continue
 		}
 		res = append(res, infoFromRemote(rsnap))
