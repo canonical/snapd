@@ -78,7 +78,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Epoch = "0"
 	info.OfficialName = d.Name
 	info.SnapID = d.SnapID
-	info.Revision = d.Revision
+	info.Revision = snap.R(d.Revision)
 	info.EditedSummary = d.Summary
 	info.EditedDescription = d.Description
 	info.Developer = d.Developer
@@ -663,13 +663,16 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
 	for _, rsnap := range updateData.Payload.Packages {
+		rrev := snap.R(rsnap.Revision)
+		cand := candidateMap[rsnap.SnapID]
+
 		// the store also gives us identical revisions, filter those
 		// out, we are not interested
-		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
+		if rrev == cand.Revision {
 			continue
 		}
 		// do not upgade to a version we rolledback back from
-		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].Block) {
+		if findRev(rrev, cand.Block) {
 			continue
 		}
 		res = append(res, infoFromRemote(rsnap))
@@ -689,10 +692,11 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	return false
 }
 
-// Download downloads the given snap and returns its filename.
+// Download downloads the snap addressed by download info and returns its
+// filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(name string, remoteSnap *snap.DownloadInfo, pbar progress.Meter, auther Authenticator) (path string, err error) {
+func (s *SnapUbuntuStoreRepository) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, auther Authenticator) (path string, err error) {
 	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
@@ -707,9 +711,9 @@ func (s *SnapUbuntuStoreRepository) Download(name string, remoteSnap *snap.Downl
 		}
 	}()
 
-	url := remoteSnap.AnonDownloadURL
+	url := downloadInfo.AnonDownloadURL
 	if url == "" || auther != nil {
-		url = remoteSnap.DownloadURL
+		url = downloadInfo.DownloadURL
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
