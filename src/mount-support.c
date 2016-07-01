@@ -42,7 +42,6 @@
 
 void setup_private_mount(const char *security_tag)
 {
-#ifdef STRICT_CONFINEMENT
 	uid_t uid = getuid();
 	gid_t gid = getgid();
 	char tmpdir[MAX_BUF] = { 0 };
@@ -103,12 +102,10 @@ void setup_private_mount(const char *security_tag)
 			die("unable to set '%s'", tmpd[i]);
 		}
 	}
-#endif				// ifdef STRICT_CONFINEMENT
 }
 
 void setup_private_pts()
 {
-#ifdef STRICT_CONFINEMENT
 	// See https://www.kernel.org/doc/Documentation/filesystems/devpts.txt
 	//
 	// Ubuntu by default uses devpts 'single-instance' mode where
@@ -140,7 +137,6 @@ void setup_private_pts()
 	if (mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0)) {
 		die("unable to mount '/dev/pts/ptmx'->'/dev/ptmx'");
 	}
-#endif				// ifdef STRICT_CONFINEMENT
 }
 
 #ifdef NVIDIA_ARCH
