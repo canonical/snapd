@@ -440,6 +440,36 @@ func (x *cmdDisable) Execute([]string) error {
 	return listSnaps([]string{name})
 }
 
+type cmdRevert struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes"`
+}
+
+var shortRevertHelp = i18n.G("Reverts the given snap to the previous state")
+var longRevertHelp = i18n.G(`
+The revert command reverts the given snap to its state before
+the latest refresh. This will reactivate the previous snap revision,
+and will use the original data that was associated with that revision,
+discarding any data changes that were done by the latest revision. As
+an exception, data which the snap explicitly chooses to share across
+revisions is not touched by the revert process.
+`)
+
+func (x *cmdRevert) Execute(args []string) error {
+	cli := Client()
+	name := x.Positional.Snap
+	changeID, err := cli.Revert(name, nil)
+	if err != nil {
+		return err
+	}
+
+	if _, err := wait(cli, changeID); err != nil {
+		return err
+	}
+	return listSnaps([]string{name})
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
@@ -447,4 +477,7 @@ func init() {
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} })
 	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} })
+	// FIXME: make visible once everything has landed for revert
+	cmd := addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
+	cmd.hidden = true
 }

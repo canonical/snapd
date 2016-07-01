@@ -2,10 +2,7 @@ summary: Check snap search
 execute: |
   echo "List all snaps"
   expected="(?s)Name +Version +Developer +Notes +Summary *\n\
-  .*?\
-  hello-world +.*? *\n\
-  .*?\
-  xkcd-webserver +.*? *\n\
+  [a-z-]+ .*?\
   .*"
   snap find | grep -Pzq "$expected"
 
