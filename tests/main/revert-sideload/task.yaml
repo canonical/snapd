@@ -11,5 +11,5 @@ execute: |
   snap install ./basic_1.0_all.snap | grep -Pzq "x2"
 
   echo Reverting to the previous version
-  snap revert basic | grep grep -Pzq "x1"
+  snap revert basic | grep -Pzq "x1"
 

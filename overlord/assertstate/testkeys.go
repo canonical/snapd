@@ -1,5 +1,5 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
+// +build withtestkeys
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -18,31 +18,13 @@
  *
  */
 
-package tests
+package assertstate
 
 import (
-	"fmt"
-
-	"github.com/snapcore/snapd/integration-tests/testutils/cli"
-	"github.com/snapcore/snapd/integration-tests/testutils/common"
-
-	"gopkg.in/check.v1"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 )
 
-var _ = check.Suite(&changesSuite{})
-
-type changesSuite struct {
-	common.SnappySuite
-}
-
-// SNAP_CHANGES_004: with invalid id
-func (s *changesSuite) TestChangesWithInvalidIdShowsError(c *check.C) {
-	invalidID := "10000000"
-
-	expected := fmt.Sprintf(`error: cannot find change with id "%s"\n`, invalidID)
-
-	actual, err := cli.ExecCommandErr("snap", "change", invalidID)
-
-	c.Assert(err, check.NotNil)
-	c.Assert(actual, check.Matches, expected)
+// init will inject the test trusted assertions when this module build tag "withtestkeys" is defined.
+func init() {
+	systestkeys.Inject()
 }
