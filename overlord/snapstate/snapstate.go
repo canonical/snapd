@@ -225,10 +225,11 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 		Revision: snapst.Current,
 	}
 
-	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q"), ss.Name))
+	revisionStr := fmt.Sprintf(" (%d)", snapst.Current)
+	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), ss.Name, revisionStr))
 	prepareSnap.Set("snap-setup", &ss)
 
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), ss.Name))
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system%s"), ss.Name, revisionStr))
 	linkSnap.Set("snap-setup", &ss)
 	linkSnap.WaitFor(prepareSnap)
 
@@ -250,7 +251,7 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		Name: name,
 	}
 
-	unlinkSnap := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system"), ss.Name))
+	unlinkSnap := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable (%d)"), ss.Name, snapst.Current))
 	unlinkSnap.Set("snap-setup", &ss)
 
 	return state.NewTaskSet(unlinkSnap), nil
