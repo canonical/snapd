@@ -145,16 +145,18 @@ func cpiURL() string {
 	return "https://search.apps.ubuntu.com/api/v1/"
 }
 
-func authURL() string {
+func authLocation() string {
 	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
-		return "https://login.staging.ubuntu.com/api/v2"
+		return "login.staging.ubuntu.com"
 	}
+	return "login.ubuntu.com"
+}
 
+func authURL() string {
 	if os.Getenv("SNAPPY_FORCE_SSO_URL") != "" {
 		return os.Getenv("SNAPPY_FORCE_SSO_URL")
 	}
-
-	return "https://login.ubuntu.com/api/v2"
+	return "https://" + authLocation() + "/api/v2"
 }
 
 func assertsURL() string {
@@ -571,6 +573,7 @@ type RefreshCandidate struct {
 	Revision snap.Revision
 	Epoch    string
 	DevMode  bool
+	Block    []snap.Revision
 
 	// the desired channel
 	Channel string
@@ -665,6 +668,10 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
 			continue
 		}
+		// do not upgade to a version we rolledback back from
+		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].Block) {
+			continue
+		}
 		res = append(res, infoFromRemote(rsnap))
 	}
 
@@ -673,11 +680,21 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 	return res, nil
 }
 
-// Download downloads the given snap and returns its filename.
+func findRev(needle snap.Revision, haystack []snap.Revision) bool {
+	for _, r := range haystack {
+		if needle == r {
+			return true
+		}
+	}
+	return false
+}
+
+// Download downloads the snap addressed by download info and returns its
+// filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progress.Meter, auther Authenticator) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.Name())
+func (s *SnapUbuntuStoreRepository) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, auther Authenticator) (path string, err error) {
+	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
 	}
@@ -691,18 +708,18 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 		}
 	}()
 
-	url := remoteSnap.AnonDownloadURL
+	url := downloadInfo.AnonDownloadURL
 	if url == "" || auther != nil {
-		url = remoteSnap.DownloadURL
+		url = downloadInfo.DownloadURL
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req, "", remoteSnap.NeedsDevMode(), auther)
+	s.setUbuntuStoreHeaders(req, "", false, auther)
 
-	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
+	if err := download(name, w, req, pbar); err != nil {
 		return "", err
 	}
 
