@@ -15,7 +15,7 @@ execute: |
   snap list |grep core
 
   echo A snap in broken state can be removed
-  snap remove basic-binaries
+  snap remove basic
 
   echo And is gone afterwards
   snap list |grep -v basic
