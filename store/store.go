@@ -689,11 +689,12 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 	return false
 }
 
-// Download downloads the given snap and returns its filename.
+// Download downloads the snap addressed by download info and returns its
+// filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progress.Meter, auther Authenticator) (path string, err error) {
-	w, err := ioutil.TempFile("", remoteSnap.Name())
+func (s *SnapUbuntuStoreRepository) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, auther Authenticator) (path string, err error) {
+	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
 	}
@@ -707,18 +708,18 @@ func (s *SnapUbuntuStoreRepository) Download(remoteSnap *snap.Info, pbar progres
 		}
 	}()
 
-	url := remoteSnap.AnonDownloadURL
+	url := downloadInfo.AnonDownloadURL
 	if url == "" || auther != nil {
-		url = remoteSnap.DownloadURL
+		url = downloadInfo.DownloadURL
 	}
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req, "", remoteSnap.NeedsDevMode(), auther)
+	s.setUbuntuStoreHeaders(req, "", false, auther)
 
-	if err := download(remoteSnap.Name(), w, req, pbar); err != nil {
+	if err := download(name, w, req, pbar); err != nil {
 		return "", err
 	}
 
