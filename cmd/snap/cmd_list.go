@@ -72,9 +72,13 @@ func listSnaps(names []string) error {
 
 	for _, snap := range snaps {
 		notes := &Notes{
-			Private:  snap.Private,
-			DevMode:  snap.DevMode,
-			TryMode:  snap.TryMode,
+			Private: snap.Private,
+			DevMode: snap.DevMode,
+			TryMode: snap.TryMode,
+			// FIXME: a bit confusing, a installed snap
+			//        is either "active" or "installed", so
+			//        if it is not "active" it means it is
+			//        diabled.
 			Disabled: snap.Status == client.StatusInstalled,
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
