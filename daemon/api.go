@@ -69,6 +69,7 @@ var api = []*Command{
 	stateChangeCmd,
 	stateChangesCmd,
 	createUserCmd,
+	buyCmd,
 }
 
 var (
@@ -171,6 +172,12 @@ var (
 		Path:   "/v2/create-user",
 		UserOK: false,
 		POST:   postCreateUser,
+	}
+
+	buyCmd = &Command{
+		Path:   "/v2/buy",
+		UserOK: true,
+		POST:   postBuy,
 	}
 )
 
@@ -1315,4 +1322,63 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	createResponseData.Username = v.Username
 
 	return SyncResponse(createResponseData, nil)
+}
+
+type buyResponseData struct {
+	State string `json:"state,omitempty"`
+}
+
+func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	var buyInstruction struct {
+		// Required
+		SnapID        string  `json:"snap-id"`
+		SnapName      string  `json:"snap-name"`
+		Channel       string  `json:"channel"`
+		ExpectedPrice float64 `json:"expected-price"`
+		Currency      string  `json:"currency"`
+
+		// Optional
+		BackendID string `json:"backend-id"`
+		MethodID  int    `json:"method-id"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&buyInstruction); err != nil {
+		return BadRequest("cannot decode buying instruction data from request body: %v", err)
+	}
+
+	auther, err := c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
+	s := getStore(c)
+
+	buyResult, err := s.Buy(
+		&store.BuyOptions{
+			SnapID:        buyInstruction.SnapID,
+			SnapName:      buyInstruction.SnapName,
+			Channel:       buyInstruction.Channel,
+			ExpectedPrice: buyInstruction.ExpectedPrice,
+			Currency:      buyInstruction.Currency,
+			BackendID:     buyInstruction.BackendID,
+			MethodID:      buyInstruction.MethodID,
+			Auther:        auther,
+		})
+
+	switch err {
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	default:
+		return InternalError("%v", err)
+	case nil:
+		// continue
+	}
+
+	// TODO: Support purchasing redirects
+	if buyResult.State == "InProgress" {
+		return InternalError("payment backend %q is not yet supported", buyInstruction.BackendID)
+	}
+
+	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
 }
