@@ -28,6 +28,7 @@
 #include <unistd.h>
 
 #include "utils.h"
+#include "cleanup-funcs.h"
 
 #ifdef NVIDIA_ARCH
 
