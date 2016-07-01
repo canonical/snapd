@@ -26,11 +26,12 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/tests/lib/fakestore/store"
+
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
 	"github.com/snapcore/snapd/integration-tests/testutils/config"
 	"github.com/snapcore/snapd/integration-tests/testutils/refresh"
-	"github.com/snapcore/snapd/integration-tests/testutils/store"
 )
 
 var _ = check.Suite(&snapRefreshAppSuite{})
@@ -53,7 +54,7 @@ func (s *snapRefreshAppSuite) TestAppRefresh(c *check.C) {
 	c.Assert(err, check.IsNil)
 	defer cli.ExecCommand(c, "sudo", "rm", "-rf", blobDir)
 
-	fakeStore := store.NewStore(blobDir)
+	fakeStore := store.NewStore(blobDir, "localhost:11028")
 	err = fakeStore.Start()
 	c.Assert(err, check.IsNil)
 	defer fakeStore.Stop()
