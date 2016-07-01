@@ -23,13 +23,11 @@ package tests
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"time"
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/integration-tests/testutils/build"
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
