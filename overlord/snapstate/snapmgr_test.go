@@ -101,8 +101,12 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.ReplaceStore(s.state, nil)
-	ubuntuStore := store.NewUbuntuStoreSnapRepository(nil, "")
-	c.Check(snapstate.Store(s.state), DeepEquals, ubuntuStore)
+	store1 := snapstate.Store(s.state)
+	c.Check(store1, FitsTypeOf, &store.SnapUbuntuStoreRepository{})
+
+	// cached
+	store2 := snapstate.Store(s.state)
+	c.Check(store1, Equals, store2)
 }
 
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
