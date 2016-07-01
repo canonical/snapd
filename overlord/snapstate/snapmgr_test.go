@@ -1263,19 +1263,19 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	})
 	c.Assert(ops[len(ops)-4], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
-		name: "/snap/some-snap/2",
+		name: "/snap/some-snap/1",
 	})
 	c.Assert(ops[len(ops)-3], DeepEquals, fakeOp{
 		op:   "remove-snap-files",
-		name: "/snap/some-snap/2",
+		name: "/snap/some-snap/1",
 	})
 	c.Assert(ops[len(ops)-2], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
-		name: "/snap/some-snap/1",
+		name: "/snap/some-snap/2",
 	})
 	c.Assert(ops[len(ops)-1], DeepEquals, fakeOp{
 		op:   "remove-snap-files",
-		name: "/snap/some-snap/1",
+		name: "/snap/some-snap/2",
 	})
 
 }
