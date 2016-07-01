@@ -40,7 +40,7 @@ ubuntu-core-launcher (1.0.30) yakkety; urgency=medium
   * Discard the useless duplicate argument. Now snap-confine is invoked with
     'snap-name $SECURITY_TAG $COMMAND...'. Previously, security tag was
     duplicated. In the future this will change once again, so that security
-    tag is derived from an argument containing $SNAP_NAME and $APP_NAME. 
+    tag is derived from an argument containing $SNAP_NAME and $APP_NAME.
   * Clean up tests so that shellcheck reports no more errors or warnings
   * Ensure that shellcheck reports no errors on each build
   * Add #DEBHELPER# to maintainer scripts (thanks to lintian)
@@ -463,7 +463,7 @@ ubuntu-core-launcher (0.2.1) vivid; urgency=low
 ubuntu-core-launcher (0.2) vivid; urgency=low
 
   * merged lp:~mvo/ubuntu-core-launcher/device-cgroup to add
-    support for the device cgroup 
+    support for the device cgroup
     applied, to allow testing the new snappy hwassign feature
 
  -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 20 Apr 2015 10:24:59 +0200
