@@ -2,14 +2,41 @@ summary: Check that snaps can be refreshed to local revisions
 restore: |
   rm -rf $TRYDIR
 execute: |
-  echo Installing beta of hello-world
-  snap install --beta hello-world|grep 6.0
+  echo "Installing beta of hello-world"
+  snap install --beta hello-world
+  REV_BETA="$(snap list|grep hello|tr -s ' ' |cut -f3 -d' ')"
+  touch /var/snap/hello-world/${REV_BETA}/beta
 
   echo Refresh to stable
-  snap refresh --stable hello-world|grep 6.1
+  snap refresh --stable hello-world
+  REV_STABLE="$(snap list|grep hello|tr -s ' ' |cut -f3 -d' ')"
 
-  echo Refresh back to beta
+  echo Ensure test setup is correct
+  if [ "$REV_STABLE" = "$REV_BETA" ]; then
+     echo "Test setup broken, stable and beta need different versions"
+     exit 1
+  fi
+
+  echo Ensure data is copied on forward refresh
+  if [ ! -e /var/snap/hello-world/${REV_BETA}/beta ]; then
+    echo "Data from beta -> stable was not copied"
+    exit 1
+  fi
+  touch /var/snap/hello-world/${REV_STABLE}/stable
+
+  echo "Make the beta and the stable data dirs different"
+  rm /var/snap/hello-world/${REV_STABLE}/beta
+
+  echo "Refresh back to beta"
   snap refresh --beta hello-world|grep 6.0
+  if [ -e /var/snap/hello-world/${REV_BETA}/beta ]; then
+    echo "Old data was not removed on stable->beta (local) refresh"
+    exit 1
+  fi
+  if [ ! -e /var/snap/hello-world/${REV_BETA}/stable ]; then
+    echo "New data was not copied on stable->beta (local) refresh"
+    exit 1
+  fi
 
   echo Refresh back to stable
   snap refresh --stable hello-world|grep 6.1
