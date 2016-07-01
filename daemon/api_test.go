@@ -686,6 +686,64 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check
 	c.Check(user, check.DeepEquals, expectedUser)
 }
 
+func (s *apiSuite) TestDeviceIdentitySetSerialAssertion(c *check.C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+
+		switch r.URL.Path {
+		case "/identity/api/v1/nonces":
+			io.WriteString(w, `{"nonce": "the-opaque-nonce"}`)
+		case "/identity/api/v1/sessions":
+			var request struct {
+				SerialAssertion string `json:"serial-assertion"`
+				Nonce           string `json:"nonce"`
+				Signature       string `json:"signature"`
+			}
+			err := json.Unmarshal(jsonReq, &request)
+			c.Assert(err, check.IsNil)
+			c.Assert(request.SerialAssertion, check.Equals, testSerial)
+			c.Assert(request.Nonce, check.Equals, "the-opaque-nonce")
+			c.Assert(request.Signature, check.Equals, "the-opaque-nonce was signed")
+			io.WriteString(w, `{"macaroon": "the-opaque-macaroon"}`)
+
+		default:
+			panic("unhandled path: " + r.URL.Path)
+		}
+	}))
+	defer mockServer.Close()
+	store.DeviceIdentityAPI = mockServer.URL + "/identity/api/v1"
+
+	mockSignNonce := testutil.MockCommand(c, "snap-identity-helper", `cat > /dev/null; echo -n "$2 was signed"`)
+	defer mockSignNonce.Restore()
+
+	d := s.daemon(c)
+
+	action := &deviceIdentityChange{
+		Brand:           "the-brand",
+		Model:           "the-model",
+		Serial:          "the-serial",
+		SerialAssertion: []byte(testSerial),
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/experimental-device-identity", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := deviceIdentityCmd.POST(deviceIdentityCmd, req, nil).(*resp)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Result, check.IsNil)
+
+	st := d.overlord.State()
+	st.Lock()
+	device, err := auth.Device(st)
+	st.Unlock()
+	c.Check(device.SerialAssertion, check.DeepEquals, []byte(testSerial))
+	c.Check(device.StoreMacaroon, check.Equals, "the-opaque-macaroon")
+}
+
 func (s *apiSuite) TestSnapsInfoOnePerIntegration(c *check.C) {
 	d := s.daemon(c)
 
@@ -2334,6 +2392,16 @@ CfXJ3A5el8Xxp5qkFywCsLdJgNtF6+uSQ4dO8SrAwzkM7c3JzntxdiFOjDLUSyZ+rXL42jdRagTY
 8bcZfb47vd68Hyz3EvSvJuHSDbcNSTd3B832cimpfq5vJ7FoDrchVn3sg+3IwekuPhG3LQn5BVtc
 0ontHd+V1GaandhqBaDA01cGZN0gnqv2Haogt0P/h3nZZZJ1nTW5PLC6hs8TZdBdl3Lel8yAHD5L
 ZF5jSvRDLgI=`
+	testSerial = `type: serial
+authority-id: canonical
+brand-id: the-brand
+model: the-model
+serial: the-serial
+timestamp: 2016-06-11T12:00:00Z
+device-key:
+ openpgp xsBNBFaXv5MBCACkK//qNb3UwRtDviGcCSEi8Z6d5OXok3yilQmEh0LuW6DyP9sVpm08Vb1LGewOa5dThWGX4XKRBI/jCUnjCJQ6v15lLwHe1N7MJQ58DUxKqWFMV9yn4RcDPk6LqoFpPGdRrbp9Ivo3PqJRMyD0wuJk9RhbaGZmILcL//BLgomE9NgQdAfZbiEnGxtkqAjeVtBtcJIj5TnCC658ZCqwugQeO9iJuIn3GosYvvTB6tReq6GP6b4dqvoi7SqxHVhtt2zD4Y6FUZIVmvZK0qwkV0gua2azLzPOeoVcU1AEl7HVeBk7G6GiT5jx+CjjoGa0j22LdJB9S3JXHtGYk5p9CAwhABEBAAE=
+
+openpgp c2ln1`
 )
 
 func (s *apiSuite) TestAssertOK(c *check.C) {

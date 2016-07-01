@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/macaroon.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 )
@@ -39,7 +40,14 @@ type AuthState struct {
 	Device *DeviceState `json:"device,omitempty"`
 }
 
+// DeviceState represents the device's identity and store credentials
 type DeviceState struct {
+	Brand  string `json:"brand,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Serial string `json:"serial,omitempty"`
+	// XXX: SerialAssertion should eventually be retrieved from the
+	// assertions DB, not persisted in state.
+	SerialAssertion []byte   `json:"serial-assertion,omitempty"`
 	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
 	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
@@ -121,6 +129,51 @@ func User(st *state.State, id int) (*UserState, error) {
 		}
 	}
 	return nil, fmt.Errorf("invalid user")
+}
+
+// SetDeviceIdentity sets the device's identity as used for communication with the store.
+// XXX: Should eventually require the serial assertion to be the
+// assertions DB rather than taking it directly, but that requires
+// significant work.
+// XXX: Doesn't check that the serial assertion is trustworthy, just
+// that it matches the purported identity. But the assertion is only
+// used to establish a store session, and the store performs the
+// requisite checks.
+func SetDeviceIdentity(st *state.State, brand string, model string, serial string, serialAssertionEncoded []byte) error {
+	var authStateData AuthState
+
+	// Verify that the serial assertion matches the brand, model and
+	// serial.
+	assert, err := asserts.Decode(serialAssertionEncoded)
+	if err != nil {
+		return err
+	}
+	if assert.Type() != asserts.SerialType {
+		return fmt.Errorf("serial assertion is actually %s", assert.Type())
+	}
+	serialAssertion := assert.(*asserts.Serial)
+	if brand != serialAssertion.BrandID() || model != serialAssertion.Model() || serial != serialAssertion.Serial() {
+		return fmt.Errorf("serial assertion doesn't match purported identity")
+	}
+
+	err = st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		authStateData = AuthState{}
+	} else if err != nil {
+		return err
+	}
+
+	if authStateData.Device == nil {
+		authStateData.Device = &DeviceState{}
+	}
+
+	authStateData.Device.Brand = brand
+	authStateData.Device.Model = model
+	authStateData.Device.Serial = serial
+	authStateData.Device.SerialAssertion = serialAssertionEncoded
+	st.Set("auth", authStateData)
+
+	return nil
 }
 
 // SetDeviceStoreMacaroon sets the credentials used to authenticate to the store as the device.

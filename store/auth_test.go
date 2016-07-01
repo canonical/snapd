@@ -20,7 +20,9 @@
 package store
 
 import (
+	"encoding/json"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 
@@ -67,6 +69,12 @@ const mockStoreReturnMacaroon = `
 const mockStoreReturnDischarge = `
 {
     "discharge_macaroon": "the-discharge-macaroon-serialized-data"
+}
+`
+
+const mockStoreReturnNonce = `
+{
+    "nonce": "the-opaque-nonce"
 }
 `
 
@@ -181,4 +189,108 @@ func (s *authTestSuite) TestDischargeAuthCaveatError(c *C) {
 	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
 	c.Assert(err, ErrorMatches, "cannot get discharge macaroon from store: server returned status 500")
 	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestDeviceNonce(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/identity/api/v1/nonces")
+		io.WriteString(w, mockStoreReturnNonce)
+	}))
+	defer mockServer.Close()
+	DeviceIdentityAPI = mockServer.URL + "/identity/api/v1"
+
+	nonce, err := requestDeviceNonce()
+	c.Assert(err, IsNil)
+	c.Assert(nonce, DeepEquals, []byte("the-opaque-nonce"))
+}
+
+func (s *authTestSuite) TestRequestDeviceNonceError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	DeviceIdentityAPI = mockServer.URL + "/identity/api/v1"
+
+	nonce, err := requestDeviceNonce()
+	c.Assert(err, ErrorMatches, "cannot get device identity nonce from store: store server returned status 500")
+	c.Assert(nonce, IsNil)
+}
+
+func (s *authTestSuite) TestRequestDeviceMacaroon(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		c.Check(r.URL.Path, Equals, "/identity/api/v1/sessions")
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Assert(string(jsonReq), Equals, `{"serial-assertion":"the-serial-assertion","nonce":"the-opaque-nonce","signature":"the-nonce-signature"}`)
+		io.WriteString(w, mockStoreReturnMacaroon)
+	}))
+	defer mockServer.Close()
+	DeviceIdentityAPI = mockServer.URL + "/identity/api/v1"
+
+	macaroon, err := requestDeviceMacaroon([]byte("the-serial-assertion"), []byte("the-opaque-nonce"), []byte("the-nonce-signature"))
+	c.Assert(err, IsNil)
+	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
+}
+
+func (s *authTestSuite) TestRequestDeviceMacaroonError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	DeviceIdentityAPI = mockServer.URL + "/identity/api/v1"
+
+	macaroon, err := requestDeviceMacaroon([]byte("the-serial-assertion"), []byte("the-opaque-nonce"), []byte("the-nonce-signature"))
+	c.Assert(err, ErrorMatches, "cannot get device session macaroon from store: store server returned status 500")
+	c.Assert(macaroon, Equals, "")
+}
+
+func mockSignNonce(serialAssertion []byte, nonce []byte) ([]byte, error) {
+	return []byte(string(nonce) + " was signed"), nil
+}
+
+const testSerial = `type: serial
+authority-id: canonical
+brand-id: the-brand
+model: the-model
+serial: the-serial
+timestamp: 2016-06-11T12:00:00Z
+device-key:
+ openpgp xsBNBFaXv5MBCACkK//qNb3UwRtDviGcCSEi8Z6d5OXok3yilQmEh0LuW6DyP9sVpm08Vb1LGewOa5dThWGX4XKRBI/jCUnjCJQ6v15lLwHe1N7MJQ58DUxKqWFMV9yn4RcDPk6LqoFpPGdRrbp9Ivo3PqJRMyD0wuJk9RhbaGZmILcL//BLgomE9NgQdAfZbiEnGxtkqAjeVtBtcJIj5TnCC658ZCqwugQeO9iJuIn3GosYvvTB6tReq6GP6b4dqvoi7SqxHVhtt2zD4Y6FUZIVmvZK0qwkV0gua2azLzPOeoVcU1AEl7HVeBk7G6GiT5jx+CjjoGa0j22LdJB9S3JXHtGYk5p9CAwhABEBAAE=
+
+openpgp c2ln1`
+
+func (s *authTestSuite) TestAcquireDeviceMacaroon(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "POST")
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+
+		switch r.URL.Path {
+		case "/identity/api/v1/nonces":
+			io.WriteString(w, mockStoreReturnNonce)
+		case "/identity/api/v1/sessions":
+			var request struct {
+				SerialAssertion string `json:"serial-assertion"`
+				Nonce           string `json:"nonce"`
+				Signature       string `json:"signature"`
+			}
+			err := json.Unmarshal(jsonReq, &request)
+			c.Assert(err, IsNil)
+			c.Assert(request.SerialAssertion, Equals, testSerial)
+			c.Assert(request.Nonce, Equals, "the-opaque-nonce")
+			c.Assert(request.Signature, Equals, "the-opaque-nonce was signed")
+			io.WriteString(w, mockStoreReturnMacaroon)
+
+		default:
+			panic("unhandled path: " + r.URL.Path)
+		}
+	}))
+	defer mockServer.Close()
+	DeviceIdentityAPI = mockServer.URL + "/identity/api/v1"
+
+	macaroon, err := AcquireDeviceMacaroon([]byte(testSerial), mockSignNonce)
+	c.Assert(err, IsNil)
+	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }

@@ -44,6 +44,17 @@ func (as *authSuite) SetUpTest(c *C) {
 	as.state = state.New(nil)
 }
 
+const testSerial = `type: serial
+authority-id: canonical
+brand-id: the-brand
+model: the-model
+serial: the-serial
+timestamp: 2016-06-11T12:00:00Z
+device-key:
+ openpgp xsBNBFaXv5MBCACkK//qNb3UwRtDviGcCSEi8Z6d5OXok3yilQmEh0LuW6DyP9sVpm08Vb1LGewOa5dThWGX4XKRBI/jCUnjCJQ6v15lLwHe1N7MJQ58DUxKqWFMV9yn4RcDPk6LqoFpPGdRrbp9Ivo3PqJRMyD0wuJk9RhbaGZmILcL//BLgomE9NgQdAfZbiEnGxtkqAjeVtBtcJIj5TnCC658ZCqwugQeO9iJuIn3GosYvvTB6tReq6GP6b4dqvoi7SqxHVhtt2zD4Y6FUZIVmvZK0qwkV0gua2azLzPOeoVcU1AEl7HVeBk7G6GiT5jx+CjjoGa0j22LdJB9S3JXHtGYk5p9CAwhABEBAAE=
+
+openpgp c2ln1`
+
 func (as *authSuite) TestNewUser(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
@@ -308,26 +319,38 @@ func (as *authSuite) TestDevice(c *C) {
 	c.Check(device, IsNil)
 
 	as.state.Lock()
-	auth.SetDeviceStoreMacaroon(as.state, "macaroon", []string{"discharge-2", "discharge-1"})
+	err = auth.SetDeviceIdentity(as.state, "the-brand", "the-model", "the-serial", []byte(testSerial))
+	c.Check(err, IsNil)
+	err = auth.SetDeviceStoreMacaroon(as.state, "macaroon", []string{"discharge-2", "discharge-1"})
+	c.Check(err, IsNil)
 	device, err = auth.Device(as.state)
 	as.state.Unlock()
 	expected := &auth.DeviceState{
+		Brand:           "the-brand",
+		Model:           "the-model",
+		Serial:          "the-serial",
+		SerialAssertion: []byte(testSerial),
 		StoreMacaroon:   "macaroon",
 		StoreDischarges: []string{"discharge-1", "discharge-2"},
 	}
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, expected)
+}
+
+func (as *authSuite) TestDeviceWrongSerialAssertion(c *C) {
+	as.state.Lock()
+	device, err := auth.Device(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(device, IsNil)
 
 	as.state.Lock()
-	auth.SetDeviceStoreMacaroon(as.state, "another-macaroon", []string{"discharge-3"})
+	err = auth.SetDeviceIdentity(as.state, "the-brand", "the-model", "wrong-serial", []byte(testSerial))
+	c.Check(err, ErrorMatches, "serial assertion doesn't match purported identity")
 	device, err = auth.Device(as.state)
 	as.state.Unlock()
-	expected = &auth.DeviceState{
-		StoreMacaroon:   "another-macaroon",
-		StoreDischarges: []string{"discharge-3"},
-	}
 	c.Check(err, IsNil)
-	c.Check(device, DeepEquals, expected)
+	c.Check(device, IsNil)
 }
 
 func (as *authSuite) TestAuthenticatorFromUser(c *C) {
