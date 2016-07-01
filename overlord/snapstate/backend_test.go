@@ -91,7 +91,7 @@ func (f *fakeStore) SuggestedCurrency() string {
 func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, auther store.Authenticator) (string, error) {
 	var macaroon string
 	if auther != nil {
-		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
+		macaroon = auther.(*auth.MacaroonAuthenticator).UserMacaroon
 	}
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
