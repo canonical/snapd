@@ -100,14 +100,6 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	defaultStore := snapstate.Store(s.state)
-	c.Check(defaultStore, NotNil)
-	c.Check(snapstate.CachedStore(s.state), Equals, defaultStore)
-
-	snapstate.ReplaceStore(s.state, s.fakeStore)
-	c.Check(snapstate.Store(s.state), Equals, s.fakeStore)
-	c.Check(snapstate.CachedStore(s.state), Equals, s.fakeStore)
-
 	snapstate.ReplaceStore(s.state, nil)
 	ubuntuStore := store.NewUbuntuStoreSnapRepository(nil, "")
 	c.Check(snapstate.Store(s.state), DeepEquals, ubuntuStore)
@@ -1415,6 +1407,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		Channel:      "",
 		Revision:     snap.R(7),
 	})
+	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
 }
 
 func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
@@ -1472,6 +1465,17 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
+	// verify that the R(7) version is active now
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Current, Equals, snap.R(7))
+	c.Assert(snapst.Sequence, HasLen, 2)
+
+	c.Assert(snapst.Block(), HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
