@@ -22,7 +22,7 @@ prepare: |
   snap install $SNAP_FILE
 
   echo "And a service is listening"
-  echo "#!/bin/sh\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+  printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
   chmod a+x $SERVICE_FILE
   systemd-run --unit $SERVICE_NAME $SERVICE_FILE
   while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
@@ -40,37 +40,37 @@ execute: |
   - +$SNAP_NAME:network"
 
   echo "Then the snap is listed as connected"
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is disconnected"
   snap disconnect $SNAP_NAME:network ubuntu-core:network
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the plug can be connected again"
   snap connect $SNAP_NAME:network ubuntu-core:network
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is connected"
   snap connect $SNAP_NAME:network ubuntu-core:network
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the snap is able to access a network service"
-  response=$(network-consumer http://127.0.0.1:$PORT)
-  echo "$response" | grep -Pqz "ok\n"
+  network-consumer http://127.0.0.1:$PORT | grep -Pqz "ok\n"
 
   echo "============================================"
 
   echo "When the plug is disconnected"
   snap disconnect $SNAP_NAME:network ubuntu-core:network
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then snap can't access a network service"
   if network-consumer http://127.0.0.1:$PORT; then
-    echo "Network shouldn't be accessible" && exit 1
+    echo "Network shouldn't be accessible"
+    exit 1
   fi
 
   echo "============================================"

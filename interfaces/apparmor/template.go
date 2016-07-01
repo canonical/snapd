@@ -206,12 +206,14 @@ var defaultTemplate = []byte(`
   owner @{PROC}/@{pid}/cmdline r,
 
   # Miscellaneous accesses
+  /etc/machine-id r,
   /etc/mime.types r,
   @{PROC}/ r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
+  @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
@@ -226,6 +228,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
   owner @{PROC}/@{pid}/oom_{,score_}adj r,
