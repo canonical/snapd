@@ -23,7 +23,7 @@ all_tests = \
 
 EXTRA_DIST = $(all_tests) common.sh
 
-if STRICT_CONFINEMENT
+if SECCOMP
 if CONFINEMENT_TESTS
 TESTS += $(all_tests)
 endif
