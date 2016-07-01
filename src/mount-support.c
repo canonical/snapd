@@ -413,7 +413,7 @@ static bool __attribute__ ((used))
 	// is exactly at the spot where @dir ends (that is, it was not caught
 	// by the test above) then @subdir is a real subdirectory.
 	if (subdir[dirlen] == '/' && dirlen > 0)
-	 	return true;
+		return true;
 	// If both @dir and @subdir have identical length then given that the
 	// prefix check above @subdir is a real subdirectory.
 	if (subdirlen == dirlen)
