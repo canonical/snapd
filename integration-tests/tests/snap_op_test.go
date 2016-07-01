@@ -22,63 +22,21 @@ package tests
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/integration-tests/testutils/build"
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
 	"github.com/snapcore/snapd/integration-tests/testutils/common"
-	"github.com/snapcore/snapd/integration-tests/testutils/data"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/testutil"
 )
 
 var _ = check.Suite(&snapOpSuite{})
 
 type snapOpSuite struct {
 	common.SnappySuite
-}
-
-func (s *snapOpSuite) testInstallRemove(c *check.C, snapName, displayName string) {
-	installOutput := common.InstallSnap(c, snapName)
-	expected := "(?ms)" +
-		"Name +Version +Rev +Developer +Notes\n" +
-		".*" +
-		displayName + " +.*\n" +
-		".*"
-	c.Assert(installOutput, check.Matches, expected)
-
-	removeOutput := common.RemoveSnap(c, snapName)
-	c.Assert(removeOutput, check.Not(testutil.Contains), snapName)
-}
-
-func (s *snapOpSuite) TestInstallRemoveAliasWorks(c *check.C) {
-	s.testInstallRemove(c, "hello-world", "hello-world")
-}
-
-func (s *snapOpSuite) TestRemoveRemovesAllRevisions(c *check.C) {
-	snapPath, err := build.LocalSnap(c, data.BasicSnapName)
-	defer os.Remove(snapPath)
-	c.Assert(err, check.IsNil, check.Commentf("Error building local snap: %s", err))
-
-	// install two revisions
-	common.InstallSnap(c, snapPath)
-	installOutput := common.InstallSnap(c, snapPath)
-	c.Assert(installOutput, testutil.Contains, data.BasicSnapName)
-	// double check, sideloaded snaps have revnos like xNN
-	revnos, _ := filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "x*"))
-	c.Check(len(revnos) >= 2, check.Equals, true)
-
-	removeOutput := common.RemoveSnap(c, data.BasicSnapName)
-	c.Assert(removeOutput, check.Not(testutil.Contains), data.BasicSnapName)
-	// gone from disk
-	revnos, err = filepath.Glob(filepath.Join(dirs.SnapSnapsDir, data.BasicSnapName, "1*"))
-	c.Assert(err, check.IsNil)
-	c.Check(revnos, check.HasLen, 0)
 }
 
 func (s *snapOpSuite) TestInstallFailedIsUndone(c *check.C) {
