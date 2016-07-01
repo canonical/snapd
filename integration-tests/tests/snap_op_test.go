@@ -141,7 +141,7 @@ func checkDownloadUndone(c *check.C, snapName, output string) {
 }
 
 func checkMountUndone(c *check.C, snapName, output string) {
-	expected := fmt.Sprintf(`(?ms).*Undone +.*Mount snap %q\n.*`, snapName)
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Mount snap %q.*`, snapName)
 	c.Assert(output, check.Matches, expected)
 
 	// MountDir is removed /snap/<name>/<revision>
@@ -164,7 +164,7 @@ func checkDataCopyUndone(c *check.C, snapName, output string) {
 }
 
 func checkSecProfilesSetupUndone(c *check.C, snapName, output string) {
-	expected := fmt.Sprintf(`(?ms).*Undone +.*Setup snap %q security profiles\n.*`, snapName)
+	expected := fmt.Sprintf(`(?ms).*Undone +.*Setup snap %q security profiles.*`, snapName)
 	c.Assert(output, check.Matches, expected)
 
 	// security artifacts are removed for each backend: apparmor, seccomp, dbus, udev
