@@ -115,6 +115,7 @@ type SnapState struct {
 	Candidate *snap.SideInfo `json:"candidate,omitempty"`
 	Channel   string         `json:"channel,omitempty"`
 	Flags     SnapStateFlags `json:"flags,omitempty"`
+
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
@@ -159,6 +160,46 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 		}
 	}
 	panic("cannot find snapst.Current in the snapst.Sequence")
+}
+
+func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
+	if !snapst.HasCurrent() {
+		return nil
+	}
+	n := len(snapst.Sequence)
+	if n < 2 {
+		return nil
+	}
+	// find "current" and return the one before that
+	currentIndex := snapst.findIndex(snapst.Current)
+	if currentIndex == 0 {
+		return nil
+	}
+	return snapst.Sequence[currentIndex-1]
+}
+
+func (snapst *SnapState) findIndex(rev snap.Revision) int {
+	for i, si := range snapst.Sequence {
+		if si.Revision == rev {
+			return i
+		}
+	}
+	return -1
+}
+
+// Block returns revisions that should be blocked on refreshes,
+// computed as Sequence[currentRevisionIndex:].
+func (snapst *SnapState) Block() []snap.Revision {
+	// return revisions from Sequence[currentIndex:]
+	currentIndex := snapst.findIndex(snapst.Current)
+	if currentIndex < 0 {
+		return nil
+	}
+	out := make([]snap.Revision, 0, len(snapst.Sequence))
+	for _, si := range snapst.Sequence[currentIndex:] {
+		out = append(out, si.Revision)
+	}
+	return out
 }
 
 var ErrNoCurrent = errors.New("snap has no current revision")
@@ -295,15 +336,22 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.Revision = revision
+		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	} else {
-		if err := checkRevisionIsNew(ss.Name, snapst, ss.Revision); err != nil {
-			return err
+		for _, si := range snapst.Sequence {
+			if si.Revision == ss.Revision {
+				snapst.Candidate = si
+				break
+			}
 		}
+	}
+
+	if snapst.Candidate == nil {
+		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name, ss.Revision)
 	}
 
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
 	Set(st, ss.Name, snapst)
 	st.Unlock()
 	return nil
@@ -688,9 +736,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	cand := snapst.Candidate
-
 	m.backend.Candidate(snapst.Candidate)
-	snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+
+	hadCandidate := true
+	if snapst.findIndex(snapst.Candidate.Revision) < 0 {
+		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+		hadCandidate = false
+	}
+
 	oldCurrent := snapst.Current
 	snapst.Current = snapst.Candidate.Revision
 	snapst.Candidate = nil
@@ -732,6 +785,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
+	t.Set("had-candidate", hadCandidate)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
@@ -775,11 +829,21 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var hadCandidate bool
+	err = t.Get("had-candidate", &hadCandidate)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
-
-	snapst.Candidate = snapst.Sequence[len(snapst.Sequence)-1]
-	snapst.Sequence = snapst.Sequence[:len(snapst.Sequence)-1]
+	currentIndex := snapst.findIndex(snapst.Current)
+	if currentIndex < 0 {
+		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", snapst.Candidate.Revision, snapst.Sequence)
+	}
+	snapst.Candidate = snapst.Sequence[currentIndex]
+	if !hadCandidate {
+		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
+	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
 	snapst.Channel = oldChannel
