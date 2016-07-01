@@ -115,7 +115,7 @@ func doInstall(s *state.State, curActive bool, snapst *SnapState, ss *SnapSetup)
 		prev := linkSnap
 		seq := snapst.Sequence
 		currentIndex := snapst.findIndex(snapst.Current)
-		for i := currentIndex - 2; i >= 0; i-- {
+		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
 			ts := removeInactiveRevision(s, ss.Name, si.Revision)
 			ts.WaitFor(prev)
