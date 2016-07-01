@@ -122,6 +122,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
   /{,usr/}bin/link ixr,
+  /{,usr/}bin/locale ixr,
   /{,usr/}bin/logger ixr,
   /{,usr/}bin/ls ixr,
   /{,usr/}bin/md5sum ixr,

@@ -1,0 +1,24 @@
+summary: Check snap remove operations.
+
+restore: |
+  rm -f basic_1.0_all.snap
+
+execute: |
+  snap_revisions(){
+    local snap_name=$1
+    echo -n $(find /snap/"$snap_name"/ -maxdepth 1 -type d -name "x*" | wc -l)
+  }
+
+  echo "Given two revisions of a snap have been installed"
+  snapbuild $TESTSLIB/snaps/basic .
+  snap install basic_1.0_all.snap
+  snap install basic_1.0_all.snap
+
+  echo "Then the two revisions are available on disk"
+  [ $(snap_revisions basic) = "2" ]
+
+  echo "When the snap is removed"
+  snap remove basic
+
+  echo "Then the two revisions are removed from disk"
+  [ $(snap_revisions basic) = "0" ]
