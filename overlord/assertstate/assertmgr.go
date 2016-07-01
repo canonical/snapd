@@ -18,16 +18,13 @@
  */
 
 // Package assertstate implements the manager and state aspects responsible
-// for the enforcement of assertions in the system.
+// for the enforcement of assertions in the system and manages the system-wide
+// assertion database.
 package assertstate
 
 import (
-	"os"
-
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
-
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -39,19 +36,9 @@ type AssertManager struct {
 	db *asserts.Database
 }
 
-func getTrustedAccountKey() string {
-	if !osutil.FileExists(dirs.SnapTrustedAccountKey) {
-		// XXX: allow this fallback here for integration tests,
-		// until we have a proper trusted public key shared
-		// with the store and decide possibly for a different strategy
-		return os.Getenv("SNAPPY_TRUSTED_ACCOUNT_KEY")
-	}
-	return dirs.SnapTrustedAccountKey
-}
-
 // Manager returns a new assertion manager.
 func Manager(s *state.State) (*AssertManager, error) {
-	db, err := asserts.OpenSysDatabase(getTrustedAccountKey())
+	db, err := sysdb.Open()
 	if err != nil {
 		return nil, err
 	}
