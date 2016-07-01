@@ -22,18 +22,18 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
-#ifdef STRICT_CONFINEMENT
+#ifdef HAVE_APPARMOR
 #include <sys/apparmor.h>
-#endif				// ifdef STRICT_CONFINEMENT
+#endif				// ifdef HAVE_APPARMOR
 
 #include "classic.h"
 #include "mount-support.h"
 #include "snap.h"
 #include "utils.h"
-#ifdef STRICT_CONFINEMENT
+#ifdef HAVE_SECCOMP
 #include "seccomp-support.h"
+#endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
-#endif				// ifdef STRICT_CONFINEMENT
 #include "cleanup-funcs.h"
 
 int sc_main(int argc, char **argv)
@@ -97,7 +97,6 @@ int sc_main(int argc, char **argv)
 		if (is_running_on_classic_distribution()) {
 			setup_snappy_os_mounts();
 		}
-#ifdef STRICT_CONFINEMENT
 		// set up private mounts
 		setup_private_mount(security_tag);
 
@@ -109,7 +108,6 @@ int sc_main(int argc, char **argv)
 		if (snappy_udev_init(security_tag, &udev_s) == 0)
 			setup_devices_cgroup(security_tag, &udev_s);
 		snappy_udev_cleanup(&udev_s);
-#endif				// ifdef STRICT_CONFINEMENT
 
 		// setup the security backend bind mounts
 		sc_setup_mount_profiles(security_tag);
@@ -133,7 +131,7 @@ int sc_main(int argc, char **argv)
 	}
 	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 
-#ifdef STRICT_CONFINEMENT
+#ifdef HAVE_APPARMOR
 	int rc = 0;
 	// set apparmor rules
 	rc = aa_change_onexec(security_tag);
@@ -141,9 +139,11 @@ int sc_main(int argc, char **argv)
 		if (secure_getenv("SNAPPY_LAUNCHER_INSIDE_TESTS") == NULL)
 			die("aa_change_onexec failed with %i", rc);
 	}
+#endif				// ifdef HAVE_APPARMOR
+#ifdef HAVE_SECCOMP
 	// set seccomp (note: seccomp_load_filters die()s on all failures)
 	seccomp_load_filters(security_tag);
-#endif				// ifdef STRICT_CONFINEMENT
+#endif				// ifdef HAVE_SECCOMP
 
 	// Permanently drop if not root
 	if (geteuid() == 0) {

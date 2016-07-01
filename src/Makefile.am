@@ -15,24 +15,32 @@ snap_confine_SOURCES = \
 	mount-support-nvidia.c \
 	mount-support-nvidia.h \
 	cleanup-funcs.c \
-	cleanup-funcs.h
+	cleanup-funcs.h \
+	udev-support.c \
+	udev-support.h
+
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
 snap_confine_LDADD =
+snap_confine_CFLAGS += $(LIBUDEV_CFLAGS)
+snap_confine_LDADD += $(LIBUDEV_LIBS)
 
 # This is here to help fix rpmlint hardening issue.
 # https://en.opensuse.org/openSUSE:Packaging_checks#non-position-independent-executable
 snap_confine_CFLAGS += $(SUID_CFLAGS)
 snap_confine_LDFLAGS += $(SUID_LDFLAGS)
 
-if STRICT_CONFINEMENT
+if SECCOMP
 snap_confine_SOURCES += \
 	seccomp-support.c \
-	seccomp-support.h \
-	udev-support.c \
-	udev-support.h
-snap_confine_CFLAGS += $(APPARMOR_CFLAGS) $(SECCOMP_CFLAGS) $(LIBUDEV_CFLAGS)
-snap_confine_LDADD += $(APPARMOR_LIBS) $(SECCOMP_LIBS) $(LIBUDEV_LIBS)
+	seccomp-support.h
+snap_confine_CFLAGS += $(SECCOMP_CFLAGS)
+snap_confine_LDADD += $(SECCOMP_LIBS)
+endif
+
+if APPARMOR
+snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
+snap_confine_LDADD += $(APPARMOR_LIBS)
 endif
 
 snap_confine_unit_tests_SOURCES = \
