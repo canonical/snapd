@@ -62,8 +62,14 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("enable", name, options)
 }
+
 func (client *Client) Disable(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("disable", name, options)
+}
+
+// Revert rolls the snap back to the previous on-disk state
+func (client *Client) Revert(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("revert", name, options)
 }
 
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
