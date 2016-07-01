@@ -64,7 +64,7 @@ func (s *downloadSnapSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
-func (s *downloadSnapSuite) TestDoPrepareSnapCompatbility(c *C) {
+func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
@@ -112,7 +112,7 @@ func (s *downloadSnapSuite) TestDoPrepareSnapCompatbility(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *downloadSnapSuite) TestDoPrepareSnapNormal(c *C) {
+func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	s.state.Lock()
 
 	si := &snap.SideInfo{
@@ -157,7 +157,7 @@ func (s *downloadSnapSuite) TestDoPrepareSnapNormal(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *downloadSnapSuite) TestDoDownloadSnap(c *C) {
+func (s *downloadSnapSuite) TestUndoDownloadSnap(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
 		OfficialName: "foo",
