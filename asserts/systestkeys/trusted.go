@@ -1,0 +1,216 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2016 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+// Package systestkeys defines trusted assertions and keys to use in tests.
+package systestkeys
+
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
+)
+
+const (
+	TestRootPrivKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+Version: GnuPG v1
+
+lQcYBFdylTwBEAC9bEPfbZAEtndD09tF7a2+XMLICpGF4zEglDgK6bYyDd2soh1D
+6u+fjFIxa32Ibab5CeCeFRlPircYkAcZcRHLW89bF5UQLWMZ7VlZfUYL1krUSswb
+OJhgHbyR7g03D0xTpu8UkM2ZhJ82su2H5nFlgs0FtCaO5nH3S4qHMVJhRSw/j4xw
+kUa0xFuVtMO0UzLG1cM565MjFLjekYKBAfQyitgNDc1B8pZNCuPNF4nxrMvSOJ1t
+S7yhgm9fbjT4I9LjE3jTtLBZkG9qj23+4+mJNF/h4TbvXq+ZaFq0rGimInnjpChl
+w5AD4mxoAxeeIEYx2F8SBS1Uc2ACtDiiBx6EKifZGPWxM0AkpcJMAgSn3mexY5IL
+uHDj4fP/XlxykvuEm2FVvjxTFrKQss5WRPNPpOVkzdy/UFn9rkKGU1PwmNdNxk5q
+e1UlHjYXESMyV4yWbc6xW4GdZQdMWbthDvZZc0CJIcz1+wQeJ0WYGe9xmQLC+Vax
+JWOKgbPE/o9ZEjiG1OPzoh9Rmwg9h5VMHdqdTG5/Q7/W1A7O/s9+cDZoE6idfKnm
+rZBEoH9oGkHjEzzO+W9jalwCaJCAOmZxr8qjkuXhWIj44yEMDshDhK4GL9HZAzbc
+4VrvblCxWpEBXBZx39iiYwDKVOzn9hKEvm0FiC87uhvXEusUlkuB/duCyQARAQAB
+AA/7B29X8TtWLrpQvRdPoROH04GhAiihwA0WVaDQSXXwy3O8BOxuncbEkSyLT1qP
+YZ1F6kzrl+IBH9MP87w3foxdY/AVYSBwVZpKdZO03r6zQKSwjVud8JWVvhihRtDH
+1ZRZf2NYy2ztBiNaRMFKKQ5UbPdekgkZYXypX8kDfJjSpQZS+KbY1a+zzWoqNmO3
+xDOLgyxK6glMS/XZVTKF7JnzY5jCi3bpAVwC3UDZ9N7KlTx5tZMmTrf/hQ8V8eAJ
+ulrKwVRAi34pMGvrQnqO4lnSfL0cLXwF48PKvIisZ1V7E30lpqD2zT8tmrX/z3B5
+WMV5q9wvzD/GMzZ0ZH/rspIdrc8uSRwH16oLZcWmaF4mz0KjUfz/zZRhIvloC7rm
+Qk7nt0kSVzqN0kgkcccclBqRezWIfmCHNghyZnqsC8pu9YOLyCGsd9v4Xf8iVNp2
+TJ0RyxHHjBY4EDp2rf1RxqAcMTL0Cqp6vZfwV7v04hc5PePhYBbqg8sRPL5gYFMv
+3pteoCRTCuRzBIvlTWA2awZ2riW7gpZkHzWjxaGotpLijp3VWSlejVAMlYZ+LHF2
+V8Gx8SZvmql76GrcIX7cIpFL1h4OPUPdbcKNpM4ZvZdKwbscI3/iQ4HU/z3JBZ+Z
+y43TY24g+SIrrVauR1Im3PPWG4IvZy921hiaUgfWZ+IW55cIANFB5JFfv9WagNNv
+3rw8hQjpGQbDwtnGw2bRpUop4notiOS+lu14fHxZYk6wMES8hnDWkqSIKnAgKG8Y
+3Xhcr+3/9T59OINgnrCqywy6amW/D0ewZeWRQ1c3RRwgts/3BxTc4OsQ/yZ79+aL
+J2fV6YWHJwswfBJydB7xEsKBSVkOeAn7kT5v4aGsyo3Z01GZHiONud23YuDwozAM
+mrfdLL7yMOCgs+NZoj41mj9htiDdgHxfNl9utmr6VIxfBUdNLo8qsjRDFF9Wva/d
+bw2aqCDVAFNLMobVqOTYhT5IhH/tARU7GRfkW03gpbAJoo9eZap0vqeb9NCpT0k/
+lv280lMIAOe8KeIhzFsTH2YcrzoT4ul7mqe8hQhVq60cw+NOV/6AJ3dg4hzfBgNu
+ysJeur1XswfF1t9LEkMR2tOsAz4VdkleK41WctyLHaXYwL0d4o7KQ/dGkFK3Hner
+ASm1mQFHHZ+APFxiHn/VMFapIiDpASErNucvzBgMvLbipK+/moWyVaQu8YjzO2TG
+eDv/UhFuEgm6FxByVsHdVeWovhIS5H8pRTiCX7SxIOFDPC4m+ekncRVwHgjt+Y/K
+U4C2l6KMSXilPJEDsxy517ZDNnXVJOBgLz7lnqv9wD4iox3a6lrn5Uqr06mzta+3
+AYWLooOZpcIn90Y0dplPMUywupsg6vMH/RhfP6waACjpPLey6BW6mcJ/Ty/9R6Gd
+EYstubVLJxMUJBJHGKC9WbbqnjkJCYHwKtjdl691wKVZT3oMCuLdiC4ecar2S49F
+sOw9zekCg8nbJNcqdZmvz7F9G2q7wADtnTh7fZbPc0+WSnhM9jWn3ijpvc5H8TJ/
+Au0S9kNItRzm2qh2qTYQYCrZVc0JqItqt+J4zHixNga25fJlJseP2CLRtg/zm3Dn
+sgw0nF9zbtlbhUlSVG2/emKpX4l2XSdfXI0I4439B/+0IIftUYdNHB3k+sIFuhHw
+NEAP5/ULfyCgu1ArfTgZ3wYFoBfG+H20OlGz+R0VarA/MLBKnv/dIiZ5K7QOICh0
+ZXN0cm9vdG9yZymJAjgEEwECACIFAldylTwCGy8GCwkIBwMCBhUIAgkKCwQWAgMB
+Ah4BAheAAAoJEM6nan6yFrPKFbIQAKcAPhvuZXXxV/1/jBVeU1ajYrsrKrEjXuXO
+VfF9B3A0Iz9Q8J9YnpX20TwKapE4se2z+Tow7BQLZfkqG5+2fRm69amK3/dHXzsj
+HOvYdhCFTlaNk3Up0yL9EGYnEiGhnEB6JNU328fuNJHfY5qT8YQ2c6W2nRHqkiL8
+PQDjK2zb1uUWt0XeJpoAo5YRzAVFtO1C/ut5FyVGtHftY7Y/Vh0l0g6g74C7//HA
+XEzuuFGl2ccu1GEOM0viXkn9tGXC62gVX+TFJxNsg15qe62hQtLINkVKCi3s2zM7
+3aai+ZwUOQ7E02WsUOgtJIWmRjbDpH7O+hZuYiJ4XmrojtR8o2huQw9fGvLhyiOn
+H4KbW/+3S5hlW+ATgjdbumC1uOvMDEp6aL30vaUHD4TQKlCqmKxXMyFP3uh9bJyE
+uqszOvLqGC6upDIUVgFw8/doJXwq/mBs4DQrqJJ3qA0bMjI8UkF3mJj62foS/HxX
+1ip42ReKe21br0w+0tllfdzlnMDiNoOFhks5F2YM+bSNL4Uahthu4SbqAv6HuUHm
+QrQRAbBzIzUmVnBXDAZT3JPHEOyWWECDbD8UkS4Xvw176lmEsAHB2GsrGYSWJt04
+JONDXPT7aSeqpN/OscUrNgtoqfyuEVRlYAUM+ZLMvl1JSPxFeKnarlGFZ8DQ8J8n
+B9M+dghZ
+=erKK
+-----END PGP PRIVATE KEY BLOCK-----
+`
+
+	encodedTestRootAccount = `type: account
+authority-id: testrootorg
+account-id: testrootorg
+display-name: Test Root Org
+timestamp: 2016-06-27T00:00:00.0Z
+username: testrootorg
+validation: certified
+
+openpgp wsFcBAABCgAGBQJXcpitAAoJEM6nan6yFrPKzqUP+wUQz+TXSKTNbls1lnfq6kFgLWhR
+RvIfCGysoActhRiiqmJwePhFKbzF8CM8RsR+WbPx7oc00CSE9LWzhu8xjw1bHnheIfE8boKO2oSX
+N4iQFQjILniRksNxnjbzF+ZNsPSgIE0APr9YvGGg9P1ioSGjBbRGgPLGnBhpyWvE/EM+pkIxN4nE
+0HpdnyMhbJmJv1M+3LKQPKIkw5khwCgeVNhWlSqpf1MhwisqjvH/RgotpOu/Qi20I+SRp9exB7ph
+7bKpmEbHBxPsLcsunAxW7Ck1kdAt6vBE9XNBpz8IrSk9QQRgRCQ2WqKE4DGrPFERMmTDOhg+CnW8
+pG4+lDcqf4rVjhJ27NXdgJJCelpGWfJAP8+fcpBGLEQb/RqpSNSYpEjjmHWwOlY2YengNCsrITNO
+T59mqSm9EguQ+Z/YvGQ3G6a9oNThXsqo6KzAIGY96uPCCjxWxjK6bUnPXKg1slCCp/oELB35bbOh
+FEVVOPHjRqdPmCZzpO0Fwf8sE+Ck2LUqnO8fM46A9vqOG6BXL/9eqeSmpshukwvd7b1XOvfT6iAt
+L3dea3ooWp+m9fdWZZeqcbFANp3wG36Bymfhvu+xVpAc1eg3P9L6MTJRmudUk22St77KweN+P8mP
+j/bmA6XRTM79PxGEv3wkTPf98l0aH2xL1JslsRgXLp+07NAq
+`
+	TestRootKeyID = "cea76a7eb216b3ca"
+
+	encodedTestRootAccountKey = `type: account-key
+authority-id: testrootorg
+account-id: testrootorg
+public-key-id: cea76a7eb216b3ca
+public-key-fingerprint: e6ef383d57810cd54c0091f0cea76a7eb216b3ca
+since: 2016-06-27T00:00:00.0Z
+until: 2026-06-27T00:00:00.0Z
+body-length: 1496
+
+openpgp mQINBFdylTwBEAC9bEPfbZAEtndD09tF7a2+XMLICpGF4zEglDgK6bYyDd2soh1D6u+fjFIxa32Ibab5CeCeFRlPircYkAcZcRHLW89bF5UQLWMZ7VlZfUYL1krUSswbOJhgHbyR7g03D0xTpu8UkM2ZhJ82su2H5nFlgs0FtCaO5nH3S4qHMVJhRSw/j4xwkUa0xFuVtMO0UzLG1cM565MjFLjekYKBAfQyitgNDc1B8pZNCuPNF4nxrMvSOJ1tS7yhgm9fbjT4I9LjE3jTtLBZkG9qj23+4+mJNF/h4TbvXq+ZaFq0rGimInnjpChlw5AD4mxoAxeeIEYx2F8SBS1Uc2ACtDiiBx6EKifZGPWxM0AkpcJMAgSn3mexY5ILuHDj4fP/XlxykvuEm2FVvjxTFrKQss5WRPNPpOVkzdy/UFn9rkKGU1PwmNdNxk5qe1UlHjYXESMyV4yWbc6xW4GdZQdMWbthDvZZc0CJIcz1+wQeJ0WYGe9xmQLC+VaxJWOKgbPE/o9ZEjiG1OPzoh9Rmwg9h5VMHdqdTG5/Q7/W1A7O/s9+cDZoE6idfKnmrZBEoH9oGkHjEzzO+W9jalwCaJCAOmZxr8qjkuXhWIj44yEMDshDhK4GL9HZAzbc4VrvblCxWpEBXBZx39iiYwDKVOzn9hKEvm0FiC87uhvXEusUlkuB/duCyQARAQABtA4gKHRlc3Ryb290b3JnKYkCOAQTAQIAIgUCV3KVPAIbLwYLCQgHAwIGFQgCCQoLBBYCAwECHgECF4AACgkQzqdqfrIWs8oVshAApwA+G+5ldfFX/X+MFV5TVqNiuysqsSNe5c5V8X0HcDQjP1Dwn1ielfbRPApqkTix7bP5OjDsFAtl+Sobn7Z9Gbr1qYrf90dfOyMc69h2EIVOVo2TdSnTIv0QZicSIaGcQHok1Tfbx+40kd9jmpPxhDZzpbadEeqSIvw9AOMrbNvW5Ra3Rd4mmgCjlhHMBUW07UL+63kXJUa0d+1jtj9WHSXSDqDvgLv/8cBcTO64UaXZxy7UYQ4zS+JeSf20ZcLraBVf5MUnE2yDXmp7raFC0sg2RUoKLezbMzvdpqL5nBQ5DsTTZaxQ6C0khaZGNsOkfs76Fm5iInheauiO1HyjaG5DD18a8uHKI6cfgptb/7dLmGVb4BOCN1u6YLW468wMSnpovfS9pQcPhNAqUKqYrFczIU/e6H1snIS6qzM68uoYLq6kMhRWAXDz92glfCr+YGzgNCuokneoDRsyMjxSQXeYmPrZ+hL8fFfWKnjZF4p7bVuvTD7S2WV93OWcwOI2g4WGSzkXZgz5tI0vhRqG2G7hJuoC/oe5QeZCtBEBsHMjNSZWcFcMBlPck8cQ7JZYQINsPxSRLhe/DXvqWYSwAcHYaysZhJYm3Tgk40Nc9PtpJ6qk386xxSs2C2ip/K4RVGVgBQz5ksy+XUlI/EV4qdquUYVnwNDwnycH0z52CFk=
+
+openpgp wsFcBAABCgAGBQJXcpxaAAoJEM6nan6yFrPKoB0P/3E+cMcq1a49hAbLgYRWq5qaw0NU
+QVIIp6lpWcQ43RI57jk7AfASGuUSEoO8lbg6kxqr8TStfVF9OwsfRAEgtLcMZO/PtVseNBGjFVlw
+BpqqhrhwB+PukryC8XTyhl5vvB6m0mxdchTjMIK7bg2c9sU7GAjvPRxgCwW90DgnOfBVm3wujyRI
+4+ArDAvKYmg1s2Qrs4F+o7KaDzy4JARL+jDbvkH2zcEFLDxb+ovzuxLv+z6jdhsZq43D7iq644nN
+mu3fSizmbBs8wWu12KeA5vSnIhIUuDDoXfZU3rVk/VWiIy7+kg/YVZfTYXoaWKXdX4zFKxFPjI3T
+Dqfses1AOxLY6vIsF/cB+jsdSebCgUzGEL+mrqU15qeyyE3Ilzp6yGPd6+Dm2dwqn1vrdmRWUSln
+3l88trn69dWzlSaSfofBTjSXeSweUoS4mQOgJ3ggRiCsbIxfixNMP2F9bRWS6T/+sSWAu9yvpfWe
+aBCYkvnJgyEuFTD8rvd3B8/RJuswWPzvsylKJSadf9Bo8GrRGe3R37hn9aKnBqXwQv5CcuKjXuCR
+V1Yh5e4dwKEHBCmOxqGIUlyQ/KHqEc5o+6HpvUf2dnwcH7NvAv9Eyv+krH9haoourtINHpTRk3iH
+uLJUDAt99fRoY7tw4jk1tcwZunggYgDoQChBdHOEXDRaMTCb
+`
+
+	TestStorePrivKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+Version: GnuPG v1
+
+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
+cXL5aE5caL7jvfUI
+=ZUAq
+-----END PGP PRIVATE KEY BLOCK-----
+`
+
+	TestStoreKeyID = "190213b78d289b59"
+)
+
+var (
+	TestRootAccount    asserts.Assertion
+	TestRootAccountKey asserts.Assertion
+)
+
+func init() {
+	acct, err := asserts.Decode([]byte(encodedTestRootAccount))
+	if err != nil {
+		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
+	}
+	accKey, err := asserts.Decode([]byte(encodedTestRootAccountKey))
+	if err != nil {
+		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
+	}
+
+	TestRootAccount = acct
+	TestRootAccountKey = accKey
+}
+
+// Inject includes the test trusted assertions in the system trusted set.
+func Inject() {
+	sysdb.InjectTrusted([]asserts.Assertion{TestRootAccount, TestRootAccountKey})
+}

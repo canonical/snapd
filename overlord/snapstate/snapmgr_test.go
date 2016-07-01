@@ -135,6 +135,35 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	verifyInstallUpdateTasks(c, false, ts, s.state)
 }
 
+func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(7)},
+			{OfficialName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+	})
+
+	ts, err := snapstate.Revert(s.state, "some-snap")
+	c.Assert(err, IsNil)
+
+	i := 0
+	c.Assert(ts.Tasks(), HasLen, 4)
+	c.Assert(s.state.NumTask(), Equals, 4)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+
+}
+
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1267,6 +1296,7 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
 	})
 
 	ts, err := snapstate.Revert(s.state, "some-snap")
@@ -1298,7 +1328,31 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 	c.Assert(ts, IsNil)
 }
 
-func (s *snapmgrTestSuite) TestBlockunThrough(c *C) {
+func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+	si2 := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(77),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  snap.R(77),
+	})
+
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R("77"))
+	c.Assert(err, ErrorMatches, `already on requested revision`)
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
 		OfficialName: "some-snap",
 		Revision:     snap.R(7),
@@ -1430,6 +1484,173 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 }
 
+func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  si2.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap")
+	ts, err := snapstate.Revert(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	tasks := ts.Tasks()
+	last := tasks[len(tasks)-1]
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(last)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	expected := []fakeOp{
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/2",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				OfficialName: "some-snap",
+				Revision:     snap.R(1),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: "/snap/some-snap/1",
+		},
+		// undoing everything from here down...
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/1",
+		},
+		{
+			op:    "setup-profiles:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op:   "link-snap",
+			name: "/snap/some-snap/2",
+		},
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current, Equals, si2.Revision)
+}
+
+func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si, &si2},
+		Current:  si2.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "install a revert")
+	ts, err := snapstate.Revert(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.fakeBackend.linkSnapFailTrigger = "/snap/some-snap/1"
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	expected := []fakeOp{
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/2",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				OfficialName: "some-snap",
+				Revision:     snap.R(1),
+			},
+		},
+		{
+			op:   "link-snap.failed",
+			name: "/snap/some-snap/1",
+		},
+		// undo stuff here
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/1",
+		},
+		{
+			op:    "setup-profiles:Undoing",
+			name:  "some-snap",
+			revno: snap.R(1),
+		},
+		{
+			op:   "link-snap",
+			name: "/snap/some-snap/2",
+		},
+	}
+
+	// ensure all our tasks ran
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Candidate, IsNil)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current, Equals, snap.R(2))
+}
+
 type snapmgrQuerySuite struct {
 	st *state.State
 }
@@ -1459,9 +1680,15 @@ version: 1.2
 description: |
     Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
+		SnapType: "app",
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 		Current:  sideInfo12.Revision,
+	})
+
+	// have also a snap being installed
+	snapstate.Set(st, "installing", &snapstate.SnapState{
+		Candidate: &snap.SideInfo{OfficialName: "installing", Revision: snap.R(1)},
 	})
 }
 
@@ -1484,7 +1711,33 @@ func (s *snapmgrQuerySuite) TestInfo(c *C) {
 	c.Check(info.Description(), Equals, "Lots of text")
 }
 
-func (s *snapmgrQuerySuite) TestCurrentSideInfo(c *C) {
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, "name1", &snapst)
+	c.Assert(err, IsNil)
+
+	info, err := snapst.CurrentInfo("name1")
+	c.Assert(err, IsNil)
+
+	c.Check(info.Name(), Equals, "name1")
+	c.Check(info.Revision, Equals, snap.R(12))
+	c.Check(info.Summary(), Equals, "s12")
+	c.Check(info.Version, Equals, "1.2")
+	c.Check(info.Description(), Equals, "Lots of text")
+}
+
+func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoErrNoCurrent(c *C) {
+	snapst := new(snapstate.SnapState)
+	_, err := snapst.CurrentInfo("notthere")
+	c.Assert(err, Equals, snapstate.ErrNoCurrent)
+
+}
+
+func (s *snapmgrQuerySuite) TestCurrentInfo(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
@@ -1494,6 +1747,15 @@ func (s *snapmgrQuerySuite) TestCurrentSideInfo(c *C) {
 
 	c.Check(info.Name(), Equals, "name1")
 	c.Check(info.Revision, Equals, snap.R(12))
+}
+
+func (s *snapmgrQuerySuite) TestCurrentInfoAbsent(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapstate.CurrentInfo(st, "absent")
+	c.Assert(err, ErrorMatches, `cannot find snap "absent"`)
 }
 
 func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
@@ -1528,6 +1790,7 @@ type: gadget
 version: gadget
 `, sideInfoGadget)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfoGadget},
 		Current:  sideInfoGadget.Revision,
@@ -1552,8 +1815,17 @@ func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snapst.CurrentSideInfo(), NotNil)
 	c.Assert(snapst.CurrentSideInfo().Revision, Equals, snap.R(12))
-	c.Assert(snapst.PreviousSideInfo(), NotNil)
-	c.Assert(snapst.PreviousSideInfo().Revision, Equals, snap.R(11))
+	c.Assert(snapstate.PreviousSideInfo(&snapst), NotNil)
+	c.Assert(snapstate.PreviousSideInfo(&snapst).Revision, Equals, snap.R(11))
+}
+
+func (s *snapmgrQuerySuite) TestPreviousSideInfoNoCurrent(c *C) {
+	st := s.st
+	st.Lock()
+	defer st.Unlock()
+
+	snapst := &snapstate.SnapState{}
+	c.Assert(snapstate.PreviousSideInfo(snapst), IsNil)
 }
 
 func (s *snapmgrQuerySuite) TestAll(c *C) {

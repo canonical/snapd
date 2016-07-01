@@ -72,6 +72,25 @@ func (s *backendSuite) TestInstallingSnapWritesConfigFiles(c *C) {
 	}
 }
 
+func (s *backendSuite) TestInstallingSnapWithHookWritesConfigFiles(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.test-hook.conf")
+
+		// Verify that "snap.foo.hook.test-hook.conf" was created
+		_, err := os.Stat(profile)
+		c.Check(err, IsNil)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -82,6 +101,25 @@ func (s *backendSuite) TestRemovingSnapRemovesConfigFiles(c *C) {
 		s.RemoveSnap(c, snapInfo)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.smbd.conf")
 		// file called "snap.sambda.smbd.conf" was removed
+		_, err := os.Stat(profile)
+		c.Check(os.IsNotExist(err), Equals, true)
+	}
+}
+
+func (s *backendSuite) TestRemovingSnapWithHookRemovesConfigFiles(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+		s.RemoveSnap(c, snapInfo)
+		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.foo.hook.test-hook.conf")
+
+		// Verify that "snap.foo.hook.test-hook.conf" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 	}
@@ -103,6 +141,26 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	}
 }
 
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 0)
+		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.test-hook.conf")
+
+		// Verify that "snap.samba.hook.test-hook.conf" was created
+		_, err := os.Stat(profile)
+		c.Check(err, IsNil)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -113,6 +171,26 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
 		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.nmbd.conf")
 		// file called "snap.sambda.nmbd.conf" was removed
+		_, err := os.Stat(profile)
+		c.Check(os.IsNotExist(err), Equals, true)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("<policy/>"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 0)
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
+		profile := filepath.Join(dirs.SnapBusPolicyDir, "snap.samba.hook.test-hook.conf")
+
+		// Verify that "snap.samba.hook.test-hook.conf" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		s.RemoveSnap(c, snapInfo)

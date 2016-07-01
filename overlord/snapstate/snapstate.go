@@ -52,6 +52,9 @@ const (
 	// for use in the interim time while we have the backward compatible
 	// support
 	firstInterimUsableFlagValue
+	// if we need flags for just SnapSetup it may be easier
+	// to start a new sequence from the other end with:
+	// 0x40000000 >> iota
 )
 
 func doInstall(s *state.State, curActive bool, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
@@ -152,7 +155,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.CurrentSideInfo() != nil {
+	if snapst.HasCurrent() {
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
@@ -201,7 +204,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.CurrentSideInfo() == nil {
+	if !snapst.HasCurrent() {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
@@ -266,12 +269,11 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	cur := snapst.CurrentSideInfo()
-	if cur == nil {
+	if !snapst.HasCurrent() {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	revision := snapst.CurrentSideInfo().Revision
+	revision := snapst.Current
 	active := snapst.Active
 
 	info, err := Info(s, name, revision)
@@ -337,7 +339,7 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	pi := snapst.PreviousSideInfo()
+	pi := snapst.previousSideInfo()
 	if pi == nil {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
@@ -349,6 +351,10 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
+	}
+
+	if snapst.Current == rev {
+		return nil, fmt.Errorf("already on requested revision")
 	}
 
 	if !snapst.Active {
@@ -403,10 +409,11 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if sideInfo := snapst.CurrentSideInfo(); sideInfo != nil {
-		return readInfo(name, sideInfo)
+	info, err := snapst.CurrentInfo(name)
+	if err == ErrNoCurrent {
+		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
-	return nil, fmt.Errorf("cannot find snap %q", name)
+	return info, err
 }
 
 // Get retrieves the SnapState of the given snap.
@@ -437,7 +444,7 @@ func All(s *state.State) (map[string]*SnapState, error) {
 	}
 	curStates := make(map[string]*SnapState, len(stateMap))
 	for snapName, snapState := range stateMap {
-		if snapState.CurrentSideInfo() != nil {
+		if snapState.HasCurrent() {
 			curStates[snapName] = snapState
 		}
 	}
@@ -478,7 +485,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		if !snapState.Active {
 			continue
 		}
-		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
+		snapInfo, err := snapState.CurrentInfo(snapName)
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
@@ -488,25 +495,24 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-// GadgetInfo finds the current gadget snap's info
+// GadgetInfo finds the current gadget snap's info.
 func GadgetInfo(s *state.State) (*snap.Info, error) {
-	// XXX this would be so much prettier if state had the type
 	var stateMap map[string]*SnapState
 	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 	for snapName, snapState := range stateMap {
-		if snapState.CurrentSideInfo() == nil {
+		if !snapState.HasCurrent() {
 			continue
 		}
-		snapInfo, err := readInfo(snapName, snapState.CurrentSideInfo())
+		typ, err := snapState.Type()
 		if err != nil {
-			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
+			return nil, err
+		}
+		if typ != snap.TypeGadget {
 			continue
 		}
-		if snapInfo.Type == snap.TypeGadget {
-			return snapInfo, nil
-		}
+		return snapState.CurrentInfo(snapName)
 	}
 
 	return nil, state.ErrNoState

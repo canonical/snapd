@@ -439,13 +439,8 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
-
-	// ensure its different from before
-	var newSnapst snapstate.SnapState
-	snapstate.Get(st, snapName, &newSnapst)
-	c.Assert(newSnapst.CurrentSideInfo().Revision.Unset(), Equals, false)
-	c.Assert(snapst.CurrentSideInfo(), Not(DeepEquals), newSnapst.CurrentSideInfo())
 
 	return info
 }
@@ -455,21 +450,28 @@ func (ms *mgrsSuite) TestHappyRevert(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapYamlContent := `name: foo
+	x1Yaml := `name: foo
+version: 1.0
 apps:
- bar:
+ x1:
   command: bin/bar
 `
-	ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
-	ms.installLocalTestSnap(c, snapYamlContent+"version: 2.0")
+	x1binary := filepath.Join(dirs.SnapBinariesDir, "foo.x1")
 
-	// ensure we are on r2
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x2.snap")), Equals, true)
-	mup := systemd.MountUnitPath("/snap/foo/x2", "mount")
-	content, err := ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x2")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x2.snap")
+	x2Yaml := `name: foo
+version: 2.0
+apps:
+ x2:
+  command: bin/bar
+`
+	x2binary := filepath.Join(dirs.SnapBinariesDir, "foo.x2")
+
+	ms.installLocalTestSnap(c, x1Yaml)
+	ms.installLocalTestSnap(c, x2Yaml)
+
+	// ensure we are on x2
+	c.Assert(osutil.FileExists(x2binary), Equals, true)
+	c.Assert(osutil.FileExists(x1binary), Equals, false)
 
 	// now do the revert
 	ts, err := snapstate.Revert(st, "foo")
@@ -484,16 +486,14 @@ apps:
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("revert-snap change failed with: %v", chg.Err()))
 
-	// ensure we are back to x1 after the revert
-	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, true)
-	mup = systemd.MountUnitPath("/snap/foo/x1", "mount")
-	content, err = ioutil.ReadFile(mup)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/x1")
-	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_x1.snap")
+	// ensure that we use x1 now
+	c.Assert(osutil.FileExists(x1binary), Equals, true)
+	c.Assert(osutil.FileExists(x2binary), Equals, false)
 
-	// ensure that x2 is still there, revert just moves the "current"
+	// ensure that x1,x2 is still there, revert just moves the "current"
 	// pointer
-	snapX2 := filepath.Join(dirs.SnapBlobDir, "foo_x2.snap")
-	c.Assert(osutil.FileExists(snapX2), Equals, true)
+	for _, fn := range []string{"foo_x2.snap", "foo_x1.snap"} {
+		p := filepath.Join(dirs.SnapBlobDir, fn)
+		c.Assert(osutil.FileExists(p), Equals, true)
+	}
 }
