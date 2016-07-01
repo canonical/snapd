@@ -145,16 +145,18 @@ func cpiURL() string {
 	return "https://search.apps.ubuntu.com/api/v1/"
 }
 
-func authURL() string {
+func authLocation() string {
 	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
-		return "https://login.staging.ubuntu.com/api/v2"
+		return "login.staging.ubuntu.com"
 	}
+	return "login.ubuntu.com"
+}
 
+func authURL() string {
 	if os.Getenv("SNAPPY_FORCE_SSO_URL") != "" {
 		return os.Getenv("SNAPPY_FORCE_SSO_URL")
 	}
-
-	return "https://login.ubuntu.com/api/v2"
+	return "https://" + authLocation() + "/api/v2"
 }
 
 func assertsURL() string {
@@ -571,6 +573,7 @@ type RefreshCandidate struct {
 	Revision snap.Revision
 	Epoch    string
 	DevMode  bool
+	Block    []snap.Revision
 
 	// the desired channel
 	Channel string
@@ -665,12 +668,25 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 		if rsnap.Revision == candidateMap[rsnap.SnapID].Revision {
 			continue
 		}
+		// do not upgade to a version we rolledback back from
+		if findRev(rsnap.Revision, candidateMap[rsnap.SnapID].Block) {
+			continue
+		}
 		res = append(res, infoFromRemote(rsnap))
 	}
 
 	s.checkStoreResponse(resp)
 
 	return res, nil
+}
+
+func findRev(needle snap.Revision, haystack []snap.Revision) bool {
+	for _, r := range haystack {
+		if needle == r {
+			return true
+		}
+	}
+	return false
 }
 
 // Download downloads the given snap and returns its filename.
