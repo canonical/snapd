@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -106,6 +107,10 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	snapstate.ReplaceStore(s.state, s.fakeStore)
 	c.Check(snapstate.Store(s.state), Equals, s.fakeStore)
 	c.Check(snapstate.CachedStore(s.state), Equals, s.fakeStore)
+
+	snapstate.ReplaceStore(s.state, nil)
+	ubuntuStore := store.NewUbuntuStoreSnapRepository(nil, "")
+	c.Check(snapstate.Store(s.state), DeepEquals, ubuntuStore)
 }
 
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
