@@ -431,6 +431,12 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
+		// FIXME: snaps that are no active are skipped for now
+		//        until we know what we want to do
+		if !sn.snapst.Active {
+			continue
+		}
+
 		// get confinement preference from the snapstate
 		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
