@@ -39,6 +39,15 @@ if [ -z "$ADT_REBOOT_MARK" ]; then
     go test -tags classic -c ./integration-tests/tests
 fi
 
+
+# ensure we have snapbuild available for the tests
+(mkdir -p $GOPATH/bin;
+ cd $GOPATH/bin;
+ go get github.com/snapcore/snapd/integration-tests/testutils/build/snapbuild;
+ sudo cp $GOPATH/bin/snapbuild /usr/local/bin
+)
+
+
 SNAP_REEXEC=0 ./tests.test -check.vv
 
 if [ -e "${NEEDS_REBOOT}" ]; then
