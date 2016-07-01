@@ -157,7 +157,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
-func (s *downloadSnapSuite) TestUndoDownloadSnap(c *C) {
+func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
 		OfficialName: "foo",
