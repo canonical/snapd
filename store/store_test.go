@@ -91,7 +91,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download(snap, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -118,7 +118,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	authenticator := &fakeAuthenticator{}
-	path, err := t.store.Download(snap, nil, authenticator)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, authenticator)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -139,7 +139,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	// simulate a failed download
-	path, err := t.store.Download(snap, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -162,7 +162,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	// simulate a failed sync
-	path, err := t.store.Download(snap, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -909,6 +909,17 @@ func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
 	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
 	after := cpiURL()
+
+	c.Check(before, Not(Equals), after)
+}
+
+func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := authLocation()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := authLocation()
 
 	c.Check(before, Not(Equals), after)
 }

@@ -1,0 +1,121 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2016 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package sysdb
+
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/asserts"
+)
+
+const (
+	encodedCanonicalAccount = `type: account
+authority-id: canonical
+account-id: canonical
+display-name: Canonical
+timestamp: 2016-04-01T00:00:00.0Z
+username: canonical
+validation: certified
+
+openpgp wsNcBAABCgAGBQJXa/61AAoJENSlW+qX2DcgOq8f/3Md/JzjSFWUv/ea8wmClKlQO9XD
+Rw72z+CcBTFzFyfTfLfbJGs6zT/J49Vb5O9iPAXyJZxXOVbt+jFarHVPuetNde5J5iahqjvYw2L0
+01uhihWq1NHXP5dBJcB8fF9T34pw/sw6msbdWjjHk3EV1HIzZyj5A36f2VupGPeR53l3XcaPtKVo
+tizASLDOi6YSDDdgz+uWYPWFQUKcjJDV0S39obFkBskz5S7+pnEiFIGqHvz4zxtORd99UWUNk8tV
+pxdabnUl6dPIyl8uo8NZ4DJ8tIujeRf/90KZfthVm11PYv9PH90b/7DTz9KZmXrWfhUqcSImOx9h
+z8hL8f7mJE3rwTFF01NcXLyEt611J5MrxAbegIx1SSPYhrqMXZkaznVZst7GSPbtpHI7gWLO8aDn
+4WULsFKQkIQqA6Y7ndNRxlxVAa633pt3RLUZ9UP2odCpNNLv/6RcQPksDdWONsxiw6WHJeQhp0UB
+tP8zo4Y/GFQc+tClUWfyePM9vlF+bStYDV5Oltz7XXRW3m3/kBE3ASKOrNugGcRH7zYoe2ZXiua/
+nGAi/cKoUlEJCwwOrBCpMgivggLO3916vZ4KdBR5C+QeswWpirKk1YmGSCNLZNZwQQcxe2UeyeD8
+AjdS7VuRHy6k9EC2gLF5ojMQAvDTOBH3yA6vCucevcyMO+ti7l1KjDvx2kaFysUTOcUljKC87eAe
+WCjKrvHwrbB5MsvQaBsJydAdoCZIz+QVM7K0W6dcryXXP+bw/4pszq0H3NB/ZMbgUSrRuHdyVsG0
+XxNjJviZTFYs0GnJ0xoK0y2YNGcOZzzhzLuYls/Yc8PNQBpvf2X672uxTyHtQXJHKjjSfoQp6DN5
+rhN+HgdZOoPc5+ALp1Fcz8o5Awz8/PEcXzmxE3Z9pneFjDgEyn7AvawEauZh35pjdnXCj50GTAud
+DuDpBZo/hWXHjTncc8uZiaPlSzB7EZgK30exIpB2RfVX9I0nt8o4exvDeys1SVfXZWFyToBPGUhm
+x/sdDOe4zpV8wRKL7mDHBlNiU7r39vyjz2QAnVUlyJK+aTcnUyFXfuSTocjiItW8lxAQ+hC5lQ3+
+FIeSxH+i2PNGaoSb2rgJLYjddcjxHwNJeiVvuv0Qsfm3BH6pDEoQlmgrQC03WQNwI4fB55/R8RKs
+c9QzACoJJNrtDSv7zDFJeZi7NGAi8WeS6HJJv8T59riVcQ4/LP9R2jmGtIWwO9GDyn35BxZQJ1D2
+YuUvLkkjoyaqqmIU6y9T34J6uA7oUDlFHsTVm5Na27NBV50YJz4R3pm7hsCVQ1CwapJM85CJQPqU
+Iq1K6zrAjAHoH//usyT+0jmn54py1yGIxs/16/RwBqmM4DU=
+`
+
+	encodedCanonicalRootAccountKey = `type: account-key
+authority-id: canonical
+account-id: canonical
+public-key-id: d4a55bea97d83720
+public-key-fingerprint: 0132b3dda5be7b1f3263e68bd4a55bea97d83720
+since: 2016-04-01T00:00:00.0Z
+until: 2026-04-01T00:00:00.0Z
+body-length: 2864
+
+openpgp mQQNBFcB8QABIADhl2jcJWkqZN5yN3dUMGIVtlMoqFwbRRXcVfHIYh7ZSx2ckiSzg2RVg76piTTNbbpK+lrk4g4kY7Y1yA31ukJhZk6587XFOYLuNb98S2omlfwpyrbT5fkBquonlEFWcYuuXP5lP31od1FnhhDZdRm+Ft6XNZN0rn7Z4xJc2sWM7pbAaH01F6QT80gE3C9QsC0nme/UrBlpKln6SUmuy1QQc+Gz40YabUCu7TUUWXdxZSbkCjyL3L6kVw+hpFq2C2lhTyaD2A/n3iW/ImqMWh9e8c/DO2bJKp8VUCniAst8u9HFteQ589TPyC6J2q+DqvgNQP6QIGMpihPjg+MrqXnUzMQvYgTLqN2cVOCMdtpgwvz/k2m4+7xeJKMKk5N41H5crNcLa0dFTuPT1d3ji8pGE+TQdzhew80Fap+txt1abCwWGN/EUMlqM6qHNZWiJFzmikHmyhxtGMt/6Bi2dzF732gLYUMDYVx+2UWjLO2GjRsDN4V6vUgckgxhbEowRKO8lQSmcwwqkgxhjRB9YSjmFdHRNpP43FbZn0mpyWDLDXfLmJjvZmlqsdLron4Lt3EIQ6zCXDXKk2Jzowz87Olp8hDXTIBPcd5EIlBA45JJNqiV35alaxDB5gLLA9y71L7AKjoKs/MkIIjE4CdeMti/bKRMmN6k0nb4ZnVYfZR4l0nmxHx+nHFG6moe4Qo1Fn7YKouYULmQc2zOgaiUsS8ZwrgElyI7gqKGcq3Gt1d1Qkg48EuS0DxeKIdI6YvOzYIWNy+UO49Kl7rgcgvnILE7X8ZG7HgDUqG3X4OpOsvsOPIhb68g+ugDU9DCRwAnJJw1HFPhs+lSPyB4BdZ3efbXZb7tBUe5AQV7O9cLkZszJH5ePjsU4VwVxJkgPWFNkS64wP4DFoEdArA98HHVqtUoTU6GS4od5IW1lE/wryXeqPlbSwjHEhbX1bxrOK7xl4MxP6cgQmsm+HHMYR3HAKuneTb/3egNXuD6dvVkZ8iG2ZysrOKKOCHM8tphqIz0uCCrBMBF6WTfFLN3z66Tcs9e5WV8/z/EcCmyzqwITfGTj4Xc4Zsvsdsa4Kei6V/v3lcotFPL7FT/vymI4w0klC74bSUxkg7dxms/qKgxgNr6MNnDhXh8FFZx78UDc63V4gPEKrm/698rD4d9SVZyObpVRAgVlhsr4vOPqalefzUG6Abd34zRY0U5tcitRuGcpxiS6zdNIn0zWgwQgynRZ8UYBVN3rW7fp92LZ77/Fss3SRthwVFnB30Ka0R4NnR5jH+m8opo3P8N9SvSmJUJHDG7FDSRWmmSUc87iw5MVlQh3woseDbwtuzO+6lKwc/+ceVbyXn9Urrj4rFFXZeh+xSfABEBAAG0ESAoY2Fub25pY2FsLXJvb3QpiQQ4BBMBAgAiBQJXAfEAAhsvBgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIXgAAKCRDUpVvql9g3IBYyH/9GC44wqkd/uc/DzyzLsf9p5xoIswJH2LLTb3We7C7mUH+7spM7QMvxdtPEYfdT5C+KWWC24PzHGKoG8qXK50F6isjKLqsVKCB7pdqqpTyYmfEBogcvBQRXLDCJo4E0Q2bkxp8bCxxKkS+UlX0KnpNB0NVS56Amd72F2j8NP0P04obFC5QMflLrwrGO+Pt9BeW63abnK3PhBq9FF4v0Gpx91RfcaFgFsNzjhTZyR/XW49OzffebiA4zpZyczfYWS/DV6YS3G/qqD1TlOaogzq44EG63+R5fEucEHv/Nzhq6m5uae4zSgj+xv9V1qCTrlJ/dUNA7i9+zUrevpzd7Lop79wLlx7eS9Sy3a+Yyc7BEJdXVHfhaIdpxYEwqizBx5dst7bIoXmAGUlL9tZEuWf3yj24vqPBU/PyGqCggfKIhapebEPTC8s4VuWrhVwPGlxrm2qXS8y7b27zv25EorgIbYpaHaWXwGi7SoRrm2G+C9GwG/l/qEI7LKKyge4EfOo1VFNceSYUKnrCtGj1f3rZ16oxcY6K7nnkTB7K4FFo3gDxA2e0UZy9TZtV4VwhhZaQT8Op2vz/HVNG2mV/Uxt+KW528U2OztgwWtjEajldEBenN1vz6iMLV5bLVY84Clm0hAyG41QIOwv4D5Ra21ba5r2cGIXb+r7n5Vpr7Uhx5RXEFzA0Vxb9goJwxEkWDSe+lq3npjQY8sAEfr/hQn/PpE2H2kZlknUbG5b+De/GxmIGF0K88amwsOdrDE6SIrJ15WGkBZEh61CG3ae/7FaZUKxLjuHAsJQHjJOeu2BBsC5/q9gre/EK+OepWS2VWfrSG/9xMjwxkToSzBDSNk6wC/5hoMH6O97FGYU4fGR+9cJUjsLp9p5g623uclDQdgN+XNVLHCZ1ww5lXbFTVCzqtY6DzxlBi6NPj47tk7zV28naevheqvmQrYT6L8jdEoYsFyeQBAdiL2I+4uEA1nhSnpa1lDge8b7zevim248iZkobwNyfNSSZxGO/FNmA8qLDH2b8L3pFyA4qJ3xdNvVQMIZHHNSEdtHau/etCsxT2APN2IVCnEwgBJuyd2OV4zT6tjOxHCTlzYzEQZ3uooVJXjYWdZQJ0PHKhs5yqLrGadtgax+qPo2rxD/5iwBQg7jIEKVDDkrkekUvIIBYCStGFQhThc8bCyLuQ5vDnp+FY+2eM4ocusim9FypPOmSTZC8HFiT43/RrDHXXRfUeJOIzp59/7m3SpAaL0cZrSk7CCtq/3lefvhChZ7ZPQjVXk0LldKzw85hvOIc/qRoMWuGWZioErVBx3+7qtiHm7KKYDntN4yL+ufJ6dVjMTTvCIu0m0NOQQgkQyeXiUZ5tAdeo
+
+openpgp wsNcBAABCgAGBQJXaaGQAAoJENSlW+qX2DcgBHsgAMGkOBUBN51XkY85dRCKFuwoURE4
+lpJQAyFKMinEoG4MOsOCUX5oQgMDNXHenD6+xNWFit/YkI3flCrCP7yuPo0Vv95J8CI13HNpIiKo
+BbFH1DvZ7Lawi8ZzMHmbRZ7FImYjeMVbLMCN9ELJoXfuRR5B+80RRWADSGys5rPzum+J2R61ZH0k
+dSn5cFClEawELVCWDZQ1KiWjzNZl6utU02/l6Fu12LpYQMexh2t8n7jXFEmC8XLgxOLBVPOpfDXj
+WUhEKzxaTHjEjvCWIKyXY5lVsy6CVYV0UcZqQypz7o7juKyF7Pi1zNP/hgSMwPvzuKQNPV61zs/f
+NGwhomSfHUFFwJ7BfSqz5XaP5BkjM7SITrlu10ak+D2io+HWuKT+EYKl18ozjPuixgg7YbH7mk4t
+gst8faLorAiTaH0yJLF1xyZF/f280JyOL05W/47QLHZl9Bwc+PNR7c+IaVxkRZZbld8pp04D2iGY
+nhz3685hFXTZlhRSs6ROwmNuR2n/SelhQSyiUdyg/1qvNtC8hpetezBGNO9Q5+bQYxUI25NZ8V3X
+eDkijqyP+ygfbjkDWTNpW+CjM81I/8aYw+780iEsYauANfBqWVBCXVn0t84YQXWYJIDnpT3dLDsM
+9sUufA2cOV7nwEmgI9TNF0t/c2ermNd1tiwZUPy1QiGZqDO81RTNSEHgYDioppQihRdOa4PRCvfn
+7MefoJkReL0k2WYb1LVgJqZPBt9jatPlBTxbyQene6KwZ7S3mzv0moWkDkzcY+Jxopfd++ICcWTv
+lXaC4jf6f/l3Z64x+zpuWuR5j8Z7Z/+UTtDXAIpugjkx/1bV9gh8EnIOMGY5dvBl/Fzpw+d0xAsq
+P8OgG5IyBMcwcY2mqwcBsYxSOZARp9neWwN/76RidgIbDCaKtUx6gV83ryc0+vdPutAC65qmg1Dd
+/O53z6R3x7vNkHU3b3sd7cYKAmS8zQXTUUC3iaxnxUlEoaMcuZOGLvUKrjTHgD8f7WGqgvu65Du/
+GmbsUhgbhzAcRG8mAypCoLEUTHMF3mBP57A4wcoSw3UEuAMlk1jKqpjkRDhLIvueKU7tOqOu34Xl
+Ue9lxd2+dK06NkJMYh0IslvjsmcNZzgcO/irgOFEFI9FWDC6FXgK2Y8VB5fBe0ZtIUz+gAphjGOC
+ioqTwXYI4abZIWzzAlB+3yCyU9dwl4wc5zkD60DaTJDXuYpN/yA8Dw3FqUR2gjHwKcI4cI4kEamp
+MoGVNcH7Qq2DRFrFkdu/ebB9q0i6oOnZ6LXkVOmMgr+4lSOl8AeqbjZqxJOwppCNemVRXASnXzmk
+FnH2O7WswtPHB16rpFBt6fVbrrWVkQzVTbBtDcamn1GGSX8=
+`
+)
+
+var trustedAssertions []asserts.Assertion
+
+func init() {
+	canonicalAccount, err := asserts.Decode([]byte(encodedCanonicalAccount))
+	if err != nil {
+		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
+	}
+	canonicalRootAccountKey, err := asserts.Decode([]byte(encodedCanonicalRootAccountKey))
+	if err != nil {
+		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
+	}
+	trustedAssertions = []asserts.Assertion{canonicalAccount, canonicalRootAccountKey}
+}
+
+// Trusted returns a copy of the current set of trusted assertions as used by Open.
+func Trusted() []asserts.Assertion {
+	return append([]asserts.Assertion(nil), trustedAssertions...)
+}
+
+// InjectTrusted injects further assertions into the trusted set for Open.
+// Returns a restore function to reinstate the previous set. Useful
+// for tests or called globally without worrying about restoring.
+func InjectTrusted(extra []asserts.Assertion) (restore func()) {
+	prev := trustedAssertions
+	trustedAssertions = make([]asserts.Assertion, len(prev)+len(extra))
+	copy(trustedAssertions, prev)
+	copy(trustedAssertions[len(prev):], extra)
+	return func() {
+		trustedAssertions = prev
+	}
+}
