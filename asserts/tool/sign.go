@@ -152,7 +152,7 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		expFpr := accKey.PublicKeyFingerprint()
 		gotFpr := pk.PublicKey().Fingerprint()
 		if gotFpr != expFpr {
-			return nil, fmt.Errorf("cannot use found private key, fingerprint does not match accout-key, expected %q, got: %s", expFpr, gotFpr)
+			return nil, fmt.Errorf("cannot use found private key, fingerprint does not match account-key, expected %q, got: %s", expFpr, gotFpr)
 		}
 	}
 
