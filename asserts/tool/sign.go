@@ -183,7 +183,7 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	return asserts.Encode(a), nil
 }
 
-// strigify lets the invoker use a limited amount of structured input
+// stringify lets the invoker use a limited amount of structured input
 // without having to convert everything obvious to strings upfront on
 // their side, we convert integers, bool (to yes|no), list of strings
 // (to comma separated) and nil (to empty).
