@@ -22,6 +22,7 @@ package tool_test
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -37,7 +38,8 @@ type signSuite struct {
 	keypairMgr asserts.KeypairManager
 	testKeyID  string
 
-	accKey []byte
+	accKey      []byte
+	otherAssert []byte
 }
 
 var _ = Suite(&signSuite{})
@@ -67,6 +69,15 @@ func (s *signSuite) SetUpSuite(c *C) {
 		"openpgp c2ln"
 
 	s.accKey = []byte(mockAccKey)
+
+	s.otherAssert = []byte("type: account\n" +
+		"authority-id: canonical\n" +
+		"account-id: user-id1\n" +
+		"display-name: User One\n" +
+		"username: userone\n" +
+		"validation: unproven\n" +
+		"timestamp: " + now.Format(time.RFC3339) + "\n\n" +
+		"openpgp c2ln")
 }
 
 const (
@@ -82,6 +93,7 @@ allowed-modes:
 required-snaps: [foo,bar]
 class: fixed
 extra-flag: true
+extra-flag-no: false
 timestamp: 2015-11-25T20:00:00Z
 `
 	nestedModelYaml = `headers:
@@ -97,6 +109,7 @@ timestamp: 2015-11-25T20:00:00Z
   required-snaps: [foo,bar]
   class: fixed
   extra-flag: true
+  extra-flag-no: false
   timestamp: 2015-11-25T20:00:00Z
 `
 )
@@ -112,6 +125,7 @@ func expectedModelHeaders() map[string]string {
 		"architecture":   "amd64",
 		"class":          "fixed",
 		"extra-flag":     "yes",
+		"extra-flag-no":  "no",
 		"gadget":         "brand-gadget",
 		"kernel":         "baz-linux",
 		"core":           "core",
@@ -236,6 +250,7 @@ func headersForJSON() map[string]interface{} {
 		"required-snaps": []string{"foo", "bar"},
 		"class":          "fixed",
 		"extra-flag":     true,
+		"extra-flag-no":  false,
 		"timestamp":      "2015-11-25T20:00:00Z",
 	}
 }
@@ -364,4 +379,102 @@ func (s *signSuite) TestSignRequestOverridesHeaders(c *C) {
 	c.Check(a.Headers(), DeepEquals, expectedHeaders)
 
 	c.Check(a.Body(), IsNil)
+}
+
+func (s *signSuite) TestSignErrors(c *C) {
+	req := tool.SignRequest{
+		KeyID:       s.testKeyID,
+		AuthorityID: "user-id1",
+
+		AssertionType:      "model",
+		StatementMediaType: tool.YAMLInput,
+		Statement:          []byte(flatModelYaml),
+	}
+
+	tests := []struct {
+		expError string
+		breakReq func(*tool.SignRequest)
+	}{
+		{`unsupported media type for assertion input: "yyy"`,
+			func(req *tool.SignRequest) {
+				req.StatementMediaType = "yyy"
+			},
+		},
+		{`cannot parse the assertion input as YAML:.*`,
+			func(req *tool.SignRequest) {
+				req.Statement = []byte("\x00")
+			},
+		},
+		{`cannot parse the assertion input as JSON:.*`,
+			func(req *tool.SignRequest) {
+				req.StatementMediaType = tool.JSONInput
+				req.Statement = []byte("{")
+			},
+		},
+		{`invalid assertion type: "what"`,
+			func(req *tool.SignRequest) {
+				req.AssertionType = "what"
+			},
+		},
+		{"assertion revision cannot be negative",
+			func(req *tool.SignRequest) {
+				req.Revision = -10
+			},
+		},
+		{"both account-key and key id were not specified",
+			func(req *tool.SignRequest) {
+				req.KeyID = ""
+				req.AccountKey = nil
+			},
+		},
+		{"cannot mix specifying an account-key together with key id and/or authority-id",
+			func(req *tool.SignRequest) {
+				req.AccountKey = []byte("ak")
+			},
+		},
+		{"cannot parse handle account-key:.*",
+			func(req *tool.SignRequest) {
+				req.KeyID = ""
+				req.AuthorityID = ""
+				req.AccountKey = []byte("ak")
+			},
+		},
+		{"cannot use handle account-key, not actually an account-key, got: account",
+			func(req *tool.SignRequest) {
+				req.KeyID = ""
+				req.AuthorityID = ""
+				req.AccountKey = s.otherAssert
+			},
+		},
+		{`cannot sign assertion with unspecified signer identifier \(aka authority-id\)`,
+			func(req *tool.SignRequest) {
+				req.AuthorityID = ""
+			},
+		},
+		{regexp.QuoteMeta(`cannot turn header field "foo" value with type map[interface {}]interface {} into string:`) + " .*",
+			func(req *tool.SignRequest) {
+				req.Statement = []byte("foo: {}")
+			},
+		},
+		{`cannot turn header field "foo" list value into string, has non-string element with type int: 1`,
+			func(req *tool.SignRequest) {
+				req.Statement = []byte("foo: [1]")
+			},
+		},
+		{regexp.QuoteMeta(`cannot turn header field "foo" number value into an integer (other number types are not supported): 100.0`),
+			func(req *tool.SignRequest) {
+				req.StatementMediaType = tool.JSONInput
+				req.Statement = []byte(`{"foo": 100.0}`)
+			},
+		},
+	}
+
+	for _, t := range tests {
+		fresh := req
+
+		t.breakReq(&fresh)
+
+		_, err := tool.Sign(&fresh, s.keypairMgr)
+		c.Check(err, ErrorMatches, t.expError)
+	}
 }
