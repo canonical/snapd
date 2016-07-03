@@ -28,9 +28,6 @@ import (
 
 // expose test-only things here
 
-// GenerateTestKey lets the test generate keys of given length
-var GenerateTestKey = generateKey
-
 // access internal openpgp lib packet
 func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
 	return pk.(openpgpPrivateKey).privk

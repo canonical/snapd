@@ -20,9 +20,8 @@
 package asserts_test
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
 // private keys to use in tests
@@ -39,9 +38,6 @@ func genTestPrivKey() asserts.PrivateKey {
 	// they take too long to generate;
 	// the ones that care use pregenerated keys of the right length
 	// or use GenerateKey directly
-	privKey, err := asserts.GenerateTestKey(752)
-	if err != nil {
-		panic(fmt.Errorf("failed to create priv key for tests: %v", err))
-	}
-	return privKey
+	opgpPrivKey, _ := assertstest.GenerateKey(752)
+	return opgpPrivKey
 }
