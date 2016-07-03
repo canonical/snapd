@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -477,4 +478,48 @@ func (s *signSuite) TestSignErrors(c *C) {
 		_, err := tool.Sign(&fresh, s.keypairMgr)
 		c.Check(err, ErrorMatches, t.expError)
 	}
+}
+
+func (s *signSuite) TestSignWrapLongCommaSeparatedList(c *C) {
+	hdrs := headersForJSON()
+
+	required := []string(nil)
+	for i := 0; i < 20; i++ {
+		required = append(required, "baz")
+	}
+	required = append(required, strings.Repeat("m", 80))
+	required = append(required, "baz")
+	required = append(required, "baz")
+	hdrs["required-snaps"] = required
+
+	statement, err := json.Marshal(hdrs)
+	c.Assert(err, IsNil)
+
+	req := tool.SignRequest{
+		KeyID:       s.testKeyID,
+		AuthorityID: "user-id1",
+
+		AssertionType:      "model",
+		StatementMediaType: "application/json",
+		Statement:          statement,
+	}
+
+	assertText, err := tool.Sign(&req, s.keypairMgr)
+	c.Assert(err, IsNil)
+
+	a, err := asserts.Decode(assertText)
+	c.Assert(err, IsNil)
+
+	c.Check(a.Type(), Equals, asserts.ModelType)
+	c.Check(a.Revision(), Equals, 0)
+
+	expectedHeaders := expectedModelHeaders()
+	expectedHeaders["required-snaps"] = "baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,\n" +
+		"baz,\n" +
+		"mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm,\n" +
+		"baz,baz"
+
+	c.Check(a.Headers(), DeepEquals, expectedHeaders)
+
+	c.Check(a.Body(), IsNil)
 }
