@@ -20,7 +20,8 @@ execute: |
     snap install $SNAP_NAME --devmode | grep -Pzq "$expected"
 
     echo "Install devmode snap without devmode option"
-    expected="snap not found"
+    # XXX want to move this to a more verbose, user-friendly error soonest
+    expected="snap wants devmode"
     actual=$(snap install --channel beta $DEVMODE_SNAP 2>&1 && exit 1 || true)
     echo "$actual" | grep -Pzq "$expected"
 
