@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"gopkg.in/yaml.v2"
 
@@ -212,15 +211,35 @@ func stringify(m map[string]interface{}) (map[string]string, error) {
 			s = strconv.Itoa(v)
 		case []interface{}:
 			elems := make([]string, len(v))
+			estimate := 0
 			for i, wel := range v {
 				el, ok := wel.(string)
 				if !ok {
 					return nil, fmt.Errorf("cannot turn header field %q list value into string, has non-string element with type %T: %v", k, wel, wel)
 				}
 				elems[i] = el
+				estimate += len(el) + 2 // ",\n"
 			}
-			// TODO: split over many lines if too long
-			s = strings.Join(elems, ",")
+			buf := new(bytes.Buffer)
+			buf.Grow(estimate)
+			last := len(elems) - 1
+			curLine := 0
+			for i, el := range elems {
+				comma := 1
+				if i == last {
+					comma = 0
+				}
+				if curLine != 0 && curLine+len(el)+comma >= 78 {
+					buf.WriteRune('\n')
+					curLine = 0
+				}
+				buf.WriteString(el)
+				if comma != 0 {
+					buf.WriteRune(',')
+				}
+				curLine += len(el) + comma
+			}
+			s = buf.String()
 		default:
 			return nil, fmt.Errorf("cannot turn header field %q value with type %T into string: %v", k, w, w)
 		}
