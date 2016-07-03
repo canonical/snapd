@@ -184,27 +184,21 @@ apps:
 }
 
 const fooSearchHit = `{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "anon_download_url": "@URL@",
-                "architecture": [
-                    "all"
-                ],
-                "channel": "stable",
-                "content": "application",
-                "description": "this is a description",
-                "download_url": "@URL@",
-                "icon_url": "@ICON@",
-                "origin": "bar",
-                "package_name": "foo",
-                "revision": @REVISION@,
-                "snap_id": "idididididididididididididididid",
-                "summary": "Foo",
-                "version": "@VERSION@"
-            }
-        ]
-    }
+	"anon_download_url": "@URL@",
+	"architecture": [
+	    "all"
+	],
+	"channel": "stable",
+	"content": "application",
+	"description": "this is a description",
+	"download_url": "@URL@",
+	"icon_url": "@ICON@",
+	"origin": "bar",
+	"package_name": "foo",
+	"revision": @REVISION@,
+	"snap_id": "idididididididididididididididid",
+	"summary": "Foo",
+	"version": "@VERSION@"
 }`
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeSvc(c *C) {
@@ -232,7 +226,7 @@ apps:
 	var baseURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case "/details/foo":
 			w.WriteHeader(http.StatusOK)
 			output := strings.Replace(fooSearchHit, "@URL@", baseURL+"/snap", -1)
 			output = strings.Replace(output, "@ICON@", baseURL+"/icon", -1)
@@ -250,10 +244,10 @@ apps:
 
 	baseURL = mockServer.URL
 
-	searchURL, err := url.Parse(baseURL + "/search")
+	detailsURL, err := url.Parse(baseURL + "/details/")
 	c.Assert(err, IsNil)
 	storeCfg := store.SnapUbuntuStoreConfig{
-		SearchURI: searchURL,
+		DetailsURI: detailsURL,
 	}
 
 	mStore := store.NewUbuntuStoreSnapRepository(&storeCfg, "")
