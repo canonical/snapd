@@ -5,10 +5,10 @@ environment:
 
 systems: [ubuntu-16.04-64-grub]
 
-prepare:
+prepare: |
   apt install -y x11-utils xvfb unity
 
-restore:
+restore: |
   killall -9 Xvfb qmlscene
   apt remove x11-utils xvfb unity
   apt autoremove
