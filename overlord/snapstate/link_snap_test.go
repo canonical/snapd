@@ -98,8 +98,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 
 	typ, err := snapst.Type()
@@ -145,8 +144,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	}
 
 	s.state.Lock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
@@ -182,8 +180,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	s.state.Lock()
 
 	// state as expected
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 0)
@@ -233,8 +230,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "core", &snapst)
+	snapst, err := snapstate.Get(s.state, "core")
 	c.Assert(err, IsNil)
 
 	typ, err := snapst.Type()
@@ -283,8 +279,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	}
 
 	s.state.Lock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 1)
@@ -329,8 +324,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	}
 
 	s.state.Lock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, false)
 	c.Check(snapst.Sequence, HasLen, 2)

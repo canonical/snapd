@@ -100,8 +100,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
 		OfficialName: "foo",
@@ -149,8 +148,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	// candidate comes from your SnapSetup.Candidate
 	c.Check(snapst.Candidate, DeepEquals, si)
@@ -192,8 +190,7 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 
 	// and nothing is in the state for "foo"
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	_, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, Equals, state.ErrNoState)
 
 }

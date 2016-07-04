@@ -119,8 +119,7 @@ func (s *patch1Suite) TestPatch1(c *C) {
 	}
 
 	for _, exp := range expected {
-		var snapst snapstate.SnapState
-		err := snapstate.Get(st, exp.name, &snapst)
+		snapst, err := snapstate.Get(st, exp.name)
 		c.Assert(err, IsNil)
 		c.Check(snap.Type(snapst.SnapType), Equals, exp.typ)
 		c.Check(snapst.Current, Equals, exp.cur)

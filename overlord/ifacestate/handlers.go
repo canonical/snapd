@@ -46,8 +46,8 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	}
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
-	var snapState snapstate.SnapState
-	if err := snapstate.Get(task.State(), snapName, &snapState); err != nil {
+	snapState, err := snapstate.Get(task.State(), snapName)
+	if err != nil {
 		task.Errorf("cannot get state of snap %q: %s", snapName, err)
 		return err
 	}
@@ -124,8 +124,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	snapName := snapSetup.Name
 
 	// Get SnapState for this snap
-	var snapState snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapState)
+	snapState, err := snapstate.Get(st, snapName)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}
@@ -193,8 +192,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 
 	snapName := snapSetup.Name
 
-	var snapState snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapState)
+	snapState, err := snapstate.Get(st, snapName)
 	if err != nil && err != state.ErrNoState {
 		return err
 	}

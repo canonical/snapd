@@ -221,8 +221,7 @@ func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision 
 	defer s.state.Unlock()
 
 	// Put the new revision (stored in SideInfo) into the state
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, snapInfo.Name(), &snapst)
+	snapst, err := snapstate.Get(s.state, snapInfo.Name())
 	c.Assert(err, IsNil)
 	snapst.Sequence = append(snapst.Sequence, sideInfo)
 	snapstate.Set(s.state, snapInfo.Name(), &snapst)
@@ -536,8 +535,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
 
 	// SnapState stored the value of DevMode
-	var snapState snapstate.SnapState
-	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
+	snapState, err := snapstate.Get(s.state, snapInfo.Name())
 	c.Assert(err, IsNil)
 	c.Check(snapState.DevMode(), Equals, true)
 
@@ -649,8 +647,7 @@ func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snapstate.Flags, de
 	c.Check(change.Status(), Equals, state.UndoneStatus)
 
 	// SnapState.Flags now holds the original value of DevMode
-	var snapState snapstate.SnapState
-	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
+	snapState, err := snapstate.Get(s.state, snapInfo.Name())
 	c.Assert(err, IsNil)
 	c.Check(snapState.DevMode(), Equals, devMode)
 }

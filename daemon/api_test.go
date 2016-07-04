@@ -193,8 +193,7 @@ version: %s
 		st.Lock()
 		defer st.Unlock()
 
-		var snapst snapstate.SnapState
-		snapstate.Get(st, name, &snapst)
+		snapst, _ := snapstate.Get(st, name)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
 		snapst.Current = snapInfo.SideInfo.Revision
@@ -1322,12 +1321,13 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return &snap.Info{SuggestedName: "local"}, nil
 	}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+	snapstateGet = func(s *state.State, name string) (snapstate.SnapState, error) {
+		var snapst snapstate.SnapState
 		if hasUbuntuCore {
-			return nil
+			return snapst, nil
 		}
 		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+		return snapst, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
@@ -1488,9 +1488,9 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 	restore := release.MockReleaseInfo(releaseInfo)
 	defer restore()
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+	snapstateGet = func(s *state.State, name string) (snapstate.SnapState, error) {
 		// we have ubuntu-core
-		return nil
+		return snapstate.SnapState{}, nil
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -1539,9 +1539,9 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+	snapstateGet = func(s *state.State, name string) (snapstate.SnapState, error) {
 		// we have ubuntu-core
-		return nil
+		return snapstate.SnapState{}, nil
 	}
 	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -1575,9 +1575,9 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	installQueue := []*state.Task{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+	snapstateGet = func(s *state.State, name string) (snapstate.SnapState, error) {
 		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+		return snapstate.SnapState{}, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
@@ -1624,9 +1624,9 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	installQueue := []*state.Task{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+	snapstateGet = func(s *state.State, name string) (snapstate.SnapState, error) {
 		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+		return snapstate.SnapState{}, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
@@ -1655,9 +1655,9 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+	snapstateGet = func(s *state.State, name string) (snapstate.SnapState, error) {
 		// we have ubuntu-core
-		return nil
+		return snapstate.SnapState{}, nil
 	}
 
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {

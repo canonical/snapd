@@ -422,11 +422,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, IsNil)
 
-	// store current state
 	snapName := info.Name()
-	var snapst snapstate.SnapState
-	snapstate.Get(st, snapName, &snapst)
-
 	ts, err := snapstate.InstallPath(st, snapName, snapPath, "", snapstate.DevMode)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
