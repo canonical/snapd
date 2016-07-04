@@ -188,7 +188,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if snapst.CurrentSideInfo() != nil {
+	if snapst.HasCurrent() {
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 

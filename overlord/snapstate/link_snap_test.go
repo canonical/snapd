@@ -247,7 +247,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	c.Check(t.Log()[0], Matches, `.*INFO Restarting snapd\.\.\.`)
 }
 
-func (s *linkSnapSuite) TestDoUndoLinkSnapRevertNotHadIndex(c *C) {
+func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	si1 := &snap.SideInfo{
@@ -293,7 +293,7 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRevertNotHadIndex(c *C) {
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 }
 
-func (s *linkSnapSuite) TestDoUndoLinkSnapRevertHadIndex(c *C) {
+func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	si1 := &snap.SideInfo{
