@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"strings"
@@ -32,13 +33,19 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "snap-assert: %s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run() error {
+// Standard streams, redirected for testing.
+var (
+	Stdout io.Writer = os.Stdout
+	Stdin  io.Reader = os.Stdin
+)
+
+func Run() error {
 	var opts struct {
 		Positional struct {
 			AssertionType string `positional-arg-name:"<assert-type>" required:"yes" description:"type of the assertion to sign (mandatory)"`
@@ -60,7 +67,7 @@ func run() error {
 
 	_, err := parser.Parse()
 	if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
-		parser.WriteHelp(os.Stdout)
+		parser.WriteHelp(Stdout)
 		return nil
 	} else if err != nil {
 		return err
@@ -107,7 +114,7 @@ func run() error {
 		return err
 	}
 
-	_, err = os.Stdout.Write(encodedAssert)
+	_, err = Stdout.Write(encodedAssert)
 	if err != nil {
 		return err
 	}
@@ -116,8 +123,7 @@ func run() error {
 
 func readStatement(statementFile string) ([]byte, error) {
 	if statementFile == "" || statementFile == "-" {
-		return ioutil.ReadAll(os.Stdin)
-	} else {
-		return ioutil.ReadFile(statementFile)
+		return ioutil.ReadAll(Stdin)
 	}
+	return ioutil.ReadFile(statementFile)
 }

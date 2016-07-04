@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/tool"
 )
 
@@ -46,8 +47,7 @@ type signSuite struct {
 var _ = Suite(&signSuite{})
 
 func (s *signSuite) SetUpSuite(c *C) {
-	testKey, err := asserts.GenerateKey()
-	c.Assert(err, IsNil)
+	testKey, _ := assertstest.GenerateKey(752)
 
 	s.keypairMgr = asserts.NewMemoryKeypairManager()
 	s.keypairMgr.Put("user-id1", testKey)
