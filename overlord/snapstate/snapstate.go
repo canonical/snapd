@@ -211,6 +211,10 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 
 // Enable sets a snap to the active state
 func Enable(s *state.State, name string) (*state.TaskSet, error) {
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
+	}
+
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -238,6 +242,10 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 
 // Disable sets a snap to the inactive state
 func Disable(s *state.State, name string) (*state.TaskSet, error) {
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
+	}
+
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -248,10 +256,11 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	ss := &SnapSetup{
-		Name: name,
+		Name:     name,
+		Revision: snapst.Current,
 	}
 
-	unlinkSnap := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable (%d)"), ss.Name, snapst.Current))
+	unlinkSnap := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable (%d)"), ss.Name, snapst.Current))
 	unlinkSnap.Set("snap-setup", &ss)
 
 	return state.NewTaskSet(unlinkSnap), nil

@@ -205,7 +205,33 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	i := 0
 	c.Assert(ts.Tasks(), HasLen, 1)
 	c.Assert(s.state.NumTask(), Equals, 1)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
+}
+
+func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("install", "...").AddAll(ts)
+
+	_, err = snapstate.Enable(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("install", "...").AddAll(ts)
+
+	_, err = snapstate.Disable(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
