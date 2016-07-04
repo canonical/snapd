@@ -89,9 +89,6 @@ const (
 	InterimUnusableFlagValueLast = interimUnusableLegacyFlagValueLast
 )
 
-// make revertToRevision public for the tests
-var RevertToRevision = revertToRevision
-
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }

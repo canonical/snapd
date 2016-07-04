@@ -17,12 +17,14 @@
  *
  */
 
-package snappy
+package overlord
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -45,10 +47,11 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
 // still has the "active" version set to "v2" which is
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
-func SyncBoot() error {
+func SyncBoot(ovld *Overlord) error {
 	if release.OnClassic {
 		return nil
 	}
+
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot run SyncBoot: %s", err)
@@ -57,22 +60,56 @@ func SyncBoot() error {
 	kernelSnap, _ := bootloader.GetBootVar("snappy_kernel")
 	osSnap, _ := bootloader.GetBootVar("snappy_os")
 
-	installed, err := (&Overlord{}).Installed()
+	st := ovld.State()
+	st.Lock()
+	installed, err := snapstate.All(st)
 	if err != nil {
 		return fmt.Errorf("cannot run SyncBoot: %s", err)
 	}
 
-	overlord := &Overlord{}
-	for _, snap := range []string{kernelSnap, osSnap} {
-		name, revno := nameAndRevnoFromSnap(snap)
-		found := FindSnapsByNameAndRevision(name, revno, installed)
-		if len(found) != 1 {
-			return fmt.Errorf("cannot SyncBoot, expected 1 snap %q (revision %s) found %d", snap, revno, len(found))
-		}
-		if err := overlord.SetActive(found[0], true, nil); err != nil {
-			return fmt.Errorf("cannot SyncBoot, cannot make %s active: %s", found[0].Name(), err)
+	var tsAll []*state.TaskSet
+	for _, snapNameAndRevno := range []string{kernelSnap, osSnap} {
+		name, rev := nameAndRevnoFromSnap(snapNameAndRevno)
+		for snapName, snapState := range installed {
+			if name == snapName {
+				if rev != snapState.Current {
+					ts, err := snapstate.RevertToRevision(st, name, rev)
+					if err != nil {
+						return err
+					}
+					tsAll = append(tsAll, ts)
+				}
+			}
 		}
 	}
+	st.Unlock()
 
-	return nil
+	if len(tsAll) == 0 {
+		return nil
+	}
+
+	st.Lock()
+	msg := fmt.Sprintf("Syncing boot")
+	chg := st.NewChange("sync-boot", msg)
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	st.Unlock()
+
+	// do it and wait for ready
+	ovld.Loop()
+
+	st.EnsureBefore(0)
+	<-chg.Ready()
+
+	st.Lock()
+	status := chg.Status()
+	err = chg.Err()
+	st.Unlock()
+	if status != state.DoneStatus {
+		ovld.Stop()
+		return fmt.Errorf("cannot run syncboot change: %s", err)
+	}
+
+	return ovld.Stop()
 }
