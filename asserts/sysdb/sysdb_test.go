@@ -20,20 +20,18 @@
 package sysdb_test
 
 import (
-	"crypto/rand"
-	"crypto/rsa"
 	"os"
 	"path/filepath"
 	"syscall"
 	"testing"
 	"time"
 
-	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 )
 
@@ -49,9 +47,7 @@ var _ = Suite(&sysDBSuite{})
 func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	tmpdir := c.MkDir()
 
-	priv, err := rsa.GenerateKey(rand.Reader, 752)
-	c.Assert(err, IsNil)
-	pk := asserts.OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Now(), priv))
+	pk, _ := assertstest.GenerateKey(752)
 
 	trustedPubKey := pk.PublicKey()
 	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
