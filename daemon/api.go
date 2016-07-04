@@ -355,7 +355,11 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 }
 
 func getStore(c *Command) snapstate.StoreService {
-	return c.d.overlord.SnapManager().Store()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	return snapstate.Store(st)
 }
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -436,6 +440,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 			// the desired channel (not sn.info.Channel!)
 			Channel: sn.snapst.Channel,
 			DevMode: sn.snapst.DevMode(),
+			Block:   sn.snapst.Block(),
 
 			SnapID:   sn.info.SnapID,
 			Revision: sn.info.Revision,
@@ -654,25 +659,23 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapRollback(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// use previous version
-	ver := ""
-	ts, err := snapstate.Rollback(st, inst.snap, ver)
+func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Revert(st, inst.snap)
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.snap)
+	msg := fmt.Sprintf(i18n.G("Revert %q snap"), inst.snap)
 	return msg, []*state.TaskSet{ts}, nil
 }
 
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
-	"install":  snapInstall,
-	"refresh":  snapUpdate,
-	"remove":   snapRemove,
-	"rollback": snapRollback,
+	"install": snapInstall,
+	"refresh": snapUpdate,
+	"remove":  snapRemove,
+	"revert":  snapRevert,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
