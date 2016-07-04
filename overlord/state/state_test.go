@@ -651,3 +651,13 @@ func (ss *stateSuite) TestRequestRestart(c *C) {
 
 	c.Check(b.restartRequested, Equals, true)
 }
+
+func (ss *stateSuite) TestReadStateInitsCache(c *C) {
+	st, err := state.ReadState(nil, bytes.NewBufferString("{}"))
+	c.Assert(err, IsNil)
+	st.Lock()
+	defer st.Unlock()
+
+	st.Cache("key", "value")
+	c.Assert(st.Cached("key"), Equals, "value")
+}
