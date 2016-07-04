@@ -43,8 +43,21 @@ type OldSnapSetup struct {
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
 }
 
-// patch2 migrates SnapSetup.Name to SnapSetup.SideInfo.RealName
+func setRealName(si *snap.SideInfo, name string) {
+	if si == nil {
+		return
+	}
+	if si.RealName == "" {
+		si.RealName = name
+	}
+}
+
+// patch2:
+// - migrates SnapSetup.Name to SnapSetup.SideInfo.RealName
+// - backfills SnapState.{Sequence,Candidate}.RealName if its missing
 func patch2(s *state.State) error {
+
+	// migrate the SnapSetup.Name
 	var oldSS OldSnapSetup
 	var newSS snapstate.SnapSetup
 	for _, t := range s.Tasks() {
@@ -71,6 +84,24 @@ func patch2(s *state.State) error {
 		}
 		t.Set("snap-setup", &newSS)
 	}
+
+	// backfill snapstate.SnapState.{Sequence,Candidate} with RealName
+	var stateMap map[string]*snapstate.SnapState
+	err := s.Get("snaps", &stateMap)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	for snapName, snapState := range stateMap {
+		for _, si := range snapState.Sequence {
+			setRealName(si, snapName)
+		}
+		setRealName(snapState.Candidate, snapName)
+	}
+	s.Set("snaps", stateMap)
 
 	return nil
 }

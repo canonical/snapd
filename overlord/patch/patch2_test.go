@@ -39,6 +39,7 @@ func (s *patch2Suite) makeState() *state.State {
 	st.Lock()
 	defer st.Unlock()
 
+	// make state for SnapSetup transition
 	oldSS := patch.OldSnapSetup{
 		Name: "foo",
 	}
@@ -46,6 +47,25 @@ func (s *patch2Suite) makeState() *state.State {
 	t := st.NewTask("some-task", "some task")
 	t.Set("snap-setup", &oldSS)
 	chg.AddTask(t)
+
+	// make state for backfill of SideInfo
+	var fooSnapst snapstate.SnapState
+	fooSnapst.Sequence = []*snap.SideInfo{
+		{
+			Revision: snap.R(2),
+		},
+		{
+			Revision: snap.R(22),
+		},
+	}
+	fooSnapst.Current = snap.R(22)
+	snapstate.Set(st, "foo", &fooSnapst)
+
+	var barSnapst snapstate.SnapState
+	barSnapst.Candidate = &snap.SideInfo{
+		Revision: snap.R(1),
+	}
+	snapstate.Set(st, "bar", &barSnapst)
 
 	return st
 }
@@ -62,10 +82,22 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	c.Assert(st.Tasks(), HasLen, 1)
 	t := st.Tasks()[0]
 
+	// transition of the snap-setup bits
 	var ss snapstate.SnapSetup
 	err = t.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
 	})
+
+	// sideinfo is backfilled with names
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Sequence[0].RealName, Equals, "foo")
+	c.Check(snapst.Sequence[1].RealName, Equals, "foo")
+
+	err = snapstate.Get(st, "bar", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Candidate.RealName, Equals, "bar")
 }
