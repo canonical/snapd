@@ -2,20 +2,32 @@
 
 set -e
 
+systemctl_stop() {
+    unit="$1"
+    if systemctl is-active "$unit"; then
+        echo "Stoping $unit"
+        systemctl stop "$unit" || true
+    fi
+}
+
 if [ "$1" = "purge" ]; then
+    mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
+    services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+    for unit in $services $mounts; do
+        echo "Stopping $unit"
+        systemctl_stop $unit
 
-    for snap in /var/lib/snapd/snaps/*.snap; do
-        base="$(basename $snap)"
-        # mount units
-        mangledbase="$(echo $base|tr _ -)"
-        mountunit="$(systemd-escape -p "${mangedbase%%.snap}".mount)"
-        rm -f /etc/systemd/system/snap-$mountunit
-        rm -f /etc/systemd/system/multi-user.target.wants/snap-$mountunit
-
-        # FIXME: umount snaps
-        # FIXME: remove /snap
-        # FIXME: remove /var/snap
+        echo "Removing $mountunit"
+        rm -f /etc/systemd/system/$unit
+        rm -f /etc/systemd/system/multi-user.target.wants/$unit
     done
-    # state file
-    rm -f /var/lib/snapd/state.json
+
+    echo "Removing snap directories (/snap)"
+    rm -rf /snap
+
+    echo "Removing snap data (/var/snap)"
+    rm -rf /var/snap
+
+    echo "Removing snapd state"
+    rm -rf /var/lib/snapd
 fi
