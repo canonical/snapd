@@ -19,10 +19,9 @@ execute: |
   echo "When the app is started"
   cmd="xvfb-run --server-args=\"$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR\" ubuntu-clock-app.clock"
   sudo -i -u test /bin/sh -c "$cmd 2>&1 > /dev/null" &
-  pid=$!
 
   echo "Then the app window is shown"
   expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
   while ! xwininfo -tree -root | grep -Pq "$expected"; do sleep 1; done
 
-  killall -9 $pid xvfb-run Xvfb qmlscene || true
+  killall -9 xvfb-run Xvfb qmlscene
