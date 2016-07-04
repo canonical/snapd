@@ -60,7 +60,7 @@ type PlaceInfo interface {
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	return &Info{SideInfo: SideInfo{OfficialName: name, Revision: revision}}
+	return &Info{SideInfo: SideInfo{RealName: name, Revision: revision}}
 }
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
@@ -91,7 +91,7 @@ func HookSecurityTag(snapName, hookName string) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	OfficialName      string   `yaml:"name,omitempty" json:"name,omitempty"`
+	RealName          string   `yaml:"name,omitempty" json:"name,omitempty"`
 	SnapID            string   `yaml:"snap-id" json:"snap-id"`
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
@@ -139,8 +139,8 @@ type Info struct {
 
 // Name returns the blessed name for the snap.
 func (s *Info) Name() string {
-	if s.OfficialName != "" {
-		return s.OfficialName
+	if s.RealName != "" {
+		return s.RealName
 	}
 	return s.SuggestedName
 }
