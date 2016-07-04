@@ -17,7 +17,7 @@ if [ "$1" = "purge" ]; then
         echo "Stopping $unit"
         systemctl_stop $unit
 
-        echo "Removing $mountunit"
+        echo "Removing $mount"
         rm -f /etc/systemd/system/$unit
         rm -f /etc/systemd/system/multi-user.target.wants/$unit
     done
