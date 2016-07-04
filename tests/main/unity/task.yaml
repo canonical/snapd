@@ -1,0 +1,8 @@
+summary: Check that a unity snap can start and its window is shown
+
+execute: |
+  echo "Given a unity snap is installed"
+
+  echo "When the app is started"
+
+  echo "Then the app window is shown"
