@@ -211,10 +211,6 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 
 // Enable sets a snap to the active state
 func Enable(s *state.State, name string) (*state.TaskSet, error) {
-	if err := checkChangeConflict(s, name); err != nil {
-		return nil, err
-	}
-
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -222,6 +218,10 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 	if snapst.Active {
 		return nil, fmt.Errorf("snap %q already enabled", name)
+	}
+
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
 	}
 
 	ss := &SnapSetup{
@@ -242,10 +242,6 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 
 // Disable sets a snap to the inactive state
 func Disable(s *state.State, name string) (*state.TaskSet, error) {
-	if err := checkChangeConflict(s, name); err != nil {
-		return nil, err
-	}
-
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -253,6 +249,10 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 	if !snapst.Active {
 		return nil, fmt.Errorf("snap %q already disabled", name)
+	}
+
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
 	}
 
 	ss := &SnapSetup{
@@ -303,10 +303,6 @@ func canRemove(s *snap.Info, active bool) bool {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(s *state.State, name string) (*state.TaskSet, error) {
-	if err := checkChangeConflict(s, name); err != nil {
-		return nil, err
-	}
-
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -328,6 +324,10 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	// check if this is something that can be removed
 	if !canRemove(info, active) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
+	}
+
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
 	}
 
 	// main/current SnapSetup
