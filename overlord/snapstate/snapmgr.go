@@ -206,6 +206,22 @@ func (snapst *SnapState) Block() []snap.Revision {
 
 var ErrNoCurrent = errors.New("snap has no current revision")
 
+// Retrieval functions
+var readInfo = readInfoImpl
+
+func readInfoImpl(name string, si *snap.SideInfo) (*snap.Info, error) {
+	info, err := snap.ReadInfo(name, si)
+	if _, ok := err.(*snap.NotFoundError); ok {
+		reason := fmt.Sprintf("cannot read snap info: %s", err)
+		info := &snap.Info{SuggestedName: name, Broken: reason}
+		if si != nil {
+			info.SideInfo = *si
+		}
+		return info, nil
+	}
+	return info, err
+}
+
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
 func (snapst *SnapState) CurrentInfo(name string) (*snap.Info, error) {
 	cur := snapst.CurrentSideInfo()
