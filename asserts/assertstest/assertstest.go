@@ -131,7 +131,7 @@ n/YBufIZs9/L1Gblpi0SL6ZTjZdQ2Wj8btU+OlWiJM3LNIMJAZRtMRBfmljnijQ=
 	DevKeyFingerprint = "42a3050d365c10d5c093abeeb52cf438a2d078f7"
 )
 
-// GPGImportKey imports the given PGP armored key into the GnuPG setup at homedir.
+// GPGImportKey imports the given PGP armored key into the GnuPG setup at homedir. It panics on error.
 func GPGImportKey(homedir, armoredKey string) {
 	gpg := exec.Command("gpg", "--homedir", homedir, "-q", "--batch", "--import", "--armor")
 	gpg.Stdin = bytes.NewBufferString(armoredKey)
