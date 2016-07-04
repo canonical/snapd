@@ -9,7 +9,6 @@ prepare:
   apt install -y x11-utils xvfb unity
 
 restore:
-  kill %1
   killall -9 Xvfb qmlscene
   apt remove x11-utils xvfb unity
   apt autoremove
