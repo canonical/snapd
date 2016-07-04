@@ -407,7 +407,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:     "some-snap",
 		Revision: snap.R(11),
 		Channel:  "some-channel",
 		UserID:   s.user.ID,
@@ -416,6 +415,12 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 	})
 
 	// verify snaps in the system state
@@ -530,7 +535,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:    "some-snap",
 		Channel: "some-channel",
 		Flags:   0,
 		UserID:  s.user.ID,
@@ -542,6 +546,12 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 	})
 
 	// verify snaps in the system state
@@ -881,9 +891,12 @@ version: 1.0`)
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:     "mock",
 		Revision: snap.R(-1),
 		SnapPath: mockSnap,
+		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "mock",
 	})
 
 	// verify snaps in the system state
@@ -958,9 +971,12 @@ version: 1.0`)
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:     "mock",
 		Revision: snap.R(-3),
 		SnapPath: mockSnap,
+		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "mock",
 	})
 
 	// verify snaps in the system state
@@ -1094,11 +1110,15 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		var expSnapSetup *snapstate.SnapSetup
 		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name: "some-snap",
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+				},
 			}
 		} else {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name:     "some-snap",
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+				},
 				Revision: snap.R(7),
 			}
 		}
@@ -1203,11 +1223,15 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		var expSnapSetup *snapstate.SnapSetup
 		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name: "some-snap",
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+				},
 			}
 		} else {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name:     "some-snap",
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+				},
 				Revision: revnos[whichRevno],
 			}
 		}

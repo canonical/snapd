@@ -60,7 +60,9 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name: "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -99,7 +101,9 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSetsCandidate(c *C) {
 
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		Revision: snap.R(1),
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
@@ -138,7 +142,9 @@ func (s *prepareSnapSuite) TestDoUndoPrepareSnap(c *C) {
 	})
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		Revision: snap.R(1),
 	})
 	chg := s.state.NewChange("dummy", "...")

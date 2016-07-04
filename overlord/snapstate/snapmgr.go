@@ -71,7 +71,6 @@ func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
-	Name     string        `json:"name"`
 	Revision snap.Revision `json:"revision,omitempty"`
 	Channel  string        `json:"channel,omitempty"`
 	UserID   int           `json:"user-id,omitempty"`
@@ -85,11 +84,11 @@ type SnapSetup struct {
 }
 
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(ss.Name, ss.Revision)
+	return snap.MinimalPlaceInfo(ss.SideInfo.RealName, ss.Revision)
 }
 
 func (ss *SnapSetup) MountDir() string {
-	return snap.MountDir(ss.Name, ss.Revision)
+	return snap.MountDir(ss.SideInfo.RealName, ss.Revision)
 }
 
 // DevMode returns true if the snap is being installed in developer mode.
@@ -398,12 +397,12 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if snapst.Candidate == nil {
-		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name, ss.Revision)
+		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.SideInfo.RealName, ss.Revision)
 	}
 
 	st.Lock()
 	t.Set("snap-setup", ss)
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	st.Unlock()
 	return nil
 }
@@ -418,7 +417,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 	snapst.Candidate = nil
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	return nil
 }
 
@@ -447,14 +446,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := store.Snap(ss.Name, ss.Channel, ss.DevMode(), auther)
+		storeInfo, err := store.Snap(ss.SideInfo.RealName, ss.Channel, ss.DevMode(), auther)
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = store.Download(ss.Name, &storeInfo.DownloadInfo, meter, auther)
+		downloadedSnapFile, err = store.Download(ss.SideInfo.RealName, &storeInfo.DownloadInfo, meter, auther)
 		sideInfo = &storeInfo.SideInfo
 	} else {
-		downloadedSnapFile, err = store.Download(ss.Name, ss.DownloadInfo, meter, auther)
+		downloadedSnapFile, err = store.Download(ss.SideInfo.RealName, ss.DownloadInfo, meter, auther)
 		sideInfo = ss.SideInfo
 	}
 	if err != nil {
@@ -468,7 +467,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	t.Set("snap-setup", ss)
 	snapst.Candidate = sideInfo
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	st.Unlock()
 
 	return nil
@@ -487,7 +486,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	info, err := Info(t.State(), ss.Name, ss.Revision)
+	info, err := Info(t.State(), ss.SideInfo.RealName, ss.Revision)
 	if err != nil {
 		return err
 	}
@@ -502,7 +501,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as inactive
 	snapst.Active = false
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	return nil
 }
 
@@ -515,7 +514,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	t.State().Lock()
-	info, err := Info(t.State(), ss.Name, ss.Revision)
+	info, err := Info(t.State(), ss.SideInfo.RealName, ss.Revision)
 	t.State().Unlock()
 	if err != nil {
 		return err
@@ -546,7 +545,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if snapst.Current == ss.Revision && snapst.Active {
-		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.Name)
+		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.SideInfo.RealName)
 	}
 
 	if len(snapst.Sequence) == 1 {
@@ -571,13 +570,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
 	if err != nil {
 		st.Lock()
-		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
+		t.Errorf("cannot remove snap file %q, will retry: %s", ss.SideInfo.RealName, err)
 		st.Unlock()
 		return state.Retry
 	}
 
 	st.Lock()
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	st.Unlock()
 	return nil
 }
@@ -629,7 +628,7 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 		return nil, nil, err
 	}
 	var snapst SnapState
-	err = Get(t.State(), ss.Name, &snapst)
+	err = Get(t.State(), ss.SideInfo.RealName, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
@@ -656,7 +655,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	curInfo, err := snapst.CurrentInfo(ss.Name)
+	curInfo, err := snapst.CurrentInfo(ss.SideInfo.RealName)
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -684,7 +683,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name)
+	oldInfo, err := snapst.CurrentInfo(ss.SideInfo.RealName)
 	if err != nil {
 		return err
 	}
@@ -698,7 +697,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// mark as active again
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	return nil
 
 }
@@ -714,7 +713,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name)
+	oldInfo, err := snapst.CurrentInfo(ss.SideInfo.RealName)
 	if err != nil {
 		return err
 	}
@@ -730,7 +729,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// mark as inactive
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	return nil
 }
 
@@ -742,12 +741,12 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(ss.Name, snapst.Candidate)
+	newInfo, err := readInfo(ss.SideInfo.RealName, snapst.Candidate)
 	if err != nil {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name)
+	oldInfo, err := snapst.CurrentInfo(ss.SideInfo.RealName)
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -764,12 +763,12 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(ss.Name, snapst.Candidate)
+	newInfo, err := readInfo(ss.SideInfo.RealName, snapst.Candidate)
 	if err != nil {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name)
+	oldInfo, err := snapst.CurrentInfo(ss.SideInfo.RealName)
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -809,7 +808,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	oldTryMode := snapst.TryMode()
 	snapst.SetTryMode(ss.TryMode())
 
-	newInfo, err := readInfo(ss.Name, cand)
+	newInfo, err := readInfo(ss.SideInfo.RealName, cand)
 	if err != nil {
 		return err
 	}
@@ -825,7 +824,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		err := m.backend.UnlinkSnap(newInfo, pb)
 		if err != nil {
 			st.Lock()
-			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", ss.Name, err)
+			t.Errorf("cannot cleanup failed attempt at making snap %q available to the system: %v", ss.SideInfo.RealName, err)
 			st.Unlock()
 		}
 	}
@@ -840,7 +839,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-current", oldCurrent)
 	t.Set("had-candidate", hadCandidate)
 	// Do at the end so we only preserve the new state if it worked.
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.DoneStatus)
 
@@ -902,7 +901,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Channel = oldChannel
 	snapst.SetTryMode(oldTryMode)
 
-	newInfo, err := readInfo(ss.Name, snapst.Candidate)
+	newInfo, err := readInfo(ss.SideInfo.RealName, snapst.Candidate)
 	if err != nil {
 		return err
 	}
@@ -916,7 +915,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// mark as inactive
-	Set(st, ss.Name, snapst)
+	Set(st, ss.SideInfo.RealName, snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 	return nil
