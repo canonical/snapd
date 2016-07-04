@@ -9,7 +9,6 @@ prepare: |
   apt install -y x11-utils xvfb unity
 
 restore: |
-  killall -9 Xvfb qmlscene
   apt remove -y x11-utils xvfb unity
   apt autoremove
 
@@ -26,4 +25,4 @@ execute: |
   expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
   while ! xwininfo -tree -root | grep -Pq "$expected"; do sleep 1; done
 
-  kill -9 $pid
+  killall -9 $pid xvfb-run Xvfb qmlscene || true
