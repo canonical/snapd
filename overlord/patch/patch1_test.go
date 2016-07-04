@@ -21,11 +21,16 @@ package patch_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -33,75 +38,72 @@ type patch1Suite struct{}
 
 var _ = Suite(&patch1Suite{})
 
-// makeState creates a state with SnapState missing Type and Current.
-func (s *patch1Suite) makeState() *state.State {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
+var statePatch1JSON = []byte(`
+{
+	"data": {
+		"snaps": {
+			"foo": {
+				"sequence": [{
+					"name": "foo1",
+					"revision": "2"
+				}, {
+					"name": "foo1",
+					"revision": "22"
+				}]
+			},
 
-	// app
-	var fooSnapst snapstate.SnapState
-	fooSnapst.Sequence = []*snap.SideInfo{
-		{
-			OfficialName: "foo1",
-			Revision:     snap.R(2),
-		},
-		{
-			OfficialName: "foo1",
-			Revision:     snap.R(22),
-		},
+			"core": {
+				"sequence": [{
+					"name": "core",
+					"revision": "1"
+				}, {
+					"name": "core",
+					"revision": "11"
+				}, {
+					"name": "core",
+					"revision": "111"
+				}]
+			},
+
+			"borken": {
+				"sequence": [{
+					"name": "borken",
+					"revision": "x1"
+				}, {
+					"name": "borken",
+					"revision": "x2"
+				}]
+			},
+
+			"wip": {
+				"candidate": {
+					"name": "wip",
+					"revision": "11"
+				}
+			}
+		}
 	}
-	snapstate.Set(st, "foo", &fooSnapst)
+}
+`)
 
-	// core
-	var coreSnapst snapstate.SnapState
-	coreSnapst.Sequence = []*snap.SideInfo{
-		{
-			OfficialName: "core",
-			Revision:     snap.R(1),
-		},
-		{
-			OfficialName: "core",
-			Revision:     snap.R(11),
-		},
-		{
-			OfficialName: "core",
-			Revision:     snap.R(111),
-		},
-	}
-	snapstate.Set(st, "core", &coreSnapst)
+func (s *patch1Suite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 
-	// broken
-	var borkenSnapst snapstate.SnapState
-	borkenSnapst.Sequence = []*snap.SideInfo{
-		{
-			OfficialName: "borken",
-			Revision:     snap.R("x1"),
-		},
-		{
-			OfficialName: "borken",
-			Revision:     snap.R("x2"),
-		},
-	}
-	snapstate.Set(st, "borken", &borkenSnapst)
-
-	var wipSnapst snapstate.SnapState
-	wipSnapst.Candidate = &snap.SideInfo{
-		OfficialName: "wip",
-		Revision:     snap.R(11),
-	}
-	snapstate.Set(st, "wip", &wipSnapst)
-
-	return st
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch1JSON, 0644)
+	c.Assert(err, IsNil)
 }
 
 func (s *patch1Suite) TestPatch1(c *C) {
 	restore := patch.MockReadInfo(s.readInfo)
 	defer restore()
 
-	st := s.makeState()
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
 
-	err := patch.Apply(st)
+	err = patch.Apply(st)
 	c.Assert(err, IsNil)
 
 	st.Lock()
