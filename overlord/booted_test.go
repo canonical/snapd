@@ -108,14 +108,17 @@ func (bs *bootedSuite) TestSyncBootOSSimple(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// ubuntu-core "current" got reverted but canonical-pc-linux did not
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "ubuntu-core", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(1))
+	c.Assert(snapst.Active, Equals, true)
 
 	err = snapstate.Get(st, "canonical-pc-linux", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.Active, Equals, true)
 }
 
 func (bs *bootedSuite) TestSyncBootKernelSimple(c *C) {
@@ -128,14 +131,18 @@ func (bs *bootedSuite) TestSyncBootKernelSimple(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
+
+	// canonical-pc-linux "current" got reverted but ubuntu-core did not
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "canonical-pc-linux", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(1))
+	c.Assert(snapst.Active, Equals, true)
 
 	err = snapstate.Get(st, "ubuntu-core", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(2))
+	c.Assert(snapst.Active, Equals, true)
 }
 
 func (bs *bootedSuite) TestSyncBootKernelErrorsEarly(c *C) {
