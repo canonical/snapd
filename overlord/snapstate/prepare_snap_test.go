@@ -71,8 +71,7 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
 		Revision: snap.R(-1),
@@ -111,8 +110,7 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSetsCandidate(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Candidate, DeepEquals, si1)
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -157,8 +155,7 @@ func (s *prepareSnapSuite) TestDoUndoPrepareSnap(c *C) {
 
 	s.state.Lock()
 
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.Active, Equals, true)
 	c.Check(snapst.Candidate, IsNil)

@@ -79,8 +79,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 
 	c.Check(snapst.Sequence, HasLen, 1)
@@ -110,8 +109,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	_, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -170,8 +168,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 
 	c.Check(snapst.Sequence, HasLen, 1)

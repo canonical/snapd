@@ -156,8 +156,7 @@ func checkChangeConflict(s *state.State, snapName string) error {
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
 func InstallPath(s *state.State, name, path, channel string, flags Flags) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -183,8 +182,7 @@ func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, er
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
 func Install(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -212,8 +210,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
 func Update(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -286,8 +283,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -356,8 +352,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 // Revert returns a set of tasks for reverting to the pervious version of the snap.
 // Note that the state must be locked by the caller.
 func Revert(s *state.State, name string) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -370,8 +365,7 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 }
 
 func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -403,8 +397,7 @@ var readInfo = snap.ReadInfo
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
 func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err == state.ErrNoState {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
@@ -427,8 +420,7 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 
 // CurrentInfo returns the information about the current revision of a snap with the given name.
 func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
-	var snapst SnapState
-	err := Get(s, name, &snapst)
+	snapst, err := Get(s, name)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
@@ -440,21 +432,22 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 }
 
 // Get retrieves the SnapState of the given snap.
-func Get(s *state.State, name string, snapst *SnapState) error {
+func Get(s *state.State, name string) (SnapState, error) {
 	var snaps map[string]*json.RawMessage
+	var snapst SnapState
 	err := s.Get("snaps", &snaps)
 	if err != nil {
-		return err
+		return snapst, err
 	}
 	raw, ok := snaps[name]
 	if !ok {
-		return state.ErrNoState
+		return snapst, state.ErrNoState
 	}
 	err = json.Unmarshal([]byte(*raw), &snapst)
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal snap state: %v", err)
+		return snapst, fmt.Errorf("cannot unmarshal snap state: %v", err)
 	}
-	return nil
+	return snapst, nil
 }
 
 // All retrieves return a map from name to SnapState for all current snaps in the system state.

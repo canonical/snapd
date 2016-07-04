@@ -581,9 +581,7 @@ func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.Ta
 		return nil, errNothingToInstall
 	}
 
-	var ss snapstate.SnapState
-
-	err := snapstateGet(st, ubuntuCore, &ss)
+	_, err := snapstateGet(st, ubuntuCore)
 	if err != state.ErrNoState {
 		return nil, err
 	}

@@ -545,8 +545,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	snapst, err := snapstate.Get(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -674,8 +673,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	snapst, err := snapstate.Get(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -804,8 +802,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	snapst, err := snapstate.Get(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -887,8 +884,7 @@ version: 1.0`)
 	})
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "mock", &snapst)
+	snapst, err := snapstate.Get(s.state, "mock")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -964,8 +960,7 @@ version: 1.0`)
 	})
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "mock", &snapst)
+	snapst, err := snapstate.Get(s.state, "mock")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -1015,8 +1010,7 @@ version: 1.0`)
 	c.Check(ops[1].name, Matches, `.*/mock_1.0_all.snap`)
 	c.Check(ops[1].revno, Equals, snap.R("x1"))
 
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "mock", &snapst)
+	snapst, err := snapstate.Get(s.state, "mock")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -1106,8 +1100,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	}
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	_, err = snapstate.Get(s.state, "some-snap")
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -1220,8 +1213,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	}
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	_, err = snapstate.Get(s.state, "some-snap")
 	c.Assert(err, Equals, state.ErrNoState)
 }
 
@@ -1443,8 +1435,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify that the R(2) version is active now and R(7) is still there
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	snapst, err := snapstate.Get(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -1520,8 +1511,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify that the R(7) version is active now
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	snapst, err := snapstate.Get(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -1607,8 +1597,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	snapst, err := snapstate.Get(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -1689,8 +1678,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
+	snapst, err := snapstate.Get(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
@@ -1764,8 +1752,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "name1", &snapst)
+	snapst, err := snapstate.Get(st, "name1")
 	c.Assert(err, IsNil)
 
 	info, err := snapst.CurrentInfo("name1")
@@ -1858,8 +1845,7 @@ func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	var snapst snapstate.SnapState
-	err := snapstate.Get(st, "name1", &snapst)
+	snapst, err := snapstate.Get(st, "name1")
 	c.Assert(err, IsNil)
 	c.Assert(snapst.CurrentSideInfo(), NotNil)
 	c.Assert(snapst.CurrentSideInfo().Revision, Equals, snap.R(12))
@@ -1957,8 +1943,7 @@ func (s *snapmgrTestSuite) TestTrySetsTryMode(c *C) {
 	s.state.Lock()
 
 	// verify snap is in TryMode
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "foo", &snapst)
+	snapst, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
 	c.Check(snapst.TryMode(), Equals, true)
 }
@@ -1995,9 +1980,9 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	s.state.Lock()
 
 	// verify snap is not in try mode, the state got undone
-	err = snapstate.Get(s.state, "foo", &snapst)
+	snapst2, err := snapstate.Get(s.state, "foo")
 	c.Assert(err, IsNil)
-	c.Check(snapst.TryMode(), Equals, false)
+	c.Check(snapst2.TryMode(), Equals, false)
 }
 
 type snapStateSuite struct{}

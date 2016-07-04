@@ -630,11 +630,11 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 	if err != nil {
 		return nil, nil, err
 	}
-	var snapst SnapState
-	err = Get(t.State(), ss.Name, &snapst)
+	snapst, err := Get(t.State(), ss.Name)
 	if err != nil && err != state.ErrNoState {
 		return nil, nil, err
 	}
+
 	return ss, &snapst, nil
 }
 

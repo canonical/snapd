@@ -108,7 +108,8 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 	st := task.State()
 	var snapState snapstate.SnapState
 	snapName := snapInfo.Name()
-	if err := snapstate.Get(st, snapName, &snapState); err != nil {
+	snapState, err := snapstate.Get(st, snapName)
+	if err != nil {
 		task.Errorf("cannot get state of snap %q: %s", snapName, err)
 		return err
 	}
