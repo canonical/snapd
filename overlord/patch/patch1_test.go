@@ -41,6 +41,7 @@ var _ = Suite(&patch1Suite{})
 var statePatch1JSON = []byte(`
 {
 	"data": {
+                "patch-level": 0,
 		"snaps": {
 			"foo": {
 				"sequence": [{
@@ -104,7 +105,9 @@ func (s *patch1Suite) TestPatch1(c *C) {
 	st, err := state.ReadState(nil, r)
 	c.Assert(err, IsNil)
 
-	err = patch.ApplyOne(patch.Patch1, st, 1)
+	// go from patch-level 0 to patch-level 1
+	patch.Level = 1
+	err = patch.Apply(st)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -128,6 +131,11 @@ func (s *patch1Suite) TestPatch1(c *C) {
 		c.Check(snap.Type(snapst.SnapType), Equals, exp.typ)
 		c.Check(snapst.Current, Equals, exp.cur)
 	}
+
+	// ensure we only moved forward to patch-level 1
+	err = st.Get("patch-level", &patchLevel)
+	c.Assert(err, IsNil)
+	c.Assert(patchLevel, Equals, 1)
 }
 
 func (s *patch1Suite) readInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
