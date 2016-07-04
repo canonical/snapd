@@ -57,7 +57,7 @@ const (
 	// 0x40000000 >> iota
 )
 
-func doInstall(s *state.State, curActive bool, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
+func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name); err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func doInstall(s *state.State, curActive bool, snapst *SnapState, ss *SnapSetup)
 		prev = mount
 	}
 
-	if curActive {
+	if snapst.Active {
 		// unlink-current-snap (will stop services for copy-data)
 		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), ss.Name))
 		addTask(unlink)
@@ -120,7 +120,7 @@ func doInstall(s *state.State, curActive bool, snapst *SnapState, ss *SnapSetup)
 	addTask(linkSnap)
 
 	// do GC!
-	if !snapst.Current.Unset() {
+	if snapst.HasCurrent() {
 		prev := linkSnap
 		seq := snapst.Sequence
 		currentIndex := snapst.findIndex(snapst.Current)
@@ -169,7 +169,7 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		Flags:    SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, snapst.Active, &snapst, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -206,7 +206,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		SideInfo:     &snapInfo.SideInfo,
 	}
 
-	return doInstall(s, false, &snapst, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 // Update initiates a change updating a snap.
@@ -242,7 +242,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		SideInfo:     &updateInfo.SideInfo,
 	}
 
-	return doInstall(s, snapst.Active, &snapst, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
@@ -393,7 +393,7 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 		Name:     name,
 		Revision: revertToRev,
 	}
-	return doInstall(s, true, &snapst, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 // Retrieval functions
