@@ -16,8 +16,3 @@ func MockReadInfo(f func(name string, si *snap.SideInfo) (*snap.Info, error)) (r
 	readInfo = f
 	return func() { readInfo = old }
 }
-
-var (
-	ApplyOne = applyOne
-	Patch1   = patch1
-)
