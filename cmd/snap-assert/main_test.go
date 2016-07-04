@@ -54,7 +54,7 @@ var _ = Suite(&snapassertSuite{})
 func (s *snapassertSuite) SetUpSuite(c *C) {
 	s.tempdir = c.MkDir()
 	s.homedir = filepath.Join(s.tempdir, "gpg")
-	err := os.Mkdir(s.homedir, 0755)
+	err := os.Mkdir(s.homedir, 0700)
 	c.Assert(err, IsNil)
 
 	assertstest.GPGImportKey(s.homedir, assertstest.DevKey)
