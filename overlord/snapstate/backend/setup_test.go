@@ -67,8 +67,8 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 	snapPath := makeTestSnap(c, helloYaml1)
 
 	si := snap.SideInfo{
-		OfficialName: "hello",
-		Revision:     snap.R(14),
+		RealName: "hello",
+		Revision: snap.R(14),
 	}
 
 	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
@@ -120,8 +120,8 @@ type: kernel
 `, testFiles)
 
 	si := snap.SideInfo{
-		OfficialName: "kernel",
-		Revision:     snap.R(140),
+		RealName: "kernel",
+		Revision: snap.R(140),
 	}
 
 	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
@@ -164,8 +164,8 @@ type: kernel
 `, testFiles)
 
 	si := snap.SideInfo{
-		OfficialName: "kernel",
-		Revision:     snap.R(140),
+		RealName: "kernel",
+		Revision: snap.R(140),
 	}
 
 	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)
@@ -213,8 +213,8 @@ type: kernel
 `, testFiles)
 
 	si := snap.SideInfo{
-		OfficialName: "kernel",
-		Revision:     snap.R(140),
+		RealName: "kernel",
+		Revision: snap.R(140),
 	}
 
 	err := s.be.SetupSnap(snapPath, &si, &s.nullProgress)

@@ -61,10 +61,10 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authen
 
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: strings.Split(name, ".")[0],
-			Channel:      channel,
-			SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision:     revno,
+			RealName: strings.Split(name, ".")[0],
+			Channel:  channel,
+			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			Revision: revno,
 		},
 		Version: name,
 		DownloadInfo: snap.DownloadInfo{
@@ -157,7 +157,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 
 func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
 	return f.ReadInfo(name, &snap.SideInfo{
-		OfficialName: name,
+		RealName: name,
 	})
 }
 
