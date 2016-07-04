@@ -68,6 +68,7 @@ func ReadPrivKey(pk string) (asserts.PrivateKey, *packet.PrivateKey) {
 }
 
 // A sample developer key.
+// See systestkeys for prebuilt set of trusted keys and assertions.
 const (
 	DevKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 Version: GnuPG v1
