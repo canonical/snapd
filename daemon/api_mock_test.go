@@ -45,6 +45,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	snapstate.Set(st, snapInfo.Name(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{{Revision: snapInfo.Revision}},
+		Current:  snapInfo.Revision,
 	})
 
 	// Put the snap into the interface repository
