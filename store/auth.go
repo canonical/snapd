@@ -31,6 +31,8 @@ var (
 	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
 	MyAppsPackageAccessAPI = myappsAPIBase + "api/2.0/acl/package_access/"
 	ubuntuoneAPIBase       = authURL()
+	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
+	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
 )
@@ -64,6 +66,7 @@ func RequestPackageAccessMacaroon() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
 
@@ -114,6 +117,7 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("accept", "application/json")
 	req.Header.Set("content-type", "application/json")
 

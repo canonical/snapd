@@ -30,8 +30,6 @@ prepare: |
   EOF
 
 restore: |
-  echo "FIXME: once the state is properly reset in the upper levels this remove can go away"
-  snap remove $SNAP_NAME
   rm -f $SNAP_FILE $REQUEST_FILE
 
 execute: |
@@ -43,33 +41,32 @@ execute: |
   - +$SNAP_NAME:network-bind"
 
   echo "Then the snap is listed as connected"
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is disconnected"
   snap disconnect $SNAP_NAME:network-bind ubuntu-core:network-bind
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the plug can be connected again"
   snap connect $SNAP_NAME:network-bind ubuntu-core:network-bind
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "============================================"
 
   echo "When the plug is connected"
   snap connect $SNAP_NAME:network-bind ubuntu-core:network-bind
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
   echo "Then the service is accessible by a client"
-  response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)
-  echo "$response" | grep -Pqz "ok\n"
+  nc -w 2 localhost "$PORT" < $REQUEST_FILE | grep -Pqz "ok\n"
 
   echo "============================================"
 
   echo "When the plug is disconnected"
   snap disconnect $SNAP_NAME:network-bind ubuntu-core:network-bind
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+  snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
   echo "Then the service is not accessible by a client"
   response=$(nc -w 2 localhost "$PORT" < $REQUEST_FILE)

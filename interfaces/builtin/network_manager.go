@@ -433,7 +433,7 @@ func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug
 	}
 }
 
-func (iface *NetworkManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
