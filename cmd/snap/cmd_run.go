@@ -45,10 +45,9 @@ type cmdRun struct {
 		SnapApp string `positional-arg-name:"<app name>" description:"the snap (e.g. hello-world) or application to run (e.g. hello-world.env)"`
 	} `positional-args:"yes" required:"yes"`
 
-	Command    string `long:"command" description:"alternative command to run" hidden:"yes"`
-	Hook       string `long:"hook" description:"hook to run" hidden:"yes"`
-	Revision   string `short:"r" description:"use a specific snap revision when running hook" hidden:"yes"`
-	DebugShell string `long:"debug-shell" description:"drop into a shell with the same confinment as the snap"`
+	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
+	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
+	Revision string `short:"r" description:"use a specific snap revision when running hook" hidden:"yes"`
 }
 
 func init() {
@@ -75,10 +74,6 @@ func (x *cmdRun) Execute(args []string) error {
 	// Now actually handle the dispatching
 	if x.Hook != "" {
 		return snapRunHook(x.Positional.SnapApp, x.Hook, x.Revision)
-	}
-
-	if cmd.Run.DebugShell {
-		x.Command += ":debug-shell"
 	}
 
 	return snapRunApp(x.Positional.SnapApp, x.Command, args)
