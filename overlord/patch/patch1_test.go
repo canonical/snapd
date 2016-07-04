@@ -28,9 +28,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -99,11 +99,12 @@ func (s *patch1Suite) TestPatch1(c *C) {
 	restore := patch.MockReadInfo(s.readInfo)
 	defer restore()
 
-	ovld, err := overlord.New()
+	r, err := os.Open(dirs.SnapStateFile)
 	c.Assert(err, IsNil)
-	st := ovld.State()
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
 
-	err = patch.Apply(st)
+	err = patch.ApplyOne(patch.Patch1, st, 1)
 	c.Assert(err, IsNil)
 
 	st.Lock()
