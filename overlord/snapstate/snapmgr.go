@@ -190,16 +190,16 @@ func (snapst *SnapState) findIndex(rev snap.Revision) int {
 }
 
 // Block returns revisions that should be blocked on refreshes,
-// computed as Sequence[currentRevisionIndex:].
+// computed from Sequence[currentRevisionIndex+1:].
 func (snapst *SnapState) Block() []snap.Revision {
 	// return revisions from Sequence[currentIndex:]
 	currentIndex := snapst.findIndex(snapst.Current)
-	if currentIndex < 0 {
+	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence) {
 		return nil
 	}
-	out := make([]snap.Revision, 0, len(snapst.Sequence))
-	for _, si := range snapst.Sequence[currentIndex:] {
-		out = append(out, si.Revision)
+	out := make([]snap.Revision, len(snapst.Sequence)-currentIndex-1)
+	for i, si := range snapst.Sequence[currentIndex+1:] {
+		out[i] = si.Revision
 	}
 	return out
 }
