@@ -669,10 +669,12 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	defer func() {
 		// cleanup the downloaded snap after it got installed
-		// in SetupSnap (if we downloaded it)
-		if ss.DownloadInfo != nil {
-			os.Remove(ss.SnapPath)
-		}
+		// in backend.SetupSnap.
+		//
+		// Note that we always remove the file because the
+		// way sideloading works currently is to always create
+		// a temporary file (see daemon/api.go:sideloadSnap()
+		os.Remove(ss.SnapPath)
 	}()
 
 	pb := &TaskProgressAdapter{task: t}
