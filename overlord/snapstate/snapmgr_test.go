@@ -1245,6 +1245,56 @@ func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	c.Check(err, ErrorMatches, `snap "gadget" is not removable`)
 }
 
+func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(1)},
+			{OfficialName: "some-snap", Revision: snap.R(2)},
+			{OfficialName: "some-snap", Revision: snap.R(3)},
+			{OfficialName: "some-snap", Revision: snap.R(4)},
+		},
+		Current: snap.R(4),
+	})
+
+	chg := s.state.NewChange("update", "update a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure garbage collection runs as the last tasks
+	ops := s.fakeBackend.ops
+	c.Assert(ops[len(ops)-5], DeepEquals, fakeOp{
+		op:   "link-snap",
+		name: "/snap/some-snap/11",
+	})
+	c.Assert(ops[len(ops)-4], DeepEquals, fakeOp{
+		op:   "remove-snap-data",
+		name: "/snap/some-snap/1",
+	})
+	c.Assert(ops[len(ops)-3], DeepEquals, fakeOp{
+		op:   "remove-snap-files",
+		name: "/snap/some-snap/1",
+	})
+	c.Assert(ops[len(ops)-2], DeepEquals, fakeOp{
+		op:   "remove-snap-data",
+		name: "/snap/some-snap/2",
+	})
+	c.Assert(ops[len(ops)-1], DeepEquals, fakeOp{
+		op:   "remove-snap-files",
+		name: "/snap/some-snap/2",
+	})
+
+}
+
 func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 	siNew := snap.SideInfo{
 		OfficialName: "some-snap",
