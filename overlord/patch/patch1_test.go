@@ -43,12 +43,12 @@ func (s *patch1Suite) makeState() *state.State {
 	var fooSnapst snapstate.SnapState
 	fooSnapst.Sequence = []*snap.SideInfo{
 		{
-			OfficialName: "foo1",
-			Revision:     snap.R(2),
+			RealName: "foo1",
+			Revision: snap.R(2),
 		},
 		{
-			OfficialName: "foo1",
-			Revision:     snap.R(22),
+			RealName: "foo1",
+			Revision: snap.R(22),
 		},
 	}
 	snapstate.Set(st, "foo", &fooSnapst)
@@ -57,16 +57,16 @@ func (s *patch1Suite) makeState() *state.State {
 	var coreSnapst snapstate.SnapState
 	coreSnapst.Sequence = []*snap.SideInfo{
 		{
-			OfficialName: "core",
-			Revision:     snap.R(1),
+			RealName: "core",
+			Revision: snap.R(1),
 		},
 		{
-			OfficialName: "core",
-			Revision:     snap.R(11),
+			RealName: "core",
+			Revision: snap.R(11),
 		},
 		{
-			OfficialName: "core",
-			Revision:     snap.R(111),
+			RealName: "core",
+			Revision: snap.R(111),
 		},
 	}
 	snapstate.Set(st, "core", &coreSnapst)
@@ -75,20 +75,20 @@ func (s *patch1Suite) makeState() *state.State {
 	var borkenSnapst snapstate.SnapState
 	borkenSnapst.Sequence = []*snap.SideInfo{
 		{
-			OfficialName: "borken",
-			Revision:     snap.R("x1"),
+			RealName: "borken",
+			Revision: snap.R("x1"),
 		},
 		{
-			OfficialName: "borken",
-			Revision:     snap.R("x2"),
+			RealName: "borken",
+			Revision: snap.R("x2"),
 		},
 	}
 	snapstate.Set(st, "borken", &borkenSnapst)
 
 	var wipSnapst snapstate.SnapState
 	wipSnapst.Candidate = &snap.SideInfo{
-		OfficialName: "wip",
-		Revision:     snap.R(11),
+		RealName: "wip",
+		Revision: snap.R(11),
 	}
 	snapstate.Set(st, "wip", &wipSnapst)
 
