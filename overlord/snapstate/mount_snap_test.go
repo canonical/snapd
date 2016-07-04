@@ -58,27 +58,7 @@ func (s *mountSnapSuite) TearDownTest(c *C) {
 	s.reset()
 }
 
-func (s *mountSnapSuite) TestDoMountSnapKeepsLocalSnaps(c *C) {
-	v1 := "name: mock\nversion: 1.0\n"
-	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
-
-	s.state.Lock()
-	t := s.state.NewTask("mount-snap", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		SnapPath: testSnap,
-	})
-	s.state.NewChange("dummy", "...").AddTask(t)
-
-	s.state.Unlock()
-
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
-
-	c.Assert(osutil.FileExists(testSnap), Equals, true)
-}
-
-func (s *mountSnapSuite) TestDoMountSnapRemovesDownloadedSnaps(c *C) {
+func (s *mountSnapSuite) TestDoMountSnapRemovesSnaps(c *C) {
 	v1 := "name: mock\nversion: 1.0\n"
 	testSnap := snaptest.MakeTestSnapWithFiles(c, v1, nil)
 
