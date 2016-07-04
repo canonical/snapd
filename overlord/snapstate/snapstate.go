@@ -349,6 +349,10 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
+	}
+
 	revision := snapst.Current
 	active := snapst.Active
 
@@ -360,10 +364,6 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 	// check if this is something that can be removed
 	if !canRemove(info, active) {
 		return nil, fmt.Errorf("snap %q is not removable", name)
-	}
-
-	if err := checkChangeConflict(s, name); err != nil {
-		return nil, err
 	}
 
 	// main/current SnapSetup
