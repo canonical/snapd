@@ -37,8 +37,8 @@ execute: |
     exit 1
   fi
 
-  echo "And a refresh doesn't update the snap"
-  if snap refresh --edge test-snapd-tools; then
+  echo "And a refresh without arguments doesn't update the snap"
+  if snap refresh --edge; then
     echo "After revert we shouldn't be able to refresh"
     exit 1
   fi
