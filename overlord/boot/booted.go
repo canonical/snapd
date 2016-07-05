@@ -41,21 +41,21 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
 	return name, rev
 }
 
-// SyncBoot synchronizes the active kernel and OS snap versions with
+// UpdateRevisions synchronizes the active kernel and OS snap versions with
 // the versions that actually booted. This is needed because a
 // system may install "os=v2" but that fails to boot. The bootloader
 // fallback logic will revert to "os=v1" but on the filesystem snappy
 // still has the "active" version set to "v2" which is
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
-func SyncBoot(ovld *overlord.Overlord) error {
+func UpdateRevisions(ovld *overlord.Overlord) error {
 	if release.OnClassic {
 		return nil
 	}
 
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
-		return fmt.Errorf("cannot run SyncBoot: %s", err)
+		return fmt.Errorf("cannot run UpdateRevisions: %s", err)
 	}
 
 	kernelSnap, _ := bootloader.GetBootVar("snappy_kernel")
@@ -65,7 +65,7 @@ func SyncBoot(ovld *overlord.Overlord) error {
 	st.Lock()
 	installed, err := snapstate.All(st)
 	if err != nil {
-		return fmt.Errorf("cannot run SyncBoot: %s", err)
+		return fmt.Errorf("cannot run UpdateRevisions: %s", err)
 	}
 
 	var tsAll []*state.TaskSet

@@ -101,12 +101,12 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 
 }
 
-func (bs *bootedSuite) TestSyncBootOSSimple(c *C) {
+func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snappy_os"] = "ubuntu-core_1.snap"
-	err := boot.SyncBoot(bs.overlord)
+	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -125,12 +125,12 @@ func (bs *bootedSuite) TestSyncBootOSSimple(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
-func (bs *bootedSuite) TestSyncBootKernelSimple(c *C) {
+func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snappy_kernel"] = "canonical-pc-linux_1.snap"
-	err := boot.SyncBoot(bs.overlord)
+	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -149,25 +149,25 @@ func (bs *bootedSuite) TestSyncBootKernelSimple(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
-func (bs *bootedSuite) TestSyncBootKernelErrorsEarly(c *C) {
+func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snappy_kernel"] = "canonical-pc-linux_99.snap"
-	err := boot.SyncBoot(bs.overlord)
+	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
 
-func (bs *bootedSuite) TestSyncBootOSErrorsEarly(c *C) {
+func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snappy_kernel"] = "ubuntu-core_99.snap"
-	err := boot.SyncBoot(bs.overlord)
+	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "ubuntu-core"`)
 }
 
-func (bs *bootedSuite) TestSyncBootOSErrorsLate(c *C) {
+func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 	st := bs.overlord.State()
 
 	st.Lock()
@@ -182,6 +182,6 @@ func (bs *bootedSuite) TestSyncBootOSErrorsLate(c *C) {
 	st.Unlock()
 
 	bs.bootloader.BootVars["snappy_kernel"] = "ubuntu-core_1.snap"
-	err := boot.SyncBoot(bs.overlord)
+	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `(?ms)cannot run syncboot change:.*`)
 }
