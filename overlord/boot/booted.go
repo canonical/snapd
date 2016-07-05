@@ -17,12 +17,13 @@
  *
  */
 
-package overlord
+package boot
 
 import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -47,7 +48,7 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
 // still has the "active" version set to "v2" which is
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
-func SyncBoot(ovld *Overlord) error {
+func SyncBoot(ovld *overlord.Overlord) error {
 	if release.OnClassic {
 		return nil
 	}
