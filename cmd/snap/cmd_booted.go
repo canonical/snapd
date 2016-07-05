@@ -55,5 +55,5 @@ func (x *cmdBooted) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	return boot.SyncBoot(ovld)
+	return boot.UpdateRevisions(ovld)
 }
