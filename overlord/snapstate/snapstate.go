@@ -249,9 +249,13 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 func Enable(s *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+	if err != nil {
 		return nil, err
 	}
+
 	if snapst.Active {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
@@ -265,7 +269,7 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 		Revision: snapst.Current,
 	}
 
-	revisionStr := fmt.Sprintf(" (%d)", snapst.Current)
+	revisionStr := fmt.Sprintf(" (%s)", snapst.Current)
 	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), ss.Name, revisionStr))
 	prepareSnap.Set("snap-setup", &ss)
 
@@ -280,7 +284,10 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 func Disable(s *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
-	if err != nil && err != state.ErrNoState {
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+	if err != nil {
 		return nil, err
 	}
 	if !snapst.Active {
@@ -296,7 +303,7 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		Revision: snapst.Current,
 	}
 
-	unlinkSnap := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable (%d)"), ss.Name, snapst.Current))
+	unlinkSnap := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q revision %s available to the system"), ss.Name, snapst.Current))
 	unlinkSnap.Set("snap-setup", &ss)
 
 	return state.NewTaskSet(unlinkSnap), nil
