@@ -25,6 +25,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/partition"
 )
 
@@ -54,5 +55,5 @@ func (x *cmdBooted) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	return overlord.SyncBoot(ovld)
+	return boot.SyncBoot(ovld)
 }
