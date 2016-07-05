@@ -6,6 +6,7 @@ systemctl stop snapd.service snapd.socket
 
 # purge all state
 sh ${SPREAD_PATH}/debian/snapd.postrm purge
+mkdir -p /snap /var/snap /var/lib/snapd
 
 rm -f /tmp/ubuntu-core*
 
