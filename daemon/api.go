@@ -217,7 +217,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, loginCaveat, loginData.Otp)
+	discharge, err := store.DischargeAuthCaveat(loginCaveat, loginData.Username, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
