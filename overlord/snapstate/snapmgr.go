@@ -179,6 +179,8 @@ func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 	return snapst.Sequence[currentIndex-1]
 }
 
+// findIndex returns the index of the given revision rev in the
+// snapst.Sequence
 func (snapst *SnapState) findIndex(rev snap.Revision) int {
 	for i, si := range snapst.Sequence {
 		if si.Revision == rev {

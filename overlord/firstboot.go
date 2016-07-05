@@ -104,10 +104,11 @@ func populateStateFromInstalled() error {
 
 	st.Lock()
 	status := chg.Status()
+	err = chg.Err()
 	st.Unlock()
 	if status != state.DoneStatus {
 		ovld.Stop()
-		return fmt.Errorf("cannot run seed change: %s", chg.Err())
+		return fmt.Errorf("cannot run seed change: %s", err)
 
 	}
 
