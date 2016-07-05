@@ -153,36 +153,17 @@ type detailsReplyJSON struct {
 	Revision        int    `json:"revision"`
 }
 
+func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
+	w.WriteHeader(501)
+	fmt.Fprintf(w, "search not implemented")
+}
+
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	pkg := strings.TrimPrefix(req.URL.Path, "/snaps/details/")
 	if pkg == req.URL.Path {
 		panic("how?")
 	}
 
-	s.getDetails(pkg, w, req, false)
-}
-
-func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query()
-	q := query.Get("q")
-	if !strings.HasPrefix(q, "package_name:\"") {
-		w.WriteHeader(501)
-		fmt.Fprintf(w, "full search not implemented")
-		return
-
-	}
-	if !strings.HasSuffix(q, "\"") {
-		w.WriteHeader(400)
-		fmt.Fprintf(w, "missing final \"")
-		return
-	}
-
-	pkg := q[len("package_name:\"") : len(q)-1]
-
-	s.getDetails(pkg, w, req, true)
-}
-
-func (s *Store) getDetails(pkg string, w http.ResponseWriter, req *http.Request, multi bool) {
 	s.refreshSnaps()
 
 	fn, ok := s.snaps[pkg]
@@ -213,20 +194,11 @@ func (s *Store) getDetails(pkg string, w http.ResponseWriter, req *http.Request,
 		Revision:        makeRevision(info),
 	}
 
-	var replyData interface{} = details
-	if multi {
-		replyData = searchReplyJSON{
-			Payload: searchPayloadJSON{
-				Packages: []detailsReplyJSON{details},
-			},
-		}
-	}
-
 	// use indent because this is a development tool, output
 	// should look nice
-	out, err := json.MarshalIndent(replyData, "", "    ")
+	out, err := json.MarshalIndent(details, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can't marshal: %v: %v", replyData, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("can't marshal: %v: %v", details, err), http.StatusBadRequest)
 		return
 	}
 	w.Write(out)
