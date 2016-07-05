@@ -59,7 +59,7 @@ func httpStatusCodeClientError(httpStatusCode int) bool {
 
 // RequestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
 func RequestStoreMacaroon() (string, error) {
-	const errorPrefix = "cannot get access permission from store: "
+	const errorPrefix = "cannot get snap access permission from store: "
 
 	data := map[string]interface{}{
 		"permissions": []string{"package_access", "package_purchase"},
@@ -71,8 +71,8 @@ func RequestStoreMacaroon() (string, error) {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -101,8 +101,8 @@ func RequestStoreMacaroon() (string, error) {
 }
 
 // DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
-func DischargeAuthCaveat(username, password, caveat, otp string) (string, error) {
-	const errorPrefix = "cannot get discharge macaroon from store: "
+func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+	const errorPrefix = "cannot authenticate on snap store: "
 
 	data := map[string]string{
 		"email":     username,
@@ -122,8 +122,8 @@ func DischargeAuthCaveat(username, password, caveat, otp string) (string, error)
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
