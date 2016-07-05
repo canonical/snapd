@@ -6,9 +6,9 @@ environment:
 execute: |
     echo "Abort with invalid id"
     if snap abort 10000000; then
-      echo "abort with invalid id should fail"
-      exit 1
-      fi
+        echo "abort with invalid id should fail"
+        exit 1
+    fi
 
     echo "===================================="
 
@@ -16,12 +16,12 @@ execute: |
     subdirPath="/snap/$SNAP_NAME/current/foo"
     mkdir -p $subdirPath
     if snap install $SNAP_NAME; then
-      echo "install should fail when the target directory exists"
-      exit 1
+        echo "install should fail when the target directory exists"
+        exit 1
     fi
     if snap abort 1; then
-      echo "abort with valid failed id should fail"
-      exit 1
+        echo "abort with valid failed id should fail"
+        exit 1
     fi
     rm -rf $subdirPath
 
@@ -30,6 +30,6 @@ execute: |
     echo "Abort with valid id - done"
     snap install $SNAP_NAME
     if snap abort 2; then
-      echo "abort with valid done id should fail"
-      exit 1
+        echo "abort with valid done id should fail"
+        exit 1
     fi

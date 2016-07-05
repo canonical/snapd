@@ -70,7 +70,7 @@ execute: |
 
     echo "Then snap can't read home files"
     if home-consumer.reader $READABLE_FILE; then
-      echo "Home files shouldn't be readable" && exit 1
+        echo "Home files shouldn't be readable" && exit 1
     fi
 
     echo "============================================"
@@ -91,7 +91,7 @@ execute: |
 
     echo "Then snap can't append to home files"
     if home-consumer.writer "$WRITABLE_FILE"; then
-      echo "Home files shouldn't be writable" && exit 1
+        echo "Home files shouldn't be writable" && exit 1
     fi
 
     echo "============================================"
@@ -112,7 +112,7 @@ execute: |
 
     echo "Then snap can't create home files"
     if home-consumer.writer "$CREATABLE_FILE"; then
-      echo "It should be impossible to create home files" && exit 1
+        echo "It should be impossible to create home files" && exit 1
     fi
 
     echo "============================================"
@@ -123,7 +123,7 @@ execute: |
 
     echo "Then the snap is not able to read hidden home files"
     if home-consumer.reader "$HIDDEN_READABLE_FILE"; then
-      echo "Hidden home files shouldn't be readable" && exit 1
+        echo "Hidden home files shouldn't be readable" && exit 1
     fi
 
     echo "============================================"
@@ -134,5 +134,5 @@ execute: |
 
     echo "Then the snap is not able to write hidden home files"
     if home-consumer.writer "$HIDDEN_CREATABLE_FILE"; then
-      echo "It should be impossible to create hidden home files" && exit 1
+        echo "It should be impossible to create hidden home files" && exit 1
     fi

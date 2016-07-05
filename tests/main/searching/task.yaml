@@ -10,11 +10,11 @@ execute: |
     echo "Exact matches"
     for snapName in hello-world xkcd-webserver
     do
-      expected="(?s)Name +Version +Developer +Notes +Summary *\n\
+        expected="(?s)Name +Version +Developer +Notes +Summary *\n\
     .*?\n\
     $snapName +.*? *\n\
     .*"
-      snap find $snapName | grep -Pzq "$expected"
+        snap find $snapName | grep -Pzq "$expected"
     done
 
     echo "Partial terms work too"
