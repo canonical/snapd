@@ -1,8 +1,8 @@
 # Snappy garbage collection
 
 As a snap package is updated, old versions are kept around to enable switching
-back to old, known-good versions using `rollback`. *Garbage collection* is
-performed automatically to preserve the ability of doing this rollback without
+back to old, known-good versions using `revert`. *Garbage collection* is
+performed automatically to preserve the ability of doing this revert without
 consuming an overly large amount of disk space.
 
 A snap present in a system can be in several states:

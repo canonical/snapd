@@ -33,11 +33,13 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
@@ -94,7 +96,7 @@ func (s *apiSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiSuite) Download(*snap.Info, progress.Meter, store.Authenticator) (string, error) {
+func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error) {
 	panic("Download not expected to be called")
 }
 
@@ -148,7 +150,10 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
-	d.overlord.SnapManager().ReplaceStore(s)
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -257,6 +262,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
 			"apps":        []appJSON{},
+			"broken":      "",
 		},
 		Meta: meta,
 	}
@@ -1135,7 +1141,7 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"install", snapInstall},
 		{"refresh", snapUpdate},
 		{"remove", snapRemove},
-		{"rollback", snapRollback},
+		{"revert", snapRevert},
 		{"xyzzy", nil},
 	}
 
@@ -2271,7 +2277,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 }
 
 const (
-	testTrustedKey = `type: account-key
+	encTestTrustedKey = `type: account-key
 authority-id: can0nical
 account-id: can0nical
 public-key-id: 844efa9730eec4be
@@ -2292,7 +2298,7 @@ APybmSYoDVRQPAPop44UF0aCrTIw4Xds3E56d2Rsn+CkNML03kRc/i0Q53uYzZwxXVnzW/gVOXDL
 u/IZtjeo3KsB645MVEUxJLQmjlgMOwMvCHJgWhSvZOuf7wC0soBCN9Ufa/0M/PZFXzzn8LpjKVrX
 iDXhV7cY5PceG8ZV7Duo1JadOCzpkOHmai4DcrN7ZeY8bJnuNjOwvTLkrouw9xci4IxpPDRu0T/i
 K9qaJtUo4cA=`
-	testAccKey = `type: account-key
+	encTestAccKey = `type: account-key
 authority-id: can0nical
 account-id: developer1
 public-key-id: adea89b00094c337
@@ -2317,11 +2323,12 @@ ZF5jSvRDLgI=`
 
 func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	buf := bytes.NewBufferString(testAccKey)
+	buf := bytes.NewBufferString(encTestAccKey)
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -2354,7 +2361,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 func (s *apiSuite) TestAssertError(c *check.C) {
 	s.daemon(c)
 	// Setup
-	buf := bytes.NewBufferString(testAccKey)
+	buf := bytes.NewBufferString(encTestAccKey)
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -2367,11 +2374,12 @@ func (s *apiSuite) TestAssertError(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2384,7 +2392,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Verify
 	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "2")
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "3")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -2393,20 +2401,25 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	a2, err := dec.Decode()
 	c.Assert(err, check.IsNil)
 
+	a3, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+
 	_, err = dec.Decode()
 	c.Assert(err, check.Equals, io.EOF)
 
-	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID()}
-	c.Check(ids, check.DeepEquals, []string{"can0nical", "developer1"})
+	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID(), a3.(*asserts.AccountKey).AccountID()}
+	sort.Strings(ids)
+	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1"})
 }
 
 func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2430,11 +2443,13 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
+	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)

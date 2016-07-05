@@ -32,7 +32,7 @@ type StoreService interface {
 	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 
-	Download(*snap.Info, progress.Meter, store.Authenticator) (string, error)
+	Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error)
 }
 
 type managerBackend interface {
