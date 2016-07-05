@@ -1,0 +1,36 @@
+summary: Ensure that the content sharing interface works.
+
+details: |
+    The content-sharing interface interface allows a snap to access contents from
+    other snap
+
+    A snap which defines the content sharing plug must be shown in the interfaces list.
+    The plug must be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+prepare: |
+    echo "Given a snap declaring a content sharing slot is installed"
+
+    echo "And a snap declaring a content sharing plug is installed"
+
+execute: |
+    CONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    :home +home-consumer"
+    DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    - +home-consumer:home"
+
+    echo "Then the snap is listed as connected"
+
+    echo "============================================"
+
+    echo "When the plug is disconnected"
+    snap disconnect home-consumer:home ubuntu-core:home
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the plug can be connected again"
+    snap connect home-consumer:home ubuntu-core:home
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "============================================"
