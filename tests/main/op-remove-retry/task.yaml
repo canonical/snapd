@@ -1,42 +1,42 @@
 summary: Check that a remove operation is retried if the mount point is busy.
 
 restore: |
-  rm -f test-snapd-tools_1.0_all.snap
-  kill %1 || true
+    rm -f test-snapd-tools_1.0_all.snap
+    kill %1 || true
 
 execute: |
-  wait_for_service(){
-    local service_name=$1
-    local state=$2
-    while ! systemctl show -p ActiveState $service_name | grep -q "ActiveState=$state"; do sleep 1; done
-  }
-  wait_for_remove_state(){
-    local state=$1
-    local expected="(?s)$state.*?Remove \"test-snapd-tools\" snap"
-    while ! snap changes | grep -Pq "$expected"; do sleep 1; done
-  }
+    wait_for_service(){
+        local service_name=$1
+        local state=$2
+        while ! systemctl show -p ActiveState $service_name | grep -q "ActiveState=$state"; do sleep 1; done
+    }
+    wait_for_remove_state(){
+        local state=$1
+        local expected="(?s)$state.*?Remove \"test-snapd-tools\" snap"
+        while ! snap changes | grep -Pq "$expected"; do sleep 1; done
+    }
 
-  echo "Given a snap is installed"
-  snapbuild $TESTSLIB/snaps/test-snapd-tools .
-  snap install test-snapd-tools_1.0_all.snap
+    echo "Given a snap is installed"
+    snapbuild $TESTSLIB/snaps/test-snapd-tools .
+    snap install test-snapd-tools_1.0_all.snap
 
-  echo "And its mount point is kept busy"
-  systemd-run --unit unmount-blocker $(which test-snapd-tools.block)
-  wait_for_service unmount-blocker active
+    echo "And its mount point is kept busy"
+    systemd-run --unit unmount-blocker $(which test-snapd-tools.block)
+    wait_for_service unmount-blocker active
 
-  echo "When we try to remove the snap"
-  snap remove test-snapd-tools &
+    echo "When we try to remove the snap"
+    snap remove test-snapd-tools &
 
-  echo "Then it fails and retries to remove"
-  snap list | grep -q test-snapd-tools
-  wait_for_remove_state Doing
+    echo "Then it fails and retries to remove"
+    snap list | grep -q test-snapd-tools
+    wait_for_remove_state Doing
 
-  echo "When the mount point is no longer busy"
-  systemctl stop unmount-blocker
-  wait_for_service unmount-blocker inactive
+    echo "When the mount point is no longer busy"
+    systemctl stop unmount-blocker
+    wait_for_service unmount-blocker inactive
 
-  echo "Then the remove retry succeeds"
-  wait_for_remove_state Done
+    echo "Then the remove retry succeeds"
+    wait_for_remove_state Done
 
-  echo "And the snap is removed"
-  ! snap list | grep -q test-snapd-tools
+    echo "And the snap is removed"
+    ! snap list | grep -q test-snapd-tools
