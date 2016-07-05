@@ -7,8 +7,18 @@ environment:
     BLOB_DIR: $(mktemp -d)
 
 prepare: |
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "Given a snap is installed"
+        snap install test-snapd-tools
+    fi
+
     . $TESTSLIB/store.sh
     setup_store $STORE_TYPE $BLOB_DIR
+
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "And a new version of that snap put in the controlled store"
+        fakestore -blobdir $BLOB_DIR -make-refreshable test-snapd-tools
+    fi
 
 restore: |
     . $TESTSLIB/store.sh

@@ -259,6 +259,69 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	return doInstall(s, &snapst, ss)
 }
 
+// Enable sets a snap to the active state
+func Enable(s *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if snapst.Active {
+		return nil, fmt.Errorf("snap %q already enabled", name)
+	}
+
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
+	}
+
+	ss := &SnapSetup{
+		Name:     name,
+		Revision: snapst.Current,
+	}
+
+	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), ss.Name, snapst.Current))
+	prepareSnap.Set("snap-setup", &ss)
+
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) unavailable to the system%s"), ss.Name, snapst.Current))
+	linkSnap.Set("snap-setup", &ss)
+	linkSnap.WaitFor(prepareSnap)
+
+	return state.NewTaskSet(prepareSnap, linkSnap), nil
+}
+
+// Disable sets a snap to the inactive state
+func Disable(s *state.State, name string) (*state.TaskSet, error) {
+	var snapst SnapState
+	err := Get(s, name, &snapst)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !snapst.Active {
+		return nil, fmt.Errorf("snap %q already disabled", name)
+	}
+
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
+	}
+
+	ss := &SnapSetup{
+		Name:     name,
+		Revision: snapst.Current,
+	}
+
+	unlinkSnap := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system"), ss.Name, snapst.Current))
+	unlinkSnap.Set("snap-setup", &ss)
+
+	return state.NewTaskSet(unlinkSnap), nil
+}
+
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
 	ss := SnapSetup{
 		Name:     name,
@@ -296,10 +359,6 @@ func canRemove(s *snap.Info, active bool) bool {
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
 func Remove(s *state.State, name string) (*state.TaskSet, error) {
-	if err := checkChangeConflict(s, name); err != nil {
-		return nil, err
-	}
-
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -308,6 +367,10 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 
 	if !snapst.HasCurrent() {
 		return nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
+	if err := checkChangeConflict(s, name); err != nil {
+		return nil, err
 	}
 
 	revision := snapst.Current
