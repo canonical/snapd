@@ -10,27 +10,34 @@ details: |
 
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"
+    snapbuild $TESTSLIB/snaps/content-slot .
+    snap install ./content-slot_1.0_all.snap
 
     echo "And a snap declaring a content sharing plug is installed"
+    snapbuild $TESTSLIB/snaps/content-plug .
+    snap install ./content-plug_1.0_all.snap
 
 execute: |
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    :home +home-consumer"
+    .*?
+    content-slot:shared-content-slot +content-plug:shared-content-plug"
     DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?\n\
-    - +home-consumer:home"
+    .*?
+    content-slot:shared-content-slot +-\n\
+    .*?
+    - +content-plug:shared-content-plug"
 
     echo "Then the snap is listed as connected"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "============================================"
 
     echo "When the plug is disconnected"
-    snap disconnect home-consumer:home ubuntu-core:home
+    snap disconnect content-plug:shared-content-plug content-slot:shared-content-slot
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the plug can be connected again"
-    snap connect home-consumer:home ubuntu-core:home
+    snap connect content-plug:shared-content-plug content-slot:shared-content-slot
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "============================================"
