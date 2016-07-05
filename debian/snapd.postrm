@@ -2,8 +2,32 @@
 
 set -e
 
+systemctl_stop() {
+    unit="$1"
+    if systemctl is-active "$unit"; then
+        echo "Stoping $unit"
+        systemctl stop "$unit" || true
+    fi
+}
+
 if [ "$1" = "purge" ]; then
-   # FIXME: should we try to remove all snaps, mount points, services,
-   #        mount units that got created as well?
-   rm -f /var/lib/snapd/state.json
+    mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
+    services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+    for unit in $services $mounts; do
+        echo "Stopping $unit"
+        systemctl_stop $unit
+
+        echo "Removing $mount"
+        rm -f /etc/systemd/system/$unit
+        rm -f /etc/systemd/system/multi-user.target.wants/$unit
+    done
+
+    echo "Removing snap directories (/snap)"
+    rm -rf /snap
+
+    echo "Removing snap data (/var/snap)"
+    rm -rf /var/snap
+
+    echo "Removing snapd state"
+    rm -rf /var/lib/snapd
 fi

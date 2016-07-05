@@ -1,15 +1,17 @@
 summary: Check that snaps vanishing are handled gracefully
+
 restore: |
-  rm -rf $TRYDIR
+    rm -rf $TRYDIR
+
 execute: |
-  TRYDIR="$(mktemp -d)"
-  export TRYDIR
-  cp -ar  $TESTSLIB/snaps/basic-binaries/* $TRYDIR
+    TRYDIR="$(mktemp -d)"
+    export TRYDIR
+    cp -ar  $TESTSLIB/snaps/basic/* $TRYDIR
 
-  echo Trying a snap
-  snap try $TRYDIR
-  snap list |grep basic
+    echo Trying a snap
+    snap try $TRYDIR
+    snap list |grep basic
 
-  echo Removing a snap try dir does not break everything
-  rm -rf $TRYDIR
-  snap list |grep core
+    echo Removing a snap try dir does not break everything
+    rm -rf $TRYDIR
+    snap list |grep core

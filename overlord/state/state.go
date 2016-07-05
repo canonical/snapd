@@ -385,5 +385,6 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	}
 	s.backend = backend
 	s.modified = false
+	s.cache = make(map[interface{}]interface{})
 	return s, err
 }
