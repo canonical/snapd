@@ -107,7 +107,7 @@ func Parser() *flags.Parser {
 
 		os.Exit(0)
 	}
-	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.IgnoreUnknown)
 	parser.ShortDescription = "Tool to interact with snaps"
 	parser.LongDescription = `
 The snap tool interacts with the snapd daemon to control the snappy software platform.

@@ -49,7 +49,7 @@ func run() error {
 		Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
 	}
 
-	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
+	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.IgnoreUnknown)
 	args, err := parser.Parse()
 	if err != nil {
 		return err
