@@ -11,9 +11,9 @@ execute: |
     for snapName in hello-world xkcd-webserver
     do
       expected="(?s)Name +Version +Developer +Notes +Summary *\n\
-      .*?\n\
-      $snapName +.*? *\n\
-      .*"
+    .*?\n\
+    $snapName +.*? *\n\
+    .*"
       snap find $snapName | grep -Pzq "$expected"
     done
 
