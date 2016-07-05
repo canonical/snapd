@@ -193,7 +193,7 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.SearchURI, err = storeBaseURI.Parse("search")
+	defaultConfig.SearchURI, err = storeBaseURI.Parse("snaps/search")
 	if err != nil {
 		panic(err)
 	}
@@ -584,15 +584,14 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auth
 	u := *s.searchURI // make a copy, so we can mutate it
 	q := u.Query()
 	q.Set("q", searchTerm)
+	q.Set("channel", channel)
+	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest("GET", u.String(), nil)
+	req, err := s.newRequest("GET", u.String(), nil, auther)
 	if err != nil {
 		return nil, err
 	}
-
-	// set headers
-	s.setUbuntuStoreHeaders(req, channel, false, auther)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
