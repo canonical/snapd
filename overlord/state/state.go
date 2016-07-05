@@ -373,6 +373,27 @@ func (s *State) Prune(pruneWait, abortWait time.Duration) {
 	}
 }
 
+// ensureBy asks for an ensure pass by the given time (or earlier), immediately if when is in the past. It is a no-op if when.IsZero().
+func (s *State) ensureBy(when time.Time) {
+	if !when.IsZero() {
+		d := when.Sub(timeNow())
+		if d < 0 {
+			d = 0
+		}
+		s.EnsureBefore(d)
+	}
+}
+
+// ScheduleTask schedules the task if it's not ready to happen no earlier than when, if when.IsZero() any previous special scheduling is supressed.
+func (s *State) ScheduleTask(t *Task, when time.Time) {
+	s.writing()
+	if t.Status().Ready() {
+		return
+	}
+	t.scheduledTime = when
+	s.ensureBy(when)
+}
+
 // ReadState returns the state deserialized from r.
 func ReadState(backend Backend, r io.Reader) (*State, error) {
 	s := new(State)

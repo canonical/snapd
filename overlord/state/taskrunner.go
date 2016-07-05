@@ -20,8 +20,8 @@
 package state
 
 import (
-	"errors"
 	"sync"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -33,8 +33,16 @@ type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 
 // Retry is returned from a handler to signal that is ok to rerun the
 // task at a later point. It's to be used also when a task goroutine
-// is asked to stop through its tomb.
-var Retry = errors.New("task should be retried")
+// is asked to stop through its tomb. After can be used to indicate
+// how much to postpone the retry, 0 (the default) means at the next
+// ensure pass and is what should be used if stopped through its tomb.
+type Retry struct {
+	After time.Duration
+}
+
+func (r *Retry) Error() string {
+	return "task should be retried"
+}
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -94,6 +102,7 @@ func (r *TaskRunner) run(t *Task) {
 		panic("internal error: attempted to run task with nil handler for status " + t.Status().String())
 	}
 
+	t.scheduledTime = time.Time{} // clear schedule
 	tomb := &tomb.Tomb{}
 	r.tombs[t.ID()] = tomb
 	tomb.Go(func() error {
@@ -110,13 +119,15 @@ func (r *TaskRunner) run(t *Task) {
 
 		delete(r.tombs, t.ID())
 
-		switch err := tomb.Err(); err {
-		case Retry:
+		switch err := tomb.Err(); x := err.(type) {
+		case *Retry:
 			// Handler asked to be called again later.
 			// TODO Allow postponing retries past the next Ensure.
 			if t.Status() == AbortStatus {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
+			} else if x.After != 0 {
+				r.state.ScheduleTask(t, timeNow().Add(x.After))
 			}
 		case nil:
 			var next []*Task
@@ -196,6 +207,8 @@ func (r *TaskRunner) Ensure() {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	ensureTime := timeNow()
+	nextTaskTime := time.Time{}
 	for _, t := range r.state.Tasks() {
 		handlers, ok := r.handlers[t.Kind()]
 		if !ok {
@@ -235,9 +248,21 @@ func (r *TaskRunner) Ensure() {
 			// Dependencies still unhandled.
 			continue
 		}
+
+		// skip tasks scheduled for later and also track the earliest one
+		if !t.scheduledTime.IsZero() && ensureTime.Before(t.scheduledTime) {
+			if nextTaskTime.IsZero() || nextTaskTime.After(t.scheduledTime) {
+				nextTaskTime = t.scheduledTime
+			}
+			continue
+		}
+
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
 		r.run(t)
 	}
+
+	// schedule next Ensure no later than the next task time
+	r.state.ensureBy(nextTaskTime)
 }
 
 // mustWait returns whether task t must wait for other tasks to be done.

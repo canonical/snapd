@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -574,9 +575,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
 	if err != nil {
 		st.Lock()
-		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
+		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", ss.Name, err)
 		st.Unlock()
-		return state.Retry
+		return &state.Retry{After: 3 * time.Minute}
 	}
 
 	st.Lock()
