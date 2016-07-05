@@ -183,5 +183,5 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 
 	bs.bootloader.BootVars["snappy_kernel"] = "ubuntu-core_1.snap"
 	err := boot.UpdateRevisions(bs.overlord)
-	c.Assert(err, ErrorMatches, `(?ms)cannot run syncboot change:.*`)
+	c.Assert(err, ErrorMatches, `(?ms)cannot update revisions after boot changes:.*`)
 }
