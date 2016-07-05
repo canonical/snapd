@@ -29,10 +29,6 @@ var (
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
 
-	// ErrSnapNeedsDevMode is returned when a snap wants devmode
-	// confinement and it has not been requested nor overridden
-	ErrSnapNeedsDevMode = errors.New("snap wants devmode")
-
 	// ErrAssertionNotFound is returned when an assertion can not be found
 	ErrAssertionNotFound = errors.New("assertion not found")
 

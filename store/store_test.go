@@ -373,12 +373,17 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
 
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
 
-		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
+		query := r.URL.Query()
+		c.Check(query.Get("channel"), Equals, "edge")
 
-		w.Header().Set("X-Suggested-Currency", "GBP")
-		w.WriteHeader(http.StatusOK)
-
-		io.WriteString(w, mockDevmodeJSON)
+		if query.Get("confinement") == "strict" {
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, "{}")
+		} else {
+			w.Header().Set("X-Suggested-Currency", "GBP")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, mockDevmodeJSON)
+		}
 	}))
 
 	c.Assert(mockServer, NotNil)
@@ -394,7 +399,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
 
 	// the actual test
 	result, err := repo.Snap("hello-world", "edge", false, nil)
-	c.Check(err, Equals, ErrSnapNeedsDevMode)
+	c.Check(err, Equals, ErrSnapNotFound)
 	c.Check(result, IsNil)
 	result, err = repo.Snap("hello-world", "edge", true, nil)
 	c.Assert(err, IsNil)

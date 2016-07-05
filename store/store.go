@@ -515,11 +515,17 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 		return nil, err
 	}
 
+	query := u.Query()
 	if channel != "" {
-		q := u.Query()
-		q.Set("channel", channel)
-		u.RawQuery = q.Encode()
+		query.Set("channel", channel)
 	}
+
+	// if devmode then don't restrict by confinement as either is fine
+	if !devmode {
+		query.Set("confinement", string(snap.StrictConfinement))
+	}
+
+	u.RawQuery = query.Encode()
 
 	req, err := s.newRequest("GET", u.String(), nil, auther)
 	if err != nil {
@@ -554,9 +560,6 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 	}
 
 	info := infoFromRemote(remote)
-	if !devmode && info.NeedsDevMode() {
-		return nil, ErrSnapNeedsDevMode
-	}
 
 	err = s.decoratePurchases([]*snap.Info{info}, channel, auther)
 	if err != nil {
