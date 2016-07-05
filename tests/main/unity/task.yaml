@@ -1,29 +1,29 @@
 summary: Check that a unity snap can start and its window is shown
 
 environment:
-  DISPLAY: ":99.0"
+    DISPLAY: ":99.0"
 
 systems: [ubuntu-16.04-64-grub]
 
 prepare: |
-  apt install -y x11-utils xvfb unity
+    apt install -y x11-utils xvfb unity
 
 restore: |
-  apt remove -y x11-utils xvfb unity
-  apt autoremove
+    apt remove -y x11-utils xvfb unity
+    apt autoremove
 
 execute: |
-  echo "Given a unity snap is installed"
-  snap install ubuntu-clock-app
+    echo "Given a unity snap is installed"
+    snap install ubuntu-clock-app
 
-  echo "When the app is started"
-  cmd="xvfb-run --server-args=\"$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR\" ubuntu-clock-app.clock"
-  sudo -i -u test /bin/sh -c "$cmd 2>&1 > /dev/null" &
+    echo "When the app is started"
+    cmd="xvfb-run --server-args=\"$DISPLAY -screen 0 1200x960x24 -ac +extension RANDR\" ubuntu-clock-app.clock"
+    sudo -i -u test /bin/sh -c "$cmd 2>&1 > /dev/null" &
 
-  echo "Then the app window is created"
-  expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
-  while ! xwininfo -tree -root | grep -Pq "$expected"; do sleep 1; done
+    echo "Then the app window is created"
+    expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
+    while ! xwininfo -tree -root | grep -Pq "$expected"; do sleep 1; done
 
-  # FIXME: if we the backgrounded job is not stopped here the execute block doesn't end
-  # and the restore block is not reached
-  killall -9 xvfb-run Xvfb qmlscene
+    # FIXME: if we the backgrounded job is not stopped here the execute block doesn't end
+    # and the restore block is not reached
+    killall -9 xvfb-run Xvfb qmlscene
