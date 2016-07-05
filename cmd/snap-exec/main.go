@@ -33,6 +33,15 @@ import (
 // for the tests
 var syscallExec = syscall.Exec
 
+// commandline args
+var opts struct {
+	Positional struct {
+		SnapApp string `positional-arg-name:"<snapApp>" description:"the application to run, e.g. hello-world.env"`
+	} `positional-args:"yes" required:"yes"`
+
+	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Printf("cannot snap-exec: %s\n", err)
@@ -40,17 +49,14 @@ func main() {
 	}
 }
 
-func run() error {
-	var opts struct {
-		Positional struct {
-			SnapApp string `positional-arg-name:"<snapApp>" description:"the application to run, e.g. hello-world.env"`
-		} `positional-args:"yes" required:"yes"`
-
-		Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
-	}
+func parseArgs(args []string) ([]string, error) {
 
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.IgnoreUnknown)
-	args, err := parser.Parse()
+	return parser.ParseArgs(args)
+}
+
+func run() error {
+	args, err := parseArgs(os.Args)
 	if err != nil {
 		return err
 	}

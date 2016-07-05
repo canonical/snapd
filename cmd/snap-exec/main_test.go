@@ -116,3 +116,10 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
+
+func (s *snapExecSuite) TestSnapExecIgnoresUnknownArgs(c *C) {
+	rest, err := parseArgs([]string{"--command=shel", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{"--arg1", "arg2"})
+
+}
