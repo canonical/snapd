@@ -25,7 +25,7 @@ For assertions with no body the _statement_ can just be a flat mapping of header
 * `headers` containing again a mapping from header names to values
 * `body` with the assertion body text
 
-In the end, the assertion header values will be text, but, abstractely, the values of some headers have specific simple types. In these cases it is possible and recommended to use those types (as supported by JSON and YAML) for the header values in _statement_, `snap-assert` will convert to string appropriately:
+In the end, the assertion header values will be text, but, abstractly, the values of some headers have specific simple types. In these cases it is possible and recommended to use those types (as supported by JSON and YAML) for the header values in _statement_, `snap-assert` will convert to string appropriately:
 
 * integers (as for `revision`or `snap-revision`)
 * bool values (turned into `yes` or `no`)
