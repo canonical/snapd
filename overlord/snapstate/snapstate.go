@@ -133,6 +133,20 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		}
 	}
 
+	// do GC!
+	if snapst.HasCurrent() {
+		prev := linkSnap
+		seq := snapst.Sequence
+		currentIndex := snapst.findIndex(snapst.Current)
+		for i := 0; i <= currentIndex-2; i++ {
+			si := seq[i]
+			ts := removeInactiveRevision(s, ss.Name, si.Revision)
+			ts.WaitFor(prev)
+			tasks = append(tasks, ts.Tasks()...)
+			prev = tasks[len(tasks)-1]
+		}
+	}
+
 	return state.NewTaskSet(tasks...), nil
 }
 
