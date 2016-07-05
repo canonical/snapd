@@ -28,9 +28,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -41,6 +41,7 @@ var _ = Suite(&patch1Suite{})
 var statePatch1JSON = []byte(`
 {
 	"data": {
+                "patch-level": 0,
 		"snaps": {
 			"foo": {
 				"sequence": [{
@@ -99,9 +100,14 @@ func (s *patch1Suite) TestPatch1(c *C) {
 	restore := patch.MockReadInfo(s.readInfo)
 	defer restore()
 
-	ovld, err := overlord.New()
+	r, err := os.Open(dirs.SnapStateFile)
 	c.Assert(err, IsNil)
-	st := ovld.State()
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	// go from patch-level 0 to patch-level 1
+	restorer := patch.MockLevel(1)
+	defer restorer()
 
 	err = patch.Apply(st)
 	c.Assert(err, IsNil)
@@ -127,6 +133,12 @@ func (s *patch1Suite) TestPatch1(c *C) {
 		c.Check(snap.Type(snapst.SnapType), Equals, exp.typ)
 		c.Check(snapst.Current, Equals, exp.cur)
 	}
+
+	// ensure we only moved forward to patch-level 1
+	var patchLevel int
+	err = st.Get("patch-level", &patchLevel)
+	c.Assert(err, IsNil)
+	c.Assert(patchLevel, Equals, 1)
 }
 
 func (s *patch1Suite) readInfo(name string, si *snap.SideInfo) (*snap.Info, error) {

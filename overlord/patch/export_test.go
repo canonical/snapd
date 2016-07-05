@@ -16,3 +16,10 @@ func MockReadInfo(f func(name string, si *snap.SideInfo) (*snap.Info, error)) (r
 	readInfo = f
 	return func() { readInfo = old }
 }
+
+// MockLevel replaces the current implemented patch level
+func MockLevel(lv int) (restorer func()) {
+	old := Level
+	Level = lv
+	return func() { Level = old }
+}
