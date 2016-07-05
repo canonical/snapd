@@ -1,0 +1,12 @@
+name: content-plug
+version: 1.0
+apps:
+    content-plug:
+        command: bin/content-plug
+        plugs: [shared-content-plug]
+plugs:
+    shared-content-plug:
+        interface: content
+        target: $SNAP_PATH/import
+        content: mylib
+        default-provider: hello-world
