@@ -122,7 +122,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	// discard everything after "current" (we may have reverted to
 	// a previous versions earlier)
 	// Do not do that if we are reverting to a local revision
-	if ss.Revision.Unset() && !snapst.Current.Unset() {
+	if ss.Revision.Unset() && snapst.HasCurrent() {
 		seq := snapst.Sequence
 		currentIndex := snapst.findIndex(snapst.Current)
 		for i := currentIndex + 1; i < len(seq); i++ {
