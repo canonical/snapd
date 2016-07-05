@@ -57,7 +57,7 @@ const (
 	// 0x40000000 >> iota
 )
 
-func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, error) {
+func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.SideInfo.RealName); err != nil {
 		return nil, err
 	}
@@ -96,7 +96,7 @@ func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, e
 		prev = mount
 	}
 
-	if curActive {
+	if snapst.Active {
 		// unlink-current-snap (will stop services for copy-data)
 		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), ss.SideInfo.RealName))
 		addTask(unlink)
@@ -118,6 +118,20 @@ func doInstall(s *state.State, curActive bool, ss *SnapSetup) (*state.TaskSet, e
 	// finalize (wrappers+current symlink)
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q available to the system%s"), ss.SideInfo.RealName, revisionStr))
 	addTask(linkSnap)
+
+	// do GC!
+	if snapst.HasCurrent() {
+		prev := linkSnap
+		seq := snapst.Sequence
+		currentIndex := snapst.findIndex(snapst.Current)
+		for i := 0; i <= currentIndex-2; i++ {
+			si := seq[i]
+			ts := removeInactiveRevision(s, ss.SideInfo.RealName, si.Revision)
+			ts.WaitFor(prev)
+			tasks = append(tasks, ts.Tasks()...)
+			prev = tasks[len(tasks)-1]
+		}
+	}
 
 	return state.NewTaskSet(tasks...), nil
 }
@@ -157,7 +171,7 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		Flags:    SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, snapst.Active, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -193,7 +207,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		SideInfo:     &snapInfo.SideInfo,
 	}
 
-	return doInstall(s, false, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 // Update initiates a change updating a snap.
@@ -228,7 +242,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		SideInfo:     &updateInfo.SideInfo,
 	}
 
-	return doInstall(s, snapst.Active, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
@@ -389,7 +403,7 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 		},
 		Revision: revertToRev,
 	}
-	return doInstall(s, true, ss)
+	return doInstall(s, &snapst, ss)
 }
 
 // Retrieval functions
