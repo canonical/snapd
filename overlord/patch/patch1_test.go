@@ -102,6 +102,7 @@ func (s *patch1Suite) TestPatch1(c *C) {
 
 	r, err := os.Open(dirs.SnapStateFile)
 	c.Assert(err, IsNil)
+	defer r.Close()
 	st, err := state.ReadState(nil, r)
 	c.Assert(err, IsNil)
 
