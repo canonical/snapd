@@ -614,8 +614,9 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:   "undo-setup-snap",
-			name: "/snap/some-snap/11",
+			op:    "undo-setup-snap",
+			name:  "/snap/some-snap/11",
+			stype: "app",
 		},
 	}
 
@@ -745,8 +746,9 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:   "undo-setup-snap",
-			name: "/snap/some-snap/11",
+			op:    "undo-setup-snap",
+			name:  "/snap/some-snap/11",
+			stype: "app",
 		},
 	}
 
@@ -1062,8 +1064,9 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:   "remove-snap-files",
-			name: "/snap/some-snap/7",
+			op:    "remove-snap-files",
+			name:  "/snap/some-snap/7",
+			stype: "app",
 		},
 		{
 			op:   "discard-conns:Doing",
@@ -1150,16 +1153,18 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:   "remove-snap-files",
-			name: "/snap/some-snap/7",
+			op:    "remove-snap-files",
+			name:  "/snap/some-snap/7",
+			stype: "app",
 		},
 		{
 			op:   "remove-snap-data",
 			name: "/snap/some-snap/3",
 		},
 		{
-			op:   "remove-snap-files",
-			name: "/snap/some-snap/3",
+			op:    "remove-snap-files",
+			name:  "/snap/some-snap/3",
+			stype: "app",
 		},
 		{
 			op:   "remove-snap-data",
@@ -1170,8 +1175,9 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			name: "/snap/some-snap/5",
 		},
 		{
-			op:   "remove-snap-files",
-			name: "/snap/some-snap/5",
+			op:    "remove-snap-files",
+			name:  "/snap/some-snap/5",
+			stype: "app",
 		},
 		{
 			op:   "discard-conns:Doing",
