@@ -219,10 +219,18 @@ func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	ts, err := snapstate.Enable(s.state, "some-snap")
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
-	s.state.NewChange("install", "...").AddAll(ts)
+	s.state.NewChange("enable", "...").AddAll(ts)
 
 	_, err = snapstate.Enable(s.state, "some-snap")
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
@@ -233,12 +241,11 @@ func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(7)},
 			{OfficialName: "some-snap", Revision: snap.R(11)},
 		},
 		Current: snap.R(11),
+		Active:  true,
 	})
 
 	ts, err := snapstate.Disable(s.state, "some-snap")
