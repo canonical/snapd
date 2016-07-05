@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -50,9 +51,17 @@ func main() {
 }
 
 func parseArgs(args []string) ([]string, error) {
-
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.IgnoreUnknown)
-	return parser.ParseArgs(args)
+	rest, err := parser.ParseArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	// we ignore unknown --args but they must appear after the
+	// positional arguments
+	if strings.HasPrefix(opts.Positional.SnapApp, "-") {
+		return nil, fmt.Errorf("unknown argument %q", opts.Positional.SnapApp)
+	}
+	return rest, nil
 }
 
 func run() error {
