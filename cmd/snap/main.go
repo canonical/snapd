@@ -54,6 +54,7 @@ type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
+	ignoreUnknown             bool
 }
 
 // commands holds information about all non-experimental commands.
@@ -196,8 +197,13 @@ func main() {
 
 func parseArgs(args []string) (*flags.Parser, []string, error) {
 	parser := Parser()
-	if len(args) > 0 && args[0] == "run" {
-		parser.Options |= flags.IgnoreUnknown
+	if len(args) > 0 {
+		for _, cmd := range commands {
+			if cmd.ignoreUnknown && cmd.name == args[0] {
+				parser.Options |= flags.IgnoreUnknown
+				break
+			}
+		}
 	}
 	rest, err := parser.ParseArgs(args)
 	return parser, rest, err
