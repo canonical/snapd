@@ -39,6 +39,9 @@ func (s *patch2Suite) makeState() *state.State {
 	st.Lock()
 	defer st.Unlock()
 
+	// we are at level 1 and want to go to level 2
+	st.Set("patch-level", 1)
+
 	// make state for SnapSetup transition
 	oldSS := patch.OldSnapSetup{
 		Name: "foo",
@@ -72,6 +75,9 @@ func (s *patch2Suite) makeState() *state.State {
 
 func (s *patch2Suite) TestPatch2(c *C) {
 	st := s.makeState()
+
+	restorer := patch.MockLevel(2)
+	defer restorer()
 
 	err := patch.Apply(st)
 	c.Assert(err, IsNil)
