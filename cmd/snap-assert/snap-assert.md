@@ -1,7 +1,6 @@
 # snap-assert: A Low-level Tool for Assertion Signing
 
-`snap-assert` is a low-level tool intended to be called by higher-level and more task specific tools when they need to create
-and sign specific assertions on behalf of the user:
+`snap-assert` is a low-level tool intended to be called by higher-level and more task specific tools when they need to create and sign specific assertions on behalf of the user:
 
 `snap-assert [OPTIONS] [<assert-type>] [<statement>]`
 
@@ -15,7 +14,7 @@ Keys for use need to be RSA and be at least 4096 bits long.
 
 The signer identifier (the `authority-id` header value in the resulting assertion) can be specified with `--authority-id` while the key can be with `--key-id` giving a long key id. Otherwise the same can be achieved with`--account-key` to specify a file with the account key assertion for the intended key from which all the key and signer identifying information can be extracted.
 
-## Input (aka statement) for The Assertion
+## Input (aka Statement) for the Assertion
 
 For clarity the type of assertion to create must be given as the first positional argument on the command line. After that optionally an input file called here the _statement_; if it is omitted or `-` is passed stdin will be used.
 
