@@ -90,8 +90,8 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 	}
 
 	st.Lock()
-	msg := fmt.Sprintf("Syncing boot")
-	chg := st.NewChange("sync-boot", msg)
+	msg := fmt.Sprintf("Update snap revisions after boot changes")
+	chg := st.NewChange("update-revisions", msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
@@ -109,7 +109,7 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 	st.Unlock()
 	if status != state.DoneStatus {
 		ovld.Stop()
-		return fmt.Errorf("cannot run syncboot change: %s", err)
+		return fmt.Errorf("cannot update revisions after boot changes: %s", err)
 	}
 
 	return ovld.Stop()
