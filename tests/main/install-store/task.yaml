@@ -10,8 +10,8 @@ execute: |
     $SNAP_NAME .*? canonical +-\n"
     for channel in edge beta candidate stable
     do
-      snap install $SNAP_NAME --channel=$channel | grep -Pzq "$expected"
-      snap remove $SNAP_NAME
+        snap install $SNAP_NAME --channel=$channel | grep -Pzq "$expected"
+        snap remove $SNAP_NAME
     done
 
     echo "Install non-devmode snap with devmode option"

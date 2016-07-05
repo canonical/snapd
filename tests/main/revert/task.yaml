@@ -33,13 +33,13 @@ execute: |
 
     echo "And a new revert fails"
     if snap revert test-snapd-tools; then
-      echo "A revert on an already reverted snap should fail"
-      exit 1
+        echo "A revert on an already reverted snap should fail"
+        exit 1
     fi
 
     echo "And a refresh doesn't update the snap"
     if snap refresh --edge test-snapd-tools; then
-      echo "After revert we shouldn't be able to refresh"
-      exit 1
+        echo "After revert we shouldn't be able to refresh"
+        exit 1
     fi
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "

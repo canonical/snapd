@@ -5,9 +5,9 @@ restore: |
 
 execute: |
     check_empty_glob(){
-      local base_path=$1
-      local glob=$2
-      [ $(find $base_path -maxdepth 1 -name "$glob" | wc -l) -eq 0 ]
+        local base_path=$1
+        local glob=$2
+        [ $(find $base_path -maxdepth 1 -name "$glob" | wc -l) -eq 0 ]
     }
 
     echo "Given we make a snap uninstallable"
@@ -15,8 +15,8 @@ execute: |
 
     echo "And we try to install it"
     if snap install test-snapd-tools; then
-      echo "A snap shouldn't be installable if its mount point is busy"
-      exit 1
+        echo "A snap shouldn't be installable if its mount point is busy"
+        exit 1
     fi
 
     echo "Then the snap isn't installed"
@@ -25,8 +25,8 @@ execute: |
     echo "And the installation task is reported as an error"
     failed_task_id=$(snap changes | perl -ne 'print $1 if /(\d+) +Error.*?Install \"test-snapd-tools\" snap/')
     if [ -z $failed_task_id ]; then
-      echo "Installation task should be reported as error"
-      exit 1
+        echo "Installation task should be reported as error"
+        exit 1
     fi
 
     echo "And the Download subtask is actually undone"

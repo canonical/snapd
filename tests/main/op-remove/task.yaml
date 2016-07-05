@@ -5,8 +5,8 @@ restore: |
 
 execute: |
     snap_revisions(){
-      local snap_name=$1
-      echo -n $(find /snap/"$snap_name"/ -maxdepth 1 -type d -name "x*" | wc -l)
+        local snap_name=$1
+        echo -n $(find /snap/"$snap_name"/ -maxdepth 1 -type d -name "x*" | wc -l)
     }
 
     echo "Given two revisions of a snap have been installed"

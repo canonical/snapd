@@ -69,6 +69,6 @@ execute: |
 
     echo "Then snap can't access a network service"
     if network-consumer http://127.0.0.1:$PORT; then
-      echo "Network shouldn't be accessible"
-      exit 1
+        echo "Network shouldn't be accessible"
+        exit 1
     fi

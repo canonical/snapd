@@ -59,6 +59,6 @@ execute: |
 
     echo "Then snap can't access the system logs"
     if log-observe-consumer; then
-      echo "System log shouldn't be accessible"
-      exit 1
+        echo "System log shouldn't be accessible"
+        exit 1
     fi

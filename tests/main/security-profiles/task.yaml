@@ -20,8 +20,8 @@ execute: |
 
     for profile in snap.test-snapd-tools.block snap.test-snapd-tools.cat snap.test-snapd-tools.echo snap.test-snapd-tools.fail snap.test-snapd-tools.success
     do
-      echo "$loaded_profiles" | grep -zq "$profile (enforce)"
-      [ -f "$seccomp_profile_directory/$profile" ]
+        echo "$loaded_profiles" | grep -zq "$profile (enforce)"
+        [ -f "$seccomp_profile_directory/$profile" ]
     done
 
     echo "Security profiles are generated and loaded for hooks"
@@ -30,6 +30,6 @@ execute: |
 
     for profile in snap.basic-hooks.hook.install snap.basic-hooks.hook.upgrade
     do
-      echo "$loaded_profiles" | grep -zq "$profile (enforce)"
-      [ -f "$seccomp_profile_directory/$profile" ]
+        echo "$loaded_profiles" | grep -zq "$profile (enforce)"
+        [ -f "$seccomp_profile_directory/$profile" ]
     done
