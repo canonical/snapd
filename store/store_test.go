@@ -205,6 +205,9 @@ http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/detai
 on 2016-07-03. Then, by hand:
  * set prices to {"EUR": 0.99, "USD": 1.23}.
 
+On Ubuntu, apt install httpie xsel (although you could get http from
+the http snap instead).
+
 */
 const MockDetailsJSON = `{
     "_links": {
@@ -477,6 +480,10 @@ acquired via
 http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/details/no:such:package X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha512,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
 
 on 2016-07-03
+
+On Ubuntu, apt install httpie xsel (although you could get http from
+the http snap instead).
+
 */
 const MockNoDetailsJSON = `{
     "errors": [

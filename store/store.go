@@ -333,8 +333,7 @@ func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, cha
 	}
 }
 
-// read all the available metadata from the store response and cache
-func (s *SnapUbuntuStoreRepository) checkStoreResponse(resp *http.Response) {
+func (s *SnapUbuntuStoreRepository) extractSuggestedCurrency(resp *http.Response) {
 	suggestedCurrency := resp.Header.Get("X-Suggested-Currency")
 
 	if suggestedCurrency != "" {
@@ -547,8 +546,6 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 		return nil, fmt.Errorf(tpl, resp.StatusCode, name, channel)
 	}
 
-	s.checkStoreResponse(resp)
-
 	// and decode json
 	var remote snapDetails
 	dec := json.NewDecoder(resp.Body)
@@ -566,8 +563,9 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
 
-	return info, nil
+	s.extractSuggestedCurrency(resp)
 
+	return info, nil
 }
 
 // Find finds  (installable) snaps from the store, matching the
@@ -621,7 +619,7 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auth
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
 
-	s.checkStoreResponse(resp)
+	s.extractSuggestedCurrency(resp)
 
 	return snaps, nil
 }
@@ -734,7 +732,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 		res = append(res, infoFromRemote(rsnap))
 	}
 
-	s.checkStoreResponse(resp)
+	s.extractSuggestedCurrency(resp)
 
 	return res, nil
 }

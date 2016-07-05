@@ -191,6 +191,7 @@ const fooSearchHit = `{
 	"channel": "stable",
 	"content": "application",
 	"description": "this is a description",
+        "developer_id": "devdevdev",
 	"download_url": "@URL@",
 	"icon_url": "@ICON@",
 	"origin": "bar",
@@ -274,6 +275,7 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
@@ -312,6 +314,7 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(50))
 	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "2.0")
 
 	// check udpated wrapper
