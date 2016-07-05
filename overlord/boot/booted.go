@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -31,14 +32,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func nameAndRevnoFromSnap(sn string) (string, snap.Revision) {
+func nameAndRevnoFromSnap(sn string) (string, snap.Revision, error) {
 	name := strings.Split(sn, "_")[0]
 	revnoNSuffix := strings.Split(sn, "_")[1]
 	rev, err := snap.ParseRevision(strings.Split(revnoNSuffix, ".snap")[0])
 	if err != nil {
-		return "", snap.Revision{}
+		return "", snap.Revision{}, err
 	}
-	return name, rev
+	return name, rev, nil
 }
 
 // UpdateRevisions synchronizes the active kernel and OS snap versions with
@@ -58,8 +59,16 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 		return fmt.Errorf("cannot run UpdateRevisions: %s", err)
 	}
 
-	kernelSnap, _ := bootloader.GetBootVar("snappy_kernel")
-	osSnap, _ := bootloader.GetBootVar("snappy_os")
+	bv := "snappy_kernel"
+	kernelSnap, err := bootloader.GetBootVar(bv)
+	if err != nil {
+		return fmt.Errorf("cannot get bootvar %q: %s", bv, err)
+	}
+	bv = "snappy_os"
+	osSnap, err := bootloader.GetBootVar(bv)
+	if err != nil {
+		return fmt.Errorf("cannot get bootvar %q: %s", bv, err)
+	}
 
 	st := ovld.State()
 	st.Lock()
@@ -70,7 +79,11 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 
 	var tsAll []*state.TaskSet
 	for _, snapNameAndRevno := range []string{kernelSnap, osSnap} {
-		name, rev := nameAndRevnoFromSnap(snapNameAndRevno)
+		name, rev, err := nameAndRevnoFromSnap(snapNameAndRevno)
+		if err != nil {
+			logger.Noticef("cannot parse %q: %s", snapNameAndRevno, err)
+			continue
+		}
 		for snapName, snapState := range installed {
 			if name == snapName {
 				if rev != snapState.Current {
