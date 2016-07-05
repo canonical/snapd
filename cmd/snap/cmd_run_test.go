@@ -114,8 +114,9 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	err := snaprun.SnapRunApp("snapname.app", "", []string{"arg1", "arg2"})
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
 		"/usr/bin/ubuntu-core-launcher",
@@ -123,7 +124,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 		"snap.snapname.app",
 		"/usr/lib/snapd/snap-exec",
 		"snapname.app",
-		"arg1", "arg2"})
+		"--arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
