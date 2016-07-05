@@ -82,6 +82,10 @@ func (x *cmdRun) Execute(args []string) error {
 		x.Command = "shell"
 	}
 
+	if strings.HasPrefix(x.Positional.SnapApp, "-") {
+		return fmt.Errorf("unknown flag %q", x.Positional.SnapApp)
+	}
+
 	return snapRunApp(x.Positional.SnapApp, x.Command, args)
 }
 
