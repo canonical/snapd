@@ -38,8 +38,5 @@ execute: |
     fi
 
     echo "And a refresh without arguments doesn't update the snap"
-    if snap refresh --edge ; then
-        echo "After revert we shouldn't be able to refresh"
-        exit 1
-    fi
+    snap refresh --edge
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
