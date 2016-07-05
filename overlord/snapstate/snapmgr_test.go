@@ -109,15 +109,12 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	c.Check(store1, Equals, store2)
 }
 
-func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
+func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) int {
 	i := 0
 	n := 5
 	if curActive {
 		n++
 	}
-	c.Assert(ts.Tasks(), HasLen, n)
-	// all tasks are accounted
-	c.Assert(st.NumTask(), Equals, n)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
@@ -131,6 +128,7 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+	return n
 }
 
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
@@ -139,7 +137,10 @@ func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 
 	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, IsNil)
-	verifyInstallUpdateTasks(c, false, ts, s.state)
+
+	n := verifyInstallUpdateTasks(c, false, ts, s.state)
+	c.Assert(ts.Tasks(), HasLen, n)
+	c.Assert(s.state.NumTask(), Equals, n)
 }
 
 func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
@@ -168,7 +169,101 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+}
 
+func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(1)},
+			{OfficialName: "some-snap", Revision: snap.R(2)},
+			{OfficialName: "some-snap", Revision: snap.R(3)},
+			{OfficialName: "some-snap", Revision: snap.R(4)},
+		},
+		Current: snap.R(4),
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "", 0, 0)
+	c.Assert(err, IsNil)
+
+	i := verifyInstallUpdateTasks(c, true, ts, s.state)
+	c.Assert(ts.Tasks(), HasLen, i+4)
+	c.Assert(s.state.NumTask(), Equals, i+4)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+}
+
+func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(1)},
+			{OfficialName: "some-snap", Revision: snap.R(2)},
+			{OfficialName: "some-snap", Revision: snap.R(3)},
+			{OfficialName: "some-snap", Revision: snap.R(4)},
+		},
+		Current: snap.R(1),
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "", 0, 0)
+	c.Assert(err, IsNil)
+
+	i := verifyInstallUpdateTasks(c, true, ts, s.state)
+	c.Assert(ts.Tasks(), HasLen, i+6)
+	c.Assert(s.state.NumTask(), Equals, i+6)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+}
+
+func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(1)},
+			{OfficialName: "some-snap", Revision: snap.R(2)},
+			{OfficialName: "some-snap", Revision: snap.R(3)},
+			{OfficialName: "some-snap", Revision: snap.R(4)},
+		},
+		Current: snap.R(2),
+	})
+
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R(4))
+	c.Assert(err, IsNil)
+
+	// ensure that we do not run any form of garbage-collection
+	i := 0
+	c.Assert(ts.Tasks(), HasLen, 4)
+	c.Assert(s.state.NumTask(), Equals, 4)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 }
 
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
@@ -225,7 +320,9 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 
 	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
 	c.Assert(err, IsNil)
-	verifyInstallUpdateTasks(c, true, ts, s.state)
+	n := verifyInstallUpdateTasks(c, true, ts, s.state)
+	c.Assert(ts.Tasks(), HasLen, n)
+	c.Assert(s.state.NumTask(), Equals, n)
 
 	var ss snapstate.SnapSetup
 	err = ts.Tasks()[0].Get("snap-setup", &ss)
