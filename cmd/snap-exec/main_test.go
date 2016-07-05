@@ -121,5 +121,11 @@ func (s *snapExecSuite) TestSnapExecIgnoresUnknownArgs(c *C) {
 	rest, err := parseArgs([]string{"--command=shel", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{"--arg1", "arg2"})
+	c.Assert(opts.Positional.SnapApp, Equals, "snapname.app")
+}
 
+func (s *snapExecSuite) TestSnapExecErrorsOn(c *C) {
+	rest, err := parseArgs([]string{"--command=shel", "--unknown", "snapname.app", "--arg1", "arg2"})
+	c.Check(err, ErrorMatches, `unknown argument "--unknown"`)
+	c.Check(rest, IsNil)
 }
