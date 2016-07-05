@@ -1,0 +1,9 @@
+name: content-slot
+version: 1.0
+slots:
+    shared-content-slot:
+        interface: content
+        content: mylib
+        read:
+            - $SNAP_PATH
+            - $SNAP_PATH
