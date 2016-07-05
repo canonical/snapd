@@ -1,40 +1,43 @@
 summary: Check that snap apps and services can write to writable areas.
+
 prepare: |
-  snapbuild $TESTSLIB/snaps/data-writer .
+    snapbuild $TESTSLIB/snaps/data-writer .
+
 restore: |
-  rm data-writer_1.0_all.snap
+    rm data-writer_1.0_all.snap
+
 execute: |
-  snap install data-writer_1.0_all.snap
+    snap install data-writer_1.0_all.snap
 
-  echo "Apps can write to writable areas"
-  data-writer.app
-  [ -f /var/snap/data-writer/x1/from-app ] || exit 1
-  [ -f /var/snap/data-writer/common/from-app ] || exit 1
-  [ -f /root/snap/data-writer/x1/from-app ] || exit 1
-  # TODO: As soon as `snap run` is used (which creates this directory),
-  # uncomment the following line:
-  #[ -f /root/snap/data-writer/common/from-app ] || exit 1
+    echo "Apps can write to writable areas"
+    data-writer.app
+    [ -f /var/snap/data-writer/x1/from-app ]
+    [ -f /var/snap/data-writer/common/from-app ]
+    [ -f /root/snap/data-writer/x1/from-app ]
+    # TODO: As soon as `snap run` is used (which creates this directory),
+    # uncomment the following line:
+    #[ -f /root/snap/data-writer/common/from-app ]
 
-  echo "Waiting for data writer service to finish..."
-  unit="snap.data-writer.service.service"
-  while true; do
-    code=$(sudo systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
-    # The main code will be 0 until the service is no longer running
-    if [ $code -ne 0 ]; then
-      status=$(sudo systemctl show -p ExecMainStatus $unit | sed 's/.*=\([0-9]\+\)/\1/')
-      if [ $status -ne 0 ]; then
-        echo "Service exited $status"
-        exit 1
+    echo "Waiting for data writer service to finish..."
+    unit="snap.data-writer.service.service"
+    while true; do
+      code=$(sudo systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
+      # The main code will be 0 until the service is no longer running
+      if [ $code -ne 0 ]; then
+        status=$(sudo systemctl show -p ExecMainStatus $unit | sed 's/.*=\([0-9]\+\)/\1/')
+        if [ $status -ne 0 ]; then
+          echo "Service exited $status"
+          exit 1
+        fi
+        break
       fi
-      break
-    fi
-    sleep 0.1
-  done
+      sleep 0.1
+    done
 
-  echo "Services can write to writable areas"
-  [ -f /var/snap/data-writer/x1/from-service ] || exit 1
-  [ -f /var/snap/data-writer/common/from-service ] || exit 1
-  [ -f /root/snap/data-writer/x1/from-service ] || exit 1
-  # TODO: As soon as `snap run` is used (which creates this directory),
-  # uncomment the following line:
-  #[ -f /root/snap/data-writer/common/from-service ] || exit 1
+    echo "Services can write to writable areas"
+    [ -f /var/snap/data-writer/x1/from-service ]
+    [ -f /var/snap/data-writer/common/from-service ]
+    [ -f /root/snap/data-writer/x1/from-service ]
+    # TODO: As soon as `snap run` is used (which creates this directory),
+    # uncomment the following line:
+    #[ -f /root/snap/data-writer/common/from-service ]
