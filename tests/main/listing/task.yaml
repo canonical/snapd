@@ -1,0 +1,13 @@
+summary: Check snap listings
+
+prepare: |
+    snap install hello-world
+
+execute: |
+    echo "List prints core snap version"
+    expected="^ubuntu-core +.*? +((\d{2}\.\d{2}\+\d{8}\.\d*\-\d*)|\w{12}) + \d+ +canonical +- *"
+    snap list | grep -Pq "$expected"
+
+    echo "List prints installed snap version"
+    expected="^hello-world +(\\d+)(\\.\\d+)* +[0-9]+ +\\S+ +- *"
+    snap list | grep -Pq "$expected"
