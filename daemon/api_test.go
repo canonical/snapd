@@ -1142,6 +1142,8 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"refresh", snapUpdate},
 		{"remove", snapRemove},
 		{"revert", snapRevert},
+		{"enable", snapEnable},
+		{"disable", snapDisable},
 		{"xyzzy", nil},
 	}
 
