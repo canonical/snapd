@@ -111,23 +111,22 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 
 // Lowlevel copy the snap data
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
-	if osutil.FileExists(newPath) {
-		if err := os.RemoveAll(newPath); err != nil {
-			return err
-		}
-	}
-
-	if _, err := os.Stat(oldPath); err == nil {
-		if _, err := os.Stat(newPath); err != nil {
-			// there is no golang "CopyFile"
-			cmd := exec.Command("cp", "-a", oldPath, newPath)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				output = bytes.TrimSpace(output)
-				if len(output) > 0 {
-					err = fmt.Errorf("%s", output)
-				}
-				return fmt.Errorf("cannot copy %s to %s: %v", oldPath, newPath, err)
+	if osutil.IsDirectory(oldPath) {
+		// ensure newPath is clean
+		if osutil.IsDirectory(newPath) {
+			if err := os.RemoveAll(newPath); err != nil {
+				return err
 			}
+		}
+
+		// there is no golang "CopyFile"
+		cmd := exec.Command("cp", "-a", oldPath, newPath)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			output = bytes.TrimSpace(output)
+			if len(output) > 0 {
+				err = fmt.Errorf("%s", output)
+			}
+			return fmt.Errorf("cannot copy %s to %s: %v", oldPath, newPath, err)
 		}
 	}
 	return nil
