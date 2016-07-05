@@ -464,7 +464,7 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	c.Check(t.Status(), Equals, state.DoingStatus)
 	c.Check(ask, Equals, 1)
 	c.Check(sb.ensureBefore, Equals, 55*time.Second)
-	c.Check(state.TaskScheduledTime(t), Equals, schedule)
+	c.Check(state.TaskScheduledTime(t).Equal(schedule), Equals, true)
 
 	state.MockTime(schedule)
 	sb.ensureBefore = time.Hour

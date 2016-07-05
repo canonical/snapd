@@ -452,7 +452,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Assert(tasks2, HasLen, 2)
 
 	c.Check(state.TaskScheduledTime(task0_1).IsZero(), Equals, true)
-	c.Check(state.TaskScheduledTime(task0_2), Equals, schedule)
+	c.Check(state.TaskScheduledTime(task0_2).Equal(schedule), Equals, true)
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
@@ -479,7 +479,7 @@ func (ss *stateSuite) TestScheduleTask(c *C) {
 	when := now.Add(10 * time.Second)
 	st.ScheduleTask(t, when)
 
-	c.Check(state.TaskScheduledTime(t), Equals, when)
+	c.Check(state.TaskScheduledTime(t).Equal(when), Equals, true)
 	c.Check(b.ensureBefore, Equals, 10*time.Second)
 }
 
@@ -495,7 +495,7 @@ func (ss *stateSuite) TestScheduleTaskPast(c *C) {
 	when := time.Now().Add(-10 * time.Second)
 	st.ScheduleTask(t, when)
 
-	c.Check(state.TaskScheduledTime(t), Equals, when)
+	c.Check(state.TaskScheduledTime(t).Equal(when), Equals, true)
 	c.Check(b.ensureBefore, Equals, time.Duration(0))
 }
 
