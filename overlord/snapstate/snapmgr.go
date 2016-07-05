@@ -247,20 +247,8 @@ func (snapst *SnapState) SetTryMode(active bool) {
 	}
 }
 
-func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
-	var auther store.Authenticator
-	if userID > 0 {
-		user, err := auth.User(st, userID)
-		if err != nil {
-			return nil, err
-		}
-		auther = user.Authenticator()
-	}
-	return auther, nil
-}
-
 func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
-	auther, err := autherForUserID(st, userID)
+	auther, err := auth.Authenticator(st, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +258,7 @@ func updateInfo(st *state.State, name, channel string, userID int, flags Flags) 
 }
 
 func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
-	auther, err := autherForUserID(st, userID)
+	auther, err := auth.Authenticator(st, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -438,7 +426,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Lock()
 	store := Store(st)
-	auther, err := autherForUserID(st, ss.UserID)
+	auther, err := auth.Authenticator(st, ss.UserID)
 	st.Unlock()
 	if err != nil {
 		return err

@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -69,6 +70,7 @@ var api = []*Command{
 	stateChangeCmd,
 	stateChangesCmd,
 	createUserCmd,
+	deviceIdentityCmd,
 }
 
 var (
@@ -171,6 +173,12 @@ var (
 		Path:   "/v2/create-user",
 		UserOK: false,
 		POST:   postCreateUser,
+	}
+
+	deviceIdentityCmd = &Command{
+		Path:     "/v2/experimental-device-identity",
+		POST:     changeDeviceIdentity,
+		SudoerOK: true,
 	}
 )
 
@@ -376,7 +384,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
-	auther, err := c.d.auther(r)
+	auther, err := c.d.auther(user)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
@@ -454,10 +462,11 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 
-	var auther store.Authenticator
-	if user != nil {
-		auther = user.Authenticator()
+	auther, err := c.d.auther(user)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
 	}
+
 	store := getStore(c)
 	updates, err := store.ListRefresh(candidatesInfo, auther)
 	if err != nil {
@@ -1315,4 +1324,78 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	createResponseData.Username = v.Username
 
 	return SyncResponse(createResponseData, nil)
+}
+
+// signNonceWithHelper invokes "snap-identity-helper sign-device-nonce <nonce>"
+// and passes a device-key ("openpgp <base64-encoded data>") into stdin.
+// The helper is expected to sign the nonce with the corresponding
+// private key and write the encoded signature ("openpgp [...]") to
+// stdout.
+// TODO: Needs to be overrideable by gadget snap.
+func signNonceWithHelper(deviceKeyEncoded []byte, nonce []byte) ([]byte, error) {
+	cmd := exec.Command("snap-identity-helper", "sign-device-nonce", string(nonce))
+	stdin, err := cmd.StdinPipe()
+	if _, err := stdin.Write(deviceKeyEncoded); err != nil {
+		return nil, err
+	}
+	stdin.Close()
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+type deviceIdentityChange struct {
+	Brand           string `json:"brand"`
+	Model           string `json:"model"`
+	Serial          string `json:"serial"`
+	SerialAssertion []byte `json:"serial-assertion"`
+}
+
+func changeDeviceIdentity(c *Command, r *http.Request, user *auth.UserState) Response {
+	var change deviceIdentityChange
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&change); err != nil {
+		return BadRequest("cannot decode data from request body: %v", err)
+	}
+
+	if (change.Brand != "" || change.Model != "" || change.Serial != "" || change.SerialAssertion != nil) && (change.Brand == "" || change.Model == "" || change.Serial == "" || change.SerialAssertion == nil) {
+		return BadRequest("must specify all or none of brand, model, serial and serial-assertion")
+	}
+
+	st := c.d.overlord.State()
+
+	var err error
+	if change.SerialAssertion != nil {
+		st.Lock()
+		err = auth.SetDeviceIdentity(st, change.Brand, change.Model, change.Serial, change.SerialAssertion)
+		st.Unlock()
+		if err != nil {
+			return InternalError("cannot persist serial assertion: %v", err)
+		}
+
+		st.Lock()
+		device, err := auth.Device(st)
+		st.Unlock()
+		if err != nil {
+			return InternalError(err.Error())
+		}
+		// XXX: If this fails then we might have already
+		// persisted a bad serial assertion and be unable to
+		// reacquire a macaroon if the existing one expires.
+		macaroon, err := store.AcquireDeviceMacaroon([]byte(device.SerialAssertion), signNonceWithHelper)
+		if err != nil {
+			return InternalError(err.Error())
+		}
+
+		st.Lock()
+		err = auth.SetDeviceStoreMacaroon(st, macaroon, []string{})
+		st.Unlock()
+		if err != nil {
+			return InternalError("cannot persist authentication details: %v", err)
+		}
+	}
+
+	return SyncResponse(nil, nil)
 }
