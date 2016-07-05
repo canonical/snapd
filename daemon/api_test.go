@@ -262,6 +262,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
 			"apps":        []appJSON{},
+			"broken":      "",
 		},
 		Meta: meta,
 	}
@@ -1141,6 +1142,8 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"refresh", snapUpdate},
 		{"remove", snapRemove},
 		{"revert", snapRevert},
+		{"enable", snapEnable},
+		{"disable", snapDisable},
 		{"xyzzy", nil},
 	}
 
