@@ -1252,10 +1252,10 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(1)},
-			{OfficialName: "some-snap", Revision: snap.R(2)},
-			{OfficialName: "some-snap", Revision: snap.R(3)},
-			{OfficialName: "some-snap", Revision: snap.R(4)},
+			{RealName: "some-snap", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+			{RealName: "some-snap", Revision: snap.R(3)},
+			{RealName: "some-snap", Revision: snap.R(4)},
 		},
 		Current: snap.R(4),
 	})
