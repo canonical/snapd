@@ -16,9 +16,6 @@ prepare: |
     setup_store $STORE_TYPE $BLOB_DIR
 
     if [ "$STORE_TYPE" = "fake" ]; then
-        echo "And snapd is configured to use the controlled store"
-        configure_store_backend localhost:11028
-
         echo "And a new version of that snap put in the controlled store"
         fakestore -blobdir $blob_dir -make-refreshable test-snapd-tools
     fi
