@@ -18,14 +18,8 @@ prepare: |
     snap install ./content-plug_1.0_all.snap
 
 execute: |
-    CONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?
-    content-slot:shared-content-slot +content-plug:shared-content-plug"
-    DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
-    .*?
-    content-slot:shared-content-slot +-\n\
-    .*?
-    - +content-plug:shared-content-plug"
+    CONNECTED_PATTERN="content-slot:shared-content-slot +content-plug:shared-content-plug"
+    DISCONNECTED_PATTERN="(?s).*?content-slot:shared-content-slot +-.*?- +content-plug:shared-content-plug"
 
     echo "Then the snap is listed as connected"
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
