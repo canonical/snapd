@@ -48,7 +48,6 @@ func populateStateFromInstalled() error {
 	if err != nil {
 		return err
 	}
-	ovld.Loop()
 	st := ovld.State()
 
 	all, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "snaps", "*.snap"))
@@ -58,9 +57,6 @@ func populateStateFromInstalled() error {
 
 	tsAll := []*state.TaskSet{}
 	for i, snapPath := range all {
-
-		fmt.Printf("Installing %s\n", snapPath)
-
 		st.Lock()
 
 		// XXX: needing to know the name here is too early
@@ -101,10 +97,19 @@ func populateStateFromInstalled() error {
 	st.Unlock()
 
 	// do it and wait for ready
+	ovld.Loop()
+
 	st.EnsureBefore(0)
 	<-chg.Ready()
-	if chg.Status() != state.DoneStatus {
-		return fmt.Errorf("cannot run chg: %s", chg.Err())
+
+	st.Lock()
+	status := chg.Status()
+	err = chg.Err()
+	st.Unlock()
+	if status != state.DoneStatus {
+		ovld.Stop()
+		return fmt.Errorf("cannot run seed change: %s", err)
+
 	}
 
 	return ovld.Stop()

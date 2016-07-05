@@ -23,10 +23,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// snapDetails encapsulates the data sent to us from the store.
-//
-// Full json available via:
-// curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: rolling-core" https://search.apps.ubuntu.com/api/v1/package/ubuntu-core.canonical | python -m json.tool
+// snapDetails encapsulates the data sent to us from the store as JSON.
 type snapDetails struct {
 	AnonDownloadURL string             `json:"anon_download_url,omitempty"`
 	Architectures   []string           `json:"architecture"`
@@ -42,7 +39,7 @@ type snapDetails struct {
 	Prices          map[string]float64 `json:"prices,omitempty"`
 	Publisher       string             `json:"publisher,omitempty"`
 	RatingsAverage  float64            `json:"ratings_average,omitempty"`
-	Revision        snap.Revision      `json:"revision"`
+	Revision        int                `json:"revision"` // store revisions are ints starting at 1
 	SnapID          string             `json:"snap_id"`
 	SupportURL      string             `json:"support_url"`
 	Title           string             `json:"title"`
@@ -51,7 +48,10 @@ type snapDetails struct {
 
 	// FIXME: the store should return "developer" to us instead of
 	//        origin
-	Developer   string `json:"origin" yaml:"origin"`
-	Private     bool   `json:"private" yaml:"private"`
-	Confinement string `json:"confinement" yaml:"confinement"`
+	// This will be retired/obsoleted soon
+	Developer string `json:"origin"`
+	// The developer id is the new relevant field that we track
+	DeveloperID string `json:"developer_id"`
+	Private     bool   `json:"private"`
+	Confinement string `json:"confinement"`
 }

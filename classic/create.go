@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 )
 
 var (
@@ -47,7 +46,7 @@ var getgrnam = osutil.Getgrnam
 
 func findDownloadPathFromLxdIndex(r io.Reader) (string, error) {
 	arch := arch.UbuntuArchitecture()
-	codename := release.ReleaseInfo.Codename
+	codename := "xenial"
 
 	needle := fmt.Sprintf("ubuntu;%s;%s;default;", codename, arch)
 	scanner := bufio.NewScanner(r)

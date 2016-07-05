@@ -94,16 +94,37 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		if len(appSnippets) == 0 {
 			continue
 		}
-		var buf bytes.Buffer
-		for _, snippet := range appSnippets {
-			buf.Write(snippet)
-			buf.WriteRune('\n')
+		if content == nil {
+			content = make(map[string]*osutil.FileState)
+		}
+
+		addContent(securityTag, appSnippets, content)
+	}
+
+	for _, hookInfo := range snapInfo.Hooks {
+		securityTag := hookInfo.SecurityTag()
+		hookSnippets := snippets[securityTag]
+		if len(hookSnippets) == 0 {
+			continue
 		}
 		if content == nil {
 			content = make(map[string]*osutil.FileState)
 		}
-		fname := fmt.Sprintf("%s.fstab", securityTag)
-		content[fname] = &osutil.FileState{Content: buf.Bytes(), Mode: 0644}
+
+		addContent(securityTag, hookSnippets, content)
 	}
 	return content, nil
+}
+
+func addContent(securityTag string, executableSnippets [][]byte, content map[string]*osutil.FileState) {
+	var buffer bytes.Buffer
+	for _, snippet := range executableSnippets {
+		buffer.Write(snippet)
+		buffer.WriteRune('\n')
+	}
+
+	content[fmt.Sprintf("%s.fstab", securityTag)] = &osutil.FileState{
+		Content: buffer.Bytes(),
+		Mode:    0644,
+	}
 }
