@@ -67,6 +67,8 @@ func run() error {
 func findCommand(app *snap.AppInfo, command string) (string, error) {
 	var cmd string
 	switch command {
+	case "debug-shell":
+		cmd = "/bin/sh"
 	case "stop":
 		cmd = app.StopCommand
 	case "post-stop":
