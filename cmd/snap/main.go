@@ -210,7 +210,7 @@ func parseArgs(args []string) (*flags.Parser, []string, error) {
 }
 
 func run() error {
-	parser, _, err := parseArgs(os.Args)
+	parser, _, err := parseArgs(os.Args[1:])
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
