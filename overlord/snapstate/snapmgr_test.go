@@ -1291,16 +1291,18 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 		name: "/snap/some-snap/1",
 	})
 	c.Assert(ops[len(ops)-3], DeepEquals, fakeOp{
-		op:   "remove-snap-files",
-		name: "/snap/some-snap/1",
+		op:    "remove-snap-files",
+		name:  "/snap/some-snap/1",
+		stype: "app",
 	})
 	c.Assert(ops[len(ops)-2], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
 		name: "/snap/some-snap/2",
 	})
 	c.Assert(ops[len(ops)-1], DeepEquals, fakeOp{
-		op:   "remove-snap-files",
-		name: "/snap/some-snap/2",
+		op:    "remove-snap-files",
+		name:  "/snap/some-snap/2",
+		stype: "app",
 	})
 
 }
@@ -1738,7 +1740,6 @@ version: 1.2
 description: |
     Lots of text`, sideInfo12)
 	snapstate.Set(st, "name1", &snapstate.SnapState{
-		SnapType: "app",
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo11, sideInfo12},
 		Current:  sideInfo12.Revision,
