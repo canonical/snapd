@@ -397,6 +397,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	chg.AddTask(t2)
 	t2ID := t2.ID()
 	t2.WaitFor(t1)
+	schedule := time.Now().Add(time.Hour)
+	st.ScheduleTask(t2, schedule)
 
 	// implicit checkpoint
 	st.Unlock()
@@ -448,6 +450,9 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 		tasks2[t.ID()] = t
 	}
 	c.Assert(tasks2, HasLen, 2)
+
+	c.Check(state.TaskScheduledTime(task0_1).IsZero(), Equals, true)
+	c.Check(state.TaskScheduledTime(task0_2), Equals, schedule)
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
@@ -457,6 +462,58 @@ func (ss *stateSuite) TestEnsureBefore(c *C) {
 	st.EnsureBefore(10 * time.Second)
 
 	c.Check(b.ensureBefore, Equals, 10*time.Second)
+}
+
+func (ss *stateSuite) TestScheduleTask(c *C) {
+	b := new(fakeStateBackend)
+	b.ensureBefore = time.Hour
+	st := state.New(b)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+	when := now.Add(10 * time.Second)
+	st.ScheduleTask(t, when)
+
+	c.Check(state.TaskScheduledTime(t), Equals, when)
+	c.Check(b.ensureBefore, Equals, 10*time.Second)
+}
+
+func (ss *stateSuite) TestScheduleTaskPast(c *C) {
+	b := new(fakeStateBackend)
+	b.ensureBefore = time.Hour
+	st := state.New(b)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	when := time.Now().Add(-10 * time.Second)
+	st.ScheduleTask(t, when)
+
+	c.Check(state.TaskScheduledTime(t), Equals, when)
+	c.Check(b.ensureBefore, Equals, time.Duration(0))
+}
+
+func (ss *stateSuite) TestScheduleTaskReadyNop(c *C) {
+	b := new(fakeStateBackend)
+	b.ensureBefore = time.Hour
+	st := state.New(b)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.SetStatus(state.DoneStatus)
+
+	when := time.Now().Add(10 * time.Second)
+	st.ScheduleTask(t, when)
+
+	c.Check(state.TaskScheduledTime(t).IsZero(), Equals, true)
+	c.Check(b.ensureBefore, Equals, time.Hour)
 }
 
 func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {

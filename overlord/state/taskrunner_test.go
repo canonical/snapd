@@ -38,6 +38,7 @@ var _ = Suite(&taskRunnerSuite{})
 type stateBackend struct {
 	mu           sync.Mutex
 	ensureBefore time.Duration
+	witness      chan<- bool
 }
 
 func (b *stateBackend) Checkpoint([]byte) error { return nil }
@@ -48,6 +49,9 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 		b.ensureBefore = d
 	}
 	b.mu.Unlock()
+	if b.witness != nil {
+		b.witness <- true
+	}
 }
 
 func (b *stateBackend) RequestRestart() {}
@@ -152,7 +156,7 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 			if task.Get(label+"-retry", &isSet) == nil && isSet {
 				task.Set(label+"-retry", false)
 				ch <- task.Summary() + ":" + label + "-retry"
-				return state.Retry
+				return &state.Retry{}
 			}
 			if task.Get(label+"-error", &isSet) == nil && isSet {
 				ch <- task.Summary() + ":" + label + "-error"
@@ -387,7 +391,7 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 		ch <- true
 		<-tb.Dying()
 		// ask for retry
-		return state.Retry
+		return &state.Retry{}
 	}, nil)
 
 	st.Lock()
@@ -403,4 +407,81 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 	st.Lock()
 	defer st.Unlock()
 	c.Check(t.Status(), Equals, state.DoingStatus)
+}
+
+func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
+	ensureBeforeTick := make(chan bool, 1)
+	sb := &stateBackend{
+		ensureBefore: time.Hour,
+		witness:      ensureBeforeTick,
+	}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	ask := 0
+	r.AddHandler("ask-for-retry", func(t *state.Task, _ *tomb.Tomb) error {
+		ask++
+		if ask == 1 {
+			return &state.Retry{After: time.Minute}
+		}
+		ch <- true
+		return nil
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("ask-for-retry", "...")
+	chg.AddTask(t)
+	st.Unlock()
+
+	tock := time.Now()
+	restore := state.MockTime(tock)
+	defer restore()
+	r.Ensure() // will run and be rescheduled in a minute
+	select {
+	case <-ensureBeforeTick:
+	case <-time.After(2 * time.Second):
+		c.Fatal("EnsureBefore wasn't called")
+	}
+
+	st.Lock()
+	defer st.Unlock()
+	c.Check(t.Status(), Equals, state.DoingStatus)
+
+	c.Check(ask, Equals, 1)
+	c.Check(sb.ensureBefore, Equals, 1*time.Minute)
+	schedule := state.TaskScheduledTime(t)
+	c.Check(schedule.IsZero(), Equals, false)
+
+	state.MockTime(tock.Add(5 * time.Second))
+	sb.ensureBefore = time.Hour
+	st.Unlock()
+	r.Ensure() // too soon
+	st.Lock()
+
+	c.Check(t.Status(), Equals, state.DoingStatus)
+	c.Check(ask, Equals, 1)
+	c.Check(sb.ensureBefore, Equals, 55*time.Second)
+	c.Check(state.TaskScheduledTime(t), Equals, schedule)
+
+	state.MockTime(schedule)
+	sb.ensureBefore = time.Hour
+	st.Unlock()
+	r.Ensure() // time to run again
+	select {
+	case <-ch:
+	case <-time.After(2 * time.Second):
+		c.Fatal("handler wasn't called")
+	}
+
+	// wait for handler to finish
+	r.Wait()
+
+	st.Lock()
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(ask, Equals, 2)
+	c.Check(sb.ensureBefore, Equals, time.Hour)
+	c.Check(state.TaskScheduledTime(t).IsZero(), Equals, true)
 }

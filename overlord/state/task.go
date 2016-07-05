@@ -51,6 +51,8 @@ type Task struct {
 
 	spawnTime time.Time
 	readyTime time.Time
+
+	scheduledTime time.Time
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -79,6 +81,8 @@ type marshalledTask struct {
 
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
+
+	ScheduledTime *time.Time `json:"scheduled-time,omitempty"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -87,6 +91,10 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	var readyTime *time.Time
 	if !t.readyTime.IsZero() {
 		readyTime = &t.readyTime
+	}
+	var scheduledTime *time.Time
+	if !t.scheduledTime.IsZero() {
+		scheduledTime = &t.scheduledTime
 	}
 	return json.Marshal(marshalledTask{
 		ID:        t.id,
@@ -102,6 +110,8 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 
 		SpawnTime: t.spawnTime,
 		ReadyTime: readyTime,
+
+		ScheduledTime: scheduledTime,
 	})
 }
 
@@ -128,6 +138,9 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.spawnTime = unmarshalled.SpawnTime
 	if unmarshalled.ReadyTime != nil {
 		t.readyTime = *unmarshalled.ReadyTime
+	}
+	if unmarshalled.ScheduledTime != nil {
+		t.scheduledTime = *unmarshalled.ScheduledTime
 	}
 	return nil
 }
