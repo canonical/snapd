@@ -37,6 +37,7 @@ type fakeOp struct {
 	name  string
 	revno snap.Revision
 	sinfo snap.SideInfo
+	stype snap.Type
 
 	old string
 }
@@ -187,8 +188,9 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p progress.Meter) error {
 	p.Notify("setup-snap")
 	f.ops = append(f.ops, fakeOp{
-		op:   "undo-setup-snap",
-		name: s.MountDir(),
+		op:    "undo-setup-snap",
+		name:  s.MountDir(),
+		stype: typ,
 	})
 	return nil
 }
@@ -219,8 +221,9 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
 	meter.Notify("remove-snap-files")
 	f.ops = append(f.ops, fakeOp{
-		op:   "remove-snap-files",
-		name: s.MountDir(),
+		op:    "remove-snap-files",
+		name:  s.MountDir(),
+		stype: typ,
 	})
 	return nil
 }
