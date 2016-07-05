@@ -52,12 +52,13 @@ type cmdRun struct {
 }
 
 func init() {
-	addCommand("run",
+	cmd := addCommand("run",
 		i18n.G("Run the given snap command"),
 		i18n.G("Run the given snap command with the right confinement and environment"),
 		func() flags.Commander {
 			return &cmdRun{}
 		})
+	cmd.ignoreUnknown = true
 }
 
 func (x *cmdRun) Execute(args []string) error {
