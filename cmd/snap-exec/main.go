@@ -59,7 +59,7 @@ func parseArgs(args []string) ([]string, error) {
 	// we ignore unknown --args but they must appear after the
 	// positional arguments
 	if strings.HasPrefix(opts.Positional.SnapApp, "-") {
-		return nil, fmt.Errorf("unknown argument %q", opts.Positional.SnapApp)
+		return nil, fmt.Errorf("unknown flag %q", opts.Positional.SnapApp)
 	}
 	return rest, nil
 }

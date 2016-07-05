@@ -49,19 +49,19 @@ hooks:
 
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters := []string{"run", "snap-name", "--hook=hook-name", "--command=command-name"}
-	_, err := snaprun.Parser().ParseArgs(invalidParameters)
+	_, _, err := snaprun.ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*cannot use --hook and --command together.*")
 
 	invalidParameters = []string{"run", "snap-name", "-r=1", "--command=command-name"}
-	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	_, _, err = snaprun.ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
 	invalidParameters = []string{"run", "snap-name", "-r=1"}
-	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	_, _, err = snaprun.ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
 	invalidParameters = []string{"run", "snap-name", "--hook=hook-name", "foo", "bar"}
-	_, err = snaprun.Parser().ParseArgs(invalidParameters)
+	_, _, err = snaprun.ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"hook-name\": foo bar.*")
 }
 
@@ -114,7 +114,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	defer restorer()
 
 	// and run it!
-	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
+	_, rest, err := snaprun.ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
@@ -268,4 +268,9 @@ func (s *SnapSuite) mockServer(c *check.C) {
 
 		n++
 	})
+}
+
+func (s *SnapSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
+	_, _, err := snaprun.ParseArgs([]string{"run", "--unknown", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.ErrorMatches, `unknown flag "--unknown"`)
 }
