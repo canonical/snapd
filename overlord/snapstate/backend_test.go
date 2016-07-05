@@ -44,7 +44,6 @@ type fakeOp struct {
 
 type fakeDownload struct {
 	name     string
-	channel  string
 	macaroon string
 }
 
@@ -69,6 +68,9 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authen
 			Revision:     revno,
 		},
 		Version: name,
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
 	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revno})
 
@@ -87,17 +89,16 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(snapInfo *snap.Info, pb progress.Meter, auther store.Authenticator) (string, error) {
+func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, auther store.Authenticator) (string, error) {
 	var macaroon string
 	if auther != nil {
 		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
 	}
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
-		name:     snapInfo.Name(),
-		channel:  snapInfo.Channel,
+		name:     name,
 	})
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: snapInfo.Name()})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
 
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
@@ -153,6 +154,12 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Type = snap.TypeOS
 	}
 	return info, nil
+}
+
+func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
+	return f.ReadInfo(name, &snap.SideInfo{
+		OfficialName: name,
+	})
 }
 
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter) error {
