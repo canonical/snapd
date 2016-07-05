@@ -1,36 +1,36 @@
 summary: Check that more than one snap is refreshed.
 
 details: |
-  We use only the fake store for this test because we currently
-  have only one controlled snap in the remote stores, when we will
-  have more we can update the test to use them
+    We use only the fake store for this test because we currently
+    have only one controlled snap in the remote stores, when we will
+    have more we can update the test to use them
 
 environment:
-  BLOB_DIR: $(mktemp -d)
+    BLOB_DIR: $(mktemp -d)
 
 prepare: |
-  . $TESTSLIB/store.sh
+    . $TESTSLIB/store.sh
 
-  echo "Given two snaps are installed"
-  for snap in hello-world xkcd-webserver; do
-    snap install $snap
-  done
+    echo "Given two snaps are installed"
+    for snap in hello-world xkcd-webserver; do
+        snap install $snap
+    done
 
-  echo "And the daemon is configured to point to the fake store"
-  setup_store fake $BLOB_DIR
+    echo "And the daemon is configured to point to the fake store"
+    setup_store fake $BLOB_DIR
 
 restore: |
-  . $TESTSLIB/store.sh
-  teardown_store fake $BLOB_DIR
+    . $TESTSLIB/store.sh
+    teardown_store fake $BLOB_DIR
 
 execute: |
-  echo "When the store is configured to make them refreshable"
-  fakestore -make-refreshable hello-world,xkcd-webserver -blobdir $BLOB_DIR
+    echo "When the store is configured to make them refreshable"
+    fakestore -make-refreshable hello-world,xkcd-webserver -blobdir $BLOB_DIR
 
-  echo "And a refresh is performed"
-  snap refresh
+    echo "And a refresh is performed"
+    snap refresh
 
-  echo "Then the new versions are installed"
-  for snap in hello-world xkcd-webserver; do
-    snap list | grep -Pq "$snap.*?fake1"
-  done
+    echo "Then the new versions are installed"
+    for snap in hello-world xkcd-webserver; do
+        snap list | grep -Pq "$snap.*?fake1"
+    done
