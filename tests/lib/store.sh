@@ -20,9 +20,6 @@ setup_fake_store(){
 
     echo "And snapd is configured to use the controlled store"
     configure_store_backend localhost:11028
-
-    echo "And a new version of that snap put in the controlled store"
-    fakestore -blobdir $blob_dir -make-refreshable test-snapd-tools
 }
 
 setup_staging_store(){
