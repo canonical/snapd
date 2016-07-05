@@ -258,11 +258,10 @@ apps:
 
 	mStore := store.NewUbuntuStoreSnapRepository(&storeCfg, "")
 
-	ms.o.SnapManager().ReplaceStore(mStore)
-
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+	snapstate.ReplaceStore(ms.o.State(), mStore)
 
 	ts, err := snapstate.Install(st, "foo", "stable", 0, 0)
 	c.Assert(err, IsNil)
