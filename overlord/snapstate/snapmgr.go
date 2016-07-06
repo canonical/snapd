@@ -124,10 +124,9 @@ type SnapState struct {
 	// Current indicates the current active revision if Active is
 	// true or the last active revision if Active is false
 	// (usually while a snap is being operated on or disabled)
-	Current   snap.Revision  `json:"current"`
-	Candidate *snap.SideInfo `json:"candidate,omitempty"`
-	Channel   string         `json:"channel,omitempty"`
-	Flags     SnapStateFlags `json:"flags,omitempty"`
+	Current snap.Revision  `json:"current"`
+	Channel string         `json:"channel,omitempty"`
+	Flags   SnapStateFlags `json:"flags,omitempty"`
 
 	// incremented revision used for local installs
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
@@ -400,17 +399,16 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.SideInfo.Revision = revision
-		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision()}
 	} else {
 		for _, si := range snapst.Sequence {
 			if si.Revision == ss.Revision() {
-				snapst.Candidate = si
+				ss.SideInfo = si
 				break
 			}
 		}
 	}
 
-	if snapst.Candidate == nil {
+	if ss.SideInfo == nil {
 		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name(), ss.Revision())
 	}
 
@@ -430,7 +428,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	snapst.Candidate = nil
+
 	Set(st, ss.Name(), snapst)
 	return nil
 }
@@ -455,7 +453,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var downloadedSnapFile string
-	var sideInfo *snap.SideInfo
 	if ss.DownloadInfo == nil {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
@@ -473,12 +470,10 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	sideInfo = ss.SideInfo
 	ss.SnapPath = downloadedSnapFile
 	// update the snap setup and state for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = sideInfo
 	Set(st, ss.Name(), snapst)
 	st.Unlock()
 
@@ -653,18 +648,19 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, snapst, err := snapSetupAndState(t)
+	ss, _, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
-	pb := &TaskProgressAdapter{task: t}
-	typ, err := snapst.Type()
+	info, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
 		return err
 	}
-	return m.backend.UndoSetupSnap(ss.placeInfo(), typ, pb)
+
+	pb := &TaskProgressAdapter{task: t}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), info.Type, pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -688,12 +684,12 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := &TaskProgressAdapter{task: t}
 	// TODO Use ss.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	if err := m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb); err != nil {
+	if err := m.backend.SetupSnap(ss.SnapPath, ss.SideInfo, pb); err != nil {
 		return err
 	}
 
 	// set snapst type for undoMountSnap
-	newInfo, err := readInfo(ss.Name(), snapst.Candidate)
+	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -785,7 +781,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(ss.Name(), snapst.Candidate)
+	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -807,7 +803,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	newInfo, err := readInfo(ss.Name(), snapst.Candidate)
+	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
 		return err
 	}
@@ -832,18 +828,17 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	cand := snapst.Candidate
-	m.backend.Candidate(snapst.Candidate)
+	cand := ss.SideInfo
+	m.backend.Candidate(cand)
 
 	hadCandidate := true
-	if snapst.findIndex(snapst.Candidate.Revision) < 0 {
-		snapst.Sequence = append(snapst.Sequence, snapst.Candidate)
+	if snapst.findIndex(cand.Revision) < 0 {
+		snapst.Sequence = append(snapst.Sequence, cand)
 		hadCandidate = false
 	}
 
 	oldCurrent := snapst.Current
-	snapst.Current = snapst.Candidate.Revision
-	snapst.Candidate = nil
+	snapst.Current = cand.Revision
 	snapst.Active = true
 	oldChannel := snapst.Channel
 	if ss.Channel != "" {
@@ -875,6 +870,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	if err != nil {
 		return err
+	}
+
+	if cand.Revision.Local() {
+		snapst.LocalRevision = ss.Revision()
 	}
 
 	// save for undoLinkSnap
@@ -934,9 +933,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// relinking of the old snap is done in the undo of unlink-current-snap
 	currentIndex := snapst.findIndex(snapst.Current)
 	if currentIndex < 0 {
-		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", snapst.Candidate.Revision, snapst.Sequence)
+		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", ss.SideInfo.Revision, snapst.Sequence)
 	}
-	snapst.Candidate = snapst.Sequence[currentIndex]
 	if !hadCandidate {
 		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
 	}
@@ -945,7 +943,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Channel = oldChannel
 	snapst.SetTryMode(oldTryMode)
 
-	newInfo, err := readInfo(ss.Name(), snapst.Candidate)
+	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
 		return err
 	}

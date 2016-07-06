@@ -517,7 +517,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	snapst := snaps["some-snap"]
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Channel, Equals, "some-channel")
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "some-channel",
@@ -644,7 +643,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -775,7 +773,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -907,7 +904,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Channel, Equals, "stable")
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -968,7 +964,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x1"))
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-1)})
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-1),
+	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
 
@@ -992,9 +991,8 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-1),
 	})
@@ -1048,7 +1046,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].revno, Equals, snap.R(-3))
 
 	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-3)})
+	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-3),
+	})
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x3")
 
@@ -1072,10 +1073,9 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-3),
 	})
@@ -1123,10 +1123,9 @@ version: 1.0`)
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-1),
 	})
@@ -1568,7 +1567,6 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -1645,7 +1643,6 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(7))
 	c.Assert(snapst.Sequence, HasLen, 2)
 
@@ -1732,7 +1729,6 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Current, Equals, si2.Revision)
 }
@@ -1814,7 +1810,6 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 }
@@ -2037,9 +2032,11 @@ description: |
 	})
 
 	// have also a snap being installed
-	snapstate.Set(st, "installing", &snapstate.SnapState{
-		Candidate: &snap.SideInfo{RealName: "installing", Revision: snap.R(1)},
-	})
+	/*
+		snapstate.Set(st, "installing", &snapstate.SnapState{
+			Candidate: &snap.SideInfo{RealName: "installing", Revision: snap.R(1)},
+		})
+	*/
 }
 
 func (s *snapmgrQuerySuite) TearDownTest(c *C) {
