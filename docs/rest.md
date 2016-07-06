@@ -531,7 +531,7 @@ Generally the UUID of a background operation you are interested in.
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
     "channel": "moon-buggy",
-    "expected-price": "2.99",
+    "price": "2.99",
     "currency": "USD"
 }
 ```
@@ -543,7 +543,7 @@ Generally the UUID of a background operation you are interested in.
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
     "channel": "moon-buggy",
-    "expected-price": "2.99",
+    "price": "2.99",
     "currency": "USD",
     "backend-id": "credit_card",
     "method-id": 1
