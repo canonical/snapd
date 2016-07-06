@@ -66,5 +66,3 @@ func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
 		userCurrent = userCurrentOrig
 	}
 }
-
-var ParseArgs = parseArgs
