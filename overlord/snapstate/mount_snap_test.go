@@ -65,7 +65,7 @@ func (s *mountSnapSuite) TestDoMountSnapRemovesSnaps(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Candidate: &snap.SideInfo{
-			OfficialName: "foo", Revision: snap.R(33),
+			RealName: "foo", Revision: snap.R(33),
 		},
 		SnapType: "app",
 	})
