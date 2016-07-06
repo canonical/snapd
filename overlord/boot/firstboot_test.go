@@ -111,7 +111,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	err = overlord.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromInstalled()
 	c.Assert(err, ErrorMatches, "(?ms).*cannot read kernel snap details.*")
 
 }
