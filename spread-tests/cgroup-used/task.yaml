@@ -8,7 +8,7 @@ restore: |
     udevadm settle
     udevadm trigger
     udevadm settle
-    # no way to clear cgroups atm
+    # no way to clear cgroup for hello-world atm
 execute: |
     cd /
     udevadm settle
