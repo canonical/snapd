@@ -1,0 +1,55 @@
+summary: Check that revert works.
+
+environment:
+    STORE_TYPE/fake: fake
+    STORE_TYPE/staging: staging
+    STORE_TYPE/production: production
+    BLOB_DIR: $(mktemp -d)
+
+prepare: |
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "Given a snap is installed"
+        snap install test-snapd-tools
+    fi
+
+    . $TESTSLIB/store.sh
+    setup_store $STORE_TYPE $BLOB_DIR
+
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "And a new version of that snap put in the controlled store"
+        fakestore -blobdir $BLOB_DIR -make-refreshable test-snapd-tools
+    fi
+
+restore: |
+    . $TESTSLIB/store.sh
+    teardown_store $STORE_TYPE $BLOB_DIR
+
+execute: |
+    echo "When a refresh is made"
+    snap refresh --edge test-snapd-tools
+
+    echo "Then the new version is installed"
+    snap list | grep -Pq "test-snapd-tools +\d+\.\d+\+fake1"
+
+    echo "When a revert is made"
+    snap revert test-snapd-tools
+
+    echo "Then the old version is active"
+    snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
+
+    echo "And the data directories are present"
+    ls /snap/test-snapd-tools | grep -q current
+    ls /var/snap/test-snapd-tools | grep -q current
+
+    echo "And a new revert fails"
+    if snap revert test-snapd-tools; then
+        echo "A revert on an already reverted snap should fail"
+        exit 1
+    fi
+
+    echo "And a refresh doesn't update the snap"
+    if snap refresh --edge test-snapd-tools; then
+        echo "After revert we shouldn't be able to refresh"
+        exit 1
+    fi
+    snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "

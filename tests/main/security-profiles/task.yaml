@@ -1,33 +1,35 @@
 summary: Check security profile generation for apps and hooks.
+
 prepare: |
-  for snap in basic-binaries basic-hooks
-  do
-    snapbuild $TESTSLIB/snaps/$snap .
-  done
+    for snap in test-snapd-tools basic-hooks
+    do
+      snapbuild $TESTSLIB/snaps/$snap .
+    done
 restore: |
-  for snap in basic-binaries basic-hooks
-  do
-    rm ${snap}_1.0_all.snap
-  done
+    for snap in test-snapd-tools basic-hooks
+    do
+      rm ${snap}_1.0_all.snap
+    done
+
 execute: |
-  seccomp_profile_directory="/var/lib/snapd/seccomp/profiles"
+    seccomp_profile_directory="/var/lib/snapd/seccomp/profiles"
 
-  echo "Security profiles are generated and loaded for apps"
-  snap install basic-binaries_1.0_all.snap
-  loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
+    echo "Security profiles are generated and loaded for apps"
+    snap install test-snapd-tools_1.0_all.snap
+    loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
-  for profile in snap.basic-binaries.block snap.basic-binaries.cat snap.basic-binaries.echo snap.basic-binaries.fail snap.basic-binaries.success
-  do
-    echo "$loaded_profiles" | grep -zq "$profile (enforce)" || exit 1
-    [ -f "$seccomp_profile_directory/$profile" ] || exit 1
-  done
+    for profile in snap.test-snapd-tools.block snap.test-snapd-tools.cat snap.test-snapd-tools.echo snap.test-snapd-tools.fail snap.test-snapd-tools.success
+    do
+        echo "$loaded_profiles" | grep -zq "$profile (enforce)"
+        [ -f "$seccomp_profile_directory/$profile" ]
+    done
 
-  echo "Security profiles are generated and loaded for hooks"
-  snap install basic-hooks_1.0_all.snap
-  loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
+    echo "Security profiles are generated and loaded for hooks"
+    snap install basic-hooks_1.0_all.snap
+    loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
-  for profile in snap.basic-hooks.hook.install snap.basic-hooks.hook.upgrade
-  do
-    echo "$loaded_profiles" | grep -zq "$profile (enforce)" || exit 1
-    [ -f "$seccomp_profile_directory/$profile" ] || exit 1
-  done
+    for profile in snap.basic-hooks.hook.install snap.basic-hooks.hook.upgrade
+    do
+        echo "$loaded_profiles" | grep -zq "$profile (enforce)"
+        [ -f "$seccomp_profile_directory/$profile" ]
+    done
