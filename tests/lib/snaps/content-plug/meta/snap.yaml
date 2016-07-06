@@ -7,6 +7,6 @@ apps:
 plugs:
     shared-content-plug:
         interface: content
-        target: $SNAP_PATH/import
+        target: $SNAP_DATA/import
         content: mylib
         default-provider: hello-world
