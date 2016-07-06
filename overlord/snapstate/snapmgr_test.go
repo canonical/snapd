@@ -149,8 +149,8 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(7)},
-			{OfficialName: "some-snap", Revision: snap.R(11)},
+			{RealName: "some-snap", Revision: snap.R(7)},
+			{RealName: "some-snap", Revision: snap.R(11)},
 		},
 		Current: snap.R(11),
 	})
@@ -305,7 +305,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "edge",
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 	})
 
@@ -327,7 +327,7 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "edge",
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 	})
 
@@ -347,7 +347,7 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 	})
 
@@ -367,7 +367,7 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(11)},
+			{RealName: "foo", Revision: snap.R(11)},
 		},
 		Current: snap.R(11),
 	})
@@ -396,7 +396,7 @@ func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{OfficialName: "some-snap", Revision: snap.R(11)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(11)}},
 		Current:  snap.R(11),
 	})
 
@@ -464,10 +464,10 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				Channel:      "some-channel",
-				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-				Revision:     snap.R(11),
+				RealName: "some-snap",
+				Channel:  "some-channel",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(11),
 			},
 		},
 		{
@@ -514,17 +514,17 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	c.Assert(snapst.Channel, Equals, "some-channel")
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "some-snap",
-		Channel:      "some-channel",
-		SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-		Revision:     snap.R(11),
+		RealName: "some-snap",
+		Channel:  "some-channel",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		Revision: snap.R(11),
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -586,10 +586,10 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-				Channel:      "some-channel",
-				Revision:     snap.R(11),
+				RealName: "some-snap",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
 			},
 		},
 		{
@@ -639,22 +639,22 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "some-snap",
-		Channel:      "",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
 	})
 	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
-		OfficialName: "some-snap",
-		Channel:      "some-channel",
-		SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-		Revision:     snap.R(11),
+		RealName: "some-snap",
+		Channel:  "some-channel",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		Revision: snap.R(11),
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -719,10 +719,10 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-				Channel:      "some-channel",
-				Revision:     snap.R(11),
+				RealName: "some-snap",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
 			},
 		},
 		{
@@ -770,16 +770,16 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "some-snap",
-		Channel:      "",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -849,10 +849,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-				Channel:      "some-channel",
-				Revision:     snap.R(11),
+				RealName: "some-snap",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
 			},
 		},
 		{
@@ -902,16 +902,16 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "some-snap",
-		Channel:      "",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
 	})
 }
 
 func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -983,9 +983,9 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "",
-		Channel:      "",
-		Revision:     snap.R(-1),
+		RealName: "",
+		Channel:  "",
+		Revision: snap.R(-1),
 	})
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
 }
@@ -1061,9 +1061,9 @@ version: 1.0`)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		OfficialName: "",
-		Channel:      "",
-		Revision:     snap.R(-3),
+		RealName: "",
+		Channel:  "",
+		Revision: snap.R(-3),
 	})
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-3))
 }
@@ -1112,17 +1112,17 @@ version: 1.0`)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		OfficialName: "",
-		Channel:      "",
-		Revision:     snap.R(-1),
+		RealName: "",
+		Channel:  "",
+		Revision: snap.R(-1),
 	})
 	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1204,18 +1204,18 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	si3 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(3),
+		RealName: "some-snap",
+		Revision: snap.R(3),
 	}
 
 	si5 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(5),
+		RealName: "some-snap",
+		Revision: snap.R(5),
 	}
 
 	si7 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1322,8 +1322,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestRemoveRefused(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "gadget",
-		Revision:     snap.R(7),
+		RealName: "gadget",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1348,10 +1348,10 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(1)},
-			{OfficialName: "some-snap", Revision: snap.R(2)},
-			{OfficialName: "some-snap", Revision: snap.R(3)},
-			{OfficialName: "some-snap", Revision: snap.R(4)},
+			{RealName: "some-snap", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+			{RealName: "some-snap", Revision: snap.R(3)},
+			{RealName: "some-snap", Revision: snap.R(4)},
 		},
 		Current: snap.R(4),
 	})
@@ -1395,13 +1395,13 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 	siNew := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(77),
+		RealName: "some-snap",
+		Revision: snap.R(77),
 	}
 
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1420,8 +1420,8 @@ func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1440,12 +1440,12 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 	si2 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(77),
+		RealName: "some-snap",
+		Revision: snap.R(77),
 	}
 
 	s.state.Lock()
@@ -1464,12 +1464,12 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 	si2 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(77),
+		RealName: "some-snap",
+		Revision: snap.R(77),
 	}
 
 	s.state.Lock()
@@ -1488,12 +1488,12 @@ func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 	siOld := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(2),
+		RealName: "some-snap",
+		Revision: snap.R(2),
 	}
 
 	s.state.Lock()
@@ -1529,8 +1529,8 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		fakeOp{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				Revision:     snap.R(2),
+				RealName: "some-snap",
+				Revision: snap.R(2),
 			},
 		},
 		fakeOp{
@@ -1550,27 +1550,27 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		OfficialName: "some-snap",
-		Channel:      "",
-		Revision:     snap.R(2),
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(2),
 	})
 	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
-		OfficialName: "some-snap",
-		Channel:      "",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Channel:  "",
+		Revision: snap.R(7),
 	})
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
 }
 
 func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	siNew := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(2),
+		RealName: "some-snap",
+		Revision: snap.R(2),
 	}
 
 	s.state.Lock()
@@ -1606,8 +1606,8 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		fakeOp{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				Revision:     snap.R(7),
+				RealName: "some-snap",
+				Revision: snap.R(7),
 			},
 		},
 		fakeOp{
@@ -1632,12 +1632,12 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(1),
+		RealName: "some-snap",
+		Revision: snap.R(1),
 	}
 	si2 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(2),
+		RealName: "some-snap",
+		Revision: snap.R(2),
 	}
 
 	s.state.Lock()
@@ -1679,8 +1679,8 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				Revision:     snap.R(1),
+				RealName: "some-snap",
+				Revision: snap.R(1),
 			},
 		},
 		{
@@ -1717,12 +1717,12 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(1),
+		RealName: "some-snap",
+		Revision: snap.R(1),
 	}
 	si2 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(2),
+		RealName: "some-snap",
+		Revision: snap.R(2),
 	}
 
 	s.state.Lock()
@@ -1759,8 +1759,8 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				Revision:     snap.R(1),
+				RealName: "some-snap",
+				Revision: snap.R(1),
 			},
 		},
 		{
@@ -1995,8 +1995,8 @@ func (s *snapmgrQuerySuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	// Write a snap.yaml with fake name
-	sideInfo11 := &snap.SideInfo{OfficialName: "name1", Revision: snap.R(11), EditedSummary: "s11"}
-	sideInfo12 := &snap.SideInfo{OfficialName: "name1", Revision: snap.R(12), EditedSummary: "s12"}
+	sideInfo11 := &snap.SideInfo{RealName: "name1", Revision: snap.R(11), EditedSummary: "s11"}
+	sideInfo12 := &snap.SideInfo{RealName: "name1", Revision: snap.R(12), EditedSummary: "s12"}
 	snaptest.MockSnap(c, `
 name: name0
 version: 1.1
@@ -2016,7 +2016,7 @@ description: |
 
 	// have also a snap being installed
 	snapstate.Set(st, "installing", &snapstate.SnapState{
-		Candidate: &snap.SideInfo{OfficialName: "installing", Revision: snap.R(1)},
+		Candidate: &snap.SideInfo{RealName: "installing", Revision: snap.R(1)},
 	})
 }
 
@@ -2251,8 +2251,8 @@ func (s *snapmgrTestSuite) TestTryUndoRemovesTryFlag(c *C) {
 	var snapst snapstate.SnapState
 	snapst.Sequence = []*snap.SideInfo{
 		{
-			OfficialName: "foo",
-			Revision:     snap.R(23),
+			RealName: "foo",
+			Revision: snap.R(23),
 		},
 	}
 	snapst.Current = snap.R(23)
@@ -2396,7 +2396,7 @@ func (s *canRemoveSuite) TestAppAreAlwaysOKToRemove(c *C) {
 	info := &snap.Info{
 		Type: snap.TypeApp,
 	}
-	info.OfficialName = "foo"
+	info.RealName = "foo"
 
 	c.Check(snapstate.CanRemove(info, false), Equals, true)
 	c.Check(snapstate.CanRemove(info, true), Equals, true)
@@ -2406,7 +2406,7 @@ func (s *canRemoveSuite) TestActiveGadgetsAreNotOK(c *C) {
 	info := &snap.Info{
 		Type: snap.TypeGadget,
 	}
-	info.OfficialName = "foo"
+	info.RealName = "foo"
 
 	c.Check(snapstate.CanRemove(info, false), Equals, true)
 	c.Check(snapstate.CanRemove(info, true), Equals, false)
@@ -2416,11 +2416,11 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	os := &snap.Info{
 		Type: snap.TypeOS,
 	}
-	os.OfficialName = "os"
+	os.RealName = "os"
 	kernel := &snap.Info{
 		Type: snap.TypeKernel,
 	}
-	kernel.OfficialName = "krnl"
+	kernel.RealName = "krnl"
 
 	c.Check(snapstate.CanRemove(os, false), Equals, true)
 	c.Check(snapstate.CanRemove(os, true), Equals, false)
@@ -2431,12 +2431,12 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 	si7 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 	si11 := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(11),
+		RealName: "some-snap",
+		Revision: snap.R(11),
 	}
 
 	s.state.Lock()

@@ -60,8 +60,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
-			{OfficialName: "foo", Revision: snap.R(33)},
+			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(33)},
 		},
 		Current:  snap.R(33),
 		SnapType: "app",
@@ -93,7 +93,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(3)},
 		},
 		Current:  snap.R(3),
 		SnapType: "app",
@@ -121,7 +121,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(3)},
 		},
 		Current:  snap.R(3),
 		Active:   true,
@@ -151,8 +151,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
-			{OfficialName: "foo", Revision: snap.R(33)},
+			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(33)},
 		},
 		Current:  snap.R(33),
 		Active:   true,
