@@ -89,7 +89,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 	c.Assert(osutil.FileExists(minInfo.MountDir()), Equals, true)
 
 	// undo undoes the mount unit and the instdir creation
-	err = s.be.UndoSetupSnap(minInfo, &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "app", &s.nullProgress)
 	c.Assert(err, IsNil)
 
 	l, _ := filepath.Glob(filepath.Join(dirs.SnapServicesDir, "*.mount"))
@@ -132,7 +132,7 @@ type: kernel
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
 	// undo deletes the kernel assets again
-	err = s.be.UndoSetupSnap(minInfo, &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
 	c.Assert(err, IsNil)
 
 	l, _ = filepath.Glob(filepath.Join(bootloader.Dir(), "*"))
@@ -222,11 +222,11 @@ type: kernel
 
 	minInfo := snap.MinimalPlaceInfo("kernel", snap.R(140))
 
-	err = s.be.UndoSetupSnap(minInfo, &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
 	c.Assert(err, IsNil)
 
 	// retry run
-	err = s.be.UndoSetupSnap(minInfo, &s.nullProgress)
+	err = s.be.UndoSetupSnap(minInfo, "kernel", &s.nullProgress)
 	c.Assert(err, IsNil)
 
 	// sanity checks
