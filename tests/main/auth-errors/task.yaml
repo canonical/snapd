@@ -21,4 +21,4 @@ execute: |
         echo "Expected error connecting plugs to slots from unauthenticated account"
         exit 1
     fi
-    [ "$(cat install.output)" = "$expected" ]
+    [ "$(cat connect.output)" = "$expected" ]
