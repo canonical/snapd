@@ -424,6 +424,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
@@ -493,7 +494,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Revision: snap.R(11),
 		Channel:  "some-channel",
 		UserID:   s.user.ID,
 		SnapPath: "downloaded-snap-path",
@@ -624,8 +624,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		Channel: "some-channel",
 		Flags:   0,
 		UserID:  s.user.ID,
-
-		Revision: snap.R(11),
 
 		SnapPath: "downloaded-snap-path",
 		DownloadInfo: &snap.DownloadInfo{
@@ -980,12 +978,12 @@ version: 1.0`)
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Revision: snap.R(-1),
 		SnapPath: mockSnap,
 		SideInfo: ss.SideInfo,
 	})
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
+		Revision: snap.R(-1),
 	})
 
 	// verify snaps in the system state
@@ -1060,12 +1058,12 @@ version: 1.0`)
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Revision: snap.R(-3),
 		SnapPath: mockSnap,
 		SideInfo: ss.SideInfo,
 	})
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
+		Revision: snap.R(-3),
 	})
 
 	// verify snaps in the system state
@@ -1209,8 +1207,8 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
+					Revision: snap.R(7),
 				},
-				Revision: snap.R(7),
 			}
 		}
 		c.Check(ss, DeepEquals, expSnapSetup, Commentf(t.Kind()))
@@ -1326,8 +1324,8 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
+					Revision: revnos[whichRevno],
 				},
-				Revision: revnos[whichRevno],
 			}
 		}
 

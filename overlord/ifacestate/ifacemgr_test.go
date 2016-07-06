@@ -324,8 +324,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
 		},
-		Revision: snapInfo.Revision,
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -365,8 +365,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
 		},
-		Revision: snapInfo.Revision,
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -420,8 +420,8 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
 		},
-		Revision: snapInfo.Revision,
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -461,8 +461,8 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
 		},
-		Revision: snapInfo.Revision,
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -510,8 +510,8 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapName,
+			Revision: revision,
 		},
-		Revision: revision,
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -549,9 +549,9 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
 		},
-		Flags:    snapstate.DevMode,
-		Revision: snapInfo.Revision,
+		Flags: snapstate.DevMode,
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -615,8 +615,8 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: newSnapInfo.Name(),
+			Revision: newSnapInfo.Revision,
 		},
-		Revision: newSnapInfo.Revision,
 	})
 	mgr.Ensure()
 	mgr.Wait()
@@ -669,9 +669,9 @@ func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snapstate.Flags, de
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
 		},
-		Flags:    snapstate.SnapSetupFlags(flags),
-		Revision: snapInfo.Revision,
+		Flags: snapstate.SnapSetupFlags(flags),
 	})
 	s.state.Lock()
 	task := change.Tasks()[0]

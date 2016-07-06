@@ -44,7 +44,8 @@ func (s *patch2Suite) makeState() *state.State {
 
 	// make state for SnapSetup transition
 	oldSS := patch.OldSnapSetup{
-		Name: "foo",
+		Name:     "foo",
+		Revision: snap.R(13),
 	}
 	chg := st.NewChange("something", "some change")
 	t := st.NewTask("some-task", "some task")
@@ -94,6 +95,7 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
+		Revision: snap.R(13),
 	})
 
 	// sideinfo is backfilled with names

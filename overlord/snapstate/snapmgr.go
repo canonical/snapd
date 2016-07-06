@@ -72,7 +72,6 @@ func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
-	Revision snap.Revision `json:"revision,omitempty"`
 	// FIXME: rename to RequestedChannel to convey the meaning better
 	Channel string `json:"channel,omitempty"`
 	UserID  int    `json:"user-id,omitempty"`
@@ -92,12 +91,16 @@ func (ss *SnapSetup) Name() string {
 	return ss.SideInfo.RealName
 }
 
+func (ss *SnapSetup) Revision() snap.Revision {
+	return ss.SideInfo.Revision
+}
+
 func (ss *SnapSetup) placeInfo() snap.PlaceInfo {
-	return snap.MinimalPlaceInfo(ss.Name(), ss.Revision)
+	return snap.MinimalPlaceInfo(ss.Name(), ss.Revision())
 }
 
 func (ss *SnapSetup) MountDir() string {
-	return snap.MountDir(ss.Name(), ss.Revision)
+	return snap.MountDir(ss.Name(), ss.Revision())
 }
 
 // DevMode returns true if the snap is being installed in developer mode.
@@ -382,7 +385,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if ss.Revision.Unset() {
+	if ss.Revision().Unset() {
 		// Local revisions start at -1 and go down.
 		// (unless it's a really old local revision in which case it needs fixing)
 		revision := snapst.LocalRevision
@@ -396,11 +399,11 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 			panic("internal error: invalid local revision built: " + revision.String())
 		}
 		snapst.LocalRevision = revision
-		ss.Revision = revision
-		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision}
+		ss.SideInfo.Revision = revision
+		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision()}
 	} else {
 		for _, si := range snapst.Sequence {
-			if si.Revision == ss.Revision {
+			if si.Revision == ss.Revision() {
 				snapst.Candidate = si
 				break
 			}
@@ -408,7 +411,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if snapst.Candidate == nil {
-		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name(), ss.Revision)
+		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name(), ss.Revision())
 	}
 
 	st.Lock()
@@ -462,18 +465,16 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		downloadedSnapFile, err = store.Download(ss.Name(), &storeInfo.DownloadInfo, meter, auther)
-		sideInfo = &storeInfo.SideInfo
+		ss.SideInfo = &storeInfo.SideInfo
 	} else {
 		downloadedSnapFile, err = store.Download(ss.Name(), ss.DownloadInfo, meter, auther)
-		sideInfo = ss.SideInfo
 	}
 	if err != nil {
 		return err
 	}
 
+	sideInfo = ss.SideInfo
 	ss.SnapPath = downloadedSnapFile
-	ss.Revision = sideInfo.Revision
-
 	// update the snap setup and state for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
@@ -497,7 +498,7 @@ func (m *SnapManager) doUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	info, err := Info(t.State(), ss.Name(), ss.Revision)
+	info, err := Info(t.State(), ss.Name(), ss.Revision())
 	if err != nil {
 		return err
 	}
@@ -525,7 +526,7 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	t.State().Lock()
-	info, err := Info(t.State(), ss.Name(), ss.Revision)
+	info, err := Info(t.State(), ss.Name(), ss.Revision())
 	t.State().Unlock()
 	if err != nil {
 		return err
@@ -555,7 +556,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if snapst.Current == ss.Revision && snapst.Active {
+	if snapst.Current == ss.Revision() && snapst.Active {
 		return fmt.Errorf("internal error: cannot discard snap %q: still active", ss.Name())
 	}
 
@@ -565,14 +566,14 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	} else {
 		newSeq := make([]*snap.SideInfo, 0, len(snapst.Sequence))
 		for _, si := range snapst.Sequence {
-			if si.Revision == ss.Revision {
+			if si.Revision == ss.Revision() {
 				// leave out
 				continue
 			}
 			newSeq = append(newSeq, si)
 		}
 		snapst.Sequence = newSeq
-		if snapst.Current == ss.Revision {
+		if snapst.Current == ss.Revision() {
 			snapst.Current = newSeq[len(newSeq)-1].Revision
 		}
 	}
@@ -673,7 +674,6 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-
 	curInfo, err := snapst.CurrentInfo(ss.Name())
 	if err != nil && err != ErrNoCurrent {
 		return err
@@ -686,7 +686,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	// TODO Use ss.Revision to obtain the right info to mount
+	// TODO Use ss.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	if err := m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb); err != nil {
 		return err

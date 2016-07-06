@@ -69,7 +69,6 @@ func patch2(s *state.State) error {
 			return err
 		}
 		// some things stay the same
-		newSS.Revision = oldSS.Revision
 		newSS.Channel = oldSS.Channel
 		newSS.Flags = oldSS.Flags
 		newSS.SnapPath = oldSS.SnapPath
@@ -81,6 +80,7 @@ func patch2(s *state.State) error {
 		}
 		if newSS.SideInfo.RealName == "" {
 			newSS.SideInfo.RealName = oldSS.Name
+			newSS.SideInfo.Revision = oldSS.Revision
 		}
 		t.Set("snap-setup", &newSS)
 	}
