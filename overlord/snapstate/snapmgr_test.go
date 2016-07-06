@@ -177,7 +177,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(11)},
+			{RealName: "some-snap", Revision: snap.R(11)},
 		},
 		Current: snap.R(11),
 		Active:  false,
@@ -200,7 +200,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(11)},
+			{RealName: "some-snap", Revision: snap.R(11)},
 		},
 		Current: snap.R(11),
 		Active:  true,
@@ -221,7 +221,7 @@ func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(11)},
+			{RealName: "some-snap", Revision: snap.R(11)},
 		},
 		Current: snap.R(11),
 		Active:  false,
@@ -242,7 +242,7 @@ func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(11)},
+			{RealName: "some-snap", Revision: snap.R(11)},
 		},
 		Current: snap.R(11),
 		Active:  true,
@@ -1823,8 +1823,8 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestEnableDoesNotEnableAgain(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1843,8 +1843,8 @@ func (s *snapmgrTestSuite) TestEnableDoesNotEnableAgain(c *C) {
 
 func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1871,8 +1871,8 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		fakeOp{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				Revision:     snap.R(7),
+				RealName: "some-snap",
+				Revision: snap.R(7),
 			},
 		},
 		fakeOp{
@@ -1891,8 +1891,8 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
@@ -1932,8 +1932,8 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
 	si := snap.SideInfo{
-		OfficialName: "some-snap",
-		Revision:     snap.R(7),
+		RealName: "some-snap",
+		Revision: snap.R(7),
 	}
 
 	s.state.Lock()
