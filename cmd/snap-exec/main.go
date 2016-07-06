@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -36,10 +35,6 @@ var syscallExec = syscall.Exec
 
 // commandline args
 var opts struct {
-	Positional struct {
-		SnapApp string `positional-arg-name:"<snapApp>" description:"the application to run, e.g. hello-world.env"`
-	} `positional-args:"yes" required:"yes"`
-
 	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
 }
 
@@ -51,15 +46,10 @@ func main() {
 }
 
 func parseArgs(args []string) ([]string, error) {
-	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.IgnoreUnknown)
+	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	rest, err := parser.ParseArgs(args)
 	if err != nil {
 		return nil, err
-	}
-	// we ignore unknown --args but they must appear after the
-	// positional arguments
-	if strings.HasPrefix(opts.Positional.SnapApp, "-") {
-		return nil, fmt.Errorf("unknown flag %q", opts.Positional.SnapApp)
 	}
 	return rest, nil
 }
@@ -75,8 +65,8 @@ func run() error {
 	// confinement and (generally) can not talk to snapd
 	revision := os.Getenv("SNAP_REVISION")
 
-	snapApp := opts.Positional.SnapApp
-	return snapExec(snapApp, revision, opts.Command, args)
+	snapApp := args[0]
+	return snapExec(snapApp, revision, opts.Command, args[1:])
 }
 
 func findCommand(app *snap.AppInfo, command string) (string, error) {
