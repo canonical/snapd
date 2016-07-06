@@ -88,7 +88,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
@@ -114,7 +114,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
@@ -136,7 +136,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	// simulate a failed download
@@ -158,7 +158,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
