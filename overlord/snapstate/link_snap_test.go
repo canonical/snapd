@@ -80,8 +80,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Candidate: &snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(33),
+			RealName: "foo",
+			Revision: snap.R(33),
 		},
 	})
 	t := s.state.NewTask("link-snap", "test")
@@ -119,8 +119,8 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	si := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(33),
+		RealName: "foo",
+		Revision: snap.R(33),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Candidate: si,
@@ -160,8 +160,8 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	si := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(35),
+		RealName: "foo",
+		Revision: snap.R(35),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Candidate: si,
@@ -215,8 +215,8 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Candidate: &snap.SideInfo{
-			OfficialName: "core",
-			Revision:     snap.R(33),
+			RealName: "core",
+			Revision: snap.R(33),
 		},
 	})
 	t := s.state.NewTask("link-snap", "test")
@@ -251,12 +251,12 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	si1 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(1),
+		RealName: "foo",
+		Revision: snap.R(1),
 	}
 	si2 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(2),
+		RealName: "foo",
+		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence:  []*snap.SideInfo{si1},
@@ -297,12 +297,12 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	si1 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(1),
+		RealName: "foo",
+		Revision: snap.R(1),
 	}
 	si2 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(2),
+		RealName: "foo",
+		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence:  []*snap.SideInfo{si1, si2},
