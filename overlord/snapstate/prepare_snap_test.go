@@ -84,12 +84,12 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSetsCandidate(c *C) {
 	s.state.Lock()
 
 	si1 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(1),
+		RealName: "foo",
+		Revision: snap.R(1),
 	}
 	si2 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(2),
+		RealName: "foo",
+		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1, si2},
@@ -123,12 +123,12 @@ func (s *prepareSnapSuite) TestDoUndoPrepareSnap(c *C) {
 	defer s.state.Unlock()
 
 	si1 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(1),
+		RealName: "foo",
+		Revision: snap.R(1),
 	}
 	si2 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(2),
+		RealName: "foo",
+		Revision: snap.R(2),
 	}
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
