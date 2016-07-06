@@ -45,6 +45,8 @@ var ops = []struct {
 	{(*client.Client).Refresh, "refresh"},
 	{(*client.Client).Remove, "remove"},
 	{(*client.Client).Revert, "revert"},
+	{(*client.Client).Enable, "enable"},
+	{(*client.Client).Disable, "disable"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
