@@ -80,6 +80,8 @@ func patch2(s *state.State) error {
 		}
 		if newSS.SideInfo.RealName == "" {
 			newSS.SideInfo.RealName = oldSS.Name
+		}
+		if newSS.SideInfo.Revision.Unset() {
 			newSS.SideInfo.Revision = oldSS.Revision
 		}
 		t.Set("snap-setup", &newSS)

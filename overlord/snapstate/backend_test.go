@@ -287,7 +287,7 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, ss *snapstate.SnapSetup) {
 	f.ops = append(f.ops, fakeOp{
 		op:    kind + ":" + status.String(),
-		name:  ss.SideInfo.RealName,
+		name:  ss.Name(),
 		revno: ss.Revision(),
 	})
 }
