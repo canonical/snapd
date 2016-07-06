@@ -171,6 +171,92 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 
 }
 
+func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	ts, err := snapstate.Enable(s.state, "some-snap")
+	c.Assert(err, IsNil)
+
+	i := 0
+	c.Assert(ts.Tasks(), HasLen, 2)
+	c.Assert(s.state.NumTask(), Equals, 2)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+}
+
+func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	ts, err := snapstate.Disable(s.state, "some-snap")
+	c.Assert(err, IsNil)
+
+	i := 0
+	c.Assert(ts.Tasks(), HasLen, 1)
+	c.Assert(s.state.NumTask(), Equals, 1)
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
+}
+
+func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  false,
+	})
+
+	ts, err := snapstate.Enable(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("enable", "...").AddAll(ts)
+
+	_, err = snapstate.Enable(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestDisableConflict(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{OfficialName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(11),
+		Active:  true,
+	})
+
+	ts, err := snapstate.Disable(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	// need a change to make the tasks visible
+	s.state.NewChange("install", "...").AddAll(ts)
+
+	_, err = snapstate.Disable(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
 func (s *snapmgrTestSuite) TestDoInstallChannelDefault(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1711,7 +1797,136 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	c.Assert(snapst.Current, Equals, snap.R(2))
 }
 
-func (s *snapmgrTestSuite) TestUndoMountSnapKernel(c *C) {
+func (s *snapmgrTestSuite) TestEnableDoesNotEnableAgain(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(7),
+		Active:   true,
+	})
+
+	ts, err := snapstate.Enable(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `snap "some-snap" already enabled`)
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Active:   false,
+	})
+
+	chg := s.state.NewChange("enable", "enable a snap")
+	ts, err := snapstate.Enable(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.ops, HasLen, 2)
+	expected := []fakeOp{
+		fakeOp{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				OfficialName: "some-snap",
+				Revision:     snap.R(7),
+			},
+		},
+		fakeOp{
+			op:   "link-snap",
+			name: "/snap/some-snap/7",
+		},
+	}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+}
+
+func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		Active:   true,
+	})
+
+	chg := s.state.NewChange("disable", "disable a snap")
+	ts, err := snapstate.Disable(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	expected := []fakeOp{
+		fakeOp{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/7",
+		},
+	}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, false)
+}
+
+func (s *snapmgrTestSuite) TestDisableDoesNotEnableAgain(c *C) {
+	si := snap.SideInfo{
+		OfficialName: "some-snap",
+		Revision:     snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(7),
+		Active:   false,
+	})
+
+	ts, err := snapstate.Disable(s.state, "some-snap")
+	c.Assert(err, ErrorMatches, `snap "some-snap" already disabled`)
+	c.Assert(ts, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
