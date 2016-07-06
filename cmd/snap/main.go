@@ -118,7 +118,6 @@ func Parser() *flags.Parser {
 
 		os.Exit(0)
 	}
-
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = "Tool to interact with snaps"
 	parser.LongDescription = `
@@ -195,14 +194,9 @@ func main() {
 	}
 }
 
-func parseArgs(args []string) (*flags.Parser, []string, error) {
-	parser := Parser()
-	rest, err := parser.ParseArgs(args)
-	return parser, rest, err
-}
-
 func run() error {
-	parser, _, err := parseArgs(os.Args[1:])
+	parser := Parser()
+	_, err := parser.Parse()
 	if err != nil {
 		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
 			if parser.Command.Active != nil && parser.Command.Active.Name == "help" {
