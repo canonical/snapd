@@ -36,3 +36,12 @@ execute: |
     echo "Then the plug can be connected again"
     snap connect content-plug:shared-content-plug content-slot:shared-content-slot
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "============================================"
+
+    echo "When the plug is disconnected"
+    snap disconnect content-plug:shared-content-plug content-slot:shared-content-slot
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the fstab files are removed"
+    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
