@@ -622,7 +622,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		http.Error(w, http.StatusText(http.StatusTeapot), http.StatusTeapot)
 	}))
 	c.Assert(mockServer, NotNil)
@@ -639,13 +639,13 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `received an unexpected http response code \(418 I'm a teapot\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(err, ErrorMatches, `received an unexpected http response code \(418 I'm a teapot\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		io.WriteString(w, MockSearchJSON)
 	}))
 	c.Assert(mockServer, NotNil)
@@ -662,13 +662,16 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBoody(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		query := r.URL.Query()
+		c.Check(query.Get("q"), Equals, "hello")
+		c.Check(query.Get("channel"), Equals, "stable") // note no channel was set in the call to Find
+		c.Check(query.Get("confinement"), Equals, "strict")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, "<hello>")
 	}))
@@ -686,7 +689,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBoody(c *C) {
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
@@ -742,7 +745,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
 
-		c.Check(r.URL.RawQuery, Equals, "q=foo")
+		query := r.URL.Query()
+		c.Check(query.Get("q"), Equals, "foo")
+		c.Check(query.Get("channel"), Equals, "stable")
+		c.Check(query.Get("confinement"), Equals, "strict")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
@@ -1137,7 +1143,7 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
-	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/search"), Equals, true)
+	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/search"), Equals, true)
 	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/metadata"), Equals, true)
 	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
 }
