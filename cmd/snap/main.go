@@ -54,7 +54,6 @@ type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
-	ignoreUnknown             bool
 }
 
 // commands holds information about all non-experimental commands.
@@ -120,7 +119,7 @@ func Parser() *flags.Parser {
 		os.Exit(0)
 	}
 
-	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = "Tool to interact with snaps"
 	parser.LongDescription = `
 The snap tool interacts with the snapd daemon to control the snappy software platform.
@@ -179,11 +178,12 @@ func main() {
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
 		cmd := &cmdRun{}
-		cmd.Positional.SnapApp = snapApp
+		args := []string{snapApp}
+		args = append(args, os.Args[1:]...)
 		// this will call syscall.Exec() so it does not return
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
-		err := cmd.Execute(os.Args[1:])
+		err := cmd.Execute(args)
 		fmt.Fprintf(Stderr, "internal error, please report: running %q failed: %s\n", snapApp, err)
 		os.Exit(46)
 	}
@@ -197,14 +197,6 @@ func main() {
 
 func parseArgs(args []string) (*flags.Parser, []string, error) {
 	parser := Parser()
-	if len(args) > 0 {
-		for _, cmd := range commands {
-			if cmd.ignoreUnknown && cmd.name == args[0] {
-				parser.Options |= flags.IgnoreUnknown
-				break
-			}
-		}
-	}
 	rest, err := parser.ParseArgs(args)
 	return parser, rest, err
 }
