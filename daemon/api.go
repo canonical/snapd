@@ -176,7 +176,7 @@ var (
 
 	buyCmd = &Command{
 		Path:   "/v2/buy",
-		UserOK: true,
+		UserOK: false,
 		POST:   postBuy,
 	}
 )
@@ -1329,35 +1329,35 @@ type buyResponseData struct {
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var buyInstruction store.BuyOptions
+	var opts store.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&buyInstruction)
+	err := decoder.Decode(&opts)
 	if err != nil {
-		return BadRequest("cannot decode buying instruction data from request body: %v", err)
+		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	buyInstruction.Auther, err = c.d.auther(r)
+	opts.Auther, err = c.d.auther(r)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 
 	s := getStore(c)
 
-	buyResult, err := s.Buy(&buyInstruction)
+	buyResult, err := s.Buy(&opts)
 
 	switch err {
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
 	case nil:
 		// continue
 	}
 
 	// TODO: Support purchasing redirects
 	if buyResult.State == "InProgress" {
-		return InternalError("payment backend %q is not yet supported", buyInstruction.BackendID)
+		return InternalError("payment backend %q is not yet supported", opts.BackendID)
 	}
 
 	return SyncResponse(buyResponseData{State: buyResult.State}, nil)

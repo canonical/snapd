@@ -2876,7 +2876,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	  "snap-id": "the-snap-id-1234abcd",
 	  "snap-name": "the snap name",
 	  "channel": "channel-1234abcd",
-	  "expected-price": 1.23,
+	  "price": 1.23,
 	  "currency": "EUR"
 	}`)
 	req, err := http.NewRequest("POST", "/v2/buy", buf)
@@ -2900,12 +2900,12 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
-		SnapID:        "the-snap-id-1234abcd",
-		SnapName:      "the snap name",
-		Channel:       "channel-1234abcd",
-		ExpectedPrice: 1.23,
-		Currency:      "EUR",
-		Auther:        user.Authenticator(),
+		SnapID:   "the-snap-id-1234abcd",
+		SnapName: "the snap name",
+		Channel:  "channel-1234abcd",
+		Price:    1.23,
+		Currency: "EUR",
+		Auther:   user.Authenticator(),
 	})
 }
 
@@ -2917,7 +2917,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	buf := bytes.NewBufferString(`{
 	  "snap-id": "the-snap-id-1234abcd",
 	  "channel": "channel-1234abcd",
-	  "expected-price": 1.23,
+	  "price": 1.23,
 	  "currency": "EUR"
 	}`)
 	req, err := http.NewRequest("POST", "/v2/buy", buf)
@@ -2937,10 +2937,10 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "Missing parameter")
 
 	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
-		SnapID:        "the-snap-id-1234abcd",
-		Channel:       "channel-1234abcd",
-		ExpectedPrice: 1.23,
-		Currency:      "EUR",
-		Auther:        user.Authenticator(),
+		SnapID:   "the-snap-id-1234abcd",
+		Channel:  "channel-1234abcd",
+		Price:    1.23,
+		Currency: "EUR",
+		Auther:   user.Authenticator(),
 	})
 }

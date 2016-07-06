@@ -837,12 +837,12 @@ func (s *SnapUbuntuStoreRepository) SuggestedCurrency() string {
 // BuyOptions specifies parameters for store purchases.
 type BuyOptions struct {
 	// Required
-	SnapID        string        `json:"snap-id"`
-	SnapName      string        `json:"snap-name"`
-	Channel       string        `json:"channel"`
-	ExpectedPrice float64       `json:"expected-price"`
-	Currency      string        `json:"currency"` // ISO 4217 code as string
-	Auther        Authenticator `json:"-"`
+	SnapID   string        `json:"snap-id"`
+	SnapName string        `json:"snap-name"`
+	Channel  string        `json:"channel"`
+	Price    float64       `json:"price"`
+	Currency string        `json:"currency"` // ISO 4217 code as string
+	Auther   Authenticator `json:"-"`
 
 	// Optional
 	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
@@ -895,7 +895,7 @@ func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error)
 	if options.Channel == "" {
 		return buyOptionError(options, "channel missing")
 	}
-	if options.ExpectedPrice <= 0 {
+	if options.Price <= 0 {
 		return buyOptionError(options, "invalid expected price")
 	}
 	if options.Currency == "" {
@@ -907,7 +907,7 @@ func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error)
 
 	instruction := purchaseInstruction{
 		SnapID:    options.SnapID,
-		Amount:    options.ExpectedPrice,
+		Amount:    options.Price,
 		Currency:  options.Currency,
 		BackendID: options.BackendID,
 		MethodID:  options.MethodID,
