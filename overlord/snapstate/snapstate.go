@@ -106,7 +106,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	}
 
 	// copy-data (needs stopped services by unlink)
-	if snapst.findIndex(ss.Revision()) < 0 {
+	if !revisionIsLocal {
 		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name()))
 		addTask(copyData)
 		prev = copyData
