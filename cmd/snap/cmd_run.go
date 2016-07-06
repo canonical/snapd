@@ -157,7 +157,7 @@ func snapRunApp(snapApp, command string, args []string) error {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	return runSnapConfine(info, app.SecurityTag(), snapApp, command, args)
+	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", args)
 }
 
 func snapRunHook(snapName, hookName, revision string) error {
@@ -167,16 +167,17 @@ func snapRunHook(snapName, hookName, revision string) error {
 	}
 
 	hook := info.Hooks[hookName]
+
+	// Make sure this hook is valid for this snap. If not, don't run it. This
+	// isn't an error, e.g. it will happen if a snap doesn't ship a system hook.
 	if hook == nil {
-		return fmt.Errorf("cannot find hook %q in %q", hookName, snapName)
+		return nil
 	}
 
-	hookBinary := filepath.Join(info.HooksDir(), hook.Name)
-
-	return runSnapConfine(info, hook.SecurityTag(), hookBinary, "", nil)
+	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
 }
 
-func runSnapConfine(info *snap.Info, securityTag, binary, command string, args []string) error {
+func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -186,11 +187,15 @@ func runSnapConfine(info *snap.Info, securityTag, binary, command string, args [
 		securityTag,
 		securityTag,
 		"/usr/lib/snapd/snap-exec",
-		binary,
+		snapApp,
 	}
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)
+	}
+
+	if hook != "" {
+		cmd = append(cmd, "--hook="+hook)
 	}
 
 	cmd = append(cmd, args...)
