@@ -33,5 +33,3 @@ execute: |
     echo "Then the plug can be connected again"
     snap connect content-plug:shared-content-plug content-slot:shared-content-slot
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
-
-    echo "============================================"

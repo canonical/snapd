@@ -5,5 +5,5 @@ slots:
         interface: content
         content: mylib
         read:
-            - $SNAP_PATH
-            - $SNAP_PATH
+            - $SNAP_DATA
+            - $SNAP_DATA
