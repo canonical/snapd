@@ -1118,3 +1118,65 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 		c.Check(affected, testutil.Contains, "s2")
 	}
 }
+
+// internal helper that creates a new repository with two snaps, one
+// is a content plug and one a content slot
+func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken string) (*Repository, *snap.Info, *snap.Info) {
+	repo := NewRepository()
+	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectFlag: true})
+
+	plugSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(`
+name: content-plug-snap
+plugs:
+  import-content:
+    interface: content
+    content: %s
+`, plugContentToken)))
+	c.Assert(err, IsNil)
+	slotSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(`
+name: content-slot-snap
+slots:
+  exported-content:
+    interface: content
+    content: %s
+`, slotContentToken)))
+	c.Assert(err, IsNil)
+
+	err = repo.AddSnap(plugSnap)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(slotSnap)
+	c.Assert(err, IsNil)
+
+	return repo, plugSnap, slotSnap
+}
+
+func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
+	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "mylib")
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Name, Equals, "exported-content")
+}
+
+func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) {
+	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
+	slotSnap.Type = snap.TypeOS
+
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	c.Check(candidateSlots, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C) {
+	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	c.Check(candidateSlots, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *C) {
+	repo, plugSnap, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "mylib")
+	// this comes via SideInfo
+	plugSnap.Developer = "foo"
+	slotSnap.Developer = "bar"
+
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	c.Check(candidateSlots, HasLen, 0)
+}

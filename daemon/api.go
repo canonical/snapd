@@ -68,6 +68,7 @@ var api = []*Command{
 	eventsCmd,
 	stateChangeCmd,
 	stateChangesCmd,
+	createUserCmd,
 }
 
 var (
@@ -165,6 +166,12 @@ var (
 		UserOK: true,
 		GET:    getChanges,
 	}
+
+	createUserCmd = &Command{
+		Path:   "/v2/create-user",
+		UserOK: false,
+		POST:   postCreateUser,
+	}
 )
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -172,9 +179,11 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
-	m := map[string]string{
-		"series":  release.Series,
-		"version": c.d.Version,
+	m := map[string]interface{}{
+		"series":     release.Series,
+		"version":    c.d.Version,
+		"os-release": release.ReleaseInfo,
+		"on-classic": release.OnClassic,
 	}
 
 	return SyncResponse(m, nil)
@@ -346,7 +355,11 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 }
 
 func getStore(c *Command) snapstate.StoreService {
-	return c.d.overlord.SnapManager().Store()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	return snapstate.Store(st)
 }
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -422,11 +435,18 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 			continue
 		}
 
+		// FIXME: snaps that are no active are skipped for now
+		//        until we know what we want to do
+		if !sn.snapst.Active {
+			continue
+		}
+
 		// get confinement preference from the snapstate
 		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
 			// the desired channel (not sn.info.Channel!)
 			Channel: sn.snapst.Channel,
 			DevMode: sn.snapst.DevMode(),
+			Block:   sn.snapst.Block(),
 
 			SnapID:   sn.info.SnapID,
 			Revision: sn.info.Revision,
@@ -645,25 +665,45 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
-func snapRollback(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// use previous version
-	ver := ""
-	ts, err := snapstate.Rollback(st, inst.snap, ver)
+func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Revert(st, inst.snap)
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Rollback %q snap"), inst.snap)
+	msg := fmt.Sprintf(i18n.G("Revert %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Enable(st, inst.snap)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Enable %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Disable(st, inst.snap)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Disable %q snap"), inst.snap)
 	return msg, []*state.TaskSet{ts}, nil
 }
 
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
-	"install":  snapInstall,
-	"refresh":  snapUpdate,
-	"remove":   snapRemove,
-	"rollback": snapRollback,
+	"install": snapInstall,
+	"refresh": snapUpdate,
+	"remove":  snapRemove,
+	"revert":  snapRevert,
+	"enable":  snapEnable,
+	"disable": snapDisable,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -866,12 +906,6 @@ out:
 
 	chg := newChange(st, "install-snap", msg, tsets, []string{snapName})
 	chg.Set("api-data", map[string]string{"snap-name": snapName})
-
-	go func() {
-		// XXX this needs to be a task in the manager; this is a hack to keep this branch smaller
-		<-chg.Ready()
-		os.Remove(tempPath)
-	}()
 
 	ensureStateSoon(st)
 
@@ -1236,4 +1270,49 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	ensureStateSoon(state)
 
 	return SyncResponse(change2changeInfo(chg), nil)
+}
+
+var (
+	postCreateUserUcrednetGetUID = ucrednetGetUID
+	storeUserInfo                = store.UserInfo
+	osutilAddExtraUser           = osutil.AddExtraUser
+)
+
+func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use create-user as non-root")
+	}
+
+	var createData struct {
+		EMail string `json:"email"`
+	}
+
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&createData); err != nil {
+		return BadRequest("cannot decode create-user data from request body: %v", err)
+	}
+
+	if createData.EMail == "" {
+		return BadRequest("cannot create user: 'email' field is empty")
+	}
+
+	v, err := storeUserInfo(createData.EMail)
+	if err != nil {
+		return BadRequest("cannot create user %q: %s", createData.EMail, err)
+	}
+
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+		return BadRequest("cannot create user %s: %s", v.Username, err)
+	}
+
+	var createResponseData struct {
+		Username string `json:"username"`
+	}
+	createResponseData.Username = v.Username
+
+	return SyncResponse(createResponseData, nil)
 }

@@ -117,7 +117,7 @@ func (s *SquashfsTestSuite) TestOpenSnapFile(c *C) {
 
 func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
+	si := snap.SideInfo{RealName: "blessed", Revision: snap.R(42)}
 	info, _, err := openSnapFile(snapPkg, true, &si)
 	c.Assert(err, IsNil)
 
@@ -129,8 +129,8 @@ func (s *SquashfsTestSuite) TestOpenSnapFilebSideInfo(c *C) {
 func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 	snapPkg := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
-		OfficialName: "hello-snap",
-		Revision:     snap.R(16),
+		RealName: "hello-snap",
+		Revision: snap.R(16),
 	}
 	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -149,8 +149,8 @@ func (s *SquashfsTestSuite) TestInstallViaSquashfsWorks(c *C) {
 func (s *SquashfsTestSuite) TestAddMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(13),
+			RealName: "foo",
+			Revision: snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -168,6 +168,7 @@ Description=Mount unit for foo
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
 Where=/snap/foo/13
+Type=squashfs
 
 [Install]
 WantedBy=multi-user.target
@@ -178,8 +179,8 @@ WantedBy=multi-user.target
 func (s *SquashfsTestSuite) TestRemoveMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(13),
+			RealName: "foo",
+			Revision: snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -202,8 +203,8 @@ func (s *SquashfsTestSuite) TestRemoveMountUnit(c *C) {
 func (s *SquashfsTestSuite) TestRemoveViaSquashfsWorks(c *C) {
 	snapPath := makeTestSnapPackage(c, packageHello)
 	si := &snap.SideInfo{
-		OfficialName: "hello-snap",
-		Revision:     snap.R(16),
+		RealName: "hello-snap",
+		Revision: snap.R(16),
 	}
 	snap, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -245,8 +246,8 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapUnpacksKernel(c *C) {
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
-		OfficialName: "ubuntu-kernel",
-		Revision:     snap.R(42),
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
 	}
 	_, err := (&Overlord{}).installWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)
@@ -273,8 +274,8 @@ func (s *SquashfsTestSuite) TestInstallKernelSnapRemovesKernelAssets(c *C) {
 	}
 	snapPkg := makeTestSnapPackageWithFiles(c, packageKernel, files)
 	si := &snap.SideInfo{
-		OfficialName: "ubuntu-kernel",
-		Revision:     snap.R(42),
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
 	}
 	snap, err := (&Overlord{}).installWithSideInfo(snapPkg, si, LegacyInhibitHooks, &MockProgressMeter{})
 	c.Assert(err, IsNil)

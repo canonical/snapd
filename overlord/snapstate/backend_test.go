@@ -37,13 +37,13 @@ type fakeOp struct {
 	name  string
 	revno snap.Revision
 	sinfo snap.SideInfo
+	stype snap.Type
 
 	old string
 }
 
 type fakeDownload struct {
 	name     string
-	channel  string
 	macaroon string
 }
 
@@ -62,12 +62,15 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authen
 
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: strings.Split(name, ".")[0],
-			Channel:      channel,
-			SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision:     revno,
+			RealName: strings.Split(name, ".")[0],
+			Channel:  channel,
+			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			Revision: revno,
 		},
 		Version: name,
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
 	}
 	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revno})
 
@@ -86,17 +89,16 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(snapInfo *snap.Info, pb progress.Meter, auther store.Authenticator) (string, error) {
+func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, auther store.Authenticator) (string, error) {
 	var macaroon string
 	if auther != nil {
 		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
 	}
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
-		name:     snapInfo.Name(),
-		channel:  snapInfo.Channel,
+		name:     name,
 	})
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: snapInfo.Name()})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-download", name: name})
 
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
@@ -107,7 +109,8 @@ func (f *fakeStore) Download(snapInfo *snap.Info, pb progress.Meter, auther stor
 type fakeSnappyBackend struct {
 	ops []fakeOp
 
-	linkSnapFailTrigger string
+	linkSnapFailTrigger     string
+	copySnapDataFailTrigger string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -154,12 +157,28 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	return info, nil
 }
 
+func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
+	return f.ReadInfo(name, &snap.SideInfo{
+		RealName: name,
+	})
+}
+
 func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter) error {
 	p.Notify("copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
 		old = oldInfo.MountDir()
 	}
+
+	if newInfo.MountDir() == f.copySnapDataFailTrigger {
+		f.ops = append(f.ops, fakeOp{
+			op:   "copy-data.failed",
+			name: newInfo.MountDir(),
+			old:  old,
+		})
+		return errors.New("fail")
+	}
+
 	f.ops = append(f.ops, fakeOp{
 		op:   "copy-data",
 		name: newInfo.MountDir(),
@@ -184,11 +203,12 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, p progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p progress.Meter) error {
 	p.Notify("setup-snap")
 	f.ops = append(f.ops, fakeOp{
-		op:   "undo-setup-snap",
-		name: s.MountDir(),
+		op:    "undo-setup-snap",
+		name:  s.MountDir(),
+		stype: typ,
 	})
 	return nil
 }
@@ -216,11 +236,12 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
 	meter.Notify("remove-snap-files")
 	f.ops = append(f.ops, fakeOp{
-		op:   "remove-snap-files",
-		name: s.MountDir(),
+		op:    "remove-snap-files",
+		name:  s.MountDir(),
+		stype: typ,
 	})
 	return nil
 }
@@ -252,7 +273,7 @@ func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	})
 }
 
-func (f *fakeSnappyBackend) Current(curInfo *snap.Info) {
+func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 	old := "<no-current>"
 	if curInfo != nil {
 		old = curInfo.MountDir()

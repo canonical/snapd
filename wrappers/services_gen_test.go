@@ -45,7 +45,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/start
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
-Environment="SNAP=/snap/snap/44" "SNAP_DATA=/var/snap/snap/44" "SNAP_NAME=snap" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/snap/44"
+Environment="SNAP=/snap/snap/44" "SNAP_COMMON=/var/snap/snap/common" "SNAP_DATA=/var/snap/snap/44" "SNAP_NAME=snap" "SNAP_VERSION=1.0" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_COMMON=/root/snap/snap/common" "SNAP_USER_DATA=/root/snap/snap/44"
 ExecStop=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/stop --post
 TimeoutStopSec=10
@@ -71,7 +71,7 @@ X-Snappy=yes
 ExecStart=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo start
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
-Environment="SNAP=/snap/xkcd-webserver/44" "SNAP_DATA=/var/snap/xkcd-webserver/44" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_DATA=/root/snap/xkcd-webserver/44"
+Environment="SNAP=/snap/xkcd-webserver/44" "SNAP_COMMON=/var/snap/xkcd-webserver/common" "SNAP_DATA=/var/snap/xkcd-webserver/44" "SNAP_NAME=xkcd-webserver" "SNAP_VERSION=0.3.4" "SNAP_REVISION=44" "SNAP_ARCH=%[3]s" "SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:" "SNAP_USER_COMMON=/root/snap/xkcd-webserver/common" "SNAP_USER_DATA=/root/snap/xkcd-webserver/44"
 ExecStop=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo stop
 ExecStopPost=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo post-stop
 TimeoutStopSec=30
@@ -197,8 +197,8 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
-				OfficialName: "xkcd-webserver",
-				Revision:     snap.R(44),
+				RealName: "xkcd-webserver",
+				Revision: snap.R(44),
 			},
 			Version: "0.3.4",
 		},
@@ -231,8 +231,8 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
-				OfficialName: "xkcd-webserver",
-				Revision:     snap.R(44),
+				RealName: "xkcd-webserver",
+				Revision: snap.R(44),
 			},
 			Version: "0.3.4",
 		},
@@ -252,8 +252,8 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
-				OfficialName: "xkcd-webserver",
-				Revision:     snap.R(44),
+				RealName: "xkcd-webserver",
+				Revision: snap.R(44),
 			},
 			Version: "0.3.4",
 		},

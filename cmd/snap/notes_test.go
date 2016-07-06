@@ -59,3 +59,9 @@ func (notesSuite) TestNotesOtherDevmode(c *check.C) {
 		TryMode: true,
 	}).String(), check.Equals, "devmode,try")
 }
+
+func (notesSuite) TestNotesDisabled(c *check.C) {
+	c.Check((&snap.Notes{
+		Disabled: true,
+	}).String(), check.Equals, "disabled")
+}
