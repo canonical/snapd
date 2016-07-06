@@ -24,6 +24,9 @@ execute: |
     echo "Then the snap is listed as connected"
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
+    echo "And fstab files are created"
+    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+
     echo "============================================"
 
     echo "When the plug is disconnected"
