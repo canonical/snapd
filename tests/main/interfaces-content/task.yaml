@@ -40,5 +40,5 @@ execute: |
     snap connect content-plug:shared-content-plug content-slot:shared-content-slot
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-    echo "Then the fstab files are removed"
+    echo "Then the fstab files are recreated"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
