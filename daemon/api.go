@@ -69,6 +69,7 @@ var api = []*Command{
 	stateChangeCmd,
 	stateChangesCmd,
 	createUserCmd,
+	buyCmd,
 }
 
 var (
@@ -171,6 +172,12 @@ var (
 		Path:   "/v2/create-user",
 		UserOK: false,
 		POST:   postCreateUser,
+	}
+
+	buyCmd = &Command{
+		Path:   "/v2/buy",
+		UserOK: false,
+		POST:   postBuy,
 	}
 )
 
@@ -1315,4 +1322,43 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	createResponseData.Username = v.Username
 
 	return SyncResponse(createResponseData, nil)
+}
+
+type buyResponseData struct {
+	State string `json:"state,omitempty"`
+}
+
+func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	var opts store.BuyOptions
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&opts)
+	if err != nil {
+		return BadRequest("cannot decode buy options from request body: %v", err)
+	}
+
+	opts.Auther, err = c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
+	s := getStore(c)
+
+	buyResult, err := s.Buy(&opts)
+
+	switch err {
+	default:
+		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	case nil:
+		// continue
+	}
+
+	// TODO: Support purchasing redirects
+	if buyResult.State == "InProgress" {
+		return InternalError("payment backend %q is not yet supported", opts.BackendID)
+	}
+
+	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
 }
