@@ -1645,12 +1645,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 
 	// Now buy the snap using the suggested currency
 	result, err := repo.Buy(&BuyOptions{
-		SnapID:        snap.SnapID,
-		SnapName:      snap.Name(),
-		Channel:       snap.Channel,
-		Currency:      repo.SuggestedCurrency(),
-		ExpectedPrice: snap.Prices[repo.SuggestedCurrency()],
-		Auther:        authenticator,
+		SnapID:   snap.SnapID,
+		SnapName: snap.Name(),
+		Channel:  snap.Channel,
+		Currency: repo.SuggestedCurrency(),
+		Price:    snap.Prices[repo.SuggestedCurrency()],
+		Auther:   authenticator,
 
 		BackendID: "123",
 		MethodID:  234,
@@ -1729,12 +1729,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 
 	// Attempt to buy the snap using the wrong price in USD
 	result, err := repo.Buy(&BuyOptions{
-		SnapID:        snap.SnapID,
-		SnapName:      snap.Name(),
-		Channel:       snap.Channel,
-		ExpectedPrice: 0.99,
-		Currency:      "USD",
-		Auther:        authenticator,
+		SnapID:   snap.SnapID,
+		SnapName: snap.Name(),
+		Channel:  snap.Channel,
+		Price:    0.99,
+		Currency: "USD",
+		Auther:   authenticator,
 	})
 
 	c.Assert(result, IsNil)
@@ -1810,12 +1810,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 
 	// Now try and buy the snap, but with an invalid ID
 	result, err := repo.Buy(&BuyOptions{
-		SnapID:        "invalid snap ID",
-		SnapName:      snap.Name(),
-		Channel:       snap.Channel,
-		ExpectedPrice: snap.Prices[repo.SuggestedCurrency()],
-		Currency:      repo.SuggestedCurrency(),
-		Auther:        authenticator,
+		SnapID:   "invalid snap ID",
+		SnapName: snap.Name(),
+		Channel:  snap.Channel,
+		Price:    snap.Prices[repo.SuggestedCurrency()],
+		Currency: repo.SuggestedCurrency(),
+		Auther:   authenticator,
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -1832,11 +1832,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no snap ID
 	result, err := repo.Buy(&BuyOptions{
-		SnapName:      "snap name",
-		Channel:       "channel",
-		ExpectedPrice: 1.0,
-		Currency:      "USD",
-		Auther:        &fakeAuthenticator{},
+		SnapName: "snap name",
+		Channel:  "channel",
+		Price:    1.0,
+		Currency: "USD",
+		Auther:   &fakeAuthenticator{},
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -1844,11 +1844,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no name
 	result, err = repo.Buy(&BuyOptions{
-		SnapID:        "snap ID",
-		Channel:       "channel",
-		ExpectedPrice: 1.0,
-		Currency:      "USD",
-		Auther:        &fakeAuthenticator{},
+		SnapID:   "snap ID",
+		Channel:  "channel",
+		Price:    1.0,
+		Currency: "USD",
+		Auther:   &fakeAuthenticator{},
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -1856,11 +1856,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no channel
 	result, err = repo.Buy(&BuyOptions{
-		SnapID:        "snap ID",
-		SnapName:      "snap name",
-		ExpectedPrice: 1.0,
-		Currency:      "USD",
-		Auther:        &fakeAuthenticator{},
+		SnapID:   "snap ID",
+		SnapName: "snap name",
+		Price:    1.0,
+		Currency: "USD",
+		Auther:   &fakeAuthenticator{},
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -1880,11 +1880,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no currency
 	result, err = repo.Buy(&BuyOptions{
-		SnapID:        "snap ID",
-		SnapName:      "snap name",
-		Channel:       "channel",
-		ExpectedPrice: 1.0,
-		Auther:        &fakeAuthenticator{},
+		SnapID:   "snap ID",
+		SnapName: "snap name",
+		Channel:  "channel",
+		Price:    1.0,
+		Auther:   &fakeAuthenticator{},
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -1892,11 +1892,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 
 	// no authenticator
 	result, err = repo.Buy(&BuyOptions{
-		SnapID:        "snap ID",
-		SnapName:      "snap name",
-		Channel:       "channel",
-		ExpectedPrice: 1.0,
-		Currency:      "USD",
+		SnapID:   "snap ID",
+		SnapName: "snap name",
+		Channel:  "channel",
+		Price:    1.0,
+		Currency: "USD",
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
