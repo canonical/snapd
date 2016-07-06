@@ -1711,6 +1711,59 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	c.Assert(snapst.Current, Equals, snap.R(2))
 }
 
+func (s *snapmgrTestSuite) TestUndoMountSnapKernel(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.fakeBackend.copySnapDataFailTrigger = "/snap/some-snap/11"
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	expected := []fakeOp{
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "some-snap",
+		},
+		{
+			op:  "current",
+			old: "<no-current>",
+		},
+		{
+			op:   "open-snap-file",
+			name: "downloaded-snap-path",
+		},
+		{
+			op:    "setup-snap",
+			name:  "downloaded-snap-path",
+			revno: snap.R(11),
+		},
+		{
+			op:   "copy-data.failed",
+			name: "/snap/some-snap/11",
+			old:  "<no-old>",
+		},
+		{
+			op:    "undo-setup-snap",
+			name:  "/snap/some-snap/11",
+			stype: "app",
+		},
+	}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+}
+
 type snapmgrQuerySuite struct {
 	st *state.State
 }

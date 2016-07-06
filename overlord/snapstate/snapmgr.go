@@ -685,6 +685,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// set snapst type for undoMountSnap
+	newInfo, err := readInfo(ss.Name, snapst.Candidate)
+	if err != nil {
+		return err
+	}
+	snapst.SetType(newInfo.Type)
+	st := t.State()
+	st.Lock()
+	Set(st, ss.Name, snapst)
+	st.Unlock()
+
 	// cleanup the downloaded snap after it got installed
 	// in backend.SetupSnap.
 	//

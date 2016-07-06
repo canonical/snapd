@@ -109,7 +109,8 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 type fakeSnappyBackend struct {
 	ops []fakeOp
 
-	linkSnapFailTrigger string
+	linkSnapFailTrigger     string
+	copySnapDataFailTrigger string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -168,6 +169,16 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	if oldInfo != nil {
 		old = oldInfo.MountDir()
 	}
+
+	if newInfo.MountDir() == f.copySnapDataFailTrigger {
+		f.ops = append(f.ops, fakeOp{
+			op:   "copy-data.failed",
+			name: newInfo.MountDir(),
+			old:  old,
+		})
+		return errors.New("fail")
+	}
+
 	f.ops = append(f.ops, fakeOp{
 		op:   "copy-data",
 		name: newInfo.MountDir(),
