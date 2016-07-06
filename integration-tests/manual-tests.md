@@ -128,6 +128,7 @@
 
 1. Using ubuntu classic build and install a simple snap with lpr inside.
 
+```yaml
 	name: lpr
 	version: 2.1.3-4
 	summary: submit files for printing
@@ -144,6 +145,7 @@
 		lpr:
 			plugin: nil
 			stage-packages: [cups-bsd]
+```
 2. Ensure that the 'cups' interface is connected to lpr
 3. Use /snap/bin/lpr to print a short text file (e.g. the snapcraft file)
 4. Ensure that it was added to the queue of the default CUPS printer.  This can
@@ -177,3 +179,11 @@
 
 2. Ensure the 'serial-port' interface is connected to miniterm
 3. Use sudo miniterm.open /dev/tty<DEV> to open a serial port
+
+# Test pulse audio interface using paplay
+
+1. Using Ubuntu Classic install the pulseaudio snap from the store
+2. Ensure that the 'pulseaudio' interface is connected to paplay
+   sudo snap interfaces
+3. Use /snap/bin/pulseaudio.paplay /usr/share/sounds/alsa/Noise.wav and verify
+   that you can hear the sound playing
