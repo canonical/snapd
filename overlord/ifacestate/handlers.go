@@ -40,7 +40,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.Info(task.State(), ss.SideInfo.RealName, ss.Revision)
+	snapInfo, err := snapstate.Info(task.State(), ss.SideInfo.RealName, ss.Revision())
 	if err != nil {
 		return err
 	}

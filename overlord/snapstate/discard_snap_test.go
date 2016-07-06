@@ -70,8 +70,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
+			Revision: snap.R(33),
 		},
-		Revision: snap.R(33),
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -104,8 +104,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
+			Revision: snap.R(33),
 		},
-		Revision: snap.R(33),
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -135,8 +135,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
+			Revision: snap.R(3),
 		},
-		Revision: snap.R(3),
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -168,8 +168,8 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
+			Revision: snap.R(3),
 		},
-		Revision: snap.R(3),
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
