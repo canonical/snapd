@@ -73,8 +73,9 @@ func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	Revision snap.Revision `json:"revision,omitempty"`
-	Channel  string        `json:"channel,omitempty"`
-	UserID   int           `json:"user-id,omitempty"`
+	// FIXME: rename to RequestedChannel to convey the meaning better
+	Channel string `json:"channel,omitempty"`
+	UserID  int    `json:"user-id,omitempty"`
 
 	Flags SnapSetupFlags `json:"flags,omitempty"`
 
