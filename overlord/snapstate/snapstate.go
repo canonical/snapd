@@ -265,7 +265,9 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	ss := &SnapSetup{
-		Name:     name,
+		SideInfo: &snap.SideInfo{
+			RealName: name,
+		},
 		Revision: snapst.Current,
 	}
 
@@ -298,7 +300,9 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 	}
 
 	ss := &SnapSetup{
-		Name:     name,
+		SideInfo: &snap.SideInfo{
+			RealName: name,
+		},
 		Revision: snapst.Current,
 	}
 
