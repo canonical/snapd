@@ -74,8 +74,8 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	}
 
 	si := &snap.SideInfo{
-		OfficialName: "ubuntu-kernel",
-		Revision:     snap.R(42),
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
 	}
 	snap := snaptest.MockSnap(c, packageKernel, si)
 	snaptest.PopulateDir(snap.MountDir(), files)
@@ -117,8 +117,8 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	si := &snap.SideInfo{
-		OfficialName: "ubuntu-kernel",
-		Revision:     snap.R(42),
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
 	}
 	snap := snaptest.MockSnap(c, packageKernel, si)
 	snaptest.PopulateDir(snap.MountDir(), files)
@@ -158,7 +158,7 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 
 	info := &snap.Info{}
 	info.Type = snap.TypeOS
-	info.OfficialName = "core"
+	info.RealName = "core"
 	info.Revision = snap.R(100)
 
 	err := boot.SetNextBoot(info)
@@ -178,7 +178,7 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 
 	info := &snap.Info{}
 	info.Type = snap.TypeKernel
-	info.OfficialName = "krnl"
+	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
 	err := boot.SetNextBoot(info)
