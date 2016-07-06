@@ -837,16 +837,16 @@ func (s *SnapUbuntuStoreRepository) SuggestedCurrency() string {
 // BuyOptions specifies parameters for store purchases.
 type BuyOptions struct {
 	// Required
-	SnapID        string
-	SnapName      string
-	Channel       string
-	ExpectedPrice float64
-	Currency      string // ISO 4217 code as string
-	Auther        Authenticator
+	SnapID        string        `json:"snap-id"`
+	SnapName      string        `json:"snap-name"`
+	Channel       string        `json:"channel"`
+	ExpectedPrice float64       `json:"expected-price"`
+	Currency      string        `json:"currency"` // ISO 4217 code as string
+	Auther        Authenticator `json:"-"`
 
 	// Optional
-	BackendID string // e.g. "credit_card", "paypal"
-	MethodID  int    // e.g. a particular credit card or paypal account
+	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
+	MethodID  int    `json:"method-id"`  // e.g. a particular credit card or paypal account
 }
 
 // BuyResult holds information required to complete the purchase when state

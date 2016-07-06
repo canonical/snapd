@@ -1329,42 +1329,22 @@ type buyResponseData struct {
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var buyInstruction struct {
-		// Required
-		SnapID        string  `json:"snap-id"`
-		SnapName      string  `json:"snap-name"`
-		Channel       string  `json:"channel"`
-		ExpectedPrice float64 `json:"expected-price"`
-		Currency      string  `json:"currency"`
-
-		// Optional
-		BackendID string `json:"backend-id"`
-		MethodID  int    `json:"method-id"`
-	}
+	var buyInstruction store.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&buyInstruction); err != nil {
+	err := decoder.Decode(&buyInstruction)
+	if err != nil {
 		return BadRequest("cannot decode buying instruction data from request body: %v", err)
 	}
 
-	auther, err := c.d.auther(r)
+	buyInstruction.Auther, err = c.d.auther(r)
 	if err != nil && err != auth.ErrInvalidAuth {
 		return InternalError("%v", err)
 	}
 
 	s := getStore(c)
 
-	buyResult, err := s.Buy(
-		&store.BuyOptions{
-			SnapID:        buyInstruction.SnapID,
-			SnapName:      buyInstruction.SnapName,
-			Channel:       buyInstruction.Channel,
-			ExpectedPrice: buyInstruction.ExpectedPrice,
-			Currency:      buyInstruction.Currency,
-			BackendID:     buyInstruction.BackendID,
-			MethodID:      buyInstruction.MethodID,
-			Auther:        auther,
-		})
+	buyResult, err := s.Buy(&buyInstruction)
 
 	switch err {
 	case store.ErrInvalidCredentials:
