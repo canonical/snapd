@@ -196,7 +196,9 @@ func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 }
 
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
-	sideInfo := &snap.SideInfo{}
+	sideInfo := &snap.SideInfo{
+		Revision: snap.R(1),
+	}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 
 	s.state.Lock()
@@ -206,6 +208,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
 	})
 	return snapInfo
 }

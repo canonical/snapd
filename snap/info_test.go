@@ -54,11 +54,12 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		OfficialName:      "newname",
+		RealName:          "newname",
 		EditedSummary:     "fixed summary",
 		EditedDescription: "fixed desc",
 		Revision:          snap.R(1),
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
+		DeveloperID:       "deviddeviddeviddeviddeviddevidde",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
@@ -66,6 +67,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
+	c.Check(info.DeveloperID, Equals, "deviddeviddeviddeviddeviddevidde")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
@@ -203,8 +205,8 @@ type: app`
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
-		OfficialName: "baz",
-		Revision:     snap.R(42),
+		RealName: "baz",
+		Revision: snap.R(42),
 	})
 	c.Assert(err, IsNil)
 	c.Check(info.Name(), Equals, "baz")

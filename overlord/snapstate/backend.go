@@ -32,7 +32,7 @@ type StoreService interface {
 	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
 	SuggestedCurrency() string
 
-	Download(*snap.Info, progress.Meter, store.Authenticator) (string, error)
+	Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error)
 }
 
 type managerBackend interface {
@@ -41,16 +41,16 @@ type managerBackend interface {
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
-	UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) error
+	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
-	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
+	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
-	Current(cur *snap.Info)
+	CurrentInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
 }

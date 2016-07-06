@@ -284,7 +284,7 @@ func (iface *LocationObserveInterface) ConnectedSlotSnippet(plug *interfaces.Plu
 	}
 }
 
-func (iface *LocationObserveInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *LocationObserveInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
