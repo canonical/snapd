@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -570,7 +571,11 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	err = m.backend.RemoveSnapFiles(ss.placeInfo(), typ, pb)
 	if err != nil {
 		st.Lock()
 		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
@@ -640,14 +645,18 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, _, err := snapSetupAndState(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoSetupSnap(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -672,7 +681,32 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	pb := &TaskProgressAdapter{task: t}
 	// TODO Use ss.Revision to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
-	return m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb)
+	if err := m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb); err != nil {
+		return err
+	}
+
+	// set snapst type for undoMountSnap
+	newInfo, err := readInfo(ss.Name, snapst.Candidate)
+	if err != nil {
+		return err
+	}
+	snapst.SetType(newInfo.Type)
+	st := t.State()
+	st.Lock()
+	Set(st, ss.Name, snapst)
+	st.Unlock()
+
+	// cleanup the downloaded snap after it got installed
+	// in backend.SetupSnap.
+	//
+	// Note that we always remove the file because the
+	// way sideloading works currently is to always create
+	// a temporary file (see daemon/api.go:sideloadSnap()
+	if err := os.Remove(ss.SnapPath); err != nil {
+		logger.Noticef("Failed to cleanup %q: %s", err)
+	}
+
+	return nil
 }
 
 func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
