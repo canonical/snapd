@@ -57,9 +57,6 @@ func populateStateFromInstalled() error {
 
 	tsAll := []*state.TaskSet{}
 	for i, snapPath := range all {
-
-		fmt.Printf("Installing %s\n", snapPath)
-
 		st.Lock()
 
 		// XXX: needing to know the name here is too early
@@ -107,10 +104,11 @@ func populateStateFromInstalled() error {
 
 	st.Lock()
 	status := chg.Status()
+	err = chg.Err()
 	st.Unlock()
 	if status != state.DoneStatus {
 		ovld.Stop()
-		return fmt.Errorf("cannot run seed change: %s", chg.Err())
+		return fmt.Errorf("cannot run seed change: %s", err)
 
 	}
 

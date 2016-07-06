@@ -67,6 +67,8 @@ func run() error {
 func findCommand(app *snap.AppInfo, command string) (string, error) {
 	var cmd string
 	switch command {
+	case "shell":
+		cmd = "/bin/bash"
 	case "stop":
 		cmd = app.StopCommand
 	case "post-stop":
@@ -112,5 +114,7 @@ func snapExec(snapApp, revision, command string, args []string) error {
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
-	return syscallExec(fullCmd, args, env)
+	fullCmdArgs := []string{fullCmd}
+	fullCmdArgs = append(fullCmdArgs, args...)
+	return syscallExec(fullCmd, fullCmdArgs, env)
 }

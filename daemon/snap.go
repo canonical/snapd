@@ -65,12 +65,10 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
-	cur := snapst.Current()
-	if cur == nil {
+	info, err := snapst.CurrentInfo(name)
+	if err == snapstate.ErrNoCurrent {
 		return nil, nil, errNoSnap
 	}
-
-	info, err := snap.ReadInfo(name, cur)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
 	}
@@ -97,8 +95,15 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 
 	var firstErr error
 	for name, snapState := range snapStates {
-		info, err := snap.ReadInfo(name, snapState.Current())
+		info, err := snapState.CurrentInfo(name)
 		if err != nil {
+			// FIXME: this is just a tiny step forward to not
+			//        totally break if a snap can no longer
+			//        be found. we will add more smartness to
+			//        this
+			if _, ok := err.(*snap.NotFoundError); ok {
+				continue
+			}
 			// XXX: aggregate instead?
 			if firstErr == nil {
 				firstErr = err
@@ -125,7 +130,7 @@ type appJSON struct {
 
 func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
 	status := "installed"
-	if snapst.Active {
+	if snapst.Active && localSnap.Revision == snapst.Current {
 		status = "active"
 	}
 
@@ -155,6 +160,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"trymode":        snapst.TryMode(),
 		"private":        localSnap.Private,
 		"apps":           apps,
+		"broken":         localSnap.Broken,
 	}
 }
 

@@ -84,7 +84,7 @@ type: os`, 11)
 
 	// now remove the channel
 	si := snap.SideInfo{
-		OfficialName:      "app",
+		RealName:          "app",
 		Revision:          snap.R(11),
 		Developer:         testDeveloper,
 		Channel:           "",

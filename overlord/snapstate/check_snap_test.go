@@ -124,8 +124,10 @@ type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: gadget
@@ -163,8 +165,10 @@ type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: zgadget

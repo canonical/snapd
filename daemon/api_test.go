@@ -33,13 +33,16 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -93,7 +96,7 @@ func (s *apiSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiSuite) Download(*snap.Info, progress.Meter, store.Authenticator) (string, error) {
+func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error) {
 	panic("Download not expected to be called")
 }
 
@@ -147,7 +150,10 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	c.Assert(err, check.IsNil)
 	d.addRoutes()
 
-	d.overlord.SnapManager().ReplaceStore(s)
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	snapstate.ReplaceStore(st, s)
 
 	s.d = d
 	return d
@@ -160,11 +166,11 @@ func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revn
 func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
-		SnapID:       "funky-snap-id",
-		OfficialName: name,
-		Developer:    developer,
-		Revision:     revno,
-		Channel:      "stable",
+		SnapID:    "funky-snap-id",
+		RealName:  name,
+		Developer: developer,
+		Revision:  revno,
+		Channel:   "stable",
 	}
 
 	// Collect other arguments into a yaml string
@@ -191,6 +197,7 @@ version: %s
 		snapstate.Get(st, name, &snapst)
 		snapst.Active = active
 		snapst.Sequence = append(snapst.Sequence, &snapInfo.SideInfo)
+		snapst.Current = snapInfo.SideInfo.Revision
 
 		snapstate.Set(st, name, &snapst)
 	}
@@ -255,6 +262,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 			"confinement": snap.StrictConfinement,
 			"trymode":     false,
 			"apps":        []appJSON{},
+			"broken":      "",
 		},
 		Meta: meta,
 	}
@@ -350,6 +358,9 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
+		"osutilAddExtraUser",
+		"storeUserInfo",
+		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
@@ -389,6 +400,10 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 
 	s.daemon(c).Version = "42b1"
 
+	restore := release.MockReleaseInfo(&release.OS{ID: "distro-id", VersionID: "1.2"})
+	defer restore()
+	restore = release.MockOnClassic(true)
+	defer restore()
 	sysInfoCmd.GET(sysInfoCmd, nil, nil).ServeHTTP(rec, nil)
 	c.Check(rec.Code, check.Equals, 200)
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -396,6 +411,11 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 	expected := map[string]interface{}{
 		"series":  "16",
 		"version": "42b1",
+		"os-release": map[string]interface{}{
+			"id":         "distro-id",
+			"version-id": "1.2",
+		},
+		"on-classic": true,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -713,8 +733,8 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -736,8 +756,8 @@ func (s *apiSuite) TestFind(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 
@@ -763,8 +783,8 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mockSnap(c, "name: foo\nversion: 1.0")
@@ -802,8 +822,8 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 		},
 		MustBuy: true,
 		SideInfo: snap.SideInfo{
-			OfficialName: "banana",
-			Developer:    "foo",
+			RealName:  "banana",
+			Developer: "foo",
 		},
 	}}
 
@@ -833,8 +853,8 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -859,19 +879,19 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 		{
 			// no explicit confinement in this one
 			SideInfo: snap.SideInfo{
-				OfficialName: "foo",
+				RealName: "foo",
 			},
 		},
 		{
 			Confinement: snap.StrictConfinement,
 			SideInfo: snap.SideInfo{
-				OfficialName: "bar",
+				RealName: "bar",
 			},
 		},
 		{
 			Confinement: snap.DevmodeConfinement,
 			SideInfo: snap.SideInfo{
-				OfficialName: "baz",
+				RealName: "baz",
 			},
 		},
 	}
@@ -920,8 +940,8 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Version: "v42",
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -960,8 +980,8 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -979,8 +999,8 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
@@ -1121,7 +1141,9 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"install", snapInstall},
 		{"refresh", snapUpdate},
 		{"remove", snapRemove},
-		{"rollback", snapRollback},
+		{"revert", snapRevert},
+		{"enable", snapEnable},
+		{"disable", snapDisable},
 		{"xyzzy", nil},
 	}
 
@@ -2257,7 +2279,7 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 }
 
 const (
-	testTrustedKey = `type: account-key
+	encTestTrustedKey = `type: account-key
 authority-id: can0nical
 account-id: can0nical
 public-key-id: 844efa9730eec4be
@@ -2278,7 +2300,7 @@ APybmSYoDVRQPAPop44UF0aCrTIw4Xds3E56d2Rsn+CkNML03kRc/i0Q53uYzZwxXVnzW/gVOXDL
 u/IZtjeo3KsB645MVEUxJLQmjlgMOwMvCHJgWhSvZOuf7wC0soBCN9Ufa/0M/PZFXzzn8LpjKVrX
 iDXhV7cY5PceG8ZV7Duo1JadOCzpkOHmai4DcrN7ZeY8bJnuNjOwvTLkrouw9xci4IxpPDRu0T/i
 K9qaJtUo4cA=`
-	testAccKey = `type: account-key
+	encTestAccKey = `type: account-key
 authority-id: can0nical
 account-id: developer1
 public-key-id: adea89b00094c337
@@ -2303,11 +2325,12 @@ ZF5jSvRDLgI=`
 
 func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	buf := bytes.NewBufferString(testAccKey)
+	buf := bytes.NewBufferString(encTestAccKey)
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -2340,7 +2363,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 func (s *apiSuite) TestAssertError(c *check.C) {
 	s.daemon(c)
 	// Setup
-	buf := bytes.NewBufferString(testAccKey)
+	buf := bytes.NewBufferString(encTestAccKey)
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -2353,11 +2376,12 @@ func (s *apiSuite) TestAssertError(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2370,7 +2394,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Verify
 	c.Check(rec.Code, check.Equals, http.StatusOK, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
-	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "2")
+	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "3")
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -2379,20 +2403,25 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	a2, err := dec.Decode()
 	c.Assert(err, check.IsNil)
 
+	a3, err := dec.Decode()
+	c.Assert(err, check.IsNil)
+
 	_, err = dec.Decode()
 	c.Assert(err, check.Equals, io.EOF)
 
-	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID()}
-	c.Check(ids, check.DeepEquals, []string{"can0nical", "developer1"})
+	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID(), a3.(*asserts.AccountKey).AccountID()}
+	sort.Strings(ids)
+	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1"})
 }
 
 func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
 	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2416,11 +2445,13 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	// Setup
-	os.MkdirAll(filepath.Dir(dirs.SnapTrustedAccountKey), 0755)
-	err := ioutil.WriteFile(dirs.SnapTrustedAccountKey, []byte(testTrustedKey), 0640)
+	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
+	c.Assert(err, check.IsNil)
+	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	defer restore()
 	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(testAccKey))
+	a, err := asserts.Decode([]byte(encTestAccKey))
 	c.Assert(err, check.IsNil)
 	err = d.overlord.AssertManager().DB().Add(a)
 	c.Assert(err, check.IsNil)
@@ -2794,4 +2825,35 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	c.Check(body["result"], check.DeepEquals, map[string]interface{}{
 		"message": fmt.Sprintf("cannot abort change %s with nothing pending", ids[0]),
 	})
+}
+
+func (s *apiSuite) TestPostCreateUser(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username: "karl",
+			SSHKeys:  []string{"ssh1", "ssh2"},
+		}, nil
+	}
+	osutilAddExtraUser = func(username string, sshKeys []string) error {
+		c.Check(username, check.Equals, "karl")
+		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		return nil
+	}
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		osutilAddExtraUser = osutil.AddExtraUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 }
