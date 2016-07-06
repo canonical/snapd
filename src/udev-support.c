@@ -68,6 +68,9 @@ void run_snappy_app_dev_add(struct snappy_udev *udev_s, const char *path)
 			if (setuid(0) != 0)
 				die("setuid failed");
 		char buf[64];
+		// pass snappy-add-dev an empty environment so the
+		// user-controlled environment can't be used to subvert
+		// snappy-add-dev
 		char *env[] = { NULL };
 		unsigned major = MAJOR(devnum);
 		unsigned minor = MINOR(devnum);
