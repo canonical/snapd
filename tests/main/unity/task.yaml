@@ -24,6 +24,6 @@ execute: |
     expected=".*?\"qmlscene: clockMainView\": \(\"qmlscene\" \"com\.ubuntu\.clock\"\)"
     while ! xwininfo -tree -root | grep -Pq "$expected"; do sleep 1; done
 
-    # FIXME: if we the backgrounded job is not stopped here the execute block doesn't end
+    # FIXME: if the backgrounded job is not stopped here the execute block doesn't end
     # and the restore block is not reached
     killall -9 xvfb-run Xvfb qmlscene
