@@ -521,6 +521,9 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 	}
 
 	// if devmode then don't restrict by confinement as either is fine
+	// XXX: what we really want to do is have the store not specify
+	//      devmode, and have the business logic wrt what to do with
+	//      unwanted devmode further up
 	if !devmode {
 		query.Set("confinement", string(snap.StrictConfinement))
 	}
