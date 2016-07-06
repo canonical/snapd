@@ -1,0 +1,10 @@
+summary: Checks that removing the base directory of a tried snap works.
+
+execute: |
+    echo "Given a tried snap"
+
+    echo "Then it is listed as installed"
+
+    echo "When its base directory is removed"
+
+    echo "Then the snap is no loger listed as installed"
