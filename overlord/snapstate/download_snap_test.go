@@ -104,10 +104,10 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
-		OfficialName: "foo",
-		SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-		Revision:     snap.R(11),
-		Channel:      "some-channel",
+		RealName: "foo",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
@@ -116,10 +116,10 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	s.state.Lock()
 
 	si := &snap.SideInfo{
-		OfficialName: "my-side-info",
-		SnapID:       "mySnapID",
-		Revision:     snap.R(11),
-		Channel:      "my-channel",
+		RealName: "my-side-info",
+		SnapID:   "mySnapID",
+		Revision: snap.R(11),
+		Channel:  "my-channel",
 	}
 
 	// download, ensure the store does not query
@@ -160,8 +160,8 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	s.state.Lock()
 	si := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(33),
+		RealName: "foo",
+		Revision: snap.R(33),
 	}
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{

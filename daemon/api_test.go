@@ -166,11 +166,11 @@ func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revn
 func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
-		SnapID:       "funky-snap-id",
-		OfficialName: name,
-		Developer:    developer,
-		Revision:     revno,
-		Channel:      "stable",
+		SnapID:    "funky-snap-id",
+		RealName:  name,
+		Developer: developer,
+		Revision:  revno,
+		Channel:   "stable",
 	}
 
 	// Collect other arguments into a yaml string
@@ -733,8 +733,8 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -756,8 +756,8 @@ func (s *apiSuite) TestFind(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 
@@ -783,8 +783,8 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mockSnap(c, "name: foo\nversion: 1.0")
@@ -822,8 +822,8 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 		},
 		MustBuy: true,
 		SideInfo: snap.SideInfo{
-			OfficialName: "banana",
-			Developer:    "foo",
+			RealName:  "banana",
+			Developer: "foo",
 		},
 	}}
 
@@ -853,8 +853,8 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -879,19 +879,19 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 		{
 			// no explicit confinement in this one
 			SideInfo: snap.SideInfo{
-				OfficialName: "foo",
+				RealName: "foo",
 			},
 		},
 		{
 			Confinement: snap.StrictConfinement,
 			SideInfo: snap.SideInfo{
-				OfficialName: "bar",
+				RealName: "bar",
 			},
 		},
 		{
 			Confinement: snap.DevmodeConfinement,
 			SideInfo: snap.SideInfo{
-				OfficialName: "baz",
+				RealName: "baz",
 			},
 		},
 	}
@@ -940,8 +940,8 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Version: "v42",
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -980,8 +980,8 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -999,8 +999,8 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
@@ -1142,6 +1142,8 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 		{"refresh", snapUpdate},
 		{"remove", snapRemove},
 		{"revert", snapRevert},
+		{"enable", snapEnable},
+		{"disable", snapDisable},
 		{"xyzzy", nil},
 	}
 
