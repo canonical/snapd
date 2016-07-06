@@ -270,6 +270,7 @@ var snapIDtoName = map[string]string{
 	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
 	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
 	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
+	"5tHhNIPTnrKEHuPdvzIT7VKLjFaBDwbp": "test-snapd-tools",
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
