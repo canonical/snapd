@@ -20,12 +20,18 @@
 package store
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
+// TODO: Existing functions in this file should be turned into methods
+// on SnapUbuntuStoreAuthService
 var (
 	myappsAPIBase = myappsURL()
 	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
@@ -165,4 +171,149 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
+}
+
+// SnapUbuntuStoreAuthService is the authentication API for the Ubuntu snap store.
+type SnapUbuntuStoreAuthService struct {
+	identityURI *url.URL
+	client      *http.Client
+}
+
+// NewUbuntuStoreAuthService creates a new SnapUbuntuStoreAuthService with the given location configuration.
+func NewUbuntuStoreAuthService(cfg *SnapUbuntuStoreConfig) *SnapUbuntuStoreAuthService {
+	if cfg == nil {
+		cfg = &defaultConfig
+	}
+	return &SnapUbuntuStoreAuthService{
+		identityURI: cfg.IdentityURI,
+		client: &http.Client{
+			Transport: &LoggedTransport{
+				Transport: http.DefaultTransport,
+				Key:       "SNAPD_DEBUG_HTTP",
+			},
+		},
+	}
+}
+
+func (s *SnapUbuntuStoreAuthService) requestDeviceNonce() ([]byte, error) {
+	const errorPrefix = "cannot authenticate device to store: failed to get nonce: "
+
+	noncesURL, err := s.identityURI.Parse("nonces")
+	if err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest("POST", noncesURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	var responseData struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := dec.Decode(&responseData); err != nil {
+		return nil, fmt.Errorf(errorPrefix+"%v", err)
+	}
+
+	if responseData.Nonce == "" {
+		return nil, fmt.Errorf(errorPrefix + "no nonce returned")
+	}
+	return []byte(responseData.Nonce), nil
+}
+
+func (s *SnapUbuntuStoreAuthService) requestDeviceMacaroon(serialAssertion []byte, nonce []byte, signature []byte) (string, error) {
+	const errorPrefix = "cannot authenticate device to store: failed to get macaroon: "
+
+	type deviceMacaroonRequest struct {
+		SerialAssertion string `json:"serial-assertion"`
+		Nonce           string `json:"nonce"`
+		Signature       string `json:"signature"`
+	}
+
+	jsonData, err := json.Marshal(deviceMacaroonRequest{
+		SerialAssertion: string(serialAssertion),
+		Nonce:           string(nonce),
+		Signature:       string(signature),
+	})
+
+	sessionsURL, err := s.identityURI.Parse("sessions")
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequest("POST", sessionsURL.String(), bytes.NewBuffer([]byte(jsonData)))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		// TODO: We should return a more useful error message if
+		// possible. The store's device macaroon APIs produce
+		// error objects in a different format from the user
+		// macaroon APIs, so they should probably be assimilated
+		// first.
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	var responseData struct {
+		Macaroon string `json:"macaroon"`
+	}
+	if err := dec.Decode(&responseData); err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+
+	if responseData.Macaroon == "" {
+		return "", fmt.Errorf(errorPrefix + "no macaroon returned")
+	}
+	return responseData.Macaroon, nil
+}
+
+type signNonceFunc func(deviceKeyEncoded []byte, nonce []byte) ([]byte, error)
+
+// AcquireDeviceMacaroon obtains a macaroon for a device session by requesting and signing a nonce.
+func (s *SnapUbuntuStoreAuthService) AcquireDeviceMacaroon(serialAssertion *asserts.Serial, signNonceFunc signNonceFunc) (string, error) {
+	// Extract the public key from the assertion, to pass to the
+	// nonce signing function.
+	deviceKeyEncoded, err := asserts.EncodePublicKey(serialAssertion.DeviceKey())
+	if err != nil {
+		return "", err
+	}
+
+	// Get a nonce from the store, sign it, and then exchange it for
+	// a macaroon.
+	nonce, err := s.requestDeviceNonce()
+	if err != nil {
+		return "", err
+	}
+
+	signature, err := signNonceFunc(deviceKeyEncoded, nonce)
+	if err != nil {
+		return "", err
+	}
+
+	macaroon, err := s.requestDeviceMacaroon(asserts.Encode(serialAssertion), nonce, signature)
+	if err != nil {
+		return "", err
+	}
+
+	return macaroon, nil
 }
