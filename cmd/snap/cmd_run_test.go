@@ -48,21 +48,21 @@ hooks:
 `)
 
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
-	invalidParameters := []string{"run", "snap-name", "--hook=hook-name", "--command=command-name"}
+	invalidParameters := []string{"run", "--hook=hook-name", "--command=command-name", "snap-name"}
 	_, _, err := snaprun.ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*cannot use --hook and --command together.*")
 
-	invalidParameters = []string{"run", "snap-name", "-r=1", "--command=command-name"}
+	invalidParameters = []string{"run", "-r=1", "--command=command-name", "snap-name"}
 	_, _, err = snaprun.ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
-	invalidParameters = []string{"run", "snap-name", "-r=1"}
+	invalidParameters = []string{"run", "-r=1", "snap-name"}
 	_, _, err = snaprun.ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
-	invalidParameters = []string{"run", "snap-name", "--hook=hook-name", "foo", "bar"}
+	invalidParameters = []string{"run", "--hook=hook-name", "foo", "bar", "snap-name"}
 	_, _, err = snaprun.ParseArgs(invalidParameters)
-	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"hook-name\": foo bar.*")
+	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"hook-name\": bar.*")
 }
 
 func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {
@@ -116,7 +116,7 @@ func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
 	// and run it!
 	_, rest, err := snaprun.ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.IsNil)
-	c.Assert(rest, check.DeepEquals, []string{"--arg1", "arg2"})
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
 		"/usr/bin/ubuntu-core-launcher",
@@ -272,5 +272,5 @@ func (s *SnapSuite) mockServer(c *check.C) {
 
 func (s *SnapSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
 	_, _, err := snaprun.ParseArgs([]string{"run", "--unknown", "snapname.app", "--arg1", "arg2"})
-	c.Assert(err, check.ErrorMatches, `unknown flag "--unknown"`)
+	c.Assert(err, check.ErrorMatches, "unknown flag `unknown'")
 }
