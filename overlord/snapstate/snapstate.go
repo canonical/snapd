@@ -497,10 +497,6 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 		}
 	}
 
-	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
-		return readInfo(name, snapst.Candidate)
-	}
-
 	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
 }
 
@@ -563,7 +559,7 @@ func Set(s *state.State, name string, snapst *SnapState) {
 	if snaps == nil {
 		snaps = make(map[string]*json.RawMessage)
 	}
-	if snapst == nil || (len(snapst.Sequence) == 0 && snapst.Candidate == nil) {
+	if snapst == nil || (len(snapst.Sequence) == 0) {
 		delete(snaps, name)
 	} else {
 		data, err := json.Marshal(snapst)

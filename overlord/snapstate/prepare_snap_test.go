@@ -73,52 +73,13 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
+
+	var ss snapstate.SnapSetup
+	t.Get("snap-setup", &ss)
+	c.Check(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
 		Revision: snap.R(-1),
 	})
-	c.Check(t.Status(), Equals, state.DoneStatus)
-}
-
-func (s *prepareSnapSuite) TestDoPrepareSnapSetsCandidate(c *C) {
-	s.state.Lock()
-
-	si1 := &snap.SideInfo{
-		RealName: "foo",
-		Revision: snap.R(1),
-	}
-	si2 := &snap.SideInfo{
-		RealName: "foo",
-		Revision: snap.R(2),
-	}
-	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si1, si2},
-		Active:   true,
-		Current:  si2.Revision,
-	})
-
-	t := s.state.NewTask("prepare-snap", "test")
-	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(1),
-		},
-	})
-	s.state.NewChange("dummy", "...").AddTask(t)
-
-	s.state.Unlock()
-
-	s.snapmgr.Ensure()
-	s.snapmgr.Wait()
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate, DeepEquals, si1)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
@@ -136,16 +97,16 @@ func (s *prepareSnapSuite) TestDoUndoPrepareSnap(c *C) {
 	}
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Sequence:  []*snap.SideInfo{si1, si2},
-		Active:    true,
-		Candidate: si2,
+		Sequence: []*snap.SideInfo{si1, si2},
+		Active:   true,
 	})
 	t := s.state.NewTask("prepare-snap", "test")
+	si := &snap.SideInfo{
+		RealName: "foo",
+		Revision: snap.R(2),
+	}
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(1),
-		},
+		SideInfo: si,
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -163,10 +124,9 @@ func (s *prepareSnapSuite) TestDoUndoPrepareSnap(c *C) {
 
 	s.state.Lock()
 
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
+	var ss snapstate.SnapSetup
+	err := t.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Active, Equals, true)
-	c.Check(snapst.Candidate, IsNil)
+	c.Check(ss.SideInfo, DeepEquals, si)
 	c.Check(t.Status(), Equals, state.UndoneStatus)
 }
