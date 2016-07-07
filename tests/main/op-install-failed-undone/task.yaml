@@ -23,7 +23,7 @@ execute: |
     ! snap list | grep -q test-snapd-tools
 
     echo "And the installation task is reported as an error"
-    failed_task_id=$(snap changes | perl -ne 'print $1 if /(\d+) +Error.*?Install \"test-snapd-tools\" snap/')
+    failed_task_id=$(snap changes | perl -ne 'print $1 if /(\d+) +Error.*?Install \"test-snapd-tools\" \(\d+\) snap/')
     if [ -z $failed_task_id ]; then
         echo "Installation task should be reported as error"
         exit 1
