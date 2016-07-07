@@ -2485,8 +2485,8 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
-				OfficialName: "some-snap",
-				Revision:     snap.R(7),
+				RealName: "some-snap",
+				Revision: snap.R(7),
 			},
 		},
 		{
