@@ -101,7 +101,6 @@ func patch2(s *state.State) error {
 		for _, si := range snapState.Sequence {
 			setRealName(si, snapName)
 		}
-		setRealName(snapState.Candidate, snapName)
 	}
 	s.Set("snaps", stateMap)
 
