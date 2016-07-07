@@ -141,11 +141,9 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 
 	execArgv0 := ""
 	execArgs := []string{}
-	execEnv := []string{}
 	syscallExec = func(argv0 string, argv []string, env []string) error {
 		execArgv0 = argv0
 		execArgs = argv
-		execEnv = env
 		return nil
 	}
 
@@ -162,17 +160,6 @@ func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
 		Revision: snap.R("42"),
 	})
 
-	execArgv0 := ""
-	execArgs := []string{}
-	execEnv := []string{}
-	syscallExec = func(argv0 string, argv []string, env []string) error {
-		execArgv0 = argv0
-		execArgs = argv
-		execEnv = env
-		return nil
-	}
-
-	// launch and verify it ran correctly
 	err := snapExecHook("snapname", "42", "missing-hook")
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot find hook \"missing-hook\" in \"snapname\"")
