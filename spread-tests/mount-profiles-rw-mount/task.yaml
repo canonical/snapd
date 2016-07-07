@@ -1,4 +1,4 @@
-summary: Check that read-only bind mounts can be created
+summary: Check that read-write bind mounts can be created
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
 prepare: |
