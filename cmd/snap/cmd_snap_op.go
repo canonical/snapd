@@ -399,6 +399,10 @@ revisions is not touched by the revert process.
 `)
 
 func (x *cmdRevert) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	cli := Client()
 	name := x.Positional.Snap
 	changeID, err := cli.Revert(name, nil)

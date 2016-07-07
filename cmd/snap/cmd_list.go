@@ -50,7 +50,11 @@ func (s snapsByName) Len() int           { return len(s) }
 func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func (x *cmdList) Execute([]string) error {
+func (x *cmdList) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return listSnaps(x.Positional.Snaps)
 }
 
