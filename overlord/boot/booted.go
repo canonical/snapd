@@ -33,8 +33,12 @@ import (
 )
 
 func nameAndRevnoFromSnap(sn string) (string, snap.Revision, error) {
-	name := strings.Split(sn, "_")[0]
-	revnoNSuffix := strings.Split(sn, "_")[1]
+	l := strings.Split(sn, "_")
+	if len(l) < 2 {
+		return "", snap.Revision{}, fmt.Errorf("input %q has invalid format (not enough '_')", sn)
+	}
+	name := l[0]
+	revnoNSuffix := l[1]
 	rev, err := snap.ParseRevision(strings.Split(revnoNSuffix, ".snap")[0])
 	if err != nil {
 		return "", snap.Revision{}, err

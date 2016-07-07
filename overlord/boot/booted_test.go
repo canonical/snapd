@@ -162,7 +162,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snappy_kernel"] = "ubuntu-core_99.snap"
+	bs.bootloader.BootVars["snappy_os"] = "ubuntu-core_99.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "ubuntu-core"`)
 }
@@ -184,4 +184,16 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 	bs.bootloader.BootVars["snappy_kernel"] = "ubuntu-core_1.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `(?ms)cannot update revisions after boot changes:.*`)
+}
+
+func (bs *bootedSuite) TestNameAndRevnoFromSnapValid(c *C) {
+	name, revno, err := boot.NameAndRevnoFromSnap("foo_2.snap")
+	c.Assert(err, IsNil)
+	c.Assert(name, Equals, "foo")
+	c.Assert(revno, Equals, snap.R(2))
+}
+
+func (bs *bootedSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
+	_, _, err := boot.NameAndRevnoFromSnap("invalid")
+	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
 }

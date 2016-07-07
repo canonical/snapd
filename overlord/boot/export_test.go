@@ -19,4 +19,7 @@
 
 package boot
 
-var PopulateStateFromInstalled = populateStateFromInstalled
+var (
+	PopulateStateFromInstalled = populateStateFromInstalled
+	NameAndRevnoFromSnap       = nameAndRevnoFromSnap
+)
