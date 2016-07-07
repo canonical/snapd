@@ -69,7 +69,7 @@ slots:
 `
 
 	snapPath := makeTestSnap(c, yaml)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
+	si := snap.SideInfo{RealName: "blessed", Revision: snap.R(42)}
 	info, _, err := backend.OpenSnapFile(snapPath, &si)
 	c.Assert(err, IsNil)
 
