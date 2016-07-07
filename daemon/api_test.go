@@ -787,7 +787,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 			Developer: "foo",
 		},
 	}}
-	s.mockSnap(c, "name: foo\nversion: 1.0")
+	s.mockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
 	c.Assert(err, check.IsNil)

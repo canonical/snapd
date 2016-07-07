@@ -68,7 +68,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 
 	revisionStr := ""
 	if ss.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (rev %s)", ss.SideInfo.Revision)
+		revisionStr = fmt.Sprintf(" (rev %s)", ss.Revision())
 	}
 
 	// check if we already have the revision locally (alters tasks)
@@ -511,7 +511,7 @@ func CurrentInfo(s *state.State, name string) (*snap.Info, error) {
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	info, err := snapst.CurrentInfo(name)
+	info, err := snapst.CurrentInfo()
 	if err == ErrNoCurrent {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
@@ -587,7 +587,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 		if !snapState.Active {
 			continue
 		}
-		snapInfo, err := snapState.CurrentInfo(snapName)
+		snapInfo, err := snapState.CurrentInfo()
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", snapName, err)
 			continue
@@ -603,7 +603,7 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	for snapName, snapState := range stateMap {
+	for _, snapState := range stateMap {
 		if !snapState.HasCurrent() {
 			continue
 		}
@@ -614,7 +614,7 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		if typ != snap.TypeGadget {
 			continue
 		}
-		return snapState.CurrentInfo(snapName)
+		return snapState.CurrentInfo()
 	}
 
 	return nil, state.ErrNoState
