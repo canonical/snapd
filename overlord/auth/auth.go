@@ -147,9 +147,21 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
-func (us *UserState) Authenticator() *MacaroonAuthenticator {
-	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
+// Authenticator returns a store.Authenticator which uses the given
+// user's stored credentials, or nil if there are no credentials.
+func Authenticator(st *state.State, userID int) (store.Authenticator, error) {
+	var us *UserState
+	if userID != 0 {
+		var err error
+		us, err = User(st, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if us != nil {
+		return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges), nil
+	}
+	return nil, nil
 }
 
 // MacaroonAuthenticator is a store authenticator based on macaroons

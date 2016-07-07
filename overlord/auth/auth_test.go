@@ -300,27 +300,32 @@ func (as *authSuite) TestLoginCaveatIDMacaroonMissingCaveat(c *C) {
 	c.Check(caveat, Equals, "")
 }
 
-func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
+func (as *authSuite) TestAuthenticatorFromUser(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
-	authenticator := user.Authenticator()
-	c.Check(authenticator.Macaroon, Equals, user.Macaroon)
-	c.Check(authenticator.Discharges, DeepEquals, user.Discharges)
-}
-
-func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	authenticator, err := auth.Authenticator(as.state, user.ID)
 	as.state.Unlock()
 	c.Check(err, IsNil)
+	c.Check(authenticator.(*auth.MacaroonAuthenticator).Macaroon, Equals, user.Macaroon)
+	c.Check(authenticator.(*auth.MacaroonAuthenticator).Discharges, DeepEquals, user.Discharges)
 
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	authenticator := user.Authenticator()
 	authenticator.Authenticate(req)
 
 	authorization := req.Header.Get("Authorization")
 	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
+}
+
+func (as *authSuite) TestAuthenticatorWithoutUser(c *C) {
+	// If there is no user in the interaction (userID == 0), no
+	// Authenticator is returned.
+	as.state.Lock()
+	authenticator, err := auth.Authenticator(as.state, 0)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(authenticator, IsNil)
 }

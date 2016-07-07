@@ -283,20 +283,28 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/find/?q=name:gfoo", nil)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
 
 	c.Assert(s.auther, check.IsNil)
 
-	_, ok := searchStore(findCmd, req, nil).(*resp)
+	_, ok := searchStore(findCmd, req, user).(*resp)
 	c.Assert(ok, check.Equals, true)
 	// ensure authenticator was set
-	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
+	state.Lock()
+	expected, err := auth.Authenticator(state, expectedUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Assert(s.auther, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
@@ -928,20 +936,28 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+	state.Lock()
+	user, err := UserFromRequest(state, req)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
 
 	c.Assert(s.auther, check.IsNil)
 
-	_ = getSnapsInfo(snapsCmd, req, nil).(*resp)
+	_ = getSnapsInfo(snapsCmd, req, user).(*resp)
 
 	// ensure authenticator was set
-	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
+	state.Lock()
+	expected, err := auth.Authenticator(state, expectedUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Assert(s.auther, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
