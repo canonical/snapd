@@ -38,6 +38,8 @@ var (
 	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
+	// UbuntuoneRefreshDischargeAPI points to SSO endpoint to refresh a discharge macaroon
+	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
 
 type ssoMsg struct {
@@ -137,24 +139,15 @@ func RequestStoreMacaroon() (string, error) {
 	return responseData.Macaroon, nil
 }
 
-// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
-func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+func requestDischargeMacaroon(endpoint string, data map[string]string) (string, error) {
 	const errorPrefix = "cannot authenticate on snap store: "
 
-	data := map[string]string{
-		"email":     username,
-		"password":  password,
-		"caveat_id": caveat,
-	}
-	if otp != "" {
-		data["otp"] = otp
-	}
 	dischargeJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", UbuntuoneDischargeAPI, strings.NewReader(string(dischargeJSONData)))
+	req, err := http.NewRequest("POST", endpoint, strings.NewReader(string(dischargeJSONData)))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -206,4 +199,27 @@ func DischargeAuthCaveat(caveat, username, password, otp string) (string, error)
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
+}
+
+// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
+func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+	data := map[string]string{
+		"email":     username,
+		"password":  password,
+		"caveat_id": caveat,
+	}
+	if otp != "" {
+		data["otp"] = otp
+	}
+
+	return requestDischargeMacaroon(UbuntuoneDischargeAPI, data)
+}
+
+// RefreshDischargeMacaroon returns a soft-refreshed discharge macaroon.
+func RefreshDischargeMacaroon(discharge string) (string, error) {
+	data := map[string]string{
+		"discharge_macaroon": discharge,
+	}
+
+	return requestDischargeMacaroon(UbuntuoneRefreshDischargeAPI, data)
 }
