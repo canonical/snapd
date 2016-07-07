@@ -179,9 +179,23 @@ Reserved for human-readable content describing the service.
 
 Query.
 
-#### `channel`
+The query is a whitespace-separated list<sup id=a1>[†](#f1)</sup> of terms, all of
+which will be satisfied by the returned snaps.
 
-Which channel to search in.
+Each term can have an optional prefix followed by `:`.
+
+Supported prefixes are
+
+<dl>
+<dt>name</dt>
+<dd>The term matches the snap's name. It can end in <code>*</code> in which
+case the search is for a prefix, otherwise the whole name must match.</dd>
+<dt>text</dt>
+<dd>The term is looked up in a full-text index of name, summary and
+description.</dd>
+</dl>
+
+<b id=f1>†</b> that list can only have exactly one element, for now. [↩](#a1)
 
 #### `select`
 
@@ -190,7 +204,7 @@ snaps is supported via the `refresh` key.
 
 #### Sample result:
 
-[//]: # keep the fields sorted, both in the sample and its description below. Makes scanning easier
+[//]: # (keep the fields sorted, both in the sample and its description below. Makes scanning easier)
 
 ```javascript
 [{
@@ -227,7 +241,7 @@ snaps is supported via the `refresh` key.
 
 ##### Fields
 
-[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+[//]: # (keep the fields sorted, both in the description and the sample above. Makes scanning easier)
 
 * `channel`: which channel the snap is currently tracking.
 * `confinement`: the confinement requested by the snap itself; one of `strict` or `devmode`.
@@ -246,7 +260,7 @@ snaps is supported via the `refresh` key.
 * `type`: the type of snap; one of `app`, `kernel`, `gadget`, or `os`.
 * `version`: a string representing the version.
 
-[//]: # seriously, keep the fields sorted!
+[//]: # (seriously, keep the fields sorted!)
 
 #### Result meta data:
 
@@ -272,7 +286,7 @@ snaps is supported via the `refresh` key.
 
 Sample result:
 
-[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+[//]: # (keep the fields sorted, both in the description and the sample above. Makes scanning easier)
 
 ```javascript
 [{
@@ -317,7 +331,7 @@ Sample result:
 
 In addition to the fields described in `/v2/find`:
 
-[//]: # keep the fields sorted!
+[//]: # (keep the fields sorted!)
 
 * `apps`: JSON array of apps the snap provides. Each app has a `name` field to name a binary this app provides.
 * `devmode`: true if the snap is currently installed in development mode.

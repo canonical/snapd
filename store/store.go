@@ -609,15 +609,74 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, use
 // Find finds  (installable) snaps from the store, matching the
 // given search term.
 func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	if channel == "" {
-		channel = "stable"
+	// searchTerm is [<prefix>:]term
+	// prefix is either "name", or "text".
+
+	// if prefix is name, term can end with * to mean it's a
+	// prefix search, or not to mean it's an exact search.
+	//
+	// if prefix is text, a full-text search on
+	// name+title+details+etc is done
+	//
+	// if prefix is not given, search is taken to be name:<term>*
+
+	searchTerm = strings.TrimSpace(searchTerm)
+
+	var prefix string
+	exact := false
+	if idx := strings.IndexRune(searchTerm, ':'); idx >= 0 {
+		prefix = searchTerm[:idx]
+		searchTerm = searchTerm[idx+1:]
+
+		if prefix == "name" {
+			trimmed := strings.TrimSuffix(searchTerm, "*")
+			if len(trimmed) == len(searchTerm) {
+				exact = true
+			}
+			searchTerm = trimmed
+		}
+	} else {
+		prefix = "name"
+	}
+
+	if searchTerm == "" {
+		return nil, ErrEmptyQuery
+	}
+
+	if strings.ContainsAny(searchTerm, ":*") {
+		return nil, ErrBadQuery
+	}
+
+	if exact {
+		// this is actually a request for a single snap's details; short-cut out
+		snapInfo, err := s.Snap(searchTerm, channel, false, user)
+		switch err {
+		case nil:
+			return []*snap.Info{snapInfo}, nil
+		case ErrSnapNotFound:
+			// not finding something is an error for Snap but not for Find
+			return nil, nil
+		default:
+			return nil, err
+		}
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
 	q := u.Query()
-	q.Set("q", searchTerm)
-	q.Set("channel", channel)
+
+	switch prefix {
+	case "name":
+		q.Set("name", searchTerm)
+	case "text":
+		q.Set("q", searchTerm)
+	default:
+		return nil, ErrBadPrefix
+	}
+
 	q.Set("confinement", "strict")
+	if channel != "" {
+		q.Set("channel", channel)
+	}
 	u.RawQuery = q.Encode()
 
 	req, err := s.newRequest("GET", u.String(), nil, user)
