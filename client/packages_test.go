@@ -106,6 +106,34 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
 }
 
+func (cs *clientSuite) TestClientFindPrice(c *check.C) {
+	tests := []struct {
+		prices string
+		status string
+		price  string
+	}{
+		{`{}`, "available", ""},
+		{`{"GBP": 1.99, "USD": 2.99}`, "available", "bought"},
+		{`{"GBP": 1.99, "USD": 2.99}`, "priced", "1.99GBP"},
+		{`{"AUD": 1.99, "USD": 2.99}`, "priced", "2.99USD"},
+		{`{"AUD": 1.99, "EUR": 2.99}`, "priced", "1.99AUD"},
+	}
+
+	for _, tt := range tests {
+		cs.rsp = fmt.Sprintf(`{
+			"type": "sync",
+			"result": [{
+				"prices": %s,
+				"status": "%s"
+			}],
+			"suggested-currency": "GBP"
+		}`, tt.prices, tt.status)
+		snaps, _, err := cs.cli.Find(nil)
+		c.Assert(err, check.IsNil)
+		c.Assert(snaps[0].Price, check.Equals, tt.price)
+	}
+}
+
 const (
 	pkgName = "chatroom.ogra"
 )

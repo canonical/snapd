@@ -24,6 +24,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -49,6 +50,7 @@ type Snap struct {
 	TryMode       bool          `json:"trymode"`
 	Apps          []AppInfo     `json:"apps"`
 	Broken        string        `json:"broken"`
+	Price         string        `json:"price"`
 
 	Prices map[string]float64 `json:"prices"`
 }
@@ -112,6 +114,42 @@ func (client *Client) List(names []string) ([]*Snap, error) {
 	return result, nil
 }
 
+func setPrice(snap *Snap, currency string) {
+	// If there are no prices, then the snap is free
+	if len(snap.Prices) == 0 {
+		snap.Price = ""
+		return
+	}
+
+	// If the snap is priced, but has been purchased
+	if snap.Status == StatusAvailable {
+		snap.Price = i18n.G("bought")
+		return
+	}
+
+	// Look up the price by currency code
+	val, ok := snap.Prices[currency]
+
+	// Fall back to dollars
+	if !ok {
+		currency = "USD"
+		val, ok = snap.Prices["USD"]
+	}
+
+	// If there aren't even dollars, grab the first currency,
+	// ordered alphabetically by currency code
+	if !ok {
+		currency = "ZZZ"
+		for c, v := range snap.Prices {
+			if c < currency {
+				currency, val = c, v
+			}
+		}
+	}
+
+	snap.Price = fmt.Sprintf("%.2f%s", val, currency)
+}
+
 // Find returns a list of snaps available for install from the
 // store for this system and that match the query
 func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
@@ -125,7 +163,16 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 		q.Set("select", "refresh")
 	}
 
-	return client.snapsFromPath("/v2/find", q)
+	snaps, ri, err := client.snapsFromPath("/v2/find", q)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	for _, snap := range snaps {
+		setPrice(snap, ri.SuggestedCurrency)
+	}
+
+	return snaps, ri, err
 }
 
 func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {
