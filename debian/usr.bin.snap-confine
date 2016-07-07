@@ -117,8 +117,8 @@
     mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /etc/alternatives/,
 
     # Allow snaps to share content amongst themselves.
-    mount options=(rw bind) /snap/*/** -> /snap/*/**,
-    mount options=(ro bind) /snap/*/** -> /snap/*/**,
+    mount options=(rw bind) /snap/*/*/** -> /snap/*/*/**,
+    mount options=(ro bind) /snap/*/*/** -> /snap/*/*/**,
     # But we don't want anyone to touch /snap/bin
     audit deny mount /snap/bin/** -> /**,
     audit deny mount /** -> /snap/bin/**,
