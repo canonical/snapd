@@ -35,6 +35,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -84,6 +85,8 @@ func (opens *openSuite) TestOpenDatabaseTrustedAccount(c *C) {
 	acct1 := a.(*asserts.Account)
 	c.Check(acct1.AccountID(), Equals, "trusted")
 	c.Check(acct1.DisplayName(), Equals, "Trusted")
+
+	c.Check(db.IsTrusted("trusted"), Equals, true)
 }
 
 func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
@@ -302,7 +305,10 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      bs,
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Trusted: []asserts.Assertion{
+			asserts.BootstrapAccountForTest("canonical"),
+			asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey()),
+		},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -545,22 +551,18 @@ func (safs *signAddFindSuite) TestFindMany(c *C) {
 
 func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 	pk1 := testPrivKey1
-	pubKey1Encoded, err := asserts.EncodePublicKey(pk1.PublicKey())
-	c.Assert(err, IsNil)
 
-	now := time.Now().UTC()
-	headers := map[string]string{
-		"authority-id":           "canonical",
-		"account-id":             "acc-id1",
-		"public-key-id":          pk1.PublicKey().ID(),
-		"public-key-fingerprint": pk1.PublicKey().Fingerprint(),
-		"since":                  now.Format(time.RFC3339),
-		"until":                  now.AddDate(1, 0, 0).Format(time.RFC3339),
-	}
-	accKey, err := safs.signingDB.Sign(asserts.AccountKeyType, headers, []byte(pubKey1Encoded), safs.signingKeyID)
-	c.Assert(err, IsNil)
+	acct1 := assertstest.NewAccount(safs.signingDB, "acc-id1", map[string]string{
+		"authority-id": "canonical",
+	}, safs.signingKeyID)
 
-	err = safs.db.Add(accKey)
+	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, pk1.PublicKey(), map[string]string{
+		"authority-id": "canonical",
+	}, safs.signingKeyID)
+
+	err := safs.db.Add(acct1)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(acct1Key)
 	c.Assert(err, IsNil)
 
 	// find the trusted key as well
@@ -572,7 +574,7 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 	c.Assert(tKey.(*asserts.AccountKey).AccountID(), Equals, "canonical")
 	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
 
-	// find trusted and untrusted
+	// find trusted and indirectly trusted
 	accKeys, err := safs.db.FindMany(asserts.AccountKeyType, nil)
 	c.Assert(err, IsNil)
 	c.Check(accKeys, HasLen, 2)
@@ -687,12 +689,31 @@ ZF5jSvRDLgI=`
 
 	cfg := &asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        []asserts.Assertion{tKey.(*asserts.AccountKey)},
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted: []asserts.Assertion{
+			asserts.BootstrapAccountForTest("can0nical"),
+			tKey.(*asserts.AccountKey),
+			// to verify now required devel1 Account assertion
+			asserts.BootstrapAccountKeyForTest("can0nical", testPrivKey1.PublicKey()),
+		},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
 	a, err := asserts.Decode([]byte(testAccKey))
+	c.Assert(err, IsNil)
+
+	// prereq Account assertion
+	headers := map[string]string{
+		"authority-id": "can0nical",
+		"account-id":   "developer1",
+		"display-name": "Dev 1",
+		"validation":   "unproven",
+		"timestamp":    "2015-01-01T14:00:00Z",
+	}
+	acct, err := asserts.AssembleAndSignInTest(asserts.AccountType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+	err = db.Add(acct)
 	c.Assert(err, IsNil)
 
 	err = db.Check(a)

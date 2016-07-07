@@ -55,6 +55,20 @@ func EncoderAppend(enc *Encoder, encoded []byte) error {
 	return enc.append(encoded)
 }
 
+func BootstrapAccountForTest(authorityID string) *Account {
+	return &Account{
+		assertionBase: assertionBase{
+			headers: map[string]string{
+				"type":         "account",
+				"authority-id": authorityID,
+				"account-id":   authorityID,
+				"validation":   "certified",
+			},
+		},
+		timestamp: time.Now().UTC(),
+	}
+}
+
 func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
