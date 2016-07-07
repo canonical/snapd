@@ -42,7 +42,7 @@ var implicitSlots = []string{
 	"system-observe",
 	"timeserver-control",
 	"timezone-control",
-    "wireless-control",
+	"wireless-control",
 }
 
 var implicitClassicSlots = []string{

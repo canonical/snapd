@@ -31,26 +31,27 @@ const  wirelessControlConnectedPlugAppArmor = `
 # Usage: reserved
 
 capability net_admin,
-capability setgid,
+capability net_raw,
 
-network netlink dgram,
+# Allow protocols except those that we blacklist in
+# /etc/modprobe.d/blacklist-rare-network.conf
+network appletalk,
 network bridge,
+network inet,
+network inet6,
+network ipxa,
 network packet,
+network pppox,
+network sna,
+
+network netlink,
+network netlink raw,
+network netlink dgram,
 
 @{PROC}/@{pid}/net/ r,
 @{PROC}/@{pid}/net/** r,
 
-# used by sysctl, et al
-@{PROC}/sys/ r,
-@{PROC}/sys/net/ r,
-@{PROC}/sys/net/dev/ r,
-@{PROC}/sys/net/core/ r,
-@{PROC}/sys/net/core/** rw,
-@{PROC}/sys/net/ipv{4,6}/ r,
-@{PROC}/sys/net/ipv{4,6}/** rw,
-@{PROC}/sys/net/netfilter/ r,
-@{PROC}/sys/net/netfilter/** rw,
-@{PROC}/sys/net/nf_conntrack_max rw,
+/dev/wl* rw,
 
 # wireless tools
 /{,usr/}{,s}bin/iw ixr,
@@ -60,33 +61,8 @@ network packet,
 /{,usr/}{,s}bin/iiwlist ixr,
 /{,usr/}{,s}bin/iwpriv ixr,
 /{,usr/}{,s}bin/iwspy ixr,
-
-/{,usr/}{,s}bin/dnsmasq ixr,
-/{,usr/}{,s}bin/hostapd ixr,
-
-/dev/rfkill r,
-/sys/class/net/ r,
-/sys/class/net/** r,
-/bin/sync ixr,
-
-#include <abstractions/nameservice>
-
-# DBus accesses
-#include <abstractions/dbus-strict>
-
-# Allow access to wpa-supplicant for managing WiFi networks
-dbus (receive, send)
-    bus=system
-    path=/fi/w1/wpa_supplicant1{,/**}
-    interface=fi.w1.wpa_supplicant1*
-    peer=(label=unconfined),
-dbus (receive, send)
-    bus=system
-    path=/fi/w1/wpa_supplicant1{,/**}
-    interface=org.freedesktop.DBus.*
-    peer=(label=unconfined),
 `
-// http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/wireless-control
+
 const wirelessControlConnectedPlugSecComp = `
 # Description: Can configure wireless networking. This is restricted because it gives
 # wide, privileged access to wireless networking and should only be used with trusted
@@ -114,18 +90,10 @@ shutdown
 socketpair
 socket
 
-chown
-chown32
-fchown
-fchown32
-fchownat
-lchown
-lchown32
-setgroups32
 
 `
 
-// NewWirelessControlInterface returns a new "wireless-control" interface.
+// NewWirekessControlInterface returns a new "wireless-control" interface.
 func NewWirelessControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "wireless-control",
