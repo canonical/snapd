@@ -103,11 +103,6 @@ func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
 
-// RevertOp returns true if the operation is a revert
-func (ss *SnapSetup) RevertOp() bool {
-	return ss.Flags&RevertOp != 0
-}
-
 // SnapStateFlags are flags stored in SnapState.
 type SnapStateFlags Flags
 

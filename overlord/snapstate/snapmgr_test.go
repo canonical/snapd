@@ -921,7 +921,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
-	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
+	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already in use`)
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {

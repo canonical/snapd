@@ -57,13 +57,7 @@ const (
 	// 0x40000000 >> iota
 )
 
-// SnapSetup secific flags
-const (
-	// RollbackOp means the given snap got rolled back
-	RevertOp = 0x40000000 >> iota
-)
-
-func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
+func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup, isRevert bool) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name); err != nil {
 		return nil, err
 	}
@@ -111,7 +105,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 
 	// copy-data (needs stopped services by unlink), we do not copy
 	// data on a revert
-	if !ss.RevertOp() {
+	if !isRevert {
 		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name))
 		addTask(copyData)
 		prev = copyData
@@ -176,7 +170,7 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		Flags:    SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, false)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -213,7 +207,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		SideInfo:     &snapInfo.SideInfo,
 	}
 
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, false)
 }
 
 // Update initiates a change updating a snap.
@@ -238,7 +232,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	}
 
 	if snapst.Current == updateInfo.Revision {
-		return nil, fmt.Errorf("revision %s of snap %q already installed", updateInfo.Revision, name)
+		return nil, fmt.Errorf("revision %s of snap %q already in use", updateInfo.Revision, name)
 	}
 
 	revision := snap.Revision{}
@@ -256,7 +250,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		Revision:     revision,
 	}
 
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, false)
 }
 
 // Enable sets a snap to the active state
@@ -469,9 +463,8 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	ss := &SnapSetup{
 		Name:     name,
 		Revision: revertToRev,
-		Flags:    RevertOp,
 	}
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, true)
 }
 
 // Retrieval functions
