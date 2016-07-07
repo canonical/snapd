@@ -968,7 +968,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x1"))
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-1)})
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-1),
+	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
 
@@ -994,7 +997,7 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-1),
 	})
@@ -1050,7 +1053,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].revno, Equals, snap.R(-3))
 
 	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-3)})
+	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-3),
+	})
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x3")
 
@@ -1077,7 +1083,7 @@ version: 1.0`)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-3),
 	})
@@ -1130,7 +1136,7 @@ version: 1.0`)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-1),
 	})

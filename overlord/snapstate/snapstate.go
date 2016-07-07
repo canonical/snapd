@@ -464,13 +464,8 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
-	revertToRev := snapst.Sequence[i].Revision
-
 	ss := &SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-			Revision: revertToRev,
-		},
+		SideInfo: snapst.Sequence[i],
 	}
 	return doInstall(s, &snapst, ss)
 }
