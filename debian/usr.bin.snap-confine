@@ -119,6 +119,9 @@
     # Allow snaps to share content amongst themselves.
     mount options=(rw bind) /snap/*/** -> /snap/*/**,
     mount options=(ro bind) /snap/*/** -> /snap/*/**,
+    # But we don't want anyone to touch /snap/bin
+    deny audit mount /snap/bin/** -> /**,
+    deny audit mount /** -> /snap/bin/**,
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
