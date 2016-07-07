@@ -334,7 +334,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidHook(c *C) {
 	yaml := `name: foo
 version: 1.0
 hooks:
-  abc123:`
+  123abc:`
 	snapPath := makeTestSnap(c, yaml)
 
 	snapf, err := snap.Open(snapPath)
@@ -347,7 +347,7 @@ hooks:
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("abc123"))
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
