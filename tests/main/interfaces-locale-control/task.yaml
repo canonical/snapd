@@ -1,0 +1,18 @@
+summary: Ensure that the locale-control interface works.
+
+execute: |
+    echo "Given a snap declaring a plug on the locale-control interface is installed"
+
+    echo "Then it is not connected by default"
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+
+    echo "Then the snap si able to modify the locale configuration"
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+
+    echo "Then the snap is not able to modify the locale configuration"
