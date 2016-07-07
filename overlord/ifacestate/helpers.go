@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
@@ -222,7 +223,7 @@ func setConns(st *state.State, conns map[string]connState) {
 }
 
 var securityBackends = []interfaces.SecurityBackend{
-	&seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{},
+	&seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}, &mount.Backend{},
 }
 
 func init() {
