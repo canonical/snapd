@@ -28,12 +28,14 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
@@ -140,4 +142,184 @@ func GPGImportKey(homedir, armoredKey string) {
 	if err != nil {
 		panic(fmt.Errorf("cannot import test key into GPG setup at %q: %v (%q)", homedir, err, out))
 	}
+}
+
+type SignerDB interface {
+	Sign(assertType *asserts.AssertionType, headers map[string]string, body []byte, keyID string) (asserts.Assertion, error)
+}
+
+// NewAccount creates an account assertion for username, it fills in values for other missing headers as needed. It panics on error.
+func NewAccount(db SignerDB, username string, headers map[string]string, keyID string) *asserts.Account {
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	headers["username"] = username
+	if headers["account-id"] == "" {
+		headers["account-id"] = strutil.MakeRandomString(32)
+	}
+	if headers["display-name"] == "" {
+		headers["display-name"] = strings.ToTitle(username)
+	}
+	if headers["validation"] == "" {
+		headers["validation"] = "unproven"
+	}
+	if headers["timestamp"] == "" {
+		headers["timestamp"] = time.Now().Format(time.RFC3339)
+	}
+	a, err := db.Sign(asserts.AccountType, headers, nil, keyID)
+	if err != nil {
+		panic(err)
+	}
+	return a.(*asserts.Account)
+}
+
+// NewAccountKey creates an account-key assertion for the account, it fills in values for missing headers as needed. In panics on error.
+func NewAccountKey(db SignerDB, acct *asserts.Account, pubKey asserts.PublicKey, headers map[string]string, keyID string) *asserts.AccountKey {
+	if headers == nil {
+		headers = make(map[string]string)
+	}
+	headers["account-id"] = acct.AccountID()
+	headers["public-key-id"] = pubKey.ID()
+	headers["public-key-fingerprint"] = pubKey.Fingerprint()
+	if headers["since"] == "" {
+		headers["since"] = time.Now().Format(time.RFC3339)
+	}
+	if headers["until"] == "" {
+		since, err := time.Parse(time.RFC3339, headers["since"])
+		if err != nil {
+			panic(err)
+		}
+		headers["until"] = since.AddDate(5, 0, 0).Format(time.RFC3339)
+	}
+	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
+	if err != nil {
+		panic(err)
+	}
+	a, err := db.Sign(asserts.AccountKeyType, headers, encodedPubKey, keyID)
+	if err != nil {
+		panic(err)
+	}
+	return a.(*asserts.AccountKey)
+}
+
+// A signing assertion database with a default private key and assigned authority id.
+// Sign will use the assigned authority id.
+// "" can be passed for keyID to Sign and PublicKey to use the default key.
+type SigningDB struct {
+	AuthorityID string
+	KeyID       string
+
+	*asserts.Database
+}
+
+// NewSigningDB creates a test signing assertion db with the given defaults. It panics on error.
+func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+	})
+	if err != nil {
+		panic(err)
+	}
+	err = db.ImportKey(authorityID, privKey)
+	if err != nil {
+		panic(err)
+	}
+	return &SigningDB{
+		AuthorityID: authorityID,
+		KeyID:       privKey.PublicKey().ID(),
+		Database:    db,
+	}
+}
+
+func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]string, body []byte, keyID string) (asserts.Assertion, error) {
+	headers["authority-id"] = db.AuthorityID
+	if keyID == "" {
+		keyID = db.KeyID
+	}
+	return db.Database.Sign(assertType, headers, body, keyID)
+}
+
+func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
+	if keyID == "" {
+		keyID = db.KeyID
+	}
+	return db.Database.PublicKey(db.AuthorityID, keyID)
+}
+
+// A store tower realises a store-like set of founding assertions and signing setup.
+type StoreTower struct {
+	TrustedAccount *asserts.Account
+	TrustedKey     *asserts.AccountKey
+	Trusted        []asserts.Assertion
+
+	// Signing assertion db for the root private key.
+	RootSigning *SigningDB
+
+	// The store-like signing functionality, setup to also store assertions if desired. It stores a default account-key for the store private key, see also the method Key.
+	*SigningDB
+}
+
+// NewStoreTower creates a new store tower. It panics on error.
+func NewStoreTower(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreTower {
+	rootSigning := NewSigningDB(authorityID, rootPrivKey)
+	trustedAcct := NewAccount(rootSigning, authorityID, map[string]string{
+		"account-id": authorityID,
+		"validation": "certified",
+	}, "")
+	trustedKey := NewAccountKey(rootSigning, trustedAcct, rootPrivKey.PublicKey(), nil, "")
+	trusted := []asserts.Assertion{trustedAcct, trustedKey}
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted:        trusted,
+	})
+	if err != nil {
+		panic(err)
+	}
+	err = db.ImportKey(authorityID, storePrivKey)
+	if err != nil {
+		panic(err)
+	}
+	storeKey := NewAccountKey(rootSigning, trustedAcct, storePrivKey.PublicKey(), nil, "")
+	err = db.Add(storeKey)
+	if err != nil {
+		panic(err)
+	}
+
+	return &StoreTower{
+		TrustedAccount: trustedAcct,
+		TrustedKey:     trustedKey,
+		Trusted:        trusted,
+
+		RootSigning: rootSigning,
+
+		SigningDB: &SigningDB{
+			AuthorityID: authorityID,
+			KeyID:       storeKey.PublicKeyID(),
+			Database:    db,
+		},
+	}
+}
+
+// Key gets an account-key or returns nil if not found. It panics on
+// other errors.  ("", "") as arguments will find the default one.
+func (twr *StoreTower) Key(authorityID, keyID string) *asserts.AccountKey {
+	if authorityID == "" {
+		authorityID = twr.AuthorityID
+	}
+	if keyID == "" {
+		keyID = twr.KeyID
+	}
+	key, err := twr.Find(asserts.AccountKeyType, map[string]string{
+		"account-id":    authorityID,
+		"public-key-id": keyID,
+	})
+	if err == asserts.ErrNotFound {
+		return nil
+	}
+	if err != nil {
+		panic(err)
+	}
+	return key.(*asserts.AccountKey)
 }

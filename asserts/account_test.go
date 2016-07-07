@@ -122,13 +122,28 @@ func (s *accountSuite) TestCheckInconsistentTimestamp(c *C) {
 	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1)))
 	c.Assert(err, IsNil)
 
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "canonical")
+	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := ex.Headers()
 	headers["timestamp"] = "2011-01-01T14:00:00Z"
-	account, err := accSignDB.Sign(asserts.AccountType, headers, nil, signingKeyID)
+	account, err := storeDB.Sign(asserts.AccountType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(account)
 	c.Assert(err, ErrorMatches, "account assertion timestamp outside of signing key validity")
+}
+
+func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {
+	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1)))
+	c.Assert(err, IsNil)
+
+	storeDB, db := makeStoreAndCheckDB(c)
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	headers := ex.Headers()
+	account, err := otherDB.Sign(asserts.AccountType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(account)
+	c.Assert(err, ErrorMatches, `account assertion for "abc-123" is not signed by a directly trusted authority:.*`)
 }
