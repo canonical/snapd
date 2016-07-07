@@ -57,6 +57,9 @@ func init() {
 }
 
 func (x *cmdRun) Execute(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("need the application to run as argument")
+	}
 	snapApp := args[0]
 	args = args[1:]
 

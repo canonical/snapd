@@ -274,3 +274,8 @@ func (s *SnapSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--unknown", "snapname.app", "--arg1", "arg2"})
 	c.Assert(err, check.ErrorMatches, "unknown flag `unknown'")
 }
+
+func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--command=shell"})
+	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
+}
