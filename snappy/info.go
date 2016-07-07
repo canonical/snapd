@@ -209,7 +209,7 @@ func SaveManifest(rsnap *snap.Info) error {
 		return fmt.Errorf("internal error: should not be storing manifests for local snaps")
 	}
 
-	// XXX: we store OfficialName though it may not be the blessed one later
+	// XXX: we store RealName though it may not be the blessed one later
 	content, err := yaml.Marshal(&rsnap.SideInfo)
 	if err != nil {
 		return err

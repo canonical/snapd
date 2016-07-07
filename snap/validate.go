@@ -27,7 +27,7 @@ import (
 // Regular expression describing correct identifiers.
 var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 var validEpoch = regexp.MustCompile("^(?:0|[1-9][0-9]*[*]?)$")
-var validHookName = regexp.MustCompile(`^[a-z](?:-?[a-z])*$`)
+var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
