@@ -197,8 +197,8 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFile(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
-				OfficialName: "xkcd-webserver",
-				Revision:     snap.R(44),
+				RealName: "xkcd-webserver",
+				Revision: snap.R(44),
 			},
 			Version: "0.3.4",
 		},
@@ -231,8 +231,8 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapSocketFileIllegalChars(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
-				OfficialName: "xkcd-webserver",
-				Revision:     snap.R(44),
+				RealName: "xkcd-webserver",
+				Revision: snap.R(44),
 			},
 			Version: "0.3.4",
 		},
@@ -252,8 +252,8 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithSocket(c *C) {
 	service := &snap.AppInfo{
 		Snap: &snap.Info{
 			SideInfo: snap.SideInfo{
-				OfficialName: "xkcd-webserver",
-				Revision:     snap.R(44),
+				RealName: "xkcd-webserver",
+				Revision: snap.R(44),
 			},
 			Version: "0.3.4",
 		},
