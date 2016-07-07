@@ -44,7 +44,3 @@ func MockTaskTimes(t *Task, spawnTime, readyTime time.Time) {
 	t.spawnTime = spawnTime
 	t.readyTime = readyTime
 }
-
-func TaskScheduledTime(t *Task) time.Time {
-	return t.scheduledTime
-}

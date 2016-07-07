@@ -52,7 +52,7 @@ type Task struct {
 	spawnTime time.Time
 	readyTime time.Time
 
-	scheduledTime time.Time
+	atTime time.Time
 }
 
 func newTask(state *State, id, kind, summary string) *Task {
@@ -82,7 +82,7 @@ type marshalledTask struct {
 	SpawnTime time.Time  `json:"spawn-time"`
 	ReadyTime *time.Time `json:"ready-time,omitempty"`
 
-	ScheduledTime *time.Time `json:"scheduled-time,omitempty"`
+	AtTime *time.Time `json:"at-time,omitempty"`
 }
 
 // MarshalJSON makes Task a json.Marshaller
@@ -92,9 +92,9 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 	if !t.readyTime.IsZero() {
 		readyTime = &t.readyTime
 	}
-	var scheduledTime *time.Time
-	if !t.scheduledTime.IsZero() {
-		scheduledTime = &t.scheduledTime
+	var atTime *time.Time
+	if !t.atTime.IsZero() {
+		atTime = &t.atTime
 	}
 	return json.Marshal(marshalledTask{
 		ID:        t.id,
@@ -111,7 +111,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		SpawnTime: t.spawnTime,
 		ReadyTime: readyTime,
 
-		ScheduledTime: scheduledTime,
+		AtTime: atTime,
 	})
 }
 
@@ -139,8 +139,8 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	if unmarshalled.ReadyTime != nil {
 		t.readyTime = *unmarshalled.ReadyTime
 	}
-	if unmarshalled.ScheduledTime != nil {
-		t.scheduledTime = *unmarshalled.ScheduledTime
+	if unmarshalled.AtTime != nil {
+		t.atTime = *unmarshalled.AtTime
 	}
 	return nil
 }
@@ -234,6 +234,12 @@ func (t *Task) SpawnTime() time.Time {
 func (t *Task) ReadyTime() time.Time {
 	t.state.reading()
 	return t.readyTime
+}
+
+// AtTime returns the time at which the task is scheduled to run. A zero time means no special schedule, i.e. run as soon as prerequisites are met.
+func (t *Task) AtTime() time.Time {
+	t.state.reading()
+	return t.atTime
 }
 
 const (
@@ -339,6 +345,23 @@ func (t *Task) WaitTasks() []*Task {
 func (t *Task) HaltTasks() []*Task {
 	t.state.reading()
 	return t.state.tasksIn(t.haltTasks)
+}
+
+// At schedules the task, if it's not ready, to happen no earlier than when, if when is the zero time any previous special scheduling is supressed.
+func (t *Task) At(when time.Time) {
+	t.state.writing()
+	iszero := when.IsZero()
+	if t.Status().Ready() && !iszero {
+		return
+	}
+	t.atTime = when
+	if !iszero {
+		d := when.Sub(timeNow())
+		if d < 0 {
+			d = 0
+		}
+		t.state.EnsureBefore(d)
+	}
 }
 
 // A TaskSet holds a set of tasks.
