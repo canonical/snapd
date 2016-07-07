@@ -72,10 +72,10 @@ func (bs *bootedSuite) TearDownTest(c *C) {
 	partition.ForceBootloader(nil)
 }
 
-var osSI1 = &snap.SideInfo{OfficialName: "ubuntu-core", Revision: snap.R(1)}
-var osSI2 = &snap.SideInfo{OfficialName: "ubuntu-core", Revision: snap.R(2)}
-var kernelSI1 = &snap.SideInfo{OfficialName: "canonical-pc-linux", Revision: snap.R(1)}
-var kernelSI2 = &snap.SideInfo{OfficialName: "canonical-pc-linux", Revision: snap.R(2)}
+var osSI1 = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(1)}
+var osSI2 = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(2)}
+var kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
+var kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
 
 func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	st.Lock()
