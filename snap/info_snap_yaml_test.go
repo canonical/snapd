@@ -56,16 +56,19 @@ func (s *InfoSnapYamlTestSuite) TestFail(c *C) {
 	c.Assert(err, ErrorMatches, "(?m)info failed to parse:.*")
 }
 
-type YamlSuite struct{}
+type YamlSuite struct {
+	restore func()
+}
 
 var _ = Suite(&YamlSuite{})
 
 func (s *YamlSuite) SetUpTest(c *C) {
-	snap.FakeSupportedHookType(regexp.MustCompile(".*"))
+	hookType := snap.NewHookType(regexp.MustCompile(".*"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 }
 
 func (s *YamlSuite) TearDownTest(c *C) {
-	snap.ResetSupportedHookTypes()
+	s.restore()
 }
 
 func (s *YamlSuite) TestUnmarshalGarbage(c *C) {
@@ -720,8 +723,9 @@ hooks:
 }
 
 func (s *YamlSuite) TestUnmarshalUnsupportedHook(c *C) {
-	snap.ResetSupportedHookTypes()
-	snap.FakeSupportedHookType(regexp.MustCompile("not-test-hook"))
+	s.restore()
+	hookType := snap.NewHookType(regexp.MustCompile("not-test-hook"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`
@@ -738,8 +742,9 @@ hooks:
 }
 
 func (s *YamlSuite) TestUnmarshalHookFiltersOutUnsupportedHooks(c *C) {
-	snap.ResetSupportedHookTypes()
-	snap.FakeSupportedHookType(regexp.MustCompile("test-.*"))
+	s.restore()
+	hookType := snap.NewHookType(regexp.MustCompile("test-.*"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 
 	// NOTE: yaml content cannot use tabs, indent the section with spaces.
 	info, err := snap.InfoFromSnapYaml([]byte(`

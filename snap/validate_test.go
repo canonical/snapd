@@ -227,8 +227,9 @@ version: 1.0
 }
 
 func (s *ValidateSuite) TestIllegalHookName(c *C) {
-	FakeSupportedHookType(regexp.MustCompile(".*"))
-	defer ResetSupportedHookTypes()
+	hookType := NewHookType(regexp.MustCompile(".*"))
+	restore := MockSupportedHookTypes([]*HookType{hookType})
+	defer restore()
 
 	info, err := InfoFromSnapYaml([]byte(`name: foo
 version: 1.0
