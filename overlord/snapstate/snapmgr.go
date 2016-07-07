@@ -220,12 +220,12 @@ func (snapst *SnapState) Block() []snap.Revision {
 var ErrNoCurrent = errors.New("snap has no current revision")
 
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
-func (snapst *SnapState) CurrentInfo(name string) (*snap.Info, error) {
+func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	cur := snapst.CurrentSideInfo()
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(name, cur)
+	return readInfo(cur.RealName, cur)
 }
 
 // DevMode returns true if the snap is installed in developer mode.
@@ -400,7 +400,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.SideInfo.Revision = revision
-		snapst.Candidate = &snap.SideInfo{Revision: ss.Revision()}
+		snapst.Candidate = ss.SideInfo
 	} else {
 		for _, si := range snapst.Sequence {
 			if si.Revision == ss.Revision() {
@@ -411,7 +411,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	if snapst.Candidate == nil {
-		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name(), ss.Revision())
+		return fmt.Errorf("internal error: cannot prepare snap %q with unknown revision %s", ss.Name(), ss.Revision())
 	}
 
 	st.Lock()
@@ -455,7 +455,6 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	var downloadedSnapFile string
-	var sideInfo *snap.SideInfo
 	if ss.DownloadInfo == nil {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
@@ -473,12 +472,11 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	sideInfo = ss.SideInfo
 	ss.SnapPath = downloadedSnapFile
 	// update the snap setup and state for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
-	snapst.Candidate = sideInfo
+	snapst.Candidate = ss.SideInfo
 	Set(st, ss.Name(), snapst)
 	st.Unlock()
 
@@ -674,7 +672,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	curInfo, err := snapst.CurrentInfo(ss.Name())
+	curInfo, err := snapst.CurrentInfo()
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -727,7 +725,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
 	}
@@ -757,7 +755,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
 	}
@@ -790,7 +788,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -812,7 +810,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
