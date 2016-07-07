@@ -71,7 +71,7 @@
 
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/profiles/* r,
- 
+
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
 
@@ -121,8 +121,8 @@
     # processed by snap-confine. Regardless of configuration options and
     # runtime factors they are processed after pivot_root (on classic systems)
     # so snap.rootfs is not a factor.
-    mount options=(rw bind) /** -> /**,
-    mount options=(ro bind) /** -> /**,
+    mount options=(rw bind),
+    mount options=(ro bind),
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
