@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/all"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -117,7 +118,7 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 //
 // This function is public because it is referenced in the daemon
 func MockSecurityBackends(backends []interfaces.SecurityBackend) func() {
-	old := securityBackends
-	securityBackends = backends
-	return func() { securityBackends = old }
+	old := all.SecurityBackends
+	all.SecurityBackends = backends
+	return func() { all.SecurityBackends = old }
 }
