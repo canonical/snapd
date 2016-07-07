@@ -116,13 +116,9 @@
     mount options=(rw bind) /snap/ubuntu-core/*/usr/ -> /usr/,
     mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /etc/alternatives/,
 
-    # This is a somewhat of a blank check for mount profiles.  Mount profiles
-    # are written by the trusted snapd to a root-writable location and
-    # processed by snap-confine. Regardless of configuration options and
-    # runtime factors they are processed after pivot_root (on classic systems)
-    # so snap.rootfs is not a factor.
-    mount options=(rw bind),
-    mount options=(ro bind),
+    # Allow snaps to share content amongst themselves.
+    mount options=(rw bind) /snap/*/** -> /snap/*/**,
+    mount options=(ro bind) /snap/*/** -> /snap/*/**,
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
