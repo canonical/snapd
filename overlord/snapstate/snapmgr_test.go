@@ -482,7 +482,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
-	c.Check(task.Summary(), Equals, `Download snap "some-snap" from channel "some-channel" (11)`)
+	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check link snap summary
 	linkTask := ta[len(ta)-1]
