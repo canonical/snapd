@@ -60,6 +60,10 @@ func init() {
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	ifaces, err := Client().Interfaces()
 	if err == nil {
 		if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {

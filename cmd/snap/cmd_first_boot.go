@@ -37,5 +37,9 @@ func init() {
 }
 
 func (x *cmdInternalFirstBoot) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return overlord.FirstBoot()
 }

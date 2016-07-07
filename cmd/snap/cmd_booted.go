@@ -41,6 +41,10 @@ func init() {
 }
 
 func (x *cmdBooted) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
 		return fmt.Errorf("can not mark boot successful: %s", err)
