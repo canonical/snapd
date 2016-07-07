@@ -54,31 +54,33 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision, error) {
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
 func UpdateRevisions(ovld *overlord.Overlord) error {
+	const errorPrefix = "cannot update revisions after boot changes: "
+
 	if release.OnClassic {
 		return nil
 	}
 
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
-		return fmt.Errorf("cannot run UpdateRevisions: %s", err)
+		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	bv := "snappy_kernel"
 	kernelSnap, err := bootloader.GetBootVar(bv)
 	if err != nil {
-		return fmt.Errorf("cannot get bootvar %q: %s", bv, err)
+		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 	bv = "snappy_os"
 	osSnap, err := bootloader.GetBootVar(bv)
 	if err != nil {
-		return fmt.Errorf("cannot get bootvar %q: %s", bv, err)
+		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	st := ovld.State()
 	st.Lock()
 	installed, err := snapstate.All(st)
 	if err != nil {
-		return fmt.Errorf("cannot run UpdateRevisions: %s", err)
+		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	var tsAll []*state.TaskSet
@@ -126,7 +128,7 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 	st.Unlock()
 	if status != state.DoneStatus {
 		ovld.Stop()
-		return fmt.Errorf("cannot update revisions after boot changes: %s", err)
+		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
 	return ovld.Stop()
