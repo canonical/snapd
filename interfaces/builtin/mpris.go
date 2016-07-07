@@ -179,7 +179,7 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		return nil, nil
 	case interfaces.SecuritySecComp:
 		return mprisConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -200,7 +200,7 @@ func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return nil, nil
 	case interfaces.SecuritySecComp:
 		return mprisPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
