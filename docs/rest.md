@@ -514,3 +514,46 @@ Comma separated list of notification types, either `logging` or `operations`.
 #### resource
 
 Generally the UUID of a background operation you are interested in.
+
+## /v2/buy
+
+### POST
+
+* Description: Buy the specified snap
+* Access: authenticated
+* Operation: sync
+* Return: Dict with buy state.
+
+#### Sample input using default payment method:
+
+```javascript
+{
+    "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
+    "snap-name": "moon-buggy",
+    "channel": "moon-buggy",
+    "price": "2.99",
+    "currency": "USD"
+}
+```
+
+#### Sample input specifying specific credit card:
+
+```javascript
+{
+    "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
+    "snap-name": "moon-buggy",
+    "channel": "moon-buggy",
+    "price": "2.99",
+    "currency": "USD",
+    "backend-id": "credit_card",
+    "method-id": 1
+}
+```
+
+#### Sample result:
+
+```javascript
+{
+ "state": "Complete",
+}
+```
