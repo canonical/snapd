@@ -36,9 +36,9 @@ type taskRunnerSuite struct{}
 var _ = Suite(&taskRunnerSuite{})
 
 type stateBackend struct {
-	mu           sync.Mutex
-	ensureBefore time.Duration
-	witness      chan<- bool
+	mu               sync.Mutex
+	ensureBefore     time.Duration
+	ensureBeforeSeen chan<- bool
 }
 
 func (b *stateBackend) Checkpoint([]byte) error { return nil }
@@ -49,8 +49,8 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 		b.ensureBefore = d
 	}
 	b.mu.Unlock()
-	if b.witness != nil {
-		b.witness <- true
+	if b.ensureBeforeSeen != nil {
+		b.ensureBeforeSeen <- true
 	}
 }
 
@@ -412,8 +412,8 @@ func (ts *taskRunnerSuite) TestStopAskForRetry(c *C) {
 func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	ensureBeforeTick := make(chan bool, 1)
 	sb := &stateBackend{
-		ensureBefore: time.Hour,
-		witness:      ensureBeforeTick,
+		ensureBefore:     time.Hour,
+		ensureBeforeSeen: ensureBeforeTick,
 	}
 	st := state.New(sb)
 	r := state.NewTaskRunner(st)
