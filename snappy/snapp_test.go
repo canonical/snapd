@@ -167,7 +167,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	defer mockServer.Close()
 
 	r := &snap.Info{}
-	r.OfficialName = "foo"
+	r.RealName = "foo"
 	r.Revision = snap.R(42)
 	r.Developer = "bar"
 	r.EditedDescription = "this is a description"
@@ -224,7 +224,7 @@ apps:
 	defer mockServer.Close()
 
 	r := &snap.Info{}
-	r.OfficialName = "foo"
+	r.RealName = "foo"
 	r.Developer = "bar"
 	r.Version = "1.0"
 	r.Revision = snap.R(10)

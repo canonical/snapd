@@ -1,0 +1,12 @@
+spawn snap login someemail@testing.com
+
+expect "Password: "
+send "wrong-password\n"
+
+expect {
+    "not correct" {
+        exit 0
+    } default {
+        exit 1
+    }
+}
