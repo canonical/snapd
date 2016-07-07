@@ -20,8 +20,13 @@
 package patch_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -32,80 +37,144 @@ type patch2Suite struct{}
 
 var _ = Suite(&patch2Suite{})
 
-// makeState creates a state with SnapSetup with Name that can
-// then be migrated to SideInfo.RealName
-func (s *patch2Suite) makeState() *state.State {
-	st := state.New(nil)
-	st.Lock()
-	defer st.Unlock()
+var statePatch2JSON = []byte(`
+{
+	"data": {
+		"patch-level": 1,
+		"snaps": {
+			"foo": {
+				"sequence": [{
+					"name": "",
+					"revision": "x1"
+				}, {
+					"name": "",
+					"revision": "x2"
+				}],
+				"current": "x2"
+			},
 
-	// we are at level 1 and want to go to level 2
-	st.Set("patch-level", 1)
-
-	// make state for SnapSetup transition
-	oldSS := patch.OldSnapSetup{
-		Name:     "foo",
-		Revision: snap.R(13),
-	}
-	chg := st.NewChange("something", "some change")
-	t := st.NewTask("some-task", "some task")
-	t.Set("snap-setup", &oldSS)
-	chg.AddTask(t)
-
-	// make state for backfill of SideInfo
-	var fooSnapst snapstate.SnapState
-	fooSnapst.Sequence = []*snap.SideInfo{
-		{
-			Revision: snap.R(2),
+			"bar": {
+				"candidate": {
+					"name": "bar",
+					"revision": "26",
+					"snapid": "mysnapid"
+				}
+			}
+		}
+	},
+	"changes": {
+		"1": {
+			"id": "1",
+			"kind": "some-change",
+			"summary": "summary-1",
+			"status": 0,
+			"task-ids": ["1"]
 		},
-		{
-			Revision: snap.R(22),
+		"2": {
+			"id": "2",
+			"kind": "some-other-change",
+			"summary": "summary-2",
+			"status": 0,
+			"task-ids": ["2"]
+		}
+	},
+	"tasks": {
+		"1": {
+			"id": "1",
+			"kind": "something",
+			"summary": "meep",
+			"status": 4,
+			"data": {
+				"snap-setup": {
+					"name": "foo",
+					"revision": "x3"
+				}
+			},
+			"halt-tasks": [
+				"7"
+			],
+			"change": "1"
 		},
+		"2": {
+			"id": "2",
+			"kind": "something-else",
+			"summary": "meep",
+			"status": 4,
+			"data": {
+				"snap-setup": {
+					"name": "bar",
+					"revision": "26"
+				}
+			},
+			"halt-tasks": [
+				"3"
+			],
+			"change": "2"
+		}
 	}
-	fooSnapst.Current = snap.R(22)
-	snapstate.Set(st, "foo", &fooSnapst)
+}
+`)
 
-	var barSnapst snapstate.SnapState
-	barSnapst.Candidate = &snap.SideInfo{
-		Revision: snap.R(1),
-	}
-	snapstate.Set(st, "bar", &barSnapst)
+func (s *patch2Suite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
 
-	return st
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch2JSON, 0644)
+	c.Assert(err, IsNil)
 }
 
 func (s *patch2Suite) TestPatch2(c *C) {
-	st := s.makeState()
-
 	restorer := patch.MockLevel(2)
 	defer restorer()
 
-	err := patch.Apply(st)
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	defer r.Close()
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	// go from patch level 1 -> 2
+	err = patch.Apply(st)
 	c.Assert(err, IsNil)
 
 	st.Lock()
 	defer st.Unlock()
 
-	c.Assert(st.Tasks(), HasLen, 1)
-	t := st.Tasks()[0]
+	// our mocks are correct
+	c.Assert(st.Changes(), HasLen, 2)
+	c.Assert(st.Tasks(), HasLen, 2)
 
-	// transition of the snap-setup bits
 	var ss snapstate.SnapSetup
+	// transition of:
+	// - SnapSetup.{Name,Revision} -> SnapSetup.SideInfo.{RealName,Revision}
+	t := st.Task("1")
 	err = t.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
-		Revision: snap.R(13),
+		Revision: snap.R("x3"),
 	})
 
-	// sideinfo is backfilled with names
+	// transition of:
+	// - SnapState.Sequence is backfilled with "RealName" (if missing)
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Sequence[0].RealName, Equals, "foo")
 	c.Check(snapst.Sequence[1].RealName, Equals, "foo")
 
+	// transition of:
+	// - Candidate for "bar" -> tasks SnapSetup.SideInfo
+	t = st.Task("2")
+	err = t.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "bar",
+		Revision: snap.R(26),
+	})
+
+	// FIXME: bar is now empty and should no longer be there?
 	err = snapstate.Get(st, "bar", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate.RealName, Equals, "bar")
 }
