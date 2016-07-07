@@ -215,7 +215,7 @@ var readInfo = readInfoImpl
 func readInfoImpl(name string, si *snap.SideInfo) (*snap.Info, error) {
 	info, err := snap.ReadInfo(name, si)
 	if _, ok := err.(*snap.NotFoundError); ok {
-		reason := fmt.Sprintf("cannot read snap info: %s", err)
+		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
 		info := &snap.Info{SuggestedName: name, Broken: reason}
 		if si != nil {
 			info.SideInfo = *si
