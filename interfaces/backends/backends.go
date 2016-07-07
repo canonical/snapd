@@ -17,7 +17,7 @@
  *
  */
 
-package all
+package backends
 
 import (
 	"github.com/snapcore/snapd/interfaces"
@@ -30,7 +30,7 @@ import (
 )
 
 // append when a new security backend is added
-var SecurityBackends = []interfaces.SecurityBackend{
+var All = []interfaces.SecurityBackend{
 	&seccomp.Backend{},
 	&dbus.Backend{},
 	&udev.Backend{},
@@ -39,6 +39,6 @@ var SecurityBackends = []interfaces.SecurityBackend{
 
 func init() {
 	if !release.ReleaseInfo.ForceDevMode() {
-		SecurityBackends = append(SecurityBackends, &apparmor.Backend{})
+		All = append(All, &apparmor.Backend{})
 	}
 }
