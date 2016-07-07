@@ -69,6 +69,7 @@ var api = []*Command{
 	stateChangeCmd,
 	stateChangesCmd,
 	createUserCmd,
+	buyCmd,
 }
 
 var (
@@ -172,6 +173,12 @@ var (
 		UserOK: false,
 		POST:   postCreateUser,
 	}
+
+	buyCmd = &Command{
+		Path:   "/v2/buy",
+		UserOK: false,
+		POST:   postBuy,
+	}
 )
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -206,12 +213,18 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode login data from request body: %v", err)
 	}
 
-	macaroon, err := store.RequestPackageAccessMacaroon()
+	serializedMacaroon, err := store.RequestStoreMacaroon()
 	if err != nil {
 		return InternalError(err.Error())
 	}
+	macaroon, err := auth.MacaroonDeserialize(serializedMacaroon)
 
-	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
+	// get SSO 3rd party caveat, and request discharge
+	loginCaveat, err := auth.LoginCaveatID(macaroon)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	discharge, err := store.DischargeAuthCaveat(loginCaveat, loginData.Username, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -240,14 +253,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, serializedMacaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
 	result := loginResponseData{
-		Macaroon:   macaroon,
+		Macaroon:   serializedMacaroon,
 		Discharges: []string{discharge},
 	}
 	return SyncResponse(result, nil)
@@ -432,6 +445,12 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	for _, sn := range found {
 		// snaps in try mode are not considered here
 		if sn.snapst.TryMode() {
+			continue
+		}
+
+		// FIXME: snaps that are no active are skipped for now
+		//        until we know what we want to do
+		if !sn.snapst.Active {
 			continue
 		}
 
@@ -669,6 +688,26 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Enable(st, inst.snap)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Enable %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	ts, err := snapstate.Disable(st, inst.snap)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Disable %q snap"), inst.snap)
+	return msg, []*state.TaskSet{ts}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
@@ -676,6 +715,8 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 	"refresh": snapUpdate,
 	"remove":  snapRemove,
 	"revert":  snapRevert,
+	"enable":  snapEnable,
+	"disable": snapDisable,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
@@ -1287,4 +1328,43 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	createResponseData.Username = v.Username
 
 	return SyncResponse(createResponseData, nil)
+}
+
+type buyResponseData struct {
+	State string `json:"state,omitempty"`
+}
+
+func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	var opts store.BuyOptions
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&opts)
+	if err != nil {
+		return BadRequest("cannot decode buy options from request body: %v", err)
+	}
+
+	opts.Auther, err = c.d.auther(r)
+	if err != nil && err != auth.ErrInvalidAuth {
+		return InternalError("%v", err)
+	}
+
+	s := getStore(c)
+
+	buyResult, err := s.Buy(&opts)
+
+	switch err {
+	default:
+		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	case nil:
+		// continue
+	}
+
+	// TODO: Support purchasing redirects
+	if buyResult.State == "InProgress" {
+		return InternalError("payment backend %q is not yet supported", opts.BackendID)
+	}
+
+	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
 }
