@@ -400,19 +400,8 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.SideInfo.Revision = revision
-		snapst.Candidate = ss.SideInfo
-	} else {
-		for _, si := range snapst.Sequence {
-			if si.Revision == ss.Revision() {
-				snapst.Candidate = si
-				break
-			}
-		}
 	}
-
-	if snapst.Candidate == nil {
-		return fmt.Errorf("internal error: cannot prepare snap %q with unknown revision %s", ss.Name(), ss.Revision())
-	}
+	snapst.Candidate = ss.SideInfo
 
 	st.Lock()
 	t.Set("snap-setup", ss)

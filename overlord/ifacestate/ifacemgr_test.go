@@ -200,6 +200,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 		Revision: snap.R(1),
 	}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	sideInfo.RealName = snapInfo.Name()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -216,6 +217,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
 	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	sideInfo.RealName = snapInfo.Name()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -626,6 +628,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	defer s.state.Unlock()
 
 	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that both snaps were setup correctly.

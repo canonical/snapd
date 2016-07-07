@@ -77,6 +77,7 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
 		Revision: snap.R(-1),
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
