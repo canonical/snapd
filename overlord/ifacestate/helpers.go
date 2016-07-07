@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/all"
+	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -108,7 +108,7 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 		task.Errorf("cannot get state of snap %q: %s", snapName, err)
 		return err
 	}
-	for _, backend := range all.SecurityBackends {
+	for _, backend := range backends.All {
 		st.Unlock()
 		err := backend.Setup(snapInfo, snapState.DevMode(), repo)
 		st.Lock()
@@ -122,7 +122,7 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 
 func removeSnapSecurity(task *state.Task, snapName string) error {
 	st := task.State()
-	for _, backend := range all.SecurityBackends {
+	for _, backend := range backends.All {
 		st.Unlock()
 		err := backend.Remove(snapName)
 		st.Lock()
