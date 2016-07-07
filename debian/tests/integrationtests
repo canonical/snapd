@@ -10,6 +10,7 @@ cat <<EOF | sudo tee /etc/systemd/system/snapd.service.d/no-reexec.conf
 [Service]
 Environment=SNAP_REEXEC=0
 EOF
+chmod 0644 /etc/systemd/system/snapd.service.d/no-reexec.conf
 
 # required for the debian adt host
 if [ "$http_proxy" != "" ]; then
@@ -18,6 +19,7 @@ if [ "$http_proxy" != "" ]; then
 Environment=http_proxy=$http_proxy
 Environment=https_proxy=$http_proxy
 EOF
+chmod 0644 /etc/systemd/system/snapd.service.d/proxy.conf
 fi
 sudo systemctl daemon-reload
 
