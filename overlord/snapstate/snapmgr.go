@@ -210,9 +210,9 @@ func (snapst *SnapState) Block() []snap.Revision {
 var ErrNoCurrent = errors.New("snap has no current revision")
 
 // Retrieval functions
-var readInfo = readInfoImpl
+var readInfo = readInfoAnyway
 
-func readInfoImpl(name string, si *snap.SideInfo) (*snap.Info, error) {
+func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 	info, err := snap.ReadInfo(name, si)
 	if _, ok := err.(*snap.NotFoundError); ok {
 		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
