@@ -34,40 +34,6 @@ var longFindHelp = i18n.G(`
 The find command queries the store for available packages.
 `)
 
-func getPrice(prices map[string]float64, currency, status string) string {
-	// If there are no prices, then the snap is free
-	if len(prices) == 0 {
-		return ""
-	}
-
-	// If the snap is priced, but has been purchased
-	if status == "available" {
-		return i18n.G("bought")
-	}
-
-	// Look up the price by currency code
-	val, ok := prices[currency]
-
-	// Fall back to dollars
-	if !ok {
-		currency = "USD"
-		val, ok = prices["USD"]
-	}
-
-	// If there aren't even dollars, grab the first currency,
-	// ordered alphabetically by currency code
-	if !ok {
-		currency = "ZZZ"
-		for c, v := range prices {
-			if c < currency {
-				currency, val = c, v
-			}
-		}
-	}
-
-	return fmt.Sprintf("%.2f%s", val, currency)
-}
-
 type cmdFind struct {
 	Positional struct {
 		Query string `positional-arg-name:"<query>"`
@@ -88,7 +54,7 @@ func (x *cmdFind) Execute([]string) error {
 
 func findSnaps(opts *client.FindOptions) error {
 	cli := Client()
-	snaps, resInfo, err := cli.Find(opts)
+	snaps, _, err := cli.Find(opts)
 	if err != nil {
 		return err
 	}
@@ -108,7 +74,7 @@ func findSnaps(opts *client.FindOptions) error {
 		notes := &Notes{
 			Private:     snap.Private,
 			Confinement: snap.Confinement,
-			Price:       getPrice(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
+			Price:       snap.Price,
 		}
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, notes, snap.Summary)
