@@ -35,18 +35,21 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
-type infoSuite struct{}
+type infoSuite struct {
+	restore func()
+}
 
 var _ = Suite(&infoSuite{})
 
 func (s *infoSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
-	snap.FakeSupportedHookType(regexp.MustCompile(".*"))
+	hookType := snap.NewHookType(regexp.MustCompile(".*"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 }
 
 func (s *infoSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	snap.ResetSupportedHookTypes()
+	s.restore()
 }
 
 func (s *infoSuite) TestSideInfoOverrides(c *C) {

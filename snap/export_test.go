@@ -19,20 +19,14 @@
 
 package snap
 
-import (
-	"regexp"
-)
-
 var (
 	ImplicitSlotsForTests        = implicitSlots
 	ImplicitClassicSlotsForTests = implicitClassicSlots
-	oldSupportedHooks            = supportedHooks
+	NewHookType                  = newHookType
 )
 
-func FakeSupportedHookType(pattern *regexp.Regexp) {
-	supportedHooks = append(supportedHooks, newHookType(pattern))
-}
-
-func ResetSupportedHookTypes() {
-	supportedHooks = oldSupportedHooks
+func MockSupportedHookTypes(hookTypes []*HookType) (restore func()) {
+	old := supportedHooks
+	supportedHooks = hookTypes
+	return func() { supportedHooks = old }
 }
