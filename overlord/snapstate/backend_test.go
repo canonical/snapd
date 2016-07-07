@@ -37,6 +37,7 @@ type fakeOp struct {
 	name  string
 	revno snap.Revision
 	sinfo snap.SideInfo
+	stype snap.Type
 
 	old string
 }
@@ -61,10 +62,10 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authen
 
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: strings.Split(name, ".")[0],
-			Channel:      channel,
-			SnapID:       "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision:     revno,
+			RealName: strings.Split(name, ".")[0],
+			Channel:  channel,
+			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+			Revision: revno,
 		},
 		Version: name,
 		DownloadInfo: snap.DownloadInfo{
@@ -105,10 +106,15 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	return "downloaded-snap-path", nil
 }
 
+func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+	panic("Never expected apiSuite.Buy to be called")
+}
+
 type fakeSnappyBackend struct {
 	ops []fakeOp
 
-	linkSnapFailTrigger string
+	linkSnapFailTrigger     string
+	copySnapDataFailTrigger string
 }
 
 func (f *fakeSnappyBackend) OpenSnapFile(snapFilePath string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
@@ -157,7 +163,7 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 
 func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
 	return f.ReadInfo(name, &snap.SideInfo{
-		OfficialName: name,
+		RealName: name,
 	})
 }
 
@@ -167,6 +173,16 @@ func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress
 	if oldInfo != nil {
 		old = oldInfo.MountDir()
 	}
+
+	if newInfo.MountDir() == f.copySnapDataFailTrigger {
+		f.ops = append(f.ops, fakeOp{
+			op:   "copy-data.failed",
+			name: newInfo.MountDir(),
+			old:  old,
+		})
+		return errors.New("fail")
+	}
+
 	f.ops = append(f.ops, fakeOp{
 		op:   "copy-data",
 		name: newInfo.MountDir(),
@@ -191,11 +207,12 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 	return nil
 }
 
-func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, p progress.Meter) error {
+func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, p progress.Meter) error {
 	p.Notify("setup-snap")
 	f.ops = append(f.ops, fakeOp{
-		op:   "undo-setup-snap",
-		name: s.MountDir(),
+		op:    "undo-setup-snap",
+		name:  s.MountDir(),
+		stype: typ,
 	})
 	return nil
 }
@@ -223,11 +240,12 @@ func (f *fakeSnappyBackend) UnlinkSnap(info *snap.Info, meter progress.Meter) er
 	return nil
 }
 
-func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error {
+func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error {
 	meter.Notify("remove-snap-files")
 	f.ops = append(f.ops, fakeOp{
-		op:   "remove-snap-files",
-		name: s.MountDir(),
+		op:    "remove-snap-files",
+		name:  s.MountDir(),
+		stype: typ,
 	})
 	return nil
 }

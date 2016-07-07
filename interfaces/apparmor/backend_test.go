@@ -117,9 +117,9 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsProfiles(c *C) {
 func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsProfiles(c *C) {
 	devMode := false
 	s.InstallSnap(c, devMode, backendtest.HookYaml, 1)
-	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.test-hook")
+	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.apply-config")
 
-	// Verify that profile "snap.foo.hook.test-hook" was created
+	// Verify that profile "snap.foo.hook.apply-config" was created
 	_, err := os.Stat(profile)
 	c.Check(err, IsNil)
 	// apparmor_parser was used to load that file
@@ -167,17 +167,17 @@ func (s *backendSuite) TestRemovingSnapWithHookRemovesAndUnloadsProfiles(c *C) {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 1)
 		s.parserCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
-		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.test-hook")
-		// file called "snap.foo.hook.test-hook" was removed
+		profile := filepath.Join(dirs.SnapAppArmorDir, "snap.foo.hook.apply-config")
+		// file called "snap.foo.hook.apply-config" was removed
 		_, err := os.Stat(profile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor cache file was removed
-		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.foo.hook.test-hook")
+		cache := filepath.Join(dirs.AppArmorCacheDir, "snap.foo.hook.apply-config")
 		_, err = os.Stat(cache)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to unload the profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
-			{"apparmor_parser", "--remove", "snap.foo.hook.test-hook"},
+			{"apparmor_parser", "--remove", "snap.foo.hook.apply-config"},
 		})
 	}
 }
@@ -225,9 +225,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 1)
 		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
-		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.test-hook")
+		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.apply-config")
 
-		// Verify that profile "snap.samba.hook.test-hook" was created
+		// Verify that profile "snap.samba.hook.apply-config" was created
 		_, err := os.Stat(hookProfile)
 		c.Check(err, IsNil)
 		// apparmor_parser was used to load the both profiles
@@ -268,16 +268,16 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbd, 1)
 		smbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 		nmbdProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.nmbd")
-		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.test-hook")
+		hookProfile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.hook.apply-config")
 
-		// Verify profile "snap.samba.hook.test-hook" was removed
+		// Verify profile "snap.samba.hook.apply-config" was removed
 		_, err := os.Stat(hookProfile)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// apparmor_parser was used to remove the unused profile
 		c.Check(s.parserCmd.Calls(), DeepEquals, [][]string{
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), nmbdProfile},
 			{"apparmor_parser", "--replace", "--write-cache", "-O", "no-expr-simplify", fmt.Sprintf("--cache-loc=%s/var/cache/apparmor", s.RootDir), smbdProfile},
-			{"apparmor_parser", "--remove", "snap.samba.hook.test-hook"},
+			{"apparmor_parser", "--remove", "snap.samba.hook.apply-config"},
 		})
 		s.RemoveSnap(c, snapInfo)
 	}

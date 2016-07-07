@@ -402,7 +402,7 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return networkManagerConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -415,7 +415,7 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 		return networkManagerPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return networkManagerPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	case interfaces.SecurityDBus:
 		return networkManagerPermanentSlotDBus, nil
