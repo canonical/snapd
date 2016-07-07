@@ -180,10 +180,16 @@
 2. Ensure the 'serial-port' interface is connected to miniterm
 3. Use sudo miniterm.open /dev/tty<DEV> to open a serial port
 
-# Test pulse audio interface using paplay
+# Test pulseaudio interface using paplay, pactl
 
-1. Using Ubuntu Classic install the pulseaudio snap from the store
-2. Ensure that the 'pulseaudio' interface is connected to paplay
+1. Using a Snappy core image on a device like an RPi2/3, install the
+   build and install the simple-pulseaudio snap from the following
+   git repo:
+   git://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/examples
+2. cd examples/simple-pulseaudio
+3. Ensure that the 'pulseaudio' interface is connected to paplay
    sudo snap interfaces
-3. Use /snap/bin/pulseaudio.paplay /usr/share/sounds/alsa/Noise.wav and verify
+4. Use /snap/bin/simple-pulseaudio.pactl stat and verify that you see
+   valid output status from pulseaudio
+5. Use /snap/bin/simple-pulseaudio.paplay $SNAP/usr/share/sounds/alsa/Noise.wav and verify
    that you can hear the sound playing
