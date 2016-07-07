@@ -126,15 +126,15 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	var dlURL, iconURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
-			io.WriteString(w, `{"_embedded": {"clickindex:package": [{
+		case "/details/foo":
+			io.WriteString(w, `{
 "package_name": "foo",
 "version": "2",
 "developer": "test",
 "anon_download_url": "`+dlURL+`",
 "download_url": "`+dlURL+`",
 "icon_url": "`+iconURL+`"
-}]}}`)
+}`)
 		case "/dl":
 			snapR.Seek(0, 0)
 			io.Copy(w, snapR)
@@ -150,7 +150,7 @@ func (s *SnapTestSuite) TestInstallAppTwiceFails(c *C) {
 	dlURL = mockServer.URL + "/dl"
 	iconURL = mockServer.URL + "/icon"
 
-	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	name, err := install("foo", "ch", LegacyInhibitHooks, &progress.NullProgress{})
@@ -178,19 +178,19 @@ func (s *SnapTestSuite) TestInstallAppPackageNameFails(c *C) {
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
-			io.WriteString(w, `{"_embedded": {"clickindex:package": [{
+		case "/details/hello-snap":
+			io.WriteString(w, `{
 "developer": "potato",
 "package_name": "hello-snap",
 "version": "2",
 "anon_download_url": "blah"
-}]}}`)
+}`)
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
 	}))
 
-	s.storeCfg.SearchURI, err = url.Parse(mockServer.URL + "/search")
+	s.storeCfg.DetailsURI, err = url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 
 	c.Assert(mockServer, NotNil)
