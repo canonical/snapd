@@ -108,6 +108,12 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change.AddAll(ts)
 	s.state.Unlock()
 
@@ -168,6 +174,11 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
 	c.Assert(err, IsNil)
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -852,6 +863,12 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("connect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -885,6 +902,12 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("connect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -924,6 +947,12 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("disconnect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -962,6 +991,12 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("disconnect", "")
 	change.AddAll(ts)
 	s.state.Unlock()

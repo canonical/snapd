@@ -108,6 +108,7 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 	st := task.State()
 	snapName := snapInfo.Name()
 	ss, err := snapstate.TaskSnapSetup(task)
+
 	if err != nil {
 		return err
 	}
