@@ -178,10 +178,10 @@ func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(1)},
-			{OfficialName: "some-snap", Revision: snap.R(2)},
-			{OfficialName: "some-snap", Revision: snap.R(3)},
-			{OfficialName: "some-snap", Revision: snap.R(4)},
+			{RealName: "some-snap", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+			{RealName: "some-snap", Revision: snap.R(3)},
+			{RealName: "some-snap", Revision: snap.R(4)},
 		},
 		Current: snap.R(4),
 	})
@@ -208,10 +208,10 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(1)},
-			{OfficialName: "some-snap", Revision: snap.R(2)},
-			{OfficialName: "some-snap", Revision: snap.R(3)},
-			{OfficialName: "some-snap", Revision: snap.R(4)},
+			{RealName: "some-snap", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+			{RealName: "some-snap", Revision: snap.R(3)},
+			{RealName: "some-snap", Revision: snap.R(4)},
 		},
 		Current: snap.R(1),
 	})
@@ -242,10 +242,10 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "some-snap", Revision: snap.R(1)},
-			{OfficialName: "some-snap", Revision: snap.R(2)},
-			{OfficialName: "some-snap", Revision: snap.R(3)},
-			{OfficialName: "some-snap", Revision: snap.R(4)},
+			{RealName: "some-snap", Revision: snap.R(1)},
+			{RealName: "some-snap", Revision: snap.R(2)},
+			{RealName: "some-snap", Revision: snap.R(3)},
+			{RealName: "some-snap", Revision: snap.R(4)},
 		},
 		Current: snap.R(2),
 	})
@@ -2530,10 +2530,10 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	si1 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(1)}
-	si2 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(2)}
-	si3 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(3)}
-	si4 := &snap.SideInfo{OfficialName: "some-snap", Revision: snap.R(4)}
+	si1 := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(1)}
+	si2 := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(2)}
+	si3 := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(3)}
+	si4 := &snap.SideInfo{RealName: "some-snap", Revision: snap.R(4)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "edge",
