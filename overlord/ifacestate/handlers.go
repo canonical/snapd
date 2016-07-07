@@ -40,23 +40,13 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.Info(task.State(), ss.Name(), ss.Revision())
+
+	snapInfo, err := snap.ReadInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
 		return err
 	}
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
-	var snapState snapstate.SnapState
-	if err := snapstate.Get(task.State(), snapName, &snapState); err != nil {
-		task.Errorf("cannot get state of snap %q: %s", snapName, err)
-		return err
-	}
-
-	// Set DevMode flag if SnapSetup.Flags indicates it should be done
-	// but remember the old value in the task in case we undo.
-	task.Set("old-devmode", snapState.DevMode())
-	snapState.SetDevMode(ss.DevMode())
-	snapstate.Set(task.State(), snapName, &snapState)
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
