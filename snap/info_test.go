@@ -57,7 +57,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		OfficialName:      "newname",
+		RealName:          "newname",
 		EditedSummary:     "fixed summary",
 		EditedDescription: "fixed desc",
 		Revision:          snap.R(1),
@@ -208,8 +208,8 @@ type: app`
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
-		OfficialName: "baz",
-		Revision:     snap.R(42),
+		RealName: "baz",
+		Revision: snap.R(42),
 	})
 	c.Assert(err, IsNil)
 	c.Check(info.Name(), Equals, "baz")
