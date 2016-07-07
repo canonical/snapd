@@ -68,7 +68,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 
 	revisionStr := ""
 	if ss.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (rev %s)", ss.SideInfo.Revision)
+		revisionStr = fmt.Sprintf(" (%s)", ss.SideInfo.Revision)
 	}
 
 	var prepare, prev *state.Task
@@ -77,7 +77,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	if ss.SnapPath != "" || !ss.Revision.Unset() {
 		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), ss.SnapPath, revisionStr))
 	} else {
-		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q from channel %q%s"), ss.Name, ss.Channel, revisionStr))
+		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), ss.Name, revisionStr, ss.Channel))
 	}
 	prepare.Set("snap-setup", ss)
 
@@ -269,10 +269,10 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 		Revision: snapst.Current,
 	}
 
-	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (rev %s)"), ss.Name, snapst.Current))
+	prepareSnap := s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q (%s)"), ss.Name, snapst.Current))
 	prepareSnap.Set("snap-setup", &ss)
 
-	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (rev %s) available to the system%s"), ss.Name, snapst.Current))
+	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) available to the system%s"), ss.Name, snapst.Current))
 	linkSnap.Set("snap-setup", &ss)
 	linkSnap.WaitFor(prepareSnap)
 
@@ -302,7 +302,7 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		Revision: snapst.Current,
 	}
 
-	unlinkSnap := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q (rev %s) unavailable to the system"), ss.Name, snapst.Current))
+	unlinkSnap := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) unavailable to the system"), ss.Name, snapst.Current))
 	unlinkSnap.Set("snap-setup", &ss)
 
 	return state.NewTaskSet(unlinkSnap), nil
@@ -314,10 +314,10 @@ func removeInactiveRevision(s *state.State, name string, revision snap.Revision)
 		Revision: revision,
 	}
 
-	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (rev %s)"), name, revision))
+	clearData := s.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
 	clearData.Set("snap-setup", ss)
 
-	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q (rev %s) from the system"), name, revision))
+	discardSnap := s.NewTask("discard-snap", fmt.Sprintf(i18n.G("Remove snap %q (%s) from the system"), name, revision))
 	discardSnap.WaitFor(clearData)
 	discardSnap.Set("snap-setup-task", clearData.ID())
 
@@ -395,7 +395,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
 		unlink.Set("snap-setup", ss)
 
-		removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (rev %s)"), name, revision))
+		removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), name, revision))
 		removeSecurity.WaitFor(unlink)
 
 		removeSecurity.Set("snap-setup-task", unlink.ID())
@@ -409,7 +409,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		addNext(removeInactiveRevision(s, name, si.Revision))
 	}
 
-	discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (rev %s)"), name, revision))
+	discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
 	discardConns.Set("snap-setup", &SnapSetup{Name: name})
 	addNext(state.NewTaskSet(discardConns))
 
