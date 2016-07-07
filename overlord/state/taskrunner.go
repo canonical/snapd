@@ -102,7 +102,7 @@ func (r *TaskRunner) run(t *Task) {
 		panic("internal error: attempted to run task with nil handler for status " + t.Status().String())
 	}
 
-	t.scheduledTime = time.Time{} // clear schedule
+	t.At(time.Time{}) // clear schedule
 	tomb := &tomb.Tomb{}
 	r.tombs[t.ID()] = tomb
 	tomb.Go(func() error {
@@ -127,7 +127,7 @@ func (r *TaskRunner) run(t *Task) {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
 			} else if x.After != 0 {
-				r.state.ScheduleTask(t, timeNow().Add(x.After))
+				t.At(timeNow().Add(x.After))
 			}
 		case nil:
 			var next []*Task
@@ -250,9 +250,10 @@ func (r *TaskRunner) Ensure() {
 		}
 
 		// skip tasks scheduled for later and also track the earliest one
-		if !t.scheduledTime.IsZero() && ensureTime.Before(t.scheduledTime) {
-			if nextTaskTime.IsZero() || nextTaskTime.After(t.scheduledTime) {
-				nextTaskTime = t.scheduledTime
+		tWhen := t.AtTime()
+		if !tWhen.IsZero() && ensureTime.Before(tWhen) {
+			if nextTaskTime.IsZero() || nextTaskTime.After(tWhen) {
+				nextTaskTime = tWhen
 			}
 			continue
 		}
@@ -262,7 +263,9 @@ func (r *TaskRunner) Ensure() {
 	}
 
 	// schedule next Ensure no later than the next task time
-	r.state.ensureBy(nextTaskTime)
+	if !nextTaskTime.IsZero() {
+		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
+	}
 }
 
 // mustWait returns whether task t must wait for other tasks to be done.
