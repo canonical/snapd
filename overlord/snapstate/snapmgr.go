@@ -335,6 +335,9 @@ func cachedStore(s *state.State) StoreService {
 	return ubuntuStore.(StoreService)
 }
 
+// the store implementation has the interface consumed here
+var _ StoreService = (*store.SnapUbuntuStoreRepository)(nil)
+
 // Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
 	if cachedStore := cachedStore(s); cachedStore != nil {
@@ -572,7 +575,11 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	err = m.backend.RemoveSnapFiles(ss.placeInfo(), typ, pb)
 	if err != nil {
 		st.Lock()
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", ss.Name, err)
@@ -642,14 +649,18 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, _, err := snapSetupAndState(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoSetupSnap(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -677,6 +688,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb); err != nil {
 		return err
 	}
+
+	// set snapst type for undoMountSnap
+	newInfo, err := readInfo(ss.Name, snapst.Candidate)
+	if err != nil {
+		return err
+	}
+	snapst.SetType(newInfo.Type)
+	st := t.State()
+	st.Lock()
+	Set(st, ss.Name, snapst)
+	st.Unlock()
 
 	// cleanup the downloaded snap after it got installed
 	// in backend.SetupSnap.
