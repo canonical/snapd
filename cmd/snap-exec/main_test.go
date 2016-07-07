@@ -124,7 +124,12 @@ func (s *snapExecSuite) TestSnapExecIgnoresUnknownArgs(c *C) {
 	c.Assert(rest, DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
 }
 
-func (s *snapExecSuite) TestSnapExecErrorsOn(c *C) {
-	rest, err := parseArgs([]string{"--command=shell", "--unknown", "snapname.app", "--arg1", "arg2"})
+func (s *snapExecSuite) TestSnapExecErrorsOnUnknown(c *C) {
+	_, err := parseArgs([]string{"--command=shell", "--unknown", "snapname.app", "--arg1", "arg2"})
 	c.Check(err, ErrorMatches, "unknown flag `unknown'")
+}
+
+func (s *snapExecSuite) TestSnapExecErrorsOnMissingSnapApp(c *C) {
+	_, err := parseArgs([]string{"--command=shell"})
+	c.Check(err, ErrorMatches, "need the application to run as argument")
 }

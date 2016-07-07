@@ -51,6 +51,10 @@ func parseArgs(args []string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(rest) == 0 {
+		return nil, fmt.Errorf("need the application to run as argument")
+	}
+
 	return rest, nil
 }
 
