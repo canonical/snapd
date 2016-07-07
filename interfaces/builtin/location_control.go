@@ -162,7 +162,7 @@ func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return locationControlConnectedPlugDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationControlConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -177,7 +177,7 @@ func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationControlPermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationControlPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
