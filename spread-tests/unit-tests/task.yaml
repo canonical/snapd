@@ -4,5 +4,5 @@ systems: [-debian-8]
 execute: |
     cd /remote/path/
     autoreconf --install --force
-    ./configure --enable-rootfs-is-core-snap
+    ./configure
     make -C src check-unit-tests
