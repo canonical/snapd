@@ -184,27 +184,22 @@ apps:
 }
 
 const fooSearchHit = `{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "anon_download_url": "@URL@",
-                "architecture": [
-                    "all"
-                ],
-                "channel": "stable",
-                "content": "application",
-                "description": "this is a description",
-                "download_url": "@URL@",
-                "icon_url": "@ICON@",
-                "origin": "bar",
-                "package_name": "foo",
-                "revision": @REVISION@,
-                "snap_id": "idididididididididididididididid",
-                "summary": "Foo",
-                "version": "@VERSION@"
-            }
-        ]
-    }
+	"anon_download_url": "@URL@",
+	"architecture": [
+	    "all"
+	],
+	"channel": "stable",
+	"content": "application",
+	"description": "this is a description",
+        "developer_id": "devdevdev",
+	"download_url": "@URL@",
+	"icon_url": "@ICON@",
+	"origin": "bar",
+	"package_name": "foo",
+	"revision": @REVISION@,
+	"snap_id": "idididididididididididididididid",
+	"summary": "Foo",
+	"version": "@VERSION@"
 }`
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeSvc(c *C) {
@@ -232,7 +227,7 @@ apps:
 	var baseURL string
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case "/details/foo":
 			w.WriteHeader(http.StatusOK)
 			output := strings.Replace(fooSearchHit, "@URL@", baseURL+"/snap", -1)
 			output = strings.Replace(output, "@ICON@", baseURL+"/icon", -1)
@@ -250,19 +245,18 @@ apps:
 
 	baseURL = mockServer.URL
 
-	searchURL, err := url.Parse(baseURL + "/search")
+	detailsURL, err := url.Parse(baseURL + "/details/")
 	c.Assert(err, IsNil)
 	storeCfg := store.SnapUbuntuStoreConfig{
-		SearchURI: searchURL,
+		DetailsURI: detailsURL,
 	}
 
 	mStore := store.NewUbuntuStoreSnapRepository(&storeCfg, "")
 
-	ms.o.SnapManager().ReplaceStore(mStore)
-
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+	snapstate.ReplaceStore(ms.o.State(), mStore)
 
 	ts, err := snapstate.Install(st, "foo", "stable", 0, 0)
 	c.Assert(err, IsNil)
@@ -281,6 +275,7 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
@@ -319,6 +314,7 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(50))
 	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "2.0")
 
 	// check udpated wrapper

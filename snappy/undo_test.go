@@ -61,8 +61,8 @@ func (s *undoTestSuite) TestUndoForSetupSnapSimple(c *C) {
 	snapPath := makeTestSnapPackage(c, helloSnap)
 
 	si := snap.SideInfo{
-		OfficialName: "hello-snap",
-		Revision:     snap.R(14),
+		RealName: "hello-snap",
+		Revision: snap.R(14),
 	}
 
 	minInfo, err := SetupSnap(snapPath, &si, 0, &s.meter)
@@ -95,8 +95,8 @@ type: kernel
 `, testFiles)
 
 	si := snap.SideInfo{
-		OfficialName: "kernel-snap",
-		Revision:     snap.R(140),
+		RealName: "kernel-snap",
+		Revision: snap.R(140),
 	}
 
 	instDir, err := SetupSnap(snapPath, &si, 0, &s.meter)

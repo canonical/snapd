@@ -80,11 +80,6 @@ func installSnapWithService(c *check.C) {
 	c.Assert(output, testutil.Contains, data.BasicServiceSnapName)
 }
 
-func (s *serviceSuite) TestInstalledServiceMustBeStarted(c *check.C) {
-	installSnapWithService(c)
-	c.Assert(isServiceRunning(c), check.Equals, true, check.Commentf("Service is not running"))
-}
-
 func (s *serviceSuite) TestServiceMustBeStartedAfterReboot(c *check.C) {
 	if common.BeforeReboot() {
 		installSnapWithService(c)

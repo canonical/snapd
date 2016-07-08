@@ -33,20 +33,15 @@ mkdir -p "$GOPATH"/src/github.com/snapcore/snapd/integration-tests/data/output
 cp debian/tests/testconfig.json "$GOPATH"/src/github.com/snapcore/snapd/integration-tests/data/output/
 cd "$GOPATH"/src/github.com/snapcore/snapd
 
-# don't install deps nor compile tests after reboot
+# don't install deps nor compile binaries after reboot
 if [ -z "$ADT_REBOOT_MARK" ]; then
     ./get-deps.sh
     go test -tags classic -c ./integration-tests/tests
+
+    # ensure we have snapbuild available for the tests
+    go get ./tests/lib/snapbuild
+    sudo cp $GOPATH/bin/snapbuild /usr/local/bin
 fi
-
-
-# ensure we have snapbuild available for the tests
-(mkdir -p $GOPATH/bin;
- cd $GOPATH/bin;
- go get github.com/snapcore/snapd/integration-tests/testutils/build/snapbuild;
- sudo cp $GOPATH/bin/snapbuild /usr/local/bin
-)
-
 
 SNAP_REEXEC=0 ./tests.test -check.vv
 
