@@ -56,7 +56,7 @@ func (iface *PppInterface) Name() string {
 
 func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -71,7 +71,7 @@ func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		return pppConnectedPlugAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return nil, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -84,7 +84,7 @@ func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 		return nil, nil
 	case interfaces.SecuritySecComp:
 		return nil, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	case interfaces.SecurityDBus:
 		return nil, nil
@@ -95,7 +95,7 @@ func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 
 func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
