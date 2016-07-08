@@ -90,7 +90,8 @@
     /{tmp/snap.rootfs_*,}snap/ r,
     /{tmp/snap.rootfs_*,}snap/** r,
 
-    # This is used when --enable-rootfs-is-core-snap is used
+    # mount calls to setup the pivot_root based chroot with the core snap as
+    # the root filesystem.
     mount options=(rw bind) /snap/ubuntu-core/*/ -> /tmp/snap.rootfs_*/,
 
     mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
@@ -105,16 +106,6 @@
     mount options=(rw rbind) /var/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
     mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
-
-    # This is used when --enable-rootfs-is-core-snap is NOT used
-    mount options=(rw bind) /snap/ubuntu-core/*/bin/ -> /bin/,
-    mount options=(rw bind) /snap/ubuntu-core/*/sbin/ -> /sbin/,
-    mount options=(rw bind) /snap/ubuntu-core/*/lib/ -> /lib/,
-    mount options=(rw bind) /snap/ubuntu-core/*/lib32/ -> /lib32/,
-    mount options=(rw bind) /snap/ubuntu-core/*/libx32/ -> /libx32/,
-    mount options=(rw bind) /snap/ubuntu-core/*/lib64/ -> /lib64/,
-    mount options=(rw bind) /snap/ubuntu-core/*/usr/ -> /usr/,
-    mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /etc/alternatives/,
 
     # Support mount profiles via the content interface
     mount options=(rw bind) /snap/*/*/** -> /snap/*/*/**,
