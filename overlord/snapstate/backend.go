@@ -33,6 +33,7 @@ type StoreService interface {
 	SuggestedCurrency() string
 
 	Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error)
+	Buy(options *store.BuyOptions) (*store.BuyResult, error)
 }
 
 type managerBackend interface {

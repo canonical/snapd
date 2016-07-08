@@ -52,11 +52,10 @@ var statePatch2JSON = []byte(`
 				}],
 				"current": "x2"
 			},
-
 			"bar": {
 				"candidate": {
-					"name": "bar",
-					"revision": "26",
+					"name": "",
+					"revision": "x1",
 					"snapid": "mysnapid"
 				}
 			}
@@ -171,7 +170,7 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "bar",
-		Revision: snap.R(26),
+		Revision: snap.R("x1"),
 	})
 
 	// FIXME: bar is now empty and should no longer be there?
