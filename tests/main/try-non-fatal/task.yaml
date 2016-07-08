@@ -14,5 +14,7 @@ execute: |
     echo "When its base directory is removed"
     rm -rf $base_dir
 
-    echo "Then the snap is no loger listed as installed"
-    ! snap list | grep -Pzq "$installed_pattern"
+    installed_broken_pattern="(?s)Name +Version +Rev +Developer +Notes\n\
+    test-snapd-tools +.*?broken"
+    echo "Then the snap is listed as a broken install"
+    snap list | grep -Pzq "$installed_broken_pattern"

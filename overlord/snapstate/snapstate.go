@@ -459,10 +459,6 @@ func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	return doInstall(s, &snapst, ss)
 }
 
-// Retrieval functions
-
-var readInfo = snap.ReadInfo
-
 // Info returns the information about the snap with given name and revision.
 // Works also for a mounted candidate snap in the process of being installed.
 func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, error) {
