@@ -213,12 +213,18 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode login data from request body: %v", err)
 	}
 
-	macaroon, err := store.RequestPackageAccessMacaroon()
+	serializedMacaroon, err := store.RequestStoreMacaroon()
 	if err != nil {
 		return InternalError(err.Error())
 	}
+	macaroon, err := auth.MacaroonDeserialize(serializedMacaroon)
 
-	discharge, err := store.DischargeAuthCaveat(loginData.Username, loginData.Password, macaroon, loginData.Otp)
+	// get SSO 3rd party caveat, and request discharge
+	loginCaveat, err := auth.LoginCaveatID(macaroon)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	discharge, err := store.DischargeAuthCaveat(loginCaveat, loginData.Username, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -247,14 +253,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, serializedMacaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
 	result := loginResponseData{
-		Macaroon:   macaroon,
+		Macaroon:   serializedMacaroon,
 		Discharges: []string{discharge},
 	}
 	return SyncResponse(result, nil)
@@ -383,13 +389,8 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
-	auther, err := c.d.auther(r)
-	if err != nil && err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
-	}
-
 	store := getStore(c)
-	found, err := store.Find(query.Get("q"), query.Get("channel"), auther)
+	found, err := store.Find(query.Get("q"), query.Get("channel"), user.Authenticator())
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -461,12 +462,8 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 
-	var auther store.Authenticator
-	if user != nil {
-		auther = user.Authenticator()
-	}
 	store := getStore(c)
-	updates, err := store.ListRefresh(candidatesInfo, auther)
+	updates, err := store.ListRefresh(candidatesInfo, user.Authenticator())
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
@@ -1337,11 +1334,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	opts.Auther, err = c.d.auther(r)
-	if err != nil && err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
-	}
-
+	opts.Auther = user.Authenticator()
 	s := getStore(c)
 
 	buyResult, err := s.Buy(&opts)

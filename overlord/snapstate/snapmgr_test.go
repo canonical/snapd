@@ -521,6 +521,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
 
 	// ensure all our tasks ran
+	c.Assert(chg.Err(), IsNil)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
@@ -579,19 +580,17 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
-	c.Check(task.Summary(), Equals, `Download snap "some-snap" from channel "some-channel" (rev 11)`)
+	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check link snap summary
 	linkTask := ta[len(ta)-1]
-	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" available to the system (rev 11)`)
+	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
 
 	// verify snap-setup in the task state
 	var ss snapstate.SnapSetup
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:     "some-snap",
-		Revision: snap.R(11),
 		Channel:  "some-channel",
 		UserID:   s.user.ID,
 		SnapPath: "downloaded-snap-path",
@@ -599,6 +598,12 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 	})
 
 	// verify snaps in the system state
@@ -713,18 +718,21 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:    "some-snap",
 		Channel: "some-channel",
 		Flags:   0,
 		UserID:  s.user.ID,
-
-		Revision: snap.R(11),
 
 		SnapPath: "downloaded-snap-path",
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(11),
+		Channel:  "some-channel",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 	})
 
 	// verify snaps in the system state
@@ -1057,7 +1065,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x1"))
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-1)})
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-1),
+	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
 
@@ -1067,9 +1078,12 @@ version: 1.0`)
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:     "mock",
-		Revision: snap.R(-1),
 		SnapPath: mockSnap,
+		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-1),
 	})
 
 	// verify snaps in the system state
@@ -1080,7 +1094,7 @@ version: 1.0`)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-1),
 	})
@@ -1095,8 +1109,10 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
-		Active:        true,
-		Sequence:      []*snap.SideInfo{{Revision: snap.R(-2)}},
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "mock", Revision: snap.R(-2)},
+		},
 		LocalRevision: snap.R(-2),
 		Current:       snap.R(-2),
 	})
@@ -1134,7 +1150,10 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].revno, Equals, snap.R(-3))
 
 	c.Check(s.fakeBackend.ops[5].op, Equals, "candidate")
-	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{Revision: snap.R(-3)})
+	c.Check(s.fakeBackend.ops[5].sinfo, DeepEquals, snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-3),
+	})
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x3")
 
@@ -1144,9 +1163,12 @@ version: 1.0`)
 	err = task.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
-		Name:     "mock",
-		Revision: snap.R(-3),
 		SnapPath: mockSnap,
+		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "mock",
+		Revision: snap.R(-3),
 	})
 
 	// verify snaps in the system state
@@ -1158,7 +1180,7 @@ version: 1.0`)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-3),
 	})
@@ -1173,8 +1195,10 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
-		Active:        true,
-		Sequence:      []*snap.SideInfo{{Revision: snap.R(100001)}},
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "mock", Revision: snap.R(100001)},
+		},
 		LocalRevision: snap.R(100001),
 		Current:       snap.R(100001),
 	})
@@ -1209,7 +1233,7 @@ version: 1.0`)
 	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.CurrentSideInfo(), DeepEquals, &snap.SideInfo{
-		RealName: "",
+		RealName: "mock",
 		Channel:  "",
 		Revision: snap.R(-1),
 	})
@@ -1282,12 +1306,16 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		var expSnapSetup *snapstate.SnapSetup
 		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name: "some-snap",
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+				},
 			}
 		} else {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name:     "some-snap",
-				Revision: snap.R(7),
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					Revision: snap.R(7),
+				},
 			}
 		}
 		c.Check(ss, DeepEquals, expSnapSetup, Commentf(t.Kind()))
@@ -1395,12 +1423,16 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		var expSnapSetup *snapstate.SnapSetup
 		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name: "some-snap",
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+				},
 			}
 		} else {
 			expSnapSetup = &snapstate.SnapSetup{
-				Name:     "some-snap",
-				Revision: revnos[whichRevno],
+				SideInfo: &snap.SideInfo{
+					RealName: "some-snap",
+					Revision: revnos[whichRevno],
+				},
 			}
 		}
 
@@ -2145,7 +2177,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	err := snapstate.Get(st, "name1", &snapst)
 	c.Assert(err, IsNil)
 
-	info, err := snapst.CurrentInfo("name1")
+	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
@@ -2157,7 +2189,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoErrNoCurrent(c *C) {
 	snapst := new(snapstate.SnapState)
-	_, err := snapst.CurrentInfo("notthere")
+	_, err := snapst.CurrentInfo()
 	c.Assert(err, Equals, snapstate.ErrNoCurrent)
 
 }
@@ -2208,7 +2240,10 @@ func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
 	_, err := snapstate.GadgetInfo(st)
 	c.Assert(err, Equals, state.ErrNoState)
 
-	sideInfoGadget := &snap.SideInfo{Revision: snap.R(2)}
+	sideInfoGadget := &snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(2),
+	}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget

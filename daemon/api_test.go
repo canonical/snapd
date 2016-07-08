@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"gopkg.in/check.v1"
+	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -289,11 +290,10 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/find/?q=name:gfoo", nil)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	c.Assert(s.auther, check.IsNil)
 
-	_, ok := searchStore(findCmd, req, nil).(*resp)
+	_, ok := searchStore(findCmd, req, user).(*resp)
 	c.Assert(ok, check.Equals, true)
 	// ensure authenticator was set
 	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
@@ -439,7 +439,7 @@ func (s *apiSuite) makeMyAppsServer(statusCode int, data string) *httptest.Serve
 		w.WriteHeader(statusCode)
 		io.WriteString(w, data)
 	}))
-	store.MyAppsPackageAccessAPI = mockMyAppsServer.URL + "/acl/package_access/"
+	store.MyAppsMacaroonACLAPI = mockMyAppsServer.URL + "/acl/"
 	return mockMyAppsServer
 }
 
@@ -452,9 +452,41 @@ func (s *apiSuite) makeSSOServer(statusCode int, data string) *httptest.Server {
 	return mockSSOServer
 }
 
+func (s *apiSuite) makeStoreMacaroon() (string, error) {
+	m, err := macaroon.New([]byte("secret"), "some id", "location")
+	if err != nil {
+		return "", err
+	}
+	err = m.AddFirstPartyCaveat("caveat")
+	if err != nil {
+		return "", err
+	}
+	err = m.AddThirdPartyCaveat([]byte("shared-secret"), "third-party-caveat", store.UbuntuoneLocation)
+	if err != nil {
+		return "", err
+	}
+
+	return auth.MacaroonSerialize(m)
+}
+
+func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string, error) {
+	data := map[string]string{
+		"macaroon": serializedMacaroon,
+	}
+	expectedData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	return string(expectedData), nil
+}
+
 func (s *apiSuite) TestLoginUser(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
@@ -468,7 +500,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	rsp := loginUser(snapCmd, req, nil).(*resp)
 
 	expected := loginResponseData{
-		Macaroon:   "the-macaroon-serialized-data",
+		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
 	c.Check(rsp.Status, check.Equals, 200)
@@ -479,7 +511,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	expectedUser := auth.UserState{
 		ID:         1,
 		Username:   "username",
-		Macaroon:   "the-macaroon-serialized-data",
+		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
 	expectedUser.StoreMacaroon = expectedUser.Macaroon
@@ -539,12 +571,15 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get package access macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get snap access permission")
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_REQUIRED"}`
@@ -563,8 +598,11 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_FAILURE"}`
@@ -583,8 +621,11 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 }
 
 func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "INVALID_CREDENTIALS"}`
@@ -599,7 +640,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate on snap store")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
@@ -797,7 +838,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 			Developer: "foo",
 		},
 	}}
-	s.mockSnap(c, "name: foo\nversion: 1.0")
+	s.mockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
 	c.Assert(err, check.IsNil)
@@ -934,11 +975,10 @@ func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	c.Assert(s.auther, check.IsNil)
 
-	_ = getSnapsInfo(snapsCmd, req, nil).(*resp)
+	_ = getSnapsInfo(snapsCmd, req, user).(*resp)
 
 	// ensure authenticator was set
 	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
@@ -2881,7 +2921,6 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	}`)
 	req, err := http.NewRequest("POST", "/v2/buy", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -2889,7 +2928,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, nil).(*resp)
+	rsp := postBuy(snapCmd, req, user).(*resp)
 
 	expected := buyResponseData{
 		State: "Complete",
@@ -2922,7 +2961,6 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	}`)
 	req, err := http.NewRequest("POST", "/v2/buy", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -2930,7 +2968,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, nil).(*resp)
+	rsp := postBuy(snapCmd, req, user).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
