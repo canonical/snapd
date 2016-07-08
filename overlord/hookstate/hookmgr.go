@@ -155,13 +155,6 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 
 	_, err = RunHook(setup.Snap, setup.Revision, setup.Hook)
 	if err != nil {
-		exitErr, ok := err.(*exec.ExitError)
-		if ok {
-			// "exit code 1" is not particularly helpful. So rewrite the error
-			// using stderr instead.
-			err = fmt.Errorf("%s", strings.Trim(string(exitErr.Stderr), " \n"))
-		}
-
 		if handlerErr := handler.Error(err); handlerErr != nil {
 			return handlerErr
 		}
@@ -186,5 +179,12 @@ func doRunHook(snapName string, revision snap.Revision, hookName string) ([]byte
 }
 
 func doRunCommand(name string, args ...string) ([]byte, error) {
-	return exec.Command(name, args...).Output()
+	output, err := exec.Command(name, args...).CombinedOutput()
+	if err != nil {
+		// "exit code 1" is not particularly helpful. So rewrite the error
+		// using stdout and stderr instead.
+		err = fmt.Errorf("%s", strings.Trim(string(output), " \n"))
+	}
+
+	return output, err
 }
