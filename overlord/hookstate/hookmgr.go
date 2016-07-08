@@ -34,7 +34,7 @@ import (
 )
 
 var (
-	runCommand = doRunCommand
+	startCommand = newProcessRunner
 
 	// Function that actually runs a hook. Make public here for testing
 	// purposes.
@@ -153,7 +153,8 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	_, err = RunHook(setup.Snap, setup.Revision, setup.Hook)
+	// Actually run the hook
+	_, err = RunHook(setup.Snap, setup.Revision, setup.Hook, tomb)
 	if err != nil {
 		if handlerErr := handler.Error(err); handlerErr != nil {
 			return handlerErr
@@ -162,6 +163,8 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	// Assuming no error occurred, notify the handler that the hook has
+	// finished.
 	if err = handler.Done(); err != nil {
 		return err
 	}
@@ -169,11 +172,32 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func doRunHook(snapName string, revision snap.Revision, hookName string) ([]byte, error) {
-	return runCommand("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+func doRunHook(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
+	runner, err := startCommand("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+	if err != nil {
+		return nil, err
+	}
+
+	hookCompleted := make(chan struct{})
+	var hookOutput []byte
+	var hookError error
+	go func() {
+		hookOutput, hookError = runner.Wait()
+		close(hookCompleted)
+	}()
+
+	select {
+	case <-hookCompleted:
+		return hookOutput, hookError
+	case <-tomb.Dying():
+		if err := runner.Kill(); err != nil {
+			return nil, fmt.Errorf("failed to abort hook: %s", err)
+		}
+		return nil, fmt.Errorf("hook was aborted")
+	}
 }
 
-func doRunCommand(name string, args ...string) ([]byte, error) {
+func doStartCommand(name string, args ...string) ([]byte, error) {
 	output, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil {
 		// Make the error a bit more informative
