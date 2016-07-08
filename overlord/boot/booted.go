@@ -22,6 +22,7 @@ package boot
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
@@ -109,7 +110,7 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 	}
 
 	st.Lock()
-	msg := fmt.Sprintf("Update snap revisions after boot changes")
+	msg := fmt.Sprintf("Update kernel and core snap revisions")
 	chg := st.NewChange("update-revisions", msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
@@ -119,8 +120,13 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 	// do it and wait for ready
 	ovld.Loop()
 
+	timeoutTime := 10 * time.Second
 	st.EnsureBefore(0)
-	<-chg.Ready()
+	select {
+	case <-chg.Ready():
+	case <-time.After(timeoutTime):
+		return fmt.Errorf("change did not apply after %s", timeoutTime)
+	}
 
 	st.Lock()
 	status := chg.Status()
