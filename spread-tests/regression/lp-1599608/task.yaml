@@ -52,6 +52,6 @@ execute: |
     PATH=/foo:$PATH TESTVAR=bar hello-world.env | grep PATH
     cat /run/spread-test.out
     echo "Ensure user-specified PATH is not used"
-    if grep 'PATH=/foo' /run/spread-test.out ; then exit 1; fi
+    !grep 'PATH=/foo' /run/spread-test.out
     echo "Ensure environment is clean"
-    if grep 'TESTVAR=bar' /run/spread-test.out ; then exit 1; fi
+    !grep 'TESTVAR=bar' /run/spread-test.out
