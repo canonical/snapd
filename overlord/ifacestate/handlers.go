@@ -40,7 +40,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.Info(task.State(), ss.Name, ss.Revision)
+	snapInfo, err := snapstate.Info(task.State(), ss.Name(), ss.Revision())
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	if err != nil {
 		return err
 	}
-	snapName := snapSetup.Name
+	snapName := snapSetup.Name()
 
 	// Get SnapState for this snap
 	var snapState snapstate.SnapState
@@ -175,7 +175,8 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 
 	// Remove security artefacts of the snap.
 	if err := removeSnapSecurity(task, snapName); err != nil {
-		return state.Retry
+		// TODO: how long to wait?
+		return &state.Retry{}
 	}
 
 	return nil
@@ -191,7 +192,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	snapName := snapSetup.Name
+	snapName := snapSetup.Name()
 
 	var snapState snapstate.SnapState
 	err = snapstate.Get(st, snapName, &snapState)

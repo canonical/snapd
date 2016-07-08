@@ -72,7 +72,9 @@ func (s *mountSnapSuite) TestDoMountSnapRemovesSnaps(c *C) {
 
 	t := s.state.NewTask("mount-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:         "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		SnapPath:     testSnap,
 		DownloadInfo: &snap.DownloadInfo{DownloadURL: "https://some"},
 	})
