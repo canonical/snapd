@@ -34,7 +34,6 @@ execute: |
     # variables
     echo Unmount original OS snap
     umount $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
-    mount | grep core || true
     mv $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1).orig
     echo Create modified OS snap for snappy-app-dev
     unsquashfs $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1)
