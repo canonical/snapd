@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -209,6 +210,22 @@ func (snapst *SnapState) Block() []snap.Revision {
 
 var ErrNoCurrent = errors.New("snap has no current revision")
 
+// Retrieval functions
+var readInfo = readInfoAnyway
+
+func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
+	info, err := snap.ReadInfo(name, si)
+	if _, ok := err.(*snap.NotFoundError); ok {
+		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
+		info := &snap.Info{SuggestedName: name, Broken: reason}
+		if si != nil {
+			info.SideInfo = *si
+		}
+		return info, nil
+	}
+	return info, err
+}
+
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
 func (snapst *SnapState) CurrentInfo(name string) (*snap.Info, error) {
 	cur := snapst.CurrentSideInfo()
@@ -333,6 +350,9 @@ func cachedStore(s *state.State) StoreService {
 	}
 	return ubuntuStore.(StoreService)
 }
+
+// the store implementation has the interface consumed here
+var _ StoreService = (*store.SnapUbuntuStoreRepository)(nil)
 
 // Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
@@ -571,12 +591,16 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	err = m.backend.RemoveSnapFiles(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	err = m.backend.RemoveSnapFiles(ss.placeInfo(), typ, pb)
 	if err != nil {
 		st.Lock()
-		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
+		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", ss.Name, err)
 		st.Unlock()
-		return state.Retry
+		return &state.Retry{After: 3 * time.Minute}
 	}
 
 	st.Lock()
@@ -641,14 +665,18 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, _, err := snapSetupAndState(t)
+	ss, snapst, err := snapSetupAndState(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoSetupSnap(ss.placeInfo(), pb)
+	typ, err := snapst.Type()
+	if err != nil {
+		return err
+	}
+	return m.backend.UndoSetupSnap(ss.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -676,6 +704,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := m.backend.SetupSnap(ss.SnapPath, snapst.Candidate, pb); err != nil {
 		return err
 	}
+
+	// set snapst type for undoMountSnap
+	newInfo, err := readInfo(ss.Name, snapst.Candidate)
+	if err != nil {
+		return err
+	}
+	snapst.SetType(newInfo.Type)
+	st := t.State()
+	st.Lock()
+	Set(st, ss.Name, snapst)
+	st.Unlock()
 
 	// cleanup the downloaded snap after it got installed
 	// in backend.SetupSnap.

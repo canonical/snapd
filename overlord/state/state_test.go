@@ -397,6 +397,8 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	chg.AddTask(t2)
 	t2ID := t2.ID()
 	t2.WaitFor(t1)
+	schedule := time.Now().Add(time.Hour)
+	t2.At(schedule)
 
 	// implicit checkpoint
 	st.Unlock()
@@ -448,6 +450,9 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 		tasks2[t.ID()] = t
 	}
 	c.Assert(tasks2, HasLen, 2)
+
+	c.Check(task0_1.AtTime().IsZero(), Equals, true)
+	c.Check(task0_2.AtTime().Equal(schedule), Equals, true)
 }
 
 func (ss *stateSuite) TestEnsureBefore(c *C) {
