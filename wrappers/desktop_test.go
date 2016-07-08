@@ -99,7 +99,7 @@ type sanitizeDesktopFileSuite struct{}
 var _ = Suite(&sanitizeDesktopFileSuite{})
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeIgnoreNotWhitelisted(c *C) {
-	snap := &snap.Info{SideInfo: snap.SideInfo{OfficialName: "foo", Revision: snap.R(12)}}
+	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(12)}}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 UnknownKey=baz

@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"gopkg.in/check.v1"
+	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
@@ -66,6 +67,8 @@ type apiSuite struct {
 	auther            store.Authenticator
 	restoreBackends   func()
 	refreshCandidates []*store.RefreshCandidate
+	buyOptions        *store.BuyOptions
+	buyResult         *store.BuyResult
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -100,6 +103,11 @@ func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, store.Au
 	panic("Download not expected to be called")
 }
 
+func (s *apiSuite) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+	s.buyOptions = options
+	return s.buyResult, s.err
+}
+
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
@@ -129,6 +137,9 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.refreshCandidates = nil
 	// Disable real security backends for all API tests
 	s.restoreBackends = ifacestate.MockSecurityBackends(nil)
+
+	s.buyOptions = nil
+	s.buyResult = nil
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
@@ -166,11 +177,11 @@ func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revn
 func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
-		SnapID:       "funky-snap-id",
-		OfficialName: name,
-		Developer:    developer,
-		Revision:     revno,
-		Channel:      "stable",
+		SnapID:    "funky-snap-id",
+		RealName:  name,
+		Developer: developer,
+		Revision:  revno,
+		Channel:   "stable",
 	}
 
 	// Collect other arguments into a yaml string
@@ -429,7 +440,7 @@ func (s *apiSuite) makeMyAppsServer(statusCode int, data string) *httptest.Serve
 		w.WriteHeader(statusCode)
 		io.WriteString(w, data)
 	}))
-	store.MyAppsPackageAccessAPI = mockMyAppsServer.URL + "/acl/package_access/"
+	store.MyAppsMacaroonACLAPI = mockMyAppsServer.URL + "/acl/"
 	return mockMyAppsServer
 }
 
@@ -442,9 +453,41 @@ func (s *apiSuite) makeSSOServer(statusCode int, data string) *httptest.Server {
 	return mockSSOServer
 }
 
+func (s *apiSuite) makeStoreMacaroon() (string, error) {
+	m, err := macaroon.New([]byte("secret"), "some id", "location")
+	if err != nil {
+		return "", err
+	}
+	err = m.AddFirstPartyCaveat("caveat")
+	if err != nil {
+		return "", err
+	}
+	err = m.AddThirdPartyCaveat([]byte("shared-secret"), "third-party-caveat", store.UbuntuoneLocation)
+	if err != nil {
+		return "", err
+	}
+
+	return auth.MacaroonSerialize(m)
+}
+
+func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string, error) {
+	data := map[string]string{
+		"macaroon": serializedMacaroon,
+	}
+	expectedData, err := json.Marshal(data)
+	if err != nil {
+		return "", err
+	}
+
+	return string(expectedData), nil
+}
+
 func (s *apiSuite) TestLoginUser(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
@@ -458,7 +501,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	rsp := loginUser(snapCmd, req, nil).(*resp)
 
 	expected := loginResponseData{
-		Macaroon:   "the-macaroon-serialized-data",
+		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
 	c.Check(rsp.Status, check.Equals, 200)
@@ -469,7 +512,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	expectedUser := auth.UserState{
 		ID:         1,
 		Username:   "username",
-		Macaroon:   "the-macaroon-serialized-data",
+		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
 	expectedUser.StoreMacaroon = expectedUser.Macaroon
@@ -529,12 +572,15 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get package access macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get snap access permission")
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_REQUIRED"}`
@@ -553,8 +599,11 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 }
 
 func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "TWOFACTOR_FAILURE"}`
@@ -573,8 +622,11 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 }
 
 func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
-	macaroon := `{"macaroon": "the-macaroon-serialized-data"}`
-	mockMyAppsServer := s.makeMyAppsServer(200, macaroon)
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
 	defer mockMyAppsServer.Close()
 
 	discharge := `{"code": "INVALID_CREDENTIALS"}`
@@ -589,7 +641,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot get discharge macaroon")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate on snap store")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
@@ -733,8 +785,8 @@ func (s *apiSuite) TestSnapsInfoOnlyLocal(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -756,8 +808,8 @@ func (s *apiSuite) TestFind(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 
@@ -783,8 +835,8 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mockSnap(c, "name: foo\nversion: 1.0")
@@ -822,8 +874,8 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 		},
 		MustBuy: true,
 		SideInfo: snap.SideInfo{
-			OfficialName: "banana",
-			Developer:    "foo",
+			RealName:  "banana",
+			Developer: "foo",
 		},
 	}}
 
@@ -853,8 +905,8 @@ func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "store",
-			Developer:    "foo",
+			RealName:  "store",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -879,19 +931,19 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 		{
 			// no explicit confinement in this one
 			SideInfo: snap.SideInfo{
-				OfficialName: "foo",
+				RealName: "foo",
 			},
 		},
 		{
 			Confinement: snap.StrictConfinement,
 			SideInfo: snap.SideInfo{
-				OfficialName: "bar",
+				RealName: "bar",
 			},
 		},
 		{
 			Confinement: snap.DevmodeConfinement,
 			SideInfo: snap.SideInfo{
-				OfficialName: "baz",
+				RealName: "baz",
 			},
 		},
 	}
@@ -940,8 +992,8 @@ func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		Version: "v42",
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -980,8 +1032,8 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalledInState(c, d, "local", "foo", "v1", snap.R(10), true, "")
@@ -999,8 +1051,8 @@ func (s *apiSuite) TestSnapsInfoDefaultSources(c *check.C) {
 func (s *apiSuite) TestSnapsInfoUnknownSource(c *check.C) {
 	s.rsnaps = []*snap.Info{{
 		SideInfo: snap.SideInfo{
-			OfficialName: "remote",
-			Developer:    "foo",
+			RealName:  "remote",
+			Developer: "foo",
 		},
 	}}
 	s.mkInstalled(c, "local", "foo", "v1", snap.R(10), true, "")
@@ -2856,4 +2908,81 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+}
+
+func (s *apiSuite) TestBuySnap(c *check.C) {
+	s.buyResult = &store.BuyResult{State: "Complete"}
+	s.err = nil
+
+	buf := bytes.NewBufferString(`{
+	  "snap-id": "the-snap-id-1234abcd",
+	  "snap-name": "the snap name",
+	  "channel": "channel-1234abcd",
+	  "price": 1.23,
+	  "currency": "EUR"
+	}`)
+	req, err := http.NewRequest("POST", "/v2/buy", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	rsp := postBuy(snapCmd, req, nil).(*resp)
+
+	expected := buyResponseData{
+		State: "Complete",
+	}
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
+		SnapID:   "the-snap-id-1234abcd",
+		SnapName: "the snap name",
+		Channel:  "channel-1234abcd",
+		Price:    1.23,
+		Currency: "EUR",
+		Auther:   user.Authenticator(),
+	})
+}
+
+func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
+	s.buyResult = nil
+	s.err = fmt.Errorf("Missing parameter")
+
+	// snap name missing
+	buf := bytes.NewBufferString(`{
+	  "snap-id": "the-snap-id-1234abcd",
+	  "channel": "channel-1234abcd",
+	  "price": 1.23,
+	  "currency": "EUR"
+	}`)
+	req, err := http.NewRequest("POST", "/v2/buy", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	rsp := postBuy(snapCmd, req, nil).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "Missing parameter")
+
+	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
+		SnapID:   "the-snap-id-1234abcd",
+		Channel:  "channel-1234abcd",
+		Price:    1.23,
+		Currency: "EUR",
+		Auther:   user.Authenticator(),
+	})
 }
