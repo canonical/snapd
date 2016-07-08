@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -208,6 +209,22 @@ func (snapst *SnapState) Block() []snap.Revision {
 }
 
 var ErrNoCurrent = errors.New("snap has no current revision")
+
+// Retrieval functions
+var readInfo = readInfoAnyway
+
+func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
+	info, err := snap.ReadInfo(name, si)
+	if _, ok := err.(*snap.NotFoundError); ok {
+		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
+		info := &snap.Info{SuggestedName: name, Broken: reason}
+		if si != nil {
+			info.SideInfo = *si
+		}
+		return info, nil
+	}
+	return info, err
+}
 
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
 func (snapst *SnapState) CurrentInfo(name string) (*snap.Info, error) {
@@ -581,9 +598,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.RemoveSnapFiles(ss.placeInfo(), typ, pb)
 	if err != nil {
 		st.Lock()
-		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name, err)
+		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", ss.Name, err)
 		st.Unlock()
-		return state.Retry
+		return &state.Retry{After: 3 * time.Minute}
 	}
 
 	st.Lock()
