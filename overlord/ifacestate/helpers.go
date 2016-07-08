@@ -26,6 +26,10 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -216,3 +220,14 @@ func getConns(st *state.State) (map[string]connState, error) {
 func setConns(st *state.State, conns map[string]connState) {
 	st.Set("conns", conns)
 }
+
+var securityBackends = []interfaces.SecurityBackend{
+	&seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}, &mount.Backend{},
+}
+
+func init() {
+	if !release.ReleaseInfo.ForceDevMode() {
+		securityBackends = append(securityBackends, &apparmor.Backend{})
+	}
+}
+
