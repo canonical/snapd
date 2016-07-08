@@ -1,18 +1,45 @@
 summary: Ensure that the locale-control interface works.
 
-execute: |
+summary: |
+    The locale-control interface allows a snap to access the locale configuration.
+
+    A snap which defines the locale-control plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to access the /etc/default/locale
+    file.
+
+environment:
+    LANG: $(echo -n $LANG)
+
+prepare: |
     echo "Given a snap declaring a plug on the locale-control interface is installed"
+    snapbuild $TESTSLIB/snaps/locale-control-consumer .
+    snap install locale-control-consumer_1.0_all.snap
+
+execute: |
+    CONNECTED_PATTERN=":locale-control +locale-control-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +locale-control-consumer:locale-control"
 
     echo "Then it is not connected by default"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "==================================="
 
     echo "When the plug is connected"
+    snap connect locale-control-consumer:locale-control ubuntu-core:locale-control
 
-    echo "Then the snap si able to modify the locale configuration"
+    echo "Then the snap is able to read the locale configuration"
+    [ $(sudo -i -u test /bin/sh -c "locale-control-consumer.get LANG") = "$LANG" ]
 
     echo "==================================="
 
     echo "When the plug is disconnected"
+    snap disconnect locale-control-consumer:locale-control ubuntu-core:locale-control
 
-    echo "Then the snap is not able to modify the locale configuration"
+    echo "Then the snap is not able to read the locale configuration"
+    if sudo -i -u test /bin/sh -c "locale-control-consumer.get LANG"; then
+        echo "Expected permission error accessing locale configuration with disconnected plug"
+        exit 1
+    fi
