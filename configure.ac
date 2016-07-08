@@ -88,25 +88,6 @@ PKG_CHECK_MODULES([UDEV], [udev])
 # Check for glib that we use for unit testing
 PKG_CHECK_MODULES([GLIB], [glib-2.0])
 
-# Allow to use the new execution environment based on pivot_root and bind-mount
-# of the core snap. This is closer to how an all-snap system would execute
-# applications (the root file system is a read only core snap) and is more
-# flexible in how the host OS can look like (it can have any directory layout)
-# and lastly it is much easier to implement arbitrary bind mounts from the
-# classic environment.
-AC_ARG_ENABLE([rootfs_is_core_snap],
-    AS_HELP_STRING([--enable-rootfs-is-core-snap], [Use core snap as the root file system]),
-    [case "${enableval}" in
-        yes) enable_rootfs_is_core_snap=yes ;;
-        no)  enable_rootfs_is_core_snap=no ;;
-        *) AC_MSG_ERROR([bad value ${enableval} for --enable-rootfs-is-core-snap])
-    esac], [enable_rootfs_is_core_snap=no])
-AM_CONDITIONAL([ROOTFS_IS_CORE_SNAP], [test "x$enable_rootfs_is_core_snap" = "xyes"])
-
-AS_IF([test "x$enable_rootfs_is_core_snap" = "xyes"], [
-    AC_DEFINE([ROOTFS_IS_CORE_SNAP], [1],
-        [Use the core snap as the root file system])])
-
 # Enable special support for hosts with proprietary nvidia drivers on Ubuntu.
 AC_ARG_ENABLE([nvidia-ubuntu],
     AS_HELP_STRING([--enable-nvidia-ubuntu], [Support for proprietary nvidia drivers (Ubuntu)]),
