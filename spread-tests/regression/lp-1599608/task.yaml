@@ -1,23 +1,23 @@
 # The setup for this test is unorthodox because by the time the cgroup code
 # is executed, the mounts are in place and /lib/udev/snappy-app-dev from the
-# OS snap is used. Unfortunately, simple bind mounts over
-# /snap/ubuntu-core/current/lib/udev don't work and the OS snap must be
+# core snap is used. Unfortunately, simple bind mounts over
+# /snap/ubuntu-core/current/lib/udev don't work and the core snap must be
 # unpacked, lib/udev/snappy-app-dev modified to be tested, repacked and
-# mounted. We unmount the OS snap and move it aside to avoid both the original
-# and the updated OS snap from being mounted on the same mount point, which
-# confuses the kernel.
+# mounted. We unmount the core snap and move it aside to avoid both the
+# original and the updated core snap from being mounted on the same mount
+# point, which confuses the kernel.
 summary: Check that execle doesn't regress
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
 restore: |
-    echo Remove hello-world
+    echo "Remove hello-world"
     snap remove hello-world
-    echo Unmount the modified OS snap
+    echo "Unmount the modified core snap"
     # all of this ls madness can go away when we have remote environment
     # variables
     umount $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
     if [ "x"$(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1) != "x" ]; then mv -f $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1) $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1 | sed 's/.orig//') ; fi
-    echo Mount the original OS snap
+    echo "Mount the original core snap"
     mount $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
     rm -rf /squashfs-root
     rm -f /run/spread-test.out
@@ -28,23 +28,22 @@ restore: |
     udevadm settle
 execute: |
     cd /
-    echo Install hello-world
+    echo "Install hello-world"
     snap install hello-world
     # all of this ls madness can go away when we have remote environment
     # variables
-    echo Unmount original OS snap
+    echo "Unmount original core snap"
     umount $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
     mv $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1).orig
-    echo Create modified OS snap for snappy-app-dev
+    echo "Create modified core snap for snappy-app-dev"
     unsquashfs $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1)
     echo 'echo PATH=$PATH > /run/spread-test.out' >> ./squashfs-root/lib/udev/snappy-app-dev
     echo 'echo TESTVAR=$TESTVAR >> /run/spread-test.out' >> ./squashfs-root/lib/udev/snappy-app-dev
     mksquashfs ./squashfs-root $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap.orig | tail -1 | sed 's/.orig//') -comp xz
     if [ ! -e $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) ]; then exit 1; fi
-    echo Mount modified OS snap
+    echo "Mount modified core snap"
     mount $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
-    mount | grep core || true
-    echo Add a udev tag so affected code branch is exercised
+    echo "Add a udev tag so affected code branch is exercised"
     echo 'KERNEL=="uinput", TAG+="snap_hello-world_env"' > /etc/udev/rules.d/70-spread-test.rules
     udevadm control --reload-rules
     udevadm settle
@@ -52,5 +51,7 @@ execute: |
     udevadm settle
     PATH=/foo:$PATH TESTVAR=bar hello-world.env | grep PATH
     cat /run/spread-test.out
+    echo "Ensure user-specified PATH is not used"
     if grep 'PATH=/foo' /run/spread-test.out ; then exit 1; fi
+    echo "Ensure environment is clean"
     if grep 'TESTVAR=bar' /run/spread-test.out ; then exit 1; fi
