@@ -2588,13 +2588,13 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	c.Check(tasks[len(tasks)-2].Kind(), Equals, "clear-snap")
 	err = tasks[len(tasks)-2].Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
-	c.Check(ss.Revision, Equals, si4.Revision)
+	c.Check(ss.Revision(), Equals, si4.Revision)
 
 	c.Check(tasks[len(tasks)-3].Kind(), Equals, "discard-snap")
 	c.Check(tasks[len(tasks)-4].Kind(), Equals, "clear-snap")
 	err = tasks[len(tasks)-4].Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
-	c.Check(ss.Revision, Equals, si3.Revision)
+	c.Check(ss.Revision(), Equals, si3.Revision)
 
 	// ensure only si3, si4 are removed
 	c.Check(tasks[len(tasks)-5].Kind(), Not(Equals), "discard-snap")

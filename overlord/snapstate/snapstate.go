@@ -122,7 +122,6 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	addTask(linkSnap)
 
 	// Do not do that if we are reverting to a local revision
-	revisionIsLocal := snapst.findIndex(ss.Revision) >= 0
 	if snapst.HasCurrent() && !revisionIsLocal {
 		prev := linkSnap
 		seq := snapst.Sequence
@@ -132,7 +131,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		// a previous versions earlier)
 		for i := currentIndex + 1; i < len(seq); i++ {
 			si := seq[i]
-			ts := removeInactiveRevision(s, ss.Name, si.Revision)
+			ts := removeInactiveRevision(s, ss.Name(), si.Revision)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
