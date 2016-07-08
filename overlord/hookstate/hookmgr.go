@@ -176,9 +176,12 @@ func doRunHook(snapName string, revision snap.Revision, hookName string) ([]byte
 func doRunCommand(name string, args ...string) ([]byte, error) {
 	output, err := exec.Command(name, args...).CombinedOutput()
 	if err != nil {
-		// "exit code 1" is not particularly helpful. So rewrite the error
-		// using stdout and stderr instead.
-		err = fmt.Errorf("%s", strings.Trim(string(output), " \n"))
+		// Make the error a bit more informative
+		trimmedOutput := strings.Trim(string(output), " \n")
+		stringArgs := strings.Join(args, " ")
+		err = fmt.Errorf(
+			"failed to run command '%s %s': %s (%s)", name, stringArgs,
+			trimmedOutput, err)
 	}
 
 	return output, err
