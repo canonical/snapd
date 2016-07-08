@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -218,13 +219,29 @@ func (snapst *SnapState) Block() []snap.Revision {
 
 var ErrNoCurrent = errors.New("snap has no current revision")
 
+// Retrieval functions
+var readInfo = readInfoAnyway
+
+func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
+	info, err := snap.ReadInfo(name, si)
+	if _, ok := err.(*snap.NotFoundError); ok {
+		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
+		info := &snap.Info{SuggestedName: name, Broken: reason}
+		if si != nil {
+			info.SideInfo = *si
+		}
+		return info, nil
+	}
+	return info, err
+}
+
 // CurrentInfo returns the information about the current active revision or the last active revision (if the snap is inactive). It returns the ErrNoCurrent error if snapst.Current is unset.
-func (snapst *SnapState) CurrentInfo(name string) (*snap.Info, error) {
+func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 	cur := snapst.CurrentSideInfo()
 	if cur == nil {
 		return nil, ErrNoCurrent
 	}
-	return readInfo(name, cur)
+	return readInfo(cur.RealName, cur)
 }
 
 // DevMode returns true if the snap is installed in developer mode.
@@ -343,6 +360,9 @@ func cachedStore(s *state.State) StoreService {
 	return ubuntuStore.(StoreService)
 }
 
+// the store implementation has the interface consumed here
+var _ StoreService = (*store.SnapUbuntuStoreRepository)(nil)
+
 // Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
 	if cachedStore := cachedStore(s); cachedStore != nil {
@@ -399,17 +419,6 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 		snapst.LocalRevision = revision
 		ss.SideInfo.Revision = revision
-	} else {
-		for _, si := range snapst.Sequence {
-			if si.Revision == ss.Revision() {
-				ss.SideInfo = si
-				break
-			}
-		}
-	}
-
-	if ss.SideInfo == nil {
-		return fmt.Errorf("cannot prepare snap %q with unknown revision %s", ss.Name(), ss.Revision())
 	}
 
 	st.Lock()
@@ -581,9 +590,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	err = m.backend.RemoveSnapFiles(ss.placeInfo(), typ, pb)
 	if err != nil {
 		st.Lock()
-		t.Errorf("cannot remove snap file %q, will retry: %s", ss.Name(), err)
+		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", ss.Name(), err)
 		st.Unlock()
-		return state.Retry
+		return &state.Retry{After: 3 * time.Minute}
 	}
 
 	st.Lock()
@@ -670,7 +679,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	curInfo, err := snapst.CurrentInfo(ss.Name())
+	curInfo, err := snapst.CurrentInfo()
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -723,7 +732,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
 	}
@@ -753,7 +762,7 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return err
 	}
@@ -786,7 +795,7 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}
@@ -808,7 +817,7 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	oldInfo, err := snapst.CurrentInfo(ss.Name())
+	oldInfo, err := snapst.CurrentInfo()
 	if err != nil && err != ErrNoCurrent {
 		return err
 	}

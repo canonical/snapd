@@ -483,11 +483,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
-	c.Check(task.Summary(), Equals, `Download snap "some-snap" from channel "some-channel" (rev 11)`)
+	c.Check(task.Summary(), Equals, `Download snap "some-snap" (11) from channel "some-channel"`)
 
 	// check link snap summary
 	linkTask := ta[len(ta)-1]
-	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" available to the system (rev 11)`)
+	c.Check(linkTask.Summary(), Equals, `Make snap "some-snap" (11) available to the system`)
 
 	// verify snap-setup in the task state
 	var ss snapstate.SnapSetup
@@ -1007,8 +1007,10 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
-		Active:        true,
-		Sequence:      []*snap.SideInfo{{Revision: snap.R(-2)}},
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "mock", Revision: snap.R(-2)},
+		},
 		LocalRevision: snap.R(-2),
 		Current:       snap.R(-2),
 	})
@@ -1090,8 +1092,10 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
-		Active:        true,
-		Sequence:      []*snap.SideInfo{{Revision: snap.R(100001)}},
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "mock", Revision: snap.R(100001)},
+		},
 		LocalRevision: snap.R(100001),
 		Current:       snap.R(100001),
 	})
@@ -2067,7 +2071,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 	err := snapstate.Get(st, "name1", &snapst)
 	c.Assert(err, IsNil)
 
-	info, err := snapst.CurrentInfo("name1")
+	info, err := snapst.CurrentInfo()
 	c.Assert(err, IsNil)
 
 	c.Check(info.Name(), Equals, "name1")
@@ -2079,7 +2083,7 @@ func (s *snapmgrQuerySuite) TestSnapStateCurrentInfo(c *C) {
 
 func (s *snapmgrQuerySuite) TestSnapStateCurrentInfoErrNoCurrent(c *C) {
 	snapst := new(snapstate.SnapState)
-	_, err := snapst.CurrentInfo("notthere")
+	_, err := snapst.CurrentInfo()
 	c.Assert(err, Equals, snapstate.ErrNoCurrent)
 
 }
@@ -2130,7 +2134,10 @@ func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
 	_, err := snapstate.GadgetInfo(st)
 	c.Assert(err, Equals, state.ErrNoState)
 
-	sideInfoGadget := &snap.SideInfo{Revision: snap.R(2)}
+	sideInfoGadget := &snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(2),
+	}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget

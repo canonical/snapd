@@ -165,7 +165,8 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 
 	// Remove security artefacts of the snap.
 	if err := removeSnapSecurity(task, snapName); err != nil {
-		return state.Retry
+		// TODO: how long to wait?
+		return &state.Retry{}
 	}
 
 	return nil
