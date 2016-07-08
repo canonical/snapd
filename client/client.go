@@ -157,7 +157,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	if v != nil {
 		dec := json.NewDecoder(rsp.Body)
 		if err := dec.Decode(v); err != nil {
-			return err
+			return fmt.Errorf("cannot decode %q: %s", rsp.Body, err)
 		}
 	}
 
