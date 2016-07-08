@@ -144,6 +144,7 @@ func GPGImportKey(homedir, armoredKey string) {
 	}
 }
 
+// A SignerDB can sign assertions using its key pairs.
 type SignerDB interface {
 	Sign(assertType *asserts.AssertionType, headers map[string]string, body []byte, keyID string) (asserts.Assertion, error)
 }
@@ -202,7 +203,7 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, pubKey asserts.PublicKey,
 	return a.(*asserts.AccountKey)
 }
 
-// A signing assertion database with a default private key and assigned authority id.
+// SigningDB embeds a signing assertion database with a default private key and assigned authority id.
 // Sign will use the assigned authority id.
 // "" can be passed for keyID to Sign and PublicKey to use the default key.
 type SigningDB struct {
@@ -246,16 +247,17 @@ func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
 	return db.Database.PublicKey(db.AuthorityID, keyID)
 }
 
-// A store tower realises a store-like set of founding assertions and signing setup.
+// StoreTower realises a store-like set of founding trusted assertions and signing setup.
 type StoreTower struct {
+	// Trusted authority assertions.
 	TrustedAccount *asserts.Account
 	TrustedKey     *asserts.AccountKey
 	Trusted        []asserts.Assertion
 
-	// Signing assertion db for the root private key.
+	// Signing assertion db that signs with the root private key.
 	RootSigning *SigningDB
 
-	// The store-like signing functionality, setup to also store assertions if desired. It stores a default account-key for the store private key, see also the method Key.
+	// The store-like signing functionality that signs with a store key, setup to also store assertions if desired. It stores a default account-key for the store private key, see also the StoreTower.Key method.
 	*SigningDB
 }
 
@@ -303,7 +305,7 @@ func NewStoreTower(authorityID string, rootPrivKey, storePrivKey asserts.Private
 }
 
 // Key gets an account-key or returns nil if not found. It panics on
-// other errors.  ("", "") as arguments will find the default one.
+// other errors.  ("", "") as arguments will lookup the store key one.
 func (twr *StoreTower) Key(authorityID, keyID string) *asserts.AccountKey {
 	if authorityID == "" {
 		authorityID = twr.AuthorityID
