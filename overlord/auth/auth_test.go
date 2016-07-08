@@ -321,9 +321,16 @@ func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
-	authenticator := user.Authenticator()
+	authenticator, ok := user.Authenticator().(*auth.MacaroonAuthenticator)
+	c.Assert(ok, Equals, true)
 	c.Check(authenticator.Macaroon, Equals, user.Macaroon)
 	c.Check(authenticator.Discharges, DeepEquals, user.Discharges)
+}
+
+func (as *authSuite) TestGetAuthenticatorFromNilUser(c *C) {
+	// just check we don't blow up, really
+	user := (*auth.UserState)(nil)
+	c.Check(user.Authenticator(), IsNil)
 }
 
 func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
