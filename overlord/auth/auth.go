@@ -149,7 +149,10 @@ NextUser:
 }
 
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
-func (us *UserState) Authenticator() *MacaroonAuthenticator {
+func (us *UserState) Authenticator() store.Authenticator {
+	if us == nil {
+		return nil
+	}
 	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
 }
 
