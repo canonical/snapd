@@ -120,7 +120,8 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	addTask(linkSnap)
 
 	// Do not do that if we are reverting to a local revision
-	if ss.Revision.Unset() && snapst.HasCurrent() {
+	revisionIsLocal := snapst.findIndex(ss.Revision) >= 0
+	if snapst.HasCurrent() && !revisionIsLocal {
 		prev := linkSnap
 		seq := snapst.Sequence
 		currentIndex := snapst.findIndex(snapst.Current)
