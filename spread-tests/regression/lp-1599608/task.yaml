@@ -37,9 +37,9 @@ execute: |
     PATH=/foo:$PATH TESTVAR=bar hello-world.env | grep PATH
     cat /run/udev/spread-test.out
     echo "Ensure user-specified PATH is not used"
-    !grep 'PATH=/foo' /run/udev/spread-test.out
+    ! grep 'PATH=/foo' /run/udev/spread-test.out
     echo "Ensure environment is clean"
-    !grep 'TESTVAR=bar' /run/udev/spread-test.out
+    ! grep 'TESTVAR=bar' /run/udev/spread-test.out
 restore: |
     echo "Remove hello-world"
     snap remove hello-world
