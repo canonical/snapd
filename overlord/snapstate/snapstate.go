@@ -68,7 +68,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 
 	revisionStr := ""
 	if ss.SideInfo != nil {
-		revisionStr = fmt.Sprintf(" (%s)", ss.SideInfo.Revision)
+		revisionStr = fmt.Sprintf(" (%s)", ss.Revision())
 	}
 
 	// check if we already have the revision locally (alters tasks)
