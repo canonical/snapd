@@ -97,13 +97,6 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	for name, snapState := range snapStates {
 		info, err := snapState.CurrentInfo(name)
 		if err != nil {
-			// FIXME: this is just a tiny step forward to not
-			//        totally break if a snap can no longer
-			//        be found. we will add more smartness to
-			//        this
-			if _, ok := err.(*snap.NotFoundError); ok {
-				continue
-			}
 			// XXX: aggregate instead?
 			if firstErr == nil {
 				firstErr = err
