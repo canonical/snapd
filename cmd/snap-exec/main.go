@@ -45,21 +45,21 @@ func main() {
 	}
 }
 
-func parseArgs(args []string) ([]string, error) {
+func parseArgs(args []string) (app string, appArgs []string, err error) {
 	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	rest, err := parser.ParseArgs(args)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if len(rest) == 0 {
-		return nil, fmt.Errorf("need the application to run as argument")
+		return "", nil, fmt.Errorf("need the application to run as argument")
 	}
 
-	return rest, nil
+	return rest[0], rest[1:], nil
 }
 
 func run() error {
-	args, err := parseArgs(os.Args)
+	snapApp, args, err := parseArgs(os.Args)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,6 @@ func run() error {
 	// confinement and (generally) can not talk to snapd
 	revision := os.Getenv("SNAP_REVISION")
 
-	snapApp := args[0]
 	return snapExec(snapApp, revision, opts.Command, args[1:])
 }
 
