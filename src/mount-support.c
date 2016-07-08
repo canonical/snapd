@@ -24,9 +24,7 @@
 #include <sys/mount.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#ifdef ROOTFS_IS_CORE_SNAP
 #include <sys/syscall.h>
-#endif
 #include <errno.h>
 #include <sched.h>
 #include <string.h>
@@ -161,7 +159,6 @@ static void sc_bind_mount_hostfs(const char *rootfs_dir)
 void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
-#ifdef ROOTFS_IS_CORE_SNAP
 	char rootfs_dir[MAX_BUF] = { 0 };
 	// Create a temporary directory that will become the root directory of this
 	// process later on. The directory will be used as a mount point for the
@@ -260,42 +257,6 @@ void setup_snappy_os_mounts()
 	// left out as they are not part of the core snap.
 	debug("resetting PATH to values in sync with core snap");
 	setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
-#else
-	// we mount some whitelisted directories
-	//
-	// Note that we do not mount "/etc/" from snappy. We could do that,
-	// but if we do we need to ensure that data like /etc/{hostname,hosts,
-	// passwd,groups} is in sync between the two systems (probably via
-	// selected bind mounts of those files).
-	const char *mounts[] =
-	    { "/bin", "/sbin", "/lib", "/lib32", "/libx32", "/lib64", "/usr",
-		"/etc/alternatives"
-	};
-	for (int i = 0; i < sizeof(mounts) / sizeof(char *); i++) {
-		// we mount the OS snap /bin over the real /bin in this NS
-		const char *dst = mounts[i];
-
-		char buf[512];
-		must_snprintf(buf, sizeof(buf), "/snap/ubuntu-core/current/%s",
-			      dst);
-		const char *src = buf;
-
-		// some system do not have e.g. /lib64
-		struct stat sbuf;
-		if (stat(dst, &sbuf) != 0 || stat(src, &sbuf) != 0) {
-			if (errno == ENOENT)
-				continue;
-			else
-				die("could not stat mount point");
-		}
-
-		debug("mounting %s -> %s\n", src, dst);
-		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
-			die("unable to bind %s to %s", src, dst);
-		}
-	}
-	sc_mount_nvidia_driver("");
-#endif				// ROOTFS_IS_CORE_SNAP
 }
 
 void setup_slave_mount_namespace()
