@@ -106,6 +106,10 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	return "downloaded-snap-path", nil
 }
 
+func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+	panic("Never expected apiSuite.Buy to be called")
+}
+
 type fakeSnappyBackend struct {
 	ops []fakeOp
 
