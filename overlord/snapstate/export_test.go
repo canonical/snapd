@@ -67,8 +67,9 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 }
 
 func MockReadInfo(mock func(name string, si *snap.SideInfo) (*snap.Info, error)) (restore func()) {
+	old := readInfo
 	readInfo = mock
-	return func() { readInfo = snap.ReadInfo }
+	return func() { readInfo = old }
 }
 
 func MockOpenSnapFile(mock func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error)) (restore func()) {
