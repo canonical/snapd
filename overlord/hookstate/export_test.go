@@ -19,10 +19,10 @@
 
 package hookstate
 
-func MockRunCommandFunction(f func(string, ...string) ([]byte, error)) (restore func()) {
-	runCommandOrig := runCommand
-	runCommand = f
+func MockStartCommandFunction(f func(string, ...string) (ProcessRunner, error)) (restore func()) {
+	startCommandOrig := startCommand
+	startCommand = f
 	return func() {
-		runCommand = runCommandOrig
+		startCommand = startCommandOrig
 	}
 }
