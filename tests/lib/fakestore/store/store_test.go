@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -154,19 +153,12 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 }`, s.store.URL()))
 }
 
-// FIXME: extract into snappy/testutils
 func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
-	tmpdir := c.MkDir()
-	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-
-	snapYaml := filepath.Join(tmpdir, "meta", "snap.yaml")
-	err := ioutil.WriteFile(snapYaml, []byte(snapYamlContent), 0644)
+	fn := snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
+	dst := filepath.Join(s.store.blobDir, filepath.Base(fn))
+	err := osutil.CopyFile(fn, dst, 0)
 	c.Assert(err, IsNil)
-
-	targetDir := s.store.blobDir
-	snapFn, err := snaptest.BuildSquashfsSnap(tmpdir, targetDir)
-	c.Assert(err, IsNil)
-	return snapFn
+	return dst
 }
 
 func (s *storeTestSuite) TestMakeTestSnap(c *C) {
