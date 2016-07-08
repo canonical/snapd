@@ -86,7 +86,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccess(c *C) {
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:    "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		Channel: "beta",
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
@@ -127,7 +129,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:    "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		Channel: "beta",
 	})
 	chg := s.state.NewChange("dummy", "...")
@@ -168,7 +172,9 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:    "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		Channel: "beta",
 	})
 
@@ -221,7 +227,9 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name: "core",
+		SideInfo: &snap.SideInfo{
+			RealName: "core",
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -265,8 +273,8 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:    "foo",
-		Channel: "beta",
+		SideInfo: &snap.SideInfo{RealName: "foo"},
+		Channel:  "beta",
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -311,7 +319,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	})
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:    "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		Channel: "beta",
 	})
 	chg := s.state.NewChange("dummy", "...")
