@@ -161,7 +161,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 			r := dec.Buffered()
 			buf, err1 := ioutil.ReadAll(r)
 			if err1 != nil {
-				buf = []byte(fmt.Sprintf("error reading buffered: %s", err1))
+				buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
 			}
 			return fmt.Errorf("cannot decode %q: %s", buf, err)
 		}
