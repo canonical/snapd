@@ -103,14 +103,25 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.Repository) error {
 	st := task.State()
 	snapName := snapInfo.Name()
-	ss, err := snapstate.TaskSnapSetup(task)
 
-	if err != nil {
-		return err
+	var devMode bool
+	// check the TaskSnapSetup for data first, then the on-disk state
+	// (no more candidate means we need to look at two places here)
+	ss, err := snapstate.TaskSnapSetup(task)
+	if err == nil {
+		devMode = ss.DevMode()
+	} else {
+		var snapState snapstate.SnapState
+		snapName := snapInfo.Name()
+		if err := snapstate.Get(st, snapName, &snapState); err != nil {
+			task.Errorf("cannot get state of snap %q: %s", snapName, err)
+		}
+		devMode = snapState.DevMode()
 	}
+
 	for _, backend := range backends.All {
 		st.Unlock()
-		err := backend.Setup(snapInfo, ss.DevMode(), repo)
+		err := backend.Setup(snapInfo, devMode, repo)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
