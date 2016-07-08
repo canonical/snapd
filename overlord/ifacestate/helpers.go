@@ -225,9 +225,3 @@ var securityBackends = []interfaces.SecurityBackend{
 	&seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}, &mount.Backend{},
 }
 
-func init() {
-	if !release.ReleaseInfo.ForceDevMode() {
-		securityBackends = append(securityBackends, &apparmor.Backend{})
-	}
-}
-
