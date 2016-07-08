@@ -60,7 +60,9 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name: "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -75,6 +77,7 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
 		Revision: snap.R(-1),
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)
@@ -84,12 +87,12 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSetsCandidate(c *C) {
 	s.state.Lock()
 
 	si1 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(1),
+		RealName: "foo",
+		Revision: snap.R(1),
 	}
 	si2 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(2),
+		RealName: "foo",
+		Revision: snap.R(2),
 	}
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{si1, si2},
@@ -99,8 +102,10 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSetsCandidate(c *C) {
 
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		Revision: snap.R(1),
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -123,12 +128,12 @@ func (s *prepareSnapSuite) TestDoUndoPrepareSnap(c *C) {
 	defer s.state.Unlock()
 
 	si1 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(1),
+		RealName: "foo",
+		Revision: snap.R(1),
 	}
 	si2 := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(2),
+		RealName: "foo",
+		Revision: snap.R(2),
 	}
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
@@ -138,8 +143,10 @@ func (s *prepareSnapSuite) TestDoUndoPrepareSnap(c *C) {
 	})
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		Revision: snap.R(1),
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)

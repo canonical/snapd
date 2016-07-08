@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -45,8 +44,10 @@ type storeTestSuite struct {
 
 var _ = Suite(&storeTestSuite{})
 
+var defaultAddr = "localhost:23321"
+
 func (s *storeTestSuite) SetUpTest(c *C) {
-	s.store = NewStore(c.MkDir())
+	s.store = NewStore(c.MkDir(), defaultAddr)
 	err := s.store.Start()
 	c.Assert(err, IsNil)
 
@@ -96,13 +97,13 @@ func (s *storeTestSuite) TestSearchEndpoint(c *C) {
 	c.Assert(resp.StatusCode, Equals, 501)
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
-	c.Assert(string(body), Equals, "full search not implemented")
+	c.Assert(string(body), Equals, "search not implemented")
 
 }
 
-func (s *storeTestSuite) TestExactMathEndpoint(c *C) {
+func (s *storeTestSuite) TestDetailsEndpoint(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
-	resp, err := s.StoreGet(`/search?q=package_name:"foo"`)
+	resp, err := s.StoreGet(`/snaps/details/foo`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -110,20 +111,14 @@ func (s *storeTestSuite) TestExactMathEndpoint(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Assert(string(body), Equals, fmt.Sprintf(`{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "name": "foo.canonical",
-                "snap_id": "",
-                "package_name": "foo",
-                "origin": "canonical",
-                "anon_download_url": "%s/download/foo_1_all.snap",
-                "download_url": "%s/download/foo_1_all.snap",
-                "version": "1",
-                "revision": 424242
-            }
-        ]
-    }
+    "snap_id": "",
+    "package_name": "foo",
+    "origin": "canonical",
+    "developer_id": "canonical",
+    "anon_download_url": "%s/download/foo_1_all.snap",
+    "download_url": "%s/download/foo_1_all.snap",
+    "version": "1",
+    "revision": 424242
 }`, s.store.URL(), s.store.URL()))
 }
 
@@ -131,7 +126,7 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 	s.makeTestSnap(c, "name: hello-world\nversion: 1")
 
 	// note that we send the hello-world snapID here
-	resp, err := s.StorePostJSON("/metadata", []byte(`{
+	resp, err := s.StorePostJSON("/snaps/metadata", []byte(`{
 "snaps": [{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":1}]
 }`))
 	c.Assert(err, IsNil)
@@ -144,10 +139,10 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
     "_embedded": {
         "clickindex:package": [
             {
-                "name": "hello-world.canonical",
                 "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
                 "package_name": "hello-world",
                 "origin": "canonical",
+                "developer_id": "canonical",
                 "anon_download_url": "%[1]s/download/hello-world_1_all.snap",
                 "download_url": "%[1]s/download/hello-world_1_all.snap",
                 "version": "1",
@@ -158,19 +153,12 @@ func (s *storeTestSuite) TestBulkEndpoint(c *C) {
 }`, s.store.URL()))
 }
 
-// FIXME: extract into snappy/testutils
 func (s *storeTestSuite) makeTestSnap(c *C, snapYamlContent string) string {
-	tmpdir := c.MkDir()
-	os.MkdirAll(filepath.Join(tmpdir, "meta"), 0755)
-
-	snapYaml := filepath.Join(tmpdir, "meta", "snap.yaml")
-	err := ioutil.WriteFile(snapYaml, []byte(snapYamlContent), 0644)
+	fn := snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
+	dst := filepath.Join(s.store.blobDir, filepath.Base(fn))
+	err := osutil.CopyFile(fn, dst, 0)
 	c.Assert(err, IsNil)
-
-	targetDir := s.store.blobDir
-	snapFn, err := snaptest.BuildSquashfsSnap(tmpdir, targetDir)
-	c.Assert(err, IsNil)
-	return snapFn
+	return dst
 }
 
 func (s *storeTestSuite) TestMakeTestSnap(c *C) {

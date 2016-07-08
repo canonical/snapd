@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/macaroon.v1"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
 )
@@ -148,7 +149,10 @@ NextUser:
 }
 
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
-func (us *UserState) Authenticator() *MacaroonAuthenticator {
+func (us *UserState) Authenticator() store.Authenticator {
+	if us == nil {
+		return nil
+	}
 	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
 }
 
@@ -208,8 +212,30 @@ func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
 func (ma *MacaroonAuthenticator) Authenticate(r *http.Request) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, ma.Macaroon)
-	for _, discharge := range ma.Discharges {
-		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
+
+	// deserialize root macaroon (we need its signature to do the discharge binding)
+	root, err := MacaroonDeserialize(ma.Macaroon)
+	if err != nil {
+		logger.Debugf("cannot deserialize root macaroon: %v", err)
+		return
 	}
+
+	for _, d := range ma.Discharges {
+		// prepare discharge for request
+		discharge, err := MacaroonDeserialize(d)
+		if err != nil {
+			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
+			return
+		}
+		discharge.Bind(root.Signature())
+
+		serializedDischarge, err := MacaroonSerialize(discharge)
+		if err != nil {
+			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
+			return
+		}
+		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
+	}
+
 	r.Header.Set("Authorization", buf.String())
 }

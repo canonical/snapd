@@ -60,15 +60,18 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
-			{OfficialName: "foo", Revision: snap.R(33)},
+			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(33)},
 		},
-		Current: snap.R(33),
+		Current:  snap.R(33),
+		SnapType: "app",
 	})
 	t := s.state.NewTask("discard-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		Revision: snap.R(33),
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -92,14 +95,17 @@ func (s *discardSnapSuite) TestDoDiscardSnapToEmpty(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(3)},
 		},
-		Current: snap.R(3),
+		Current:  snap.R(3),
+		SnapType: "app",
 	})
 	t := s.state.NewTask("discard-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		Revision: snap.R(33),
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -119,15 +125,18 @@ func (s *discardSnapSuite) TestDoDiscardSnapErrorsForActive(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(3)},
 		},
-		Current: snap.R(3),
-		Active:  true,
+		Current:  snap.R(3),
+		Active:   true,
+		SnapType: "app",
 	})
 	t := s.state.NewTask("discard-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		Revision: snap.R(3),
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -148,16 +157,19 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{
-			{OfficialName: "foo", Revision: snap.R(3)},
-			{OfficialName: "foo", Revision: snap.R(33)},
+			{RealName: "foo", Revision: snap.R(3)},
+			{RealName: "foo", Revision: snap.R(33)},
 		},
-		Current: snap.R(33),
-		Active:  true,
+		Current:  snap.R(33),
+		Active:   true,
+		SnapType: "app",
 	})
 	t := s.state.NewTask("discard-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
-		Revision: snap.R(3),
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(3),
+		},
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -174,6 +186,7 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	err := snapstate.Get(s.state, "foo", &snapst)
 	c.Assert(err, IsNil)
 
+	c.Assert(chg.Err(), IsNil)
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(t.Status(), Equals, state.DoneStatus)
