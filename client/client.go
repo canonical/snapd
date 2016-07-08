@@ -163,7 +163,7 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 			if err1 != nil {
 				buf = []byte(fmt.Sprintf("error reading buffered: %s", err1))
 			}
-			return fmt.Errorf("cannot decode %q: %s", string(buf), err)
+			return fmt.Errorf("cannot decode %q: %s", buf, err)
 		}
 	}
 
