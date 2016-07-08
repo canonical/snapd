@@ -220,45 +220,6 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 	//      c.Check(fmt.Sprintf("%p", d.router.NotFoundHandler), check.Equals, fmt.Sprintf("%p", NotFound))
 }
 
-func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.Equals, auth.ErrInvalidAuth)
-	c.Check(user, check.IsNil)
-}
-
-func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.ErrorMatches, "invalid authorization header")
-	c.Check(user, check.IsNil)
-}
-
-func (s *daemonSuite) TestAutherValidUser(c *check.C) {
-	d := newTestDaemon(c)
-
-	state := d.overlord.State()
-	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
-
-	user, err := d.auther(req)
-
-	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, expectedUser.Authenticator())
-}
-
 type witnessAcceptListener struct {
 	net.Listener
 	accept chan struct{}

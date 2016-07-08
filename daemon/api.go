@@ -389,13 +389,8 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
-	auther, err := c.d.auther(r)
-	if err != nil && err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
-	}
-
 	store := getStore(c)
-	found, err := store.Find(query.Get("q"), query.Get("channel"), auther)
+	found, err := store.Find(query.Get("q"), query.Get("channel"), user.Authenticator())
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -467,12 +462,8 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		})
 	}
 
-	var auther store.Authenticator
-	if user != nil {
-		auther = user.Authenticator()
-	}
 	store := getStore(c)
-	updates, err := store.ListRefresh(candidatesInfo, auther)
+	updates, err := store.ListRefresh(candidatesInfo, user.Authenticator())
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
@@ -1343,11 +1334,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	opts.Auther, err = c.d.auther(r)
-	if err != nil && err != auth.ErrInvalidAuth {
-		return InternalError("%v", err)
-	}
-
+	opts.Auther = user.Authenticator()
 	s := getStore(c)
 
 	buyResult, err := s.Buy(&opts)
