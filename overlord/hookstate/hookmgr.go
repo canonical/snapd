@@ -170,12 +170,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func doRunHook(snapName string, revision snap.Revision, hookName string) ([]byte, error) {
-	revisionString := ""
-	if !revision.Unset() {
-		revisionString = revision.String()
-	}
-
-	return runCommand("snap", "run", snapName, "--hook", hookName, "-r", revisionString)
+	return runCommand("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
 }
 
 func doRunCommand(name string, args ...string) ([]byte, error) {
