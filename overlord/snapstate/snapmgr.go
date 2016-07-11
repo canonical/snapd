@@ -417,35 +417,24 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 		if !revision.Local() {
 			panic("internal error: invalid local revision built: " + revision.String())
 		}
-		snapst.LocalRevision = revision
 		ss.SideInfo.Revision = revision
 	}
 
 	st.Lock()
 	t.Set("snap-setup", ss)
-	Set(st, ss.Name(), snapst)
 	st.Unlock()
 	return nil
 }
 
 func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	ss, snapst, err := snapSetupAndState(t)
-	if err != nil {
-		return err
-	}
-
-	Set(st, ss.Name(), snapst)
+	// FIXME: remove the entire function
 	return nil
 }
 
 func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	ss, snapst, err := snapSetupAndState(t)
+	ss, _, err := snapSetupAndState(t)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -480,10 +469,9 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	ss.SnapPath = downloadedSnapFile
-	// update the snap setup and state for the follow up tasks
+	// update the snap setup for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
-	Set(st, ss.Name(), snapst)
 	st.Unlock()
 
 	return nil
