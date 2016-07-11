@@ -69,7 +69,7 @@ func setRealName(si *snap.SideInfo, name string) {
 }
 
 // patch2:
-// - migrates SnapSetup.Name to SnapSetup.SideInfo.RealName and candidate
+// - migrates SnapSetup.Name to SnapSetup.SideInfo.RealName
 // - backfills SnapState.{Sequence,Candidate}.RealName if its missing
 func patch2(s *state.State) error {
 
