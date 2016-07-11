@@ -434,7 +434,7 @@ func (m *SnapManager) undoPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
-	ss, _, err := snapSetupAndState(t)
+	ss, err := TaskSnapSetup(t)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -645,7 +645,7 @@ func snapSetupAndState(t *state.Task) (*SnapSetup, *SnapState, error) {
 
 func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
-	ss, _, err := snapSetupAndState(t)
+	ss, err := TaskSnapSetup(t)
 	t.State().Unlock()
 	if err != nil {
 		return err
