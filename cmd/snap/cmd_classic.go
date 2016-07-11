@@ -54,6 +54,10 @@ func init() {
 */
 
 func (x *cmdEnableClassic) Execute(args []string) (err error) {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return x.doEnable()
 }
 
