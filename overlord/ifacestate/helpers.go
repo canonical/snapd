@@ -108,7 +108,7 @@ func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.R
 	// check the TaskSnapSetup for data first, then the on-disk state
 	// (no more candidate means we need to look at two places here)
 	ss, err := snapstate.TaskSnapSetup(task)
-	if err == nil {
+	if err == nil && ss.SideInfo.RealName == snapInfo.Name() {
 		devMode = ss.DevMode()
 	} else {
 		var snapState snapstate.SnapState
