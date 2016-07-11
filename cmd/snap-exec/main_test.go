@@ -116,3 +116,21 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
+
+func (s *snapExecSuite) TestSnapExecIgnoresUnknownArgs(c *C) {
+	snapApp, rest, err := parseArgs([]string{"--command=shell", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, IsNil)
+	c.Assert(opts.Command, Equals, "shell")
+	c.Assert(snapApp, DeepEquals, "snapname.app")
+	c.Assert(rest, DeepEquals, []string{"--arg1", "arg2"})
+}
+
+func (s *snapExecSuite) TestSnapExecErrorsOnUnknown(c *C) {
+	_, _, err := parseArgs([]string{"--command=shell", "--unknown", "snapname.app", "--arg1", "arg2"})
+	c.Check(err, ErrorMatches, "unknown flag `unknown'")
+}
+
+func (s *snapExecSuite) TestSnapExecErrorsOnMissingSnapApp(c *C) {
+	_, _, err := parseArgs([]string{"--command=shell"})
+	c.Check(err, ErrorMatches, "need the application to run as argument")
+}
