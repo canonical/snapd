@@ -15,6 +15,9 @@ prepare: |
     snapbuild $TESTSLIB/snaps/locale-control-consumer .
     snap install locale-control-consumer_1.0_all.snap
 
+restore: |
+    rm -f locale-control-consumer_1.0_all.snap
+
 execute: |
     CONNECTED_PATTERN=":locale-control +locale-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +locale-control-consumer:locale-control"
