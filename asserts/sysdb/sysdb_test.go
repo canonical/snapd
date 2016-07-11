@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -70,15 +69,7 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(fakeRoot)
 
-	headers := map[string]string{
-		"authority-id": "can0nical",
-		"account-id":   "acct1",
-		"display-name": "Acct 1",
-		"validation":   "unproven",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	sdbs.probeAssert, err = signingDB.Sign(asserts.AccountType, headers, nil, "")
-	c.Assert(err, IsNil)
+	sdbs.probeAssert = assertstest.NewAccount(signingDB, "probe", nil, "")
 }
 
 func (sdbs *sysDBSuite) TearDownTest(c *C) {
