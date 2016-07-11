@@ -141,6 +141,7 @@ func (s *accountSuite) TestCheckUntrustedAuthority(c *C) {
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
 	headers := ex.Headers()
+	headers["timestamp"] = time.Now().Format(time.RFC3339)
 	account, err := otherDB.Sign(asserts.AccountType, headers, nil, "")
 	c.Assert(err, IsNil)
 
