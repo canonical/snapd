@@ -75,15 +75,15 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
-	tower := assertstest.NewStoreTower("trusted", testPrivKey0, testPrivKey1)
+	store := assertstest.NewStoreStack("trusted", testPrivKey0, testPrivKey1)
 
 	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
-	devAcct := assertstest.NewAccount(tower, "devel1", map[string]string{
+	devAcct := assertstest.NewAccount(store, "devel1", map[string]string{
 		"account-id": "dev1-id",
 	}, "")
-	devAccKey := assertstest.NewAccountKey(tower, devAcct, devKey.PublicKey(), nil, "")
+	devAccKey := assertstest.NewAccountKey(store, devAcct, nil, devKey.PublicKey(), "")
 
 	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: gkms.keypairMgr,
@@ -93,11 +93,11 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	checkDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        tower.Trusted,
+		Trusted:        store.Trusted,
 	})
 	c.Assert(err, IsNil)
 	// add store key
-	err = checkDB.Add(tower.Key("", ""))
+	err = checkDB.Add(store.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 	// enable devel key
 	err = checkDB.Add(devAcct)

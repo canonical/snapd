@@ -74,37 +74,37 @@ func (s *helperSuite) TestReadPrivKeyUnarmored(c *C) {
 	c.Check(opgpPK.PublicKey().ID(), Equals, "84c3cda52e420332")
 }
 
-func (s *helperSuite) TestStoreTower(c *C) {
+func (s *helperSuite) TestStoreStack(c *C) {
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 
-	tower := assertstest.NewStoreTower("super", rootPrivKey, storePrivKey)
+	store := assertstest.NewStoreStack("super", rootPrivKey, storePrivKey)
 
-	c.Check(tower.TrustedAccount.AccountID(), Equals, "super")
-	c.Check(tower.TrustedAccount.IsCertified(), Equals, true)
+	c.Check(store.TrustedAccount.AccountID(), Equals, "super")
+	c.Check(store.TrustedAccount.IsCertified(), Equals, true)
 
-	c.Check(tower.TrustedKey.AccountID(), Equals, "super")
+	c.Check(store.TrustedKey.AccountID(), Equals, "super")
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        tower.Trusted,
+		Trusted:        store.Trusted,
 	})
 	c.Assert(err, IsNil)
 
-	storeKey := tower.Key("", "")
-	c.Assert(storeKey, NotNil)
+	storeAccKey := store.StoreAccountKey("")
+	c.Assert(storeAccKey, NotNil)
 
-	c.Check(storeKey.AccountID(), Equals, "super")
-	c.Check(storeKey.AccountID(), Equals, tower.AuthorityID)
-	c.Check(storeKey.PublicKeyID(), Equals, tower.KeyID)
+	c.Check(storeAccKey.AccountID(), Equals, "super")
+	c.Check(storeAccKey.AccountID(), Equals, store.AuthorityID)
+	c.Check(storeAccKey.PublicKeyID(), Equals, store.KeyID)
 
-	acct := assertstest.NewAccount(tower, "devel1", nil, "")
+	acct := assertstest.NewAccount(store, "devel1", nil, "")
 	c.Check(acct.Username(), Equals, "devel1")
 	c.Check(acct.AccountID(), HasLen, 32)
 	c.Check(acct.IsCertified(), Equals, false)
 
-	err = db.Add(storeKey)
+	err = db.Add(storeAccKey)
 	c.Assert(err, IsNil)
 
 	err = db.Add(acct)
@@ -112,7 +112,7 @@ func (s *helperSuite) TestStoreTower(c *C) {
 
 	devKey, _ := assertstest.GenerateKey(752)
 
-	acctKey := assertstest.NewAccountKey(tower, acct, devKey.PublicKey(), nil, "")
+	acctKey := assertstest.NewAccountKey(store, acct, nil, devKey.PublicKey(), "")
 
 	err = db.Add(acctKey)
 	c.Assert(err, IsNil)

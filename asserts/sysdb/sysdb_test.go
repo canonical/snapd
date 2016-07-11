@@ -56,11 +56,11 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 		"timestamp":  "2015-11-20T15:04:00Z",
 	}, "")
 
-	trustedAccKey := assertstest.NewAccountKey(signingDB, trustedAcct, pk.PublicKey(), map[string]string{
+	trustedAccKey := assertstest.NewAccountKey(signingDB, trustedAcct, map[string]string{
 		"account-id": "can0nical",
 		"since":      "2015-11-20T15:04:00Z",
 		"until":      "2500-11-20T15:04:00Z",
-	}, "")
+	}, pk.PublicKey(), "")
 
 	sdbs.extraTrusted = []asserts.Assertion{trustedAcct, trustedAccKey}
 

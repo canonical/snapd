@@ -556,9 +556,9 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 		"authority-id": "canonical",
 	}, safs.signingKeyID)
 
-	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, pk1.PublicKey(), map[string]string{
+	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]string{
 		"authority-id": "canonical",
-	}, safs.signingKeyID)
+	}, pk1.PublicKey(), safs.signingKeyID)
 
 	err := safs.db.Add(acct1)
 	c.Assert(err, IsNil)
