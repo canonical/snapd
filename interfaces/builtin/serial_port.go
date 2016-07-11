@@ -80,7 +80,7 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(fmt.Sprintf("\n%s rwk,\n", iface.path(slot))), nil
-	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -90,7 +90,7 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 // ConnectedSlotSnippet no extra permissions granted on connection
 func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -100,7 +100,7 @@ func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, sl
 // PermanentPlugSnippet no permissions provided to plug permanently
 func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -112,7 +112,7 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return []byte(fmt.Sprintf("%s rwk,\n", iface.path(slot))), nil
-	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

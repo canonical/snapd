@@ -291,3 +291,9 @@ func (cs *clientSuite) TestClientCreateUser(c *check.C) {
 		Username: "karl",
 	})
 }
+
+func (cs *clientSuite) TestClientJSONError(c *check.C) {
+	cs.rsp = `some non-json error message`
+	_, err := cs.cli.SysInfo()
+	c.Assert(err, check.ErrorMatches, `bad sysinfo result: cannot decode "some non-json error message": invalid char.*`)
+}
