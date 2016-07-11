@@ -53,6 +53,9 @@ type TaskRunner struct {
 	handlers map[string]handlerPair
 	stopped  bool
 
+	blocked     func(t *Task, running []*Task) bool
+	someBlocked bool
+
 	// go-routines lifecycle
 	tombs map[string]*tomb.Tomb
 }
@@ -77,6 +80,14 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	defer r.mu.Unlock()
 
 	r.handlers[kind] = handlerPair{do, undo}
+}
+
+// SetBlocked sets a predicate function to decide whether to block a task from running based on the current running tasks. It can be used to control task serialisation.
+func (r *TaskRunner) SetBlocked(pred func(t *Task, running []*Task) bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.blocked = pred
 }
 
 // run must be called with the state lock in place
@@ -118,6 +129,12 @@ func (r *TaskRunner) run(t *Task) {
 		defer r.state.Unlock()
 
 		delete(r.tombs, t.ID())
+
+		// some tasks were blocked, now there's chance the
+		// blocked predicate will change its value
+		if r.someBlocked {
+			r.state.EnsureBefore(0)
+		}
 
 		switch err := tomb.Err(); x := err.(type) {
 		case *Retry:
@@ -207,6 +224,19 @@ func (r *TaskRunner) Ensure() {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	r.someBlocked = false
+	blocked := r.blocked
+	if blocked == nil {
+		blocked = func(*Task, []*Task) bool { return false }
+	}
+	running := make([]*Task, 0, len(r.tombs))
+	for tid := range r.tombs {
+		t := r.state.Task(tid)
+		if t != nil {
+			running = append(running, t)
+		}
+	}
+
 	ensureTime := timeNow()
 	nextTaskTime := time.Time{}
 	for _, t := range r.state.Tasks() {
@@ -258,8 +288,15 @@ func (r *TaskRunner) Ensure() {
 			continue
 		}
 
+		if blocked(t, running) {
+			r.someBlocked = true
+			continue
+		}
+
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
 		r.run(t)
+
+		running = append(running, t)
 	}
 
 	// schedule next Ensure no later than the next task time
