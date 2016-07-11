@@ -59,4 +59,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewCupsControlInterface())
 	c.Check(all, DeepContains, builtin.NewOpticalDriveInterface())
 	c.Check(all, DeepContains, builtin.NewCameraInterface())
+	c.Check(all, DeepContains, builtin.NewWirelessControlInterface())
 }
