@@ -292,6 +292,12 @@ func setAppsFromSnapYaml(y snapYaml, snap *Info) {
 
 func setHooksFromSnapYaml(y snapYaml, snap *Info) {
 	for hookName, yHook := range y.Hooks {
+		// Verify that the requested hook name is actually supported. If not,
+		// ignore it.
+		if !IsHookSupported(hookName) {
+			continue
+		}
+
 		// Collect all hooks
 		hook := &HookInfo{
 			Snap: snap,

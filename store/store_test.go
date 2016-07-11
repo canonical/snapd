@@ -21,6 +21,7 @@ package store
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -87,11 +88,11 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download(snap, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -105,6 +106,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 		// check authorization is set
 		authorization := req.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(req.UserAgent(), Equals, userAgent)
 
 		c.Check(req.URL.String(), Equals, "AUTH-URL")
 		w.Write([]byte("I was downloaded"))
@@ -112,12 +114,12 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
 	authenticator := &fakeAuthenticator{}
-	path, err := t.store.Download(snap, nil, authenticator)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, authenticator)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -134,11 +136,11 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	// simulate a failed download
-	path, err := t.store.Download(snap, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -156,12 +158,12 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	}
 
 	snap := &snap.Info{}
-	snap.OfficialName = "foo"
+	snap.RealName = "foo"
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
 	// simulate a failed sync
-	path, err := t.store.Download(snap, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -173,6 +175,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryHeaders(c *C) {
 	c.Assert(err, IsNil)
 
 	t.store.setUbuntuStoreHeaders(req, "", false, nil)
+
+	c.Check(req.UserAgent(), Equals, userAgent)
 
 	c.Check(req.Header.Get("X-Ubuntu-Release"), Equals, "16")
 	c.Check(req.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
@@ -190,48 +194,22 @@ const (
 	funkyAppDeveloper = "chipaca"
 	funkyAppSnapID    = "1e21e12ex4iim2xj1g2ul6f12f1"
 
-	helloWorldSnapID = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+	helloWorldSnapID      = "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+	helloWorldDeveloperID = "canonical"
 )
 
 /* acquired via
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://search.apps.ubuntu.com/api/v1/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&q=package_name%3A%22hello-world%22' | python -m json.tool | xsel -b
+
+http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha512,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
+
+on 2016-07-03. Then, by hand:
+ * set prices to {"EUR": 0.99, "USD": 1.23}.
+
+On Ubuntu, apt install httpie xsel (although you could get http from
+the http snap instead).
+
 */
 const MockDetailsJSON = `{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "_links": {
-                    "self": {
-                        "href": "https://search.apps.ubuntu.com/api/v1/package/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
-                    }
-                },
-                "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25.snap",
-                "architecture": [
-                    "all"
-                ],
-                "binary_filesize": 20480,
-                "channel": "edge",
-                "content": "application",
-                "description": "This is a simple hello world example.",
-                "download_sha512": "4bf23ce93efa1f32f0aeae7ec92564b7b0f9f8253a0bd39b2741219c1be119bb676c21208c6845ccf995e6aabe791d3f28a733ebcbbc3171bb23f67981f4068e",
-                "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25.snap",
-                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-                "last_updated": "2016-04-19T19:50:50.435291Z",
-                "origin": "canonical",
-                "package_name": "hello-world",
-                "prices": {"USD": 1.23},
-                "publisher": "Canonical",
-                "ratings_average": 0.0,
-                "revision": 25,
-                "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
-                "summary": "Hello world example",
-                "support_url": "mailto:snappy-devel@lists.ubuntu.com",
-                "title": "hello-world",
-                "version": "6.0",
-                "private": true
-            }
-        ]
-    },
     "_links": {
         "curies": [
             {
@@ -240,18 +218,37 @@ const MockDetailsJSON = `{
                 "templated": true
             }
         ],
-        "first": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
-        },
-        "last": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
-        },
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22hello-world%22&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
+            "href": "https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
         }
-    }
-}
-`
+    },
+    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+    "architecture": [
+        "all"
+    ],
+    "binary_filesize": 20480,
+    "channel": "edge",
+    "confinement": "strict",
+    "content": "application",
+    "description": "This is a simple hello world example.",
+    "developer_id": "canonical",
+    "download_sha512": "345f33c06373f799b64c497a778ef58931810dd7ae85279d6917d8b4f43d38abaf37e68239cb85914db276cb566a0ef83ea02b6f2fd064b54f9f2508fa4ca1f1",
+    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+    "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+    "last_updated": "2016-05-31T07:02:32.586839Z",
+    "origin": "canonical",
+    "package_name": "hello-world",
+    "prices": {"EUR": 0.99, "USD": 1.23},
+    "publisher": "Canonical",
+    "ratings_average": 0.0,
+    "revision": 26,
+    "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+    "summary": "Hello world example",
+    "support_url": "mailto:snappy-devel@lists.ubuntu.com",
+    "title": "hello-world",
+    "version": "6.1"
+}`
+
 const mockPurchasesJSON = `[
   {
     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
@@ -299,18 +296,30 @@ const mockPurchaseJSON = `[
 ]
 `
 
+const mockSinglePurchaseJSON = `
+{
+  "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+  "package_name": "hello-world.canonical",
+  "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+  "refundable_until": "2015-07-15 18:46:21",
+  "state": "Complete"
+}
+`
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
 		// no store ID by default
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "")
 
-		c.Check(r.URL.Path, Equals, "/search")
+		c.Check(r.URL.Path, Equals, "/details/hello-world")
 
-		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:\"hello-world\"")
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
-		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "devmode")
+		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
+
+		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
+		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
 
 		w.Header().Set("X-Suggested-Currency", "GBP")
 		w.WriteHeader(http.StatusOK)
@@ -321,10 +330,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	searchURI, err := url.Parse(mockServer.URL + "/search")
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		DetailsURI: detailsURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -334,23 +343,67 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
-	c.Check(result.Revision, Equals, snap.R(25))
+	c.Check(result.Revision, Equals, snap.R(26))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Developer, Equals, "canonical")
-	c.Check(result.Version, Equals, "6.0")
-	c.Check(result.Sha512, Equals, "4bf23ce93efa1f32f0aeae7ec92564b7b0f9f8253a0bd39b2741219c1be119bb676c21208c6845ccf995e6aabe791d3f28a733ebcbbc3171bb23f67981f4068e")
+	c.Check(result.Version, Equals, "6.1")
+	c.Check(result.Sha512, Matches, `[[:xdigit:]]{128}`)
 	c.Check(result.Size, Equals, int64(20480))
 	c.Check(result.Channel, Equals, "edge")
 	c.Check(result.Description(), Equals, "This is a simple hello world example.")
 	c.Check(result.Summary(), Equals, "Hello world example")
-	c.Assert(result.Prices, DeepEquals, map[string]float64{"USD": 1.23})
+	c.Assert(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Check(result.MustBuy, Equals, true)
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"
 	c.Check(result.Epoch, Equals, "0")
 
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
-	c.Check(result.Private, Equals, true)
+
+	// skip this one until the store supports it
+	// c.Check(result.Private, Equals, true)
+
+	c.Check(snap.Validate(result), IsNil)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
+	mockDevmodeJSON := strings.Replace(MockDetailsJSON, `"strict"`, `"devmode"`, -1)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		c.Check(r.URL.Path, Equals, "/details/hello-world")
+
+		query := r.URL.Query()
+		c.Check(query.Get("channel"), Equals, "edge")
+
+		if query.Get("confinement") == "strict" {
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, "{}")
+		} else {
+			w.Header().Set("X-Suggested-Currency", "GBP")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, mockDevmodeJSON)
+		}
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI: detailsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	result, err := repo.Snap("hello-world", "edge", false, nil)
+	c.Check(err, Equals, ErrSnapNotFound)
+	c.Check(result, IsNil)
+	result, err = repo.Snap("hello-world", "edge", true, nil)
+	c.Assert(err, IsNil)
+	c.Check(result, NotNil)
 
 	c.Check(snap.Validate(result), IsNil)
 }
@@ -360,6 +413,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 		// check authorization is set
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
+		c.Check(r.UserAgent(), Equals, userAgent)
 
 		io.WriteString(w, MockDetailsJSON)
 	}))
@@ -368,6 +422,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 	defer mockServer.Close()
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
 		// check authorization is set
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
@@ -379,12 +434,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	searchURI, err := url.Parse(mockServer.URL + "/search")
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI:    searchURI,
+		DetailsURI:   detailsURI,
 		PurchasesURI: purchasesURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
@@ -399,11 +454,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Path, Equals, "/search")
-
-		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, `package_name:"hello-world"`)
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(r.URL.Path, Equals, "/details/hello-world")
+		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
 
 		w.Header().Set("X-Oops-Id", "OOPS-d4f46f75a5bcc10edcacc87e1fc0119f")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -414,52 +466,43 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	searchURI, err := url.Parse(mockServer.URL + "/search")
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		DetailsURI: detailsURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
 	// the actual test
 	_, err = repo.Snap("hello-world", "edge", false, nil)
-	c.Assert(err, ErrorMatches, `Ubuntu CPI service returned unexpected HTTP status code 5.. while looking for snap "hello-world" in channel "edge" \[OOPS-[a-f0-9A-F]*\]`)
+	c.Assert(err, ErrorMatches, `Ubuntu CPI service returned unexpected HTTP status code 5.. while getting details for snap "hello-world" in channel "edge" \[OOPS-[a-f0-9A-F]*\]`)
 }
 
 /*
 acquired via
-curl -s -H "accept: application/hal+json" -H "X-Ubuntu-Release: 16" -H "X-Ubuntu-Device-Channel: edge" -H "X-Ubuntu-Wire-Protocol: 1" -H "X-Ubuntu-Architecture: amd64"  'https://search.apps.ubuntu.com/api/v1/search?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&q=package_name%3A%22%22' | python -m json.tool | xsel -b
+
+http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/details/no:such:package X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha512,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
+
+on 2016-07-03
+
+On Ubuntu, apt install httpie xsel (although you could get http from
+the http snap instead).
+
 */
 const MockNoDetailsJSON = `{
-    "_links": {
-        "curies": [
-            {
-                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
-                "name": "clickindex",
-                "templated": true
-            }
-        ],
-        "first": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22%22&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
-        },
-        "last": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22%22&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
-        },
-        "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/search?q=package_name%3A%22%22&fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin&page=1"
-        }
-    }
-}
-`
+    "errors": [
+        "No such package"
+    ],
+    "result": "error"
+}`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Path, Equals, "/search")
+		c.Check(r.URL.Path, Equals, "/details/no-such-pkg")
 
 		q := r.URL.Query()
-		c.Check(q.Get("q"), Equals, "package_name:\"no-such-pkg\"")
-		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+		c.Check(q.Get("channel"), Equals, "edge")
 		w.WriteHeader(404)
 		io.WriteString(w, MockNoDetailsJSON)
 	}))
@@ -467,10 +510,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	searchURI, err := url.Parse(mockServer.URL + "/search")
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		DetailsURI: detailsURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -550,7 +593,10 @@ const MockSearchJSON = `{
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		c.Check(r.UserAgent(), Equals, userAgent)
+		q := r.URL.Query()
+		c.Check(q.Get("q"), Equals, "hello")
+		c.Check(q.Get("fields"), Equals, strings.Join(detailFields, ","))
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
@@ -576,7 +622,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFind(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		http.Error(w, http.StatusText(http.StatusTeapot), http.StatusTeapot)
 	}))
 	c.Assert(mockServer, NotNil)
@@ -586,19 +632,20 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		SearchURI:    searchURI,
+		DetailFields: []string{}, // make the error less noisy
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `received an unexpected http response code \(418 I'm a teapot\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(err, ErrorMatches, `received an unexpected http response code \(418 I'm a teapot\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		io.WriteString(w, MockSearchJSON)
 	}))
 	c.Assert(mockServer, NotNil)
@@ -608,19 +655,23 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		SearchURI:    searchURI,
+		DetailFields: []string{}, // make the error less noisy
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBoody(c *C) {
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.RawQuery, Equals, "q=hello")
+		query := r.URL.Query()
+		c.Check(query.Get("q"), Equals, "hello")
+		c.Check(query.Get("channel"), Equals, "stable") // note no channel was set in the call to Find
+		c.Check(query.Get("confinement"), Equals, "strict")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, "<hello>")
 	}))
@@ -631,23 +682,25 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBoody(c *C) {
 	searchURI, err := url.Parse(mockServer.URL)
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		SearchURI:    searchURI,
+		DetailFields: []string{}, // make the error less noisy
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://[^?]+\?q=hello"`)
+	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
 		// check authorization is set
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
 
-		c.Check(r.URL.RawQuery, Equals, "q=foo")
+		c.Check(r.URL.Query().Get("q"), Equals, "foo")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
@@ -655,6 +708,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	defer mockServer.Close()
 
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
@@ -691,7 +745,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
 
-		c.Check(r.URL.RawQuery, Equals, "q=foo")
+		query := r.URL.Query()
+		c.Check(query.Get("q"), Equals, "foo")
+		c.Check(query.Get("channel"), Equals, "stable")
+		c.Check(query.Get("confinement"), Equals, "strict")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
@@ -716,6 +773,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		SearchURI:    searchURI,
 		PurchasesURI: purchasesURI,
+		DetailFields: []string{}, // make the error less noisy
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -736,24 +794,43 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 
 /* acquired via:
 (against production "hello-world")
-$ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url","origin"]}'  -H 'content-type: application/json' https://search.apps.ubuntu.com/api/v1/metadata
+$ curl -s --data-binary '{"snaps":[{"snap_id":"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ","channel":"stable","revision":25,"epoch":"0","confinement":"strict"}],"fields":["anon_download_url","architecture","channel","download_sha512","summary","description","binary_filesize","download_url","icon_url","last_updated","package_name","prices","publisher","ratings_average","revision","snap_id","support_url","title","content","version","origin","developer_id","private","confinement"]}'  -H 'content-type: application/json' -H 'X-Ubuntu-Release: 16' -H 'X-Ubuntu-Wire-Protocol: 1' -H "accept: application/hal+json" https://search.apps.ubuntu.com/api/v1/snaps/metadata | python3 -m json.tool --sort-keys | xsel -b
 */
-var MockUpdatesJSON = fmt.Sprintf(`
+var MockUpdatesJSON = `
 {
     "_embedded": {
         "clickindex:package": [
             {
                 "_links": {
                     "self": {
-                        "href": "https://search.apps.staging.ubuntu.com/api/v1/package/%[1]s"
+                        "href": "https://search.apps.ubuntu.com/api/v1/package/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
                     }
                 },
-                "download_url": "https://public.apps.staging.ubuntu.com/download-snap/%[1].snap",
+                "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+                "architecture": [
+                    "all"
+                ],
+                "binary_filesize": 20480,
+                "channel": "stable",
+                "confinement": "strict",
+                "content": "application",
+                "description": "This is a simple hello world example.",
+                "developer_id": "canonical",
+                "download_sha512": "345f33c06373f799b64c497a778ef58931810dd7ae85279d6917d8b4f43d38abaf37e68239cb85914db276cb566a0ef83ea02b6f2fd064b54f9f2508fa4ca1f1",
+                "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+                "last_updated": "2016-05-31T07:02:32.586839Z",
+                "origin": "canonical",
                 "package_name": "hello-world",
-                "revision": 6,
-                "snap_id": "%[1]s",
-                "version": "16.04-1",
-                "origin": "canonical"
+                "prices": {},
+                "publisher": "Canonical",
+                "ratings_average": 0.0,
+                "revision": 26,
+                "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+                "summary": "Hello world example",
+                "support_url": "mailto:snappy-devel@lists.ubuntu.com",
+                "title": "hello-world",
+                "version": "6.1"
             }
         ]
     },
@@ -767,13 +844,30 @@ var MockUpdatesJSON = fmt.Sprintf(`
         ]
     }
 }
-`, helloWorldSnapID)
+`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url","origin"]}`)
+		var resp struct {
+			Snaps  []map[string]interface{} `json:"snaps"`
+			Fields []string                 `json:"fields"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"revision":    float64(1),
+			"epoch":       "0",
+			"confinement": "strict",
+		})
+		c.Assert(resp.Fields, DeepEquals, detailFields)
+
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -801,15 +895,129 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
-	c.Assert(results[0].Revision, Equals, snap.R(6))
-	c.Assert(results[0].Version, Equals, "16.04-1")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
+	c.Assert(results[0].Version, Equals, "6.1")
+	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
+	c.Assert(results[0].DeveloperID, Equals, helloWorldDeveloperID)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var resp struct {
+			Snaps []map[string]interface{} `json:"snaps"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"revision":    float64(26),
+			"epoch":       "0",
+			"confinement": "strict",
+		})
+
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		BulkURI: bulkURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	results, err := repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(26),
+			Epoch:    "0",
+			DevMode:  false,
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+
+		var resp struct {
+			Snaps []map[string]interface{} `json:"snaps"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"revision":    float64(25),
+			"epoch":       "0",
+			"confinement": "strict",
+		})
+
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		BulkURI: bulkURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	results, err := repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(25),
+			Epoch:    "0",
+			DevMode:  false,
+			Block:    []snap.Revision{snap.R(26)},
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","epoch":"0","confinement":"devmode"}],"fields":["snap_id","package_name","revision","version","download_url","origin"]}`)
+		var resp struct {
+			Snaps []map[string]interface{} `json:"snaps"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"epoch":       "0",
+			"confinement": "devmode",
+		})
+
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -843,9 +1051,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, "Authorization-details")
 
-		jsonReq, err := ioutil.ReadAll(r.Body)
-		c.Assert(err, IsNil)
-		c.Assert(string(jsonReq), Equals, `{"snaps":[{"snap_id":"`+helloWorldSnapID+`","channel":"stable","revision":1,"epoch":"0","confinement":"strict"}],"fields":["snap_id","package_name","revision","version","download_url","origin"]}`)
 		io.WriteString(w, MockUpdatesJSON)
 	}))
 
@@ -893,6 +1098,17 @@ func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
 	c.Check(before, Not(Equals), after)
 }
 
+func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	before := authLocation()
+
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	after := authLocation()
+
+	c.Check(before, Not(Equals), after)
+}
+
 func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
 	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
 	before := authURL()
@@ -927,8 +1143,8 @@ func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestDefaultConfig(c *C) {
-	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/search?"), Equals, true)
-	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/metadata?"), Equals, true)
+	c.Check(strings.HasPrefix(defaultConfig.SearchURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/search"), Equals, true)
+	c.Check(strings.HasPrefix(defaultConfig.BulkURI.String(), "https://search.apps.ubuntu.com/api/v1/snaps/metadata"), Equals, true)
 	c.Check(defaultConfig.AssertionsURI.String(), Equals, "https://assertions.ubuntu.com/v1/assertions/")
 }
 
@@ -1036,10 +1252,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	searchURI, err := url.Parse(mockServer.URL + "/search")
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := SnapUbuntuStoreConfig{
-		SearchURI: searchURI,
+		DetailsURI: detailsURI,
 	}
 	repo := NewUbuntuStoreSnapRepository(&cfg, "")
 	c.Assert(repo, NotNil)
@@ -1366,4 +1582,323 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreMustBuy(c *C) {
 	c.Check(mustBuy(priced, hasPurchase), Equals, false)
 	c.Check(mustBuy(priced, hasInAppPurchase), Equals, true)
 	c.Check(mustBuy(priced, hasPurchaseAndInAppPurchase), Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
+	searchServerCalled := false
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/hello-world")
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.Header().Set("X-Suggested-Currency", "EUR")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, MockDetailsJSON)
+		searchServerCalled = true
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	purchaseServerGetCalled := false
+	purchaseServerPostCalled := false
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
+			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+			io.WriteString(w, "{}")
+			purchaseServerGetCalled = true
+		case "POST":
+			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(jsonReq), Equals, "{\"snap_id\":\""+helloWorldSnapID+"\",\"amount\":0.99,\"currency\":\"EUR\",\"backend_id\":\"123\",\"method_id\":234}")
+			io.WriteString(w, mockSinglePurchaseJSON)
+			purchaseServerPostCalled = true
+		default:
+			c.Error("Unexpected request method: ", r.Method)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI:   detailsURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+
+	// Find the snap first
+	snap, err := repo.Snap("hello-world", "edge", false, authenticator)
+	c.Assert(err, IsNil)
+
+	// Now buy the snap using the suggested currency
+	result, err := repo.Buy(&BuyOptions{
+		SnapID:   snap.SnapID,
+		SnapName: snap.Name(),
+		Channel:  snap.Channel,
+		Currency: repo.SuggestedCurrency(),
+		Price:    snap.Prices[repo.SuggestedCurrency()],
+		Auther:   authenticator,
+
+		BackendID: "123",
+		MethodID:  234,
+	})
+
+	c.Assert(result, NotNil)
+	c.Check(result.State, Equals, "Complete")
+	c.Check(result.PartnerID, Equals, "")
+	c.Check(result.RedirectTo, Equals, "")
+	c.Assert(err, IsNil)
+
+	c.Check(searchServerCalled, Equals, true)
+	c.Check(purchaseServerGetCalled, Equals, true)
+	c.Check(purchaseServerPostCalled, Equals, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
+	searchServerCalled := false
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/hello-world")
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.Header().Set("X-Suggested-Currency", "EUR")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, MockDetailsJSON)
+		searchServerCalled = true
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	purchaseServerGetCalled := false
+	purchaseServerPostCalled := false
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
+			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+			io.WriteString(w, "{}")
+			purchaseServerGetCalled = true
+		case "POST":
+			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(jsonReq), Equals, "{\"snap_id\":\""+helloWorldSnapID+"\",\"amount\":0.99,\"currency\":\"USD\"}")
+			w.WriteHeader(http.StatusBadRequest)
+			io.WriteString(w, "{\"error_message\":\"invalid price specified\"}")
+			purchaseServerPostCalled = true
+		default:
+			c.Error("Unexpected request method: ", r.Method)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI:   detailsURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+
+	// Find the snap first
+	snap, err := repo.Snap("hello-world", "edge", false, authenticator)
+	c.Assert(err, IsNil)
+
+	// Attempt to buy the snap using the wrong price in USD
+	result, err := repo.Buy(&BuyOptions{
+		SnapID:   snap.SnapID,
+		SnapName: snap.Name(),
+		Channel:  snap.Channel,
+		Price:    0.99,
+		Currency: "USD",
+		Auther:   authenticator,
+	})
+
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"hello-world\": bad request: invalid price specified")
+
+	c.Check(searchServerCalled, Equals, true)
+	c.Check(purchaseServerGetCalled, Equals, true)
+	c.Check(purchaseServerPostCalled, Equals, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
+	searchServerCalled := false
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/details/hello-world")
+		q := r.URL.Query()
+		c.Check(q.Get("channel"), Equals, "edge")
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.Header().Set("X-Suggested-Currency", "EUR")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, MockDetailsJSON)
+		searchServerCalled = true
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	purchaseServerGetCalled := false
+	purchaseServerPostCalled := false
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
+			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+			io.WriteString(w, "{}")
+			purchaseServerGetCalled = true
+		case "POST":
+			c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "edge")
+			c.Check(r.Header.Get("Authorization"), Equals, "Authorization-details")
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(jsonReq), Equals, "{\"snap_id\":\"invalid snap ID\",\"amount\":0.99,\"currency\":\"EUR\"}")
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, "{\"error_message\":\"Not found\"}")
+			purchaseServerPostCalled = true
+		default:
+			c.Error("Unexpected request method: ", r.Method)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		DetailsURI:   detailsURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	c.Assert(repo, NotNil)
+
+	authenticator := &fakeAuthenticator{}
+
+	// Find the snap first
+	snap, err := repo.Snap("hello-world", "edge", false, authenticator)
+	c.Assert(err, IsNil)
+
+	// Now try and buy the snap, but with an invalid ID
+	result, err := repo.Buy(&BuyOptions{
+		SnapID:   "invalid snap ID",
+		SnapName: snap.Name(),
+		Channel:  snap.Channel,
+		Price:    snap.Prices[repo.SuggestedCurrency()],
+		Currency: repo.SuggestedCurrency(),
+		Auther:   authenticator,
+	})
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"hello-world\": server says not found (snap got removed?)")
+
+	c.Check(searchServerCalled, Equals, true)
+	c.Check(purchaseServerGetCalled, Equals, true)
+	c.Check(purchaseServerPostCalled, Equals, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
+	repo := NewUbuntuStoreSnapRepository(&SnapUbuntuStoreConfig{}, "")
+	c.Assert(repo, NotNil)
+
+	// no snap ID
+	result, err := repo.Buy(&BuyOptions{
+		SnapName: "snap name",
+		Channel:  "channel",
+		Price:    1.0,
+		Currency: "USD",
+		Auther:   &fakeAuthenticator{},
+	})
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": snap ID missing")
+
+	// no name
+	result, err = repo.Buy(&BuyOptions{
+		SnapID:   "snap ID",
+		Channel:  "channel",
+		Price:    1.0,
+		Currency: "USD",
+		Auther:   &fakeAuthenticator{},
+	})
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": snap name missing")
+
+	// no channel
+	result, err = repo.Buy(&BuyOptions{
+		SnapID:   "snap ID",
+		SnapName: "snap name",
+		Price:    1.0,
+		Currency: "USD",
+		Auther:   &fakeAuthenticator{},
+	})
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": channel missing")
+
+	// no price
+	result, err = repo.Buy(&BuyOptions{
+		SnapID:   "snap ID",
+		SnapName: "snap name",
+		Channel:  "channel",
+		Currency: "USD",
+		Auther:   &fakeAuthenticator{},
+	})
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": invalid expected price")
+
+	// no currency
+	result, err = repo.Buy(&BuyOptions{
+		SnapID:   "snap ID",
+		SnapName: "snap name",
+		Channel:  "channel",
+		Price:    1.0,
+		Auther:   &fakeAuthenticator{},
+	})
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": currency missing")
+
+	// no authenticator
+	result, err = repo.Buy(&BuyOptions{
+		SnapID:   "snap ID",
+		SnapName: "snap name",
+		Channel:  "channel",
+		Price:    1.0,
+		Currency: "USD",
+	})
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": authentication credentials missing")
 }

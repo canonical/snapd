@@ -24,8 +24,9 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/snappy"
 )
 
 type cmdBooted struct{}
@@ -50,5 +51,9 @@ func (x *cmdBooted) Execute(args []string) error {
 		return err
 	}
 
-	return snappy.SyncBoot()
+	ovld, err := overlord.New()
+	if err != nil {
+		return err
+	}
+	return boot.UpdateRevisions(ovld)
 }

@@ -98,12 +98,23 @@ type parserSetter interface {
 // from each other.
 func Parser() *flags.Parser {
 	optionsData.Version = func() {
-		cv, err := Client().ServerVersion()
+		sv, err := Client().ServerVersion()
 		if err != nil {
-			cv = i18n.G("unavailable")
+			sv = &client.ServerVersion{
+				Version:     i18n.G("unavailable"),
+				Series:      "-",
+				OSID:        "-",
+				OSVersionID: "-",
+			}
 		}
 
-		fmt.Fprintf(Stdout, "snap  %s\nsnapd %s\n", cmd.Version, cv)
+		w := tabWriter()
+
+		fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
+		fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
+		fmt.Fprintf(w, "series\t%s\n", sv.Series)
+		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
+		w.Flush()
 
 		os.Exit(0)
 	}

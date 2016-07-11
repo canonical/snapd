@@ -22,7 +22,7 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/boot"
 )
 
 type cmdInternalFirstBoot struct{}
@@ -37,5 +37,5 @@ func init() {
 }
 
 func (x *cmdInternalFirstBoot) Execute(args []string) error {
-	return overlord.FirstBoot()
+	return boot.FirstBoot()
 }
