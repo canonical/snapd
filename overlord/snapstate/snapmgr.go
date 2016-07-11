@@ -129,7 +129,7 @@ type SnapState struct {
 	Channel string         `json:"channel,omitempty"`
 	Flags   SnapStateFlags `json:"flags,omitempty"`
 
-	// incremented revision used for local installs
+	// incremented revision used for local installs (latest in the seq)
 	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
 
@@ -875,7 +875,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if cand.Revision.Local() {
+	if cand.Revision.Local() && snapst.LocalRevision.N > ss.Revision().N {
 		snapst.LocalRevision = ss.Revision()
 	}
 

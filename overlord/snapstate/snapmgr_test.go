@@ -1586,6 +1586,46 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	c.Assert(snapst.Block(), DeepEquals, []snap.Revision{snap.R(7)})
 }
 
+func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-7),
+	}
+	siOld := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-2),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:        true,
+		Sequence:      []*snap.SideInfo{&siOld, &si},
+		Current:       si.Revision,
+		LocalRevision: si.Revision,
+	})
+
+	chg := s.state.NewChange("revert", "revert a snap backwards")
+	ts, err := snapstate.Revert(s.state, "some-snap")
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
+
+	// verify that LocalRevision is still -7
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.LocalRevision, Equals, snap.R(-7))
+}
+
 func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	siNew := snap.SideInfo{
 		RealName: "some-snap",
