@@ -150,24 +150,24 @@ type SignerDB interface {
 }
 
 // NewAccount creates an account assertion for username, it fills in values for other missing headers as needed. It panics on error.
-func NewAccount(db SignerDB, username string, headers map[string]string, keyID string) *asserts.Account {
-	if headers == nil {
-		headers = make(map[string]string)
+func NewAccount(db SignerDB, username string, otherHeaders map[string]string, keyID string) *asserts.Account {
+	if otherHeaders == nil {
+		otherHeaders = make(map[string]string)
 	}
-	headers["username"] = username
-	if headers["account-id"] == "" {
-		headers["account-id"] = strutil.MakeRandomString(32)
+	otherHeaders["username"] = username
+	if otherHeaders["account-id"] == "" {
+		otherHeaders["account-id"] = strutil.MakeRandomString(32)
 	}
-	if headers["display-name"] == "" {
-		headers["display-name"] = strings.ToTitle(username)
+	if otherHeaders["display-name"] == "" {
+		otherHeaders["display-name"] = strings.ToTitle(username)
 	}
-	if headers["validation"] == "" {
-		headers["validation"] = "unproven"
+	if otherHeaders["validation"] == "" {
+		otherHeaders["validation"] = "unproven"
 	}
-	if headers["timestamp"] == "" {
-		headers["timestamp"] = time.Now().Format(time.RFC3339)
+	if otherHeaders["timestamp"] == "" {
+		otherHeaders["timestamp"] = time.Now().Format(time.RFC3339)
 	}
-	a, err := db.Sign(asserts.AccountType, headers, nil, keyID)
+	a, err := db.Sign(asserts.AccountType, otherHeaders, nil, keyID)
 	if err != nil {
 		panic(err)
 	}
@@ -175,28 +175,28 @@ func NewAccount(db SignerDB, username string, headers map[string]string, keyID s
 }
 
 // NewAccountKey creates an account-key assertion for the account, it fills in values for missing headers as needed. In panics on error.
-func NewAccountKey(db SignerDB, acct *asserts.Account, pubKey asserts.PublicKey, headers map[string]string, keyID string) *asserts.AccountKey {
-	if headers == nil {
-		headers = make(map[string]string)
+func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]string, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
+	if otherHeaders == nil {
+		otherHeaders = make(map[string]string)
 	}
-	headers["account-id"] = acct.AccountID()
-	headers["public-key-id"] = pubKey.ID()
-	headers["public-key-fingerprint"] = pubKey.Fingerprint()
-	if headers["since"] == "" {
-		headers["since"] = time.Now().Format(time.RFC3339)
+	otherHeaders["account-id"] = acct.AccountID()
+	otherHeaders["public-key-id"] = pubKey.ID()
+	otherHeaders["public-key-fingerprint"] = pubKey.Fingerprint()
+	if otherHeaders["since"] == "" {
+		otherHeaders["since"] = time.Now().Format(time.RFC3339)
 	}
-	if headers["until"] == "" {
-		since, err := time.Parse(time.RFC3339, headers["since"])
+	if otherHeaders["until"] == "" {
+		since, err := time.Parse(time.RFC3339, otherHeaders["since"])
 		if err != nil {
 			panic(err)
 		}
-		headers["until"] = since.AddDate(5, 0, 0).Format(time.RFC3339)
+		otherHeaders["until"] = since.AddDate(5, 0, 0).Format(time.RFC3339)
 	}
 	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
 	if err != nil {
 		panic(err)
 	}
-	a, err := db.Sign(asserts.AccountKeyType, headers, encodedPubKey, keyID)
+	a, err := db.Sign(asserts.AccountKeyType, otherHeaders, encodedPubKey, keyID)
 	if err != nil {
 		panic(err)
 	}
@@ -247,8 +247,8 @@ func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
 	return db.Database.PublicKey(db.AuthorityID, keyID)
 }
 
-// StoreTower realises a store-like set of founding trusted assertions and signing setup.
-type StoreTower struct {
+// StoreStack realises a store-like set of founding trusted assertions and signing setup.
+type StoreStack struct {
 	// Trusted authority assertions.
 	TrustedAccount *asserts.Account
 	TrustedKey     *asserts.AccountKey
@@ -257,18 +257,18 @@ type StoreTower struct {
 	// Signing assertion db that signs with the root private key.
 	RootSigning *SigningDB
 
-	// The store-like signing functionality that signs with a store key, setup to also store assertions if desired. It stores a default account-key for the store private key, see also the StoreTower.Key method.
+	// The store-like signing functionality that signs with a store key, setup to also store assertions if desired. It stores a default account-key for the store private key, see also the StoreStack.Key method.
 	*SigningDB
 }
 
-// NewStoreTower creates a new store tower. It panics on error.
-func NewStoreTower(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreTower {
+// NewStoreStack creates a new store assertion stack. It panics on error.
+func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreStack {
 	rootSigning := NewSigningDB(authorityID, rootPrivKey)
 	trustedAcct := NewAccount(rootSigning, authorityID, map[string]string{
 		"account-id": authorityID,
 		"validation": "certified",
 	}, "")
-	trustedKey := NewAccountKey(rootSigning, trustedAcct, rootPrivKey.PublicKey(), nil, "")
+	trustedKey := NewAccountKey(rootSigning, trustedAcct, nil, rootPrivKey.PublicKey(), "")
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -283,13 +283,13 @@ func NewStoreTower(authorityID string, rootPrivKey, storePrivKey asserts.Private
 	if err != nil {
 		panic(err)
 	}
-	storeKey := NewAccountKey(rootSigning, trustedAcct, storePrivKey.PublicKey(), nil, "")
+	storeKey := NewAccountKey(rootSigning, trustedAcct, nil, storePrivKey.PublicKey(), "")
 	err = db.Add(storeKey)
 	if err != nil {
 		panic(err)
 	}
 
-	return &StoreTower{
+	return &StoreStack{
 		TrustedAccount: trustedAcct,
 		TrustedKey:     trustedKey,
 		Trusted:        trusted,
@@ -304,17 +304,14 @@ func NewStoreTower(authorityID string, rootPrivKey, storePrivKey asserts.Private
 	}
 }
 
-// Key gets an account-key or returns nil if not found. It panics on
-// other errors.  ("", "") as arguments will lookup the store key one.
-func (twr *StoreTower) Key(authorityID, keyID string) *asserts.AccountKey {
-	if authorityID == "" {
-		authorityID = twr.AuthorityID
-	}
+// StoreAccountKey retrieves one of the account-key assertions for the signing keys of the simulated store signing database.
+// "" for keyID means the default one. It panics on error.
+func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
 	if keyID == "" {
-		keyID = twr.KeyID
+		keyID = ss.KeyID
 	}
-	key, err := twr.Find(asserts.AccountKeyType, map[string]string{
-		"account-id":    authorityID,
+	key, err := ss.Find(asserts.AccountKeyType, map[string]string{
+		"account-id":    ss.AuthorityID,
 		"public-key-id": keyID,
 	})
 	if err == asserts.ErrNotFound {

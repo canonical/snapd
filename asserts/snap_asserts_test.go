@@ -208,27 +208,27 @@ func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts
 	trustedPrivKey := testPrivKey0
 	storePrivKey := testPrivKey1
 
-	tower := assertstest.NewStoreTower("canonical", trustedPrivKey, storePrivKey)
+	store := assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
 	cfg := &asserts.DatabaseConfig{
 		Backstore:      asserts.NewMemoryBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        tower.Trusted,
+		Trusted:        store.Trusted,
 	}
 	checkDB, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
 	// add store key
-	err = checkDB.Add(tower.Key("", ""))
+	err = checkDB.Add(store.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	return tower.SigningDB, checkDB
+	return store.SigningDB, checkDB
 }
 
 func setup3rdPartySigning(c *C, username string, storeDB *assertstest.SigningDB, checkDB *asserts.Database) (signingDB *assertstest.SigningDB) {
 	privKey := testPrivKey2
 
 	acct := assertstest.NewAccount(storeDB, username, nil, "")
-	accKey := assertstest.NewAccountKey(storeDB, acct, privKey.PublicKey(), nil, "")
+	accKey := assertstest.NewAccountKey(storeDB, acct, nil, privKey.PublicKey(), "")
 
 	err := checkDB.Add(acct)
 	c.Assert(err, IsNil)

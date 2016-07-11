@@ -70,7 +70,7 @@ type apiSuite struct {
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
-	tower             *assertstest.StoreTower
+	storeSigning      *assertstest.StoreStack
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -145,7 +145,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
-	s.tower = assertstest.NewStoreTower("can0nical", rootPrivKey, storePrivKey)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
@@ -2338,14 +2338,14 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 
 func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
-	restore := sysdb.InjectTrusted(s.tower.Trusted)
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.tower.Key("", ""))
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
 
-	acct := assertstest.NewAccount(s.tower, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
@@ -2378,7 +2378,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 func (s *apiSuite) TestAssertError(c *check.C) {
 	s.daemon(c)
 	// Setup
-	acct := assertstest.NewAccount(s.tower, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -2392,13 +2392,13 @@ func (s *apiSuite) TestAssertError(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Setup
-	restore := sysdb.InjectTrusted(s.tower.Trusted)
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.tower.Key("", ""))
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	acct := assertstest.NewAccount(s.tower, "developer1", map[string]string{
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]string{
 		"account-id": "developer1-id",
 	}, "")
 	err = d.overlord.AssertManager().DB().Add(acct)
@@ -2434,14 +2434,14 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	// Setup
-	restore := sysdb.InjectTrusted(s.tower.Trusted)
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.tower.Key("", ""))
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
 
-	acct := assertstest.NewAccount(s.tower, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	err = d.overlord.AssertManager().DB().Add(acct)
 	c.Assert(err, check.IsNil)
 	// Execute
@@ -2465,14 +2465,14 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	// Setup
-	restore := sysdb.InjectTrusted(s.tower.Trusted)
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.tower.Key("", ""))
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
 
-	acct := assertstest.NewAccount(s.tower, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	err = d.overlord.AssertManager().DB().Add(acct)
 	c.Assert(err, check.IsNil)
 	// Execute
