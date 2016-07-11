@@ -274,35 +274,30 @@ func (snapst *SnapState) SetTryMode(active bool) {
 	}
 }
 
-func autherForUserID(st *state.State, userID int) (store.Authenticator, error) {
-	var auther store.Authenticator
-	if userID > 0 {
-		user, err := auth.User(st, userID)
-		if err != nil {
-			return nil, err
-		}
-		auther = user.Authenticator()
+func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
+	if userID == 0 {
+		return nil, nil
 	}
-	return auther, nil
+	return auth.User(st, userID)
 }
 
 func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
-	auther, err := autherForUserID(st, userID)
+	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	devmode := flags&DevMode > 0
 	// FIXME: call the snap update endpoint  here instead
-	return Store(st).Snap(name, channel, devmode, auther)
+	return Store(st).Snap(name, channel, devmode, user)
 }
 
 func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
-	auther, err := autherForUserID(st, userID)
+	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	devmode := flags&DevMode > 0
-	return Store(st).Snap(name, channel, devmode, auther)
+	return Store(st).Snap(name, channel, devmode, user)
 }
 
 // Manager returns a new snap manager.
@@ -457,7 +452,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Lock()
 	store := Store(st)
-	auther, err := autherForUserID(st, ss.UserID)
+	user, err := userFromUserID(st, ss.UserID)
 	st.Unlock()
 	if err != nil {
 		return err
@@ -468,14 +463,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := store.Snap(ss.Name(), ss.Channel, ss.DevMode(), auther)
+		storeInfo, err := store.Snap(ss.Name(), ss.Channel, ss.DevMode(), user)
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = store.Download(ss.Name(), &storeInfo.DownloadInfo, meter, auther)
+		downloadedSnapFile, err = store.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user)
 		ss.SideInfo = &storeInfo.SideInfo
 	} else {
-		downloadedSnapFile, err = store.Download(ss.Name(), ss.DownloadInfo, meter, auther)
+		downloadedSnapFile, err = store.Download(ss.Name(), ss.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err

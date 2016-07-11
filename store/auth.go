@@ -20,10 +20,13 @@
 package store
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
+
+	"gopkg.in/macaroon.v1"
 )
 
 var (
@@ -36,11 +39,6 @@ var (
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
 )
-
-// Authenticator interface to set required authorization headers for requests to the store
-type Authenticator interface {
-	Authenticate(r *http.Request)
-}
 
 type ssoMsg struct {
 	Code    string `json:"code"`
@@ -55,6 +53,45 @@ func httpStatusCodeSuccess(httpStatusCode int) bool {
 // returns true if the http status code is in the "client-error" range (4xx)
 func httpStatusCodeClientError(httpStatusCode int) bool {
 	return httpStatusCode/100 == 4
+}
+
+// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
+func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
+	marshalled, err := m.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
+	return encoded, nil
+}
+
+// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
+func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
+	var m macaroon.Macaroon
+	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+	err = m.UnmarshalBinary(decoded)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// LoginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
+func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
+	caveatID := ""
+	for _, caveat := range m.Caveats() {
+		if caveat.Location == UbuntuoneLocation {
+			caveatID = caveat.Id
+			break
+		}
+	}
+	if caveatID == "" {
+		return "", fmt.Errorf("missing login caveat")
+	}
+	return caveatID, nil
 }
 
 // RequestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
