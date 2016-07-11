@@ -17,7 +17,7 @@
  *
  */
 
-package overlord_test
+package boot_test
 
 import (
 	"io/ioutil"
@@ -28,7 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -59,15 +59,15 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
-	c.Assert(overlord.FirstBoot(), IsNil)
+	c.Assert(boot.FirstBoot(), IsNil)
 	_, err := os.Stat(dirs.SnapFirstBootStamp)
 	c.Assert(err, IsNil)
 
-	c.Assert(overlord.FirstBoot(), Equals, overlord.ErrNotFirstBoot)
+	c.Assert(boot.FirstBoot(), Equals, boot.ErrNotFirstBoot)
 }
 
 func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
-	c.Assert(overlord.FirstBoot(), IsNil)
+	c.Assert(boot.FirstBoot(), IsNil)
 	_, err := os.Stat(dirs.SnapFirstBootStamp)
 	c.Assert(err, IsNil)
 }
@@ -77,7 +77,7 @@ func (s *FirstBootTestSuite) TestPopulateFromInstalledErrorsOnState(c *C) {
 	err = ioutil.WriteFile(dirs.SnapStateFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = overlord.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromInstalled()
 	c.Assert(err, ErrorMatches, "cannot create state: state .* already exists")
 }
 
@@ -91,7 +91,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	err = overlord.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromInstalled()
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
@@ -111,7 +111,7 @@ version: 1.0`
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	err = overlord.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromInstalled()
 	c.Assert(err, ErrorMatches, "(?ms).*cannot read kernel snap details.*")
 
 }
