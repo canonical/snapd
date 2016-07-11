@@ -20,13 +20,16 @@
 package auth_test
 
 import (
+	"fmt"
 	"net/http"
 	"testing"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 // Hook up gocheck into the "go test" runner.
@@ -227,20 +230,122 @@ func (as *authSuite) TestRemove(c *C) {
 	c.Assert(err, ErrorMatches, "invalid user")
 }
 
+func (as *authSuite) makeTestMacaroon() (*macaroon.Macaroon, error) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	if err != nil {
+		return nil, err
+	}
+	err = m.AddFirstPartyCaveat("first-party-caveat")
+	if err != nil {
+		return nil, err
+	}
+	err = m.AddThirdPartyCaveat([]byte("shared-key"), "third-party-caveat", store.UbuntuoneLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (as *authSuite) makeTestDischarge() (*macaroon.Macaroon, error) {
+	m, err := macaroon.New([]byte("shared-key"), "third-party-caveat", store.UbuntuoneLocation)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func (as *authSuite) TestMacaroonSerialize(c *C) {
+	m, err := as.makeTestMacaroon()
+	c.Check(err, IsNil)
+
+	serialized, err := auth.MacaroonSerialize(m)
+	c.Check(err, IsNil)
+
+	deserialized, err := auth.MacaroonDeserialize(serialized)
+	c.Check(err, IsNil)
+	c.Check(deserialized, DeepEquals, m)
+}
+
+func (as *authSuite) TestMacaroonSerializeDeserializeStoreMacaroon(c *C) {
+	// sample serialized macaroon using store server setup.
+	serialized := `MDAxNmxvY2F0aW9uIGxvY2F0aW9uCjAwMTdpZGVudGlmaWVyIHNvbWUgaWQKMDAwZmNpZCBjYXZlYXQKMDAxOWNpZCAzcmQgcGFydHkgY2F2ZWF0CjAwNTF2aWQgcyvpXSVlMnj9wYw5b-WPCLjTnO_8lVzBrRr8tJfu9tOhPORbsEOFyBwPOM_YiiXJ_qh-Pp8HY0HsUueCUY4dxONLIxPWTdMzCjAwMTJjbCByZW1vdGUuY29tCjAwMmZzaWduYXR1cmUgcm_Gdz75wUCWF9KGXZQEANhwfvBcLNt9xXGfAmxurPMK`
+
+	deserialized, err := auth.MacaroonDeserialize(serialized)
+	c.Check(err, IsNil)
+
+	// expected json serialization of the above macaroon
+	jsonData := []byte(`{"caveats":[{"cid":"caveat"},{"cid":"3rd party caveat","vid":"cyvpXSVlMnj9wYw5b-WPCLjTnO_8lVzBrRr8tJfu9tOhPORbsEOFyBwPOM_YiiXJ_qh-Pp8HY0HsUueCUY4dxONLIxPWTdMz","cl":"remote.com"}],"location":"location","identifier":"some id","signature":"726fc6773ef9c1409617d2865d940400d8707ef05c2cdb7dc5719f026c6eacf3"}`)
+
+	var expected macaroon.Macaroon
+	err = expected.UnmarshalJSON(jsonData)
+	c.Check(err, IsNil)
+	c.Check(deserialized, DeepEquals, &expected)
+
+	// reserializing the macaroon should give us the same original store serialization
+	reserialized, err := auth.MacaroonSerialize(deserialized)
+	c.Check(err, IsNil)
+	c.Check(reserialized, Equals, serialized)
+}
+
+func (as *authSuite) TestMacaroonDeserializeInvalidData(c *C) {
+	serialized := "invalid-macaroon-data"
+
+	deserialized, err := auth.MacaroonDeserialize(serialized)
+	c.Check(deserialized, IsNil)
+	c.Check(err, NotNil)
+}
+
+func (as *authSuite) TestLoginCaveatIDReturnCaveatID(c *C) {
+	m, err := as.makeTestMacaroon()
+	c.Check(err, IsNil)
+
+	caveat, err := auth.LoginCaveatID(m)
+	c.Check(err, IsNil)
+	c.Check(caveat, Equals, "third-party-caveat")
+}
+
+func (as *authSuite) TestLoginCaveatIDMacaroonMissingCaveat(c *C) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Check(err, IsNil)
+
+	caveat, err := auth.LoginCaveatID(m)
+	c.Check(err, NotNil)
+	c.Check(caveat, Equals, "")
+}
+
 func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
-	authenticator := user.Authenticator()
+	authenticator, ok := user.Authenticator().(*auth.MacaroonAuthenticator)
+	c.Assert(ok, Equals, true)
 	c.Check(authenticator.Macaroon, Equals, user.Macaroon)
 	c.Check(authenticator.Discharges, DeepEquals, user.Discharges)
 }
 
+func (as *authSuite) TestGetAuthenticatorFromNilUser(c *C) {
+	// just check we don't blow up, really
+	user := (*auth.UserState)(nil)
+	c.Check(user.Authenticator(), IsNil)
+}
+
 func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
+	root, err := as.makeTestMacaroon()
+	c.Check(err, IsNil)
+	discharge, err := as.makeTestDischarge()
+	c.Check(err, IsNil)
+
+	serializedMacaroon, err := auth.MacaroonSerialize(root)
+	c.Check(err, IsNil)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
+	c.Check(err, IsNil)
+
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", serializedMacaroon, []string{serializedDischarge})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -248,6 +353,12 @@ func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
 	authenticator := user.Authenticator()
 	authenticator.Authenticate(req)
 
+	// discharge macaroon should be bound to the root macaroon
+	discharge.Bind(root.Signature())
+	serializedPreparedDischarge, err := auth.MacaroonSerialize(discharge)
+	c.Check(err, IsNil)
+
 	authorization := req.Header.Get("Authorization")
-	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
+	expected := fmt.Sprintf(`Macaroon root="%s", discharge="%s"`, serializedMacaroon, serializedPreparedDischarge)
+	c.Check(authorization, Equals, expected)
 }

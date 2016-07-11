@@ -1,0 +1,9 @@
+spawn snap login
+
+expect {
+    "required argument `email` was not provided" {
+        exit 0
+    } default {
+        exit 1
+    }
+}

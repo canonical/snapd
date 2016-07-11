@@ -1,66 +1,64 @@
-summary: |
+summary: Check that the log-observe interface works.
 
-  The log-observe interface allows a snap to read system logs and set kernel
-  log rate-limiting.
+details: |
+    The log-observe interface allows a snap to read system logs and set kernel
+    log rate-limiting.
 
-  A snap which defines the log-observe plug must be shown in the interfaces list.
-  The plug must not be autoconnected on install and, as usual, must be able to be
-  reconnected.
+    A snap which defines the log-observe plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
 
 environment:
-  SNAP_NAME: log-observe-consumer
-  SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
-  PLUG: log-observe
-
-kill-wait: 1m
+    SNAP_NAME: log-observe-consumer
+    SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
+    PLUG: log-observe
 
 prepare: |
-  echo "Given a snap declaring the $PLUG plug is installed"
-  snapbuild $TESTSLIB/snaps/$SNAP_NAME .
-  snap install $SNAP_FILE
+    echo "Given a snap declaring the $PLUG plug is installed"
+    snapbuild $TESTSLIB/snaps/$SNAP_NAME .
+    snap install $SNAP_FILE
 
 restore: |
-  rm -f $SNAP_FILE
+    rm -f $SNAP_FILE
 
 execute: |
-  CONNECTED_PATTERN="(?s)Slot +Plug\n\
-  .*?\n\
-  :$PLUG +$SNAP_NAME"
+    CONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    :$PLUG +$SNAP_NAME"
     DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
-  .*?\n\
-  - +$SNAP_NAME:$PLUG"
+    .*?\n\
+    - +$SNAP_NAME:$PLUG"
 
-  echo "Then the snap is not listed as connected"
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+    echo "Then the snap is not listed as connected"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-  echo "============================================"
+    echo "============================================"
 
-  echo "When the plug is connected"
-  snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+    echo "When the plug is connected"
+    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-  echo "Then the plug can be disconnected again"
-  snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+    echo "Then the plug can be disconnected again"
+    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-  echo "============================================"
+    echo "============================================"
 
-  echo "When the plug is connected"
-  snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$CONNECTED_PATTERN"
+    echo "When the plug is connected"
+    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-  echo "Then the snap is able to access the system logs"
-  response=$(log-observe-consumer)
-  echo "$response" | grep -Pqz "ok\n"
+    echo "Then the snap is able to access the system logs"
+    log-observe-consumer | grep -Pqz "ok\n"
 
-  echo "============================================"
+    echo "============================================"
 
-  echo "When the plug is disconnected"
-  snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
-  echo "$(snap interfaces)" | grep -Pzq "$DISCONNECTED_PATTERN"
+    echo "When the plug is disconnected"
+    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-  echo "Then snap can't access the system logs"
-  if log-observe-consumer; then
-    echo "System log shouldn't be accessible" && exit 1
-  fi
-  echo "============================================"
+    echo "Then snap can't access the system logs"
+    if log-observe-consumer; then
+        echo "System log shouldn't be accessible"
+        exit 1
+    fi

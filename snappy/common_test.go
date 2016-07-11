@@ -83,7 +83,7 @@ apps:
 	}
 
 	si := snap.SideInfo{
-		OfficialName:      info.Name(),
+		RealName:          info.Name(),
 		Revision:          snap.R(revno),
 		Developer:         testDeveloper,
 		Channel:           "remote-channel",
@@ -175,20 +175,20 @@ func makeTwoTestSnaps(c *C, snapType snap.Type, extra ...string) (*snap.Info, *s
 
 	snapPath := makeTestSnapPackage(c, snapYamlContent+"version: 1.0")
 	foo10 := &snap.SideInfo{
-		OfficialName: "foo",
-		Developer:    testDeveloper,
-		Revision:     snap.R(100),
-		Channel:      "remote-channel",
+		RealName:  "foo",
+		Developer: testDeveloper,
+		Revision:  snap.R(100),
+		Channel:   "remote-channel",
 	}
 	info1, err := (&Overlord{}).installWithSideInfo(snapPath, foo10, LegacyAllowUnauthenticated|LegacyAllowGadget, inter)
 	c.Assert(err, IsNil)
 
 	snapPath = makeTestSnapPackage(c, snapYamlContent+"version: 2.0")
 	foo20 := &snap.SideInfo{
-		OfficialName: "foo",
-		Developer:    testDeveloper,
-		Revision:     snap.R(200),
-		Channel:      "remote-channel",
+		RealName:  "foo",
+		Developer: testDeveloper,
+		Revision:  snap.R(200),
+		Channel:   "remote-channel",
 	}
 	info2, err := (&Overlord{}).installWithSideInfo(snapPath, foo20, LegacyAllowUnauthenticated|LegacyAllowGadget, inter)
 	c.Assert(err, IsNil)

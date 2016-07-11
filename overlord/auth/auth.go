@@ -21,11 +21,16 @@ package auth
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"net/http"
 	"sort"
 
+	"gopkg.in/macaroon.v1"
+
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 // AuthState represents current authenticated users as tracked in state
@@ -144,7 +149,10 @@ NextUser:
 }
 
 // Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
-func (us *UserState) Authenticator() *MacaroonAuthenticator {
+func (us *UserState) Authenticator() store.Authenticator {
+	if us == nil {
+		return nil
+	}
 	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
 }
 
@@ -161,12 +169,73 @@ func newMacaroonAuthenticator(macaroon string, discharges []string) *MacaroonAut
 	}
 }
 
+// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
+func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
+	marshalled, err := m.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
+	return encoded, nil
+}
+
+// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
+func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
+	var m macaroon.Macaroon
+	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+	err = m.UnmarshalBinary(decoded)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// LoginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
+func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
+	caveatID := ""
+	for _, caveat := range m.Caveats() {
+		if caveat.Location == store.UbuntuoneLocation {
+			caveatID = caveat.Id
+			break
+		}
+	}
+	if caveatID == "" {
+		return "", fmt.Errorf("missing login caveat")
+	}
+	return caveatID, nil
+}
+
 // Authenticate will add the store expected Authorization header for macaroons
 func (ma *MacaroonAuthenticator) Authenticate(r *http.Request) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, ma.Macaroon)
-	for _, discharge := range ma.Discharges {
-		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
+
+	// deserialize root macaroon (we need its signature to do the discharge binding)
+	root, err := MacaroonDeserialize(ma.Macaroon)
+	if err != nil {
+		logger.Debugf("cannot deserialize root macaroon: %v", err)
+		return
 	}
+
+	for _, d := range ma.Discharges {
+		// prepare discharge for request
+		discharge, err := MacaroonDeserialize(d)
+		if err != nil {
+			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
+			return
+		}
+		discharge.Bind(root.Signature())
+
+		serializedDischarge, err := MacaroonSerialize(discharge)
+		if err != nil {
+			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
+			return
+		}
+		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
+	}
+
 	r.Header.Set("Authorization", buf.String())
 }

@@ -28,9 +28,11 @@ import (
 
 var (
 	myappsAPIBase = myappsURL()
-	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
-	MyAppsPackageAccessAPI = myappsAPIBase + "api/2.0/acl/package_access/"
-	ubuntuoneAPIBase       = authURL()
+	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
+	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
+	ubuntuoneAPIBase     = authURL()
+	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
+	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
 )
@@ -55,17 +57,22 @@ func httpStatusCodeClientError(httpStatusCode int) bool {
 	return httpStatusCode/100 == 4
 }
 
-// RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store.
-func RequestPackageAccessMacaroon() (string, error) {
-	const errorPrefix = "cannot get package access macaroon from store: "
+// RequestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
+func RequestStoreMacaroon() (string, error) {
+	const errorPrefix = "cannot get snap access permission from store: "
 
-	emptyJSONData := "{}"
-	req, err := http.NewRequest("POST", MyAppsPackageAccessAPI, strings.NewReader(emptyJSONData))
+	data := map[string]interface{}{
+		"permissions": []string{"package_access", "package_purchase"},
+	}
+	macaroonJSONData, err := json.Marshal(data)
+
+	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, strings.NewReader(string(macaroonJSONData)))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -94,13 +101,13 @@ func RequestPackageAccessMacaroon() (string, error) {
 }
 
 // DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
-func DischargeAuthCaveat(username, password, macaroon, otp string) (string, error) {
-	const errorPrefix = "cannot get discharge macaroon from store: "
+func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+	const errorPrefix = "cannot authenticate on snap store: "
 
 	data := map[string]string{
-		"email":    username,
-		"password": password,
-		"macaroon": macaroon,
+		"email":     username,
+		"password":  password,
+		"caveat_id": caveat,
 	}
 	if otp != "" {
 		data["otp"] = otp
@@ -114,8 +121,9 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
