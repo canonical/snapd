@@ -296,11 +296,10 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/find/?q=name:gfoo", nil)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	c.Assert(s.auther, check.IsNil)
 
-	_, ok := searchStore(findCmd, req, nil).(*resp)
+	_, ok := searchStore(findCmd, req, user).(*resp)
 	c.Assert(ok, check.Equals, true)
 	// ensure authenticator was set
 	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
@@ -845,7 +844,7 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 			Developer: "foo",
 		},
 	}}
-	s.mockSnap(c, "name: foo\nversion: 1.0")
+	s.mockSnap(c, "name: store\nversion: 1.0")
 
 	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
 	c.Assert(err, check.IsNil)
@@ -982,11 +981,10 @@ func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	c.Assert(s.auther, check.IsNil)
 
-	_ = getSnapsInfo(snapsCmd, req, nil).(*resp)
+	_ = getSnapsInfo(snapsCmd, req, user).(*resp)
 
 	// ensure authenticator was set
 	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
@@ -2891,7 +2889,6 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	}`)
 	req, err := http.NewRequest("POST", "/v2/buy", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -2899,7 +2896,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, nil).(*resp)
+	rsp := postBuy(snapCmd, req, user).(*resp)
 
 	expected := buyResponseData{
 		State: "Complete",
@@ -2932,7 +2929,6 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	}`)
 	req, err := http.NewRequest("POST", "/v2/buy", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -2940,7 +2936,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, nil).(*resp)
+	rsp := postBuy(snapCmd, req, user).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)

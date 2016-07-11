@@ -68,14 +68,15 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:    "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 		Channel: "some-channel",
 		// explicitly set to "nil", this ensures the compatibility
 		// code path in the task is hit and the store is queried
 		// in the task (instead of using the new
 		// SnapSetup.{SideInfo,DownloadInfo} that gets set in
 		// snapstate.{Install,Update} directely.
-		SideInfo:     nil,
 		DownloadInfo: nil,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
@@ -116,7 +117,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	s.state.Lock()
 
 	si := &snap.SideInfo{
-		RealName: "my-side-info",
+		RealName: "foo",
 		SnapID:   "mySnapID",
 		Revision: snap.R(11),
 		Channel:  "my-channel",
@@ -125,7 +126,6 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	// download, ensure the store does not query
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
 		Channel:  "some-channel",
 		SideInfo: si,
 		DownloadInfo: &snap.DownloadInfo{
@@ -165,7 +165,6 @@ func (s *downloadSnapSuite) TestDoUndoDownloadSnap(c *C) {
 	}
 	t := s.state.NewTask("download-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name:     "foo",
 		SideInfo: si,
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "http://something.com/snap",
