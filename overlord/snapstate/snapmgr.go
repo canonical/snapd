@@ -663,13 +663,16 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	info, err := readInfo(ss.Name(), ss.SideInfo)
+	t.State().Lock()
+	var typ snap.Type
+	err = t.Get("snap-type", &typ)
+	t.State().Unlock()
 	if err != nil {
 		return err
 	}
 
 	pb := &TaskProgressAdapter{task: t}
-	return m.backend.UndoSetupSnap(ss.placeInfo(), info.Type, pb)
+	return m.backend.UndoSetupSnap(ss.placeInfo(), typ, pb)
 }
 
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
@@ -702,11 +705,9 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	snapst.SetType(newInfo.Type)
-	st := t.State()
-	st.Lock()
-	Set(st, ss.Name(), snapst)
-	st.Unlock()
+	t.State().Lock()
+	t.Set("snap-type", newInfo.Type)
+	t.State().Unlock()
 
 	// cleanup the downloaded snap after it got installed
 	// in backend.SetupSnap.
