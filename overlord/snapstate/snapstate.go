@@ -455,10 +455,10 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 	if pi == nil {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
-	return revertToRevision(s, name, pi.Revision)
+	return RevertToRevision(s, name, pi.Revision)
 }
 
-func revertToRevision(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
+func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
