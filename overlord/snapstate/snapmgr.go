@@ -655,7 +655,10 @@ func (m *SnapManager) undoMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	var typ snap.Type
 	err = t.Get("snap-type", &typ)
 	t.State().Unlock()
-	if err != nil {
+	// backward compatibility
+	if err == state.ErrNoState {
+		typ = "app"
+	} else if err != nil {
 		return err
 	}
 
