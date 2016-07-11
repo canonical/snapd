@@ -1,0 +1,13 @@
+#!/usr/bin/env python3
+
+import os
+import subprocess
+import sys
+
+def run():
+    with open('/proc/{}/mounts'.format(os.getpid()), 'r') as f:
+        data = f.read()
+        print(data)
+
+if __name__ == '__main__':
+    sys.exit(run())
