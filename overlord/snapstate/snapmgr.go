@@ -106,11 +106,15 @@ func (ss *SnapSetup) MountDir() string {
 
 // DevMode returns true if the snap is being installed in developer mode.
 func (ss *SnapSetup) DevMode() bool {
-	return ss.Flags&DevMode != 0
+	return Flags(ss.Flags).DevMode()
+}
+
+func (ss *SnapSetup) Confined() bool {
+	return Flags(ss.Flags).Confined()
 }
 
 func (ss *SnapSetup) DevModeAllowed() bool {
-	return ss.Flags&(DevMode|Confined) != 0
+	return Flags(ss.Flags).DevModeAllowed()
 }
 
 // TryMode returns true if the snap is being installed in try mode directly from a directory.
@@ -259,7 +263,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 
 // DevMode returns true if the snap is installed in developer mode.
 func (snapst *SnapState) DevMode() bool {
-	return snapst.Flags&DevMode != 0
+	return Flags(snapst.Flags).DevMode()
 }
 
 // SetDevMode sets/clears the DevMode flag in the SnapState.
@@ -269,6 +273,23 @@ func (snapst *SnapState) SetDevMode(active bool) {
 	} else {
 		snapst.Flags &= ^DevMode
 	}
+}
+
+func (snapst *SnapState) Confined() bool {
+	return Flags(snapst.Flags).Confined()
+}
+
+// SetConfined sets/clears the Confined flag in the SnapState.
+func (snapst *SnapState) SetConfined(active bool) {
+	if active {
+		snapst.Flags |= Confined
+	} else {
+		snapst.Flags &= ^Confined
+	}
+}
+
+func (snapst *SnapState) DevModeAllowed() bool {
+	return Flags(snapst.Flags).DevModeAllowed()
 }
 
 // TryMode returns true if the snap is installed in `try` mode as an
@@ -298,8 +319,6 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	if err != nil {
 		return nil, err
 	}
-	devmode := flags&DevMode > 0
-
 	curInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return nil, err
@@ -312,7 +331,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
 		Channel: channel,
-		DevMode: devmode,
+		DevMode: flags.DevModeAllowed(),
 		Block:   snapst.Block(),
 
 		SnapID:   curInfo.SnapID,
@@ -332,8 +351,7 @@ func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*
 	if err != nil {
 		return nil, err
 	}
-	devmode := flags&DevMode > 0
-	return Store(st).Snap(name, channel, devmode, user)
+	return Store(st).Snap(name, channel, flags.DevModeAllowed(), user)
 }
 
 // Manager returns a new snap manager.
@@ -880,6 +898,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.SetTryMode(ss.TryMode())
 	oldDevMode := snapst.DevMode()
 	snapst.SetDevMode(ss.DevMode())
+	oldConfined := snapst.Confined()
+	snapst.SetConfined(ss.Confined())
 
 	newInfo, err := readInfo(ss.Name(), cand)
 	if err != nil {
@@ -909,6 +929,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
+	t.Set("old-confined", oldConfined)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("had-candidate", hadCandidate)
@@ -955,6 +976,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldConfined bool
+	err = t.Get("old-confined", &oldConfined)
+	if err != nil {
+		return err
+	}
 	var oldCurrent snap.Revision
 	err = t.Get("old-current", &oldCurrent)
 	if err != nil {
@@ -979,6 +1005,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Channel = oldChannel
 	snapst.SetTryMode(oldTryMode)
 	snapst.SetDevMode(oldDevMode)
+	snapst.SetConfined(oldConfined)
 
 	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
