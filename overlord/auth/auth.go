@@ -160,21 +160,6 @@ func SetDevice(st *state.State, device *DeviceState) error {
 	return nil
 }
 
-// SetDeviceIdentity sets the device's identity as used for communication with the store.
-func SetDeviceIdentity(st *state.State, brand string, model string, serial string) error {
-	device, err := Device(st)
-	if err != nil {
-		return err
-	}
-
-	device.Brand = brand
-	device.Model = model
-	device.Serial = serial
-	SetDevice(st, device)
-
-	return nil
-}
-
 var ErrInvalidAuth = fmt.Errorf("invalid authentication")
 
 // CheckMacaroon returns the UserState for the given macaroon/discharges credentials
