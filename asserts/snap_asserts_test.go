@@ -399,9 +399,9 @@ func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 }
 
 func (srs *snapRevSuite) TestPrimaryKey(c *C) {
-	headers := srs.makeHeaders(nil)
-
 	storeDB, db := makeStoreAndCheckDB(c)
+
+	headers := srs.makeHeaders(nil)
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 	err = db.Add(snapRev)
