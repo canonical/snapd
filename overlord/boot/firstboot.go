@@ -17,7 +17,7 @@
  *
  */
 
-package overlord
+package boot
 
 import (
 	"errors"
@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -44,7 +45,7 @@ func populateStateFromInstalled() error {
 		return fmt.Errorf("cannot create state: state %q already exists", dirs.SnapStateFile)
 	}
 
-	ovld, err := New()
+	ovld, err := overlord.New()
 	if err != nil {
 		return err
 	}

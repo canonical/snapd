@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +17,9 @@
  *
  */
 
-package main
+package boot
 
-import (
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/overlord/boot"
+var (
+	PopulateStateFromInstalled = populateStateFromInstalled
+	NameAndRevnoFromSnap       = nameAndRevnoFromSnap
 )
-
-type cmdInternalFirstBoot struct{}
-
-func init() {
-	cmd := addCommand("firstboot",
-		"internal",
-		"internal", func() flags.Commander {
-			return &cmdInternalFirstBoot{}
-		})
-	cmd.hidden = true
-}
-
-func (x *cmdInternalFirstBoot) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-
-	return boot.FirstBoot()
-}
