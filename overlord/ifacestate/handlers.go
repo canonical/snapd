@@ -120,19 +120,6 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 		return err
 	}
 
-	// Get the old-devmode flag from the task.
-	// This flag is set by setup-profiles in case we have to undo.
-	var oldDevMode bool
-	err = task.Get("old-devmode", &oldDevMode)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	// Restore the state of DevMode flag if old-devmode was saved in the task.
-	if err == nil {
-		snapState.SetDevMode(oldDevMode)
-		snapstate.Set(st, snapName, &snapState)
-	}
-
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup

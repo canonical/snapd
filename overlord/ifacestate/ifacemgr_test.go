@@ -657,62 +657,6 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
 }
 
-// The undo handler of the setup-profiles task will honor `old-devmode` that
-// is optionally stored in the task state and use it to set the DevMode flag in
-// the SnapState.
-//
-// This variant checks restoring DevMode to true
-func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeTrue(c *C) {
-	s.undoDevModeCheck(c, 0, true)
-}
-
-// The undo handler of the setup-profiles task will honor `old-devmode` that
-// is optionally stored in the task state and use it to set the DevMode flag in
-// the SnapState.
-//
-// This variant checks restoring DevMode to false
-func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeFalse(c *C) {
-	s.undoDevModeCheck(c, 0, false)
-}
-
-func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snapstate.Flags, devMode bool) {
-	// Put the OS and sample snaps in place.
-	s.mockSnap(c, osSnapYaml)
-	snapInfo := s.mockSnap(c, sampleSnapYaml)
-
-	// Initialize the manager. This registers both snaps.
-	mgr := s.manager(c)
-
-	// Run the setup-profiles task in UndoMode and let it finish.
-	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: snapInfo.Name(),
-			Revision: snapInfo.Revision,
-		},
-		Flags: snapstate.SnapSetupFlags(flags),
-	})
-	s.state.Lock()
-	task := change.Tasks()[0]
-	// Inject the old value of DevMode flag for the task handler to restore
-	task.Set("old-devmode", devMode)
-	task.SetStatus(state.UndoStatus)
-	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
-
-	// Change succeeds
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(change.Status(), Equals, state.UndoneStatus)
-
-	// SnapState.Flags now holds the original value of DevMode
-	var snapState snapstate.SnapState
-	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
-	c.Assert(err, IsNil)
-	c.Check(snapState.DevMode(), Equals, devMode)
-}
-
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
 	s.testDoDicardConns(c, "consumer")
 }
