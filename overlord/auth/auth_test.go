@@ -241,3 +241,38 @@ func (as *authSuite) TestSetDevice(c *C) {
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
 }
+
+func (as *authSuite) TestAuthStateContextUpdateUser(c *C) {
+	as.state.Lock()
+	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	user.Username = "different"
+	user.StoreDischarges = []string{"updated-discharge"}
+
+	authContext := auth.NewAuthStateContext(as.state)
+	err := authContext.UpdateUser(user)
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, 1)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, user)
+}
+
+func (as *authSuite) TestAuthStateContextUpdateUserInvalid(c *C) {
+	as.state.Lock()
+	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	user := &auth.UserState{
+		ID:       102,
+		Username: "username",
+		Macaroon: "macaroon",
+	}
+
+	authContext := auth.NewAuthStateContext(as.state)
+	err := authContext.UpdateUser(user)
+	c.Assert(err, ErrorMatches, "invalid user")
+}
