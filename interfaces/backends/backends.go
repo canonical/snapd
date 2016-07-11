@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +17,28 @@
  *
  */
 
-package main
+package backends
 
 import (
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/overlord/boot"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 )
 
-type cmdInternalFirstBoot struct{}
-
-func init() {
-	cmd := addCommand("firstboot",
-		"internal",
-		"internal", func() flags.Commander {
-			return &cmdInternalFirstBoot{}
-		})
-	cmd.hidden = true
+// append when a new security backend is added
+var All = []interfaces.SecurityBackend{
+	&seccomp.Backend{},
+	&dbus.Backend{},
+	&udev.Backend{},
+	&mount.Backend{},
 }
 
-func (x *cmdInternalFirstBoot) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
+func init() {
+	if !release.ReleaseInfo.ForceDevMode() {
+		All = append(All, &apparmor.Backend{})
 	}
-
-	return boot.FirstBoot()
 }
