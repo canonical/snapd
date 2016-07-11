@@ -583,21 +583,6 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
 	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
-
-	/*
-		// SnapState stored the value of DevMode
-		var snapState snapstate.SnapState
-		err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
-		c.Assert(err, IsNil)
-		c.Check(snapState.DevMode(), Equals, true)
-
-		// The old value of DevMode was saved in the task in case undo is needed.
-		task := change.Tasks()[0]
-		var oldDevMode bool
-		err = task.Get("old-devmode", &oldDevMode)
-		c.Assert(err, IsNil)
-		c.Check(oldDevMode, Equals, false)
-	*/
 }
 
 // setup-profiles uses the new snap.Info when setting up security for the new
