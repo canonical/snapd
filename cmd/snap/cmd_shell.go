@@ -26,8 +26,8 @@ import (
 
 	//"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/classic"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type cmdShell struct {
@@ -61,10 +61,13 @@ func reexecWithSudo() error {
 
 func (x *cmdShell) Execute(args []string) error {
 	shellType := x.Positional.ShellType
+
+	// FIXME: make this generic so that all snaps can provide a
+	//        shell
 	if shellType == "classic" {
-		if !classic.Enabled() {
+		if !osutil.FileExists("/snap/classic/current") {
 			return fmt.Errorf(i18n.G(`Classic dimension disabled on this system.
-Use "sudo snap enable-classic" to enable it.`))
+Use "sudo snap install --devmode classic && sudo classic.create" to enable it.`))
 		}
 
 		// we need to re-exec if we do not run as root
@@ -80,7 +83,8 @@ Use "sudo snap enable-classic" to enable it.`))
 The home directory is shared between snappy and the classic dimension.
 Run "exit" to leave the classic shell.
 `))
-		return classic.RunShell()
+		args := []string{"/snap/bin/classic.shell"}
+		return syscall.Exec(args[0], args, os.Environ())
 	}
 
 	return fmt.Errorf(i18n.G("unsupported shell %v"), shellType)
