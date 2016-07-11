@@ -101,6 +101,7 @@ type SnapUbuntuStoreConfig struct {
 	DetailsURI    *url.URL
 	BulkURI       *url.URL
 	AssertionsURI *url.URL
+	IdentityURI   *url.URL
 	PurchasesURI  *url.URL
 	DetailFields  []string
 }
@@ -220,6 +221,11 @@ func init() {
 	}
 
 	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "dev/api/snap-purchases/")
+	if err != nil {
+		panic(err)
+	}
+
+	defaultConfig.IdentityURI, err = url.Parse(myappsURL() + "identity/api/v1/")
 	if err != nil {
 		panic(err)
 	}
