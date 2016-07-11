@@ -996,7 +996,7 @@ version: 1.0`)
 		Channel:  "",
 		Revision: snap.R(-1),
 	})
-	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
+	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
 }
 
 func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
@@ -1011,8 +1011,7 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "mock", Revision: snap.R(-2)},
 		},
-		LocalRevision: snap.R(-2),
-		Current:       snap.R(-2),
+		Current: snap.R(-2),
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -1081,7 +1080,7 @@ version: 1.0`)
 		Channel:  "",
 		Revision: snap.R(-3),
 	})
-	c.Assert(snapst.LocalRevision, Equals, snap.R(-3))
+	c.Assert(snapst.LocalRevision(), Equals, snap.R(-3))
 }
 
 func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
@@ -1096,8 +1095,7 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "mock", Revision: snap.R(100001)},
 		},
-		LocalRevision: snap.R(100001),
-		Current:       snap.R(100001),
+		Current: snap.R(100001),
 	})
 
 	mockSnap := makeTestSnap(c, `name: mock
@@ -1133,7 +1131,7 @@ version: 1.0`)
 		Channel:  "",
 		Revision: snap.R(-1),
 	})
-	c.Assert(snapst.LocalRevision, Equals, snap.R(-1))
+	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
@@ -1600,10 +1598,9 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active:        true,
-		Sequence:      []*snap.SideInfo{&siOld, &si},
-		Current:       si.Revision,
-		LocalRevision: si.Revision,
+		Active:   true,
+		Sequence: []*snap.SideInfo{&siOld, &si},
+		Current:  si.Revision,
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap backwards")
@@ -1623,7 +1620,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
-	c.Assert(snapst.LocalRevision, Equals, snap.R(-7))
+	c.Assert(snapst.LocalRevision(), Equals, snap.R(-7))
 }
 
 func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
@@ -2516,4 +2513,32 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
 	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
+}
+
+func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-7),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(-11),
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si7.Revision,
+	}
+	c.Assert(snapst.LocalRevision(), Equals, snap.R(-11))
+}
+
+func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+	}
+	snapst := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&si7},
+		Current:  si7.Revision,
+	}
+	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
 }

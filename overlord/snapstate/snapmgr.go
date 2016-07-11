@@ -128,9 +128,6 @@ type SnapState struct {
 	Current snap.Revision  `json:"current"`
 	Channel string         `json:"channel,omitempty"`
 	Flags   SnapStateFlags `json:"flags,omitempty"`
-
-	// incremented revision used for local installs (latest in the seq)
-	LocalRevision snap.Revision `json:"local-revision,omitempty"`
 }
 
 // Type returns the type of the snap or an error.
@@ -157,6 +154,18 @@ func (snapst *SnapState) HasCurrent() bool {
 		return false
 	}
 	return true
+}
+
+// LocalRevision returns the "latest" local revision. Local revisions
+// start at -1 and are counted down.
+func (snapst *SnapState) LocalRevision() snap.Revision {
+	var local snap.Revision
+	for _, si := range snapst.Sequence {
+		if si.Revision.Local() && si.Revision.N < local.N {
+			local = si.Revision
+		}
+	}
+	return local
 }
 
 // TODO: unexport CurrentSideInfo and HasCurrent?
@@ -407,7 +416,7 @@ func (m *SnapManager) doPrepareSnap(t *state.Task, _ *tomb.Tomb) error {
 	if ss.Revision().Unset() {
 		// Local revisions start at -1 and go down.
 		// (unless it's a really old local revision in which case it needs fixing)
-		revision := snapst.LocalRevision
+		revision := snapst.LocalRevision()
 		if revision.Unset() || revision.N > 0 {
 			// if revision.N>0 this fixes it
 			revision = snap.R(-1)
@@ -873,10 +882,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	if err != nil {
 		return err
-	}
-
-	if cand.Revision.Local() && snapst.LocalRevision.N > ss.Revision().N {
-		snapst.LocalRevision = ss.Revision()
 	}
 
 	// save for undoLinkSnap
