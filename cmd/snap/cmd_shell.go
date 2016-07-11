@@ -60,6 +60,10 @@ func reexecWithSudo() error {
 }
 
 func (x *cmdShell) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	shellType := x.Positional.ShellType
 	if shellType == "classic" {
 		if !classic.Enabled() {
