@@ -315,6 +315,22 @@ func (as *authSuite) TestLoginCaveatIDMacaroonMissingCaveat(c *C) {
 	c.Check(caveat, Equals, "")
 }
 
+func (as *authSuite) TestSetDevice(c *C) {
+	as.state.Lock()
+	device, err := auth.Device(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{})
+
+	as.state.Lock()
+	err = auth.SetDevice(as.state, &auth.DeviceState{Brand: "some-brand"})
+	c.Check(err, IsNil)
+	device, err = auth.Device(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
+}
+
 func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})

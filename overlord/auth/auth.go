@@ -35,8 +35,16 @@ import (
 
 // AuthState represents current authenticated users as tracked in state
 type AuthState struct {
-	LastID int         `json:"last-id"`
-	Users  []UserState `json:"users"`
+	LastID int          `json:"last-id"`
+	Users  []UserState  `json:"users"`
+	Device *DeviceState `json:"device,omitempty"`
+}
+
+// DeviceState represents the device's identity and store credentials
+type DeviceState struct {
+	Brand  string `json:"brand,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Serial string `json:"serial,omitempty"`
 }
 
 // UserState represents an authenticated user
@@ -116,6 +124,41 @@ func User(st *state.State, id int) (*UserState, error) {
 		}
 	}
 	return nil, fmt.Errorf("invalid user")
+}
+
+// Device returns the device details from the state.
+func Device(st *state.State) (*DeviceState, error) {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return &DeviceState{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	if authStateData.Device == nil {
+		return &DeviceState{}, nil
+	}
+
+	return authStateData.Device, nil
+}
+
+// SetDevice updates the device details in the state.
+func SetDevice(st *state.State, device *DeviceState) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		authStateData = AuthState{}
+	} else if err != nil {
+		return err
+	}
+
+	authStateData.Device = device
+	st.Set("auth", authStateData)
+
+	return nil
 }
 
 var ErrInvalidAuth = fmt.Errorf("invalid authentication")
