@@ -31,7 +31,7 @@ execute: |
     snap connect locale-control-consumer:locale-control ubuntu-core:locale-control
 
     echo "Then the snap is able to read the locale configuration"
-    [ $(sudo -i -u test /bin/sh -c "locale-control-consumer.get LANG") = "$LANG" ]
+    [ "$(sudo -i -u test /bin/sh -c \"locale-control-consumer.get LANG\")" = "$LANG" ]
 
     echo "==================================="
 
