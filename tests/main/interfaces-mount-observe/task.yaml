@@ -11,8 +11,17 @@ details: |
     The test also checks that a new mount created after the snap is installed
     is also shown when the plug is connected.
 
+prepare: |
+    echo "Given a snap declaring a plug on the mount-observe interface is installed"
+    snapbuild $TESTSLIB/snaps/mount-observe-consumer .
+    snap install mount-observe-consumer_1.0_all.snap
+
+restore: |
+    rm -f mount-observe-consumer_1.0_all.snap
+
 execute: |
-    echo "Given a snap declaring the mount-observe plug is installed"
+    CONNECTED_PATTERN=":mount-observe +mount-observe-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +mount-observe-consumer:mount-observe"
 
     echo "Then the plug is shown as disconnected"
 
