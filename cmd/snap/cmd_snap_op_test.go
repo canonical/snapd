@@ -325,7 +325,7 @@ func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
 	rest, err := snap.Parser().ParseArgs(cmd)
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 installed in try mode`)
+	c.Check(s.Stdout(), check.Matches, fmt.Sprintf(`(?sm).*foo 1.0 mounted from .*%s`, tryDir))
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
