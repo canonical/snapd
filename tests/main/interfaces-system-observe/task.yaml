@@ -1,0 +1,14 @@
+symmary: Ensures that the system-observe interface works.
+
+execute: |
+    echo "Given a snap declaring the system-observe plug is installed"
+
+    echo "Then it is reported as not connected"
+
+    echo "When the plug is connected"
+
+    echo "Then the snap is able to get system information"
+
+    echo "When the plug is disconnected"
+
+    echo "Then the snap is not able to get system information"
