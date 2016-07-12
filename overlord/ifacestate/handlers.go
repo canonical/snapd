@@ -31,6 +31,30 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, snapName string, affectedSnaps []string) error {
+	st := task.State()
+
+	// Setup security of the affected snaps.
+	for _, affectedSnapName := range affectedSnaps {
+		if affectedSnapName == snapName {
+			continue
+		}
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
+			return err
+		}
+		affectedSnapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		snap.AddImplicitSlots(affectedSnapInfo)
+		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevMode(), m.repo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -84,25 +108,8 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := setupSnapSecurity(task, snapInfo, ss.DevMode(), m.repo); err != nil {
 		return err
 	}
-	for _, snapName := range affectedSnaps {
-		// The affected snap is setup explicitly so skip it here.
-		if snapName == snapInfo.Name() {
-			continue
-		}
-		var snapst snapstate.SnapState
-		if err := snapstate.Get(task.State(), snapName, &snapst); err != nil {
-			return err
-		}
-		snapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			return err
-		}
-		snap.AddImplicitSlots(snapInfo)
-		if err := setupSnapSecurity(task, snapInfo, snapst.DevMode(), m.repo); err != nil {
-			return err
-		}
-	}
-	return nil
+
+	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) error {
@@ -132,25 +139,8 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	if err != nil {
 		return err
 	}
-
-	// Setup security of the affected snaps.
-	for _, affectedSnapName := range affectedSnaps {
-		if affectedSnapName == snapName {
-			// Skip setup for the snap being removed as this is handled below.
-			continue
-		}
-		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
-			return err
-		}
-		affectedSnapInfo, err := snapst.CurrentInfo()
-		if err != nil {
-			return err
-		}
-		snap.AddImplicitSlots(affectedSnapInfo)
-		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevMode(), m.repo); err != nil {
-			return err
-		}
+	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps); err != nil {
+		return err
 	}
 
 	// Remove the snap from the interface repository.
