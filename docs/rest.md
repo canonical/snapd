@@ -195,6 +195,9 @@ case the search is for a prefix, otherwise the whole name must match.</dd>
 description.</dd>
 </dl>
 
+If no prefix is given, the term is treated as if it were a `*`-ended `name`
+search; this is: `snap find foo` is the same as `snap find name:foo*`.
+
 <b id=f1>†</b> that list can only have exactly one element, for now. [↩](#a1)
 
 #### `select`

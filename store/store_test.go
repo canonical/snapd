@@ -701,7 +701,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 	} {
 		repo.Find(query, "", nil)
 	}
+}
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
+	repo := NewUbuntuStoreSnapRepository(&SnapUbuntuStoreConfig{SearchURI: new(url.URL)}, "")
 	_, err := repo.Find("", "", nil)
 	c.Check(err, Equals, ErrEmptyQuery)
 	_, err = repo.Find("foo:bar", "", nil)
@@ -716,6 +719,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		c.Check(err, Equals, ErrBadQuery, Commentf(prefix))
 	}
 	_, err = repo.Find("text:foo*", "", nil)
+	c.Check(err, Equals, ErrBadQuery)
+
+	_, err = repo.Find("name:foo*bar", "", nil)
 	c.Check(err, Equals, ErrBadQuery)
 }
 

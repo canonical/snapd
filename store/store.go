@@ -609,20 +609,11 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, use
 // Find finds  (installable) snaps from the store, matching the
 // given search term.
 func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	// searchTerm is [<prefix>:]term
-	// prefix is either "name", or "text".
-
-	// if prefix is name, term can end with * to mean it's a
-	// prefix search, or not to mean it's an exact search.
-	//
-	// if prefix is text, a full-text search on
-	// name+title+details+etc is done
-	//
-	// if prefix is not given, search is taken to be name:<term>*
+	// see https://github.com/snapcore/snapd/blob/master/docs/rest.md#v2find
 
 	searchTerm = strings.TrimSpace(searchTerm)
 
-	var prefix string
+	prefix := "name"
 	exact := false
 	if idx := strings.IndexRune(searchTerm, ':'); idx >= 0 {
 		prefix = searchTerm[:idx]
@@ -635,8 +626,6 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, user
 			}
 			searchTerm = trimmed
 		}
-	} else {
-		prefix = "name"
 	}
 
 	if searchTerm == "" {
