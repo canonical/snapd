@@ -72,6 +72,10 @@ func (x *cmdBuy) Execute([]string) error {
 func buySnap(opts *store.BuyOptions) error {
 	cli := Client()
 
+	if strings.ContainsAny(opts.SnapName, ":*") {
+		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)
+	}
+
 	snaps, resultInfo, err := cli.Find(&client.FindOptions{
 		Query: fmt.Sprintf("name:%s", opts.SnapName),
 	})
@@ -82,6 +86,10 @@ func buySnap(opts *store.BuyOptions) error {
 
 	if len(snaps) < 1 {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: it cannot be found"), opts.SnapName)
+	}
+
+	if len(snaps) > 1 {
+		return fmt.Errorf(i18n.G("cannot buy snap %q: muliple results found"), opts.SnapName)
 	}
 
 	snap := snaps[0]

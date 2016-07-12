@@ -38,6 +38,20 @@ func (s *SnapSuite) TestBuyHelp(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
+func (s *SnapSuite) TestBuyInvalidCharacters(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"buy", "a:b"})
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "cannot buy snap \"a:b\": invalid characters in name")
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+
+	_, err = snap.Parser().ParseArgs([]string{"buy", "c*d"})
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "cannot buy snap \"c*d\": invalid characters in name")
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
 const buyFreeSnapFailsFindJson = `
 {
   "type": "sync",
@@ -189,4 +203,30 @@ func (s *SnapSuite) TestBuySnap(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(getCount, check.Equals, 1)
 	c.Check(postCount, check.Equals, 1)
+}
+
+func (s *SnapSuite) TestBuyCancel(c *check.C) {
+	getCount := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.URL.Path, check.Equals, "/v2/find")
+			q := r.URL.Query()
+			c.Check(q.Get("q"), check.Equals, "name:hello")
+			fmt.Fprintln(w, buySnapFindJson)
+			getCount++
+		default:
+			c.Fatalf("unexpected HTTP method %q", r.Method)
+		}
+	})
+
+	fmt.Fprint(s.stdin, "no\n")
+
+	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
+	c.Assert(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "buying snap \"hello\" cancelled by user")
+	c.Check(rest, check.DeepEquals, []string{"hello"})
+	c.Check(s.Stdout(), check.Equals, "Do you want to buy \"hello\" from \"canonical\" for 2.99GBP? (Y/n): ")
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(getCount, check.Equals, 1)
 }
