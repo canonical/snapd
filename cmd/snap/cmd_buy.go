@@ -43,10 +43,7 @@ var positiveResponse = map[string]bool{
 }
 
 type cmdBuy struct {
-	Currency  string `long:"currency" description:"ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"`
-	Channel   string `long:"channel" description:"Use this channel instead of stable"`
-	BackendID string `long:"backend-id" description:"e.g. \"credit_card\", \"rest_paypal\""`
-	MethodID  int    `long:"method-id" description:"numeric identifier for a specific credit card or Paypal account"`
+	Currency string `long:"currency" description:"ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"`
 
 	Positional struct {
 		SnapName string `positional-arg-name:"<snap-name>"`
@@ -59,13 +56,14 @@ func init() {
 	})
 }
 
-func (x *cmdBuy) Execute([]string) error {
+func (x *cmdBuy) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return buySnap(&store.BuyOptions{
-		SnapName:  x.Positional.SnapName,
-		Currency:  x.Currency,
-		BackendID: x.BackendID,
-		MethodID:  x.MethodID,
-		Channel:   x.Channel,
+		SnapName: x.Positional.SnapName,
+		Currency: x.Currency,
 	})
 }
 
@@ -85,7 +83,7 @@ func buySnap(opts *store.BuyOptions) error {
 	}
 
 	if len(snaps) < 1 {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: it cannot be found"), opts.SnapName)
+		return fmt.Errorf(i18n.G("cannot find snap %q"), opts.SnapName)
 	}
 
 	if len(snaps) > 1 {
@@ -95,21 +93,17 @@ func buySnap(opts *store.BuyOptions) error {
 	snap := snaps[0]
 
 	opts.SnapID = snap.ID
-
-	if opts.Channel == "" {
-		opts.Channel = snap.Channel
-	}
-
+	opts.Channel = snap.Channel
 	if opts.Currency == "" {
 		opts.Currency = resultInfo.SuggestedCurrency
 	}
 
 	opts.Price, opts.Currency, err = getPrice(snap.Prices, opts.Currency)
 	if err != nil {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: it is free"), opts.SnapName)
+		return fmt.Errorf(i18n.G("cannot buy snap %q: %v"), opts.SnapName, err)
 	}
 
-	if snap.Status != "priced" {
+	if snap.Status == "available" {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: it has already been bought"), opts.SnapName)
 	}
 
@@ -125,16 +119,16 @@ func buySnap(opts *store.BuyOptions) error {
 	}
 
 	if !positiveResponse[strings.ToLower(string(response))] {
-		return fmt.Errorf(i18n.G("buying snap %q cancelled by user"), opts.SnapName)
+		return fmt.Errorf(i18n.G("aborting"))
 	}
 
-	result, err := cli.Buy(opts)
+	// TODO Handle pay backends that require user interaction
+	_, err = cli.Buy(opts)
 	if err != nil {
 		return err
 	}
 
-	// TODO Handle pay backends that require user interaction
-	fmt.Fprintf(Stdout, "Buy state: %s\n", result.State)
+	fmt.Fprintf(Stdout, "%s bought\n", opts.SnapName)
 
 	return nil
 }
