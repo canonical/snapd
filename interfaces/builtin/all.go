@@ -44,6 +44,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
+	NewPluggableStorageInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
 	NewTimeserverControlInterface(),
