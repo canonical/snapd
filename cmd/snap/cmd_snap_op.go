@@ -227,7 +227,7 @@ func showDone(names []string, op string) error {
 		}
 		developerStr := ""
 		if snap.Developer != "" {
-			developerStr = fmt.Sprintf(" from %q", snap.Developer)
+			developerStr = fmt.Sprintf(" from '%s'", snap.Developer)
 		}
 		fmt.Fprintf(Stdout, "%s%s %s%s %s\n", snap.Name, channelStr, snap.Version, developerStr, op)
 	}
@@ -507,7 +507,16 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "%s reverted\n", name)
+	// show output as speced
+	snaps, err := cli.List([]string{name})
+	if err != nil {
+		return err
+	}
+	if len(snaps) != 1 {
+		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
+	}
+	snap := snaps[0]
+	fmt.Fprintf(Stdout, "%s reverted to %s\n", name, snap.Version)
 	return nil
 }
 

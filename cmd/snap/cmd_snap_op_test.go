@@ -175,7 +175,7 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from "bar" installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from 'bar' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -197,7 +197,7 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--channel", "chan", "--devmode", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from "bar" installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(chan\) 1.0 from 'bar' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -222,7 +222,7 @@ func (s *SnapOpSuite) TestInstallPath(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from "bar" installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -247,14 +247,13 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--devmode", snapPath})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from "bar" installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
 func (s *SnapOpSuite) TestRevert(c *check.C) {
-	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -267,7 +266,7 @@ func (s *SnapOpSuite) TestRevert(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"revert", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo reverted`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo reverted to 1.0`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -363,7 +362,7 @@ func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"install", "--edge", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(edge\) 1.0 from "bar" installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo \(edge\) 1.0 from 'bar' installed`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
