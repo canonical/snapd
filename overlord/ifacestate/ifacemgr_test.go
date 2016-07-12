@@ -969,3 +969,60 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
+
+func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+
+	// setup two snaps that are connected
+	siP := s.mockSnap(c, producerYaml)
+	siC := s.mockSnap(c, consumerYaml)
+	err := repo.AddInterface(&interfaces.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      siC,
+			Name:      "slot",
+			Interface: "test",
+		},
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddPlug(&interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      siP,
+			Name:      "plug",
+			Interface: "test",
+		},
+	})
+	c.Assert(err, IsNil)
+	err = repo.Connect(siP.Name(), "plug", siC.Name(), "slot")
+	c.Assert(err, IsNil)
+
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: siC.Name(),
+			Revision: siC.Revision,
+		},
+		Flags: snapstate.DevMode,
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// The first snap is setup in devmode, the second is not
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, siC.Name())
+	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, siP.Name())
+	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+}
