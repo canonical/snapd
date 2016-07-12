@@ -338,12 +338,12 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 	}
 
 	m := store.NewUbuntuStoreSnapRepository(nil, storeID)
-	snap, err := m.Snap(name, opts.Channel, nil)
+	snap, err := m.Snap(name, opts.Channel, false, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find snap: %s", err)
 	}
 	pb := progress.NewTextProgress()
-	tmpName, err := m.Download(snap, pb, nil)
+	tmpName, err := m.Download(name, &snap.DownloadInfo, pb, nil)
 	if err != nil {
 		return "", err
 	}
