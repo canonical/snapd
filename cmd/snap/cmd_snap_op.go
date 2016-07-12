@@ -211,6 +211,24 @@ func (x *channelMixin) setChannelFromCommandline() error {
 	return nil
 }
 
+// show what has been done
+func showDone(names []string, op string) error {
+	cli := Client()
+	snaps, err := cli.List(names)
+	if err != nil {
+		return err
+	}
+
+	for _, snap := range snaps {
+		channelStr := ""
+		if snap.Channel != "" {
+			channelStr = fmt.Sprintf(" (%s)", snap.Channel)
+		}
+		fmt.Fprintf(Stdout, "%s%s %s %s\n", snap.Name, channelStr, snap.Version, op)
+	}
+	return nil
+}
+
 type cmdInstall struct {
 	channelMixin
 
@@ -257,7 +275,7 @@ func (x *cmdInstall) Execute([]string) error {
 		name = snapName
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "installed")
 }
 
 type cmdRefresh struct {
@@ -294,7 +312,7 @@ func refreshAll() error {
 		names[i] = update.Name
 	}
 
-	return listSnaps(names)
+	return showDone(names, "updated")
 }
 
 func refreshOne(name, channel string) error {
@@ -308,7 +326,7 @@ func refreshOne(name, channel string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "updated")
 }
 
 func listRefresh() error {
@@ -391,7 +409,7 @@ func (x *cmdTry) Execute([]string) error {
 	}
 	name = snapName
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "installed in try mode")
 }
 
 type cmdEnable struct {
@@ -414,7 +432,7 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "enabled")
 }
 
 type cmdDisable struct {
@@ -437,7 +455,7 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "disabled")
 }
 
 type cmdRevert struct {
@@ -471,7 +489,7 @@ func (x *cmdRevert) Execute(args []string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "reverted")
 }
 
 func init() {
