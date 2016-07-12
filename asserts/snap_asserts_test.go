@@ -440,7 +440,7 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (srs *snapRevSuite) prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
+func prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
 	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]string{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -458,7 +458,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	prereqDevAccount(c, storeDB, db)
-	srs.prereqSnapDecl(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
 
 	headers := srs.makeHeaders(nil)
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
@@ -522,7 +522,7 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	prereqDevAccount(c, storeDB, db)
-	srs.prereqSnapDecl(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
 
 	headers := srs.makeHeaders(nil)
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
