@@ -49,7 +49,7 @@ func (n *Notes) String() string {
 			ns = append(ns, "devmode")
 		} else if devmodeSnap {
 			// snap is devmode, but is not installed in devmode
-			ns = append(ns, "confined")
+			ns = append(ns, "jailmode")
 		}
 	} else if devmodeSnap {
 		ns = append(ns, n.Confinement)

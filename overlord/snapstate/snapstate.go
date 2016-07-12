@@ -48,9 +48,9 @@ const (
 	interimUnusableLegacyFlagValue2
 	interimUnusableLegacyFlagValueLast
 
-	// Confined is set when the user has requested confinement
+	// JailMode is set when the user has requested confinement
 	// always be enforcing, even if the snap requests otherwise.
-	Confined
+	JailMode
 
 	// if we need flags for just SnapSetup it may be easier
 	// to start a new sequence from the other end with:
@@ -58,15 +58,15 @@ const (
 )
 
 func (f Flags) DevModeAllowed() bool {
-	return f&(DevMode|Confined) != 0
+	return f&(DevMode|JailMode) != 0
 }
 
 func (f Flags) DevMode() bool {
 	return f&DevMode != 0
 }
 
-func (f Flags) Confined() bool {
-	return f&Confined != 0
+func (f Flags) JailMode() bool {
+	return f&JailMode != 0
 }
 
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {

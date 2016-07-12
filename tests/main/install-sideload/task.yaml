@@ -33,18 +33,18 @@ execute: |
     cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
 
     echo "Sideload devmode snap fails without flags"
-    expected="devmode .* not requested nor overridden"
+    expected="requires devmode or confinement override"
     ( snap install ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
     expected="^basic-devmode +.* +devmode"
     snap install --devmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
 
-    echo "Sideload devmode snap succeeds with --confined"
-    expected="^basic-devmode +.* +confined"
-    snap install --confined ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
+    echo "Sideload devmode snap succeeds with --jailmode"
+    expected="^basic-devmode +.* +jailmode"
+    snap install --jailmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
 
-    echo "Sideload devmode snap fails with both --devmode and --confined"
-    expected="cannot request both DevMode and Confined"
-    ( snap install --devmode --confined ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
+    echo "Sideload devmode snap fails with both --devmode and --jailmode"
+    expected="cannot use devmode and jailmode flags together"
+    ( snap install --devmode --jailmode ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 

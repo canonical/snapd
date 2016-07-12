@@ -68,10 +68,10 @@ func (notesSuite) TestNotesDisabled(c *check.C) {
 	}).String(), check.Equals, "disabled")
 }
 
-func (notesSuite) TestNotesLocalConfined(c *check.C) {
+func (notesSuite) TestNotesLocalJailMode(c *check.C) {
 	c.Check((&snap.Notes{
 		Local:       true,
 		DevMode:     false,
 		Confinement: "devmode",
-	}).String(), check.Equals, "confined")
+	}).String(), check.Equals, "jailmode")
 }

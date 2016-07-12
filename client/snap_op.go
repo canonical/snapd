@@ -33,7 +33,7 @@ import (
 type SnapOptions struct {
 	Channel  string `json:"channel,omitempty"`
 	DevMode  bool   `json:"devmode,omitempty"`
-	Confined bool   `json:"confined,omitempty"`
+	JailMode bool   `json:"jailmode,omitempty"`
 }
 
 type actionData struct {
@@ -123,7 +123,7 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	mw.WriteField("action", "try")
 	mw.WriteField("snap-path", path)
 	mw.WriteField("devmode", strconv.FormatBool(options.DevMode))
-	mw.WriteField("confined", strconv.FormatBool(options.Confined))
+	mw.WriteField("jailmode", strconv.FormatBool(options.JailMode))
 	mw.Close()
 
 	headers := map[string]string{
@@ -145,7 +145,7 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("snap-path", action.SnapPath),
 		mw.WriteField("channel", action.Channel),
 		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
-		mw.WriteField("confined", strconv.FormatBool(action.Confined)),
+		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
 	}
 	for _, err := range errs {
 		if err != nil {

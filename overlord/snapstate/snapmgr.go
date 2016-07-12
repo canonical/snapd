@@ -109,8 +109,8 @@ func (ss *SnapSetup) DevMode() bool {
 	return Flags(ss.Flags).DevMode()
 }
 
-func (ss *SnapSetup) Confined() bool {
-	return Flags(ss.Flags).Confined()
+func (ss *SnapSetup) JailMode() bool {
+	return Flags(ss.Flags).JailMode()
 }
 
 func (ss *SnapSetup) DevModeAllowed() bool {
@@ -275,16 +275,16 @@ func (snapst *SnapState) SetDevMode(active bool) {
 	}
 }
 
-func (snapst *SnapState) Confined() bool {
-	return Flags(snapst.Flags).Confined()
+func (snapst *SnapState) JailMode() bool {
+	return Flags(snapst.Flags).JailMode()
 }
 
-// SetConfined sets/clears the Confined flag in the SnapState.
-func (snapst *SnapState) SetConfined(active bool) {
+// SetJailMode sets/clears the JailMode flag in the SnapState.
+func (snapst *SnapState) SetJailMode(active bool) {
 	if active {
-		snapst.Flags |= Confined
+		snapst.Flags |= JailMode
 	} else {
-		snapst.Flags &= ^Confined
+		snapst.Flags &= ^JailMode
 	}
 }
 
@@ -898,8 +898,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.SetTryMode(ss.TryMode())
 	oldDevMode := snapst.DevMode()
 	snapst.SetDevMode(ss.DevMode())
-	oldConfined := snapst.Confined()
-	snapst.SetConfined(ss.Confined())
+	oldJailMode := snapst.JailMode()
+	snapst.SetJailMode(ss.JailMode())
 
 	newInfo, err := readInfo(ss.Name(), cand)
 	if err != nil {
@@ -929,7 +929,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
-	t.Set("old-confined", oldConfined)
+	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("had-candidate", hadCandidate)
@@ -976,8 +976,8 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	var oldConfined bool
-	err = t.Get("old-confined", &oldConfined)
+	var oldJailMode bool
+	err = t.Get("old-jailmode", &oldJailMode)
 	if err != nil {
 		return err
 	}
@@ -1005,7 +1005,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Channel = oldChannel
 	snapst.SetTryMode(oldTryMode)
 	snapst.SetDevMode(oldDevMode)
-	snapst.SetConfined(oldConfined)
+	snapst.SetJailMode(oldJailMode)
 
 	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
