@@ -252,20 +252,21 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var snapst snapstate.SnapState
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	if err := snapstate.Get(st, plugRef.Snap, &snapst); err != nil {
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, plug.Snap, snapst.DevMode(), m.repo); err != nil {
+	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+	var slotSnapst snapstate.SnapState
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	if err := snapstate.Get(st, slotRef.Snap, &snapst); err != nil {
+	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevMode(), m.repo); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, snapst.DevMode(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevMode(), m.repo); err != nil {
 		return err
 	}
 
@@ -295,20 +296,21 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var snapst snapstate.SnapState
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	if err := snapstate.Get(st, plugRef.Snap, &snapst); err != nil {
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, plug.Snap, snapst.DevMode(), m.repo); err != nil {
+	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+	var slotSnapst snapstate.SnapState
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	if err := snapstate.Get(st, slotRef.Snap, &snapst); err != nil {
+	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevMode(), m.repo); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, snapst.DevMode(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevMode(), m.repo); err != nil {
 		return err
 	}
 
