@@ -217,10 +217,10 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	macaroon, err := auth.MacaroonDeserialize(serializedMacaroon)
+	macaroon, err := store.MacaroonDeserialize(serializedMacaroon)
 
 	// get SSO 3rd party caveat, and request discharge
-	loginCaveat, err := auth.LoginCaveatID(macaroon)
+	loginCaveat, err := store.LoginCaveatID(macaroon)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -389,14 +389,19 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
-	store := getStore(c)
-	found, err := store.Find(query.Get("q"), query.Get("channel"), user.Authenticator())
-	if err != nil {
+	theStore := getStore(c)
+	found, err := theStore.Find(query.Get("q"), query.Get("channel"), user)
+	switch err {
+	case nil:
+		// pass
+	case store.ErrEmptyQuery, store.ErrBadQuery, store.ErrBadPrefix:
+		return BadRequest("%v", err)
+	default:
 		return InternalError("%v", err)
 	}
 
 	meta := &Meta{
-		SuggestedCurrency: store.SuggestedCurrency(),
+		SuggestedCurrency: theStore.SuggestedCurrency(),
 		Sources:           []string{"store"},
 	}
 
@@ -463,7 +468,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	store := getStore(c)
-	updates, err := store.ListRefresh(candidatesInfo, user.Authenticator())
+	updates, err := store.ListRefresh(candidatesInfo, user)
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
@@ -1334,7 +1339,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	opts.Auther = user.Authenticator()
+	opts.User = user
 	s := getStore(c)
 
 	buyResult, err := s.Buy(&opts)
