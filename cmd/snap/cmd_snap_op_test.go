@@ -254,6 +254,7 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestRevert(c *check.C) {
+	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -266,7 +267,7 @@ func (s *SnapOpSuite) TestRevert(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"revert", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).foo 1.0 reverted`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*Done`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
@@ -369,6 +370,7 @@ func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 }
 
 func (s *SnapOpSuite) TestEnable(c *check.C) {
+	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -381,13 +383,14 @@ func (s *SnapOpSuite) TestEnable(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"enable", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 enabled`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*Done`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
 func (s *SnapOpSuite) TestDisable(c *check.C) {
+	s.srv.total = 3
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -400,7 +403,7 @@ func (s *SnapOpSuite) TestDisable(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"disable", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 disabled`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*Done`)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
