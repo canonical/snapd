@@ -64,7 +64,10 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
 
-func (c *cmdChanges) Execute([]string) error {
+func (c *cmdChanges) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
 
 	if allDigits(c.Positional.Snap) {
 		return fmt.Errorf(`%s changes command expects a snap name, try: %[1]s change %s`, os.Args[0], c.Positional.Snap)

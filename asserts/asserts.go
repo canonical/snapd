@@ -92,7 +92,7 @@ type Assertion interface {
 	Signature() (content, signature []byte)
 }
 
-// MediaType is the media type for enconded assertions on the wire.
+// MediaType is the media type for encoded assertions on the wire.
 const MediaType = "application/x.ubuntu.assertion"
 
 // assertionBase is the concrete base to hold representation data for actual assertions.

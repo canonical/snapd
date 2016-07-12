@@ -117,7 +117,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: snap.R(2)}
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
@@ -158,7 +158,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: snap.R(2)}
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
