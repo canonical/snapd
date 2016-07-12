@@ -43,6 +43,22 @@ type OldSnapSetup struct {
 	SideInfo     *snap.SideInfo     `json:"side-info,omitempty"`
 }
 
+type OldSnapState struct {
+	SnapType string           `json:"type"` // Use Type and SetType
+	Sequence []*snap.SideInfo `json:"sequence"`
+	Active   bool             `json:"active,omitempty"`
+	// Current indicates the current active revision if Active is
+	// true or the last active revision if Active is false
+	// (usually while a snap is being operated on or disabled)
+	Current   snap.Revision            `json:"current"`
+	Candidate *snap.SideInfo           `json:"candidate,omitempty"`
+	Channel   string                   `json:"channel,omitempty"`
+	Flags     snapstate.SnapStateFlags `json:"flags,omitempty"`
+
+	// incremented revision used for local installs
+	LocalRevision snap.Revision `json:"local-revision,omitempty"`
+}
+
 func setRealName(si *snap.SideInfo, name string) {
 	if si == nil {
 		return
@@ -57,7 +73,18 @@ func setRealName(si *snap.SideInfo, name string) {
 // - backfills SnapState.{Sequence,Candidate}.RealName if its missing
 func patch2(s *state.State) error {
 
-	// migrate the SnapSetup.Name
+	var stateMap map[string]*OldSnapState
+	err := s.Get("snaps", &stateMap)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	// migrate SnapSetup in all tasks:
+	//  - the new SnapSetup uses SideInfo, backfil from Candidate
+	//  - also move SnapSetup.{Name,Revision} into SnapSetup.SideInfo.{RealName,Revision}
 	var oldSS OldSnapSetup
 	var newSS snapstate.SnapSetup
 	for _, t := range s.Tasks() {
@@ -77,6 +104,9 @@ func patch2(s *state.State) error {
 		// ... and some change
 		if newSS.SideInfo == nil {
 			newSS.SideInfo = &snap.SideInfo{}
+			if snapst, ok := stateMap[oldSS.Name]; ok && snapst.Candidate != nil {
+				newSS.SideInfo = snapst.Candidate
+			}
 		}
 		if newSS.SideInfo.RealName == "" {
 			newSS.SideInfo.RealName = oldSS.Name
@@ -88,20 +118,11 @@ func patch2(s *state.State) error {
 	}
 
 	// backfill snapstate.SnapState.{Sequence,Candidate} with RealName
-	var stateMap map[string]*snapstate.SnapState
-	err := s.Get("snaps", &stateMap)
-	if err == state.ErrNoState {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-
+	// (if that is missing, was missing for e.g. sideloaded snaps)
 	for snapName, snapState := range stateMap {
 		for _, si := range snapState.Sequence {
 			setRealName(si, snapName)
 		}
-		setRealName(snapState.Candidate, snapName)
 	}
 	s.Set("snaps", stateMap)
 
