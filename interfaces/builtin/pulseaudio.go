@@ -27,13 +27,8 @@ import (
 )
 
 var pulseaudioConnectedPlugAppArmor = []byte(`
-capability dac_override,
-
-/etc/machine-id r,
-
 /{run,dev}/shm/pulse-shm-* rwk,
 
-# Running as system instance
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
 `)
@@ -44,6 +39,8 @@ var pulseaudioConnectedPlugAppArmorDesktop = []byte(`
 # device those things will be stored inside the snap directory.
 /etc/pulse/ r,
 /etc/pulse/* r,
+owner @{HOME}/.pulse-cookie rk,
+owner @{HOME}/.config/pulse/cookie rk,
 `)
 
 var pulseaudioConnectedPlugSecComp = []byte(`
@@ -67,7 +64,7 @@ capability setgid,
 capability sys_nice,
 capability sys_resource,
 
-@{PROC}/self/exe r,
+owner @{PROC}/@{pid}/exe r,
 /etc/machine-id r,
 
 # Audio related
@@ -82,17 +79,14 @@ capability sys_resource,
 network netlink raw,
 /sys/devices/virtual/dmi/id/sys_vendor r,
 /sys/devices/virtual/dmi/id/bios_vendor r,
+# FIXME: use udev queries to make this more specific
 /run/udev/data/** r,
 
-owner /{,var/}run/pulse/ rwk,
-owner /{,var/}run/pulse/native rwk,
-owner /{,var/}run/pulse/pid rwk,
-owner /{,var/}run/pulse/.config/ rwk,
-owner /{,var/}run/pulse/.config/pulse/ rwk,
+owner /{,var/}run/pulse/ rw,
+owner /{,var/}run/pulse/** rwk,
 
 # Shared memory based communication with clients
-/{run,dev}/shm/pulse-shm-* rwkcix,
-owner /{,var/}run/pulse/.config/pulse/cookie rwk,
+/{run,dev}/shm/pulse-shm-* rwk,
 `)
 
 var pulseaudioPermanentSlotSecComp = []byte(`
