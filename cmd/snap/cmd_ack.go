@@ -52,6 +52,10 @@ func init() {
 }
 
 func (x *cmdAck) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	assertFile := x.AckOptions.AssertionFile
 
 	assertData, err := ioutil.ReadFile(assertFile)

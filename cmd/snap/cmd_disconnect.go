@@ -57,6 +57,10 @@ func init() {
 }
 
 func (x *cmdDisconnect) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	// snap disconnect <snap>:<slot>
 	// snap disconnect <snap>
 	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {
