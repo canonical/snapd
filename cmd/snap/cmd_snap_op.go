@@ -432,7 +432,8 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	return showDone([]string{name}, "enabled")
+	fmt.Fprintln(Stdout, "Done")
+	return nil
 }
 
 type cmdDisable struct {
@@ -455,7 +456,8 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	return showDone([]string{name}, "disabled")
+	fmt.Fprintln(Stdout, "Done")
+	return nil
 }
 
 type cmdRevert struct {
@@ -489,7 +491,9 @@ func (x *cmdRevert) Execute(args []string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
-	return showDone([]string{name}, "reverted")
+
+	fmt.Fprintln(Stdout, "Done")
+	return nil
 }
 
 func init() {
