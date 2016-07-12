@@ -124,13 +124,6 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	}
 	snapName := snapSetup.Name()
 
-	// Get SnapState for this snap
-	var snapState snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapState)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
 	// The returned list of affected snaps will need to have its security setup
