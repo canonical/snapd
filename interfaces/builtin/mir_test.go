@@ -77,6 +77,9 @@ func (s *MirInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentPlugSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
+	snippet, err = s.iface.PermanentPlugSnippet(s.slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 }
 
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
