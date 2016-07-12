@@ -175,7 +175,8 @@ func (x *cmdRemove) Execute([]string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
-	fmt.Fprintln(Stdout, "Done")
+
+	fmt.Fprintf(Stdout, "%s removed\n", name)
 	return nil
 }
 
@@ -432,7 +433,7 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintln(Stdout, "Done")
+	fmt.Fprintf(Stdout, "%s enabled\n", name)
 	return nil
 }
 
@@ -456,7 +457,7 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintln(Stdout, "Done")
+	fmt.Fprintf(Stdout, "%s disabled\n", name)
 	return nil
 }
 
@@ -492,7 +493,7 @@ func (x *cmdRevert) Execute(args []string) error {
 		return err
 	}
 
-	fmt.Fprintln(Stdout, "Done")
+	fmt.Fprintf(Stdout, "%s reverted\n", name)
 	return nil
 }
 
