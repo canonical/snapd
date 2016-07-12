@@ -89,12 +89,12 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 		if snapName == snapInfo.Name() {
 			continue
 		}
-		snapInfo, err := snapstate.CurrentInfo(task.State(), snapName)
-		if err != nil {
-			return err
-		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(task.State(), snapName, &snapst); err != nil {
+			return err
+		}
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
 			return err
 		}
 		snap.AddImplicitSlots(snapInfo)
@@ -139,12 +139,12 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 			// Skip setup for the snap being removed as this is handled below.
 			continue
 		}
-		affectedSnapInfo, err := snapstate.CurrentInfo(task.State(), affectedSnapName)
-		if err != nil {
-			return err
-		}
 		var snapst snapstate.SnapState
 		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
+			return err
+		}
+		affectedSnapInfo, err := snapst.CurrentInfo()
+		if err != nil {
 			return err
 		}
 		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevMode(), m.repo); err != nil {
