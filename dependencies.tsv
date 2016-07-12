@@ -8,7 +8,6 @@ github.com/jessevdk/go-flags	git	6b9493b3cb60367edd942144879646604089e3f7	2016-0
 github.com/kr/pty	git	05017fcccf23c823bfdea560dcc958a136e54fb7	2014-12-17T21:19:37Z
 github.com/mvo5/goconfigparser	git	26426272dda20cc76aa1fa44286dc743d2972fe8	2015-02-12T09:37:50Z
 github.com/mvo5/uboot-go	git	361f6ebcbb54f389d15dc9faefa000e996ba3e37	2015-07-22T06:53:46Z
-github.com/peterh/liner	git	1bb0d1c1a25ed393d8feb09bab039b2b1b1fbced	2015-04-02T04:04:07Z
 github.com/testing-cabal/subunit-go	git	00b258565a5cf3adaa24b68d31c9e6ec3d2cdbe7	2015-11-09T18:16:47Z
 golang.org/x/crypto	git	60052bd85f2d91293457e8811b0cf26b773de469	2015-06-22T23:34:07Z
 golang.org/x/net	git	3b90a77d2885fb0429e8a21ab72fc73ca6f8b401	2016-01-05T05:09:10Z
