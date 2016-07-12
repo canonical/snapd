@@ -45,7 +45,11 @@ func init() {
 	addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} })
 }
 
-func (x *cmdCreateUser) Execute([]string) error {
+func (x *cmdCreateUser) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	cli := Client()
 	rsp, err := cli.CreateUser(x.Positional.EMail)
 	if err != nil {
