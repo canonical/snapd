@@ -270,5 +270,5 @@ confinement: devmode
 
 	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
 
-	c.Assert(err, ErrorMatches, ".* has devmode confinement but user has not requested nor overridden")
+	c.Assert(err, ErrorMatches, ".* requires devmode or confinement override")
 }

@@ -63,7 +63,7 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 	}
 
 	if s.NeedsDevMode() && !flags.DevModeAllowed() {
-		return fmt.Errorf("snap %q has devmode confinement but user has not requested nor overridden", s.Name())
+		return fmt.Errorf("snap %q requires devmode or confinement override", s.Name())
 	}
 
 	// verify we have a valid architecture

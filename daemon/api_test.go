@@ -360,8 +360,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
-		"errNoDevModeAndConfined",
-		"errNoConfinedOnDevModeOS",
+		"errNoDevModeAndJailMode",
+		"errNoJailModeOnDevModeOS",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
 		"snapstateInstall",
@@ -1256,14 +1256,14 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
-func (s *apiSuite) TestSideloadSnapConfined(c *check.C) {
+func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"confined\"\r\n" +
+		"Content-Disposition: form-data; name=\"jailmode\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
@@ -1271,18 +1271,18 @@ func (s *apiSuite) TestSideloadSnapConfined(c *check.C) {
 	// try a multipart/form-data upload
 	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
 	defer restore()
-	chgSummary := s.sideloadCheck(c, body, head, snapstate.Confined, true)
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.JailMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
-func (s *apiSuite) TestSideloadSnapConfinedAndDevmode(c *check.C) {
+func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"confined\"\r\n" +
+		"Content-Disposition: form-data; name=\"jailmode\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
@@ -1300,17 +1300,17 @@ func (s *apiSuite) TestSideloadSnapConfinedAndDevmode(c *check.C) {
 
 	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot request both DevMode and Confined")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot use devmode and jailmode flags together")
 }
 
-func (s *apiSuite) TestSideloadSnapConfinedInDevModeOS(c *check.C) {
+func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	body := "" +
 		"----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
 		"\r\n" +
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"confined\"\r\n" +
+		"Content-Disposition: form-data; name=\"jailmode\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
@@ -1327,7 +1327,7 @@ func (s *apiSuite) TestSideloadSnapConfinedInDevModeOS(c *check.C) {
 
 	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "this system cannot install a confined snap")
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "this system cannot honour the jailmode flag")
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
@@ -1876,7 +1876,7 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	c.Check(calledFlags&snapstate.DevMode, check.Equals, snapstate.Flags(snapstate.DevMode))
 }
 
-func (s *apiSuite) TestInstallConfined(c *check.C) {
+func (s *apiSuite) TestInstallJailMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
 	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
@@ -1889,7 +1889,7 @@ func (s *apiSuite) TestInstallConfined(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action:   "install",
-		Confined: true,
+		JailMode: true,
 	}
 
 	st := d.overlord.State()
@@ -1898,39 +1898,39 @@ func (s *apiSuite) TestInstallConfined(c *check.C) {
 	_, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
-	c.Check(calledFlags&snapstate.Confined, check.Equals, snapstate.Flags(snapstate.Confined))
+	c.Check(calledFlags&snapstate.JailMode, check.Equals, snapstate.Flags(snapstate.JailMode))
 }
 
-func (s *apiSuite) TestInstallConfinedDevModeOS(c *check.C) {
+func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
 
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action:   "install",
-		Confined: true,
+		JailMode: true,
 	}
 
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	_, _, err := inst.dispatch()(inst, st)
-	c.Check(err, check.ErrorMatches, "this system cannot install a confined snap")
+	c.Check(err, check.ErrorMatches, "this system cannot honour the jailmode flag")
 }
 
-func (s *apiSuite) TestInstallConfinedDevMode(c *check.C) {
+func (s *apiSuite) TestInstallJailModeDevMode(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action:   "install",
 		DevMode:  true,
-		Confined: true,
+		JailMode: true,
 	}
 
 	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	_, _, err := inst.dispatch()(inst, st)
-	c.Check(err, check.ErrorMatches, "cannot request both DevMode and Confined")
+	c.Check(err, check.ErrorMatches, "cannot use devmode and jailmode flags together")
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {
@@ -3116,12 +3116,12 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestIsFormValueTrue(c *check.C) {
-	c.Check(isFormValueTrue(nil), check.Equals, false)
+func (s *apiSuite) TestIsTrue(c *check.C) {
+	c.Check(isTrue(nil), check.Equals, false)
 	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
-		c.Check(isFormValueTrue([]string{f}), check.Equals, false, check.Commentf("expected %q to be false", f))
+		c.Check(isTrue([]string{f}), check.Equals, false, check.Commentf("expected %q to be false", f))
 	}
 	for _, t := range []string{"true", "1", "True", "t"} {
-		c.Check(isFormValueTrue([]string{t}), check.Equals, true, check.Commentf("expected %q to be true", t))
+		c.Check(isTrue([]string{t}), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
 }

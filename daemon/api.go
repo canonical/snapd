@@ -566,7 +566,7 @@ type snapInstruction struct {
 	Action   string `json:"action"`
 	Channel  string `json:"channel"`
 	DevMode  bool   `json:"devmode"`
-	Confined bool   `json:"confined"`
+	JailMode bool   `json:"jailmode"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -628,23 +628,33 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
-var errNoDevModeAndConfined = errors.New("cannot request both DevMode and Confined")
-var errNoConfinedOnDevModeOS = errors.New("this system cannot install a confined snap")
+var errNoDevModeAndJailMode = errors.New("cannot use devmode and jailmode flags together")
+var errNoJailModeOnDevModeOS = errors.New("this system cannot honour the jailmode flag")
 
-func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func mkFlags(devMode, jailMode bool) (snapstate.Flags, error) {
+	devModeOS := release.ReleaseInfo.ForceDevMode()
 	flags := snapstate.Flags(0)
-	isDevModeOS := release.ReleaseInfo.ForceDevMode()
-	if inst.DevMode || isDevModeOS {
+	if jailMode {
+		if devModeOS {
+			return 0, errNoJailModeOnDevModeOS
+		}
+		if devMode {
+			return 0, errNoDevModeAndJailMode
+		}
+		flags |= snapstate.JailMode
+	}
+	if devMode || devModeOS {
 		flags |= snapstate.DevMode
 	}
-	if inst.Confined {
-		if isDevModeOS {
-			return "", nil, errNoConfinedOnDevModeOS
-		}
-		if flags.DevMode() {
-			return "", nil, errNoDevModeAndConfined
-		}
-		flags |= snapstate.Confined
+
+	return flags, nil
+
+}
+
+func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	flags, err := mkFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
@@ -818,7 +828,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-func isFormValueTrue(value []string) bool {
+func isTrue(value []string) bool {
 	if len(value) == 0 {
 		return false
 	}
@@ -853,22 +863,9 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	var flags snapstate.Flags
-
-	if isFormValueTrue(form.Value["devmode"]) {
-		flags |= snapstate.DevMode
-	}
-	if isFormValueTrue(form.Value["confined"]) {
-		if flags.DevMode() {
-			return BadRequest(errNoDevModeAndConfined.Error())
-		}
-		flags |= snapstate.Confined
-	}
-	if release.ReleaseInfo.ForceDevMode() {
-		if flags.Confined() {
-			return BadRequest(errNoConfinedOnDevModeOS.Error())
-		}
-		flags |= snapstate.DevMode
+	flags, err := mkFlags(isTrue(form.Value["devmode"]), isTrue(form.Value["jailmode"]))
+	if err != nil {
+		return BadRequest(err.Error())
 	}
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {

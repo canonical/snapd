@@ -172,10 +172,10 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 	snapdir := filepath.Join(c.MkDir(), "/some/path")
 
 	for _, opts := range []*client.SnapOptions{
-		{DevMode: false, Confined: false},
-		{DevMode: false, Confined: true},
-		{DevMode: true, Confined: true},
-		{DevMode: true, Confined: false},
+		{DevMode: false, JailMode: false},
+		{DevMode: false, JailMode: true},
+		{DevMode: true, JailMode: true},
+		{DevMode: true, JailMode: false},
 	} {
 		id, err := cs.cli.Try(snapdir, opts)
 		c.Assert(err, check.IsNil)
@@ -189,7 +189,7 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 			"action":    "try",
 			"snap-path": snapdir,
 			"devmode":   strconv.FormatBool(opts.DevMode),
-			"confined":  strconv.FormatBool(opts.Confined),
+			"jailmode":  strconv.FormatBool(opts.JailMode),
 		})
 
 		c.Check(cs.req.Method, check.Equals, "POST")

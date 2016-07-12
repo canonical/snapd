@@ -125,6 +125,6 @@ func (s *SnapSuite) TestListWithNotes(c *check.C) {
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^foo +4.2 +17 +bar +try$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm1 +.* +devmode$`)
 	c.Check(s.Stdout(), check.Matches, `(?ms).*^dm2 +.* +devmode$`)
-	c.Check(s.Stdout(), check.Matches, `(?ms).*^cf1 +.* +confined$`)
+	c.Check(s.Stdout(), check.Matches, `(?ms).*^cf1 +.* +jailmode$`)
 	c.Check(s.Stderr(), check.Equals, "")
 }
