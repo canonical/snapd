@@ -31,12 +31,13 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, snapName string, affectedSnaps []string) error {
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
 	st := task.State()
 
 	// Setup security of the affected snaps.
 	for _, affectedSnapName := range affectedSnaps {
-		if affectedSnapName == snapName {
+		// the snap that triggered the change needs to be skipped
+		if affectedSnapName == affectingSnap {
 			continue
 		}
 		var snapst snapstate.SnapState
