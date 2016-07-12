@@ -45,8 +45,7 @@ func (os *OS) ForceDevMode() bool {
 		fallthrough
 	case "ubuntu":
 		return false
-
-	case "elementary":
+	case "elementary OS":
 		switch os.VersionID {
 		case "0.4":
 			return false
