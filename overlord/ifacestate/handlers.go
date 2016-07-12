@@ -147,6 +147,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 		if err != nil {
 			return err
 		}
+		snap.AddImplicitSlots(affectedSnapInfo)
 		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevMode(), m.repo); err != nil {
 			return err
 		}
