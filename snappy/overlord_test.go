@@ -79,8 +79,8 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadata(c *C) {
 	snapPath := makeTestSnapPackage(c, "")
 
 	si := &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(40),
+		RealName: "foo",
+		Revision: snap.R(40),
 	}
 
 	sn, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
@@ -102,8 +102,8 @@ func (s *SnapTestSuite) TestLocalSnapInstallWithBlessedMetadataOverridingName(c 
 	snapPath := makeTestSnapPackage(c, "")
 
 	si := &snap.SideInfo{
-		OfficialName: "bar",
-		Revision:     snap.R(55),
+		RealName: "bar",
+		Revision: snap.R(55),
 	}
 
 	sn, err := (&Overlord{}).installWithSideInfo(snapPath, si, LegacyInhibitHooks, nil)
@@ -179,13 +179,13 @@ type: gadget
 // sideinfos
 var (
 	fooSI10 = &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(10),
+		RealName: "foo",
+		Revision: snap.R(10),
 	}
 
 	fooSI20 = &snap.SideInfo{
-		OfficialName: "foo",
-		Revision:     snap.R(20),
+		RealName: "foo",
+		Revision: snap.R(20),
 	}
 )
 
@@ -250,8 +250,8 @@ apps:
 `)
 
 	si := &snap.SideInfo{
-		OfficialName: "bar",
-		Revision:     snap.R(55),
+		RealName: "bar",
+		Revision: snap.R(55),
 	}
 
 	_, err := (&Overlord{}).installWithSideInfo(snapPath, si, 0, &MockProgressMeter{})

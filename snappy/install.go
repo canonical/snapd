@@ -49,7 +49,7 @@ const (
 )
 
 func installRemote(mStore *store.SnapUbuntuStoreRepository, remoteSnap *snap.Info, flags LegacyInstallFlags, meter progress.Meter) (string, error) {
-	downloadedSnap, err := mStore.Download(remoteSnap, meter, nil)
+	downloadedSnap, err := mStore.Download(remoteSnap.Name(), &remoteSnap.DownloadInfo, meter, nil)
 	if err != nil {
 		return "", fmt.Errorf("cannot download %s: %s", remoteSnap.Name(), err)
 	}
@@ -119,7 +119,9 @@ func doInstall(name, channel string, flags LegacyInstallFlags, meter progress.Me
 		return "", err
 	}
 
-	snap, err := mStore.Snap(name, channel, nil)
+	// devmode false preserves the old behaviour but we might want
+	// it to be set from flags instead.
+	snap, err := mStore.Snap(name, channel, false, nil)
 	if err != nil {
 		return "", err
 	}

@@ -179,9 +179,26 @@ Reserved for human-readable content describing the service.
 
 Query.
 
-#### `channel`
+The query is a whitespace-separated list<sup id=a1>[†](#f1)</sup> of terms, all of
+which will be satisfied by the returned snaps.
 
-Which channel to search in.
+Each term can have an optional prefix followed by `:`.
+
+Supported prefixes are
+
+<dl>
+<dt>name</dt>
+<dd>The term matches the snap's name. It can end in <code>*</code> in which
+case the search is for a prefix, otherwise the whole name must match.</dd>
+<dt>text</dt>
+<dd>The term is looked up in a full-text index of name, summary and
+description.</dd>
+</dl>
+
+If no prefix is given, the term is treated as if it were a `*`-ended `name`
+search; this is: `snap find foo` is the same as `snap find name:foo*`.
+
+<b id=f1>†</b> that list can only have exactly one element, for now. [↩](#a1)
 
 #### `select`
 
@@ -190,21 +207,25 @@ snaps is supported via the `refresh` key.
 
 #### Sample result:
 
-[//]: # keep the fields sorted, both in the sample and its description below. Makes scanning easier
+[//]: # (keep the fields sorted, both in the sample and its description below. Makes scanning easier)
 
 ```javascript
 [{
-      "description": "This is a simple hello world example.",
-      "developer": "canonical",
-      "download-size": 20480,
-      "icon": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-      "name": "hello-world",
-      "resource": "/v2/snaps/hello-world",
-      "revision": 25,
+      "channel": "stable",
+      "confinement": "strict",
+      "description": "Moon-buggy is a simple character graphics game, where you drive some kind of car across the moon's surface.  Unfortunately there are dangerous craters there.  Fortunately your car can jump over them!\r\n",
+      "developer": "dholbach",
+      "download-size": 90112,
+      "icon": "",
+      "id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
+      "name": "moon-buggy",
+      "private": false,
+      "resource": "/v2/snaps/moon-buggy",
+      "revision": "11",
       "status": "available",
-      "summary": "Hello world example",
+      "summary": "Drive a car across the moon",
       "type": "app",
-      "version": "6.0",
+      "version": "1.0.51.11"
       "prices": {"EUR": 1.99, "USD": 2.49}
     }, {
       "description": "no description",
@@ -223,20 +244,26 @@ snaps is supported via the `refresh` key.
 
 ##### Fields
 
-[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+[//]: # (keep the fields sorted, both in the description and the sample above. Makes scanning easier)
 
-* `description`: snap description
+* `channel`: which channel the snap is currently tracking.
+* `confinement`: the confinement requested by the snap itself; one of `strict` or `devmode`.
+* `description`: snap description.
+* `developer`: developer who created the snap.
 * `download-size`: how big the download will be.
 * `icon`: a url to the snap icon, possibly relative to this server.
+* `id`: unique ID for this snap.
 * `name`: the snap name.
 * `prices`: JSON object with properties named by ISO 4217 currency code. The values of the properties are numerics representing the cost in each currency. For free snaps, the "prices" property is omitted.
+* `private`: true if this snap is only available to its author.
+* `resource`: HTTP resource for this snap.
 * `revision`: a number representing the revision.
-* `status`: can be either `available`, or `priced` (i.e. needs to be bought to become available)
-* `summary`: one-line summary
+* `status`: can be either `available`, or `priced` (i.e. needs to be bought to become available).
+* `summary`: one-line summary.
 * `type`: the type of snap; one of `app`, `kernel`, `gadget`, or `os`.
 * `version`: a string representing the version.
 
-[//]: # seriously, keep the fields sorted!
+[//]: # (seriously, keep the fields sorted!)
 
 #### Result meta data:
 
@@ -262,23 +289,29 @@ snaps is supported via the `refresh` key.
 
 Sample result:
 
-[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+[//]: # (keep the fields sorted, both in the description and the sample above. Makes scanning easier)
 
 ```javascript
 [{
-      "summary": "HTTPie in a snap",
-      "description": "no description",
-      "icon": "/v2/icons/http/icon",
-      "installed-size": 1821897,
-      "install-date": "2016-03-10T13:16:52Z",
-      "name": "http",
-      "developer": "chipaca",
-      "resource": "/v2/snaps/http",
-      "status": "active",
-      "type": "app",
-      "version": "3.1",
-      "revision": 1834,
+      "apps": [{"name": "moon-buggy"}]
       "channel": "stable"
+      "confinement": "strict"
+      "description": "Moon-buggy is a simple character graphics game, where you drive some kind of car across the moon's surface.  Unfortunately there are dangerous craters there.  Fortunately your car can jump over them!\r\n",
+      "developer": "dholbach",
+      "devmode": false,
+      "icon": "",
+      "id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
+      "install-date": "2016-05-17T09:36:53+12:00",
+      "installed-size": 90112,
+      "name": "moon-buggy",
+      "private": false,
+      "resource": "/v2/snaps/moon-buggy",
+      "revision": "11",
+      "status": "active",
+      "summary": "Drive a car across the moon",
+      "trymode": false,
+      "type": "app",
+      "version": "1.0.51.11"
     }, {
       "summary": "The ubuntu-core OS snap",
       "description": "A secure, minimal transactional OS for devices and containers.",
@@ -301,14 +334,16 @@ Sample result:
 
 In addition to the fields described in `/v2/find`:
 
-[//]: # keep the fields sorted!
+[//]: # (keep the fields sorted!)
 
-* `channel`: which channel the package is currently tracking.
+* `apps`: JSON array of apps the snap provides. Each app has a `name` field to name a binary this app provides.
+* `devmode`: true if the snap is currently installed in development mode.
 * `installed-size`: how much space the snap itself (not its data) uses.
 * `install-date`: the date and time when the snap was installed.
 * `status`: can be either `installed` or `active` (i.e. is current).
+* `trymode`: true if the app was installed in try mode.
 
-furthermore, `price` cannot occur in the output of `/v2/snaps`.
+furthermore, `download-size` and `price` cannot occur in the output of `/v2/snaps`.
 
 ### POST
 
@@ -333,7 +368,7 @@ named "snap".
 
 ### POST
 
-* Description: Install, refresh, or remove
+* Description: Install, refresh, revert or remove
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -496,3 +531,46 @@ Comma separated list of notification types, either `logging` or `operations`.
 #### resource
 
 Generally the UUID of a background operation you are interested in.
+
+## /v2/buy
+
+### POST
+
+* Description: Buy the specified snap
+* Access: authenticated
+* Operation: sync
+* Return: Dict with buy state.
+
+#### Sample input using default payment method:
+
+```javascript
+{
+    "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
+    "snap-name": "moon-buggy",
+    "channel": "moon-buggy",
+    "price": "2.99",
+    "currency": "USD"
+}
+```
+
+#### Sample input specifying specific credit card:
+
+```javascript
+{
+    "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
+    "snap-name": "moon-buggy",
+    "channel": "moon-buggy",
+    "price": "2.99",
+    "currency": "USD",
+    "backend-id": "credit_card",
+    "method-id": 1
+}
+```
+
+#### Sample result:
+
+```javascript
+{
+ "state": "Complete",
+}
+```

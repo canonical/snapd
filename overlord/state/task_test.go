@@ -212,6 +212,58 @@ func (ts *taskSuite) TestTaskWaitFor(c *C) {
 	c.Assert(t1.HaltTasks(), DeepEquals, []*state.Task{t2})
 }
 
+func (ts *taskSuite) TestAt(c *C) {
+	b := new(fakeStateBackend)
+	b.ensureBefore = time.Hour
+	st := state.New(b)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	now := time.Now()
+	restore := state.MockTime(now)
+	defer restore()
+	when := now.Add(10 * time.Second)
+	t.At(when)
+
+	c.Check(t.AtTime().Equal(when), Equals, true)
+	c.Check(b.ensureBefore, Equals, 10*time.Second)
+}
+
+func (ts *taskSuite) TestAtPast(c *C) {
+	b := new(fakeStateBackend)
+	b.ensureBefore = time.Hour
+	st := state.New(b)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	when := time.Now().Add(-10 * time.Second)
+	t.At(when)
+
+	c.Check(t.AtTime().Equal(when), Equals, true)
+	c.Check(b.ensureBefore, Equals, time.Duration(0))
+}
+
+func (ts *taskSuite) TestAtReadyNop(c *C) {
+	b := new(fakeStateBackend)
+	b.ensureBefore = time.Hour
+	st := state.New(b)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+	t.SetStatus(state.DoneStatus)
+
+	when := time.Now().Add(10 * time.Second)
+	t.At(when)
+
+	c.Check(t.AtTime().IsZero(), Equals, true)
+	c.Check(b.ensureBefore, Equals, time.Hour)
+}
+
 func (cs *taskSuite) TestLogf(c *C) {
 	st := state.New(nil)
 	st.Lock()

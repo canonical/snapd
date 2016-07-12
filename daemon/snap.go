@@ -65,12 +65,10 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
-	cur := snapst.Current()
-	if cur == nil {
+	info, err := snapst.CurrentInfo()
+	if err == snapstate.ErrNoCurrent {
 		return nil, nil, errNoSnap
 	}
-
-	info, err := snap.ReadInfo(name, cur)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot read snap details: %v", err)
 	}
@@ -92,12 +90,11 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	about := make([]aboutSnap, 0, len(snapStates))
 
 	var firstErr error
-	for name, snapState := range snapStates {
-		info, err := snap.ReadInfo(name, snapState.Current())
+	for _, snapState := range snapStates {
+		info, err := snapState.CurrentInfo()
 		if err != nil {
 			// XXX: aggregate instead?
 			if firstErr == nil {
@@ -125,7 +122,7 @@ type appJSON struct {
 
 func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
 	status := "installed"
-	if snapst.Active {
+	if snapst.Active && localSnap.Revision == snapst.Current {
 		status = "active"
 	}
 
@@ -155,6 +152,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"trymode":        snapst.TryMode(),
 		"private":        localSnap.Private,
 		"apps":           apps,
+		"broken":         localSnap.Broken,
 	}
 }
 

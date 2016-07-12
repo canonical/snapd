@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 
 	. "gopkg.in/check.v1"
@@ -34,16 +35,21 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
-type infoSuite struct{}
+type infoSuite struct {
+	restore func()
+}
 
 var _ = Suite(&infoSuite{})
 
 func (s *infoSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	hookType := snap.NewHookType(regexp.MustCompile(".*"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 }
 
 func (s *infoSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restore()
 }
 
 func (s *infoSuite) TestSideInfoOverrides(c *C) {
@@ -54,11 +60,12 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		OfficialName:      "newname",
+		RealName:          "newname",
 		EditedSummary:     "fixed summary",
 		EditedDescription: "fixed desc",
 		Revision:          snap.R(1),
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
+		DeveloperID:       "deviddeviddeviddeviddeviddevidde",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
@@ -66,6 +73,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
+	c.Check(info.DeveloperID, Equals, "deviddeviddeviddeviddeviddevidde")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
@@ -127,6 +135,7 @@ func (s *infoSuite) TestReadInfo(c *C) {
 	c.Check(snapInfo2, DeepEquals, snapInfo1)
 }
 
+// makeTestSnap here can also be used to produce broken snaps (differently from snaptest.MakeTestSnapWithFiles)!
 func makeTestSnap(c *C, yaml string) string {
 	tmp := c.MkDir()
 	snapSource := filepath.Join(tmp, "snapsrc")
@@ -145,13 +154,21 @@ func makeTestSnap(c *C, yaml string) string {
 	return dest
 }
 
+// produce descrs for empty hooks suitable for snaptest.PopulateDir
+func emptyHooks(hookNames ...string) (emptyHooks [][]string) {
+	for _, hookName := range hookNames {
+		emptyHooks = append(emptyHooks, []string{filepath.Join("meta", "hooks", hookName), ""})
+	}
+	return
+}
+
 func (s *infoSuite) TestReadInfoFromSnapFile(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app
 epoch: 1*
 confinement: devmode`
-	snapPath := makeTestSnap(c, yaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
@@ -170,7 +187,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileMissingEpoch(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app`
-	snapPath := makeTestSnap(c, yaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
@@ -188,14 +205,14 @@ func (s *infoSuite) TestReadInfoFromSnapFileWithSideInfo(c *C) {
 	yaml := `name: foo
 version: 1.0
 type: app`
-	snapPath := makeTestSnap(c, yaml)
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, nil)
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
-		OfficialName: "baz",
-		Revision:     snap.R(42),
+		RealName: "baz",
+		Revision: snap.R(42),
 	})
 	c.Assert(err, IsNil)
 	c.Check(info.Name(), Equals, "baz")
@@ -320,7 +337,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidHook(c *C) {
 	yaml := `name: foo
 version: 1.0
 hooks:
-  abc123:`
+  123abc:`
 	snapPath := makeTestSnap(c, yaml)
 
 	snapf, err := snap.Open(snapPath)
@@ -328,4 +345,110 @@ hooks:
 
 	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
 	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
+
+func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
+
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, ErrorMatches, ".*invalid hook name.*")
+}
+
+func (s *infoSuite) checkInstalledSnapAndSnapFile(c *C, yaml string, hooks []string, checker func(c *C, info *snap.Info)) {
+	// First check installed snap
+	sideInfo := &snap.SideInfo{Revision: snap.R(42)}
+	info0 := snaptest.MockSnap(c, yaml, sideInfo)
+	snaptest.PopulateDir(info0.MountDir(), emptyHooks(hooks...))
+	info, err := snap.ReadInfo(info0.Name(), sideInfo)
+	c.Check(err, IsNil)
+	checker(c, info)
+
+	// Now check snap file
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks(hooks...))
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+	info, err = snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Check(err, IsNil)
+	checker(c, info)
+}
+
+func (s *infoSuite) TestReadInfoNoHooks(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	s.checkInstalledSnapAndSnapFile(c, yaml, nil, func(c *C, info *snap.Info) {
+		// Verify that no hooks were loaded for this snap
+		c.Check(info.Hooks, HasLen, 0)
+	})
+}
+
+func (s *infoSuite) TestReadInfoSingleImplicitHook(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"test-hook"}, func(c *C, info *snap.Info) {
+		// Verify that the `test-hook` hook has now been loaded, and that it has
+		// no associated plugs.
+		c.Check(info.Hooks, HasLen, 1)
+		verifyImplicitHook(c, info, "test-hook")
+	})
+}
+
+func (s *infoSuite) TestReadInfoMultipleImplicitHooks(c *C) {
+	yaml := `name: foo
+version: 1.0`
+	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"foo", "bar"}, func(c *C, info *snap.Info) {
+		// Verify that both hooks have now been loaded, and that neither have any
+		// associated plugs.
+		c.Check(info.Hooks, HasLen, 2)
+		verifyImplicitHook(c, info, "foo")
+		verifyImplicitHook(c, info, "bar")
+	})
+}
+
+func (s *infoSuite) TestReadInfoImplicitAndExplicitHooks(c *C) {
+	yaml := `name: foo
+version: 1.0
+hooks:
+  explicit:
+    plugs: [test-plug]`
+	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"explicit", "implicit"}, func(c *C, info *snap.Info) {
+		// Verify that the `implicit` hook has now been loaded, and that it has
+		// no associated plugs. Also verify that the `explicit` hook is still
+		// valid.
+		c.Check(info.Hooks, HasLen, 2)
+		verifyImplicitHook(c, info, "implicit")
+		verifyExplicitHook(c, info, "explicit", []string{"test-plug"})
+	})
+}
+
+func verifyImplicitHook(c *C, info *snap.Info, hookName string) {
+	hook := info.Hooks[hookName]
+	c.Assert(hook, NotNil, Commentf("Expected hooks to contain %q", hookName))
+	c.Check(hook.Name, Equals, hookName)
+	c.Check(hook.Plugs, IsNil)
+}
+
+func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []string) {
+	hook := info.Hooks[hookName]
+	c.Assert(hook, NotNil, Commentf("Expected hooks to contain %q", hookName))
+	c.Check(hook.Name, Equals, hookName)
+	c.Check(hook.Plugs, HasLen, len(plugNames))
+
+	for _, plugName := range plugNames {
+		// Verify that the HookInfo and PlugInfo point to each other
+		plug := hook.Plugs[plugName]
+		c.Assert(plug, NotNil, Commentf("Expected hook plugs to contain %q", plugName))
+		c.Check(plug.Name, Equals, plugName)
+		c.Check(plug.Hooks, HasLen, 1)
+		hook = plug.Hooks[hookName]
+		c.Assert(hook, NotNil, Commentf("Expected plug to be associated with hook %q", hookName))
+		c.Check(hook.Name, Equals, hookName)
+
+		// Verify also that the hook plug made it into info.Plugs
+		c.Check(info.Plugs[plugName], DeepEquals, plug)
+	}
 }

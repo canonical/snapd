@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -117,10 +118,12 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 }
 
 var (
-	shortInstallHelp = i18n.G("Install a snap to the system")
-	shortRemoveHelp  = i18n.G("Remove a snap from the system")
-	shortRefreshHelp = i18n.G("Refresh a snap in the system")
-	shortTryHelp     = i18n.G("Try an unpacked snap in the system")
+	shortInstallHelp = i18n.G("Installs a snap to the system")
+	shortRemoveHelp  = i18n.G("Removes a snap from the system")
+	shortRefreshHelp = i18n.G("Refreshes a snap in the system")
+	shortTryHelp     = i18n.G("Tests a snap in the system")
+	shortEnableHelp  = i18n.G("Enables a snap in the system")
+	shortDisableHelp = i18n.G("Disables a snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
@@ -145,6 +148,16 @@ non-metadata changes there go live instantly. Metadata changes such as those
 performed in snap.yaml will require reinstallation to go live.
 `)
 
+var longEnableHelp = i18n.G(`
+The enable command enables a snap that was previously disabled.
+`)
+
+var longDisableHelp = i18n.G(`
+The disable command disables a snap. The binaries and services of the
+snap will no longer be available. But all the data is still available
+and the snap can easily be enabled again.
+`)
+
 type cmdRemove struct {
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
@@ -166,15 +179,52 @@ func (x *cmdRemove) Execute([]string) error {
 	return nil
 }
 
+type channelMixin struct {
+	Channel string `long:"channel" description:"Use this channel instead of stable"`
+
+	// shortcuts
+	EdgeChannel      bool `long:"edge" description:"Install from the edge channel"`
+	BetaChannel      bool `long:"beta" description:"Install from the beta channel"`
+	CandidateChannel bool `long:"candidate" description:"Install from the candidate channel"`
+	StableChannel    bool `long:"stable" description:"Install from the stable channel"`
+}
+
+func (x *channelMixin) setChannelFromCommandline() error {
+	for _, ch := range []struct {
+		enabled bool
+		chName  string
+	}{
+		{x.StableChannel, "stable"},
+		{x.CandidateChannel, "candidate"},
+		{x.BetaChannel, "beta"},
+		{x.EdgeChannel, "edge"},
+	} {
+		if !ch.enabled {
+			continue
+		}
+		if x.Channel != "" {
+			return fmt.Errorf("Please specify a single channel")
+		}
+		x.Channel = ch.chName
+	}
+
+	return nil
+}
+
 type cmdInstall struct {
-	Channel    string `long:"channel" description:"Install from this channel instead of the device's default"`
-	DevMode    bool   `long:"devmode" description:"Install the snap with non-enforcing security"`
+	channelMixin
+
+	DevMode    bool `long:"devmode" description:"Install the snap with non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdInstall) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+
 	var changeID string
 	var err error
 	var installFromFile bool
@@ -211,8 +261,9 @@ func (x *cmdInstall) Execute([]string) error {
 }
 
 type cmdRefresh struct {
-	List       bool   `long:"list" description:"show available snaps for refresh"`
-	Channel    string `long:"channel" description:"Refresh to the latest on this channel, and track this channel henceforth"`
+	channelMixin
+
+	List       bool `long:"list" description:"show available snaps for refresh"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -225,8 +276,14 @@ func refreshAll() error {
 	if err != nil {
 		return fmt.Errorf("cannot list updates: %s", err)
 	}
+	// nothing to update/list
+	if len(updates) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		return nil
+	}
 
-	for _, update := range updates {
+	names := make([]string, len(updates))
+	for i, update := range updates {
 		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
 		if err != nil {
 			return err
@@ -234,9 +291,10 @@ func refreshAll() error {
 		if _, err := wait(cli, changeID); err != nil {
 			return err
 		}
+		names[i] = update.Name
 	}
 
-	return listSnaps(nil)
+	return listSnaps(names)
 }
 
 func refreshOne(name, channel string) error {
@@ -253,11 +311,43 @@ func refreshOne(name, channel string) error {
 	return listSnaps([]string{name})
 }
 
+func listRefresh() error {
+	cli := Client()
+	snaps, _, err := cli.Find(&client.FindOptions{
+		Refresh: true,
+	})
+	if err != nil {
+		return err
+	}
+	if len(snaps) == 0 {
+		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		return nil
+	}
+
+	sort.Sort(snapsByName(snaps))
+
+	w := tabWriter()
+	defer w.Flush()
+
+	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
+	for _, snap := range snaps {
+		notes := &Notes{
+			Private: snap.Private,
+			DevMode: snap.DevMode,
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
+	}
+
+	return nil
+}
+
 func (x *cmdRefresh) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+
 	if x.List {
-		return findSnaps(&client.FindOptions{
-			Refresh: true,
-		})
+		return listRefresh()
 	}
 	if x.Positional.Snap == "" {
 		return refreshAll()
@@ -304,9 +394,94 @@ func (x *cmdTry) Execute([]string) error {
 	return listSnaps([]string{name})
 }
 
+type cmdEnable struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *cmdEnable) Execute([]string) error {
+	cli := Client()
+	name := x.Positional.Snap
+	opts := &client.SnapOptions{}
+	changeID, err := cli.Enable(name, opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	return listSnaps([]string{name})
+}
+
+type cmdDisable struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *cmdDisable) Execute([]string) error {
+	cli := Client()
+	name := x.Positional.Snap
+	opts := &client.SnapOptions{}
+	changeID, err := cli.Disable(name, opts)
+	if err != nil {
+		return err
+	}
+
+	_, err = wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	return listSnaps([]string{name})
+}
+
+type cmdRevert struct {
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes"`
+}
+
+var shortRevertHelp = i18n.G("Reverts the given snap to the previous state")
+var longRevertHelp = i18n.G(`
+The revert command reverts the given snap to its state before
+the latest refresh. This will reactivate the previous snap revision,
+and will use the original data that was associated with that revision,
+discarding any data changes that were done by the latest revision. As
+an exception, data which the snap explicitly chooses to share across
+revisions is not touched by the revert process.
+`)
+
+func (x *cmdRevert) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	cli := Client()
+	name := x.Positional.Snap
+	changeID, err := cli.Revert(name, nil)
+	if err != nil {
+		return err
+	}
+
+	if _, err := wait(cli, changeID); err != nil {
+		return err
+	}
+	return listSnaps([]string{name})
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
+	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} })
+	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} })
+	// FIXME: make visible once everything has landed for revert
+	cmd := addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
+	cmd.hidden = true
 }

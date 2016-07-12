@@ -20,13 +20,18 @@
 package daemon
 
 import (
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 )
 
@@ -36,6 +41,16 @@ func Test(t *testing.T) { check.TestingT(t) }
 type daemonSuite struct{}
 
 var _ = check.Suite(&daemonSuite{})
+
+func (s *daemonSuite) SetUpTest(c *check.C) {
+	dirs.SetRootDir(c.MkDir())
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, check.IsNil)
+}
+
+func (s *daemonSuite) TearDownTest(c *check.C) {
+	dirs.SetRootDir("")
+}
 
 // build a new daemon, with only a little of Init(), suitable for the tests
 func newTestDaemon(c *check.C) *Daemon {
@@ -205,41 +220,53 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 	//      c.Check(fmt.Sprintf("%p", d.router.NotFoundHandler), check.Equals, fmt.Sprintf("%p", NotFound))
 }
 
-func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.Equals, auth.ErrInvalidAuth)
-	c.Check(user, check.IsNil)
+type witnessAcceptListener struct {
+	net.Listener
+	accept chan struct{}
 }
 
-func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.ErrorMatches, "invalid authorization header")
-	c.Check(user, check.IsNil)
+func (l *witnessAcceptListener) Accept() (net.Conn, error) {
+	close(l.accept)
+	return l.Listener.Accept()
 }
 
-func (s *daemonSuite) TestAutherValidUser(c *check.C) {
+func (s *daemonSuite) TestStartStop(c *check.C) {
 	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
 
-	state := d.overlord.State()
-	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
-	state.Unlock()
+	accept := make(chan struct{})
+	d.listener = &witnessAcceptListener{l, accept}
+	d.Start()
+	select {
+	case <-accept:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Accept was not called")
+	}
+	err = d.Stop()
 	c.Check(err, check.IsNil)
+}
 
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+func (s *daemonSuite) TestRestartWiring(c *check.C) {
+	d := newTestDaemon(c)
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	c.Assert(err, check.IsNil)
 
-	user, err := d.auther(req)
+	accept := make(chan struct{})
+	d.listener = &witnessAcceptListener{l, accept}
+	d.Start()
+	defer d.Stop()
+	select {
+	case <-accept:
+	case <-time.After(2 * time.Second):
+		c.Fatal("Accept was not called")
+	}
 
-	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, expectedUser.Authenticator())
+	d.overlord.State().RequestRestart()
+
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+	}
 }

@@ -64,7 +64,10 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
 
-func (c *cmdChanges) Execute([]string) error {
+func (c *cmdChanges) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
 
 	if allDigits(c.Positional.Snap) {
 		return fmt.Errorf(`%s changes command expects a snap name, try: %[1]s change %s`, os.Args[0], c.Positional.Snap)
@@ -126,7 +129,11 @@ func (c *cmdChange) Execute([]string) error {
 		if t.ReadyTime.IsZero() {
 			readyTime = "-"
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, t.Summary)
+		summary := t.Summary
+		if t.Status == "Doing" && t.Progress.Total > 1 {
+			summary = fmt.Sprintf("%s (%.2f%%)", summary, float64(t.Progress.Done)/float64(t.Progress.Total)*100.0)
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", t.Status, spawnTime, readyTime, summary)
 	}
 
 	w.Flush()
