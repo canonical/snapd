@@ -17,7 +17,7 @@
  *
  */
 
-package bootstrap
+package weld
 
 import (
 	"encoding/json"
