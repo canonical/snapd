@@ -220,4 +220,3 @@ func setConns(st *state.State, conns map[string]connState) {
 var securityBackends = []interfaces.SecurityBackend{
 	&seccomp.Backend{}, &dbus.Backend{}, &udev.Backend{}, &mount.Backend{},
 }
-
