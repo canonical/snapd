@@ -31,9 +31,9 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortBuyHelp = i18n.G("Finds packages to install")
+var shortBuyHelp = i18n.G("Buys a snap")
 var longBuyHelp = i18n.G(`
-The find command queries the store for available packages.
+The buy command buys a snap from the store.
 `)
 
 var positiveResponse = map[string]bool{
