@@ -225,7 +225,11 @@ func showDone(names []string, op string) error {
 		if snap.Channel != "" {
 			channelStr = fmt.Sprintf(" (%s)", snap.Channel)
 		}
-		fmt.Fprintf(Stdout, "%s%s %s %s\n", snap.Name, channelStr, snap.Version, op)
+		developerStr := ""
+		if snap.Developer != "" {
+			developerStr = fmt.Sprintf(" from %q", snap.Developer)
+		}
+		fmt.Fprintf(Stdout, "%s%s %s%s %s\n", snap.Name, channelStr, snap.Version, developerStr, op)
 	}
 	return nil
 }
@@ -419,7 +423,7 @@ func (x *cmdTry) Execute([]string) error {
 		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
 	}
 	snap := snaps[0]
-	fmt.Fprintf(Stdout, "%s %s mounted from %s", name, snap.Version, path)
+	fmt.Fprintf(Stdout, "%s %s mounted from %s\n", name, snap.Version, path)
 	return nil
 }
 
