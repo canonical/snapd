@@ -2567,7 +2567,6 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 
 	// verify current got updated
 	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Candidate, IsNil)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Current, Equals, snap.R(7))
 }
