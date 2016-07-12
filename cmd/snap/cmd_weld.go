@@ -22,26 +22,26 @@ package main
 import (
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/bootstrap"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/weld"
 )
 
-type cmdBootstrap struct {
+type cmdWeld struct {
 	Positional struct {
 		BootstrapYamlFile string `positional-arg-name:"bootstrap-yaml" description:"The bootstrap yaml"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
-	cmd := addCommand("bootstrap",
-		i18n.G("Bootstrap a snappy system"),
-		i18n.G("Bootstrap a snappy system"),
+	cmd := addCommand("weld",
+		i18n.G("Weld a snappy system"),
+		i18n.G("Weld a snappy system"),
 		func() flags.Commander {
-			return &cmdBootstrap{}
+			return &cmdWeld{}
 		})
 	cmd.hidden = true
 }
 
-func (x *cmdBootstrap) Execute(args []string) error {
-	return bootstrap.Bootstrap(x.Positional.BootstrapYamlFile)
+func (x *cmdWeld) Execute(args []string) error {
+	return weld.Weld(x.Positional.BootstrapYamlFile)
 }
