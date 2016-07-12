@@ -79,7 +79,7 @@ func (iface *MirInterface) PermanentPlugSnippet(
 		return mirPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return mirPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -92,7 +92,8 @@ func (iface *MirInterface) ConnectedPlugSnippet(
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityDBus:
+		interfaces.SecurityUDev, interfaces.SecurityDBus,
+                interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -104,7 +105,8 @@ func (iface *MirInterface) PermanentSlotSnippet(
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityDBus:
+		interfaces.SecurityUDev, interfaces.SecurityDBus,
+                interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -114,7 +116,8 @@ func (iface *MirInterface) PermanentSlotSnippet(
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityDBus:
+		interfaces.SecurityUDev, interfaces.SecurityDBus,
+                interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
