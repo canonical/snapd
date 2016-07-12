@@ -51,7 +51,7 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	if err := m.initialize(extra); err != nil {
 		return nil, err
 	}
-	
+
 	// interface tasks might touch more than the immediate task target snap, serialize them
 	runner.SetBlocked(func(_ *state.Task, running []*state.Task) bool {
 		return len(running) != 0
