@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/store"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -86,7 +85,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 			return true
 		}
 
-		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin") {
+		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin", "wheel") {
 			// If user is in a group that grants sudo in
 			// the default install, and the command says
 			// that's ok, then it's ok.
@@ -248,18 +247,6 @@ func (d *Daemon) Stop() error {
 // Dying is a tomb-ish thing
 func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
-}
-
-func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
-	overlord := d.overlord
-	state := overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, r)
-	state.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	return user.Authenticator(), nil
 }
 
 // New Daemon

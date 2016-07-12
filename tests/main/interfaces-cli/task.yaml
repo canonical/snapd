@@ -1,0 +1,28 @@
+summary: Check the interfaces command
+
+environment:
+    SNAP_NAME: network-consumer
+    SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
+    PLUG: network
+
+prepare: |
+    echo "Given a snap with the $PLUG plug is installed"
+    snapbuild $TESTSLIB/snaps/$SNAP_NAME .
+    snap install $SNAP_FILE
+
+restore: |
+    rm -f $SNAP_FILE
+
+execute: |
+    expected="(?s)Slot +Plug\n\
+    :$PLUG +$SNAP_NAME"
+
+    echo "When the interfaces list is restricted by slot"
+    echo "Then only the requested slots are shown"
+    snap interfaces -i $PLUG | grep -Pzq "$expected"
+
+    echo "==============================================="
+
+    echo "When the interfaces list is restricted by slot and snap"
+    echo "Then only the requested slots are shown"
+    snap interfaces -i $PLUG $SNAP_NAME | grep -Pzq "$expected"

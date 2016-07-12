@@ -144,7 +144,7 @@ func (iface *LocationControlInterface) Name() string {
 
 func (iface *LocationControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -162,7 +162,7 @@ func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return locationControlConnectedPlugDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationControlConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -177,7 +177,7 @@ func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationControlPermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationControlPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -191,14 +191,14 @@ func (iface *LocationControlInterface) ConnectedSlotSnippet(plug *interfaces.Plu
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
 }
 
-func (iface *LocationControlInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *LocationControlInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 

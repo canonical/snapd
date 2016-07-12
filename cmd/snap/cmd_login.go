@@ -45,7 +45,7 @@ The login command authenticates on snapd and the snap store and saves credential
 into the ~/.snap/auth.json file. Further communication with snapd will then be made
 using those credentials.
 
-Login only works for local users in the sudo or admin groups.
+Login only works for local users in the sudo, admin or wheel groups.
 
 An account can be setup at https://login.ubuntu.com
 `)
@@ -90,6 +90,10 @@ func requestLoginWith2faRetry(username, password string) error {
 }
 
 func (x *cmdLogin) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	username := x.Positional.UserName
 	fmt.Fprint(Stdout, i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)

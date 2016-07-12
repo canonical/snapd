@@ -23,12 +23,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -45,6 +48,9 @@ type options struct {
 }
 
 var optionsData options
+
+// ErrExtraArgs is returned  if extra arguments to a command are found
+var ErrExtraArgs = fmt.Errorf("too many arguments for command")
 
 // cmdInfo holds information needed to call parser.AddCommand(...).
 type cmdInfo struct {
@@ -95,16 +101,27 @@ type parserSetter interface {
 // from each other.
 func Parser() *flags.Parser {
 	optionsData.Version = func() {
-		cv, err := Client().ServerVersion()
+		sv, err := Client().ServerVersion()
 		if err != nil {
-			cv = i18n.G("unavailable")
+			sv = &client.ServerVersion{
+				Version:     i18n.G("unavailable"),
+				Series:      "-",
+				OSID:        "-",
+				OSVersionID: "-",
+			}
 		}
 
-		fmt.Fprintf(Stdout, "snap  %s\nsnapd %s\n", cmd.Version, cv)
+		w := tabWriter()
+
+		fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
+		fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
+		fmt.Fprintf(w, "series\t%s\n", sv.Series)
+		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
+		w.Flush()
 
 		os.Exit(0)
 	}
-	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash)
+	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = "Tool to interact with snaps"
 	parser.LongDescription = `
 The snap tool interacts with the snapd daemon to control the snappy software platform.
@@ -158,6 +175,22 @@ func init() {
 
 func main() {
 	cmd.ExecInCoreSnap()
+
+	// magic \o/
+	snapApp := filepath.Base(os.Args[0])
+	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
+		cmd := &cmdRun{}
+		args := []string{snapApp}
+		args = append(args, os.Args[1:]...)
+		// this will call syscall.Exec() so it does not return
+		// *unless* there is an error, i.e. we setup a wrong
+		// symlink (or syscall.Exec() fails for strange reasons)
+		err := cmd.Execute(args)
+		fmt.Fprintf(Stderr, "internal error, please report: running %q failed: %s\n", snapApp, err)
+		os.Exit(46)
+	}
+
+	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
 		os.Exit(1)

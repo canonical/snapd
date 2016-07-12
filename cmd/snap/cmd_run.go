@@ -41,13 +41,10 @@ var (
 )
 
 type cmdRun struct {
-	Positional struct {
-		SnapApp string `positional-arg-name:"<app name>" description:"the snap (e.g. hello-world) or application to run (e.g. hello-world.env)"`
-	} `positional-args:"yes" required:"yes"`
-
 	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
 	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
 	Revision string `short:"r" description:"use a specific snap revision when running hook" hidden:"yes"`
+	Shell    bool   `long:"shell" description:"run a shell instead of the command (useful for debugging)"`
 }
 
 func init() {
@@ -60,6 +57,12 @@ func init() {
 }
 
 func (x *cmdRun) Execute(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("need the application to run as argument")
+	}
+	snapApp := args[0]
+	args = args[1:]
+
 	// Catch some invalid parameter combinations, provide helpful errors
 	if x.Hook != "" && x.Command != "" {
 		return fmt.Errorf("cannot use --hook and --command together")
@@ -73,10 +76,15 @@ func (x *cmdRun) Execute(args []string) error {
 
 	// Now actually handle the dispatching
 	if x.Hook != "" {
-		return snapRunHook(x.Positional.SnapApp, x.Hook, x.Revision)
+		return snapRunHook(snapApp, x.Hook, x.Revision)
 	}
 
-	return snapRunApp(x.Positional.SnapApp, x.Command, args)
+	// pass shell as a special command to snap-exec
+	if x.Shell {
+		x.Command = "shell"
+	}
+
+	return snapRunApp(snapApp, x.Command, args)
 }
 
 func getSnapInfo(snapName string, snapRevision string) (*snap.Info, error) {

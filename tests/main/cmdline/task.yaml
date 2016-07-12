@@ -1,0 +1,9 @@
+summary: Check that cmdline for channel shortcuts work
+execute: |
+    echo Conflicting channel commandline errors correctly
+    if snap install --beta --edge hello-world 2>err.msg; then
+        echo "Expected failure when --beta --edge is given at the same time"
+        exit 1
+    fi
+    cat err.msg
+    grep "Please specify a single channel" err.msg

@@ -20,7 +20,7 @@
 package snapstate
 
 import (
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -28,12 +28,13 @@ import (
 
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
-	Snap(name, channel string, auther store.Authenticator) (*snap.Info, error)
-	Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
+	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
+	Find(query, channel string, user *auth.UserState) ([]*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	SuggestedCurrency() string
 
-	Download(*snap.Info, progress.Meter, store.Authenticator) (string, error)
+	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
+	Buy(options *store.BuyOptions) (*store.BuyResult, error)
 }
 
 type managerBackend interface {
@@ -42,24 +43,16 @@ type managerBackend interface {
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
-	UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) error
+	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
-	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
+	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
 
 	// testing helpers
-	Current(cur *snap.Info)
+	CurrentInfo(cur *snap.Info)
 	Candidate(sideInfo *snap.SideInfo)
 }
-
-type defaultBackend struct {
-	// XXX defaultBackend will go away and be replaced by this in the end.
-	backend.Backend
-}
-
-func (b *defaultBackend) Candidate(*snap.SideInfo) {}
-func (b *defaultBackend) Current(*snap.Info)       {}
