@@ -410,7 +410,17 @@ func (x *cmdTry) Execute([]string) error {
 	}
 	name = snapName
 
-	return showDone([]string{name}, "installed in try mode")
+	// show output as speced
+	snaps, err := cli.List([]string{name})
+	if err != nil {
+		return err
+	}
+	if len(snaps) != 1 {
+		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
+	}
+	snap := snaps[0]
+	fmt.Fprintf(Stdout, "%s %s mounted from %s", name, snap.Version, path)
+	return nil
 }
 
 type cmdEnable struct {
