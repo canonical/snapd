@@ -1,14 +1,46 @@
-symmary: Ensures that the system-observe interface works.
+summary: Ensures that the system-observe interface works.
+
+details: |
+    A snap declaring the system-observe plug is defined, its command
+    just calls ps -ax.
+
+    The test itself checks for the lack of autoconnect and then tries
+    to execute the snap command with the plug connected (it must succeed)
+    and disconnected (it must fail).
+
+prepare: |
+    echo "Given a snap declaring a plug on the system-observe interface is installed"
+    snapbuild $TESTSLIB/snaps/system-observe-consumer .
+    snap install system-observe-consumer_1.0_all.snap
+
+restore: |
+    rm -f system-observe-consumer_1.0_all.snap
 
 execute: |
-    echo "Given a snap declaring the system-observe plug is installed"
+    CONNECTED_PATTERN=":system-observe +system-observe-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +system-observe-consumer:system-observe"
 
-    echo "Then it is reported as not connected"
+    echo "Then the plug is shown as disconnected"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "==========================================="
 
     echo "When the plug is connected"
+    snap connect system-observe-consumer:system-observe ubuntu-core:system-observe
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to get system information"
+    expected="(?s)/dev/tty.*?serial"
+    sudo -i -u test /bin/sh -c "system-observe-consumer" | grep -Pq "$expected"
+
+    echo "==========================================="
 
     echo "When the plug is disconnected"
+    snap disconnect system-observe-consumer:system-observe ubuntu-core:system-observe
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to get system information"
+    if sudo -i -u test /bin/sh -c "system-observe-consumer"; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi
