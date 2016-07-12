@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,13 +17,9 @@
  *
  */
 
-package classic
+package boot
 
-import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+var (
+	PopulateStateFromInstalled = populateStateFromInstalled
+	NameAndRevnoFromSnap       = nameAndRevnoFromSnap
 )
-
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }

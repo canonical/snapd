@@ -80,7 +80,11 @@ func init() {
 	})
 }
 
-func (x *cmdFind) Execute([]string) error {
+func (x *cmdFind) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return findSnaps(&client.FindOptions{
 		Query: x.Positional.Query,
 	})

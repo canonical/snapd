@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -284,15 +285,46 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 	}
 }
 
+// authenticate will add the store expected Authorization header for macaroons
+func authenticate(r *http.Request, user *auth.UserState) {
+	var buf bytes.Buffer
+	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
+
+	// deserialize root macaroon (we need its signature to do the discharge binding)
+	root, err := MacaroonDeserialize(user.StoreMacaroon)
+	if err != nil {
+		logger.Debugf("cannot deserialize root macaroon: %v", err)
+		return
+	}
+
+	for _, d := range user.StoreDischarges {
+		// prepare discharge for request
+		discharge, err := MacaroonDeserialize(d)
+		if err != nil {
+			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
+			return
+		}
+		discharge.Bind(root.Signature())
+
+		serializedDischarge, err := MacaroonSerialize(discharge)
+		if err != nil {
+			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
+			return
+		}
+		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
+	}
+	r.Header.Set("Authorization", buf.String())
+}
+
 // build a new http.Request with headers for the store
-func (s *SnapUbuntuStoreRepository) newRequest(method, urlStr string, body io.Reader, auther Authenticator) (*http.Request, error) {
+func (s *SnapUbuntuStoreRepository) newRequest(method, urlStr string, body io.Reader, user *auth.UserState) (*http.Request, error) {
 	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		return nil, err
 	}
 
-	if auther != nil {
-		auther.Authenticate(req)
+	if user != nil {
+		authenticate(req, user)
 	}
 
 	req.Header.Set("User-Agent", userAgent)
@@ -309,9 +341,9 @@ func (s *SnapUbuntuStoreRepository) newRequest(method, urlStr string, body io.Re
 }
 
 // small helper that sets the correct http headers for the ubuntu store
-func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, devmode bool, auther Authenticator) {
-	if auther != nil {
-		auther.Authenticate(req)
+func (s *SnapUbuntuStoreRepository) setUbuntuStoreHeaders(req *http.Request, channel string, devmode bool, user *auth.UserState) {
+	if user != nil {
+		authenticate(req, user)
 	}
 
 	req.Header.Set("User-Agent", userAgent)
@@ -386,8 +418,8 @@ type purchase struct {
 	RedirectTo      string `json:"redirect_to,omitempty"`
 }
 
-func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, auther Authenticator) ([]*purchase, error) {
-	if auther == nil {
+func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) ([]*purchase, error) {
+	if user == nil {
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
 
@@ -396,7 +428,7 @@ func (s *SnapUbuntuStoreRepository) getPurchasesFromURL(url *url.URL, channel st
 		return nil, err
 	}
 
-	s.setUbuntuStoreHeaders(req, channel, false, auther)
+	s.setUbuntuStoreHeaders(req, channel, false, user)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -441,11 +473,11 @@ func hasPriced(snaps []*snap.Info) bool {
 }
 
 // decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
-func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, auther Authenticator) error {
+func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channel string, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
 	setMustBuy(snaps)
 
-	if auther == nil {
+	if user == nil {
 		return nil
 	}
 
@@ -470,7 +502,7 @@ func (s *SnapUbuntuStoreRepository) decoratePurchases(snaps []*snap.Info, channe
 		purchasesURL = s.purchasesURI
 	}
 
-	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, auther)
+	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, user)
 	if err != nil {
 		return err
 	}
@@ -509,7 +541,7 @@ func mustBuy(prices map[string]float64, purchases []*purchase) bool {
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, auther Authenticator) (*snap.Info, error) {
+func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(name)
 	if err != nil {
 		return nil, err
@@ -530,7 +562,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 
 	u.RawQuery = query.Encode()
 
-	req, err := s.newRequest("GET", u.String(), nil, auther)
+	req, err := s.newRequest("GET", u.String(), nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -564,7 +596,7 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 
 	info := infoFromRemote(remote)
 
-	err = s.decoratePurchases([]*snap.Info{info}, channel, auther)
+	err = s.decoratePurchases([]*snap.Info{info}, channel, user)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
@@ -576,19 +608,67 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, aut
 
 // Find finds  (installable) snaps from the store, matching the
 // given search term.
-func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auther Authenticator) ([]*snap.Info, error) {
-	if channel == "" {
-		channel = "stable"
+func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, user *auth.UserState) ([]*snap.Info, error) {
+	// see https://github.com/snapcore/snapd/blob/master/docs/rest.md#v2find
+
+	searchTerm = strings.TrimSpace(searchTerm)
+
+	prefix := "name"
+	exact := false
+	if idx := strings.IndexRune(searchTerm, ':'); idx >= 0 {
+		prefix = searchTerm[:idx]
+		searchTerm = searchTerm[idx+1:]
+
+		if prefix == "name" {
+			trimmed := strings.TrimSuffix(searchTerm, "*")
+			if len(trimmed) == len(searchTerm) {
+				exact = true
+			}
+			searchTerm = trimmed
+		}
+	}
+
+	if searchTerm == "" {
+		return nil, ErrEmptyQuery
+	}
+
+	if strings.ContainsAny(searchTerm, ":*") {
+		return nil, ErrBadQuery
+	}
+
+	if exact {
+		// this is actually a request for a single snap's details; short-cut out
+		snapInfo, err := s.Snap(searchTerm, channel, false, user)
+		switch err {
+		case nil:
+			return []*snap.Info{snapInfo}, nil
+		case ErrSnapNotFound:
+			// not finding something is an error for Snap but not for Find
+			return nil, nil
+		default:
+			return nil, err
+		}
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
 	q := u.Query()
-	q.Set("q", searchTerm)
-	q.Set("channel", channel)
+
+	switch prefix {
+	case "name":
+		q.Set("name", searchTerm)
+	case "text":
+		q.Set("q", searchTerm)
+	default:
+		return nil, ErrBadPrefix
+	}
+
 	q.Set("confinement", "strict")
+	if channel != "" {
+		q.Set("channel", channel)
+	}
 	u.RawQuery = q.Encode()
 
-	req, err := s.newRequest("GET", u.String(), nil, auther)
+	req, err := s.newRequest("GET", u.String(), nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -619,7 +699,7 @@ func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, auth
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, channel, auther)
+	err = s.decoratePurchases(snaps, channel, user)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
@@ -662,7 +742,7 @@ type metadataWrapper struct {
 }
 
 // ListRefresh returns the available updates for a list of snap identified by fullname with channel.
-func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, auther Authenticator) (snaps []*snap.Info, err error) {
+func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
 
 	candidateMap := map[string]*RefreshCandidate{}
 	currentSnaps := make([]currentSnapJson, 0, len(installed))
@@ -706,7 +786,7 @@ func (s *SnapUbuntuStoreRepository) ListRefresh(installed []*RefreshCandidate, a
 		return nil, err
 	}
 
-	s.setUbuntuStoreHeaders(req, "", false, auther)
+	s.setUbuntuStoreHeaders(req, "", false, user)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -755,7 +835,7 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *SnapUbuntuStoreRepository) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, auther Authenticator) (path string, err error) {
+func (s *SnapUbuntuStoreRepository) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
 	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
@@ -771,7 +851,7 @@ func (s *SnapUbuntuStoreRepository) Download(name string, downloadInfo *snap.Dow
 	}()
 
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || auther != nil {
+	if url == "" || user != nil {
 		url = downloadInfo.DownloadURL
 	}
 
@@ -779,7 +859,7 @@ func (s *SnapUbuntuStoreRepository) Download(name string, downloadInfo *snap.Dow
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req, "", false, auther)
+	s.setUbuntuStoreHeaders(req, "", false, user)
 
 	if err := download(name, w, req, pbar); err != nil {
 		return "", err
@@ -822,7 +902,7 @@ type assertionSvcError struct {
 }
 
 // Assertion retrivies the assertion for the given type and primary key.
-func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType, primaryKey []string, auther Authenticator) (asserts.Assertion, error) {
+func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
 	url, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
 	if err != nil {
 		return nil, err
@@ -833,8 +913,8 @@ func (s *SnapUbuntuStoreRepository) Assertion(assertType *asserts.AssertionType,
 		return nil, err
 	}
 
-	if auther != nil {
-		auther.Authenticate(req)
+	if user != nil {
+		authenticate(req, user)
 	}
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", asserts.MediaType)
@@ -879,16 +959,16 @@ func (s *SnapUbuntuStoreRepository) SuggestedCurrency() string {
 // BuyOptions specifies parameters for store purchases.
 type BuyOptions struct {
 	// Required
-	SnapID        string
-	SnapName      string
-	Channel       string
-	ExpectedPrice float64
-	Currency      string // ISO 4217 code as string
-	Auther        Authenticator
+	SnapID   string          `json:"snap-id"`
+	SnapName string          `json:"snap-name"`
+	Channel  string          `json:"channel"`
+	Price    float64         `json:"price"`
+	Currency string          `json:"currency"` // ISO 4217 code as string
+	User     *auth.UserState `json:"-"`
 
 	// Optional
-	BackendID string // e.g. "credit_card", "paypal"
-	MethodID  int    // e.g. a particular credit card or paypal account
+	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
+	MethodID  int    `json:"method-id"`  // e.g. a particular credit card or paypal account
 }
 
 // BuyResult holds information required to complete the purchase when state
@@ -937,19 +1017,19 @@ func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error)
 	if options.Channel == "" {
 		return buyOptionError(options, "channel missing")
 	}
-	if options.ExpectedPrice <= 0 {
+	if options.Price <= 0 {
 		return buyOptionError(options, "invalid expected price")
 	}
 	if options.Currency == "" {
 		return buyOptionError(options, "currency missing")
 	}
-	if options.Auther == nil {
+	if options.User == nil {
 		return buyOptionError(options, "authentication credentials missing")
 	}
 
 	instruction := purchaseInstruction{
 		SnapID:    options.SnapID,
-		Amount:    options.ExpectedPrice,
+		Amount:    options.Price,
 		Currency:  options.Currency,
 		BackendID: options.BackendID,
 		MethodID:  options.MethodID,
@@ -965,7 +1045,7 @@ func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error)
 		return nil, err
 	}
 
-	s.setUbuntuStoreHeaders(req, options.Channel, false, options.Auther)
+	s.setUbuntuStoreHeaders(req, options.Channel, false, options.User)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)

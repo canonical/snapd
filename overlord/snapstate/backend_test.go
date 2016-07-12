@@ -54,7 +54,7 @@ type fakeStore struct {
 	fakeTotalProgress   int
 }
 
-func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
+func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
 	revno := snap.R(11)
 	if channel == "channel-for-7" {
 		revno.N = 7
@@ -77,11 +77,11 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, auther store.Authen
 	return info, nil
 }
 
-func (f *fakeStore) Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error) {
+func (f *fakeStore) Find(query, channel string, user *auth.UserState) ([]*snap.Info, error) {
 	panic("Find called")
 }
 
-func (f *fakeStore) ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error) {
+func (f *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
 	panic("ListRefresh called")
 }
 
@@ -89,10 +89,10 @@ func (f *fakeStore) SuggestedCurrency() string {
 	return "XTS"
 }
 
-func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, auther store.Authenticator) (string, error) {
+func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) (string, error) {
 	var macaroon string
-	if auther != nil {
-		macaroon = auther.(*auth.MacaroonAuthenticator).Macaroon
+	if user != nil {
+		macaroon = user.StoreMacaroon
 	}
 	f.downloads = append(f.downloads, fakeDownload{
 		macaroon: macaroon,
@@ -104,6 +104,10 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	pb.Set(float64(f.fakeCurrentProgress))
 
 	return "downloaded-snap-path", nil
+}
+
+func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+	panic("Never expected apiSuite.Buy to be called")
 }
 
 type fakeSnappyBackend struct {
@@ -287,7 +291,7 @@ func (f *fakeSnappyBackend) CurrentInfo(curInfo *snap.Info) {
 func (f *fakeSnappyBackend) ForeignTask(kind string, status state.Status, ss *snapstate.SnapSetup) {
 	f.ops = append(f.ops, fakeOp{
 		op:    kind + ":" + status.String(),
-		name:  ss.Name,
-		revno: ss.Revision,
+		name:  ss.Name(),
+		revno: ss.Revision(),
 	})
 }

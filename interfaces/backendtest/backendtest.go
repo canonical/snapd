@@ -85,7 +85,7 @@ apps:
     smbd:
     nmbd:
 hooks:
-    test-hook:
+    apply-config:
         plugs: [iface]
 slots:
     iface:
@@ -95,7 +95,7 @@ name: foo
 version: 1
 developer: acme
 hooks:
-    test-hook:
+    apply-config:
 plugs:
     iface:
 `

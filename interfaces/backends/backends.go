@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,28 @@
  *
  */
 
-package classic
+package backends
 
 import (
-	. "gopkg.in/check.v1"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 )
 
-type RunTestSuite struct {
+// append when a new security backend is added
+var All = []interfaces.SecurityBackend{
+	&seccomp.Backend{},
+	&dbus.Backend{},
+	&udev.Backend{},
+	&mount.Backend{},
 }
 
-var _ = Suite(&RunTestSuite{})
-
-func (t *RunTestSuite) TestGenScopeName(c *C) {
-	name := genClassicScopeName()
-	c.Assert(name, Matches, "snappy-classic_[0-9-]+_[0-9:]+_[a-zA-Z0-9]+.scope")
+func init() {
+	if !release.ReleaseInfo.ForceDevMode() {
+		All = append(All, &apparmor.Backend{})
+	}
 }
