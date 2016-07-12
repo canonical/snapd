@@ -37,7 +37,7 @@ The find command queries the store for available packages.
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
 	// If there are no prices, then the snap is free
 	if len(prices) == 0 {
-		return 0, "", fmt.Errorf("no prices found")
+		return 0, "", fmt.Errorf(i18n.G("snap is free"))
 	}
 
 	// Look up the price by currency code
