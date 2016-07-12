@@ -54,7 +54,7 @@ type bootstrapYaml struct {
 	GadgetUnpackDir  string   `yaml:"gadget-unpack-dir"`
 }
 
-func Bootstrap(bootstrapYaml string) error {
+func Weld(bootstrapYaml string) error {
 	yamlData, err := ioutil.ReadFile(bootstrapYaml)
 	if err != nil {
 		return err
