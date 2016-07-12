@@ -10,25 +10,16 @@ var tpm12PermanentSlotAppArmor = []byte(`
 # Description: for tcsd
 # Usage: common
 
-#include <abstractions/apache2-common>
-#include <abstractions/base>
-#include <abstractions/postfix-common>
-
-capability dac_override,
+#include <abstractions/nameservice>
 
 /dev/tpm0 rw,
-/etc/tcsd.conf r,
-/usr/sbin/tcsd mr,
-/var/lib/tpm/system.data rw,
 `)
 
 var tpm12ConnectedPlugAppArmor = []byte(`
 # Description: for tpm*
 # Usage: common
-#include <abstractions/apache2-common>
-#include <abstractions/base>
 
-@{HOME}/.trousers/user.data rw,
+#include <abstractions/nameservice>
 `)
 
 var tpm12PermanentSlotSecComp = []byte(`
