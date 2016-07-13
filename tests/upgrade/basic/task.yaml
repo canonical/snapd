@@ -12,6 +12,7 @@ execute: |
 
     echo Sanity check install
     test-snapd-tools.echo Hello | grep Hello
+    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
 
     # setup not to reexec
     export SNAP_REEXEC=0
