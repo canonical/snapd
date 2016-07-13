@@ -2,7 +2,7 @@
 
 set timeout 2
 
-spawn test-snapd-tools.sh
+spawn sudo -i -u test /bin/sh -c /snap/bin/test-snapd-tools.sh
 expect "bash-4.3$"
 send "touch /dev/shm/snap.nottest-snapd-tools.foo\n"
 expect {
