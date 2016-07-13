@@ -11,7 +11,8 @@ execute: |
     snap install hello-world
 
     echo Sanity check install
-    hello-world.echo | grep Hello
+    hello-world | grep Hello
+    hello-world.env | grep SNAP_NAME=hello-world
 
     # setup not to reexec
     export SNAP_REEXEC=0
@@ -27,7 +28,7 @@ execute: |
     echo Sanity check already installed snaps after upgrade
     snap list | grep core
     snap list | grep hello-world
-    hello-world.echo | grep Hello
+    hello-world | grep Hello
     hello-world.env | grep SNAP_NAME=hello-world
     hello-world.evil && exit 1 || true
 
