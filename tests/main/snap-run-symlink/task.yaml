@@ -8,7 +8,6 @@ prepare: |
 
 environment:
     APP/helloworld: hello-world
-    APP/helloworldevil: hello-world.evil
 
 execute: |
     echo Testing that replacing the wrapper with a symlink works
