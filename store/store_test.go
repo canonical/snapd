@@ -1986,3 +1986,110 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": authentication credentials missing")
 }
+
+const paymentMethodsJson = `
+[
+    {
+        "id": "credit_card",
+        "description": "Credit or Debit Card",
+        "preferred": true,
+        "choices": [
+            {
+                "requires_interaction": false,
+                "currencies": [
+                    "GBP"
+                ],
+                "id": 1,
+                "preferred": true,
+                "description": "**** **** **** 1111 (Visa, exp. 12/2030)"
+            },
+            {
+                "requires_interaction": false,
+                "currencies": [
+                    "USD"
+                ],
+                "id": 2,
+                "preferred": false,
+                "description": "**** **** **** 2222 (Visa, exp. 01/2050)"
+            }
+        ]
+    },
+    {
+        "id": "rest_paypal",
+        "description": "PayPal",
+        "preferred": false,
+        "choices": [
+            {
+                "requires_interaction": true,
+                "currencies": [
+                    "USD",
+                    "GBP",
+                    "EUR"
+                ],
+                "id": 3,
+                "preferred": false,
+                "description": "PayPal"
+            }
+        ]
+    }
+]
+`
+
+func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethods(c *C) {
+	purchaseServerGetCalled := 0
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			c.Check(r.URL.Path, Equals, "/api/2.0/click/paymentmethods/")
+			io.WriteString(w, paymentMethodsJson)
+			purchaseServerGetCalled++
+		default:
+			c.Error("Unexpected request method: ", r.Method)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	paymentMethodsURI, err := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
+	c.Assert(err, IsNil)
+	cfg := SnapUbuntuStoreConfig{
+		PaymentMethodsURI: paymentMethodsURI,
+	}
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
+	c.Assert(repo, NotNil)
+
+	result, err := repo.PaymentMethods(t.user)
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+
+	c.Check(result.AllowsAutomaticPayment, Equals, true)
+	c.Assert(len(result.Methods), Equals, 3)
+	c.Check(result.Methods[0], DeepEquals, &PaymentMethod{
+		BackendID:           "credit_card",
+		Currencies:          []string{"GBP"},
+		Description:         "**** **** **** 1111 (Visa, exp. 12/2030)",
+		ID:                  1,
+		Preferred:           true,
+		RequiresInteraction: false,
+	})
+	c.Check(result.Methods[1], DeepEquals, &PaymentMethod{
+		BackendID:           "credit_card",
+		Currencies:          []string{"USD"},
+		Description:         "**** **** **** 2222 (Visa, exp. 01/2050)",
+		ID:                  2,
+		Preferred:           false,
+		RequiresInteraction: false,
+	})
+	c.Check(result.Methods[2], DeepEquals, &PaymentMethod{
+		BackendID:           "rest_paypal",
+		Currencies:          []string{"USD", "GBP", "EUR"},
+		Description:         "PayPal",
+		ID:                  3,
+		Preferred:           false,
+		RequiresInteraction: true,
+	})
+
+	c.Check(purchaseServerGetCalled, Equals, 1)
+}

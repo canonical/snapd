@@ -98,22 +98,24 @@ func infoFromRemote(d snapDetails) *snap.Info {
 
 // SnapUbuntuStoreConfig represents the configuration to access the snap store
 type SnapUbuntuStoreConfig struct {
-	SearchURI     *url.URL
-	DetailsURI    *url.URL
-	BulkURI       *url.URL
-	AssertionsURI *url.URL
-	PurchasesURI  *url.URL
-	DetailFields  []string
+	SearchURI         *url.URL
+	DetailsURI        *url.URL
+	BulkURI           *url.URL
+	AssertionsURI     *url.URL
+	PurchasesURI      *url.URL
+	PaymentMethodsURI *url.URL
+	DetailFields      []string
 }
 
 // SnapUbuntuStoreRepository represents the ubuntu snap store
 type SnapUbuntuStoreRepository struct {
-	storeID       string
-	searchURI     *url.URL
-	detailsURI    *url.URL
-	bulkURI       *url.URL
-	assertionsURI *url.URL
-	purchasesURI  *url.URL
+	storeID           string
+	searchURI         *url.URL
+	detailsURI        *url.URL
+	bulkURI           *url.URL
+	assertionsURI     *url.URL
+	purchasesURI      *url.URL
+	paymentMethodsURI *url.URL
 
 	detailFields []string
 	// reused http client
@@ -226,6 +228,11 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
+
+	defaultConfig.PaymentMethodsURI, err = url.Parse(myappsURL() + "api/2.0/click/paymentmethods/")
+	if err != nil {
+		panic(err)
+	}
 }
 
 type searchResults struct {
@@ -271,13 +278,14 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string, au
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &SnapUbuntuStoreRepository{
-		storeID:       storeID,
-		searchURI:     searchURI,
-		detailsURI:    detailsURI,
-		bulkURI:       cfg.BulkURI,
-		assertionsURI: cfg.AssertionsURI,
-		purchasesURI:  cfg.PurchasesURI,
-		detailFields:  fields,
+		storeID:           storeID,
+		searchURI:         searchURI,
+		detailsURI:        detailsURI,
+		bulkURI:           cfg.BulkURI,
+		assertionsURI:     cfg.AssertionsURI,
+		purchasesURI:      cfg.PurchasesURI,
+		paymentMethodsURI: cfg.PaymentMethodsURI,
+		detailFields:      fields,
 		client: &http.Client{
 			Transport: &LoggedTransport{
 				Transport: http.DefaultTransport,
@@ -1066,6 +1074,10 @@ func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error)
 			return nil, err
 		}
 
+		if purchaseDetails.State == "Cancelled" {
+			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
+		}
+
 		return &BuyResult{
 			State:      purchaseDetails.State,
 			RedirectTo: purchaseDetails.RedirectTo,
@@ -1096,5 +1108,131 @@ func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error)
 			details = ": " + errorInfo.ErrorMessage
 		}
 		return nil, fmt.Errorf("cannot buy snap %q: unexpected HTTP code %d%s", options.SnapName, resp.StatusCode, details)
+	}
+}
+
+// [
+//     {
+//         "id": "credit_card",
+//         "description": "Credit or Debit Card",
+//         "preferred": true,
+//         "choices": [
+//             {
+//                 "requires_interaction": false,
+//                 "currencies": [
+//                     "GBP"
+//                 ],
+//                 "id": 5175,
+//                 "preferred": true,
+//                 "description": "**** **** **** 1111 (Visa, exp. 12/2030)"
+//             }
+//         ]
+//     },
+//     {
+//         "id": "rest_paypal",
+//         "description": "PayPal",
+//         "preferred": false,
+//         "choices": [
+//             {
+//                 "requires_interaction": true,
+//                 "currencies": [
+//                     "USD",
+//                     "GBP",
+//                     "EUR"
+//                 ],
+//                 "id": 0,
+//                 "preferred": false,
+//                 "description": "PayPal"
+//             }
+//         ]
+//     }
+// ]
+
+type storePaymentBackend struct {
+	Choices     []*storePaymentMethod `json:"choices"`
+	Description string                `json:"description"`
+	ID          string                `json:"id"`
+	Preferred   bool                  `json:"preferred"`
+}
+
+type storePaymentMethod struct {
+	Currencies          []string `json:"currencies"`
+	Description         string   `json:"description"`
+	ID                  int      `json:"id"`
+	Preferred           bool     `json:"preferred"`
+	RequiresInteraction bool     `json:"requires_interaction"`
+}
+
+type PaymentMethod struct {
+	BackendID           string   `json:"backend-id"`
+	Currencies          []string `json:"currencies"`
+	Description         string   `json:"description"`
+	ID                  int      `json:"id"`
+	Preferred           bool     `json:"preferred"`
+	RequiresInteraction bool     `json:"requires-interaction"`
+}
+
+type PaymentInformation struct {
+	AllowsAutomaticPayment bool             `json:"allows-automatic-payment"`
+	Methods                []*PaymentMethod `json:"methods"`
+}
+
+func (s *SnapUbuntuStoreRepository) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
+	req, err := s.newRequest("GET", s.paymentMethodsURI.String(), nil, user)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+
+		var paymentBackends []*storePaymentBackend
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&paymentBackends); err != nil {
+			return nil, err
+		}
+
+		paymentMethods := &PaymentInformation{
+			AllowsAutomaticPayment: false,
+			Methods:                make([]*PaymentMethod, 0),
+		}
+
+		// Unroll nested structure into a simple list of PaymentMethods
+		for _, backend := range paymentBackends {
+
+			if backend.Preferred {
+				paymentMethods.AllowsAutomaticPayment = true
+			}
+
+			for _, method := range backend.Choices {
+				paymentMethods.Methods = append(paymentMethods.Methods, &PaymentMethod{
+					BackendID:           backend.ID,
+					Currencies:          method.Currencies,
+					Description:         method.Description,
+					ID:                  method.ID,
+					Preferred:           method.Preferred,
+					RequiresInteraction: method.RequiresInteraction,
+				})
+			}
+		}
+
+		return paymentMethods, nil
+	default:
+		var errorInfo buyError
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&errorInfo); err != nil {
+			return nil, err
+		}
+		details := ""
+		if errorInfo.ErrorMessage != "" {
+			details = ": " + errorInfo.ErrorMessage
+		}
+		return nil, fmt.Errorf("cannot get payment methods: unexpected HTTP code %d%s", resp.StatusCode, details)
 	}
 }
