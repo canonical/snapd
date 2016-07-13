@@ -109,6 +109,8 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 		// Please keep this list sorted
 		{id: "arch", devmode: true},
 		{id: "debian", devmode: true},
+		{id: "elementary", devmode: true},
+		{id: "elementary", idVersion: "0.4", devmode: false},
 		{id: "elementary OS", devmode: true},
 		{id: "elementary OS", idVersion: "0.4", devmode: false},
 		{id: "fedora", devmode: true},
