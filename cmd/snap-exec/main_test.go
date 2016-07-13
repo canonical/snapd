@@ -22,6 +22,10 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"syscall"
 	"testing"
 
@@ -36,10 +40,14 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type snapExecSuite struct {
-}
+type snapExecSuite struct{}
 
 var _ = Suite(&snapExecSuite{})
+
+func (s *snapExecSuite) SetUpTest(c *C) {
+	// clean previous parse runs
+	opts.Command = ""
+}
 
 func (s *snapExecSuite) TearDown(c *C) {
 	syscallExec = syscall.Exec
@@ -133,4 +141,53 @@ func (s *snapExecSuite) TestSnapExecErrorsOnUnknown(c *C) {
 func (s *snapExecSuite) TestSnapExecErrorsOnMissingSnapApp(c *C) {
 	_, _, err := parseArgs([]string{"--command=shell"})
 	c.Check(err, ErrorMatches, "need the application to run as argument")
+}
+
+func (s *snapExecSuite) TestSnapExecRealIntegration(c *C) {
+	// we need a lot of mocks
+	dirs.SetRootDir(c.MkDir())
+
+	oldOsArgs := os.Args
+	defer func() { os.Args = oldOsArgs }()
+
+	os.Setenv("SNAP_REVISION", "42")
+	defer os.Unsetenv("SNAP_REVISION")
+
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
+	script := filepath.Join(dirs.GlobalRootDir, "/snap/snapname/42/run-app")
+	err := ioutil.WriteFile(script, []byte(fmt.Sprintf(""+
+		"#!/bin/sh\n"+
+		"echo \"$(basename \"$0\")\" >> %[1]q\n"+
+		"for arg in \"$@\"; do\n"+
+		"    echo \"$arg\" >> %[1]q\n"+
+		"done\n"+
+		"printf \"\\n\" >> %[1]q\n", canaryFile)), 0755)
+	c.Assert(err, IsNil)
+
+	// we can not use the real syscall.execv here because it would
+	// replace the entire test :)
+	syscallExec = func(argv0 string, argv []string, env []string) error {
+		cmd := exec.Command(argv[0], argv[1:]...)
+		cmd.Env = env
+		cmd.Stdout = os.Stdout
+		return cmd.Run()
+	}
+
+	// run it
+	os.Args = []string{"snap-exec", "snapname.app", "foo", "--bar=baz", "foobar"}
+	err = run()
+	c.Assert(err, IsNil)
+
+	output, err := ioutil.ReadFile(canaryFile)
+	c.Assert(err, IsNil)
+	c.Assert(string(output), Equals, `run-app
+foo
+--bar=baz
+foobar
+
+`)
 }
