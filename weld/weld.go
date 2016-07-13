@@ -27,8 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"gopkg.in/yaml.v2"
-
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
@@ -42,42 +40,20 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-type headerYaml struct {
-	Bootstrap bootstrapYaml `yaml:"bootstrap"`
+type Options struct {
+	Snaps            []string
+	Rootdir          string
+	Channel          string
+	ModelAssertionFn string
+	GadgetUnpackDir  string
 }
 
-type bootstrapYaml struct {
-	Snaps            []string `yaml:"extra-snaps"`
-	Rootdir          string   `yaml:"rootdir"`
-	Channel          string   `yaml:"channel"`
-	ModelAssertionFn string   `yaml:"model-assertion"`
-	GadgetUnpackDir  string   `yaml:"gadget-unpack-dir"`
+func Weld(opts *Options) error {
+	return bootstrapToRootdir(opts)
 }
 
-func Weld(bootstrapYaml string) error {
-	yamlData, err := ioutil.ReadFile(bootstrapYaml)
-	if err != nil {
-		return err
-	}
-
-	var y headerYaml
-	err = yaml.Unmarshal(yamlData, &y)
-	if err != nil {
-		return err
-	}
-
-	// if we have a gadget-unpack-dir, download/unpack into that
-	if y.Bootstrap.GadgetUnpackDir != "" {
-		return downloadUnpackGadget(&y.Bootstrap)
-	}
-
-	// we have a rootdir, try to bootstrap into that
-	if y.Bootstrap.Rootdir != "" {
-		return bootstrapToRootdir(&y.Bootstrap)
-	}
-
-	return nil
-
+func UnpackGadget(opts *Options) error {
+	return downloadUnpackGadget(opts)
 }
 
 func decodeModelAssertion(fn string) (*asserts.Model, error) {
@@ -93,7 +69,7 @@ func decodeModelAssertion(fn string) (*asserts.Model, error) {
 	return ass.(*asserts.Model), nil
 }
 
-func downloadUnpackGadget(opts *bootstrapYaml) error {
+func downloadUnpackGadget(opts *Options) error {
 	model, err := decodeModelAssertion(opts.ModelAssertionFn)
 	if err != nil {
 		return err
@@ -123,7 +99,7 @@ func acquireSnap(snapName string, dlOpts *downloadOptions) (string, error) {
 	return downloadSnapWithSideInfo(snapName, dlOpts)
 }
 
-func bootstrapToRootdir(opts *bootstrapYaml) error {
+func bootstrapToRootdir(opts *Options) error {
 	if opts.Rootdir != "" {
 		dirs.SetRootDir(opts.Rootdir)
 		defer dirs.SetRootDir("/")
