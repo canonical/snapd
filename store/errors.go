@@ -26,6 +26,15 @@ import (
 )
 
 var (
+	// ErrEmptyQuery is returned from Find when the query, stripped of any prefixes, is empty.
+	ErrEmptyQuery = errors.New("empty query")
+
+	// ErrBadQuery is returned from Find when the query has special characters in strange places.
+	ErrBadQuery = errors.New("bad query")
+
+	// ErrBadPrefix is returned form Find when the query has an unknown prefix.
+	ErrBadPrefix = errors.New("bad prefix")
+
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
 
