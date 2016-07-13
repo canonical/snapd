@@ -61,8 +61,8 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(13),
+			RealName: "foo",
+			Revision: snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -90,8 +90,8 @@ WantedBy=multi-user.target
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(13),
+			RealName: "foo",
+			Revision: snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},

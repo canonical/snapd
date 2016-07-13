@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
@@ -27,12 +28,13 @@ import (
 
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
-	Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error)
-	Find(query, channel string, auther store.Authenticator) ([]*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, store.Authenticator) ([]*snap.Info, error)
+	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
+	Find(query, channel string, user *auth.UserState) ([]*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	SuggestedCurrency() string
 
-	Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error)
+	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
+	Buy(options *store.BuyOptions) (*store.BuyResult, error)
 }
 
 type managerBackend interface {
@@ -41,12 +43,12 @@ type managerBackend interface {
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	// the undoers for install
-	UndoSetupSnap(s snap.PlaceInfo, meter progress.Meter) error
+	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 
 	// remove releated
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
-	RemoveSnapFiles(s snap.PlaceInfo, meter progress.Meter) error
+	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
 

@@ -50,7 +50,11 @@ func (s snapsByName) Len() int           { return len(s) }
 func (s snapsByName) Less(i, j int) bool { return s[i].Name < s[j].Name }
 func (s snapsByName) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
-func (x *cmdList) Execute([]string) error {
+func (x *cmdList) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return listSnaps(x.Positional.Snaps)
 }
 
@@ -75,7 +79,12 @@ func listSnaps(names []string) error {
 			Private: snap.Private,
 			DevMode: snap.DevMode,
 			TryMode: snap.TryMode,
-			Broken:  snap.Broken != "",
+			// FIXME: a bit confusing, a installed snap
+			//        is either "active" or "installed", so
+			//        if it is not "active" it means it is
+			//        diabled.
+			Disabled: snap.Status == client.StatusInstalled,
+			Broken:   snap.Broken != "",
 		}
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, snap.Developer, notes)
 	}

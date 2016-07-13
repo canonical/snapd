@@ -62,6 +62,10 @@ func init() {
 }
 
 func (x *cmdConnect) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	// snap connect <plug> <snap>[:<slot>]
 	if x.Positionals.Offer.Snap != "" && x.Positionals.Offer.Name == "" {
 		// Move the value of .Snap to .Name and keep .Snap empty

@@ -97,9 +97,9 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 	for _, devMode := range []bool{true, false} {
 		s.udevadmCmd.ForgetCalls()
 		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.hook.test-hook.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.hook.apply-config.rules")
 
-		// Verify that "70-snap.foo.hook.test-hook.rules" was created.
+		// Verify that "70-snap.foo.hook.apply-config.rules" was created.
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 
@@ -184,9 +184,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.test-hook.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.apply-config.rules")
 
-		// Verify that "70-snap.samba.hook.test-hook.rules" was created
+		// Verify that "70-snap.samba.hook.apply-config.rules" was created
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 
@@ -234,9 +234,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 0)
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.test-hook.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.apply-config.rules")
 
-		// Verify that  "70-snap.samba.hook.test-hook.rules" was removed
+		// Verify that  "70-snap.samba.hook.apply-config.rules" was removed
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 
