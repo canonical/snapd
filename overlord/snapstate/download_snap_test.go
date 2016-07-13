@@ -101,10 +101,10 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
+
+	var ss snapstate.SnapSetup
+	t.Get("snap-setup", &ss)
+	c.Check(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
 		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
 		Revision: snap.R(11),
@@ -149,11 +149,10 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
-	// candidate comes from your SnapSetup.Candidate
-	c.Check(snapst.Candidate, DeepEquals, si)
+
+	var ss snapstate.SnapSetup
+	t.Get("snap-setup", &ss)
+	c.Check(ss.SideInfo, DeepEquals, si)
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 

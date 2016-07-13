@@ -389,14 +389,19 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
-	store := getStore(c)
-	found, err := store.Find(query.Get("q"), query.Get("channel"), user)
-	if err != nil {
+	theStore := getStore(c)
+	found, err := theStore.Find(query.Get("q"), query.Get("channel"), user)
+	switch err {
+	case nil:
+		// pass
+	case store.ErrEmptyQuery, store.ErrBadQuery, store.ErrBadPrefix:
+		return BadRequest("%v", err)
+	default:
 		return InternalError("%v", err)
 	}
 
 	meta := &Meta{
-		SuggestedCurrency: store.SuggestedCurrency(),
+		SuggestedCurrency: theStore.SuggestedCurrency(),
 		Sources:           []string{"store"},
 	}
 
