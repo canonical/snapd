@@ -119,6 +119,8 @@ type SnapUbuntuStoreRepository struct {
 	// reused http client
 	client *http.Client
 
+	authContext auth.AuthContext
+
 	mu                sync.Mutex
 	suggestedCurrency string
 }
@@ -236,7 +238,7 @@ type searchResults struct {
 var detailFields = getStructFields(snapDetails{})
 
 // NewUbuntuStoreSnapRepository creates a new SnapUbuntuStoreRepository with the given access configuration and for given the store id.
-func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *SnapUbuntuStoreRepository {
+func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string, authContext auth.AuthContext) *SnapUbuntuStoreRepository {
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
@@ -282,6 +284,7 @@ func NewUbuntuStoreSnapRepository(cfg *SnapUbuntuStoreConfig, storeID string) *S
 				Key:       "SNAPD_DEBUG_HTTP",
 			},
 		},
+		authContext: authContext,
 	}
 }
 
