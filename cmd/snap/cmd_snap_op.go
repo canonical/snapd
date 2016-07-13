@@ -176,7 +176,7 @@ func (x *cmdRemove) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "%s removed\n", name)
+	fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
 	return nil
 }
 
@@ -229,7 +229,15 @@ func showDone(names []string, op string) error {
 		if snap.Developer != "" {
 			developerStr = fmt.Sprintf(" from '%s'", snap.Developer)
 		}
-		fmt.Fprintf(Stdout, "%s%s %s%s %s\n", snap.Name, channelStr, snap.Version, developerStr, op)
+
+		switch op {
+		case "install":
+			fmt.Fprintf(Stdout, i18n.G("%s%s %s%s installed\n"), snap.Name, channelStr, snap.Version, developerStr)
+		case "upgrade":
+			fmt.Fprintf(Stdout, i18n.G("%s%s %s%s upgraded\n"), snap.Name, channelStr, snap.Version, developerStr)
+		default:
+			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
+		}
 	}
 	return nil
 }
@@ -280,7 +288,7 @@ func (x *cmdInstall) Execute([]string) error {
 		name = snapName
 	}
 
-	return showDone([]string{name}, "installed")
+	return showDone([]string{name}, "install")
 }
 
 type cmdRefresh struct {
@@ -317,7 +325,7 @@ func refreshAll() error {
 		names[i] = update.Name
 	}
 
-	return showDone(names, "updated")
+	return showDone(names, "upgrade")
 }
 
 func refreshOne(name, channel string) error {
@@ -331,7 +339,7 @@ func refreshOne(name, channel string) error {
 		return err
 	}
 
-	return showDone([]string{name}, "updated")
+	return showDone([]string{name}, "upgrade")
 }
 
 func listRefresh() error {
@@ -423,7 +431,7 @@ func (x *cmdTry) Execute([]string) error {
 		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
 	}
 	snap := snaps[0]
-	fmt.Fprintf(Stdout, "%s %s mounted from %s\n", name, snap.Version, path)
+	fmt.Fprintf(Stdout, i18n.G("%s %s mounted from %s\n"), name, snap.Version, path)
 	return nil
 }
 
@@ -447,7 +455,7 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "%s enabled\n", name)
+	fmt.Fprintf(Stdout, i18n.G("%s enabled\n"), name)
 	return nil
 }
 
@@ -471,7 +479,7 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "%s disabled\n", name)
+	fmt.Fprintf(Stdout, i18n.G("%s disabled\n"), name)
 	return nil
 }
 
@@ -516,7 +524,7 @@ func (x *cmdRevert) Execute(args []string) error {
 		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
 	}
 	snap := snaps[0]
-	fmt.Fprintf(Stdout, "%s reverted to %s\n", name, snap.Version)
+	fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), name, snap.Version)
 	return nil
 }
 
