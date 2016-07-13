@@ -104,7 +104,7 @@ func snapExec(snapApp, revision, command string, args []string) error {
 		Revision: rev,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot read info for %q", snapName, err)
+		return fmt.Errorf("cannot read info for %q: %s", snapName, err)
 	}
 
 	app := info.Apps[appName]
@@ -127,5 +127,6 @@ func snapExec(snapApp, revision, command string, args []string) error {
 	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd, err)
 	}
+	// this is never reached except in tests
 	return nil
 }
