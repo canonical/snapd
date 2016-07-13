@@ -109,28 +109,24 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 	c.Check(store1, Equals, store2)
 }
 
+func verifyTasks(c *C, ts *state.TaskSet, st *state.State, kinds []string) {
+	n := len(kinds)
+	c.Check(ts.Tasks(), HasLen, n)
+	c.Check(st.NumTask(), Equals, n)
+
+	for i, t := range ts.Tasks() {
+		c.Check(t.Kind(), Equals, kinds[i])
+	}
+}
+
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
-	i := 0
-	n := 5
+	kinds := []string{"download-snap", "mount-snap"}
 	if curActive {
-		n++
+		kinds = append(kinds, "unlink-current-snap")
 	}
-	c.Assert(ts.Tasks(), HasLen, n)
-	// all tasks are accounted
-	c.Assert(st.NumTask(), Equals, n)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
-	i++
-	if curActive {
-		c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
-		i++
-	}
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "copy-snap-data")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+	kinds = append(kinds, []string{"copy-snap-data", "setup-profiles", "link-snap"}...)
+
+	verifyTasks(c, ts, st, kinds)
 }
 
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
@@ -158,17 +154,9 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	ts, err := snapstate.Revert(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
-	i := 0
-	c.Assert(ts.Tasks(), HasLen, 4)
-	c.Assert(s.state.NumTask(), Equals, 4)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
-
+	verifyTasks(c, ts, s.state, []string{
+		"prepare-snap", "unlink-current-snap", "setup-profiles", "link-snap",
+	})
 }
 
 func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
@@ -186,12 +174,7 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	ts, err := snapstate.Enable(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
-	i := 0
-	c.Assert(ts.Tasks(), HasLen, 2)
-	c.Assert(s.state.NumTask(), Equals, 2)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+	verifyTasks(c, ts, s.state, []string{"prepare-snap", "link-snap"})
 }
 
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
@@ -209,10 +192,7 @@ func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
 	ts, err := snapstate.Disable(s.state, "some-snap")
 	c.Assert(err, IsNil)
 
-	i := 0
-	c.Assert(ts.Tasks(), HasLen, 1)
-	c.Assert(s.state.NumTask(), Equals, 1)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
+	verifyTasks(c, ts, s.state, []string{"unlink-snap"})
 }
 
 func (s *snapmgrTestSuite) TestEnableConflict(c *C) {
@@ -320,6 +300,30 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Check(ss.Channel, Equals, "some-channel")
 }
 
+func (s *snapmgrTestSuite) TestUpdateToLocalRevisionTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:  true,
+		Channel: "edge",
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(7)},
+			{RealName: "some-snap", Revision: snap.R(11)},
+		},
+		Current: snap.R(7),
+	})
+
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	c.Assert(err, IsNil)
+
+	// note that we skip download and mount here
+	verifyTasks(c, ts, s.state, []string{
+		"prepare-snap", "unlink-current-snap", "copy-snap-data",
+		"setup-profiles", "link-snap",
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -375,19 +379,10 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	ts, err := snapstate.Remove(s.state, "foo")
 	c.Assert(err, IsNil)
 
-	i := 0
-	c.Assert(ts.Tasks(), HasLen, 5)
-	// all tasks are accounted
-	c.Assert(s.state.NumTask(), Equals, 5)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
+	verifyTasks(c, ts, s.state, []string{
+		"unlink-snap", "remove-profiles", "clear-snap",
+		"discard-snap", "discard-conns",
+	})
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
@@ -928,7 +923,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 	})
 
 	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
-	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
+	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already in use`)
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
@@ -2492,7 +2487,7 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
 }
 
-func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
+func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -2511,8 +2506,64 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 		Current:  si11.Revision,
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
-	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), IsNil)
+
+	// ensure all our tasks ran
+	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+		{
+			op:    "storesvc-snap",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/11",
+		},
+		{
+			op:   "copy-data",
+			name: "/snap/some-snap/7",
+			old:  "/snap/some-snap/11",
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				Revision: snap.R(7),
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Channel:  "channel-for-7",
+			},
+		},
+		{
+			op:   "link-snap",
+			name: "/snap/some-snap/7",
+		},
+	})
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	// verify current got updated
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Sequence, HasLen, 2)
+	c.Assert(snapst.Current, Equals, snap.R(7))
 }
 
 func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {

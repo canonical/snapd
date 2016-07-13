@@ -57,7 +57,7 @@ const (
 	// 0x40000000 >> iota
 )
 
-func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
+func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup, isRevert bool) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name()); err != nil {
 		return nil, err
 	}
@@ -105,8 +105,9 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		prev = unlink
 	}
 
-	// copy-data (needs stopped services by unlink)
-	if !revisionIsLocal {
+	// copy-data (needs stopped services by unlink), we do not copy
+	// data on a revert
+	if !isRevert {
 		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name()))
 		addTask(copyData)
 		prev = copyData
@@ -173,7 +174,7 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 		Flags:    SnapSetupFlags(flags),
 	}
 
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, false)
 }
 
 // TryPath returns a set of tasks for trying a snap from a file path.
@@ -209,7 +210,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		SideInfo:     &snapInfo.SideInfo,
 	}
 
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, false)
 }
 
 // Update initiates a change updating a snap.
@@ -232,8 +233,9 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 	if err != nil {
 		return nil, err
 	}
-	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
-		return nil, err
+
+	if snapst.Current == updateInfo.Revision {
+		return nil, fmt.Errorf("revision %s of snap %q already in use", updateInfo.Revision, name)
 	}
 
 	ss := &SnapSetup{
@@ -244,7 +246,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		SideInfo:     &updateInfo.SideInfo,
 	}
 
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, false)
 }
 
 // Enable sets a snap to the active state
@@ -467,7 +469,7 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
 	}
-	return doInstall(s, &snapst, ss)
+	return doInstall(s, &snapst, ss, true)
 }
 
 // Info returns the information about the snap with given name and revision.
