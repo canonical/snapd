@@ -33,6 +33,11 @@ import (
 // for the tests
 var syscallExec = syscall.Exec
 
+// commandline args
+var opts struct {
+	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Printf("cannot snap-exec: %s\n", err)
@@ -40,17 +45,21 @@ func main() {
 	}
 }
 
-func run() error {
-	var opts struct {
-		Positional struct {
-			SnapApp string `positional-arg-name:"<snapApp>" description:"the application to run, e.g. hello-world.env"`
-		} `positional-args:"yes" required:"yes"`
-
-		Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
+func parseArgs(args []string) (app string, appArgs []string, err error) {
+	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
+	rest, err := parser.ParseArgs(args)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(rest) == 0 {
+		return "", nil, fmt.Errorf("need the application to run as argument")
 	}
 
-	parser := flags.NewParser(&opts, flags.HelpFlag|flags.PassDoubleDash)
-	args, err := parser.Parse()
+	return rest[0], rest[1:], nil
+}
+
+func run() error {
+	snapApp, args, err := parseArgs(os.Args[1:])
 	if err != nil {
 		return err
 	}
@@ -60,8 +69,7 @@ func run() error {
 	// confinement and (generally) can not talk to snapd
 	revision := os.Getenv("SNAP_REVISION")
 
-	snapApp := opts.Positional.SnapApp
-	return snapExec(snapApp, revision, opts.Command, args)
+	return snapExec(snapApp, revision, opts.Command, args[1:])
 }
 
 func findCommand(app *snap.AppInfo, command string) (string, error) {
