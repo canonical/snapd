@@ -173,8 +173,9 @@ func (s *snapExecSuite) TestSnapExecRealIntegration(c *C) {
 	syscallExec = func(argv0 string, argv []string, env []string) error {
 		cmd := exec.Command(argv[0], argv[1:]...)
 		cmd.Env = env
-		cmd.Stdout = os.Stdout
-		return cmd.Run()
+		output, err := cmd.CombinedOutput()
+		c.Assert(output, HasLen, 0)
+		return err
 	}
 
 	// run it
