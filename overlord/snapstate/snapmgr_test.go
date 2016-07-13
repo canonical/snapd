@@ -300,7 +300,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	c.Check(ss.Channel, Equals, "some-channel")
 }
 
-func (s *snapmgrTestSuite) TestUpdateTasksToLocalRevision(c *C) {
+func (s *snapmgrTestSuite) TestUpdateToLocalRevisionTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 

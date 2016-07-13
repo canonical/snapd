@@ -390,11 +390,11 @@ func (s *copydataSuite) makeTestDataDir(c *C, snapName string, rev snap.Revision
 }
 
 func (s *copydataSuite) TestCopyDataOverExistingDir(c *C) {
-	d1 := s.makeTestDataDir(c, "hello", snap.R(1))
-	s.makeTestDataDir(c, "hello", snap.R(2))
-
 	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(1)})
+	d1 := s.makeTestDataDir(c, "hello", snap.R(1))
+
 	v2 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(2)})
+	s.makeTestDataDir(c, "hello", snap.R(2))
 
 	// go from v2 -> v1 (simulate refresh a refresh to a local version)
 	new := v1
