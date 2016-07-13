@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -373,4 +374,44 @@ exit 3
 	// copy data will fail
 	err = s.be.CopySnapData(v2, v1, &s.nullProgress)
 	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy %s to %s: cp: boom", v1.DataDir(), v2.DataDir())))
+}
+
+func (s *copydataSuite) makeTestDataDir(c *C, snapName string, rev snap.Revision) string {
+	homedir := filepath.Join(s.tempdir, "home", "user1", "snap")
+	homeData := filepath.Join(homedir, snapName, rev.String())
+	err := os.MkdirAll(homeData, 0755)
+	c.Assert(err, IsNil)
+
+	canaryData := []byte("ni ni ni")
+	canaryDataFile := filepath.Join(homeData, fmt.Sprintf("%s-%s.txt", snapName, rev))
+	err = ioutil.WriteFile(canaryDataFile, canaryData, 0644)
+
+	return homeData
+}
+
+func (s *copydataSuite) TestCopyDataOverExistingDir(c *C) {
+	d1 := s.makeTestDataDir(c, "hello", snap.R(1))
+	s.makeTestDataDir(c, "hello", snap.R(2))
+
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(1)})
+	v2 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(2)})
+
+	// go from v2 -> v1 (simulate refresh a refresh to a local version)
+	new := v1
+	old := v2
+	err := s.be.CopySnapData(new, old, &s.nullProgress)
+	c.Assert(err, IsNil)
+
+	// ensure that the data from v2 was copied to v1
+	canary := filepath.Join(d1, "hello-2.txt")
+	c.Check(osutil.FileExists(canary), Equals, true)
+
+	// ensure that the old data in the v1 dir got removed
+	canary = filepath.Join(d1, "hello-1.txt")
+	c.Check(osutil.FileExists(canary), Equals, false)
+
+	// ensure there is no extra data
+	dl, err := ioutil.ReadDir(d1)
+	c.Assert(err, IsNil)
+	c.Check(dl, HasLen, 1)
 }
