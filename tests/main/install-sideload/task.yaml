@@ -14,8 +14,7 @@ restore: |
 
 execute: |
     echo "Sideloaded snap shows status"
-    expected="(?s)Name +Version +Rev +Developer +Notes\n\
-    basic +.*? *\n\
+    expected="(?s)basic 1.0 installed\n\
     .*"
     snap install ./basic_1.0_all.snap | grep -Pzq "$expected"
 

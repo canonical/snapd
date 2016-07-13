@@ -6,8 +6,7 @@ environment:
 
 execute: |
     echo "Install from different channels"
-    expected="(?s)Name +Version +Rev +Developer +Notes\n\
-    $SNAP_NAME .*? canonical +-\n"
+    expected="(?s)$SNAP_NAME .* from 'canonical' installed\n"
     for channel in edge beta candidate stable
     do
         snap install $SNAP_NAME --channel=$channel | grep -Pzq "$expected"
@@ -15,8 +14,7 @@ execute: |
     done
 
     echo "Install non-devmode snap with devmode option"
-    expected="(?s)Name +Version +Rev +Developer +Notes\n\
-    $SNAP_NAME .*? canonical +devmode\n"
+    expected="(?s)$SNAP_NAME .* from 'canonical installed'\n"
     snap install $SNAP_NAME --devmode | grep -Pzq "$expected"
 
     echo "Install devmode snap without devmode option"
@@ -33,7 +31,6 @@ execute: |
     echo "$actual" | grep -Pzq "$expected"
 
     echo "Install devmode snap from beta with devmode option"
-    expected="(?s)Name +Version +Rev +Developer +Notes\n\
-    $DEVMODE_SNAP .* +devmode"
+    expected="(?s)$DEVMODE_SNAP .*"
     actual=$(snap install --channel beta --devmode $DEVMODE_SNAP)
     echo "$actual" | grep -Pzq "$expected"
