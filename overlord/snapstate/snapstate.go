@@ -236,11 +236,17 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
+	// FIXME: snaps that are no active are skipped for now
+	//        until we know what we want to do
+	if !snapst.Active {
+		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+	}
+
 	if channel == "" {
 		channel = snapst.Channel
 	}
 
-	updateInfo, err := updateInfo(s, name, channel, userID, flags)
+	updateInfo, err := updateInfo(s, &snapst, channel, userID, flags)
 	if err != nil {
 		return nil, err
 	}
