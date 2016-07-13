@@ -199,6 +199,43 @@ func (as *authSuite) TestUser(c *C) {
 	c.Check(userFromState, DeepEquals, user)
 }
 
+func (as *authSuite) TestUpdateUser(c *C) {
+	as.state.Lock()
+	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	user.Username = "different"
+	user.StoreDischarges = []string{"updated-discharge"}
+
+	as.state.Lock()
+	err := auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, user)
+}
+
+func (as *authSuite) TestUpdateUserInvalid(c *C) {
+	as.state.Lock()
+	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	user := &auth.UserState{
+		ID:       102,
+		Username: "username",
+		Macaroon: "macaroon",
+	}
+
+	as.state.Lock()
+	err := auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, ErrorMatches, "invalid user")
+}
+
 func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
@@ -242,7 +279,7 @@ func (as *authSuite) TestSetDevice(c *C) {
 	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
 }
 
-func (as *authSuite) TestAuthStateContextUpdateUser(c *C) {
+func (as *authSuite) TestAuthContextUpdateUser(c *C) {
 	as.state.Lock()
 	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
@@ -250,18 +287,18 @@ func (as *authSuite) TestAuthStateContextUpdateUser(c *C) {
 	user.Username = "different"
 	user.StoreDischarges = []string{"updated-discharge"}
 
-	authContext := auth.NewAuthStateContext(as.state)
+	authContext := auth.NewAuthContext(as.state)
 	err := authContext.UpdateUser(user)
 	c.Check(err, IsNil)
 
 	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
+	userFromState, err := auth.User(as.state, user.ID)
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
 }
 
-func (as *authSuite) TestAuthStateContextUpdateUserInvalid(c *C) {
+func (as *authSuite) TestAuthContextUpdateUserInvalid(c *C) {
 	as.state.Lock()
 	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
@@ -272,7 +309,7 @@ func (as *authSuite) TestAuthStateContextUpdateUserInvalid(c *C) {
 		Macaroon: "macaroon",
 	}
 
-	authContext := auth.NewAuthStateContext(as.state)
+	authContext := auth.NewAuthContext(as.state)
 	err := authContext.UpdateUser(user)
 	c.Assert(err, ErrorMatches, "invalid user")
 }
