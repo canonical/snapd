@@ -1,0 +1,14 @@
+#!/usr/bin/expect
+
+set timeout 2
+
+spawn test-snapd-tools.sh
+expect "bash-4.3$"
+send "touch /dev/shm/snap.nottest-snapd-tools.foo\n"
+expect {
+    "touch: cannot touch '/dev/shm/snap.nottest-snapd-tools.foo': Permission denied*" {
+        exit 0
+    } default {
+        exit 1
+    }
+}
