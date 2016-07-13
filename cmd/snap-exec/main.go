@@ -114,7 +114,7 @@ func snapExec(snapApp, revision, command string, args []string) error {
 
 	cmd, err := findCommand(app, command)
 	if err != nil {
-		return fmt.Errorf("cannot find command %q in app %q: %s", command, app, err)
+		return err
 	}
 
 	// build the evnironment from the yamle
