@@ -289,14 +289,38 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-func updateInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, flags Flags) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	devmode := flags&DevMode > 0
-	// FIXME: call the snap update endpoint  here instead
-	return Store(st).Snap(name, channel, devmode, user)
+
+	curInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+
+	if curInfo.SnapID == "" { // covers also trymode
+		return nil, fmt.Errorf("cannot refresh local snap %q", curInfo.Name())
+	}
+
+	refreshCand := &store.RefreshCandidate{
+		// the desired channel
+		Channel: channel,
+		DevMode: devmode,
+		Block:   snapst.Block(),
+
+		SnapID:   curInfo.SnapID,
+		Revision: curInfo.Revision,
+		Epoch:    curInfo.Epoch,
+	}
+
+	res, err := Store(st).ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
+	if len(res) == 0 {
+		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
+	}
+	return res[0], nil
 }
 
 func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
