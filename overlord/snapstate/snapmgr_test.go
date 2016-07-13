@@ -120,27 +120,13 @@ func verifyTasks(c *C, ts *state.TaskSet, st *state.State, kinds []string) {
 }
 
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) {
-	i := 0
-	n := 5
+	kinds := []string{"download-snap", "mount-snap"}
 	if curActive {
-		n++
+		kinds = append(kinds, "unlink-current-snap")
 	}
-	c.Assert(ts.Tasks(), HasLen, n)
-	// all tasks are accounted
-	c.Assert(st.NumTask(), Equals, n)
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
-	i++
-	if curActive {
-		c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
-		i++
-	}
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "copy-snap-data")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "setup-profiles")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+	kinds = append(kinds, []string{"copy-snap-data", "setup-profiles", "link-snap"}...)
+
+	verifyTasks(c, ts, st, kinds)
 }
 
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
