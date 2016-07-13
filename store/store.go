@@ -609,15 +609,63 @@ func (s *SnapUbuntuStoreRepository) Snap(name, channel string, devmode bool, use
 // Find finds  (installable) snaps from the store, matching the
 // given search term.
 func (s *SnapUbuntuStoreRepository) Find(searchTerm string, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	if channel == "" {
-		channel = "stable"
+	// see https://github.com/snapcore/snapd/blob/master/docs/rest.md#v2find
+
+	searchTerm = strings.TrimSpace(searchTerm)
+
+	prefix := "name"
+	exact := false
+	if idx := strings.IndexRune(searchTerm, ':'); idx >= 0 {
+		prefix = searchTerm[:idx]
+		searchTerm = searchTerm[idx+1:]
+
+		if prefix == "name" {
+			trimmed := strings.TrimSuffix(searchTerm, "*")
+			if len(trimmed) == len(searchTerm) {
+				exact = true
+			}
+			searchTerm = trimmed
+		}
+	}
+
+	if searchTerm == "" {
+		return nil, ErrEmptyQuery
+	}
+
+	if strings.ContainsAny(searchTerm, ":*") {
+		return nil, ErrBadQuery
+	}
+
+	if exact {
+		// this is actually a request for a single snap's details; short-cut out
+		snapInfo, err := s.Snap(searchTerm, channel, false, user)
+		switch err {
+		case nil:
+			return []*snap.Info{snapInfo}, nil
+		case ErrSnapNotFound:
+			// not finding something is an error for Snap but not for Find
+			return nil, nil
+		default:
+			return nil, err
+		}
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
 	q := u.Query()
-	q.Set("q", searchTerm)
-	q.Set("channel", channel)
+
+	switch prefix {
+	case "name":
+		q.Set("name", searchTerm)
+	case "text":
+		q.Set("q", searchTerm)
+	default:
+		return nil, ErrBadPrefix
+	}
+
 	q.Set("confinement", "strict")
+	if channel != "" {
+		q.Set("channel", channel)
+	}
 	u.RawQuery = q.Encode()
 
 	req, err := s.newRequest("GET", u.String(), nil, user)
