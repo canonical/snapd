@@ -59,7 +59,7 @@ func parseArgs(args []string) (app string, appArgs []string, err error) {
 }
 
 func run() error {
-	snapApp, args, err := parseArgs(os.Args)
+	snapApp, args, err := parseArgs(os.Args[1:])
 	if err != nil {
 		return err
 	}
