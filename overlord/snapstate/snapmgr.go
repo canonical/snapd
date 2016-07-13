@@ -403,7 +403,7 @@ func Store(s *state.State) StoreService {
 		storeID = cand
 	}
 
-	authContext := auth.NewAuthStateContext(s)
+	authContext := auth.NewAuthContext(s)
 	s.Cache(cachedStoreKey{}, store.NewUbuntuStoreSnapRepository(nil, storeID, authContext))
 	return cachedStore(s)
 }

@@ -119,6 +119,26 @@ func User(st *state.State, id int) (*UserState, error) {
 	return nil, fmt.Errorf("invalid user")
 }
 
+// UpdateUser updates user in state
+func UpdateUser(st *state.State, user *UserState) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return err
+	}
+
+	for i := range authStateData.Users {
+		if authStateData.Users[i].ID == user.ID {
+			authStateData.Users[i] = *user
+			st.Set("auth", authStateData)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid user")
+}
+
 // Device returns the device details from the state.
 func Device(st *state.State) (*DeviceState, error) {
 	var authStateData AuthState
@@ -189,35 +209,20 @@ type AuthContext interface {
 	UpdateUser(user *UserState) error
 }
 
-// AuthStateContext helps keeping track and updating users in the state.
-type AuthStateContext struct {
+// authContext helps keeping track and updating users in the state.
+type authContext struct {
 	state *state.State
 }
 
 // NewAuthContext returns an AuthContext for state.
-func NewAuthStateContext(st *state.State) *AuthStateContext {
-	return &AuthStateContext{state: st}
+func NewAuthContext(st *state.State) AuthContext {
+	return &authContext{state: st}
 }
 
 // UpdateUser updates user in state.
-func (asc *AuthStateContext) UpdateUser(user *UserState) error {
-	var authStateData AuthState
+func (ac *authContext) UpdateUser(user *UserState) error {
+	ac.state.Lock()
+	defer ac.state.Unlock()
 
-	asc.state.Lock()
-	defer asc.state.Unlock()
-
-	err := asc.state.Get("auth", &authStateData)
-	if err != nil {
-		return err
-	}
-
-	for i := range authStateData.Users {
-		if authStateData.Users[i].ID == user.ID {
-			authStateData.Users[i] = *user
-			asc.state.Set("auth", authStateData)
-			return nil
-		}
-	}
-
-	return fmt.Errorf("invalid user")
+	return UpdateUser(ac.state, user)
 }
