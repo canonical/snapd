@@ -8,7 +8,7 @@ prepare: |
 
 environment:
     APP/helloworld: hello-world
-    APP/helloworldecho: hello-world.echo
+    APP/helloworldenv: hello-world.env
 
 execute: |
     echo Testing that replacing the wrapper with a symlink works
