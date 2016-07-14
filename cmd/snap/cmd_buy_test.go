@@ -30,6 +30,49 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
+type expectedURL struct {
+	Body   string
+	Checks func(r *http.Request)
+
+	callCount int
+}
+
+type expectedMethod map[string]*expectedURL
+
+type expectedMethods map[string]*expectedMethod
+
+type buyTestMockSnapServer struct {
+	ExpectedMethods expectedMethods
+
+	C *check.C
+}
+
+func (s *buyTestMockSnapServer) serveHttp(w http.ResponseWriter, r *http.Request) {
+	method := s.ExpectedMethods[r.Method]
+	if method == nil || len(*method) == 0 {
+		s.C.Fatalf("unexpected HTTP method %s", r.Method)
+	}
+
+	url := (*method)[r.URL.Path]
+	if url == nil {
+		s.C.Fatalf("unexpected URL %q", r.URL.Path)
+	}
+
+	if url.Checks != nil {
+		url.Checks(r)
+	}
+	fmt.Fprintln(w, url.Body)
+	url.callCount++
+}
+
+func (s *buyTestMockSnapServer) checkCounts() {
+	for _, method := range s.ExpectedMethods {
+		for _, url := range *method {
+			s.C.Check(url.callCount, check.Equals, 1)
+		}
+	}
+}
+
 func (s *SnapSuite) TestBuyHelp(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"buy"})
 	c.Assert(err, check.NotNil)
@@ -84,30 +127,25 @@ const buyFreeSnapFailsFindJson = `
 `
 
 func (s *SnapSuite) TestBuyFreeSnapFails(c *check.C) {
-	findCount := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			switch r.URL.Path {
-			case "/v2/find":
-				q := r.URL.Query()
-				c.Check(q.Get("q"), check.Equals, "name:hello")
-				fmt.Fprintln(w, buyFreeSnapFailsFindJson)
-				findCount++
-			default:
-				c.Fatalf("unexpected URL %q", r.URL.Path)
-			}
-		default:
-			c.Fatalf("unexpected HTTP method %q", r.Method)
-		}
-	})
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find": &expectedURL{
+					Body: buyFreeSnapFailsFindJson,
+				},
+			},
+		},
+		C: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
+
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "cannot buy snap \"hello\": snap is free")
 	c.Assert(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(findCount, check.Equals, 1)
 }
 
 const buySnapFindJson = `
@@ -142,6 +180,15 @@ const buySnapFindJson = `
 }
 `
 
+func buySnapFindURL(c *check.C) *expectedURL {
+	return &expectedURL{
+		Body: buySnapFindJson,
+		Checks: func(r *http.Request) {
+			c.Check(r.URL.Query().Get("q"), check.Equals, "name:hello")
+		},
+	}
+}
+
 const buyMethodsAllowsAutomaticPaymentJson = `
 {
   "type": "sync",
@@ -167,6 +214,12 @@ const buyMethodsAllowsAutomaticPaymentJson = `
 }
 `
 
+func buyMethodsAllowsAutomaticPaymentURL(c *check.C) *expectedURL {
+	return &expectedURL{
+		Body: buyMethodsAllowsAutomaticPaymentJson,
+	}
+}
+
 const buySnapJson = `
 {
   "type": "sync",
@@ -186,50 +239,40 @@ const buySnapJson = `
 `
 
 func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
-	findCount := 0
-	buyMethodsCount := 0
-	postCount := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			switch r.URL.Path {
-			case "/v2/find":
-				q := r.URL.Query()
-				c.Check(q.Get("q"), check.Equals, "name:hello")
-				fmt.Fprintln(w, buySnapFindJson)
-				findCount++
-			case "/v2/buy/methods":
-				fmt.Fprintln(w, buyMethodsAllowsAutomaticPaymentJson)
-				buyMethodsCount++
-			default:
-				c.Fatalf("unexpected URL %q", r.URL.Path)
-			}
-		case "POST":
-			c.Check(r.URL.Path, check.Equals, "/v2/buy")
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find":        buySnapFindURL(c),
+				"/v2/buy/methods": buyMethodsAllowsAutomaticPaymentURL(c),
+			},
+			"POST": &expectedMethod{
+				"/v2/buy": &expectedURL{
+					Body: buySnapJson,
+					Checks: func(r *http.Request) {
+						var postData struct {
+							SnapID   string  `json:"snap-id"`
+							SnapName string  `json:"snap-name"`
+							Channel  string  `json:"channel"`
+							Price    float64 `json:"price"`
+							Currency string  `json:"currency"`
+						}
+						decoder := json.NewDecoder(r.Body)
+						err := decoder.Decode(&postData)
+						c.Assert(err, check.IsNil)
 
-			var postData struct {
-				SnapID   string  `json:"snap-id"`
-				SnapName string  `json:"snap-name"`
-				Channel  string  `json:"channel"`
-				Price    float64 `json:"price"`
-				Currency string  `json:"currency"`
-			}
-			decoder := json.NewDecoder(r.Body)
-			err := decoder.Decode(&postData)
-			c.Assert(err, check.IsNil)
-
-			c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
-			c.Check(postData.SnapName, check.Equals, "hello")
-			c.Check(postData.Channel, check.Equals, "stable")
-			c.Check(postData.Price, check.Equals, 2.99)
-			c.Check(postData.Currency, check.Equals, "GBP")
-
-			fmt.Fprintln(w, buySnapJson)
-			postCount++
-		default:
-			c.Fatalf("unexpected HTTP method %q", r.Method)
-		}
-	})
+						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
+						c.Check(postData.SnapName, check.Equals, "hello")
+						c.Check(postData.Channel, check.Equals, "stable")
+						c.Check(postData.Price, check.Equals, 2.99)
+						c.Check(postData.Currency, check.Equals, "GBP")
+					},
+				},
+			},
+		},
+		C: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Confirm the purchase.
 	fmt.Fprint(s.stdin, "y\n")
@@ -239,9 +282,6 @@ func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "Do you want to buy \"hello\" from \"canonical\" for 2.99GBP? (Y/n): hello bought\n")
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(findCount, check.Equals, 1)
-	c.Check(buyMethodsCount, check.Equals, 1)
-	c.Check(postCount, check.Equals, 1)
 }
 
 const buyMethodsSelectPaymentMethodJson = `
@@ -286,56 +326,48 @@ const buyMethodsSelectPaymentMethodJson = `
 `
 
 func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
-	findCount := 0
-	buyMethodsCount := 0
-	postCount := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			switch r.URL.Path {
-			case "/v2/find":
-				q := r.URL.Query()
-				c.Check(q.Get("q"), check.Equals, "name:hello")
-				fmt.Fprintln(w, buySnapFindJson)
-				findCount++
-			case "/v2/buy/methods":
-				fmt.Fprintln(w, buyMethodsSelectPaymentMethodJson)
-				buyMethodsCount++
-			default:
-				c.Fatalf("unexpected URL %q", r.URL.Path)
-			}
-		case "POST":
-			c.Check(r.URL.Path, check.Equals, "/v2/buy")
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find": buySnapFindURL(c),
+				"/v2/buy/methods": &expectedURL{
+					Body: buyMethodsSelectPaymentMethodJson,
+				},
+			},
+			"POST": &expectedMethod{
+				"/v2/buy": &expectedURL{
+					Body: buySnapJson,
+					Checks: func(r *http.Request) {
+						var postData struct {
+							SnapID    string  `json:"snap-id"`
+							SnapName  string  `json:"snap-name"`
+							Channel   string  `json:"channel"`
+							Price     float64 `json:"price"`
+							Currency  string  `json:"currency"`
+							MethodID  int     `json:"method-id"`
+							BackendID string  `json:"backend-id"`
+						}
+						decoder := json.NewDecoder(r.Body)
+						err := decoder.Decode(&postData)
+						c.Assert(err, check.IsNil)
 
-			var postData struct {
-				SnapID    string  `json:"snap-id"`
-				SnapName  string  `json:"snap-name"`
-				Channel   string  `json:"channel"`
-				Price     float64 `json:"price"`
-				Currency  string  `json:"currency"`
-				MethodID  int     `json:"method-id"`
-				BackendID string  `json:"backend-id"`
-			}
-			decoder := json.NewDecoder(r.Body)
-			err := decoder.Decode(&postData)
-			c.Assert(err, check.IsNil)
+						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
+						c.Check(postData.SnapName, check.Equals, "hello")
+						c.Check(postData.Channel, check.Equals, "stable")
+						c.Check(postData.Price, check.Equals, 2.99)
+						c.Check(postData.Currency, check.Equals, "GBP")
 
-			c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
-			c.Check(postData.SnapName, check.Equals, "hello")
-			c.Check(postData.Channel, check.Equals, "stable")
-			c.Check(postData.Price, check.Equals, 2.99)
-			c.Check(postData.Currency, check.Equals, "GBP")
-
-			// Confirm the correct details for card #2
-			c.Check(postData.MethodID, check.Equals, 234)
-			c.Check(postData.BackendID, check.Equals, "credit_card")
-
-			fmt.Fprintln(w, buySnapJson)
-			postCount++
-		default:
-			c.Fatalf("unexpected HTTP method %q", r.Method)
-		}
-	})
+						// Confirm the correct details for card #2
+						c.Check(postData.MethodID, check.Equals, 234)
+						c.Check(postData.BackendID, check.Equals, "credit_card")
+					},
+				},
+			},
+		},
+		C: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Select the second card
 	fmt.Fprint(s.stdin, "2\n")
@@ -352,9 +384,6 @@ func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
 Select payment method: Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): hello bought
 `)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(findCount, check.Equals, 1)
-	c.Check(buyMethodsCount, check.Equals, 1)
-	c.Check(postCount, check.Equals, 1)
 }
 
 const buyNoPaymentMethodsJson = `
@@ -374,27 +403,19 @@ const buyNoPaymentMethodsJson = `
 `
 
 func (s *SnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
-	findCount := 0
-	buyMethodsCount := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			switch r.URL.Path {
-			case "/v2/find":
-				q := r.URL.Query()
-				c.Check(q.Get("q"), check.Equals, "name:hello")
-				fmt.Fprintln(w, buySnapFindJson)
-				findCount++
-			case "/v2/buy/methods":
-				fmt.Fprintln(w, buyNoPaymentMethodsJson)
-				buyMethodsCount++
-			default:
-				c.Fatalf("unexpected URL %q", r.URL.Path)
-			}
-		default:
-			c.Fatalf("unexpected HTTP method %q", r.Method)
-		}
-	})
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find": buySnapFindURL(c),
+				"/v2/buy/methods": &expectedURL{
+					Body: buyNoPaymentMethodsJson,
+				},
+			},
+		},
+		C: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
@@ -402,32 +423,22 @@ func (s *SnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(findCount, check.Equals, 1)
-	c.Check(buyMethodsCount, check.Equals, 1)
 }
 
 func (s *SnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
-	findCount := 0
-	buyMethodsCount := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			switch r.URL.Path {
-			case "/v2/find":
-				q := r.URL.Query()
-				c.Check(q.Get("q"), check.Equals, "name:hello")
-				fmt.Fprintln(w, buySnapFindJson)
-				findCount++
-			case "/v2/buy/methods":
-				fmt.Fprintln(w, buyMethodsSelectPaymentMethodJson)
-				buyMethodsCount++
-			default:
-				c.Fatalf("unexpected URL %q", r.URL.Path)
-			}
-		default:
-			c.Fatalf("unexpected HTTP method %q", r.Method)
-		}
-	})
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find": buySnapFindURL(c),
+				"/v2/buy/methods": &expectedURL{
+					Body: buyMethodsSelectPaymentMethodJson,
+				},
+			},
+		},
+		C: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Type an invalid number
 	fmt.Fprint(s.stdin, "abc\n")
@@ -442,32 +453,22 @@ func (s *SnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
   3          PayPal
 Select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(findCount, check.Equals, 1)
-	c.Check(buyMethodsCount, check.Equals, 1)
 }
 
 func (s *SnapSuite) TestBuySnapFailsOutOfRangeMethodID(c *check.C) {
-	findCount := 0
-	buyMethodsCount := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			switch r.URL.Path {
-			case "/v2/find":
-				q := r.URL.Query()
-				c.Check(q.Get("q"), check.Equals, "name:hello")
-				fmt.Fprintln(w, buySnapFindJson)
-				findCount++
-			case "/v2/buy/methods":
-				fmt.Fprintln(w, buyMethodsSelectPaymentMethodJson)
-				buyMethodsCount++
-			default:
-				c.Fatalf("unexpected URL %q", r.URL.Path)
-			}
-		default:
-			c.Fatalf("unexpected HTTP method %q", r.Method)
-		}
-	})
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find": buySnapFindURL(c),
+				"/v2/buy/methods": &expectedURL{
+					Body: buyMethodsSelectPaymentMethodJson,
+				},
+			},
+		},
+		C: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Payment method selection out of range
 	fmt.Fprint(s.stdin, "5\n")
@@ -482,32 +483,20 @@ func (s *SnapSuite) TestBuySnapFailsOutOfRangeMethodID(c *check.C) {
   3          PayPal
 Select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(findCount, check.Equals, 1)
-	c.Check(buyMethodsCount, check.Equals, 1)
 }
 
 func (s *SnapSuite) TestBuyCancel(c *check.C) {
-	findCount := 0
-	buyMethodsCount := 0
-	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			switch r.URL.Path {
-			case "/v2/find":
-				q := r.URL.Query()
-				c.Check(q.Get("q"), check.Equals, "name:hello")
-				fmt.Fprintln(w, buySnapFindJson)
-				findCount++
-			case "/v2/buy/methods":
-				fmt.Fprintln(w, buyMethodsAllowsAutomaticPaymentJson)
-				buyMethodsCount++
-			default:
-				c.Fatalf("unexpected URL %q", r.URL.Path)
-			}
-		default:
-			c.Fatalf("unexpected HTTP method %q", r.Method)
-		}
-	})
+	mockServer := &buyTestMockSnapServer{
+		ExpectedMethods: expectedMethods{
+			"GET": &expectedMethod{
+				"/v2/find":        buySnapFindURL(c),
+				"/v2/buy/methods": buyMethodsAllowsAutomaticPaymentURL(c),
+			},
+		},
+		C: c,
+	}
+	defer mockServer.checkCounts()
+	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Decline the payment
 	fmt.Fprint(s.stdin, "no\n")
@@ -518,6 +507,4 @@ func (s *SnapSuite) TestBuyCancel(c *check.C) {
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, `Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): `)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(findCount, check.Equals, 1)
-	c.Check(buyMethodsCount, check.Equals, 1)
 }

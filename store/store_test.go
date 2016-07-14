@@ -1987,6 +1987,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": authentication credentials missing")
 }
 
+// acquired by printing raw response body inside store.PaymentMethods for testing account on staging server.
+// difficult to get via curl, as macaroon authentication is required.
 const paymentMethodsJson = `
 [
     {
