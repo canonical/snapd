@@ -1,0 +1,20 @@
+summary: Ensure that the security rules for private tmp are in place.
+
+prepare: |
+    echo "Given a basic snap is installed"
+    snapbuild $TESTSLIB/snaps/test-snapd-tools .
+    snap install test-snapd-tools_1.0_all.snap
+
+    echo "And another basic snap is installed"
+    temp_dir=$(mktemp -d)
+    cp -a $TESTSLIB/snaps/test-snapd-tools/* $temp_dir
+    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $temp_dir/meta/snap.yaml
+    snapbuild $temp_dir .
+    snap install not-test-snapd-tools_1.0_all.snap
+
+restore: |
+    rm -f test-snapd-tools_1.0_all.snap not-test-snapd-tools_1.0_all.snap
+
+execute: |
+    echo "Then temporary files follow confinement rules"
+    expect -f private-tmp.exp
