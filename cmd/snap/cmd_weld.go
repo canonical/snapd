@@ -57,9 +57,5 @@ func (x *cmdWeld) Execute(args []string) error {
 		Snaps:           x.ExtraSnaps,
 	}
 
-	if err := weld.UnpackGadget(opts); err != nil {
-		return err
-	}
-
 	return weld.Weld(opts)
 }

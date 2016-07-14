@@ -49,11 +49,11 @@ type Options struct {
 }
 
 func Weld(opts *Options) error {
-	return bootstrapToRootdir(opts)
-}
+	if err := downloadUnpackGadget(opts); err != nil {
+		return err
+	}
 
-func UnpackGadget(opts *Options) error {
-	return downloadUnpackGadget(opts)
+	return bootstrapToRootdir(opts)
 }
 
 func decodeModelAssertion(fn string) (*asserts.Model, error) {
@@ -355,7 +355,7 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 		targetDir = pwd
 	}
 
-	m := store.NewUbuntuStoreSnapRepository(nil, storeID, nil)
+	m := store.New(nil, storeID, nil)
 	snap, err := m.Snap(name, opts.Channel, false, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find snap: %s", err)
