@@ -114,17 +114,22 @@ apps:
         restart-condition: %s
 `
 	for name, cond := range systemd.RestartMap {
-		yamlText := fmt.Sprintf(yamlTextTemplate, name)
+		yamlText := fmt.Sprintf(yamlTextTemplate, cond)
 
 		info, err := snap.InfoFromSnapYaml([]byte(yamlText))
-		c.Assert(err, IsNil, Commentf("Expected %q to be a valid restart condition", name))
+		c.Assert(err, IsNil)
 		info.Revision = snap.R(44)
 		app := info.Apps["app"]
 
 		wrapperText, err := wrappers.GenerateSnapServiceFile(app)
 		c.Assert(err, IsNil)
-		c.Check(wrapperText, Matches,
-			`(?ms).*^Restart=`+cond.String()+`$.*`, Commentf("Expected wrapper restart to be %q", cond))
+		if cond == systemd.RestartNever {
+			c.Check(wrapperText, Matches,
+				`(?ms).*^Restart=no$.*`, Commentf(name))
+		} else {
+			c.Check(wrapperText, Matches,
+				`(?ms).*^Restart=`+name+`$.*`, Commentf(name))
+		}
 	}
 }
 
