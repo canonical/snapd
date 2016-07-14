@@ -11,26 +11,26 @@ restore: |
     # no way to clear cgroup for hello-world atm
 execute: |
     cd /
-    echo Install hello-world
+    echo "Install hello-world"
     snap install hello-world
-    echo Clear udev tags and cgroups with non-test device and running hello-world
+    echo "Clear udev tags and cgroups with non-test device and running hello-world"
     echo 'KERNEL=="uinput", TAG+="snap_hello-world_echo"' > /etc/udev/rules.d/70-spread-test.rules
     udevadm control --reload-rules
     udevadm settle
     udevadm trigger
     udevadm settle
     hello-world.echo | grep Hello
-    echo Verify no tags for hello-world.echo for kmsg
+    echo "Verify no tags for hello-world.echo for kmsg"
     if udevadm info /sys/devices/virtual/mem/kmsg | grep snap_hello-world_echo ; then exit 1; fi
-    echo Manually add udev tags for hello-world.echo for kmsg
+    echo "Manually add udev tags for hello-world.echo for kmsg"
     echo 'KERNEL=="kmsg", TAG+="snap_hello-world_echo"' > /etc/udev/rules.d/70-spread-test.rules
-    echo Simulate snapd udev triggers
+    echo "Simulate snapd udev triggers"
     udevadm control --reload-rules
     udevadm settle
     udevadm trigger
     udevadm settle
-    echo Verify udev has tag for kmsg
+    echo "Verify udev has tag for kmsg"
     if ! udevadm info /sys/devices/virtual/mem/kmsg | grep snap_hello-world_echo ; then exit 1; fi
-    echo Run hello-world.echo and see if kmsg added to cgroup
+    echo "Run hello-world.echo and see if kmsg added to cgroup"
     hello-world.echo | grep Hello
     if ! grep 'c 1:11 rwm' /sys/fs/cgroup/devices/snap.hello-world.echo/devices.list ; then exit 1; fi
