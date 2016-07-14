@@ -39,23 +39,26 @@ const (
 	// TryMode is set for snaps installed to try directly from a local directory.
 	TryMode
 
-	// the following flag values cannot be used until we drop the
-	// backward compatible support for flags values in SnapSetup
-	// that were based on snappy.* flags, after that we can
-	// start using them
-	interimUnusableLegacyFlagValueMin
-	interimUnusableLegacyFlagValue1
-	interimUnusableLegacyFlagValue2
-	interimUnusableLegacyFlagValueLast
+	// JailMode is set when the user has requested confinement
+	// always be enforcing, even if the snap requests otherwise.
+	JailMode
 
-	// the following flag value is the first that can be grabbed
-	// for use in the interim time while we have the backward compatible
-	// support
-	firstInterimUsableFlagValue
 	// if we need flags for just SnapSetup it may be easier
 	// to start a new sequence from the other end with:
 	// 0x40000000 >> iota
 )
+
+func (f Flags) DevModeAllowed() bool {
+	return f&(DevMode|JailMode) != 0
+}
+
+func (f Flags) DevMode() bool {
+	return f&DevMode != 0
+}
+
+func (f Flags) JailMode() bool {
+	return f&JailMode != 0
+}
 
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name()); err != nil {

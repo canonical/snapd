@@ -70,8 +70,6 @@ type KeypairManager interface {
 	Get(authorityID, keyID string) (PrivateKey, error)
 }
 
-// TODO: for more flexibility plugging the keypair manager make PrivatKey private encoding methods optional, and add an explicit sign method.
-
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
 	// trusted assertions (account and account-key supported)
@@ -110,6 +108,8 @@ func (e *RevisionError) Error() string {
 
 // A RODatabase exposes read-only access to an assertion database.
 type RODatabase interface {
+	// IsTrusted returns whether the account is part of the trusted set.
+	IsTrusted(accountID string) bool
 	// Find an assertion based on arbitrary headers.
 	// Provided headers must contain the primary key for the assertion type.
 	// It returns ErrNotFound if the assertion cannot be found.
@@ -244,6 +244,12 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 		}
 	}
 	return nil, ErrNotFound
+}
+
+// IsTrusted returns whether the account is part of the trusted set.
+func (db *Database) IsTrusted(accountID string) bool {
+	_, err := db.trusted.Get(AccountType, []string{accountID})
+	return err == nil
 }
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
@@ -421,10 +427,7 @@ type consistencyChecker interface {
 func CheckCrossConsistency(assert Assertion, signature Signature, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
 	// see if the assertion requires further checks
 	if checker, ok := assert.(consistencyChecker); ok {
-		err := checker.checkConsistency(roDB, signingKey)
-		if err != nil {
-			return fmt.Errorf("%s assertion violates other knowledge: %v", assert.Type().Name, err)
-		}
+		return checker.checkConsistency(roDB, signingKey)
 	}
 	return nil
 }
