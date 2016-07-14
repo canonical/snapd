@@ -92,7 +92,7 @@ func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (Publi
 
 // Implement further consistency checks.
 func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
-	if !db.IsTrusted(ak.AuthorityID()) {
+	if !db.IsTrustedAccount(ak.AuthorityID()) {
 		return fmt.Errorf("account-key assertion for %q is not signed by a directly trusted authority: %s", ak.AccountID(), ak.AuthorityID())
 	}
 	_, err := db.Find(AccountType, map[string]string{
@@ -106,6 +106,9 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	}
 	return nil
 }
+
+// sanity
+var _ consistencyChecker = (*AccountKey)(nil)
 
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	since, err := checkRFC3339Date(assert.headers, "since")
