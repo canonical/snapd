@@ -107,6 +107,9 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
+// sanity
+var _ consistencyChecker = (*AccountKey)(nil)
+
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	since, err := checkRFC3339Date(assert.headers, "since")
 	if err != nil {

@@ -80,6 +80,9 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	return nil
 }
 
+// sanity
+var _ consistencyChecker = (*SnapDeclaration)(nil)
+
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExists(assert.headers, "snap-name")
 	if err != nil {
