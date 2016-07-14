@@ -29,6 +29,7 @@ import (
 	"go/token"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -3117,11 +3118,14 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 }
 
 func (s *apiSuite) TestIsTrue(c *check.C) {
-	c.Check(isTrue(nil), check.Equals, false)
+	form := &multipart.Form{}
+	c.Check(isTrue(form, "foo"), check.Equals, false)
 	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
-		c.Check(isTrue([]string{f}), check.Equals, false, check.Commentf("expected %q to be false", f))
+		form.Value = map[string][]string{"foo": []string{f}}
+		c.Check(isTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
 	}
 	for _, t := range []string{"true", "1", "True", "t"} {
-		c.Check(isTrue([]string{t}), check.Equals, true, check.Commentf("expected %q to be true", t))
+		form.Value = map[string][]string{"foo": []string{t}}
+		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
 }

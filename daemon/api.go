@@ -631,7 +631,7 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
 var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
-func mkFlags(devMode, jailMode bool) (snapstate.Flags, error) {
+func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 	devModeOS := release.ReleaseInfo.ForceDevMode()
 	flags := snapstate.Flags(0)
 	if jailMode {
@@ -652,7 +652,7 @@ func mkFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags, err := mkFlags(inst.DevMode, inst.JailMode)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
 	}
@@ -828,7 +828,8 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-func isTrue(value []string) bool {
+func isTrue(form *multipart.Form, key string) bool {
+	value := form.Value[key]
 	if len(value) == 0 {
 		return false
 	}
@@ -863,7 +864,7 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	flags, err := mkFlags(isTrue(form.Value["devmode"]), isTrue(form.Value["jailmode"]))
+	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
