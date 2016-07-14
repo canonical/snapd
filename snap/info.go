@@ -352,6 +352,16 @@ func (hook *HookInfo) SecurityTag() string {
 	return HookSecurityTag(hook.Snap.Name(), hook.Name)
 }
 
+// Env returns the hook-specific environment overrides
+func (hook *HookInfo) Env() []string {
+	env := []string{}
+	hookEnv := copyEnv(hook.Snap.Environment)
+	for k, v := range hookEnv {
+		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	}
+	return env
+}
+
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	info, err := InfoFromSnapYaml(meta)
 	if err != nil {

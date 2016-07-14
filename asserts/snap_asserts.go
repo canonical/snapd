@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -62,7 +63,25 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
 
-// XXX: consistency check is signed by canonical
+// Implement further consistency checks.
+func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
+	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
+		return fmt.Errorf("snap-declaration assertion for %q (id %q) is not signed by a directly trusted authority: %s", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.AuthorityID())
+	}
+	_, err := db.Find(AccountType, map[string]string{
+		"account-id": snapdcl.PublisherID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("snap-declaration assertion for %q (id %q) does not have a matching account assertion for the publisher %q", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.PublisherID())
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*SnapDeclaration)(nil)
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExists(assert.headers, "snap-name")
@@ -206,6 +225,29 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
+	// TODO: expand this to consider other stores signing on their own
+	if !db.IsTrustedAccount(snaprev.AuthorityID()) {
+		return fmt.Errorf("snap-revision assertion for snap id %q is not signed by a store: %s", snaprev.SnapID(), snaprev.AuthorityID())
+	}
+	_, err := db.Find(AccountType, map[string]string{
+		"account-id": snaprev.DeveloperID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching account assertion for the developer %q", snaprev.SnapID(), snaprev.DeveloperID())
+	}
+	if err != nil {
+		return err
+	}
+	_, err = db.Find(SnapDeclarationType, map[string]string{
+		"series":  snaprev.Series(),
+		"snap-id": snaprev.SnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("snap-revision assertion for snap id %q does not have a matching snap-declaration assertion", snaprev.SnapID())
+	}
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
