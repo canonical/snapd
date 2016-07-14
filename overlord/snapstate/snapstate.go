@@ -39,15 +39,6 @@ const (
 	// TryMode is set for snaps installed to try directly from a local directory.
 	TryMode
 
-	// the following flag values cannot be used until we drop the
-	// backward compatible support for flags values in SnapSetup
-	// that were based on snappy.* flags, after that we can
-	// start using them
-	interimUnusableLegacyFlagValueMin
-	interimUnusableLegacyFlagValue1
-	interimUnusableLegacyFlagValue2
-	interimUnusableLegacyFlagValueLast
-
 	// JailMode is set when the user has requested confinement
 	// always be enforcing, even if the snap requests otherwise.
 	JailMode
