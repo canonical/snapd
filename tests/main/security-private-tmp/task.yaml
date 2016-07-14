@@ -6,15 +6,24 @@ prepare: |
     snap install test-snapd-tools_1.0_all.snap
 
     echo "And another basic snap is installed"
-    temp_dir=$(mktemp -d)
-    cp -a $TESTSLIB/snaps/test-snapd-tools/* $temp_dir
-    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $temp_dir/meta/snap.yaml
-    snapbuild $temp_dir .
+    SNAP_INSTALL_DIR=$(mktemp -d)
+    cp -ra $TESTSLIB/snaps/test-snapd-tools/* $SNAP_INSTALL_DIR
+    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $SNAP_INSTALL_DIR/meta/snap.yaml
+    snapbuild $SNAP_INSTALL_DIR .
     snap install not-test-snapd-tools_1.0_all.snap
 
 restore: |
-    rm -f test-snapd-tools_1.0_all.snap not-test-snapd-tools_1.0_all.snap
+    rm -f test-snapd-tools_1.0_all.snap not-test-snapd-tools_1.0_all.snap \
+          $SNAP_INSTALL_DIR /tmp/foo stat.error
 
 execute: |
-    echo "Then temporary files follow confinement rules"
-    expect -f private-tmp.exp
+    echo "When a temporary file is created by one snap"
+    test-snapd-tools.cmd touch /tmp/foo
+    stat /tmp/foo | grep -Pqz "(?s)File: '/tmp/foo'.*?Size: 0"
+
+    echo "Then that file is not accessible by the other snap"
+    if not-test-snapd-tools.cmd stat /tmp/foo 2>stat.error; then
+        echo "Expected error not present"
+        exit 1
+    fi
+    cat stat.error | grep -q "stat: cannot stat '/tmp/foo': No such file or directory"
