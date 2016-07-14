@@ -31,10 +31,10 @@ type cmdWeld struct {
 		ModelAssertionFn string `positional-arg-name:"model-assertion" description:"the model assertion name"`
 	} `positional-args:"yes" required:"yes"`
 
-	Rootdir string `long:"root-dir" description:"the dir that snapd considers the image rootdir"`
-
-	ExtraSnaps []string `long:"extra-snaps" description:"extra snaps to be installed"`
-	Channel    string   `long:"channel" description:"the channel to use"`
+	Rootdir         string   `long:"root-dir" description:"the dir that snapd considers the image rootdir" required:"yes"`
+	GadgetUnpackDir string   `long:"gadget-unpack-dir" description:"the dir that the gadget snap is unpacked to" required:"yes"`
+	ExtraSnaps      []string `long:"extra-snaps" description:"extra snaps to be installed"`
+	Channel         string   `long:"channel" description:"the channel to use"`
 }
 
 func init() {
@@ -51,36 +51,15 @@ func (x *cmdWeld) Execute(args []string) error {
 	opts := &weld.Options{
 		ModelAssertionFn: x.Positional.ModelAssertionFn,
 
-		Snaps:   x.ExtraSnaps,
-		Rootdir: x.Rootdir,
-		Channel: x.Channel,
-	}
-	return weld.Weld(opts)
-}
-
-type cmdUnpackGadget struct {
-	Positional struct {
-		ModelAssertionFn string `positional-arg-name:"model-assertion" description:"the model assertion name"`
-	} `positional-args:"yes" required:"yes"`
-
-	GadgetUnpackDir string `long:"gadget-unpack-dir" description:"the dir that the gadget snap is unpacked to"`
-}
-
-func init() {
-	cmd := addCommand("get-gadget",
-		i18n.G("Download/unpack a gadget snap"),
-		i18n.G("Download/unpack a gadget snap"),
-		func() flags.Commander {
-			return &cmdUnpackGadget{}
-		})
-	cmd.hidden = true
-}
-
-func (x *cmdUnpackGadget) Execute(args []string) error {
-	opts := &weld.Options{
-		ModelAssertionFn: x.Positional.ModelAssertionFn,
-
+		Rootdir:         x.Rootdir,
 		GadgetUnpackDir: x.GadgetUnpackDir,
+		Channel:         x.Channel,
+		Snaps:           x.ExtraSnaps,
 	}
-	return weld.UnpackGadget(opts)
+
+	if err := weld.UnpackGadget(opts); err != nil {
+		return err
+	}
+
+	return weld.Weld(opts)
 }
