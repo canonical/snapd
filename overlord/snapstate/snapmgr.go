@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -48,28 +47,6 @@ type SnapManager struct {
 
 // SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
 type SnapSetupFlags Flags
-
-// backward compatibility: upgrade old flags based on snappy.* flags values
-// to Flags if needed
-// XXX: this can be dropped and potentially the type at the earliest
-// in 2.0.9 (after being out for about two prune cycles), at the
-// latest when we need to recover the reserved unusable flag values,
-// or this gets annoying for other reasons
-func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
-	f, err := strconv.Atoi(string(b))
-	if err != nil {
-		return fmt.Errorf("invalid snap-setup flags: %v", err)
-	}
-	if f >= interimUnusableLegacyFlagValueMin && f < (interimUnusableLegacyFlagValueLast<<1) {
-		// snappy.DeveloperMode was 0x10, TryMode was 0x20,
-		// snapstate values are 1 and 2 so this does what we need
-		f >>= 4
-	}
-
-	*ssfl = SnapSetupFlags(f)
-
-	return nil
-}
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
