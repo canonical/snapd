@@ -176,7 +176,7 @@ func (s *SnapTestSuite) TestUbuntuStoreRepositoryInstallRemoteSnap(c *C) {
 	r.DownloadURL = mockServer.URL + "/snap"
 	r.IconURL = mockServer.URL + "/icon"
 
-	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
+	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "", nil)
 	p := &MockProgressMeter{}
 	name, err := installRemote(mStore, r, LegacyInhibitHooks, p)
 	c.Assert(err, IsNil)
@@ -233,7 +233,7 @@ apps:
 	r.DownloadURL = mockServer.URL + "/snap"
 	r.IconURL = mockServer.URL + "/icon"
 
-	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "")
+	mStore := store.NewUbuntuStoreSnapRepository(s.storeCfg, "", nil)
 	p := &MockProgressMeter{}
 	name, err := installRemote(mStore, r, LegacyInhibitHooks, p)
 	c.Assert(err, IsNil)
