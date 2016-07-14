@@ -21,19 +21,16 @@ package main
 
 import (
 	"strings"
-
-	"github.com/snapcore/snapd/client"
 )
 
 type Notes struct {
-	Confinement string
-	Price       string
-	Local       bool
-	Private     bool
-	DevMode     bool
-	TryMode     bool
-	Disabled    bool
-	Broken      bool
+	Price    string
+	Private  bool
+	DevMode  bool
+	JailMode bool
+	TryMode  bool
+	Disabled bool
+	Broken   bool
 }
 
 func (n *Notes) String() string {
@@ -43,16 +40,12 @@ func (n *Notes) String() string {
 		ns = append(ns, n.Price)
 	}
 
-	devmodeSnap := n.Confinement != "" && n.Confinement != client.StrictConfinement
-	if n.Local {
-		if n.DevMode {
-			ns = append(ns, "devmode")
-		} else if devmodeSnap {
-			// snap is devmode, but is not installed in devmode
-			ns = append(ns, "jailmode")
-		}
-	} else if devmodeSnap {
-		ns = append(ns, n.Confinement)
+	if n.DevMode {
+		ns = append(ns, "devmode")
+	}
+
+	if n.JailMode {
+		ns = append(ns, "jailmode")
 	}
 
 	if n.Private {
@@ -62,12 +55,13 @@ func (n *Notes) String() string {
 	if n.TryMode {
 		ns = append(ns, "try")
 	}
-	if n.Broken {
-		ns = append(ns, "broken")
-	}
 
 	if n.Disabled {
 		ns = append(ns, "disabled")
+	}
+
+	if n.Broken {
+		ns = append(ns, "broken")
 	}
 
 	if len(ns) == 0 {

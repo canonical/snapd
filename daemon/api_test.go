@@ -360,8 +360,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
-		"errNoDevModeAndJailMode",
-		"errNoJailModeOnDevModeOS",
+		"errModeConflict",
+		"errNoJailMode",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
 		"snapstateInstall",
