@@ -1111,43 +1111,6 @@ func (s *SnapUbuntuStoreRepository) Buy(options *BuyOptions) (*BuyResult, error)
 	}
 }
 
-// [
-//     {
-//         "id": "credit_card",
-//         "description": "Credit or Debit Card",
-//         "preferred": true,
-//         "choices": [
-//             {
-//                 "requires_interaction": false,
-//                 "currencies": [
-//                     "GBP"
-//                 ],
-//                 "id": 5175,
-//                 "preferred": true,
-//                 "description": "**** **** **** 1111 (Visa, exp. 12/2030)"
-//             }
-//         ]
-//     },
-//     {
-//         "id": "rest_paypal",
-//         "description": "PayPal",
-//         "preferred": false,
-//         "choices": [
-//             {
-//                 "requires_interaction": true,
-//                 "currencies": [
-//                     "USD",
-//                     "GBP",
-//                     "EUR"
-//                 ],
-//                 "id": 0,
-//                 "preferred": false,
-//                 "description": "PayPal"
-//             }
-//         ]
-//     }
-// ]
-
 type storePaymentBackend struct {
 	Choices     []*storePaymentMethod `json:"choices"`
 	Description string                `json:"description"`
@@ -1177,6 +1140,7 @@ type PaymentInformation struct {
 	Methods                []*PaymentMethod `json:"methods"`
 }
 
+// PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
 func (s *SnapUbuntuStoreRepository) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
 	req, err := s.newRequest("GET", s.paymentMethodsURI.String(), nil, user)
 	if err != nil {
@@ -1191,7 +1155,6 @@ func (s *SnapUbuntuStoreRepository) PaymentMethods(user *auth.UserState) (*Payme
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-
 		var paymentBackends []*storePaymentBackend
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&paymentBackends); err != nil {
