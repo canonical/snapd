@@ -127,8 +127,8 @@ type Store struct {
 	suggestedCurrency string
 }
 
-func reqFailed(resp *http.Response, msg string) error {
-	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %s"
+func respToError(resp *http.Response, msg string) error {
+	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
 	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
 		tpl += " [%s]"
 		return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL, oops)
@@ -442,7 +442,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
-		return nil, reqFailed(resp, "obtain known purchases from store")
+		return nil, respToError(resp, "obtain known purchases from store")
 	}
 
 	return purchases, nil
@@ -575,7 +575,7 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 		return nil, ErrSnapNotFound
 	default:
 		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
-		return nil, reqFailed(resp, msg)
+		return nil, respToError(resp, msg)
 	}
 
 	// and decode json
@@ -671,7 +671,7 @@ func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, reqFailed(resp, "search")
+		return nil, respToError(resp, "search")
 	}
 
 	if ct := resp.Header.Get("Content-Type"); ct != "application/hal+json" {
@@ -784,7 +784,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, reqFailed(resp, "query the store for updates")
+		return nil, respToError(resp, "query the store for updates")
 	}
 
 	var updateData searchResults
@@ -924,7 +924,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 			}
 			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
 		}
-		return nil, reqFailed(resp, "fetch assertion")
+		return nil, respToError(resp, "fetch assertion")
 	}
 
 	// and decode assertion
@@ -1080,7 +1080,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		if errorInfo.ErrorMessage != "" {
 			details = ": " + errorInfo.ErrorMessage
 		}
-		return nil, reqFailed(resp, fmt.Sprintf("buy snap %q%s", options.SnapName, details))
+		return nil, respToError(resp, fmt.Sprintf("buy snap %q%s", options.SnapName, details))
 	}
 }
 
