@@ -184,6 +184,55 @@ func (s *authTestSuite) TestDischargeAuthCaveatError(c *C) {
 	c.Assert(discharge, Equals, "")
 }
 
+func (s *authTestSuite) TestRefreshDischargeMacaroon(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnDischarge)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, IsNil)
+	c.Assert(discharge, Equals, "the-discharge-macaroon-serialized-data")
+}
+
+func (s *authTestSuite) TestRefreshDischargeMacaroonInvalidLogin(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStoreInvalidLoginCode)
+		io.WriteString(w, mockStoreInvalidLogin)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: Provided email/password is not correct.")
+	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNoMacaroon)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: empty macaroon returned")
+	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: server returned status 500")
+	c.Assert(discharge, Equals, "")
+}
+
 func (s *authTestSuite) TestMacaroonSerialize(c *C) {
 	m, err := makeTestMacaroon()
 	c.Check(err, IsNil)
