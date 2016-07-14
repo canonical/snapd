@@ -31,8 +31,8 @@ import (
 )
 
 type expectedURL struct {
-	Body   string
-	Checks func(r *http.Request)
+	Body    string
+	Checker func(r *http.Request)
 
 	callCount int
 }
@@ -44,22 +44,22 @@ type expectedMethods map[string]*expectedMethod
 type buyTestMockSnapServer struct {
 	ExpectedMethods expectedMethods
 
-	C *check.C
+	Checker *check.C
 }
 
 func (s *buyTestMockSnapServer) serveHttp(w http.ResponseWriter, r *http.Request) {
 	method := s.ExpectedMethods[r.Method]
 	if method == nil || len(*method) == 0 {
-		s.C.Fatalf("unexpected HTTP method %s", r.Method)
+		s.Checker.Fatalf("unexpected HTTP method %s", r.Method)
 	}
 
 	url := (*method)[r.URL.Path]
 	if url == nil {
-		s.C.Fatalf("unexpected URL %q", r.URL.Path)
+		s.Checker.Fatalf("unexpected URL %q", r.URL.Path)
 	}
 
-	if url.Checks != nil {
-		url.Checks(r)
+	if url.Checker != nil {
+		url.Checker(r)
 	}
 	fmt.Fprintln(w, url.Body)
 	url.callCount++
@@ -68,7 +68,7 @@ func (s *buyTestMockSnapServer) serveHttp(w http.ResponseWriter, r *http.Request
 func (s *buyTestMockSnapServer) checkCounts() {
 	for _, method := range s.ExpectedMethods {
 		for _, url := range *method {
-			s.C.Check(url.callCount, check.Equals, 1)
+			s.Checker.Check(url.callCount, check.Equals, 1)
 		}
 	}
 }
@@ -135,7 +135,7 @@ func (s *SnapSuite) TestBuyFreeSnapFails(c *check.C) {
 				},
 			},
 		},
-		C: c,
+		Checker: c,
 	}
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
@@ -183,7 +183,7 @@ const buySnapFindJson = `
 func buySnapFindURL(c *check.C) *expectedURL {
 	return &expectedURL{
 		Body: buySnapFindJson,
-		Checks: func(r *http.Request) {
+		Checker: func(r *http.Request) {
 			c.Check(r.URL.Query().Get("q"), check.Equals, "name:hello")
 		},
 	}
@@ -248,7 +248,7 @@ func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
 			"POST": &expectedMethod{
 				"/v2/buy": &expectedURL{
 					Body: buySnapJson,
-					Checks: func(r *http.Request) {
+					Checker: func(r *http.Request) {
 						var postData struct {
 							SnapID   string  `json:"snap-id"`
 							SnapName string  `json:"snap-name"`
@@ -269,7 +269,7 @@ func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
 				},
 			},
 		},
-		C: c,
+		Checker: c,
 	}
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
@@ -337,7 +337,7 @@ func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
 			"POST": &expectedMethod{
 				"/v2/buy": &expectedURL{
 					Body: buySnapJson,
-					Checks: func(r *http.Request) {
+					Checker: func(r *http.Request) {
 						var postData struct {
 							SnapID    string  `json:"snap-id"`
 							SnapName  string  `json:"snap-name"`
@@ -364,7 +364,7 @@ func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
 				},
 			},
 		},
-		C: c,
+		Checker: c,
 	}
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
@@ -412,7 +412,7 @@ func (s *SnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
 				},
 			},
 		},
-		C: c,
+		Checker: c,
 	}
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
@@ -435,7 +435,7 @@ func (s *SnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
 				},
 			},
 		},
-		C: c,
+		Checker: c,
 	}
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
@@ -465,7 +465,7 @@ func (s *SnapSuite) TestBuySnapFailsOutOfRangeMethodID(c *check.C) {
 				},
 			},
 		},
-		C: c,
+		Checker: c,
 	}
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
@@ -493,7 +493,7 @@ func (s *SnapSuite) TestBuyCancel(c *check.C) {
 				"/v2/buy/methods": buyMethodsAllowsAutomaticPaymentURL(c),
 			},
 		},
-		C: c,
+		Checker: c,
 	}
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
