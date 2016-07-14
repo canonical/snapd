@@ -176,7 +176,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) is not signed by a directly trusted authority:.*`)
 }
 
-func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingAccount(c *C) {
+func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := map[string]string{
@@ -494,7 +494,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheckUntrustedAuthority(c *C) {
 	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" is not signed by a store:.*`)
 }
 
-func (srs *snapRevSuite) TestSnapRevisionCheckMissingAccount(c *C) {
+func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeveloperAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := srs.makeHeaders(nil)
