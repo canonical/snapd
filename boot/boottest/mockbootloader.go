@@ -53,3 +53,7 @@ func (b *MockBootloader) Dir() string {
 func (b *MockBootloader) Name() string {
 	return b.name
 }
+
+func (b *MockBootloader) configFile() string {
+	return "/boot/mock/mock.cfg"
+}
