@@ -1,0 +1,24 @@
+summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1602576
+# This is blacklisted on debian because debian doesn't use apparmor yet
+systems: [-debian-8]
+details: |
+    A missing apparmor profile entry for snap-confine has caused the
+    nvidia-on-ubuntu feature that bind mounts nvidia driver directory to fail.
+prepare: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap install snapd-hacker-toolbelt
+    echo "We can fake the presence of the nvidia driver directory (/usr/lib/nvidia-361)"
+    mkdir -p /usr/lib/nvidia-361
+    echo "canary" > /usr/lib/nvidia-361/test.txt
+    echo "We also need to create /var/lib/snapd/hostfs that is not yet present in Ubuntu packaging"
+    # NOTE: This is addressed separately. Later on when this is not needed it
+    # should be removed from the test.
+    mkdir -p /var/lib/snapd/hostfs
+execute: |
+    echo "We can now check that the directory is mounted under /var/lib/snapd/lib/gl"
+    cd /
+    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox cat /var/lib/snapd/lib/gl/test.txt)" = "canary" ]
+restore: |
+    snap remove snapd-hacker-toolbelt
+    rm -rf /usr/lib/nvidia-361
+    rmdir /var/lib/snapd/hostfs
