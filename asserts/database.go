@@ -109,7 +109,7 @@ func (e *RevisionError) Error() string {
 // A RODatabase exposes read-only access to an assertion database.
 type RODatabase interface {
 	// IsTrusted returns whether the account is part of the trusted set.
-	IsTrusted(accountID string) bool
+	IsTrustedAccount(accountID string) bool
 	// Find an assertion based on arbitrary headers.
 	// Provided headers must contain the primary key for the assertion type.
 	// It returns ErrNotFound if the assertion cannot be found.
@@ -246,8 +246,11 @@ func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, erro
 	return nil, ErrNotFound
 }
 
-// IsTrusted returns whether the account is part of the trusted set.
-func (db *Database) IsTrusted(accountID string) bool {
+// IsTrustedAccount returns whether the account is part of the trusted set.
+func (db *Database) IsTrustedAccount(accountID string) bool {
+	if accountID == "" {
+		return false
+	}
 	_, err := db.trusted.Get(AccountType, []string{accountID})
 	return err == nil
 }
