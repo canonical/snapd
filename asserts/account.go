@@ -19,7 +19,10 @@
 
 package asserts
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 var (
 	accountValidationCertified = "certified"
@@ -56,6 +59,14 @@ func (acc *Account) IsCertified() bool {
 // Timestamp returns the time when the account was issued.
 func (acc *Account) Timestamp() time.Time {
 	return acc.timestamp
+}
+
+// Implement further consistency checks.
+func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
+	if !db.IsTrusted(acc.AuthorityID()) {
+		return fmt.Errorf("account assertion for %q is not signed by a directly trusted authority: %s", acc.AccountID(), acc.AuthorityID())
+	}
+	return nil
 }
 
 func assembleAccount(assert assertionBase) (Assertion, error) {

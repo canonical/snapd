@@ -75,45 +75,15 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
-	trustedKey, err := asserts.GenerateKey()
-	c.Assert(err, IsNil)
-
-	tmgr := asserts.NewMemoryKeypairManager()
-	tmgr.Put("trusted", trustedKey)
-
-	authorityDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: tmgr,
-	})
-	c.Assert(err, IsNil)
-
-	now := time.Now().UTC()
-	headers := map[string]string{
-		"authority-id":           "trusted",
-		"account-id":             "trusted",
-		"public-key-id":          trustedKey.PublicKey().ID(),
-		"public-key-fingerprint": trustedKey.PublicKey().Fingerprint(),
-		"since":                  now.Format(time.RFC3339),
-		"until":                  now.AddDate(10, 0, 0).Format(time.RFC3339),
-	}
-	pubTrustedKeyEnc, err := asserts.EncodePublicKey(trustedKey.PublicKey())
-	c.Assert(err, IsNil)
-	trustedAccKey, err := authorityDB.Sign(asserts.AccountKeyType, headers, pubTrustedKeyEnc, trustedKey.PublicKey().ID())
-	c.Assert(err, IsNil)
+	store := assertstest.NewStoreStack("trusted", testPrivKey0, testPrivKey1)
 
 	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyID)
 	c.Assert(err, IsNil)
-	headers = map[string]string{
-		"authority-id":           "trusted",
-		"account-id":             "dev1-id",
-		"public-key-id":          devKey.PublicKey().ID(),
-		"public-key-fingerprint": devKey.PublicKey().Fingerprint(),
-		"since":                  now.Format(time.RFC3339),
-		"until":                  now.AddDate(10, 0, 0).Format(time.RFC3339),
-	}
-	pubDevKeyEnc, err := asserts.EncodePublicKey(devKey.PublicKey())
-	c.Assert(err, IsNil)
-	devAccKey, err := authorityDB.Sign(asserts.AccountKeyType, headers, pubDevKeyEnc, trustedKey.PublicKey().ID())
-	c.Assert(err, IsNil)
+
+	devAcct := assertstest.NewAccount(store, "devel1", map[string]string{
+		"account-id": "dev1-id",
+	}, "")
+	devAccKey := assertstest.NewAccountKey(store, devAcct, nil, devKey.PublicKey(), "")
 
 	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: gkms.keypairMgr,
@@ -123,20 +93,26 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	checkDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: asserts.NewMemoryKeypairManager(),
 		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        []asserts.Assertion{trustedAccKey.(*asserts.AccountKey)},
+		Trusted:        store.Trusted,
 	})
+	c.Assert(err, IsNil)
+	// add store key
+	err = checkDB.Add(store.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	// enable devel key
+	err = checkDB.Add(devAcct)
 	c.Assert(err, IsNil)
 	err = checkDB.Add(devAccKey)
 	c.Assert(err, IsNil)
 
-	headers = map[string]string{
+	headers := map[string]string{
 		"authority-id": "dev1-id",
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha512-...",
 		"grade":        "devel",
 		"snap-size":    "1025",
-		"timestamp":    now.Format(time.RFC3339),
+		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	snapBuild, err := signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
 	c.Assert(err, IsNil)
