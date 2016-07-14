@@ -67,7 +67,7 @@ func (x *cmdRun) Execute(args []string) error {
 	if x.Hook != "" && x.Command != "" {
 		return fmt.Errorf("cannot use --hook and --command together")
 	}
-	if x.Revision != "unset" && x.Hook == "" {
+	if x.Revision != "unset" && x.Revision != "" && x.Hook == "" {
 		return fmt.Errorf("-r can only be used with --hook")
 	}
 	if x.Hook != "" && len(args) > 0 {
