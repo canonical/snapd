@@ -29,6 +29,7 @@ import (
 	"go/token"
 	"io"
 	"io/ioutil"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -366,6 +367,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
+		"errModeConflict",
+		"errNoJailMode",
 		// snapInstruction vars:
 		"snapInstructionDispTable",
 		"snapstateInstall",
@@ -1260,6 +1263,80 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
 
+func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"jailmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
+	// try a multipart/form-data upload
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	chgSummary := s.sideloadCheck(c, body, head, snapstate.JailMode, true)
+	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
+}
+
+func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"jailmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot use devmode and jailmode flags together")
+}
+
+func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"jailmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n"
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	defer restore()
+
+	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "this system cannot honour the jailmode flag")
+}
+
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 	newTestDaemon(c)
 
@@ -1534,10 +1611,10 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 }
 
-func (s *apiSuite) TestInstalOnNonDevModeDistro(c *check.C) {
+func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0))
 }
-func (s *apiSuite) TestInstalOnDevModeDistro(c *check.C) {
+func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode)
 }
 
@@ -1804,6 +1881,63 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 
 	// DevMode was converted to the snapstate.DevMode flag
 	c.Check(calledFlags&snapstate.DevMode, check.Equals, snapstate.Flags(snapstate.DevMode))
+}
+
+func (s *apiSuite) TestInstallJailMode(c *check.C) {
+	var calledFlags snapstate.Flags
+
+	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:   "install",
+		JailMode: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags&snapstate.JailMode, check.Equals, snapstate.Flags(snapstate.JailMode))
+}
+
+func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
+	defer restore()
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:   "install",
+		JailMode: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.ErrorMatches, "this system cannot honour the jailmode flag")
+}
+
+func (s *apiSuite) TestInstallJailModeDevMode(c *check.C) {
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:   "install",
+		DevMode:  true,
+		JailMode: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	_, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.ErrorMatches, "cannot use devmode and jailmode flags together")
 }
 
 func snapList(rawSnaps interface{}) []map[string]interface{} {
@@ -2949,4 +3083,17 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 		Currency: "EUR",
 		User:     user,
 	})
+}
+
+func (s *apiSuite) TestIsTrue(c *check.C) {
+	form := &multipart.Form{}
+	c.Check(isTrue(form, "foo"), check.Equals, false)
+	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
+		form.Value = map[string][]string{"foo": []string{f}}
+		c.Check(isTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
+	}
+	for _, t := range []string{"true", "1", "True", "t"} {
+		form.Value = map[string][]string{"foo": []string{t}}
+		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
+	}
 }
