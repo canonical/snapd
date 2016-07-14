@@ -108,13 +108,6 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	return about, firstErr
 }
 
-func effectiveConfinement(snapst *snapstate.SnapState) snap.ConfinementType {
-	if snapst.DevMode() {
-		return snap.DevmodeConfinement
-	}
-	return snap.StrictConfinement
-}
-
 // appJSON contains the json for snap.AppInfo
 type appJSON struct {
 	Name string `json:"name"`
