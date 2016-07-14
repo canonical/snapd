@@ -10,7 +10,13 @@ restore: |
 
 execute: |
     echo "Then an unconfined action should succeed"
-    expect -f unconfined_action_succeeds.exp
+    test-snapd-tools.cmd touch /dev/shm/snap.test-snapd-tools.foo
+    expected="(?s)File: '/dev/shm/snap.test-snapd-tools.foo'.*?Size: 0"
+    stat /dev/shm/snap.test-snapd-tools.foo | grep -Pqz "$expected"
 
     echo "Then a confined action should fail"
-    expect -f confined_action_fails.exp
+    if test-snapd-tools.cmd touch /dev/shm/snap.not-test-snapd-tools.foo 2>touch.error; then
+        echo "Expected error"
+        exit 1
+    fi
+    [ "$(cat touch.error)" = "touch: cannot touch '/dev/shm/snap.not-test-snapd-tools.foo': Permission denied" ]

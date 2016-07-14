@@ -17,3 +17,5 @@ apps:
         command: bin/env
     sh:
         command: bin/sh
+    cmd:
+        command: bin/cmd
