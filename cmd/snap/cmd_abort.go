@@ -47,6 +47,10 @@ func init() {
 }
 
 func (x *cmdAbort) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	cli := Client()
 	_, err := cli.Abort(x.Positional.Id)
 	return err

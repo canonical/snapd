@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,13 +17,28 @@
  *
  */
 
-package classic
+package backends
 
 import (
-	"testing"
-
-	. "gopkg.in/check.v1"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 )
 
-// Hook up check.v1 into the "go test" runner
-func Test(t *testing.T) { TestingT(t) }
+// append when a new security backend is added
+var All = []interfaces.SecurityBackend{
+	&seccomp.Backend{},
+	&dbus.Backend{},
+	&udev.Backend{},
+	&mount.Backend{},
+}
+
+func init() {
+	if !release.ReleaseInfo.ForceDevMode() {
+		All = append(All, &apparmor.Backend{})
+	}
+}
