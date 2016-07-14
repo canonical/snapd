@@ -252,7 +252,6 @@ func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
 						var postData struct {
 							SnapID   string  `json:"snap-id"`
 							SnapName string  `json:"snap-name"`
-							Channel  string  `json:"channel"`
 							Price    float64 `json:"price"`
 							Currency string  `json:"currency"`
 						}
@@ -262,7 +261,6 @@ func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
 
 						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
 						c.Check(postData.SnapName, check.Equals, "hello")
-						c.Check(postData.Channel, check.Equals, "stable")
 						c.Check(postData.Price, check.Equals, 2.99)
 						c.Check(postData.Currency, check.Equals, "GBP")
 					},
@@ -341,7 +339,6 @@ func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
 						var postData struct {
 							SnapID    string  `json:"snap-id"`
 							SnapName  string  `json:"snap-name"`
-							Channel   string  `json:"channel"`
 							Price     float64 `json:"price"`
 							Currency  string  `json:"currency"`
 							MethodID  int     `json:"method-id"`
@@ -353,7 +350,6 @@ func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
 
 						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
 						c.Check(postData.SnapName, check.Equals, "hello")
-						c.Check(postData.Channel, check.Equals, "stable")
 						c.Check(postData.Price, check.Equals, 2.99)
 						c.Check(postData.Currency, check.Equals, "GBP")
 
