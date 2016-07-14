@@ -262,12 +262,12 @@ apps:
 	c.Assert(err, IsNil)
 	bulkURL, err := url.Parse(baseURL + "/metadata")
 	c.Assert(err, IsNil)
-	storeCfg := store.SnapUbuntuStoreConfig{
+	storeCfg := store.Config{
 		DetailsURI: detailsURL,
 		BulkURI:    bulkURL,
 	}
 
-	mStore := store.NewUbuntuStoreSnapRepository(&storeCfg, "", nil)
+	mStore := store.New(&storeCfg, "", nil)
 
 	st := ms.o.State()
 	st.Lock()
