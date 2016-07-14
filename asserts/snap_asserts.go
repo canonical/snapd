@@ -65,7 +65,7 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
-	if !db.IsTrusted(snapdcl.AuthorityID()) {
+	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
 		return fmt.Errorf("snap-declaration assertion for %q (id %q) is not signed by a directly trusted authority: %s", snapdcl.SnapName(), snapdcl.SnapID(), snapdcl.AuthorityID())
 	}
 	_, err := db.Find(AccountType, map[string]string{
@@ -223,7 +223,7 @@ func (snaprev *SnapRevision) Timestamp() time.Time {
 // Implement further consistency checks.
 func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// TODO: expand this to consider other stores signing on their own
-	if !db.IsTrusted(snaprev.AuthorityID()) {
+	if !db.IsTrustedAccount(snaprev.AuthorityID()) {
 		return fmt.Errorf("snap-revision assertion for snap id %q is not signed by a store: %s", snaprev.SnapID(), snaprev.AuthorityID())
 	}
 	_, err := db.Find(AccountType, map[string]string{

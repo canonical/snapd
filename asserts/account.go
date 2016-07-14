@@ -63,7 +63,7 @@ func (acc *Account) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
-	if !db.IsTrusted(acc.AuthorityID()) {
+	if !db.IsTrustedAccount(acc.AuthorityID()) {
 		return fmt.Errorf("account assertion for %q is not signed by a directly trusted authority: %s", acc.AccountID(), acc.AuthorityID())
 	}
 	return nil

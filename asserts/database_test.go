@@ -86,7 +86,10 @@ func (opens *openSuite) TestOpenDatabaseTrustedAccount(c *C) {
 	c.Check(acct1.AccountID(), Equals, "trusted")
 	c.Check(acct1.DisplayName(), Equals, "Trusted")
 
-	c.Check(db.IsTrusted("trusted"), Equals, true)
+	c.Check(db.IsTrustedAccount("trusted"), Equals, true)
+
+	// empty account id (invalid) is not trusted
+	c.Check(db.IsTrustedAccount(""), Equals, false)
 }
 
 func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
