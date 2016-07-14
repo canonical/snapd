@@ -4,21 +4,23 @@ prepare: |
     echo Ensure we have a os snap with snap run
     $SPREAD_PATH/tests/lib/reset.sh
     snap install --channel=beta ubuntu-core
-    snap install hello-world
+    snap install test-snapd-tools
 
 environment:
-    APP/helloworld: hello-world
+    APP/testsnapdtoolsecho: test-snapd-tools.echo
+    APP/testsnapdtoolscat: test-snapd-tools.cat
+    SNAP: /snap/test-snapd-tools/current
 
 execute: |
     echo Testing that replacing the wrapper with a symlink works
-    $APP
-    $APP > orig.txt 2>&1 
+    $APP $SNAP/bin/cat
+    $APP $SNAP/bin/cat > orig.txt 2>&1 
 
     rm /snap/bin/$APP
     ln -s /usr/bin/snap /snap/bin/$APP
 
     # FIXME: remove "SNAP_REEXEC" once we have `snap run` inside the os snap
-    SNAP_REEXEC=0 $APP
-    SNAP_REEXEC=0 $APP > new.txt 2>&1 
+    SNAP_REEXEC=0 $APP $SNAP/bin/cat
+    SNAP_REEXEC=0 $APP $SNAP/bin/cat > new.txt 2>&1 
 
     diff -u orig.txt new.txt
