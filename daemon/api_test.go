@@ -40,6 +40,7 @@ import (
 	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -70,6 +71,7 @@ type apiSuite struct {
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
 	paymentMethods    *store.PaymentInformation
+	storeSigning      *assertstest.StoreStack
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -148,6 +150,9 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.buyOptions = nil
 	s.buyResult = nil
 	s.paymentMethods = nil
+	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	storePrivKey, _ := assertstest.GenerateKey(752)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
@@ -2336,59 +2341,17 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	})
 }
 
-const (
-	encTestTrustedKey = `type: account-key
-authority-id: can0nical
-account-id: can0nical
-public-key-id: 844efa9730eec4be
-public-key-fingerprint: 716ff3cec4b9364a2bd930dc844efa9730eec4be
-since: 2016-01-14T15:00:00Z
-until: 2023-01-14T15:00:00Z
-body-length: 376
-
-openpgp xsBNBFaXv40BCADIlqLKFZaPaoe4TNLQv77vh4JWTlt7Z3IN2ducNqfg50q5mnkyUD2D
-SckvsMy1440+a0Z83m/A7aPaO1JkLpMGfLr23VLyKCaAe0k6hg69/6aEfXhfy0yYvEOgGcBiX+fN
-T6tqdRCsd+08LtisjYez7iJvmVwQ/syeduoTU4EiSVO1zlgc3eeq3TFyvcN0E1EsZ/7l2A33amTo
-mtAPVyQsa1B+lTeaUgwuPBWV0oTuYcUSfYsmmsXEKx/PnzkliicnrC9QZ5CcisskVve3QwPAuLUz
-2nV7/6vSRF22T4cUPF4QntjZBB6xjopdDH6wQsKyzLTTRak74moWksx8MEmVABEBAAE=
-
-openpgp wsBcBAABCAAQBQJWl8DiCRCETvqXMO7EvgAAhjkIAEoINWjQkujtx/TFYsKh0yYcQSpT
-v8O83mLRP7Ty+mH99uQ0/DbeQ1hM5st8cFgzU8SzlDCh6BUMnAl/bR/hhibFD40CBLd13kDXl1aN
-APybmSYoDVRQPAPop44UF0aCrTIw4Xds3E56d2Rsn+CkNML03kRc/i0Q53uYzZwxXVnzW/gVOXDL
-u/IZtjeo3KsB645MVEUxJLQmjlgMOwMvCHJgWhSvZOuf7wC0soBCN9Ufa/0M/PZFXzzn8LpjKVrX
-iDXhV7cY5PceG8ZV7Duo1JadOCzpkOHmai4DcrN7ZeY8bJnuNjOwvTLkrouw9xci4IxpPDRu0T/i
-K9qaJtUo4cA=`
-	encTestAccKey = `type: account-key
-authority-id: can0nical
-account-id: developer1
-public-key-id: adea89b00094c337
-public-key-fingerprint: 5fa7b16ad5e8c8810d5a0686adea89b00094c337
-since: 2016-01-14T15:00:00Z
-until: 2023-01-14T15:00:00Z
-body-length: 376
-
-openpgp xsBNBFaXv5MBCACkK//qNb3UwRtDviGcCSEi8Z6d5OXok3yilQmEh0LuW6DyP9sVpm08
-Vb1LGewOa5dThWGX4XKRBI/jCUnjCJQ6v15lLwHe1N7MJQ58DUxKqWFMV9yn4RcDPk6LqoFpPGdR
-rbp9Ivo3PqJRMyD0wuJk9RhbaGZmILcL//BLgomE9NgQdAfZbiEnGxtkqAjeVtBtcJIj5TnCC658
-ZCqwugQeO9iJuIn3GosYvvTB6tReq6GP6b4dqvoi7SqxHVhtt2zD4Y6FUZIVmvZK0qwkV0gua2az
-LzPOeoVcU1AEl7HVeBk7G6GiT5jx+CjjoGa0j22LdJB9S3JXHtGYk5p9CAwhABEBAAE=
-
-openpgp wsBcBAABCAAQBQJWl8HNCRCETvqXMO7EvgAAeuAIABn/1i8qGyaIhxOWE2cHIPYW3hq2
-PWpq7qrPN5Dbp/00xrTvc6tvMQWsXlMrAsYuq3sBCxUp3JRp9XhGiQeJtb8ft10g3+3J7e8OGHjl
-CfXJ3A5el8Xxp5qkFywCsLdJgNtF6+uSQ4dO8SrAwzkM7c3JzntxdiFOjDLUSyZ+rXL42jdRagTY
-8bcZfb47vd68Hyz3EvSvJuHSDbcNSTd3B832cimpfq5vJ7FoDrchVn3sg+3IwekuPhG3LQn5BVtc
-0ontHd+V1GaandhqBaDA01cGZN0gnqv2Haogt0P/h3nZZZJ1nTW5PLC6hs8TZdBdl3Lel8yAHD5L
-ZF5jSvRDLgI=`
-)
-
 func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
-	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
-	c.Assert(err, check.IsNil)
-	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
-	buf := bytes.NewBufferString(encTestAccKey)
+	// add store key
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
+
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	buf := bytes.NewBuffer(asserts.Encode(acct))
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
@@ -2397,9 +2360,8 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	// Verify (internal)
-	_, err = d.overlord.AssertManager().DB().Find(asserts.AccountKeyType, map[string]string{
-		"account-id":    "developer1",
-		"public-key-id": "adea89b00094c337",
+	_, err = d.overlord.AssertManager().DB().Find(asserts.AccountType, map[string]string{
+		"account-id": acct.AccountID(),
 	})
 	c.Check(err, check.IsNil)
 }
@@ -2421,7 +2383,8 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 func (s *apiSuite) TestAssertError(c *check.C) {
 	s.daemon(c)
 	// Setup
-	buf := bytes.NewBufferString(encTestAccKey)
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	buf := bytes.NewBuffer(asserts.Encode(acct))
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
 	rec := httptest.NewRecorder()
@@ -2434,19 +2397,21 @@ func (s *apiSuite) TestAssertError(c *check.C) {
 
 func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// Setup
-	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
-	c.Assert(err, check.IsNil)
-	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(encTestAccKey))
+	// add store key
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	err = d.overlord.AssertManager().DB().Add(a)
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]string{
+		"account-id": "developer1-id",
+	}, "")
+	err = d.overlord.AssertManager().DB().Add(acct)
 	c.Assert(err, check.IsNil)
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account-key", nil)
+	req, err := http.NewRequest("POST", "/v2/assertions/account", nil)
 	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"assertType": "account-key"}
+	s.vars = map[string]string{"assertType": "account"}
 	rec := httptest.NewRecorder()
 	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
 	// Verify
@@ -2456,7 +2421,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
-	c.Check(a1.Type(), check.Equals, asserts.AccountKeyType)
+	c.Check(a1.Type(), check.Equals, asserts.AccountType)
 
 	a2, err := dec.Decode()
 	c.Assert(err, check.IsNil)
@@ -2467,26 +2432,27 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	_, err = dec.Decode()
 	c.Assert(err, check.Equals, io.EOF)
 
-	ids := []string{a1.(*asserts.AccountKey).AccountID(), a2.(*asserts.AccountKey).AccountID(), a3.(*asserts.AccountKey).AccountID()}
+	ids := []string{a1.(*asserts.Account).AccountID(), a2.(*asserts.Account).AccountID(), a3.(*asserts.Account).AccountID()}
 	sort.Strings(ids)
-	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1"})
+	c.Check(ids, check.DeepEquals, []string{"can0nical", "canonical", "developer1-id"})
 }
 
 func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	// Setup
-	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
-	c.Assert(err, check.IsNil)
-	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(encTestAccKey))
+	// add store key
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	err = d.overlord.AssertManager().DB().Add(a)
+
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	err = d.overlord.AssertManager().DB().Add(acct)
 	c.Assert(err, check.IsNil)
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account-key?account-id=developer1", nil)
+	req, err := http.NewRequest("POST", "/v2/assertions/account?username=developer1", nil)
 	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"assertType": "account-key"}
+	s.vars = map[string]string{"assertType": "account"}
 	rec := httptest.NewRecorder()
 	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
 	// Verify
@@ -2495,28 +2461,29 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	dec := asserts.NewDecoder(rec.Body)
 	a1, err := dec.Decode()
 	c.Assert(err, check.IsNil)
-	c.Check(a1.Type(), check.Equals, asserts.AccountKeyType)
-	c.Check(a1.(*asserts.AccountKey).AccountID(), check.Equals, "developer1")
+	c.Check(a1.Type(), check.Equals, asserts.AccountType)
+	c.Check(a1.(*asserts.Account).Username(), check.Equals, "developer1")
+	c.Check(a1.(*asserts.Account).AccountID(), check.Equals, acct.AccountID())
 	_, err = dec.Decode()
 	c.Check(err, check.Equals, io.EOF)
 }
 
 func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	// Setup
-	testTrustedKey, err := asserts.Decode([]byte(encTestTrustedKey))
-	c.Assert(err, check.IsNil)
-	restore := sysdb.InjectTrusted([]asserts.Assertion{testTrustedKey})
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
-	c.Assert(err, check.IsNil)
 	d := s.daemon(c)
-	a, err := asserts.Decode([]byte(encTestAccKey))
+	// add store key
+	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	err = d.overlord.AssertManager().DB().Add(a)
+
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	err = d.overlord.AssertManager().DB().Add(acct)
 	c.Assert(err, check.IsNil)
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account-key?account-id=xyzzyx", nil)
+	req, err := http.NewRequest("POST", "/v2/assertions/account?username=xyzzyx", nil)
 	c.Assert(err, check.IsNil)
-	s.vars = map[string]string{"assertType": "account-key"}
+	s.vars = map[string]string{"assertType": "account"}
 	rec := httptest.NewRecorder()
 	assertsFindManyCmd.GET(assertsFindManyCmd, req, nil).ServeHTTP(rec, req)
 	// Verify
