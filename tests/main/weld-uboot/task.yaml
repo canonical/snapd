@@ -1,0 +1,52 @@
+summary: Check that weld works for uboot-systems
+environment:
+    IMAGE: /tmp/diskimage
+    GADGET: /tmp/unpack-gadget
+prepare:
+    mkdir -p $IMAGE
+    mkdir -p $GADGET
+restore:
+    rm -rf $IMAGE
+    rm -rf $GADGET
+execute: |
+    echo Creating model assertion
+    cat > model.assertion <<EOF
+    type: model
+    series: 16
+    authority-id: my-brand
+    brand-id: my-brand
+    model: my-model
+    class: my-class
+    allowed-modes:  
+    required-snaps:  
+    architecture: armhf
+    store: canonical
+    gadget: canonical-pi2
+    kernel: canonical-pi2-linux
+    core: ubuntu-core
+    timestamp: 2016-01-02T10:00:00-05:00
+    body-length: 0
+    
+    openpgpg 2cln
+    EOF
+
+    echo Running weld
+    snap weld --channel edge --extra-snaps webdm --gadget-unpack-dir $GADGET --root-dir $IMAGE model.assertion
+
+    echo Verifying the result
+    ls -lR $IMAGE
+    for f in canonical-pi2 canonical-pi2-linux ubuntu-core webdm; do
+        ls $IMAGE/var/lib/snapd/snaps/${f}*.snap
+        ls $IMAGE/var/lib/snapd/snaps/${f}*.snap.sideinfo
+    done
+    grep snappy_os=ubuntu-core $IMAGE/boot/uboot/uboot.env
+    grep snappy_kernel=canonical-pi2-linux $IMAGE/boot/uboot/uboot.env
+
+    echo Verify that the kernel is available unpacked
+    ls $IMAGE/boot/uboot/canonical-pi2-linux_*.snap/kernel.img
+    ls $IMAGE/boot/uboot/canonical-pi2-linux_*.snap/initrd.img
+    ls $IMAGE/boot/uboot/canonical-pi2-linux_*.snap/dtbs/
+
+    echo Verify the unpacked gadget
+    ls -lR $GADGET
+    ls $GADGET/meta/snap.yaml
