@@ -143,11 +143,7 @@ func bootstrapToRootdir(opts *Options) error {
 	}
 
 	// now do the bootloader stuff
-	bootEnvFn, err := findBootCfgFile(opts.GadgetUnpackDir)
-	if err != nil {
-		return err
-	}
-	if err := installBootCfgFile(bootEnvFn); err != nil {
+	if err := partition.InstallBootConfig(opts.GadgetUnpackDir); err != nil {
 		return err
 	}
 
@@ -156,40 +152,6 @@ func bootstrapToRootdir(opts *Options) error {
 	}
 
 	return nil
-}
-
-// FIXME: move close to the partition/ package
-func findBootCfgFile(gadgetDir string) (string, error) {
-	var bootEnvFile string
-	filepath.Walk(gadgetDir, func(path string, info os.FileInfo, err error) error {
-		if info.Name() == "grub.cfg" || info.Name() == "uboot.env" {
-			bootEnvFile = path
-		}
-		return nil
-	})
-	if bootEnvFile == "" {
-		return "", fmt.Errorf("cannot find bootenv file in %q", gadgetDir)
-	}
-
-	return bootEnvFile, nil
-}
-
-func installBootCfgFile(bootenvFn string) error {
-	var bootdir string
-	switch filepath.Base(bootenvFn) {
-	case "grub.cfg":
-		bootdir = "boot/grub"
-	case "uboot.env":
-		bootdir = "boot/uboot"
-	default:
-		return fmt.Errorf("unsupported boot environment %q", bootenvFn)
-	}
-
-	dst := filepath.Join(dirs.GlobalRootDir, bootdir, filepath.Base(bootenvFn))
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return err
-	}
-	return osutil.CopyFile(bootenvFn, dst, 0)
 }
 
 func setBootvars() error {

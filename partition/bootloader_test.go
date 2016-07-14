@@ -50,7 +50,7 @@ func (b *mockBootloader) Name() string {
 	return "mocky"
 }
 func (b *mockBootloader) Dir() string {
-	return "/foo"
+	return "/boot/mocky"
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
 	return b.bootVars[name], nil
@@ -58,6 +58,9 @@ func (b *mockBootloader) GetBootVar(name string) (string, error) {
 func (b *mockBootloader) SetBootVar(name, value string) error {
 	b.bootVars[name] = value
 	return nil
+}
+func (b *mockBootloader) configFile() string {
+	return "/boot/mocky/mocky.env"
 }
 
 func (s *PartitionTestSuite) SetUpTest(c *C) {

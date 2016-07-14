@@ -49,6 +49,10 @@ func (u *uboot) Dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
 }
 
+func (u *uboot) configFile() string {
+	return u.envFile()
+}
+
 func (u *uboot) envFile() string {
 	return filepath.Join(u.Dir(), "uboot.env")
 }

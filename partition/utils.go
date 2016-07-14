@@ -20,10 +20,13 @@
 package partition
 
 import (
+	"os"
+
 	"bytes"
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -49,4 +52,18 @@ func runCommandImpl(args ...string) (string, error) {
 	}
 
 	return stdout.String(), err
+}
+
+func find(root, fn string) (string, error) {
+	var fullPath string
+	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if info.Name() == fn {
+			fullPath = path
+		}
+		return nil
+	})
+	if fullPath == "" {
+		return "", fmt.Errorf("cannot find %q under %q", fn, root)
+	}
+	return fullPath, nil
 }
