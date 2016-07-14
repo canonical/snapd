@@ -1709,7 +1709,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 	result, err := repo.Buy(&BuyOptions{
 		SnapID:   snap.SnapID,
 		SnapName: snap.Name(),
-		Channel:  snap.Channel,
 		Currency: repo.SuggestedCurrency(),
 		Price:    snap.Prices[repo.SuggestedCurrency()],
 		User:     t.user,
@@ -1789,7 +1788,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 	result, err := repo.Buy(&BuyOptions{
 		SnapID:   snap.SnapID,
 		SnapName: snap.Name(),
-		Channel:  snap.Channel,
 		Price:    0.99,
 		Currency: "USD",
 		User:     t.user,
@@ -1866,7 +1864,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 	result, err := repo.Buy(&BuyOptions{
 		SnapID:   "invalid snap ID",
 		SnapName: snap.Name(),
-		Channel:  snap.Channel,
 		Price:    snap.Prices[repo.SuggestedCurrency()],
 		Currency: repo.SuggestedCurrency(),
 		User:     t.user,
@@ -1887,7 +1884,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	// no snap ID
 	result, err := repo.Buy(&BuyOptions{
 		SnapName: "snap name",
-		Channel:  "channel",
 		Price:    1.0,
 		Currency: "USD",
 		User:     t.user,
@@ -1899,7 +1895,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	// no name
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
-		Channel:  "channel",
 		Price:    1.0,
 		Currency: "USD",
 		User:     t.user,
@@ -1908,23 +1903,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": snap name missing")
 
-	// no channel
-	result, err = repo.Buy(&BuyOptions{
-		SnapID:   "snap ID",
-		SnapName: "snap name",
-		Price:    1.0,
-		Currency: "USD",
-		User:     t.user,
-	})
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": channel missing")
-
 	// no price
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
 		SnapName: "snap name",
-		Channel:  "channel",
 		Currency: "USD",
 		User:     t.user,
 	})
@@ -1936,7 +1918,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
 		SnapName: "snap name",
-		Channel:  "channel",
 		Price:    1.0,
 		User:     t.user,
 	})
@@ -1948,7 +1929,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	result, err = repo.Buy(&BuyOptions{
 		SnapID:   "snap ID",
 		SnapName: "snap name",
-		Channel:  "channel",
 		Price:    1.0,
 		Currency: "USD",
 	})
