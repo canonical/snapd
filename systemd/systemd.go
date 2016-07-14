@@ -105,7 +105,7 @@ type RestartCondition string
 
 // These are the supported restart conditions
 const (
-	RestartNever      RestartCondition = "never"
+	RestartNever      RestartCondition = "no"
 	RestartOnSuccess  RestartCondition = "on-success"
 	RestartOnFailure  RestartCondition = "on-failure"
 	RestartOnAbnormal RestartCondition = "on-abnormal"
