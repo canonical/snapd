@@ -7,7 +7,7 @@ details: |
     directory
 
 environment:
-    SNAP_NAME: hello-world
+    SNAP_NAME: test-snapd-tools
     CONFIG_DIR: /etc/systemd/system/snapd.service.d
     STORE_CONFIG: $[CONFIG_DIR]/fakestore.conf
     BLOB_DIR: $(mktemp -d)
