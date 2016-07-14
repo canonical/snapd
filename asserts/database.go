@@ -108,7 +108,7 @@ func (e *RevisionError) Error() string {
 
 // A RODatabase exposes read-only access to an assertion database.
 type RODatabase interface {
-	// IsTrusted returns whether the account is part of the trusted set.
+	// IsTrustedAccount returns whether the account is part of the trusted set.
 	IsTrustedAccount(accountID string) bool
 	// Find an assertion based on arbitrary headers.
 	// Provided headers must contain the primary key for the assertion type.

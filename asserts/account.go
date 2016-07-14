@@ -69,6 +69,9 @@ func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
 	return nil
 }
 
+// sanity
+var _ consistencyChecker = (*Account)(nil)
+
 func assembleAccount(assert assertionBase) (Assertion, error) {
 	_, err := checkNotEmpty(assert.headers, "display-name")
 	if err != nil {
