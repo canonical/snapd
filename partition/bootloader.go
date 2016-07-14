@@ -79,7 +79,7 @@ func InstallBootConfig(gadgetDir string) error {
 		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 			return err
 		}
-		return osutil.CopyFile(fn, dst, 0)
+		return osutil.CopyFile(fn, dst, osutil.CopyFlagOverwrite)
 	}
 
 	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
