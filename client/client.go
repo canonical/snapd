@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -157,7 +158,12 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 	if v != nil {
 		dec := json.NewDecoder(rsp.Body)
 		if err := dec.Decode(v); err != nil {
-			return err
+			r := dec.Buffered()
+			buf, err1 := ioutil.ReadAll(r)
+			if err1 != nil {
+				buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
+			}
+			return fmt.Errorf("cannot decode %q: %s", buf, err)
 		}
 	}
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,18 +17,35 @@
  *
  */
 
-package classic
+package client
 
 import (
-	. "gopkg.in/check.v1"
+	"bytes"
+	"encoding/json"
+
+	"github.com/snapcore/snapd/store"
 )
 
-type RunTestSuite struct {
+type BuyResult struct {
+	State string `json:"state"`
 }
 
-var _ = Suite(&RunTestSuite{})
+func (client *Client) Buy(opts *store.BuyOptions) (*BuyResult, error) {
+	if opts == nil {
+		opts = &store.BuyOptions{}
+	}
 
-func (t *RunTestSuite) TestGenScopeName(c *C) {
-	name := genClassicScopeName()
-	c.Assert(name, Matches, "snappy-classic_[0-9-]+_[0-9:]+_[a-zA-Z0-9]+.scope")
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(opts); err != nil {
+		return nil, err
+	}
+
+	var result BuyResult
+	_, err := client.doSync("POST", "/v2/buy", nil, nil, &body, &result)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
 }
