@@ -355,7 +355,7 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 		targetDir = pwd
 	}
 
-	m := store.NewUbuntuStoreSnapRepository(nil, storeID)
+	m := store.NewUbuntuStoreSnapRepository(nil, storeID, nil)
 	snap, err := m.Snap(name, opts.Channel, false, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to find snap: %s", err)
