@@ -69,7 +69,7 @@ func run() error {
 	// confinement and (generally) can not talk to snapd
 	revision := os.Getenv("SNAP_REVISION")
 
-	return snapExec(snapApp, revision, opts.Command, args[1:])
+	return snapExec(snapApp, revision, opts.Command, args)
 }
 
 func findCommand(app *snap.AppInfo, command string) (string, error) {
@@ -96,7 +96,7 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 func snapExec(snapApp, revision, command string, args []string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
 	}
 
 	snapName, appName := snap.SplitSnapApp(snapApp)
@@ -104,7 +104,7 @@ func snapExec(snapApp, revision, command string, args []string) error {
 		Revision: rev,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot read info for %q: %s", snapName, err)
 	}
 
 	app := info.Apps[appName]
@@ -124,5 +124,9 @@ func snapExec(snapApp, revision, command string, args []string) error {
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
 	fullCmdArgs := []string{fullCmd}
 	fullCmdArgs = append(fullCmdArgs, args...)
-	return syscallExec(fullCmd, fullCmdArgs, env)
+	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {
+		return fmt.Errorf("cannot exec %q: %s", fullCmd, err)
+	}
+	// this is never reached except in tests
+	return nil
 }
