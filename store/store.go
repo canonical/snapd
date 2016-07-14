@@ -948,7 +948,6 @@ type BuyOptions struct {
 	// Required
 	SnapID   string          `json:"snap-id"`
 	SnapName string          `json:"snap-name"`
-	Channel  string          `json:"channel"`
 	Price    float64         `json:"price"`
 	Currency string          `json:"currency"` // ISO 4217 code as string
 	User     *auth.UserState `json:"-"`
@@ -1000,9 +999,6 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 	}
 	if options.SnapName == "" {
 		return buyOptionError(options, "snap name missing")
-	}
-	if options.Channel == "" {
-		return buyOptionError(options, "channel missing")
 	}
 	if options.Price <= 0 {
 		return buyOptionError(options, "invalid expected price")
