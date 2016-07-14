@@ -65,7 +65,7 @@ type apiSuite struct {
 	channel           string
 	suggestedCurrency string
 	d                 *Daemon
-	auther            store.Authenticator
+	user              *auth.UserState
 	restoreBackends   func()
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
@@ -75,23 +75,23 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(name, channel string, devmode bool, auther store.Authenticator) (*snap.Info, error) {
-	s.auther = auther
+func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+	s.user = user
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
 	}
 	return nil, s.err
 }
 
-func (s *apiSuite) Find(searchTerm, channel string, auther store.Authenticator) ([]*snap.Info, error) {
+func (s *apiSuite) Find(searchTerm, channel string, user *auth.UserState) ([]*snap.Info, error) {
 	s.searchTerm = searchTerm
 	s.channel = channel
-	s.auther = auther
+	s.user = user
 
 	return s.rsnaps, s.err
 }
 
-func (s *apiSuite) ListRefresh(snaps []*store.RefreshCandidate, auther store.Authenticator) ([]*snap.Info, error) {
+func (s *apiSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
 
 	return s.rsnaps, s.err
@@ -101,7 +101,7 @@ func (s *apiSuite) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, store.Authenticator) (string, error) {
+func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
 	panic("Download not expected to be called")
 }
 
@@ -134,7 +134,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.channel = ""
 	s.err = nil
 	s.vars = nil
-	s.auther = nil
+	s.user = nil
 	s.d = nil
 	s.refreshCandidates = nil
 	// Disable real security backends for all API tests
@@ -297,12 +297,12 @@ func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find/?q=name:gfoo", nil)
 	c.Assert(err, check.IsNil)
 
-	c.Assert(s.auther, check.IsNil)
+	c.Assert(s.user, check.IsNil)
 
 	_, ok := searchStore(findCmd, req, user).(*resp)
 	c.Assert(ok, check.Equals, true)
-	// ensure authenticator was set
-	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
+	// ensure user was set
+	c.Assert(s.user, check.DeepEquals, user)
 }
 
 func (s *apiSuite) TestSnapInfoNotFound(c *check.C) {
@@ -472,7 +472,7 @@ func (s *apiSuite) makeStoreMacaroon() (string, error) {
 		return "", err
 	}
 
-	return auth.MacaroonSerialize(m)
+	return store.MacaroonSerialize(m)
 }
 
 func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string, error) {
@@ -982,12 +982,12 @@ func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snaps?sources=store", nil)
 	c.Assert(err, check.IsNil)
 
-	c.Assert(s.auther, check.IsNil)
+	c.Assert(s.user, check.IsNil)
 
 	_ = getSnapsInfo(snapsCmd, req, user).(*resp)
 
-	// ensure authenticator was set
-	c.Assert(s.auther, check.DeepEquals, user.Authenticator())
+	// ensure user was set
+	c.Assert(s.user, check.DeepEquals, user)
 }
 
 func (s *apiSuite) TestSnapsInfoLocalAndStore(c *check.C) {
@@ -2912,7 +2912,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 		Channel:  "channel-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
-		Auther:   user.Authenticator(),
+		User:     user,
 	})
 }
 
@@ -2947,6 +2947,6 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 		Channel:  "channel-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
-		Auther:   user.Authenticator(),
+		User:     user,
 	})
 }
