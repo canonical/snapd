@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -562,9 +563,10 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action  string `json:"action"`
-	Channel string `json:"channel"`
-	DevMode bool   `json:"devmode"`
+	Action   string `json:"action"`
+	Channel  string `json:"channel"`
+	DevMode  bool   `json:"devmode"`
+	JailMode bool   `json:"jailmode"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -626,10 +628,33 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
-func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
+
+func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
+	devModeOS := release.ReleaseInfo.ForceDevMode()
 	flags := snapstate.Flags(0)
-	if inst.DevMode || release.ReleaseInfo.ForceDevMode() {
+	if jailMode {
+		if devModeOS {
+			return 0, errNoJailMode
+		}
+		if devMode {
+			return 0, errModeConflict
+		}
+		flags |= snapstate.JailMode
+	}
+	if devMode || devModeOS {
 		flags |= snapstate.DevMode
+	}
+
+	return flags, nil
+
+}
+
+func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
@@ -803,6 +828,19 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
+func isTrue(form *multipart.Form, key string) bool {
+	value := form.Value[key]
+	if len(value) == 0 {
+		return false
+	}
+	b, err := strconv.ParseBool(value[0])
+	if err != nil {
+		return false
+	}
+
+	return b
+}
+
 func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -826,13 +864,9 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	var flags snapstate.Flags
-
-	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
-		flags |= snapstate.DevMode
-	}
-	if release.ReleaseInfo.ForceDevMode() {
-		flags |= snapstate.DevMode
+	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"))
+	if err != nil {
+		return BadRequest(err.Error())
 	}
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
