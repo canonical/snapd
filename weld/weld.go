@@ -119,8 +119,10 @@ func bootstrapToRootdir(opts *Options) error {
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
 	}
+
+	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
 	dlOpts := &downloadOptions{
-		TargetDir:    dirs.SnapSeedDir,
+		TargetDir:    snapSeedDir,
 		Channel:      opts.Channel,
 		StoreID:      model.Store(),
 		Architecture: model.Architecture(),
@@ -135,7 +137,7 @@ func bootstrapToRootdir(opts *Options) error {
 	snaps = append(snaps, model.Kernel())
 	snaps = append(snaps, model.RequiredSnaps()...)
 
-	for _, d := range []string{dirs.SnapBlobDir, dirs.SnapSeedDir} {
+	for _, d := range []string{dirs.SnapBlobDir, snapSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
