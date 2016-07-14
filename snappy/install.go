@@ -75,7 +75,7 @@ func newConfiguredUbuntuStoreSnapRepository() *store.SnapUbuntuStoreRepository {
 		storeID = cand
 	}
 
-	return store.NewUbuntuStoreSnapRepository(storeConfig, storeID)
+	return store.NewUbuntuStoreSnapRepository(storeConfig, storeID, nil)
 }
 
 // Install the givens snap names provided via args. This can be local
