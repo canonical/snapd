@@ -165,7 +165,11 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 }
 
 func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
-	panic("Never expected apiSuite.Buy to be called")
+	panic("Never expected fakeStore.Buy to be called")
+}
+
+func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
+	panic("Never expected fakeStore.PaymentMethods to be called")
 }
 
 type fakeSnappyBackend struct {
