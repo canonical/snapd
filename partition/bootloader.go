@@ -21,7 +21,12 @@ package partition
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -56,6 +61,28 @@ type Bootloader interface {
 
 	// Name returns the bootloader name
 	Name() string
+
+	// configFile returns the name of the config file
+	configFile() string
+}
+
+// InstallBootConfig install the bootloader config from the gadget
+// snap dir into the right place
+func InstallBootConfig(gadgetDir string) error {
+	for _, bl := range []Bootloader{&grub{}, &uboot{}} {
+		fn, err := find(gadgetDir, filepath.Base(bl.configFile()))
+		if err != nil {
+			continue
+		}
+
+		dst := bl.configFile()
+		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+			return err
+		}
+		return osutil.CopyFile(fn, dst, 0)
+	}
+
+	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
 }
 
 var forcedBootloader Bootloader
