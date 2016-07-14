@@ -628,18 +628,18 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
-var errNoDevModeAndJailMode = errors.New("cannot use devmode and jailmode flags together")
-var errNoJailModeOnDevModeOS = errors.New("this system cannot honour the jailmode flag")
+var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
 
 func mkFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 	devModeOS := release.ReleaseInfo.ForceDevMode()
 	flags := snapstate.Flags(0)
 	if jailMode {
 		if devModeOS {
-			return 0, errNoJailModeOnDevModeOS
+			return 0, errNoJailMode
 		}
 		if devMode {
-			return 0, errNoDevModeAndJailMode
+			return 0, errModeConflict
 		}
 		flags |= snapstate.JailMode
 	}

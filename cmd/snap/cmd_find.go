@@ -125,9 +125,9 @@ func findSnaps(opts *client.FindOptions) error {
 
 	for _, snap := range snaps {
 		notes := &Notes{
-			Private:     snap.Private,
-			Confinement: snap.Confinement,
-			Price:       getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
+			Private: snap.Private,
+			DevMode: snap.Confinement != client.StrictConfinement,
+			Price:   getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
 		}
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, notes, snap.Summary)
