@@ -46,8 +46,6 @@ func (os *OS) ForceDevMode() bool {
 	case "ubuntu":
 		return false
 	case "elementary":
-		fallthrough
-	case "elementary OS":
 		switch os.VersionID {
 		case "0.4":
 			return false
@@ -94,11 +92,20 @@ func readOSRelease() OS {
 		}
 
 		k := strings.TrimSpace(ws[0])
-		v := strings.TrimFunc(ws[1], func(r rune) bool { return r == '"' || unicode.IsSpace(r) })
+		v := strings.TrimFunc(ws[1], func(r rune) bool { return r == '"' || r == '\'' || unicode.IsSpace(r) })
 		// XXX: should also unquote things as per os-release(5) but not needed yet in practice
 		switch k {
 		case "ID":
-			osRelease.ID = v
+			// ID should be “A lower-case string (no spaces or
+			// other characters outside of 0–9, a–z, ".", "_" and
+			// "-") identifying the operating system, excluding any
+			// version information and suitable for processing by
+			// scripts or usage in generated filenames.”
+			//
+			// So we mangle it a little bit to account for people
+			// not being too good at reading comprehension.
+			// Works around e.g. lp:1602317
+			osRelease.ID = strings.Fields(strings.ToLower(v))[0]
 		case "VERSION_ID":
 			osRelease.VersionID = v
 		}
