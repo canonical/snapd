@@ -99,7 +99,7 @@ func createTestUser(userID int, root, discharge *macaroon.Macaroon) (*auth.UserS
 }
 
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
-	t.store = NewUbuntuStoreSnapRepository(nil, "")
+	t.store = NewUbuntuStoreSnapRepository(nil, "", nil)
 	t.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
@@ -398,7 +398,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// the actual test
@@ -457,7 +457,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// the actual test
@@ -505,7 +505,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 		DetailsURI:   detailsURI,
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	snap, err := repo.Snap("hello-world", "edge", false, t.user)
@@ -533,7 +533,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// the actual test
@@ -577,7 +577,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// the actual test
@@ -690,7 +690,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		DetailsURI: detailsURI,
 		SearchURI:  searchURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	for _, query := range []string{
@@ -704,7 +704,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
-	repo := NewUbuntuStoreSnapRepository(&SnapUbuntuStoreConfig{SearchURI: new(url.URL)}, "")
+	repo := NewUbuntuStoreSnapRepository(&SnapUbuntuStoreConfig{SearchURI: new(url.URL)}, "", nil)
 	_, err := repo.Find("", "", nil)
 	c.Check(err, Equals, ErrEmptyQuery)
 	_, err = repo.Find("foo:bar", "", nil)
@@ -740,7 +740,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 		SearchURI:    searchURI,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
@@ -763,7 +763,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 		SearchURI:    searchURI,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
@@ -789,7 +789,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 		SearchURI:    searchURI,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("hello", "", nil)
@@ -831,7 +831,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 		SearchURI:    searchURI,
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("foo", "", t.user)
@@ -876,7 +876,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 		PurchasesURI: purchasesURI,
 		DetailFields: []string{}, // make the error less noisy
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	snaps, err := repo.Find("foo", "", t.user)
@@ -980,7 +980,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		BulkURI: bulkURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	results, err := repo.ListRefresh([]*RefreshCandidate{
@@ -1033,7 +1033,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 	cfg := SnapUbuntuStoreConfig{
 		BulkURI: bulkURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	results, err := repo.ListRefresh([]*RefreshCandidate{
@@ -1082,7 +1082,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 	cfg := SnapUbuntuStoreConfig{
 		BulkURI: bulkURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	results, err := repo.ListRefresh([]*RefreshCandidate{
@@ -1130,7 +1130,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	cfg := SnapUbuntuStoreConfig{
 		BulkURI: bulkURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	_, err = repo.ListRefresh([]*RefreshCandidate{
@@ -1163,7 +1163,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		BulkURI: bulkURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	_, err = repo.ListRefresh([]*RefreshCandidate{
@@ -1279,7 +1279,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		AssertionsURI: assertionsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 
 	a, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
@@ -1307,7 +1307,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionSetsAuth(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		AssertionsURI: assertionsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
 	c.Assert(err, IsNil)
@@ -1331,7 +1331,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		AssertionsURI: assertionsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Check(err, Equals, ErrAssertionNotFound)
@@ -1355,7 +1355,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		DetailsURI: detailsURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// the store doesn't know the currency until after the first search, so fall back to dollars
@@ -1393,7 +1393,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	helloWorld := &snap.Info{}
@@ -1440,7 +1440,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C)
 	cfg := SnapUbuntuStoreConfig{
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	helloWorld := &snap.Info{}
@@ -1471,7 +1471,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C)
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesNoAuth(c *C) {
 	cfg := SnapUbuntuStoreConfig{}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	helloWorld := &snap.Info{}
@@ -1517,7 +1517,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesAllFree(c *C) {
 		PurchasesURI: purchasesURI,
 	}
 
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// This snap is free
@@ -1554,7 +1554,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	helloWorld := &snap.Info{}
@@ -1570,7 +1570,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleFreeSnap(c *C) {
 	cfg := SnapUbuntuStoreConfig{}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	helloWorld := &snap.Info{}
@@ -1602,7 +1602,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	helloWorld := &snap.Info{}
@@ -1635,7 +1635,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 	cfg := SnapUbuntuStoreConfig{
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	helloWorld := &snap.Info{}
@@ -1724,7 +1724,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 		DetailsURI:   detailsURI,
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// Find the snap first
@@ -1806,7 +1806,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 		DetailsURI:   detailsURI,
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// Find the snap first
@@ -1885,7 +1885,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 		DetailsURI:   detailsURI,
 		PurchasesURI: purchasesURI,
 	}
-	repo := NewUbuntuStoreSnapRepository(&cfg, "")
+	repo := NewUbuntuStoreSnapRepository(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
 	// Find the snap first
@@ -1911,7 +1911,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
-	repo := NewUbuntuStoreSnapRepository(&SnapUbuntuStoreConfig{}, "")
+	repo := NewUbuntuStoreSnapRepository(&SnapUbuntuStoreConfig{}, "", nil)
 	c.Assert(repo, NotNil)
 
 	// no snap ID
