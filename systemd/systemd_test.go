@@ -342,7 +342,11 @@ func (s *SystemdTestSuite) TestRestartCondUnmarshal(c *C) {
 
 func (s *SystemdTestSuite) TestRestartCondString(c *C) {
 	for name, cond := range RestartMap {
-		c.Check(cond.String(), Equals, name, Commentf(name))
+		if cond == RestartNever {
+			c.Check(cond.String(), Equals, "no", Commentf(name))
+		} else {
+			c.Check(cond.String(), Equals, name, Commentf(name))
+		}
 	}
 }
 
