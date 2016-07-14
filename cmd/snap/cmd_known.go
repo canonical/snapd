@@ -52,6 +52,10 @@ func init() {
 var nl = []byte{'\n'}
 
 func (x *cmdKnown) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	// TODO: share this kind of parsing once it's clearer how often is used in snap
 	headers := map[string]string{}
 	for _, headerFilter := range x.KnownOptions.HeaderFilters {

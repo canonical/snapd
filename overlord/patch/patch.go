@@ -28,7 +28,7 @@ import (
 )
 
 // Level is the current implemented patch level of the state format and content.
-var Level = 1
+var Level = 2
 
 // patches maps from patch level L to the function that moves from L-1 to L.
 var patches = make(map[int]func(s *state.State) error)

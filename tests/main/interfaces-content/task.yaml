@@ -1,0 +1,44 @@
+summary: Ensure that the content sharing interface works.
+
+details: |
+    The content-sharing interface interface allows a snap to access contents from
+    other snap
+
+    A snap which defines the content sharing plug must be shown in the interfaces list.
+    The plug must be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+prepare: |
+    echo "Given a snap declaring a content sharing slot is installed"
+    snapbuild $TESTSLIB/snaps/content-slot .
+    snap install ./content-slot_1.0_all.snap
+
+    echo "And a snap declaring a content sharing plug is installed"
+    snapbuild $TESTSLIB/snaps/content-plug .
+    snap install ./content-plug_1.0_all.snap
+
+execute: |
+    CONNECTED_PATTERN="content-slot:shared-content-slot +content-plug:shared-content-plug"
+    DISCONNECTED_PATTERN="(?s).*?content-slot:shared-content-slot +-.*?- +content-plug:shared-content-plug"
+
+    echo "Then the snap is listed as connected"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "And fstab files are created"
+    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+
+    echo "============================================"
+
+    echo "When the plug is disconnected"
+    snap disconnect content-plug:shared-content-plug content-slot:shared-content-slot
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the fstab files are removed"
+    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -eq 0 ]
+
+    echo "When the plug is reconnected"
+    snap connect content-plug:shared-content-plug content-slot:shared-content-slot
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the fstab files are recreated"
+    [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
