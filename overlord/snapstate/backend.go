@@ -35,6 +35,7 @@ type StoreService interface {
 
 	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
 	Buy(options *store.BuyOptions) (*store.BuyResult, error)
+	PaymentMethods(*auth.UserState) (*store.PaymentInformation, error)
 }
 
 type managerBackend interface {

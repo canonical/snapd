@@ -71,6 +71,7 @@ type apiSuite struct {
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
+	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
 }
 
@@ -94,6 +95,7 @@ func (s *apiSuite) Find(searchTerm, channel string, user *auth.UserState) ([]*sn
 
 func (s *apiSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
+	s.user = user
 
 	return s.rsnaps, s.err
 }
@@ -109,6 +111,11 @@ func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, *auth.Us
 func (s *apiSuite) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
 	s.buyOptions = options
 	return s.buyResult, s.err
+}
+
+func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
+	s.user = user
+	return s.paymentMethods, s.err
 }
 
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
@@ -143,7 +150,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.buyOptions = nil
 	s.buyResult = nil
-
+	s.paymentMethods = nil
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
@@ -3030,7 +3037,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, user).(*resp)
+	rsp := postBuy(buyCmd, req, user).(*resp)
 
 	expected := buyResponseData{
 		State: "Complete",
@@ -3070,7 +3077,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, user).(*resp)
+	rsp := postBuy(buyCmd, req, user).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
@@ -3096,4 +3103,37 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 		form.Value = map[string][]string{"foo": []string{t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
+}
+
+func (s *apiSuite) TestPaymentMethods(c *check.C) {
+	s.paymentMethods = &store.PaymentInformation{
+		AllowsAutomaticPayment: true,
+		Methods: []*store.PaymentMethod{
+			&store.PaymentMethod{
+				BackendID:           "credit_card",
+				Currencies:          []string{"GBP", "USD"},
+				Description:         "**** **** **** 1234 (exp 20/2020)",
+				ID:                  123,
+				Preferred:           true,
+				RequiresInteraction: false,
+			},
+		},
+	}
+	s.err = nil
+
+	req, err := http.NewRequest("GET", "/v2/buy/methods", nil)
+	c.Assert(err, check.IsNil)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	rsp := getPaymentMethods(paymentMethodsCmd, req, user).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
+	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
 }
