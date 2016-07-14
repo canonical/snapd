@@ -71,6 +71,7 @@ var api = []*Command{
 	stateChangesCmd,
 	createUserCmd,
 	buyCmd,
+	paymentMethodsCmd,
 }
 
 var (
@@ -179,6 +180,12 @@ var (
 		Path:   "/v2/buy",
 		UserOK: false,
 		POST:   postBuy,
+	}
+
+	paymentMethodsCmd = &Command{
+		Path:   "/v2/buy/methods",
+		UserOK: false,
+		GET:    getPaymentMethods,
 	}
 )
 
@@ -1393,4 +1400,21 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
+}
+
+func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	paymentMethods, err := s.PaymentMethods(user)
+
+	switch err {
+	default:
+		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	case nil:
+		// continue
+	}
+
+	return SyncResponse(paymentMethods, nil)
 }
