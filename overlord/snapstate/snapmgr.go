@@ -388,7 +388,7 @@ func cachedStore(s *state.State) StoreService {
 }
 
 // the store implementation has the interface consumed here
-var _ StoreService = (*store.SnapUbuntuStoreRepository)(nil)
+var _ StoreService = (*store.Store)(nil)
 
 // Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
@@ -403,7 +403,7 @@ func Store(s *state.State) StoreService {
 	}
 
 	authContext := auth.NewAuthContext(s)
-	s.Cache(cachedStoreKey{}, store.NewUbuntuStoreSnapRepository(nil, storeID, authContext))
+	s.Cache(cachedStoreKey{}, store.New(nil, storeID, authContext))
 	return cachedStore(s)
 }
 
