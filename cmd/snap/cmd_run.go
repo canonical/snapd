@@ -41,10 +41,6 @@ var (
 )
 
 type cmdRun struct {
-	Positional struct {
-		SnapApp string `positional-arg-name:"<app name>" description:"the snap (e.g. hello-world) or application to run (e.g. hello-world.env)"`
-	} `positional-args:"yes" required:"yes"`
-
 	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
 	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
 	Revision string `short:"r" description:"use a specific snap revision when running hook" default:"unset" hidden:"yes"`
@@ -61,11 +57,17 @@ func init() {
 }
 
 func (x *cmdRun) Execute(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("need the application to run as argument")
+	}
+	snapApp := args[0]
+	args = args[1:]
+
 	// Catch some invalid parameter combinations, provide helpful errors
 	if x.Hook != "" && x.Command != "" {
 		return fmt.Errorf("cannot use --hook and --command together")
 	}
-	if x.Revision != "" && x.Hook == "" {
+	if x.Revision != "unset" && x.Hook == "" {
 		return fmt.Errorf("-r can only be used with --hook")
 	}
 	if x.Hook != "" && len(args) > 0 {
@@ -74,7 +76,7 @@ func (x *cmdRun) Execute(args []string) error {
 
 	// Now actually handle the dispatching
 	if x.Hook != "" {
-		return snapRunHook(x.Positional.SnapApp, x.Revision, x.Hook)
+		return snapRunHook(snapApp, x.Revision, x.Hook)
 	}
 
 	// pass shell as a special command to snap-exec
@@ -82,7 +84,7 @@ func (x *cmdRun) Execute(args []string) error {
 		x.Command = "shell"
 	}
 
-	return snapRunApp(x.Positional.SnapApp, x.Command, args)
+	return snapRunApp(snapApp, x.Command, args)
 }
 
 func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
@@ -149,7 +151,7 @@ func snapRunApp(snapApp, command string, args []string) error {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	return runSnapConfine(info, app.SecurityTag(), snapApp, command, args)
+	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", args)
 }
 
 func snapRunHook(snapName, snapRevision, hookName string) error {
@@ -164,16 +166,17 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	}
 
 	hook := info.Hooks[hookName]
+
+	// Make sure this hook is valid for this snap. If not, don't run it. This
+	// isn't an error, e.g. it will happen if a snap doesn't ship a system hook.
 	if hook == nil {
-		return fmt.Errorf("cannot find hook %q in %q", hookName, snapName)
+		return nil
 	}
 
-	hookBinary := filepath.Join(info.HooksDir(), hook.Name)
-
-	return runSnapConfine(info, hook.SecurityTag(), hookBinary, "", nil)
+	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
 }
 
-func runSnapConfine(info *snap.Info, securityTag, binary, command string, args []string) error {
+func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -183,11 +186,15 @@ func runSnapConfine(info *snap.Info, securityTag, binary, command string, args [
 		securityTag,
 		securityTag,
 		"/usr/lib/snapd/snap-exec",
-		binary,
+		snapApp,
 	}
 
 	if command != "" {
 		cmd = append(cmd, "--command="+command)
+	}
+
+	if hook != "" {
+		cmd = append(cmd, "--hook="+hook)
 	}
 
 	cmd = append(cmd, args...)

@@ -225,14 +225,27 @@ apps:
 	c.Assert(err, IsNil)
 
 	var baseURL string
+	fillHit := func() string {
+		hit := strings.Replace(fooSearchHit, "@URL@", baseURL+"/snap", -1)
+		hit = strings.Replace(hit, "@ICON@", baseURL+"/icon", -1)
+		hit = strings.Replace(hit, "@VERSION@", ver, -1)
+		hit = strings.Replace(hit, "@REVISION@", revno, -1)
+		return hit
+	}
+
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/details/foo":
 			w.WriteHeader(http.StatusOK)
-			output := strings.Replace(fooSearchHit, "@URL@", baseURL+"/snap", -1)
-			output = strings.Replace(output, "@ICON@", baseURL+"/icon", -1)
-			output = strings.Replace(output, "@VERSION@", ver, -1)
-			output = strings.Replace(output, "@REVISION@", revno, -1)
+			io.WriteString(w, fillHit())
+		case "/metadata":
+			w.WriteHeader(http.StatusOK)
+			output := `{
+    "_embedded": {
+	    "clickindex:package": [@HIT@]
+    }
+}`
+			output = strings.Replace(output, "@HIT@", fillHit(), 1)
 			io.WriteString(w, output)
 		case "/snap":
 			io.Copy(w, snapR)
@@ -247,11 +260,14 @@ apps:
 
 	detailsURL, err := url.Parse(baseURL + "/details/")
 	c.Assert(err, IsNil)
-	storeCfg := store.SnapUbuntuStoreConfig{
+	bulkURL, err := url.Parse(baseURL + "/metadata")
+	c.Assert(err, IsNil)
+	storeCfg := store.Config{
 		DetailsURI: detailsURL,
+		BulkURI:    bulkURL,
 	}
 
-	mStore := store.NewUbuntuStoreSnapRepository(&storeCfg, "")
+	mStore := store.New(&storeCfg, "", nil)
 
 	st := ms.o.State()
 	st.Lock()

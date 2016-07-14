@@ -1,0 +1,62 @@
+summary: Ensures that the mount-observe interface works
+
+details: |
+    A snap declaring the mount-observe plug is defined, its command
+    just read the /proc/<pid>/mounts file.
+
+    The test itself checks for the lack of autoconnect and then tries
+    to execute the snap command with the plug connected (it must succeed)
+    and disconnected (it must fail).
+
+    The test also checks that a new mount created after the snap is installed
+    is also shown when the plug is connected.
+
+prepare: |
+    echo "Given a snap declaring a plug on the mount-observe interface is installed"
+    snapbuild $TESTSLIB/snaps/mount-observe-consumer .
+    snap install mount-observe-consumer_1.0_all.snap
+
+restore: |
+    rm -f mount-observe-consumer_1.0_all.snap
+
+execute: |
+    CONNECTED_PATTERN=":mount-observe +mount-observe-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +mount-observe-consumer:mount-observe"
+
+    echo "Then the plug is shown as disconnected"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "========================================="
+
+    echo "When the plug is connected"
+    snap connect mount-observe-consumer:mount-observe ubuntu-core:mount-observe
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the mount info is reachable"
+    expected="/snap/mount-observe-consumer"
+    sudo -i -u test /bin/sh -c "mount-observe-consumer" | grep -Pq "$expected"
+
+    echo "========================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect mount-observe-consumer:mount-observe ubuntu-core:mount-observe
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the mount info is not reachable"
+    if sudo -i -u test /bin/sh -c "mount-observe-consumer"; then
+        echo "Expected error accessing mount info with disconnected plug"
+        exit 1
+    fi
+
+    echo "========================================="
+
+    echo "When the plug is connected"
+    snap connect mount-observe-consumer:mount-observe ubuntu-core:mount-observe
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "And a new mount is created"
+    snap install test-snapd-tools
+
+    echo "Then the new mount info is reachable"
+    expected="/snap/test-snapd-tools"
+    sudo -i -u test /bin/sh -c "mount-observe-consumer" | grep -Pq "$expected"
