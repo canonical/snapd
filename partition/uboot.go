@@ -49,7 +49,7 @@ func (u *uboot) Dir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/boot/uboot")
 }
 
-func (u *uboot) configFile() string {
+func (u *uboot) ConfigFile() string {
 	return u.envFile()
 }
 

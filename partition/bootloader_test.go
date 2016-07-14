@@ -59,7 +59,7 @@ func (b *mockBootloader) SetBootVar(name, value string) error {
 	b.bootVars[name] = value
 	return nil
 }
-func (b *mockBootloader) configFile() string {
+func (b *mockBootloader) ConfigFile() string {
 	return "/boot/mocky/mocky.env"
 }
 

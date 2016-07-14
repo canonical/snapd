@@ -63,19 +63,19 @@ type Bootloader interface {
 	Name() string
 
 	// configFile returns the name of the config file
-	configFile() string
+	ConfigFile() string
 }
 
 // InstallBootConfig install the bootloader config from the gadget
 // snap dir into the right place
 func InstallBootConfig(gadgetDir string) error {
 	for _, bl := range []Bootloader{&grub{}, &uboot{}} {
-		fn, err := find(gadgetDir, filepath.Base(bl.configFile()))
+		fn, err := find(gadgetDir, filepath.Base(bl.ConfigFile()))
 		if err != nil {
 			continue
 		}
 
-		dst := bl.configFile()
+		dst := bl.ConfigFile()
 		if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
 			return err
 		}
