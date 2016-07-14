@@ -102,7 +102,7 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 
 	snapstate.ReplaceStore(s.state, nil)
 	store1 := snapstate.Store(s.state)
-	c.Check(store1, FitsTypeOf, &store.SnapUbuntuStoreRepository{})
+	c.Check(store1, FitsTypeOf, &store.Store{})
 
 	// cached
 	store2 := snapstate.Store(s.state)
@@ -305,7 +305,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "edge",
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 	})
 
@@ -327,7 +327,7 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
 		Channel:  "edge",
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 	})
 
@@ -341,13 +341,40 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 	c.Check(ss.Channel, Equals, "edge")
 }
 
+func (s *snapmgrTestSuite) TestUpdatePassDevMode(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
+		Current:  snap.R(7),
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snapstate.DevMode)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op: "storesvc-list-refresh",
+		cand: store.RefreshCandidate{
+			SnapID:   "some-snap-id",
+			Revision: snap.R(7),
+			Epoch:    "",
+			DevMode:  true,
+			Channel:  "some-channel",
+		},
+		revno: snap.R(11),
+	})
+}
+
 func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "some-snap", Revision: snap.R(7)}},
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(7)}},
 		Current:  snap.R(7),
 	})
 
@@ -529,6 +556,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
+		SnapID:   "some-snap-id",
 	}
 
 	s.state.Lock()
@@ -552,8 +580,14 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
+			op: "storesvc-list-refresh",
+			cand: store.RefreshCandidate{
+				Channel:  "some-channel",
+				SnapID:   "some-snap-id",
+				Revision: snap.R(7),
+				Epoch:    "",
+				DevMode:  false,
+			},
 			revno: snap.R(11),
 		},
 		{
@@ -591,7 +625,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Channel:  "some-channel",
 				Revision: snap.R(11),
 			},
@@ -634,7 +668,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		RealName: "some-snap",
 		Revision: snap.R(11),
 		Channel:  "some-channel",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 	})
 
 	// verify snaps in the system state
@@ -646,13 +680,14 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
+		SnapID:   "some-snap-id",
 		Channel:  "",
 		Revision: snap.R(7),
 	})
 	c.Assert(snapst.Sequence[1], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
 		Channel:  "some-channel",
-		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(11),
 	})
 }
@@ -660,6 +695,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(7),
 	}
 
@@ -687,8 +723,14 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
+			op: "storesvc-list-refresh",
+			cand: store.RefreshCandidate{
+				Channel:  "some-channel",
+				SnapID:   "some-snap-id",
+				Revision: snap.R(7),
+				Epoch:    "",
+				DevMode:  false,
+			},
 			revno: snap.R(11),
 		},
 		{
@@ -726,7 +768,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Channel:  "some-channel",
 				Revision: snap.R(11),
 			},
@@ -776,6 +818,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
+		SnapID:   "some-snap-id",
 		Channel:  "",
 		Revision: snap.R(7),
 	})
@@ -784,6 +827,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(7),
 	}
 
@@ -816,8 +860,14 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	expected := []fakeOp{
 		{
-			op:    "storesvc-snap",
-			name:  "some-snap",
+			op: "storesvc-list-refresh",
+			cand: store.RefreshCandidate{
+				Channel:  "some-channel",
+				SnapID:   "some-snap-id",
+				Revision: snap.R(7),
+				Epoch:    "",
+				DevMode:  false,
+			},
 			revno: snap.R(11),
 		},
 		{
@@ -855,7 +905,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
-				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				SnapID:   "some-snap-id",
 				Channel:  "some-channel",
 				Revision: snap.R(11),
 			},
@@ -907,12 +957,72 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	c.Assert(snapst.Sequence, HasLen, 1)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
+		SnapID:   "some-snap-id",
 		Channel:  "",
 		Revision: snap.R(7),
 	})
 }
 
-func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
+func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
+	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
+	si7 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+	si11 := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(11),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si7, &si11},
+		Current:  si7.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	c.Check(err, ErrorMatches, `snap "some-snap" has no updates available`)
+
+	c.Assert(s.fakeBackend.ops, HasLen, 1)
+	c.Check(s.fakeBackend.ops[0], DeepEquals, fakeOp{
+		op: "storesvc-list-refresh",
+		cand: store.RefreshCandidate{
+			SnapID:   "some-snap-id",
+			Revision: snap.R(7),
+			Epoch:    "",
+			DevMode:  false,
+			Block:    []snap.Revision{snap.R(11)},
+			Channel:  "some-channel",
+		},
+	})
+
+}
+
+func (s *snapmgrTestSuite) TestUpdateLocalSnapFails(c *C) {
 	si := snap.SideInfo{
 		RealName: "some-snap",
 		Revision: snap.R(7),
@@ -927,8 +1037,28 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionRunThrough(c *C) {
 		Current:  si.Revision,
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
-	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	c.Assert(err, ErrorMatches, `cannot refresh local snap "some-snap"`)
+}
+
+func (s *snapmgrTestSuite) TestUpdateDisabledUnsupported(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   false,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+	})
+
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	c.Assert(err, ErrorMatches, `refreshing disabled snap "some-snap" not supported`)
 }
 
 func makeTestSnap(c *C, snapYamlContent string) (snapFilePath string) {
@@ -1371,10 +1501,10 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
 		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", Revision: snap.R(1)},
-			{RealName: "some-snap", Revision: snap.R(2)},
-			{RealName: "some-snap", Revision: snap.R(3)},
-			{RealName: "some-snap", Revision: snap.R(4)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
 		},
 		Current: snap.R(4),
 	})
@@ -2495,10 +2625,12 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(7),
 	}
 	si11 := snap.SideInfo{
 		RealName: "some-snap",
+		SnapID:   "some-snap-id",
 		Revision: snap.R(11),
 	}
 

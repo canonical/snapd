@@ -49,7 +49,7 @@ func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap st
 			return err
 		}
 		snap.AddImplicitSlots(affectedSnapInfo)
-		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevMode(), m.repo); err != nil {
+		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
 			return err
 		}
 	}
@@ -106,7 +106,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.autoConnect(task, snapName, blacklist); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, ss.DevMode(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, snapInfo, ss.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
 
@@ -248,10 +248,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevMode(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevMode(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
 
@@ -292,10 +292,10 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevMode(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevMode(), m.repo); err != nil {
+	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
 
