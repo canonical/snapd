@@ -127,6 +127,16 @@ type Store struct {
 	suggestedCurrency string
 }
 
+func respToError(resp *http.Response, msg string) error {
+	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
+	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
+		tpl += " [%s]"
+		return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL, oops)
+	}
+
+	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.URL)
+}
+
 func getStructFields(s interface{}) []string {
 	st := reflect.TypeOf(s)
 	num := st.NumField()
@@ -351,31 +361,6 @@ func (s *Store) newRequest(method, urlStr string, body io.Reader, user *auth.Use
 	return req, nil
 }
 
-// small helper that sets the correct http headers for the ubuntu store
-func (s *Store) setUbuntuStoreHeaders(req *http.Request, channel string, devmode bool, user *auth.UserState) {
-	if user != nil {
-		authenticate(req, user)
-	}
-
-	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/hal+json,application/json")
-	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
-	req.Header.Set("X-Ubuntu-Release", release.Series)
-	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
-
-	if channel != "" {
-		req.Header.Set("X-Ubuntu-Device-Channel", channel)
-	}
-
-	if devmode {
-		req.Header.Set("X-Ubuntu-Confinement", "devmode")
-	}
-
-	if s.storeID != "" {
-		req.Header.Set("X-Ubuntu-Store", s.storeID)
-	}
-}
-
 func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 	suggestedCurrency := resp.Header.Get("X-Suggested-Currency")
 
@@ -434,12 +419,10 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
 
-	req, err := http.NewRequest("GET", url.String(), nil)
+	req, err := s.newRequest("GET", url.String(), nil, user)
 	if err != nil {
 		return nil, err
 	}
-
-	s.setUbuntuStoreHeaders(req, channel, false, user)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -459,7 +442,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
-		return nil, fmt.Errorf("cannot obtain known purchases from store: server returned %v code", resp.StatusCode)
+		return nil, respToError(resp, "obtain known purchases from store")
 	}
 
 	return purchases, nil
@@ -585,17 +568,14 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 	defer resp.Body.Close()
 
 	// check statusCode
-	switch {
-	case resp.StatusCode == 404:
+	switch resp.StatusCode {
+	case http.StatusOK:
+		// OK
+	case http.StatusNotFound:
 		return nil, ErrSnapNotFound
-	case resp.StatusCode != 200:
-		// TODO: do this for all requests
-		tpl := "Ubuntu CPI service returned unexpected HTTP status code %d while getting details for snap %q in channel %q"
-		if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
-			tpl += " [%s]"
-			return nil, fmt.Errorf(tpl, resp.StatusCode, name, channel, oops)
-		}
-		return nil, fmt.Errorf(tpl, resp.StatusCode, name, channel)
+	default:
+		msg := fmt.Sprintf("get details for snap %q in channel %q", name, channel)
+		return nil, respToError(resp, msg)
 	}
 
 	// and decode json
@@ -691,7 +671,7 @@ func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("received an unexpected http response code (%v) when trying to search via %q", resp.Status, req.URL)
+		return nil, respToError(resp, "search")
 	}
 
 	if ct := resp.Header.Get("Content-Type"); ct != "application/hal+json" {
@@ -792,18 +772,20 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", s.bulkURI.String(), bytes.NewBuffer([]byte(jsonData)))
+	req, err := s.newRequest("POST", s.bulkURI.String(), bytes.NewBuffer([]byte(jsonData)), user)
 	if err != nil {
 		return nil, err
 	}
-
-	s.setUbuntuStoreHeaders(req, "", false, user)
 
 	resp, err := s.client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, respToError(resp, "query the store for updates")
+	}
 
 	var updateData searchResults
 	dec := json.NewDecoder(resp.Body)
@@ -866,11 +848,10 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := s.newRequest("GET", url, nil, user)
 	if err != nil {
 		return "", err
 	}
-	s.setUbuntuStoreHeaders(req, "", false, user)
 
 	if err := download(name, w, req, pbar); err != nil {
 		return "", err
@@ -919,15 +900,10 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		return nil, err
 	}
 
-	req, err := http.NewRequest("GET", url.String(), nil)
+	req, err := s.newRequest("GET", url.String(), nil, user)
 	if err != nil {
 		return nil, err
 	}
-
-	if user != nil {
-		authenticate(req, user)
-	}
-	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", asserts.MediaType)
 
 	resp, err := s.client.Do(req)
@@ -948,7 +924,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 			}
 			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
 		}
-		return nil, fmt.Errorf("unexpected HTTP status code %d", resp.StatusCode)
+		return nil, respToError(resp, "fetch assertion")
 	}
 
 	// and decode assertion
@@ -1051,13 +1027,10 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData))
+	req, err := s.newRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData), options.User)
 	if err != nil {
 		return nil, err
 	}
-
-	s.setUbuntuStoreHeaders(req, options.Channel, false, options.User)
-	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -1107,7 +1080,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		if errorInfo.ErrorMessage != "" {
 			details = ": " + errorInfo.ErrorMessage
 		}
-		return nil, fmt.Errorf("cannot buy snap %q: unexpected HTTP code %d%s", options.SnapName, resp.StatusCode, details)
+		return nil, respToError(resp, fmt.Sprintf("buy snap %q%s", options.SnapName, details))
 	}
 }
 
