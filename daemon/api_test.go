@@ -3024,7 +3024,6 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	buf := bytes.NewBufferString(`{
 	  "snap-id": "the-snap-id-1234abcd",
 	  "snap-name": "the snap name",
-	  "channel": "channel-1234abcd",
 	  "price": 1.23,
 	  "currency": "EUR"
 	}`)
@@ -3050,7 +3049,6 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
 		SnapID:   "the-snap-id-1234abcd",
 		SnapName: "the snap name",
-		Channel:  "channel-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
 		User:     user,
@@ -3064,7 +3062,6 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	// snap name missing
 	buf := bytes.NewBufferString(`{
 	  "snap-id": "the-snap-id-1234abcd",
-	  "channel": "channel-1234abcd",
 	  "price": 1.23,
 	  "currency": "EUR"
 	}`)
@@ -3085,7 +3082,6 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 
 	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
 		SnapID:   "the-snap-id-1234abcd",
-		Channel:  "channel-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
 		User:     user,
