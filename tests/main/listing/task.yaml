@@ -1,7 +1,7 @@
 summary: Check snap listings
 
 prepare: |
-    snap install hello-world
+    snap install test-snapd-tools
 
 execute: |
     echo "List prints core snap version"
@@ -9,5 +9,5 @@ execute: |
     snap list | grep -Pq "$expected"
 
     echo "List prints installed snap version"
-    expected="^hello-world +(\\d+)(\\.\\d+)* +[0-9]+ +\\S+ +- *"
+    expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +[0-9]+ +\\S+ +- *"
     snap list | grep -Pq "$expected"

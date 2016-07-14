@@ -28,12 +28,14 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/openpgp/armor"
 	"golang.org/x/crypto/openpgp/packet"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
@@ -140,4 +142,183 @@ func GPGImportKey(homedir, armoredKey string) {
 	if err != nil {
 		panic(fmt.Errorf("cannot import test key into GPG setup at %q: %v (%q)", homedir, err, out))
 	}
+}
+
+// A SignerDB can sign assertions using its key pairs.
+type SignerDB interface {
+	Sign(assertType *asserts.AssertionType, headers map[string]string, body []byte, keyID string) (asserts.Assertion, error)
+}
+
+// NewAccount creates an account assertion for username, it fills in values for other missing headers as needed. It panics on error.
+func NewAccount(db SignerDB, username string, otherHeaders map[string]string, keyID string) *asserts.Account {
+	if otherHeaders == nil {
+		otherHeaders = make(map[string]string)
+	}
+	otherHeaders["username"] = username
+	if otherHeaders["account-id"] == "" {
+		otherHeaders["account-id"] = strutil.MakeRandomString(32)
+	}
+	if otherHeaders["display-name"] == "" {
+		otherHeaders["display-name"] = strings.ToTitle(username)
+	}
+	if otherHeaders["validation"] == "" {
+		otherHeaders["validation"] = "unproven"
+	}
+	if otherHeaders["timestamp"] == "" {
+		otherHeaders["timestamp"] = time.Now().Format(time.RFC3339)
+	}
+	a, err := db.Sign(asserts.AccountType, otherHeaders, nil, keyID)
+	if err != nil {
+		panic(err)
+	}
+	return a.(*asserts.Account)
+}
+
+// NewAccountKey creates an account-key assertion for the account, it fills in values for missing headers as needed. In panics on error.
+func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]string, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
+	if otherHeaders == nil {
+		otherHeaders = make(map[string]string)
+	}
+	otherHeaders["account-id"] = acct.AccountID()
+	otherHeaders["public-key-id"] = pubKey.ID()
+	otherHeaders["public-key-fingerprint"] = pubKey.Fingerprint()
+	if otherHeaders["since"] == "" {
+		otherHeaders["since"] = time.Now().Format(time.RFC3339)
+	}
+	if otherHeaders["until"] == "" {
+		since, err := time.Parse(time.RFC3339, otherHeaders["since"])
+		if err != nil {
+			panic(err)
+		}
+		otherHeaders["until"] = since.AddDate(5, 0, 0).Format(time.RFC3339)
+	}
+	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
+	if err != nil {
+		panic(err)
+	}
+	a, err := db.Sign(asserts.AccountKeyType, otherHeaders, encodedPubKey, keyID)
+	if err != nil {
+		panic(err)
+	}
+	return a.(*asserts.AccountKey)
+}
+
+// SigningDB embeds a signing assertion database with a default private key and assigned authority id.
+// Sign will use the assigned authority id.
+// "" can be passed for keyID to Sign and PublicKey to use the default key.
+type SigningDB struct {
+	AuthorityID string
+	KeyID       string
+
+	*asserts.Database
+}
+
+// NewSigningDB creates a test signing assertion db with the given defaults. It panics on error.
+func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+	})
+	if err != nil {
+		panic(err)
+	}
+	err = db.ImportKey(authorityID, privKey)
+	if err != nil {
+		panic(err)
+	}
+	return &SigningDB{
+		AuthorityID: authorityID,
+		KeyID:       privKey.PublicKey().ID(),
+		Database:    db,
+	}
+}
+
+func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]string, body []byte, keyID string) (asserts.Assertion, error) {
+	headers["authority-id"] = db.AuthorityID
+	if keyID == "" {
+		keyID = db.KeyID
+	}
+	return db.Database.Sign(assertType, headers, body, keyID)
+}
+
+func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
+	if keyID == "" {
+		keyID = db.KeyID
+	}
+	return db.Database.PublicKey(db.AuthorityID, keyID)
+}
+
+// StoreStack realises a store-like set of founding trusted assertions and signing setup.
+type StoreStack struct {
+	// Trusted authority assertions.
+	TrustedAccount *asserts.Account
+	TrustedKey     *asserts.AccountKey
+	Trusted        []asserts.Assertion
+
+	// Signing assertion db that signs with the root private key.
+	RootSigning *SigningDB
+
+	// The store-like signing functionality that signs with a store key, setup to also store assertions if desired. It stores a default account-key for the store private key, see also the StoreStack.Key method.
+	*SigningDB
+}
+
+// NewStoreStack creates a new store assertion stack. It panics on error.
+func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreStack {
+	rootSigning := NewSigningDB(authorityID, rootPrivKey)
+	trustedAcct := NewAccount(rootSigning, authorityID, map[string]string{
+		"account-id": authorityID,
+		"validation": "certified",
+	}, "")
+	trustedKey := NewAccountKey(rootSigning, trustedAcct, nil, rootPrivKey.PublicKey(), "")
+	trusted := []asserts.Assertion{trustedAcct, trustedKey}
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted:        trusted,
+	})
+	if err != nil {
+		panic(err)
+	}
+	err = db.ImportKey(authorityID, storePrivKey)
+	if err != nil {
+		panic(err)
+	}
+	storeKey := NewAccountKey(rootSigning, trustedAcct, nil, storePrivKey.PublicKey(), "")
+	err = db.Add(storeKey)
+	if err != nil {
+		panic(err)
+	}
+
+	return &StoreStack{
+		TrustedAccount: trustedAcct,
+		TrustedKey:     trustedKey,
+		Trusted:        trusted,
+
+		RootSigning: rootSigning,
+
+		SigningDB: &SigningDB{
+			AuthorityID: authorityID,
+			KeyID:       storeKey.PublicKeyID(),
+			Database:    db,
+		},
+	}
+}
+
+// StoreAccountKey retrieves one of the account-key assertions for the signing keys of the simulated store signing database.
+// "" for keyID means the default one. It panics on error.
+func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
+	if keyID == "" {
+		keyID = ss.KeyID
+	}
+	key, err := ss.Find(asserts.AccountKeyType, map[string]string{
+		"account-id":    ss.AuthorityID,
+		"public-key-id": keyID,
+	})
+	if err == asserts.ErrNotFound {
+		return nil
+	}
+	if err != nil {
+		panic(err)
+	}
+	return key.(*asserts.AccountKey)
 }

@@ -84,12 +84,6 @@ var (
 	CachedStore = cachedStore
 )
 
-// flagscompat
-const (
-	InterimUnusableFlagValueMin  = interimUnusableLegacyFlagValueMin
-	InterimUnusableFlagValueLast = interimUnusableLegacyFlagValueLast
-)
-
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
 	return snapst.previousSideInfo()
 }

@@ -39,4 +39,4 @@ execute: |
     wait_for_remove_state Done
 
     echo "And the snap is removed"
-    ! snap list | grep -q test-snapd-tools
+    while snap list | grep -q test-snapd-tools; do sleep 1; done
