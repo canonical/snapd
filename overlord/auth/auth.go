@@ -119,6 +119,26 @@ func User(st *state.State, id int) (*UserState, error) {
 	return nil, fmt.Errorf("invalid user")
 }
 
+// UpdateUser updates user in state
+func UpdateUser(st *state.State, user *UserState) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return err
+	}
+
+	for i := range authStateData.Users {
+		if authStateData.Users[i].ID == user.ID {
+			authStateData.Users[i] = *user
+			st.Set("auth", authStateData)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid user")
+}
+
 // Device returns the device details from the state.
 func Device(st *state.State) (*DeviceState, error) {
 	var authStateData AuthState
@@ -182,4 +202,27 @@ NextUser:
 		return &user, nil
 	}
 	return nil, ErrInvalidAuth
+}
+
+// An AuthContext handles user updates.
+type AuthContext interface {
+	UpdateUser(user *UserState) error
+}
+
+// authContext helps keeping track and updating users in the state.
+type authContext struct {
+	state *state.State
+}
+
+// NewAuthContext returns an AuthContext for state.
+func NewAuthContext(st *state.State) AuthContext {
+	return &authContext{state: st}
+}
+
+// UpdateUser updates user in state.
+func (ac *authContext) UpdateUser(user *UserState) error {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return UpdateUser(ac.state, user)
 }
