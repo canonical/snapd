@@ -120,7 +120,7 @@ func bootstrapToRootdir(opts *Options) error {
 		return err
 	}
 	dlOpts := &downloadOptions{
-		TargetDir:    dirs.SnapBlobDir,
+		TargetDir:    dirs.SnapSeedDir,
 		Channel:      opts.Channel,
 		StoreID:      model.Store(),
 		Architecture: model.Architecture(),
@@ -135,10 +135,22 @@ func bootstrapToRootdir(opts *Options) error {
 	snaps = append(snaps, model.Kernel())
 	snaps = append(snaps, model.RequiredSnaps()...)
 
+	for _, d := range []string{dirs.SnapBlobDir, dirs.SnapSeedDir} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			return err
+		}
+	}
 	for _, snapName := range snaps {
 		fmt.Printf("Fetching %s\n", snapName)
-		if _, err := acquireSnap(snapName, dlOpts); err != nil {
+		fn, err := acquireSnap(snapName, dlOpts)
+		if err != nil {
 			return err
+		}
+		// kernel/os are required for booting
+		if snapName == model.Kernel() || snapName == model.Core() {
+			if err := osutil.CopyFile(fn, filepath.Join(dirs.SnapBlobDir, filepath.Base(fn)), 0); err != nil {
+				return err
+			}
 		}
 	}
 
