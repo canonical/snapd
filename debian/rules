@@ -10,16 +10,16 @@ include /usr/share/dpkg/buildflags.mk
 # security of the system.  Discuss a proper approach to this for downstreams
 # if and when they approach us
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
-    VENDOR_ARGS=--enable-rootfs-is-core-snap
+    VENDOR_ARGS=--enable-nvidia-ubuntu
 else
-    VENDOR_ARGS=--disable-confinement
+    VENDOR_ARGS=--disable-apparmor
 endif
 
 %:
 	dh $@ --with autoreconf
 
 override_dh_auto_configure:
-	./configure --enable-nvidia-ubuntu --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS)
+	./configure --prefix=/usr --libexecdir=/usr/lib/snapd $(VENDOR_ARGS)
 
 override_dh_fixperms:
 	dh_fixperms -Xusr/lib/snapd/snap-confine
