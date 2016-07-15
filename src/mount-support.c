@@ -192,6 +192,7 @@ void setup_snappy_os_mounts()
 		"/var/lib/snapd",	// to get access to snapd state and seccomp profiles
 		"/var/tmp",	// to get access to the other temporary directory
 		"/run",		// to get /run with sockets and what not
+		"/media",	// access to the users removable devices
 	};
 	for (int i = 0; i < sizeof(source_mounts) / sizeof *source_mounts; i++) {
 		const char *src = source_mounts[i];
