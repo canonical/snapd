@@ -583,6 +583,51 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 	c.Check(accKeys, HasLen, 2)
 }
 
+func (safs *signAddFindSuite) TestFindTrusted(c *C) {
+	pk1 := testPrivKey1
+
+	acct1 := assertstest.NewAccount(safs.signingDB, "acc-id1", map[string]string{
+		"authority-id": "canonical",
+	}, safs.signingKeyID)
+
+	acct1Key := assertstest.NewAccountKey(safs.signingDB, acct1, map[string]string{
+		"authority-id": "canonical",
+	}, pk1.PublicKey(), safs.signingKeyID)
+
+	err := safs.db.Add(acct1)
+	c.Assert(err, IsNil)
+	err = safs.db.Add(acct1Key)
+	c.Assert(err, IsNil)
+
+	// find the trusted account
+	tAcct, err := safs.db.FindTrusted(asserts.AccountType, map[string]string{
+		"account-id": "canonical",
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tAcct.(*asserts.Account).AccountID(), Equals, "canonical")
+
+	// find the trusted key
+	tKey, err := safs.db.FindTrusted(asserts.AccountKeyType, map[string]string{
+		"account-id":    "canonical",
+		"public-key-id": safs.signingKeyID,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(tKey.(*asserts.AccountKey).AccountID(), Equals, "canonical")
+	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
+
+	// doesn't find not trusted assertions
+	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
+		"account-id": acct1.AccountID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	_, err = safs.db.FindTrusted(asserts.AccountKeyType, map[string]string{
+		"account-id":    acct1.AccountID(),
+		"public-key-id": acct1Key.PublicKeyID(),
+	})
+	c.Check(err, Equals, asserts.ErrNotFound)
+}
+
 func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
 	// trusted
 	pubKey0, err := safs.signingDB.PublicKey("canonical", safs.signingKeyID)

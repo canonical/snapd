@@ -518,3 +518,25 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 	reassembledEncoded := asserts.Encode(reassembled)
 	c.Check(reassembledEncoded, DeepEquals, encoded)
 }
+
+func (as *assertsSuite) TestSigningKey(c *C) {
+	headers := map[string]string{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	signerID, keyID, err := a.SigningKey()
+	c.Assert(err, IsNil)
+	c.Check(signerID, Equals, "auth-id1")
+	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
+}
+
+func (as *assertsSuite) TestSigningKeyError(c *C) {
+	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
+	c.Assert(err, IsNil)
+
+	_, _, err = a.SigningKey()
+	c.Check(err, ErrorMatches, `cannot decode signature data:.*`)
+}

@@ -83,6 +83,13 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 // sanity
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
+// Prerequisites returns references to this account key prerequisite assertions.
+func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
+	}
+}
+
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExists(assert.headers, "snap-name")
 	if err != nil {
@@ -253,6 +260,14 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 
 // sanity
 var _ consistencyChecker = (*SnapRevision)(nil)
+
+// Prerequisites returns references to this account key prerequisite assertions.
+func (snaprev *SnapRevision) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{snaprev.Series(), snaprev.SnapID()}},
+		&Ref{Type: AccountType, PrimaryKey: []string{snaprev.DeveloperID()}},
+	}
+}
 
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	// TODO: more parsing/checking of snap-digest

@@ -199,6 +199,29 @@ type snapBuildSuite struct {
 	tsLine string
 }
 
+func (sds *snapDeclSuite) TestPrerequisites(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 1)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"dev-id1"},
+	})
+}
+
 func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 	sbs.ts = time.Now().Truncate(time.Second).UTC()
 	sbs.tsLine = "timestamp: " + sbs.ts.Format(time.RFC3339) + "\n"
@@ -536,4 +559,21 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 		"snap-digest": headers["snap-digest"],
 	})
 	c.Assert(err, IsNil)
+}
+
+func (srs *snapRevSuite) TestPrerequisites(c *C) {
+	encoded := srs.makeValidEncoded()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 2)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "snap-id-1"},
+	})
+	c.Check(prereqs[1], DeepEquals, &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"dev-id1"},
+	})
 }
