@@ -32,13 +32,13 @@ brand-id: my-brand
 model: my-model
 class: my-class
 allowed-modes:  
-required-snaps: 
+required-snaps:  
 architecture: armhf
 store: canonical
 gadget: canonical-pi2
 kernel: canonical-pi2-linux
 core: ubuntu-core
-timestamp: 2016-1-2T10:00:00-05:00
+timestamp: 2016-01-02T10:00:00-05:00
 body-length: 0
 
 openpgpg 2cln
