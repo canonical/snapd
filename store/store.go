@@ -621,6 +621,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 	prefix := "name"
 	if private {
+		// default prefix to "text" for private, so e.g. `snap find --private foo` works.
 		prefix = "text"
 	}
 	exact := false
@@ -645,6 +646,8 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		return nil, ErrBadQuery
 	}
 
+	// The store only supports "fuzzy" search for private snaps.
+	// See http://search.apps.ubuntu.com/docs/
 	if private && prefix != "text" {
 		return nil, ErrBadQuery
 	}
