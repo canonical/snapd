@@ -83,7 +83,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 // sanity
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
-// Prerequisites returns references to this account key prerequisite assertions.
+// Prerequisites returns references to this snap-declaration prerequisite assertions.
 func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	return []*Ref{
 		&Ref{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
@@ -261,7 +261,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 // sanity
 var _ consistencyChecker = (*SnapRevision)(nil)
 
-// Prerequisites returns references to this account key prerequisite assertions.
+// Prerequisites returns references to this snap-revision prerequisite assertions.
 func (snaprev *SnapRevision) Prerequisites() []*Ref {
 	return []*Ref{
 		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{snaprev.Series(), snaprev.SnapID()}},
