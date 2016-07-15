@@ -95,7 +95,6 @@ func buySnap(opts *store.BuyOptions) error {
 	snap := snaps[0]
 
 	opts.SnapID = snap.ID
-	opts.Channel = snap.Channel
 	if opts.Currency == "" {
 		opts.Currency = resultInfo.SuggestedCurrency
 	}
