@@ -22,6 +22,7 @@ package client_test
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -45,6 +46,18 @@ func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
 	c.Check(cs.req.URL.Query(), check.DeepEquals, url.Values{
 		"q": []string{""}, "select": []string{"refresh"},
 	})
+}
+
+func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Private: true,
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+
+	private, err := strconv.ParseBool(cs.req.URL.Query().Get("private"))
+	c.Assert(err, check.IsNil)
+	c.Check(private, check.Equals, true)
 }
 
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
