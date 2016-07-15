@@ -137,6 +137,21 @@ void setup_private_pts()
 	}
 }
 
+/**
+ * The hostfs directory should be added by packaging of snapd but the release
+ * with this directory is not universally available so to unblock some other
+ * features we can simply create the directory directly.
+ **/
+static void sc_mkdir_hostfs_if_missing()
+{
+	if (access(SC_HOSTFS_DIR, F_OK) != 0) {
+		debug("creating missing hostfs directory");
+		if (mkdir(SC_HOSTFS_DIR, 0755) != 0) {
+			die("cannot create %s", SC_HOSTFS_DIR);
+		}
+	}
+}
+
 static void sc_bind_mount_hostfs(const char *rootfs_dir)
 {
 	// Create a read-only bind mount from "/" to
@@ -227,6 +242,7 @@ void setup_snappy_os_mounts()
 			die("cannot bind mount %s to %s", src, dst);
 		}
 	}
+	sc_mkdir_hostfs_if_missing();
 	sc_bind_mount_hostfs(rootfs_dir);
 	sc_mount_nvidia_driver(rootfs_dir);
 	// Chroot into the new root filesystem so that / is the core snap.  Why are
