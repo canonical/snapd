@@ -15,8 +15,8 @@
  *
  */
 
-#include <stdlib.h>
-#include <stdio.h>
+#include "cleanup-funcs.h"
+
 #include <mntent.h>
 
 void sc_cleanup_string(char **ptr)
@@ -35,3 +35,10 @@ void sc_cleanup_endmntent(FILE ** ptr)
 	if (*ptr != NULL)
 		endmntent(*ptr);
 }
+
+#ifdef HAVE_SECCOMP
+void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr)
+{
+	seccomp_release(*ptr);
+}
+#endif				// HAVE_SECCOMP
