@@ -76,10 +76,22 @@ func checkAssertType(assertType *AssertionType) error {
 }
 
 // use 'defl' default if missing
-func checkInteger(headers map[string]string, name string, defl int) (int, error) {
+func checkIntWithDefault(headers map[string]string, name string, defl int) (int, error) {
 	valueStr, ok := headers[name]
 	if !ok {
 		return defl, nil
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return -1, fmt.Errorf("%q header is not an integer: %v", name, valueStr)
+	}
+	return value, nil
+}
+
+func checkInt(headers map[string]string, name string) (int, error) {
+	valueStr, err := checkNotEmpty(headers, name)
+	if err != nil {
+		return -1, err
 	}
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {

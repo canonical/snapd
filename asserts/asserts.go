@@ -420,7 +420,7 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
-	length, err := checkInteger(headers, "body-length", 0)
+	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -482,7 +482,7 @@ func (d *Decoder) Decode() (Assertion, error) {
 }
 
 func checkRevision(headers map[string]string) (int, error) {
-	revision, err := checkInteger(headers, "revision", 0)
+	revision, err := checkIntWithDefault(headers, "revision", 0)
 	if err != nil {
 		return -1, err
 	}
@@ -494,7 +494,7 @@ func checkRevision(headers map[string]string) (int, error) {
 
 // Assemble assembles an assertion from its components.
 func Assemble(headers map[string]string, body, content, signature []byte) (Assertion, error) {
-	length, err := checkInteger(headers, "body-length", 0)
+	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}

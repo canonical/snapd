@@ -188,7 +188,7 @@ func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 type SnapRevision struct {
 	assertionBase
 	snapSize     uint64
-	snapRevision uint64
+	snapRevision int
 	timestamp    time.Time
 }
 
@@ -215,7 +215,7 @@ func (snaprev *SnapRevision) SnapSize() uint64 {
 }
 
 // SnapRevision returns the revision assigned to this build of the snap.
-func (snaprev *SnapRevision) SnapRevision() uint64 {
+func (snaprev *SnapRevision) SnapRevision() int {
 	return snaprev.snapRevision
 }
 
@@ -277,9 +277,13 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
+	snapRevision, err := checkInt(assert.headers, "snap-revision")
 	if err != nil {
 		return nil, err
+	}
+
+	if snapRevision < 1 {
+		return nil, fmt.Errorf(`"snap-revision" header must be >=1: %d`, snapRevision)
 	}
 
 	_, err = checkNotEmpty(assert.headers, "developer-id")

@@ -423,7 +423,7 @@ func (srs *snapRevSuite) TestDecodeOK(c *C) {
 	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
 	c.Check(snapRev.SnapDigest(), Equals, "sha256 ...")
 	c.Check(snapRev.SnapSize(), Equals, uint64(123))
-	c.Check(snapRev.SnapRevision(), Equals, uint64(1))
+	c.Check(snapRev.SnapRevision(), Equals, 1)
 	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapRev.Revision(), Equals, 1)
 }
@@ -447,8 +447,9 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 		{"snap-size: 123\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
 		{"snap-revision: 1\n", "", `"snap-revision" header is mandatory`},
 		{"snap-revision: 1\n", "snap-revision: \n", `"snap-revision" header should not be empty`},
-		{"snap-revision: 1\n", "snap-revision: -1\n", `"snap-revision" header is not an unsigned integer: -1`},
-		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an unsigned integer: zzz`},
+		{"snap-revision: 1\n", "snap-revision: -1\n", `"snap-revision" header must be >=1: -1`},
+		{"snap-revision: 1\n", "snap-revision: 0\n", `"snap-revision" header must be >=1: 0`},
+		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an integer: zzz`},
 		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
 		{"developer-id: dev-id1\n", "developer-id: \n", `"developer-id" header should not be empty`},
 		{srs.tsLine, "", `"timestamp" header is mandatory`},
