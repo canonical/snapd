@@ -109,7 +109,7 @@
     mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
 
     # Allow to mkdir /var/lib/snapd/hostfs
-    mkdir /var/lib/snapd/hostfs/,
+    /var/lib/snapd/hostfs/ rw,
     # Allow to mount / as hostfs in the chroot
     mount options=(ro bind) / -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
 
