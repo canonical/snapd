@@ -202,6 +202,7 @@ void setup_snappy_os_mounts()
 		"/sys",		// fundamental filesystem
 		"/tmp",		// to get writable tmp
 		"/var/snap",	// to get access to global snap data
+		"/var/lib/snapd",	// to get access to snapd state and seccomp profiles
 		"/var/tmp",	// to get access to the other temporary directory
 		"/run",		// to get /run with sockets and what not
 		"/media",	// access to the users removable devices
