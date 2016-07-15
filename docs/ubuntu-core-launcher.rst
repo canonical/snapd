@@ -9,7 +9,7 @@ internal tool for confining snappy applications
 :Author: zygmunt.krynicki@canonical.com
 :Date:   2016-07-15
 :Copyright: Canonical Ltd.
-:Version: 1.0.38
+:Version: 1.0.39
 :Manual section: 1
 :Manual group: snappy
 
