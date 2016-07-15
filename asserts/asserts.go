@@ -70,6 +70,12 @@ func Type(name string) *AssertionType {
 	return typeRegistry[name]
 }
 
+// Ref expresses a reference to an assertion.
+type Ref struct {
+	Type       *AssertionType
+	PrimaryKey []string
+}
+
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// Type returns the type of this assertion
@@ -90,6 +96,12 @@ type Assertion interface {
 
 	// Signature returns the signed content and its unprocessed signature
 	Signature() (content, signature []byte)
+
+	// SigningKey returns the signer identifier and key id for the key that signed this assertion.
+	SigningKey() (signedID, keyID string, err error)
+
+	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
+	Prerequisites() []*Ref
 }
 
 // MediaType is the media type for encoded assertions on the wire.
@@ -144,6 +156,20 @@ func (ab *assertionBase) Body() []byte {
 // Signature returns the signed content and its unprocessed signature.
 func (ab *assertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
+}
+
+// SigningKey returns the signer identifier and key id for the key that signed this assertion.
+func (ab *assertionBase) SigningKey() (signedID, keyID string, err error) {
+	sig, err := decodeSignature(ab.signature)
+	if err != nil {
+		return "", "", err
+	}
+	return ab.AuthorityID(), sig.KeyID(), nil
+}
+
+// Prerequisites returns references to the prerequisite assertions for the validity of this one.
+func (ab *assertionBase) Prerequisites() []*Ref {
+	return nil
 }
 
 // sanity check
