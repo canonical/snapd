@@ -398,7 +398,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	theStore := getStore(c)
-	found, err := theStore.Find(query.Get("q"), query.Get("channel"), user)
+	found, err := theStore.Find(&store.Search{Query: query.Get("q"), Channel: query.Get("channel")}, user)
 	switch err {
 	case nil:
 		// pass

@@ -680,29 +680,29 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		"name:hello",
 		"text:hello",
 	} {
-		repo.Find(query, "", nil)
+		repo.Find(&Search{Query: query}, nil)
 	}
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	repo := New(&Config{SearchURI: new(url.URL)}, "", nil)
-	_, err := repo.Find("", "", nil)
+	_, err := repo.Find(&Search{}, nil)
 	c.Check(err, Equals, ErrEmptyQuery)
-	_, err = repo.Find("foo:bar", "", nil)
+	_, err = repo.Find(&Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, ErrBadPrefix)
 
 	for _, prefix := range []string{"text:", "name:"} {
-		_, err = repo.Find(prefix, "", nil)
+		_, err = repo.Find(&Search{Query: prefix}, nil)
 		c.Check(err, Equals, ErrEmptyQuery, Commentf(prefix))
-		_, err = repo.Find(prefix+":", "", nil)
+		_, err = repo.Find(&Search{Query: prefix + ":"}, nil)
 		c.Check(err, Equals, ErrBadQuery, Commentf(prefix))
-		_, err = repo.Find(prefix+"foo*bar", "", nil)
+		_, err = repo.Find(&Search{Query: prefix + "foo*bar"}, nil)
 		c.Check(err, Equals, ErrBadQuery, Commentf(prefix))
 	}
-	_, err = repo.Find("text:foo*", "", nil)
+	_, err = repo.Find(&Search{Query: "text:foo*"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
 
-	_, err = repo.Find("name:foo*bar", "", nil)
+	_, err = repo.Find(&Search{Query: "name:foo*bar"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
 }
 
@@ -724,7 +724,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via http://\S+[?&]name=hello.*`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -747,7 +747,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]name=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -773,7 +773,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
 	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]name=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -815,7 +815,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("foo", "", t.user)
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
@@ -860,7 +860,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("foo", "", t.user)
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.

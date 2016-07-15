@@ -597,9 +597,18 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 	return info, nil
 }
 
+// A Search is what you do in order to Find something
+type Search struct {
+	Query   string
+	Channel string
+}
+
 // Find finds  (installable) snaps from the store, matching the
-// given search term.
-func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([]*snap.Info, error) {
+// given Search.
+func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
+	searchTerm := search.Query
+	channel := search.Channel
+
 	// see https://github.com/snapcore/snapd/blob/master/docs/rest.md#v2find
 
 	searchTerm = strings.TrimSpace(searchTerm)
