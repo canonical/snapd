@@ -205,6 +205,7 @@ void setup_snappy_os_mounts()
 		"/var/tmp",	// to get access to the other temporary directory
 		"/run",		// to get /run with sockets and what not
 		"/media",	// access to the users removable devices
+		"/lib/modules",	// access to the modules of the running kernel
 	};
 	for (int i = 0; i < sizeof(source_mounts) / sizeof *source_mounts; i++) {
 		const char *src = source_mounts[i];
