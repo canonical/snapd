@@ -108,6 +108,8 @@
     mount options=(rw rbind) /media -> /tmp/snap.rootfs_*/media/,
     mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
 
+    # Allow to mkdir /var/lib/snapd/hostfs
+    mkdir /var/lib/snapd/hostfs/,
     # Allow to mount / as hostfs in the chroot
     mount options=(ro bind) / -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
 
