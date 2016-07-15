@@ -119,6 +119,8 @@
     # But we don't want anyone to touch /snap/bin
     audit deny mount /snap/bin/** -> /**,
     audit deny mount /** -> /snap/bin/**,
+    # Allow the content interface to bind fonts from the host filesystem
+    mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/*/*/**,
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
