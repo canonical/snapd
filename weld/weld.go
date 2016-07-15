@@ -53,6 +53,8 @@ func Weld(opts *Options) error {
 		return err
 	}
 
+	// FIXME: seed.yaml support (once that is better defined)
+	//        for e.g. channel per snap
 	return bootstrapToRootdir(opts)
 }
 
