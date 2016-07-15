@@ -14,11 +14,32 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
-#include <stdbool.h>
-
 #ifndef SNAP_CONFINE_SECCOMP_SUPPORT_H
 #define SNAP_CONFINE_SECCOMP_SUPPORT_H
 
-void seccomp_load_filters(const char *filter_profile);
+#include <seccomp.h>
+
+/**
+ * Prepare seccomp profile associated with the security tag.
+ *
+ * This function loads the seccomp profile from
+ * /var/lib/snapd/seccomp/profiles/$SECURITY_TAG and stores it into
+ * scmp_filter_ctx object.
+ *
+ * The object is returned to the caller and can be made effective with a call
+ * to sc_load_seccomp_context(). The returned value should be cleaned up with
+ * seccomp_release().
+ *
+ * This function calls die() on all errors.
+ **/
+
+scmp_filter_ctx sc_prepare_seccomp_context(const char *security_tag);
+
+/**
+ * Load a seccomp context.
+ *
+ * This function calls seccomp_load(3) and handles errors if it fails.
+ **/
+void sc_load_seccomp_context(scmp_filter_ctx ctx);
 
 #endif

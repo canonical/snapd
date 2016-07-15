@@ -18,8 +18,15 @@
 #ifndef SNAP_CONFINE_CLEANUP_FUNCS_H
 #define SNAP_CONFINE_CLEANUP_FUNCS_H
 
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif				// HAVE_CONFIG_H
+
 #include <stdlib.h>
 #include <stdio.h>
+#ifdef HAVE_SECCOMP
+#include <seccomp.h>
+#endif				// HAVE_SECCOMP
 
 /**
  * Free a dynamically allocated string.
@@ -44,5 +51,15 @@ void sc_cleanup_file(FILE ** ptr);
  * __attribute__((cleanup(sc_cleanup_endmntent))).
  **/
 void sc_cleanup_endmntent(FILE ** ptr);
+
+#ifdef HAVE_SECCOMP
+/**
+ * Release a seccomp context with seccomp_release(3)
+ *
+ * This function is designed to be used with
+ * __attribute__((cleanup(sc_cleanup_seccomp_release))).
+ **/
+void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr);
+#endif				// HAVE_SECCOMP
 
 #endif
