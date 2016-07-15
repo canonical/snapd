@@ -36,8 +36,8 @@ execute: |
     echo Verifying the result
     ls -lR $IMAGE
     for f in canonical-pc canonical-pc-linux ubuntu-core webdm; do
-        ls $IMAGE/var/lib/snapd/snaps/${f}*.snap
-        ls $IMAGE/var/lib/snapd/snaps/${f}*.snap.sideinfo
+        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
+        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap.sideinfo
     done
     grep snappy_os=ubuntu-core $IMAGE/boot/grub/grubenv
     grep snappy_kernel=canonical-pc-linux $IMAGE/boot/grub/grubenv
