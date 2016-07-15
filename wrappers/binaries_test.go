@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -70,7 +71,7 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 	c.Assert(err, IsNil)
 
 	link := filepath.Join(s.tempdir, "/snap/bin/hello-snap.hello")
-	target, err := filepath.EvalSymlinks(link)
+	target, err := os.Readlink(link)
 	c.Assert(err, IsNil)
 	c.Check(target, Equals, "/usr/bin/snap")
 

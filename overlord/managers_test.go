@@ -481,8 +481,10 @@ apps:
 	ms.installLocalTestSnap(c, x2Yaml)
 
 	// ensure we are on x2
-	c.Assert(osutil.FileExists(x2binary), Equals, true)
-	c.Assert(osutil.FileExists(x1binary), Equals, false)
+	_, err := os.Lstat(x2binary)
+	c.Assert(err, IsNil)
+	_, err = os.Lstat(x1binary)
+	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// now do the revert
 	ts, err := snapstate.Revert(st, "foo")
@@ -498,8 +500,10 @@ apps:
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("revert-snap change failed with: %v", chg.Err()))
 
 	// ensure that we use x1 now
-	c.Assert(osutil.FileExists(x1binary), Equals, true)
-	c.Assert(osutil.FileExists(x2binary), Equals, false)
+	_, err = os.Lstat(x1binary)
+	c.Assert(err, IsNil)
+	_, err = os.Lstat(x2binary)
+	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// ensure that x1,x2 is still there, revert just moves the "current"
 	// pointer
