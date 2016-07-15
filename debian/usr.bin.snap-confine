@@ -108,6 +108,9 @@
     mount options=(rw rbind) /media -> /tmp/snap.rootfs_*/media/,
     mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
 
+    # Allow to mount / as hostfs in the chroot
+    mount options=(ro bind) / -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
+
     # Support mount profiles via the content interface
     mount options=(rw bind) /snap/*/*/** -> /snap/*/*/**,
     mount options=(ro bind) /snap/*/*/** -> /snap/*/*/**,
@@ -118,7 +121,7 @@
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
     /usr/** r,
-    mount options=(rw bind) /usr/lib/nvidia-*/ -> /var/lib/snapd/lib/gl/,
+    mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
