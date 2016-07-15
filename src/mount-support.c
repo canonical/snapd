@@ -137,7 +137,6 @@ void setup_private_pts()
 	}
 }
 
-#ifdef NVIDIA_ARCH
 static void sc_bind_mount_hostfs(const char *rootfs_dir)
 {
 	// Create a read-only bind mount from "/" to
@@ -154,7 +153,6 @@ static void sc_bind_mount_hostfs(const char *rootfs_dir)
 		}
 	}
 }
-#endif				// ifdef NVIDIA_ARCH
 
 void setup_snappy_os_mounts()
 {
@@ -229,11 +227,7 @@ void setup_snappy_os_mounts()
 			die("cannot bind mount %s to %s", src, dst);
 		}
 	}
-#ifdef NVIDIA_ARCH
-	// Make this conditional on Nvidia support for Arch as Ubuntu doesn't use
-	// this so far and it requires a very recent version of the core snap.
 	sc_bind_mount_hostfs(rootfs_dir);
-#endif
 	sc_mount_nvidia_driver(rootfs_dir);
 	// Chroot into the new root filesystem so that / is the core snap.  Why are
 	// we using something as esoteric as pivot_root? Because this makes apparmor
