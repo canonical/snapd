@@ -29,7 +29,7 @@ import (
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
 	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
-	Find(query, channel string, user *auth.UserState) ([]*snap.Info, error)
+	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 	SuggestedCurrency() string
 

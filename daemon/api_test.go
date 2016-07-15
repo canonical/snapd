@@ -85,9 +85,9 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState
 	return nil, s.err
 }
 
-func (s *apiSuite) Find(searchTerm, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	s.searchTerm = searchTerm
-	s.channel = channel
+func (s *apiSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+	s.searchTerm = search.Query
+	s.channel = search.Channel
 	s.user = user
 
 	return s.rsnaps, s.err
