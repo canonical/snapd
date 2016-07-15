@@ -69,6 +69,11 @@ int sc_main(int argc, char **argv)
 	if (geteuid() != 0 && secure_getenv("SNAP_CONFINE_NO_ROOT") == NULL) {
 		die("need to run as root or suid");
 	}
+#ifdef HAVE_SECCOMP
+	scmp_filter_ctx seccomp_ctx
+	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
+	seccomp_ctx = sc_prepare_seccomp_context(security_tag);
+#endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
 
@@ -141,8 +146,7 @@ int sc_main(int argc, char **argv)
 	}
 #endif				// ifdef HAVE_APPARMOR
 #ifdef HAVE_SECCOMP
-	// set seccomp (note: seccomp_load_filters die()s on all failures)
-	seccomp_load_filters(security_tag);
+	sc_load_seccomp_context(seccomp_ctx);
 #endif				// ifdef HAVE_SECCOMP
 
 	// Permanently drop if not root

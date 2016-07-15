@@ -479,9 +479,8 @@ static void preprocess_filter(FILE * f, struct preprocess *p)
 	return;
 }
 
-void seccomp_load_filters(const char *filter_profile)
+scmp_filter_ctx sc_prepare_seccomp_context(const char *filter_profile)
 {
-	debug("seccomp_load_filters %s", filter_profile);
 	int rc = 0;
 	scmp_filter_ctx ctx = NULL;
 	FILE *f = NULL;
@@ -489,6 +488,9 @@ void seccomp_load_filters(const char *filter_profile)
 	uid_t real_uid, effective_uid, saved_uid;
 	struct preprocess pre;
 	struct seccomp_args sargs;
+
+	debug("preparing seccomp profile associated with security tag %s",
+	      filter_profile);
 
 	// initialize hsearch map
 	sc_map_init();
@@ -536,13 +538,18 @@ void seccomp_load_filters(const char *filter_profile)
 	// Note, preprocess_filter() die()s on error
 	preprocess_filter(f, &pre);
 
-	if (pre.unrestricted)
+	if (pre.unrestricted) {
+		seccomp_release(ctx);
+		ctx = NULL;
 		goto out;
-
+	}
 	// FIXME: right now complain mode is the equivalent to unrestricted.
 	// We'll want to change this once we seccomp logging is in order.
-	if (pre.complain)
+	if (pre.complain) {
+		seccomp_release(ctx);
+		ctx = NULL;
 		goto out;
+	}
 
 	char buf[SC_MAX_LINE_LENGTH];
 	while (fgets(buf, sizeof(buf), f) != NULL) {
@@ -584,8 +591,33 @@ void seccomp_load_filters(const char *filter_profile)
 		}
 	}
 
+ out:
+	if (f != NULL) {
+		if (fclose(f) != 0)
+			die("could not close seccomp file");
+	}
+	sc_map_destroy();
+	return ctx;
+}
+
+void sc_load_seccomp_context(scmp_filter_ctx ctx)
+{
+	int rc;
+	uid_t real_uid, effective_uid, saved_uid;
+
+	// if sc_prepare_seccomp_context() sees @unrestricted or @complain it bails
+	// out early and destroys the context object. In that case we have nothing
+	// to do.
+	if (ctx == NULL) {
+		return;
+	}
+
+	if (getresuid(&real_uid, &effective_uid, &saved_uid) != 0)
+		die("could not find user IDs");
+
 	// If not root but can raise, then raise privileges to load seccomp
 	// policy since we don't have nnp
+	debug("raising privileges to load seccomp profile");
 	if (effective_uid != 0 && saved_uid == 0) {
 		if (seteuid(0) != 0)
 			die("seteuid failed");
@@ -593,13 +625,14 @@ void seccomp_load_filters(const char *filter_profile)
 			die("raising privs before seccomp_load did not work");
 	}
 	// load it into the kernel
+	debug("loading seccomp profile into the kernel");
 	rc = seccomp_load(ctx);
-
 	if (rc != 0) {
 		fprintf(stderr, "seccomp_load failed with %i\n", rc);
 		die("aborting");
 	}
 	// drop privileges again
+	debug("dropping privileges after loading seccomp profile");
 	if (geteuid() == 0) {
 		unsigned real_uid = getuid();
 		if (seteuid(real_uid) != 0)
@@ -607,14 +640,4 @@ void seccomp_load_filters(const char *filter_profile)
 		if (real_uid != 0 && geteuid() == 0)
 			die("dropping privs after seccomp_load did not work");
 	}
-
- out:
-	if (f != NULL) {
-		if (fclose(f) != 0)
-			die("could not close seccomp file");
-	}
-	seccomp_release(ctx);
-
-	sc_map_destroy();
-	return;
 }
