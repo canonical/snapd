@@ -134,7 +134,7 @@ func respToError(resp *http.Response, msg string) error {
 		return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL, oops)
 	}
 
-	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.URL)
+	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
 func getStructFields(s interface{}) []string {
@@ -601,6 +601,7 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 type Search struct {
 	Query   string
 	Channel string
+	Private bool
 }
 
 // Find finds  (installable) snaps from the store, matching the
@@ -608,12 +609,20 @@ type Search struct {
 func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
 	searchTerm := search.Query
 	channel := search.Channel
+	private := search.Private
+
+	if private && user == nil {
+		return nil, ErrUnauthenticated
+	}
 
 	// see https://github.com/snapcore/snapd/blob/master/docs/rest.md#v2find
 
 	searchTerm = strings.TrimSpace(searchTerm)
 
 	prefix := "name"
+	if private {
+		prefix = "text"
+	}
 	exact := false
 	if idx := strings.IndexRune(searchTerm, ':'); idx >= 0 {
 		prefix = searchTerm[:idx]
@@ -633,6 +642,10 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	if strings.ContainsAny(searchTerm, ":*") {
+		return nil, ErrBadQuery
+	}
+
+	if private && prefix != "text" {
 		return nil, ErrBadQuery
 	}
 
@@ -658,6 +671,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		q.Set("name", searchTerm)
 	case "text":
 		q.Set("q", searchTerm)
+		if private {
+			q.Set("private", "true")
+		}
 	default:
 		return nil, ErrBadPrefix
 	}
