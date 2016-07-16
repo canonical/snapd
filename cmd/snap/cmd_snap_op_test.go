@@ -33,6 +33,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
@@ -73,16 +74,22 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 }
 
 type SnapOpSuite struct {
-	SnapSuite
+	BaseSnapSuite
 
-	restorePollTime func()
-	srv             snapOpTestServer
+	restoreAll func()
+	srv        snapOpTestServer
 }
 
 func (s *SnapOpSuite) SetUpTest(c *check.C) {
-	s.SnapSuite.SetUpTest(c)
+	s.BaseSnapSuite.SetUpTest(c)
 
-	s.restorePollTime = snap.MockPollTime(time.Millisecond)
+	restoreClientRetry := client.MockDoRetry(time.Millisecond, 10*time.Millisecond)
+	restorePollTime := snap.MockPollTime(time.Millisecond)
+	s.restoreAll = func() {
+		restoreClientRetry()
+		restorePollTime()
+	}
+
 	s.srv = snapOpTestServer{
 		c:     c,
 		total: 4,
@@ -90,8 +97,8 @@ func (s *SnapOpSuite) SetUpTest(c *check.C) {
 }
 
 func (s *SnapOpSuite) TearDownTest(c *check.C) {
-	s.restorePollTime()
-	s.SnapSuite.TearDownTest(c)
+	s.restoreAll()
+	s.BaseSnapSuite.TearDownTest(c)
 }
 
 func (s *SnapOpSuite) TestWait(c *check.C) {
