@@ -22,7 +22,6 @@ package client
 import (
 	"io"
 	"net/url"
-	"time"
 )
 
 // SetDoer sets the client's doer to the given one
@@ -33,18 +32,6 @@ func (client *Client) SetDoer(d doer) {
 // Do does do.
 func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}) error {
 	return client.do(method, path, query, nil, body, v)
-}
-
-// MockDoRetry mocks the delays used by the do retry loop.
-func MockDoRetry(retry, timeout time.Duration) (restore func()) {
-	oldRetry := doRetry
-	oldTimeout := doTimeout
-	doRetry = retry
-	doTimeout = timeout
-	return func() {
-		doRetry = oldRetry
-		doTimeout = oldTimeout
-	}
 }
 
 // expose parseError for testing
