@@ -17,12 +17,23 @@
  *
  */
 
-package hookstate
+package osutil
 
-func MockStartCommandFunction(f func(string, ...string) (ProcessRunner, error)) (restore func()) {
-	startCommandOrig := startCommand
-	startCommand = f
-	return func() {
-		startCommand = startCommandOrig
-	}
+import (
+    "fmt"
+    "bytes"
+)
+
+// OutputErr formats an error based on output if its length is not zero,
+// or returns err otherwise.
+func OutputErr(output []byte, err error) error {
+    output = bytes.TrimSpace(output)
+    if len(output) > 0 {
+        if bytes.Contains(output, []byte{'\n'}) {
+            err = fmt.Errorf("\n-----\n%s\n-----", output)
+        } else {
+            err = fmt.Errorf("%s", output)
+        }
+    }
+    return err
 }

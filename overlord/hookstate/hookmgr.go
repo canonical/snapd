@@ -25,20 +25,13 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
-	"strings"
+	"bytes"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-)
-
-var (
-	startCommand = newProcessRunner
-
-	// Function that actually runs a hook. Make public here for testing
-	// purposes.
-	RunHook = doRunHook
+	"github.com/snapcore/snapd/osutil"
 )
 
 // HookManager is responsible for the maintenance of hooks in the system state.
@@ -154,8 +147,9 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// Actually run the hook
-	_, err = RunHook(setup.Snap, setup.Revision, setup.Hook, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, tomb)
 	if err != nil {
+		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
 			return handlerErr
 		}
@@ -172,41 +166,38 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func doRunHook(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
-	runner, err := startCommand("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
-	if err != nil {
+func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
+	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+
+	// Make sure we can obtain stdout and stderror. Same buffer so they're
+	// combined.
+	buffer := bytes.NewBuffer(nil)
+	command.Stdout = buffer
+	command.Stderr = buffer
+
+	// Actually run the hook.
+	if err := command.Start(); err != nil {
 		return nil, err
 	}
 
 	hookCompleted := make(chan struct{})
-	var hookOutput []byte
 	var hookError error
 	go func() {
-		hookOutput, hookError = runner.Wait()
+		// Wait for hook to complete
+		hookError = command.Wait()
 		close(hookCompleted)
 	}()
 
 	select {
+	// Hook completed; it may or may not have been successful.
 	case <-hookCompleted:
-		return hookOutput, hookError
+		return buffer.Bytes(), hookError
+
+	// Hook was aborted.
 	case <-tomb.Dying():
-		if err := runner.Kill(); err != nil {
-			return nil, fmt.Errorf("failed to abort hook: %s", err)
+		if err := command.Process.Kill(); err != nil {
+			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
 		}
-		return nil, fmt.Errorf("hook was aborted")
+		return nil, fmt.Errorf("hook %q aborted", hookName)
 	}
-}
-
-func doStartCommand(name string, args ...string) ([]byte, error) {
-	output, err := exec.Command(name, args...).CombinedOutput()
-	if err != nil {
-		// Make the error a bit more informative
-		trimmedOutput := strings.Trim(string(output), " \n")
-		stringArgs := strings.Join(args, " ")
-		err = fmt.Errorf(
-			"failed to run command '%s %s': %s (%s)", name, stringArgs,
-			trimmedOutput, err)
-	}
-
-	return output, err
 }
