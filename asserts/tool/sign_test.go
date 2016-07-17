@@ -20,10 +20,8 @@
 package tool_test
 
 import (
-	"encoding/json"
+	"bytes"
 	"fmt"
-	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -82,7 +80,9 @@ func (s *signSuite) SetUpSuite(c *C) {
 }
 
 const (
-	flatModelYaml = `series: "16"
+	modelYaml = `type: model
+authority-id: user-id1
+series: "16"
 brand-id: user-id1
 model: baz-3000
 core: core
@@ -91,27 +91,9 @@ gadget: brand-gadget
 kernel: baz-linux
 store: brand-store
 allowed-modes:
-required-snaps: [foo,bar]
+required-snaps: "foo,bar"
 class: fixed
-extra-flag: true
-extra-flag-no: false
 timestamp: 2015-11-25T20:00:00Z
-`
-	nestedModelYaml = `headers:
-  series: "16"
-  brand-id: user-id1
-  model: baz-3000
-  core: core
-  architecture: amd64
-  gadget: brand-gadget
-  kernel: baz-linux
-  store: brand-store
-  allowed-modes:
-  required-snaps: [foo,bar]
-  class: fixed
-  extra-flag: true
-  extra-flag-no: false
-  timestamp: 2015-11-25T20:00:00Z
 `
 )
 
@@ -125,8 +107,6 @@ func expectedModelHeaders() map[string]string {
 		"allowed-modes":  "",
 		"architecture":   "amd64",
 		"class":          "fixed",
-		"extra-flag":     "yes",
-		"extra-flag-no":  "no",
 		"gadget":         "brand-gadget",
 		"kernel":         "baz-linux",
 		"core":           "core",
@@ -136,14 +116,11 @@ func expectedModelHeaders() map[string]string {
 	}
 }
 
-func (s *signSuite) TestSignKeyIDFlatYAML(c *C) {
+func (s *signSuite) TestSignKeyIDYAML(c *C) {
 	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
+		KeyID: s.testKeyID,
 
-		AssertionType:      "model",
-		StatementMediaType: "application/x-yaml",
-		Statement:          []byte(flatModelYaml),
+		Statement: []byte(modelYaml),
 	}
 
 	assertText, err := tool.Sign(&req, s.keypairMgr)
@@ -158,153 +135,12 @@ func (s *signSuite) TestSignKeyIDFlatYAML(c *C) {
 	c.Check(a.Body(), IsNil)
 }
 
-func (s *signSuite) TestSignKeyIDNestedYAML(c *C) {
+func (s *signSuite) TestSignKeyIDYAMLWithBodyAndRevision(c *C) {
 	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
+		KeyID: s.testKeyID,
 
-		AssertionType:      "model",
-		StatementMediaType: "application/x-yaml",
-		Statement:          []byte(nestedModelYaml),
-	}
-
-	assertText, err := tool.Sign(&req, s.keypairMgr)
-	c.Assert(err, IsNil)
-
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
-
-	c.Check(a.Type(), Equals, asserts.ModelType)
-	c.Check(a.Revision(), Equals, 0)
-	c.Check(a.Headers(), DeepEquals, expectedModelHeaders())
-	c.Check(a.Body(), IsNil)
-}
-
-func (s *signSuite) TestSignKeyIDNestedYAMLWithBodyAndRevision(c *C) {
-	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
-
-		AssertionType:      "model",
-		StatementMediaType: "application/x-yaml",
-		Statement:          []byte(nestedModelYaml + `body: "BODY"`),
-
-		Revision: 11,
-	}
-
-	assertText, err := tool.Sign(&req, s.keypairMgr)
-	c.Assert(err, IsNil)
-
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
-
-	c.Check(a.Type(), Equals, asserts.ModelType)
-	c.Check(a.Revision(), Equals, 11)
-
-	expectedHeaders := expectedModelHeaders()
-	expectedHeaders["revision"] = "11"
-	expectedHeaders["body-length"] = "4"
-
-	c.Check(a.Headers(), DeepEquals, expectedHeaders)
-
-	c.Check(a.Body(), DeepEquals, []byte("BODY"))
-}
-
-func (s *signSuite) TestSignKeyIDFlatYAMLRevisionWithinHeaders(c *C) {
-	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
-
-		AssertionType:      "model",
-		StatementMediaType: "application/x-yaml",
-		Statement:          []byte(flatModelYaml + "revision: 12"),
-	}
-
-	assertText, err := tool.Sign(&req, s.keypairMgr)
-	c.Assert(err, IsNil)
-
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
-
-	c.Check(a.Type(), Equals, asserts.ModelType)
-	c.Check(a.Revision(), Equals, 12)
-
-	expectedHeaders := expectedModelHeaders()
-	expectedHeaders["revision"] = "12"
-
-	c.Check(a.Headers(), DeepEquals, expectedHeaders)
-
-	c.Check(a.Body(), IsNil)
-}
-
-func headersForJSON() map[string]interface{} {
-	return map[string]interface{}{
-		"series":         "16",
-		"brand-id":       "user-id1",
-		"model":          "baz-3000",
-		"core":           "core",
-		"architecture":   "amd64",
-		"gadget":         "brand-gadget",
-		"kernel":         "baz-linux",
-		"store":          "brand-store",
-		"allowed-modes":  nil,
-		"required-snaps": []string{"foo", "bar"},
-		"class":          "fixed",
-		"extra-flag":     true,
-		"extra-flag-no":  false,
-		"timestamp":      "2015-11-25T20:00:00Z",
-	}
-}
-
-func (s *signSuite) TestSignKeyIDFlatJSONRevisionWithinHeaders(c *C) {
-	hdrs := headersForJSON()
-	hdrs["revision"] = 12
-	statement, err := json.Marshal(hdrs)
-	c.Assert(err, IsNil)
-
-	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
-
-		AssertionType:      "model",
-		StatementMediaType: "application/json",
-		Statement:          statement,
-	}
-
-	assertText, err := tool.Sign(&req, s.keypairMgr)
-	c.Assert(err, IsNil)
-
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
-
-	c.Check(a.Type(), Equals, asserts.ModelType)
-	c.Check(a.Revision(), Equals, 12)
-
-	expectedHeaders := expectedModelHeaders()
-	expectedHeaders["revision"] = "12"
-
-	c.Check(a.Headers(), DeepEquals, expectedHeaders)
-
-	c.Check(a.Body(), IsNil)
-}
-
-func (s *signSuite) TestSignKeyIDNestedJSONWithBodyAndRevision(c *C) {
-	hdrs := headersForJSON()
-	statement, err := json.Marshal(map[string]interface{}{
-		"headers": hdrs,
-		"body":    "BODY",
-	})
-	c.Assert(err, IsNil)
-
-	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
-
-		AssertionType:      "model",
-		StatementMediaType: "application/json",
-		Statement:          statement,
-
-		Revision: 11,
+		Statement: []byte(modelYaml + `body: "BODY"
+revision: "11"`),
 	}
 
 	assertText, err := tool.Sign(&req, s.keypairMgr)
@@ -329,9 +165,7 @@ func (s *signSuite) TestSignAccountKeyHandle(c *C) {
 	req := tool.SignRequest{
 		AccountKey: s.accKey,
 
-		AssertionType:      "model",
-		StatementMediaType: "application/x-yaml",
-		Statement:          []byte(nestedModelYaml),
+		Statement: []byte(modelYaml),
 	}
 
 	assertText, err := tool.Sign(&req, s.keypairMgr)
@@ -346,80 +180,30 @@ func (s *signSuite) TestSignAccountKeyHandle(c *C) {
 	c.Check(a.Body(), IsNil)
 }
 
-func (s *signSuite) TestSignRequestOverridesHeaders(c *C) {
-	hdrs := headersForJSON()
-	hdrs["revision"] = 12
-	hdrs["authority-id"] = "whatever"
-	statement, err := json.Marshal(hdrs)
-	c.Assert(err, IsNil)
-
-	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
-
-		AssertionType:      "model",
-		StatementMediaType: "application/json",
-		Statement:          statement,
-
-		Revision: 13,
-	}
-
-	assertText, err := tool.Sign(&req, s.keypairMgr)
-	c.Assert(err, IsNil)
-
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
-
-	c.Check(a.Type(), Equals, asserts.ModelType)
-	c.Check(a.AuthorityID(), Equals, "user-id1")
-	c.Check(a.Revision(), Equals, 13)
-
-	expectedHeaders := expectedModelHeaders()
-	expectedHeaders["revision"] = "13"
-
-	c.Check(a.Headers(), DeepEquals, expectedHeaders)
-
-	c.Check(a.Body(), IsNil)
-}
-
 func (s *signSuite) TestSignErrors(c *C) {
 	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
+		KeyID: s.testKeyID,
 
-		AssertionType:      "model",
-		StatementMediaType: tool.YAMLInput,
-		Statement:          []byte(flatModelYaml),
+		Statement: []byte(modelYaml),
 	}
 
 	tests := []struct {
 		expError string
 		breakReq func(*tool.SignRequest)
 	}{
-		{`unsupported media type for assertion input: "yyy"`,
-			func(req *tool.SignRequest) {
-				req.StatementMediaType = "yyy"
-			},
-		},
 		{`cannot parse the assertion input as YAML:.*`,
 			func(req *tool.SignRequest) {
 				req.Statement = []byte("\x00")
 			},
 		},
-		{`cannot parse the assertion input as JSON:.*`,
-			func(req *tool.SignRequest) {
-				req.StatementMediaType = tool.JSONInput
-				req.Statement = []byte("{")
-			},
-		},
 		{`invalid assertion type: "what"`,
 			func(req *tool.SignRequest) {
-				req.AssertionType = "what"
+				req.Statement = bytes.Replace(req.Statement, []byte(": model"), []byte(": what"), 1)
 			},
 		},
-		{"assertion revision cannot be negative",
+		{"revision should be positive: -10",
 			func(req *tool.SignRequest) {
-				req.Revision = -10
+				req.Statement = append(req.Statement, "revision: -10"...)
 			},
 		},
 		{"both account-key and key id were not specified",
@@ -428,7 +212,7 @@ func (s *signSuite) TestSignErrors(c *C) {
 				req.AccountKey = nil
 			},
 		},
-		{"cannot mix specifying an account-key together with key id and/or authority-id",
+		{"cannot specify both an account-key together with a key id",
 			func(req *tool.SignRequest) {
 				req.AccountKey = []byte("ak")
 			},
@@ -436,36 +220,26 @@ func (s *signSuite) TestSignErrors(c *C) {
 		{"cannot parse handle account-key:.*",
 			func(req *tool.SignRequest) {
 				req.KeyID = ""
-				req.AuthorityID = ""
 				req.AccountKey = []byte("ak")
+			},
+		},
+		{`account-key owner "user-id1" does not match assertion input authority-id: "user-idX"`,
+			func(req *tool.SignRequest) {
+				req.KeyID = ""
+				req.AccountKey = s.accKey
+				req.Statement = bytes.Replace(req.Statement, []byte("authority-id: user-id1\n"), []byte("authority-id: user-idX\n"), 1)
 			},
 		},
 		{"cannot use handle account-key, not actually an account-key, got: account",
 			func(req *tool.SignRequest) {
 				req.KeyID = ""
-				req.AuthorityID = ""
 				req.AccountKey = s.otherAssert
 			},
 		},
-		{`cannot sign assertion with unspecified signer identifier \(aka authority-id\)`,
+		{`"authority-id" header is mandatory`,
 			func(req *tool.SignRequest) {
-				req.AuthorityID = ""
-			},
-		},
-		{regexp.QuoteMeta(`cannot turn header field "foo" value with type map[interface {}]interface {} into string:`) + " .*",
-			func(req *tool.SignRequest) {
-				req.Statement = []byte("foo: {}")
-			},
-		},
-		{`cannot turn header field "foo" list value into string, has non-string element with type int: 1`,
-			func(req *tool.SignRequest) {
-				req.Statement = []byte("foo: [1]")
-			},
-		},
-		{regexp.QuoteMeta(`cannot turn header field "foo" number value into an integer (other number types are not supported): 100.0`),
-			func(req *tool.SignRequest) {
-				req.StatementMediaType = tool.JSONInput
-				req.Statement = []byte(`{"foo": 100.0}`)
+				req.Statement = bytes.Replace(req.Statement, []byte("authority-id: user-id1\n"), []byte(""), 1)
+
 			},
 		},
 	}
@@ -478,48 +252,4 @@ func (s *signSuite) TestSignErrors(c *C) {
 		_, err := tool.Sign(&fresh, s.keypairMgr)
 		c.Check(err, ErrorMatches, t.expError)
 	}
-}
-
-func (s *signSuite) TestSignWrapLongCommaSeparatedList(c *C) {
-	hdrs := headersForJSON()
-
-	required := []string(nil)
-	for i := 0; i < 20; i++ {
-		required = append(required, "baz")
-	}
-	required = append(required, strings.Repeat("m", 80))
-	required = append(required, "baz")
-	required = append(required, "baz")
-	hdrs["required-snaps"] = required
-
-	statement, err := json.Marshal(hdrs)
-	c.Assert(err, IsNil)
-
-	req := tool.SignRequest{
-		KeyID:       s.testKeyID,
-		AuthorityID: "user-id1",
-
-		AssertionType:      "model",
-		StatementMediaType: "application/json",
-		Statement:          statement,
-	}
-
-	assertText, err := tool.Sign(&req, s.keypairMgr)
-	c.Assert(err, IsNil)
-
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
-
-	c.Check(a.Type(), Equals, asserts.ModelType)
-	c.Check(a.Revision(), Equals, 0)
-
-	expectedHeaders := expectedModelHeaders()
-	expectedHeaders["required-snaps"] = "baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,baz,\n" +
-		"baz,\n" +
-		"mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm,\n" +
-		"baz,baz"
-
-	c.Check(a.Headers(), DeepEquals, expectedHeaders)
-
-	c.Check(a.Body(), IsNil)
 }
