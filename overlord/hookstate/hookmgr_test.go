@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -40,8 +41,7 @@ type hookManagerSuite struct {
 	mockHandler *mockHandler
 	task        *state.Task
 	change      *state.Change
-	runner      *mockProcessRunner
-	restore     func()
+	command     *testutil.MockCmd
 }
 
 var _ = Suite(&hookManagerSuite{})
@@ -61,17 +61,12 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.change.AddTask(s.task)
 	s.state.Unlock()
 
-	s.runner = newMockProcessRunner()
-	s.restore = hookstate.MockStartCommandFunction(
-		func(name string, args ...string) (hookstate.ProcessRunner, error) {
-			return s.runner.Start(name, args...)
-		})
+	s.command = testutil.MockCommand(c, "snap", "")
 }
 
 func (s *hookManagerSuite) TearDownTest(c *C) {
 	s.manager.Stop()
 	dirs.SetRootDir("")
-	s.restore()
 }
 
 func (s *hookManagerSuite) TestSmoke(c *C) {
@@ -101,8 +96,9 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
 	c.Check(calledContext.HookName(), Equals, "test-hook")
 
-	c.Check(s.runner.name, Equals, "snap")
-	c.Check(s.runner.args, DeepEquals, []string{"run", "test-snap", "--hook", "test-hook", "-r", "1"})
+	c.Check(s.command.Calls(), DeepEquals, [][]string{[]string{
+		"snap", "run", "test-snap", "--hook", "test-hook", "-r", "1",
+	}})
 
 	c.Check(mockHandler.beforeCalled, Equals, true)
 	c.Check(mockHandler.doneCalled, Equals, true)
@@ -120,7 +116,9 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 		return mockHandler
 	}
 
-	s.runner.startError = true
+	// Force the snap command to exit 1, and print something to stdout
+	s.command = testutil.MockCommand(
+		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
 
 	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
 
@@ -147,7 +145,8 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 		return mockHandler
 	}
 
-	s.runner.waitHang = true
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
 
 	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
 
@@ -172,12 +171,12 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	c.Check(mockHandler.beforeCalled, Equals, true)
 	c.Check(mockHandler.doneCalled, Equals, false)
 	c.Check(mockHandler.errorCalled, Equals, true)
-	c.Check(mockHandler.err, ErrorMatches, ".*hook was aborted.*")
+	c.Check(mockHandler.err, ErrorMatches, ".*hook \"test-hook\" aborted.*")
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile(".*hook was aborted.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*hook \"test-hook\" aborted.*"))
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
@@ -240,7 +239,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 		return mockHandler
 	}
 
-	s.runner.startError = true
+	// Force the snap command to simply exit 1, so the handler Error() runs
+	s.command = testutil.MockCommand(c, "snap", "exit 1")
 
 	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
 
@@ -357,65 +357,4 @@ func (h *mockHandler) Error(err error) error {
 		return fmt.Errorf("error failed at user request")
 	}
 	return nil
-}
-
-type mockProcessRunner struct {
-	name string
-	args []string
-
-	startError bool
-
-	killCalled bool
-	killError  bool
-
-	waitCalled bool
-	waitError  bool
-	waitHang   bool
-	waitSignal chan struct{}
-}
-
-func newMockProcessRunner() *mockProcessRunner {
-	return &mockProcessRunner{
-		name:       "",
-		args:       nil,
-		startError: false,
-		killCalled: false,
-		killError:  false,
-		waitCalled: false,
-		waitError:  false,
-		waitHang:   false,
-		waitSignal: make(chan struct{}),
-	}
-}
-
-func (r *mockProcessRunner) Start(name string, args ...string) (hookstate.ProcessRunner, error) {
-	r.name = name
-	r.args = args
-
-	if r.startError {
-		return nil, fmt.Errorf("failed at user request")
-	}
-
-	return r, nil
-}
-
-func (r *mockProcessRunner) Kill() error {
-	r.killCalled = true
-	if r.killError {
-		return fmt.Errorf("failed at user request")
-	}
-	close(r.waitSignal)
-	return nil
-}
-
-func (r *mockProcessRunner) Wait() ([]byte, error) {
-	r.waitCalled = true
-	if r.waitError {
-		return nil, fmt.Errorf("failed at user request")
-	}
-	if r.waitHang {
-		<-r.waitSignal
-		return nil, fmt.Errorf("process was killed")
-	}
-	return nil, nil
 }
