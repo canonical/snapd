@@ -220,7 +220,11 @@ func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 	info, err := snap.ReadInfo(name, si)
 	if _, ok := err.(*snap.NotFoundError); ok {
 		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
-		info := &snap.Info{SuggestedName: name, Broken: reason}
+		info := &snap.Info{
+			SuggestedName: name,
+			Broken:        reason,
+		}
+		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
 			info.SideInfo = *si
 		}
