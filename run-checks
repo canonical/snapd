@@ -112,7 +112,7 @@ if [ "$STATIC" = 1 ]; then
     # cmd/* test sources are tagged so they are not included in
     # special integration test builds
     echo Checking 'cmd/*/*_test.go' build tagging
-    nottagged=$(grep -r --include '*_test.go' --exclude integration_coverage_test.go -L '!integrationcoverage' cmd/snapd/ cmd/snap/ cmd/snap-exec/)
+    nottagged=$(grep -r --include '*_test.go' --exclude integration_coverage_test.go -L '!integrationcoverage' cmd/*/)
     if [ -n "${nottagged}" ] ; then
         echo these test files miss the '!integrationcoverage' tag: ${nottagged}
         exit 1
