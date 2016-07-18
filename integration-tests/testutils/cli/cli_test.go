@@ -55,7 +55,7 @@ type cliTestSuite struct {
 	tmpDir           string
 	cmd              *exec.Cmd
 	configFile       string
-	targetCoverCmds  []string
+	targetCmds       []string
 }
 
 var _ = check.Suite(&cliTestSuite{})
@@ -64,7 +64,7 @@ func (s *cliTestSuite) SetUpSuite(c *check.C) {
 	s.backExecCommand = execCommand
 	execCommand = s.fakeExecCommand
 	s.configFile = config.DefaultFileName
-	s.targetCoverCmds = []string{"snappy", "snap", "snapd"}
+	s.targetCmds = []string{"snappy", "snap", "snapd"}
 }
 
 func (s *cliTestSuite) TearDownSuite(c *check.C) {
@@ -115,14 +115,6 @@ func (s *cliTestSuite) TestHelperProcessErr(c *check.C) {
 	baseHelperProcess(1, execOutput)
 }
 
-func (s *cliTestSuite) TestHelperProcessCoverage(c *check.C) {
-	baseHelperProcess(0, execOutput+"PASS\ncoverage: blabla\n")
-}
-
-func (s *cliTestSuite) TestHelperProcessCoverageEmptyOutput(c *check.C) {
-	baseHelperProcess(0, "PASS\ncoverage: blabla\n")
-}
-
 func baseHelperProcess(exitValue int, output string) {
 	if os.Getenv("GO_WANT_HELPER_PROCESS") != "1" {
 		return
@@ -143,53 +135,6 @@ func (s *cliTestSuite) TestExecCommand(c *check.C) {
 	c.Assert(actualOutput, check.Equals, execOutput)
 }
 
-func (s *cliTestSuite) TestExecCommandAddsCoverageOptionsToTargetCmd(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		ExecCommand(c, cmd)
-
-		c.Check(checkPrefixInSlice("-test.run", s.execArgs) &&
-			checkPrefixInSlice("-test.coverprofile", s.execArgs),
-			check.Equals, true)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandAddsCoverageOptionsToComplexTargetCmd(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		ExecCommand(c, "sudo", "TMPDIR=/var/tmp", cmd,
-			"build", "--squashfs", "/var/tmp/snap-build-633342069")
-
-		c.Check(checkPrefixInSlice("-test.run", s.execArgs) &&
-			checkPrefixInSlice("-test.coverprofile", s.execArgs),
-			check.Equals, true)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandDoesNotAddCoverageOptionsToNonTargetCmd(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		for _, badCmd := range []string{cmd + "mycmd", "mycmd" + cmd} {
-			ExecCommand(c, badCmd)
-
-			c.Check(checkPrefixInSlice("-test.run", s.execArgs) ||
-				checkPrefixInSlice("-test.coverprofile", s.execArgs),
-				check.Equals, false)
-		}
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandDoesNotAddCoverageOptionsToTargetCmdWhenNotBuiltFromBranch(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		s.writeFromBranchConfig(false)
-		s.execArgs = []string{}
-
-		ExecCommand(c, cmd)
-
-		c.Check(checkPrefixInSlice("-test.run", s.execArgs) ||
-			checkPrefixInSlice("-test.coverprofile", s.execArgs),
-			check.Equals, false)
-
-	}
-}
-
 func (s *cliTestSuite) TestExecCommandToFile(c *check.C) {
 	outputFile, err := ioutil.TempFile("", "snappy-exec")
 	c.Assert(err, check.IsNil)
@@ -201,52 +146,6 @@ func (s *cliTestSuite) TestExecCommandToFile(c *check.C) {
 	actualFileContents, err := ioutil.ReadFile(outputFile.Name())
 	c.Assert(err, check.IsNil)
 	c.Assert(string(actualFileContents), check.Equals, execOutput)
-}
-
-func (s *cliTestSuite) TestExecCommandToFileAddsCoverageOptionsToSnappyCmd(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		outputFile, err := ioutil.TempFile("", "snappy-exec")
-		c.Check(err, check.IsNil)
-		outputFile.Close()
-		defer os.Remove(outputFile.Name())
-
-		ExecCommandToFile(c, outputFile.Name(), cmd)
-
-		c.Check(checkPrefixInSlice("-test.run", s.execArgs) &&
-			checkPrefixInSlice("-test.coverprofile", s.execArgs),
-			check.Equals, true)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandToFileDoesNotAddCoverageOptionsToNonSnappyCmd(c *check.C) {
-	outputFile, err := ioutil.TempFile("", "snappy-exec")
-	c.Assert(err, check.IsNil)
-	outputFile.Close()
-	defer os.Remove(outputFile.Name())
-
-	ExecCommandToFile(c, outputFile.Name(), "mycmd")
-
-	c.Assert(checkPrefixInSlice("-test.run", s.execArgs) ||
-		checkPrefixInSlice("-test.coverprofile", s.execArgs),
-		check.Equals, false)
-}
-
-func (s *cliTestSuite) TestExecCommandToFileDoesNotAddCoverageOptionsToSnappyCmdWhenNotBuiltFromBranch(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		s.writeFromBranchConfig(false)
-		s.execArgs = []string{}
-
-		outputFile, err := ioutil.TempFile("", "snappy-exec")
-		c.Check(err, check.IsNil)
-		outputFile.Close()
-		defer os.Remove(outputFile.Name())
-
-		ExecCommandToFile(c, outputFile.Name(), cmd)
-
-		c.Check(checkPrefixInSlice("-test.run", s.execArgs) ||
-			checkPrefixInSlice("-test.coverprofile", s.execArgs),
-			check.Equals, false)
-	}
 }
 
 func (s *cliTestSuite) TestExecCommandErr(c *check.C) {
@@ -262,114 +161,6 @@ func (s *cliTestSuite) TestExecCommandErrWithError(c *check.C) {
 
 	c.Assert(actualOutput, check.Equals, execOutput)
 	c.Assert(err, check.NotNil)
-}
-
-func (s *cliTestSuite) TestExecCommandErrAddsCoverageOptionsToSnappyCmd(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		ExecCommandErr(cmd)
-
-		c.Check(checkPrefixInSlice("-test.run", s.execArgs) &&
-			checkPrefixInSlice("-test.coverprofile", s.execArgs),
-			check.Equals, true)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandErrDoesNotAddCoverageOptionsToNonSnappyCmd(c *check.C) {
-	ExecCommandErr("mycmd")
-
-	c.Assert(checkPrefixInSlice("-test.run", s.execArgs) ||
-		checkPrefixInSlice("-test.coverprofile", s.execArgs),
-		check.Equals, false)
-}
-
-func (s *cliTestSuite) TestExecCommandErrDoesNotAddCoverageOptionsToSnappyCmdWhenNotBuiltFromBranch(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		s.writeFromBranchConfig(false)
-		s.execArgs = []string{}
-
-		ExecCommandErr(cmd)
-
-		c.Check(checkPrefixInSlice("-test.run", s.execArgs) ||
-			checkPrefixInSlice("-test.coverprofile", s.execArgs),
-			check.Equals, false)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandRemovesCoverageLines(c *check.C) {
-	s.helperProcess = "TestHelperProcessCoverage"
-	for _, cmd := range s.targetCoverCmds {
-		actualOutput := ExecCommand(c, cmd)
-
-		c.Check(actualOutput, check.Equals, execOutput)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandRemovesCoverageLinesForEmptyOutput(c *check.C) {
-	s.helperProcess = "TestHelperProcessCoverageEmptyOutput"
-	for _, cmd := range s.targetCoverCmds {
-		actualOutput := ExecCommand(c, cmd)
-
-		c.Check(actualOutput, check.Equals, "\n")
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandCreatesCoverageDir(c *check.C) {
-	s.helperProcess = "TestHelperProcessCoverage"
-	for _, cmd := range s.targetCoverCmds {
-		ExecCommand(c, cmd)
-
-		expectedDir := filepath.Join(s.tmpDir, "coverage")
-		_, err := os.Stat(expectedDir)
-		c.Check(err, check.IsNil)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandReturnsCreateCoverageDirError(c *check.C) {
-	targetDir := filepath.Join(s.tmpDir, "existingDir")
-	err := os.Mkdir(targetDir, os.ModeDir)
-	c.Assert(err, check.IsNil)
-
-	os.Setenv("ADT_ARTIFACTS", targetDir)
-
-	s.helperProcess = "TestHelperProcessCoverage"
-	for _, cmd := range s.targetCoverCmds {
-		_, err = ExecCommandErr(cmd)
-
-		c.Check(err, check.NotNil)
-		c.Check(err, check.FitsTypeOf, &os.PathError{})
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandCoverageFilesDontDuplicateCoverageDir(c *check.C) {
-	s.helperProcess = "TestHelperProcessCoverage"
-	for _, cmd := range s.targetCoverCmds {
-		ExecCommand(c, cmd)
-
-		coverFile := strings.Split(s.execArgs[1], "=")[1]
-
-		c.Check(strings.Count(coverFile, getCoveragePath()), check.Equals, 1)
-	}
-}
-
-func (s *cliTestSuite) TestExecCommandCreatesOneCoverageFilePerCall(c *check.C) {
-	s.helperProcess = "TestHelperProcessCoverage"
-
-	expectedTotal := 3
-
-	for _, cmd := range s.targetCoverCmds {
-		coverFileNames := []string{}
-
-		for i := 0; i < expectedTotal; i++ {
-			ExecCommand(c, cmd)
-			// s.execArgs is of the form:
-			// [-test.run=^TestRunMain$ -test.coverprofile=/tmp/832295861/coverage/coverage.out]
-			coverFile := strings.Split(s.execArgs[1], "=")[1]
-			coverFileNames = append(coverFileNames, filepath.Base(coverFile))
-		}
-		c.Check(coverFileNames[0] != coverFileNames[1], check.Equals, true)
-		c.Check(coverFileNames[1] != coverFileNames[2], check.Equals, true)
-		c.Check(coverFileNames[0] != coverFileNames[2], check.Equals, true)
-	}
 }
 
 func checkPrefixInSlice(prefix string, elements []string) bool {
@@ -405,35 +196,6 @@ func (s *cliTestSuite) TestExecCommandWrapperReturnsErr(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *cliTestSuite) TestAddOptionsToSnappyCommand(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		cmdsIn := []string{cmd, "subcommand"}
-
-		cmdsOut, err := AddOptionsToCommand(cmdsIn)
-
-		c.Check(err, check.IsNil)
-		c.Check(len(cmdsOut), check.Equals, 4)
-		c.Check(cmdsOut[0], check.Equals, cmd)
-		c.Check(cmdsOut[3], check.Equals, "subcommand")
-		c.Check(cmdsOut[1], check.Equals, "-test.run=^TestRunMain$")
-		c.Check(strings.HasPrefix(cmdsOut[2], "-test.coverprofile="), check.Equals, true)
-	}
-}
-
-func (s *cliTestSuite) TestAddOptionsDoesNotModifyOriginalCmds(c *check.C) {
-	for _, cmd := range s.targetCoverCmds {
-		cmdsIn := []string{cmd, "subcommand1", "subcommand2"}
-
-		_, err := AddOptionsToCommand(cmdsIn)
-
-		c.Check(err, check.IsNil)
-		c.Check(len(cmdsIn), check.Equals, 3)
-		c.Check(cmdsIn[0], check.Equals, cmd)
-		c.Check(cmdsIn[1], check.Equals, "subcommand1")
-		c.Check(cmdsIn[2], check.Equals, "subcommand2")
-	}
-}
-
 func (s *cliTestSuite) TestExecCommandWrapperDoesNotWriteVerboseOutputByDefault(c *check.C) {
 	backStdout := os.Stdout
 	defer func() { os.Stdout = backStdout }()
@@ -463,15 +225,12 @@ func (s *cliTestSuite) TestExecCommandWrapperHonoursVerboseFlag(c *check.C) {
 
 	os.Stdout = tmp
 
-	cmdOutput, err := ExecCommandWrapper(s.cmd)
-	c.Assert(err, check.IsNil)
+	ExecCommandWrapper(s.cmd)
 
 	completeOutput, err := ioutil.ReadFile(tmp.Name())
 	c.Assert(err, check.IsNil)
 
-	sentCmd, err := AddOptionsToCommand(s.cmd.Args)
-
-	expected := fmt.Sprintf("%s\n%s", strings.Join(sentCmd, " "), cmdOutput)
+	expected := strings.Join(s.cmd.Args, " ") + "\n"
 	c.Assert(string(completeOutput), check.Equals, expected)
 }
 
