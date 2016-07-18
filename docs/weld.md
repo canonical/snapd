@@ -17,13 +17,6 @@ into the right place.
 ### Example
 
 ```
-$ cat > bootstrap.yaml <<EOF
-bootstrap:
- gadget-unpack-dir: /tmp/gadget-unpack-dir
- channel: edge
- model-assertion: model.assertion
-EOF
-
 $ cat > model.assertion <<EOF
 type: model
 series: 16
