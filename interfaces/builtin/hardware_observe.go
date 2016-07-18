@@ -26,7 +26,7 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const hardwareObserveConnectedPlugAppArmor = `
 # Description: This interface allows for getting hardware information
-# from the system, as is needed by checkbox on snappy.  This is reserved for OS snap.
+# from the system.  This is reserved for OS snap.
 # Usage: reserved
 
 #include <abstractions/base>
@@ -50,8 +50,6 @@ const hardwareObserveConnectedPlugAppArmor = `
 /var/lib/usbutils/usb.ids r,
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
-
-
 `
 
 // NewHardwareObserveInterface returns a new "hardware-observe" interface.
