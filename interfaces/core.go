@@ -154,6 +154,8 @@ const (
 	SecurityUDev SecuritySystem = "udev"
 	// SecurityMount identifies the mount security system.
 	SecurityMount SecuritySystem = "mount"
+	// SecuritySELinux identifies the selinux security system.
+	SecuritySELinux SecuritySystem = "selinux"
 )
 
 var (
