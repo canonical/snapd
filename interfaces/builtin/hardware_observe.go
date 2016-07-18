@@ -25,7 +25,8 @@ import (
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const hardwareObserveConnectedPlugAppArmor = `
-# Description: Can read udevadm info
+# Description: This interface allows for getting hardware information
+# from the system, as is needed by checkbox on snappy.  This is reserved for OS snap.
 # Usage: reserved
 
 #include <abstractions/base>
