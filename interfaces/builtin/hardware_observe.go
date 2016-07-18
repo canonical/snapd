@@ -33,8 +33,6 @@ const hardwareObserveConnectedPlugAppArmor = `
 
 /bin/udevadm ixr,
 /bin/lsblk ixr,
-/usr/sbin/dmidecode ixr,
-/usr/bin/lsusb ixr,
 /etc/udev/udev.conf r,
 @{PROC}/*/stat r,
 /run/udev/data/* r,
