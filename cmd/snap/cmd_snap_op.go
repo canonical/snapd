@@ -215,6 +215,7 @@ type cmdInstall struct {
 	channelMixin
 
 	DevMode    bool `long:"devmode" description:"Install the snap with non-enforcing security"`
+	JailMode   bool `long:"jailmode" description:"Override a snap's request for non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -231,7 +232,7 @@ func (x *cmdInstall) Execute([]string) error {
 
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode}
+	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode}
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
 		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
@@ -457,6 +458,10 @@ revisions is not touched by the revert process.
 `)
 
 func (x *cmdRevert) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	cli := Client()
 	name := x.Positional.Snap
 	changeID, err := cli.Revert(name, nil)

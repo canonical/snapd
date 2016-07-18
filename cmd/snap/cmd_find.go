@@ -34,15 +34,10 @@ var longFindHelp = i18n.G(`
 The find command queries the store for available packages.
 `)
 
-func getPrice(prices map[string]float64, currency, status string) string {
+func getPrice(prices map[string]float64, currency string) (float64, string, error) {
 	// If there are no prices, then the snap is free
 	if len(prices) == 0 {
-		return ""
-	}
-
-	// If the snap is priced, but has been purchased
-	if status == "available" {
-		return i18n.G("bought")
+		return 0, "", fmt.Errorf(i18n.G("snap is free"))
 	}
 
 	// Look up the price by currency code
@@ -65,7 +60,27 @@ func getPrice(prices map[string]float64, currency, status string) string {
 		}
 	}
 
+	return val, currency, nil
+}
+
+func formatPrice(val float64, currency string) string {
 	return fmt.Sprintf("%.2f%s", val, currency)
+}
+
+func getPriceString(prices map[string]float64, suggestedCurrency, status string) string {
+	price, currency, err := getPrice(prices, suggestedCurrency)
+
+	// If there are no prices, then the snap is free
+	if err != nil {
+		return ""
+	}
+
+	// If the snap is priced, but has been purchased
+	if status == "available" {
+		return i18n.G("bought")
+	}
+
+	return formatPrice(price, currency)
 }
 
 type cmdFind struct {
@@ -80,7 +95,11 @@ func init() {
 	})
 }
 
-func (x *cmdFind) Execute([]string) error {
+func (x *cmdFind) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return findSnaps(&client.FindOptions{
 		Query: x.Positional.Query,
 	})
@@ -106,9 +125,9 @@ func findSnaps(opts *client.FindOptions) error {
 
 	for _, snap := range snaps {
 		notes := &Notes{
-			Private:     snap.Private,
-			Confinement: snap.Confinement,
-			Price:       getPrice(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
+			Private: snap.Private,
+			DevMode: snap.Confinement != client.StrictConfinement,
+			Price:   getPriceString(snap.Prices, resInfo.SuggestedCurrency, snap.Status),
 		}
 		// TODO: get snap.Publisher, so we can only show snap.Developer if it's different
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Developer, notes, snap.Summary)

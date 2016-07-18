@@ -20,13 +20,13 @@
 package asserts_test
 
 import (
-	"path/filepath"
 	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
 var (
@@ -128,6 +128,72 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 
 }
 
+func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
+	dev1Acct := assertstest.NewAccount(storeDB, "developer1", map[string]string{
+		"account-id": "dev-id1",
+	}, "")
+	err := db.Add(dev1Acct)
+	c.Assert(err, IsNil)
+}
+
+func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+
+	headers := map[string]string{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "dev-id1",
+		"gates":        "",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDecl)
+	c.Assert(err, IsNil)
+}
+
+func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	headers := map[string]string{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "dev-id1",
+		"gates":        "",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := otherDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDecl)
+	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) is not signed by a directly trusted authority:.*`)
+}
+
+func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	headers := map[string]string{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "dev-id1",
+		"gates":        "",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapDecl)
+	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) does not have a matching account assertion for the publisher "dev-id1"`)
+}
+
 type snapBuildSuite struct {
 	ts     time.Time
 	tsLine string
@@ -204,67 +270,54 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func makeSignAndCheckDbWithAccountKey(c *C, accountID string) (signingKeyID string, accSignDB, checkDB *asserts.Database) {
-	trustedKey := testPrivKey0
+func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts.Database) {
+	trustedPrivKey := testPrivKey0
+	storePrivKey := testPrivKey1
 
-	cfg1 := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-	}
-	accSignDB, err := asserts.OpenDatabase(cfg1)
-	c.Assert(err, IsNil)
-	pk1 := testPrivKey1
-	err = accSignDB.ImportKey(accountID, testPrivKey1)
-	c.Assert(err, IsNil)
-	accFingerp := pk1.PublicKey().Fingerprint()
-	accKeyID := pk1.PublicKey().ID()
-
-	pubKey, err := accSignDB.PublicKey(accountID, accKeyID)
-	c.Assert(err, IsNil)
-	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
-	c.Assert(err, IsNil)
-	accPubKeyBody := string(pubKeyEncoded)
-
-	headers := map[string]string{
-		"authority-id":           "canonical",
-		"account-id":             accountID,
-		"public-key-id":          accKeyID,
-		"public-key-fingerprint": accFingerp,
-		"since":                  "2015-11-20T15:04:00Z",
-		"until":                  "2500-11-20T15:04:00Z",
-	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(accPubKeyBody), trustedKey)
-	c.Assert(err, IsNil)
-
-	topDir := filepath.Join(c.MkDir(), "asserts-db")
-	bs, err := asserts.OpenFSBackstore(topDir)
-	c.Assert(err, IsNil)
+	store := assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      bs,
+		Backstore:      asserts.NewMemoryBackstore(),
 		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Trusted:        store.Trusted,
 	}
-	checkDB, err = asserts.OpenDatabase(cfg)
+	checkDB, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 
+	// add store key
+	err = checkDB.Add(store.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	return store.SigningDB, checkDB
+}
+
+func setup3rdPartySigning(c *C, username string, storeDB *assertstest.SigningDB, checkDB *asserts.Database) (signingDB *assertstest.SigningDB) {
+	privKey := testPrivKey2
+
+	acct := assertstest.NewAccount(storeDB, username, nil, "")
+	accKey := assertstest.NewAccountKey(storeDB, acct, nil, privKey.PublicKey(), "")
+
+	err := checkDB.Add(acct)
+	c.Assert(err, IsNil)
 	err = checkDB.Add(accKey)
 	c.Assert(err, IsNil)
 
-	return accKeyID, accSignDB, checkDB
+	return assertstest.NewSigningDB(acct.AccountID(), privKey)
 }
 
 func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
 	headers := map[string]string{
-		"authority-id": "dev-id1",
+		"authority-id": devDB.AuthorityID,
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-digest":  "sha256 ...",
 		"grade":        "devel",
 		"snap-size":    "1025",
-		"timestamp":    "2015-11-25T20:00:00Z",
+		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, signingKeyID)
+	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapBuild)
@@ -272,18 +325,18 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 }
 
 func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "dev-id1")
+	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
 	headers := map[string]string{
-		"authority-id": "dev-id1",
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-digest":  "sha256 ...",
-		"grade":        "devel",
-		"snap-size":    "1025",
-		"timestamp":    "2013-01-01T14:00:00Z",
+		"series":      "16",
+		"snap-id":     "snap-id-1",
+		"snap-digest": "sha256 ...",
+		"grade":       "devel",
+		"snap-size":   "1025",
+		"timestamp":   "2013-01-01T14:00:00Z",
 	}
-	snapBuild, err := accSignDB.Sign(asserts.SnapBuildType, headers, nil, signingKeyID)
+	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapBuild)
@@ -319,7 +372,7 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 
 func (srs *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
 	headers := map[string]string{
-		"authority-id":  "store-id1",
+		"authority-id":  "canonical",
 		"series":        "16",
 		"snap-id":       "snap-id-1",
 		"snap-digest":   "sha256 ...",
@@ -327,7 +380,7 @@ func (srs *snapRevSuite) makeHeaders(overrides map[string]string) map[string]str
 		"snap-revision": "1",
 		"developer-id":  "dev-id1",
 		"revision":      "1",
-		"timestamp":     "2015-11-25T20:00:00Z",
+		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 	for k, v := range overrides {
 		headers[k] = v
@@ -387,11 +440,28 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
+func prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]string{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": "dev-id1",
+		"gates":        "",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+}
+
 func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
 
 	headers := srs.makeHeaders(nil)
-	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapRev)
@@ -399,23 +469,63 @@ func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
 }
 
 func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
+	storeDB, db := makeStoreAndCheckDB(c)
 
 	headers := srs.makeHeaders(map[string]string{
 		"timestamp": "2013-01-01T14:00:00Z",
 	})
-	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(snapRev)
 	c.Assert(err, ErrorMatches, "snap-revision assertion timestamp outside of signing key validity")
 }
 
-func (srs *snapRevSuite) TestPrimaryKey(c *C) {
-	headers := srs.makeHeaders(nil)
+func (srs *snapRevSuite) TestSnapRevisionCheckUntrustedAuthority(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
 
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "store-id1")
-	snapRev, err := accSignDB.Sign(asserts.SnapRevisionType, headers, nil, signingKeyID)
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	headers := srs.makeHeaders(nil)
+	snapRev, err := otherDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapRev)
+	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" is not signed by a store:.*`)
+}
+
+func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeveloperAccount(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	headers := srs.makeHeaders(nil)
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapRev)
+	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching account assertion for the developer "dev-id1"`)
+}
+
+func (srs *snapRevSuite) TestSnapRevisionCheckMissingDeclaration(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+
+	headers := srs.makeHeaders(nil)
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(snapRev)
+	c.Assert(err, ErrorMatches, `snap-revision assertion for snap id "snap-id-1" does not have a matching snap-declaration assertion`)
+}
+
+func (srs *snapRevSuite) TestPrimaryKey(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+
+	headers := srs.makeHeaders(nil)
+	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
 	c.Assert(err, IsNil)
 	err = db.Add(snapRev)
 	c.Assert(err, IsNil)
