@@ -1,21 +1,11 @@
 summary: Checks for cli errors installing snaps
+
 environment:
-    SIDELOAD_SNAP_NAME: test-snapd-tools
-    STORE_SNAP_NAME: hello-world
-    SNAP_FILE: "./$[SIDELOAD_SNAP_NAME]_1.0_all.snap"
+    SNAP_NAME: test-snapd-tools
 
 prepare: |
     echo "Given a snap with a failing command is installed"
-    snapbuild $TESTSLIB/snaps/$SIDELOAD_SNAP_NAME .
-    snap install $SNAP_FILE
-
-    echo "And a snap from the store is installed"
-    snap install $STORE_SNAP_NAME
-
-restore: |
-    snap remove $SIDELOAD_SNAP_NAME
-    snap remove $STORE_SNAP_NAME
-    rm -f $SNAP_FILE
+    snap install $SNAP_NAME
 
 execute: |
     echo "Install unexisting snap prints error"
@@ -35,7 +25,7 @@ execute: |
     echo "============================================"
 
     echo "Install points to login when not authenticated"
-    if sudo -i -u test /bin/sh -c "snap install hello-world 2>${PWD}/install.output"; then
+    if sudo -i -u test /bin/sh -c "snap install $SNAP_NAME 2>${PWD}/install.output"; then
         echo "Unauthenticated install should fail"
         exit 1
     fi
@@ -52,7 +42,7 @@ execute: |
     echo "============================================"
 
     echo "Install a snap already installed fails"
-    if snap install $STORE_SNAP_NAME; then
+    if snap install $SNAP_NAME; then
         echo "Trying to install an already installed snap should fail"
         exit 1
     fi

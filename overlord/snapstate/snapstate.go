@@ -39,23 +39,26 @@ const (
 	// TryMode is set for snaps installed to try directly from a local directory.
 	TryMode
 
-	// the following flag values cannot be used until we drop the
-	// backward compatible support for flags values in SnapSetup
-	// that were based on snappy.* flags, after that we can
-	// start using them
-	interimUnusableLegacyFlagValueMin
-	interimUnusableLegacyFlagValue1
-	interimUnusableLegacyFlagValue2
-	interimUnusableLegacyFlagValueLast
+	// JailMode is set when the user has requested confinement
+	// always be enforcing, even if the snap requests otherwise.
+	JailMode
 
-	// the following flag value is the first that can be grabbed
-	// for use in the interim time while we have the backward compatible
-	// support
-	firstInterimUsableFlagValue
 	// if we need flags for just SnapSetup it may be easier
 	// to start a new sequence from the other end with:
 	// 0x40000000 >> iota
 )
+
+func (f Flags) DevModeAllowed() bool {
+	return f&(DevMode|JailMode) != 0
+}
+
+func (f Flags) DevMode() bool {
+	return f&DevMode != 0
+}
+
+func (f Flags) JailMode() bool {
+	return f&JailMode != 0
+}
 
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name()); err != nil {
@@ -224,11 +227,17 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
+	// FIXME: snaps that are no active are skipped for now
+	//        until we know what we want to do
+	if !snapst.Active {
+		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
+	}
+
 	if channel == "" {
 		channel = snapst.Channel
 	}
 
-	updateInfo, err := updateInfo(s, name, channel, userID, flags)
+	updateInfo, err := updateInfo(s, &snapst, channel, userID, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -488,10 +497,6 @@ func Info(s *state.State, name string, revision snap.Revision) (*snap.Info, erro
 		}
 	}
 
-	if snapst.Candidate != nil && snapst.Candidate.Revision == revision {
-		return readInfo(name, snapst.Candidate)
-	}
-
 	return nil, fmt.Errorf("cannot find snap %q at revision %s", name, revision.String())
 }
 
@@ -554,7 +559,7 @@ func Set(s *state.State, name string, snapst *SnapState) {
 	if snaps == nil {
 		snaps = make(map[string]*json.RawMessage)
 	}
-	if snapst == nil || (len(snapst.Sequence) == 0 && snapst.Candidate == nil) {
+	if snapst == nil || (len(snapst.Sequence) == 0) {
 		delete(snaps, name)
 	} else {
 		data, err := json.Marshal(snapst)

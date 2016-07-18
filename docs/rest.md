@@ -179,9 +179,26 @@ Reserved for human-readable content describing the service.
 
 Query.
 
-#### `channel`
+The query is a whitespace-separated list<sup id=a1>[†](#f1)</sup> of terms, all of
+which will be satisfied by the returned snaps.
 
-Which channel to search in.
+Each term can have an optional prefix followed by `:`.
+
+Supported prefixes are
+
+<dl>
+<dt>name</dt>
+<dd>The term matches the snap's name. It can end in <code>*</code> in which
+case the search is for a prefix, otherwise the whole name must match.</dd>
+<dt>text</dt>
+<dd>The term is looked up in a full-text index of name, summary and
+description.</dd>
+</dl>
+
+If no prefix is given, the term is treated as if it were a `*`-ended `name`
+search; this is: `snap find foo` is the same as `snap find name:foo*`.
+
+<b id=f1>†</b> that list can only have exactly one element, for now. [↩](#a1)
 
 #### `select`
 
@@ -190,7 +207,7 @@ snaps is supported via the `refresh` key.
 
 #### Sample result:
 
-[//]: # keep the fields sorted, both in the sample and its description below. Makes scanning easier
+[//]: # (keep the fields sorted, both in the sample and its description below. Makes scanning easier)
 
 ```javascript
 [{
@@ -227,7 +244,7 @@ snaps is supported via the `refresh` key.
 
 ##### Fields
 
-[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+[//]: # (keep the fields sorted, both in the description and the sample above. Makes scanning easier)
 
 * `channel`: which channel the snap is currently tracking.
 * `confinement`: the confinement requested by the snap itself; one of `strict` or `devmode`.
@@ -246,7 +263,7 @@ snaps is supported via the `refresh` key.
 * `type`: the type of snap; one of `app`, `kernel`, `gadget`, or `os`.
 * `version`: a string representing the version.
 
-[//]: # seriously, keep the fields sorted!
+[//]: # (seriously, keep the fields sorted!)
 
 #### Result meta data:
 
@@ -272,7 +289,7 @@ snaps is supported via the `refresh` key.
 
 Sample result:
 
-[//]: # keep the fields sorted, both in the description and the sample above. Makes scanning easier
+[//]: # (keep the fields sorted, both in the description and the sample above. Makes scanning easier)
 
 ```javascript
 [{
@@ -317,7 +334,7 @@ Sample result:
 
 In addition to the fields described in `/v2/find`:
 
-[//]: # keep the fields sorted!
+[//]: # (keep the fields sorted!)
 
 * `apps`: JSON array of apps the snap provides. Each app has a `name` field to name a binary this app provides.
 * `devmode`: true if the snap is currently installed in development mode.
@@ -530,7 +547,6 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "channel": "moon-buggy",
     "price": "2.99",
     "currency": "USD"
 }
@@ -542,7 +558,6 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "channel": "moon-buggy",
     "price": "2.99",
     "currency": "USD",
     "backend-id": "credit_card",
@@ -556,4 +571,65 @@ Generally the UUID of a background operation you are interested in.
 {
  "state": "Complete",
 }
+```
+
+## /v2/buy/methods
+
+### GET
+
+* Description: Get a list of the available payment methods
+* Access: authenticated
+* Operation: sync
+* Return: Dict with payment methods.
+
+#### Sample result with one method that allows automatic payment:
+
+```javascript
+{
+    "allows-automatic-payment": true,
+    "methods": [
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 1111 (exp 23/2020)",
+        "id": 123,
+        "preferred": true,
+        "requires-interaction": false
+      }
+    ]
+  }
+```
+
+#### Sample with 3 methods and no automatic payments:
+
+```javascript
+{
+    "allows-automatic-payment": false,
+    "methods": [
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 1111 (exp 23/2020)",
+        "id": 123,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 2222 (exp 23/2025)",
+        "id": 234,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
+        "backend-id": "rest_paypal",
+        "currencies": ["USD", "GBP", "EUR"],
+        "description": "PayPal",
+        "id": 345,
+        "preferred": false,
+        "requires-interaction": true
+      }
+    ]
+  }
 ```
