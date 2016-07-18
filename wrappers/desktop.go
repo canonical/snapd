@@ -25,10 +25,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
@@ -163,6 +165,20 @@ func sanitizeDesktopFile(s *snap.Info, rawcontent []byte) []byte {
 	return []byte(strings.Join(newContent, "\n"))
 }
 
+func updateDesktopDatabase(desktopFiles []string) error {
+	if len(desktopFiles) == 0 {
+		return nil
+	}
+
+	if _, err := exec.LookPath("update-desktop-database"); err == nil {
+		if output, err := exec.Command("update-desktop-database").CombinedOutput(); err != nil {
+			return fmt.Errorf("cannot update-desktop-database %q: %s", output, err)
+		}
+		logger.Debugf("update-desktop-database successful")
+	}
+	return nil
+}
+
 // AddSnapDesktopFiles puts in place the desktop files for the applications from the snap.
 func AddSnapDesktopFiles(s *snap.Info) error {
 	if err := os.MkdirAll(dirs.SnapDesktopFilesDir, 0755); err != nil {
@@ -190,6 +206,11 @@ func AddSnapDesktopFiles(s *snap.Info) error {
 		}
 	}
 
+	// updates mime info etc
+	if err := updateDesktopDatabase(desktopFiles); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -202,6 +223,11 @@ func RemoveSnapDesktopFiles(s *snap.Info) error {
 	}
 	for _, f := range activeDesktopFiles {
 		os.Remove(f)
+	}
+
+	// updates mime info etc
+	if err := updateDesktopDatabase(activeDesktopFiles); err != nil {
+		return err
 	}
 
 	return nil
