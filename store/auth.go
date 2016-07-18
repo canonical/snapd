@@ -43,8 +43,9 @@ var (
 )
 
 type ssoMsg struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string              `json:"code"`
+	Message string              `json:"message"`
+	Extra   map[string][]string `json:"extra"`
 }
 
 // returns true if the http status code is in the "success" range (2xx)
@@ -139,7 +140,7 @@ func RequestStoreMacaroon() (string, error) {
 }
 
 func requestDischargeMacaroon(endpoint string, data map[string]string) (string, error) {
-	const errorPrefix = "cannot authenticate on snap store: "
+	const errorPrefix = "cannot authenticate to snap store: "
 
 	dischargeJSONData, err := json.Marshal(data)
 	if err != nil {
@@ -166,14 +167,17 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		// get error details
 		var msg ssoMsg
 		dec := json.NewDecoder(resp.Body)
+
 		if err := dec.Decode(&msg); err != nil {
 			return "", fmt.Errorf(errorPrefix+"%v", err)
 		}
-		if msg.Code == "TWOFACTOR_REQUIRED" {
+		switch msg.Code {
+		case "TWOFACTOR_REQUIRED":
 			return "", ErrAuthenticationNeeds2fa
-		}
-		if msg.Code == "TWOFACTOR_FAILURE" {
+		case "TWOFACTOR_FAILURE":
 			return "", Err2faFailed
+		case "INVALID_DATA":
+			return "", ErrInvalidAuthData(msg.Extra)
 		}
 
 		if msg.Message != "" {

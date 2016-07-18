@@ -659,7 +659,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate on snap store")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate to snap store")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {

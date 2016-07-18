@@ -13,7 +13,7 @@ execute: |
         echo "Expected error installing snap from unauthenticated account"
         exit 1
     fi
-    expected="error: access denied (snap login --help)"
+    expected="error: access denied (see \"snap login --help\")"
     [ "$(cat install.output)" = "$expected" ]
 
     echo "An unauthenticated user cannot connect plugs to slots"
