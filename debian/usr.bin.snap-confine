@@ -17,7 +17,7 @@
     /usr/lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libseccomp.so* mr,
 
-    /usr/bin/snap-confine r,
+    /usr/lib/snapd/snap-confine r,
 
     /dev/null rw,
     /dev/full rw,
