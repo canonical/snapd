@@ -72,8 +72,9 @@ func ExecCommandWrapper(cmd *exec.Cmd) (output string, err error) {
 		fmt.Println(strings.Join(cmd.Args, " "))
 	}
 	outputByte, err := cmd.CombinedOutput()
+	output = string(outputByte)
 	if cfg.Verbose {
 		fmt.Print(output)
 	}
-	return string(outputByte), err
+	return output, err
 }
