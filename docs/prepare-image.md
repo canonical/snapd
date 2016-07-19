@@ -5,10 +5,10 @@ part of building an image.
 
 ## Running it
 
-The `snap prepare-image` command takes a model assertion as intput and
-also `--root-dir` and `--gadget-unpack-dir`. It will place all snaps
-in the root-dir and downloads/unpacks the gadget snap into the
-directory specified with `--gadget-unpack-dir`.
+The `snap prepare-image` command takes a model assertion and a rootdir
+as intput. It will create $ROOT/image that contains the directory layout
+with content for the image. It will also create $ROOT/gadget that
+contains the unpacked gadget snap content for ubuntu-image.
 
 It will also inspect the gadget snap for the bootloader
 configuration file and instlal that into the root-dir
@@ -39,14 +39,13 @@ EOF
 
 $ sudo snap prepare-image \
    --channel edge \
-   --root-dir=/tmp/imageroot \
-   --gadget-unpack-dir=/tmp/gadget-unpack-dir \
-   model.assertion 
+   model.assertion  \
+   /tmp/prepare-image/
 ...
-$ ls /tmp/gadget-unpack-dir/
+$ ls /tmp/prepare-image/gadget
 boot-assets  canonical-pi2_6.snap  canonical-pi2_6.snap.sideinfo  meta
 
-$ ls /tmp/imageroot
+$ ls /tmp/prepare-image/image
 boot  snap  var
 ```
 
