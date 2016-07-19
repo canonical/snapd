@@ -40,3 +40,4 @@ var ParseErrorInTest = parseError
 // expose read and write auth helpers for testing
 var TestWriteAuth = writeAuthData
 var TestReadAuth = readAuthData
+var TestStoreAuthFilename = storeAuthDataFilename
