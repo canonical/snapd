@@ -230,7 +230,7 @@ func (s *cliTestSuite) TestExecCommandWrapperHonoursVerboseFlag(c *check.C) {
 	completeOutput, err := ioutil.ReadFile(tmp.Name())
 	c.Assert(err, check.IsNil)
 
-	expected := strings.Join(s.cmd.Args, " ") + "\n"
+	expected := strings.Join(s.cmd.Args, " ") + "\n" + "myoutput\n"
 	c.Assert(string(completeOutput), check.Equals, expected)
 }
 
