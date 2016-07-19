@@ -111,12 +111,6 @@ the user of the error or otherwise adapt to the error condition,
 for `kind` (and associated `value` metadata) will be added as needed
 by client implementations.
 
-#### Error kinds
-
-kind               | value description
--------------------|--------------------
-`license-required` | see "A note on licenses", below
-
 ### Timestamps
 
 Timestamps are presented in RFC3339 format, with µs precision, and in
@@ -384,27 +378,6 @@ field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `refresh`, or `remove`
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
-
-#### A note on licenses
-
-When requesting to install a snap that requires agreeing to a license before
-install succeeds, or when requesting an update to a snap with such an
-agreement that has an updated license version, the initial request will fail
-with an error, and the error object will contain the intro and license texts to
-present to the user for their approval. An example of the command's `output`
-field would be
-
-```javascript
-"output": {
-    "value": {
-        "agreed": false,
-        "intro": "licensed requires that you accept the following license before continuing",
-        "license": "In order to use this software you must agree with us."
-    },
-    "kind": "license-required",
-    "message": "License agreement required."
-}
-```
 
 ## /v2/icons/[name]/icon
 
