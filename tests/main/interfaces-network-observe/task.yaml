@@ -1,7 +1,7 @@
 summary: Ensure that the network-observe interface works
 
-summary: |
-    The network-observe interface allows a snap to access the locale configuration.
+details: |
+    The network-observe interface allows a snap to query the network status information.
 
     A snap which defines the network-observe plug must be shown in the interfaces list.
     The plug must not be autoconnected on install and, as usual, must be able to be
