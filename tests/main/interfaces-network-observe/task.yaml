@@ -28,7 +28,7 @@ prepare: |
 
 restore: |
     systemctl stop $SERVICE_NAME
-    rm -f network-observe-consumer_1.0_all.snap net-query.output
+    rm -f network-observe-consumer_1.0_all.snap net-query.output $SERVICE_FILE
 
 execute: |
     CONNECTED_PATTERN=":network-observe +network-observe-consumer"
