@@ -216,3 +216,10 @@ Can manage processes via signals and nice.
 
 Usage: reserved
 Auto-Connect: no
+
+### bluetooth-control
+
+Allow to manage the kernel side Bluetooth stack.
+
+Usage: reserved
+Auto-Connect: no

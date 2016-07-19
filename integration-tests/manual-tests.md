@@ -177,3 +177,24 @@
 
 2. Ensure the 'serial-port' interface is connected to miniterm
 3. Use sudo miniterm.open /dev/tty<DEV> to open a serial port
+
+# Test bluetooth-control interface
+
+1. Using Ubuntu classic build and install the bluetooth-tests snap
+   from the store.
+
+2. Stop system BlueZ service
+
+$ sudo systemctl stop bluetooth
+
+or if you have the bluez snap installed
+
+$ snap remove bluez
+
+3. Run one of the tests provided by the bluetooth-tests snap
+
+ $ sudo /snap/bin/bluetooth-tests.hci-tester
+
+   and verify it actually passes. If some of the tests fail
+   there will be a problem with the particular kernel used on
+   the device.
