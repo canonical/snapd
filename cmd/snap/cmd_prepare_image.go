@@ -23,10 +23,10 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/weld"
+	"github.com/snapcore/snapd/image"
 )
 
-type cmdWeld struct {
+type cmdPrepareImage struct {
 	Positional struct {
 		ModelAssertionFn string `positional-arg-name:"model-assertion" description:"the model assertion name"`
 	} `positional-args:"yes" required:"yes"`
@@ -38,17 +38,17 @@ type cmdWeld struct {
 }
 
 func init() {
-	cmd := addCommand("weld",
-		i18n.G("Weld a snappy system"),
-		i18n.G("Weld a snappy system"),
+	cmd := addCommand("prepare-image",
+		i18n.G("Prepare a snappy image"),
+		i18n.G("Prepare a snappy image"),
 		func() flags.Commander {
-			return &cmdWeld{}
+			return &cmdPrepareImage{}
 		})
 	cmd.hidden = true
 }
 
-func (x *cmdWeld) Execute(args []string) error {
-	opts := &weld.Options{
+func (x *cmdPrepareImage) Execute(args []string) error {
+	opts := &image.Options{
 		ModelAssertionFn: x.Positional.ModelAssertionFn,
 
 		Rootdir:         x.Rootdir,
@@ -57,5 +57,5 @@ func (x *cmdWeld) Execute(args []string) error {
 		Snaps:           x.ExtraSnaps,
 	}
 
-	return weld.Weld(opts)
+	return image.Weld(opts)
 }

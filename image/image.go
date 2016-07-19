@@ -17,7 +17,7 @@
  *
  */
 
-package weld
+package image
 
 import (
 	"encoding/json"
