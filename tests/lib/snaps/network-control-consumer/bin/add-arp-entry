@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+
+import subprocess
+import sys
+
+def run(addr):
+    print(subprocess.check_output("arp -s {} aa:aa:aa:aa:aa:aa -i eth0".format(addr), shell=True))
+
+if __name__ == '__main__':
+    sys.exit(run(sys.argv[1]))
