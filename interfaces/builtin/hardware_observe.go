@@ -46,6 +46,7 @@ const hardwareObserveConnectedPlugAppArmor = `
 /sys/block/ r,
 /sys/devices/** r,
 /dev/bus/usb/ r,
+/dev/bus/usb/** r,
 /sys/bus/usb/devices/ r,
 /var/lib/usbutils/usb.ids r,
 /sys/firmware/dmi/tables/DMI r,
