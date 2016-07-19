@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-
-	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
 )
 
 // Image type encapsulates image actions
@@ -44,30 +42,32 @@ func (img Image) UdfCreate() (string, error) {
 	fmt.Println("Creating image...")
 
 	imageDir := filepath.Join(img.BaseDir, "image")
+	/*
+		testutils.PrepareTargetDir(imageDir)
 
-	testutils.PrepareTargetDir(imageDir)
+		udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
 
-	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
-
-	if img.Revision != "" {
-		panic("img.revision not supported")
-	}
-
+		if img.Revision != "" {
+			panic("img.revision not supported")
+		}
+	*/
 	imagePath := img.imagePath(imageDir)
+	/*
+		coreOptions := []string{
+			"core", img.Release,
+			"--output", imagePath,
+			"--channel", img.Channel,
+			"--gadget", img.Gadget,
+			"--os", img.OS,
+			"--kernel", img.Kernel,
+			"--developer-mode",
+		}
 
-	coreOptions := []string{
-		"core", img.Release,
-		"--output", imagePath,
-		"--channel", img.Channel,
-		"--gadget", img.Gadget,
-		"--os", img.OS,
-		"--kernel", img.Kernel,
-		"--developer-mode",
-	}
+		err := testutils.ExecCommand(append(udfCommand, coreOptions...)...)
 
-	err := testutils.ExecCommand(append(udfCommand, coreOptions...)...)
-
-	return imagePath, err
+		return imagePath, err
+	*/
+	return imagePath, nil
 }
 
 func (img Image) imagePath(imageDir string) string {
