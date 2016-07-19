@@ -20,6 +20,8 @@
 package main
 
 import (
+	"path/filepath"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
@@ -29,12 +31,11 @@ import (
 type cmdPrepareImage struct {
 	Positional struct {
 		ModelAssertionFn string `positional-arg-name:"model-assertion" description:"the model assertion name"`
+		Rootdir          string `long:"root-dir" description:"the output directory" `
 	} `positional-args:"yes" required:"yes"`
 
-	Rootdir         string   `long:"root-dir" description:"the dir that snapd considers the image rootdir" required:"yes"`
-	GadgetUnpackDir string   `long:"gadget-unpack-dir" description:"the dir that the gadget snap is unpacked to" required:"yes"`
-	ExtraSnaps      []string `long:"extra-snaps" description:"extra snaps to be installed"`
-	Channel         string   `long:"channel" description:"the channel to use"`
+	ExtraSnaps []string `long:"extra-snaps" description:"extra snaps to be installed"`
+	Channel    string   `long:"channel" description:"the channel to use"`
 }
 
 func init() {
@@ -51,8 +52,8 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
 		ModelAssertionFn: x.Positional.ModelAssertionFn,
 
-		Rootdir:         x.Rootdir,
-		GadgetUnpackDir: x.GadgetUnpackDir,
+		Rootdir:         filepath.Join(x.Positional.Rootdir, "image"),
+		GadgetUnpackDir: filepath.Join(x.Positional.Rootdir, "gadget"),
 		Channel:         x.Channel,
 		Snaps:           x.ExtraSnaps,
 	}

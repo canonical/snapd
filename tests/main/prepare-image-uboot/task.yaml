@@ -1,7 +1,8 @@
 summary: Check that prepare-image works for uboot-systems
 environment:
-    IMAGE: /tmp/diskimage
-    GADGET: /tmp/unpack-gadget
+    ROOT: /tmp/root
+    IMAGE: /tmp/root/diskimage
+    GADGET: /tmp/root/unpack-gadget
 prepare:
     mkdir -p $IMAGE
     mkdir -p $GADGET
@@ -31,7 +32,7 @@ execute: |
     EOF
 
     echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps webdm --gadget-unpack-dir $GADGET --root-dir $IMAGE model.assertion
+    snap prepare-image --channel edge --extra-snaps webdm model.assertion $ROOT
 
     echo Verifying the result
     ls -lR $IMAGE
