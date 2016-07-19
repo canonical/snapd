@@ -1,14 +1,14 @@
 # Bootstraping a snappy device
 
-The `snap weld` command is designed to do the snap specific part
-of building an image.
+The `snap prepare-image` command is designed to do the snap specific
+part of building an image.
 
 ## Running it
 
-The `snap weld` command takes a model assertion as intput and
-also `--root-dir` and `--gadget-unpack-dir`. It will place
-all snaps in the root-dir and downloads/unpacks the gadget
-snap into the directory specified with `--gadget-unpack-dir`.
+The `snap prepare-image` command takes a model assertion as intput and
+also `--root-dir` and `--gadget-unpack-dir`. It will place all snaps
+in the root-dir and downloads/unpacks the gadget snap into the
+directory specified with `--gadget-unpack-dir`.
 
 It will also inspect the gadget snap for the bootloader
 configuration file and instlal that into the root-dir
@@ -37,7 +37,7 @@ body-length: 0
 openpgpg 2cln
 EOF
 
-$ sudo snap weld \
+$ sudo snap prepare-image \
    --channel edge \
    --root-dir=/tmp/imageroot \
    --gadget-unpack-dir=/tmp/gadget-unpack-dir \
