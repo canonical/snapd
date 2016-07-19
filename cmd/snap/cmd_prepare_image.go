@@ -57,5 +57,5 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		Snaps:           x.ExtraSnaps,
 	}
 
-	return image.Weld(opts)
+	return image.Prepare(opts)
 }

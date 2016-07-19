@@ -1,4 +1,4 @@
-summary: Check that weld works for grub-systems
+summary: Check that prepare-image works for grub-systems
 environment:
     IMAGE: /tmp/diskimage
     GADGET: /tmp/unpack-gadget
@@ -30,8 +30,8 @@ execute: |
     openpgpg 2cln
     EOF
 
-    echo Running weld
-    snap weld --channel edge --extra-snaps webdm --gadget-unpack-dir $GADGET --root-dir $IMAGE model.assertion
+    echo Running prepare-image
+    snap prepare-image --channel edge --extra-snaps webdm --gadget-unpack-dir $GADGET --root-dir $IMAGE model.assertion
 
     echo Verifying the result
     ls -lR $IMAGE

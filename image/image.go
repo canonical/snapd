@@ -48,7 +48,7 @@ type Options struct {
 	GadgetUnpackDir  string
 }
 
-func Weld(opts *Options) error {
+func Prepare(opts *Options) error {
 	if err := downloadUnpackGadget(opts); err != nil {
 		return err
 	}
