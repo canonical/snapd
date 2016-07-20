@@ -65,6 +65,31 @@ sendmsg
 
 `)
 
+var mirConnectedPlugAppArmor = []byte(`
+# Description: Permit clients to use Mir
+# Usage: reserver
+
+unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###)
+
+`)
+
+var mirConnectedPlugSecComp = []byte(`
+# Description: Permit clients to use Mir
+# Usage: reserver
+getsockname
+recvmsg
+sendmsg
+sendto
+`)
+
+var mirConnectedSlotAppArmor = []byte(`
+# Description: Permit clients to use Mir
+# Usage: reserver
+
+unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###)
+
+`)
+
 type MirInterface struct{}
 
 func (iface *MirInterface) Name() string {
