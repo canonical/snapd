@@ -22,13 +22,11 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
-	"time"
 )
 
 var (
-	httpClient = http.Client{Timeout: 10 * time.Second}
+	httpClient = newHTTPClient()
 )
 
 type keysReply struct {

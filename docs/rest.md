@@ -2,9 +2,6 @@
 
 Version: v2pre0
 
-Note: The v2 API is going to be very different from the 1.0; right now, not
-so much.
-
 ## Versioning
 
 As the API evolves, some changes are deemed backwards-compatible (such
