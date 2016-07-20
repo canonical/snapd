@@ -31,12 +31,14 @@ prepare: |
 restore: |
     systemctl stop $SERVICE_NAME
     rm -f network-control-consumer_1.0_all.snap net-query.output net-command.output $SERVICE_FILE
-    arp -d $ARP_ENTRY_ADDR -i $(ip route get 8.8.8.8 | awk '{ print $5; exit }')
+    . $TESTSLIB/network.sh
+    arp -d $ARP_ENTRY_ADDR -i $(get_default_iface)
 
 execute: |
     CONNECTED_PATTERN=":network-control +network-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +network-control-consumer:network-control"
-    INTERFACE="$(ip route get 8.8.8.8 | awk '{ print $5; exit }')"
+    . $TESTSLIB/network.sh
+    INTERFACE=$(get_default_iface)
 
     echo "Then the plug disconnected by default"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
