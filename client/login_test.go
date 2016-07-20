@@ -139,3 +139,27 @@ func (cs *clientSuite) TestReadAuthData(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(readUser, check.DeepEquals, &authData)
 }
+
+func (cs *clientSuite) TestStoreAuthDataFilenameDefault(c *check.C) {
+	home := os.Getenv("HOME")
+	tmpdir := c.MkDir()
+	os.Setenv("HOME", tmpdir)
+	defer os.Setenv("HOME", home)
+
+	authFilename := client.TestStoreAuthFilename()
+
+	expectedFilename := filepath.Join(tmpdir, ".snap", "auth.json")
+	c.Check(authFilename, check.Equals, expectedFilename)
+}
+
+func (cs *clientSuite) TestStoreAuthDataFilenameViaEnv(c *check.C) {
+	authFilenameOrig := os.Getenv("SNAPPY_STORE_AUTH_DATA_FILENAME")
+	tmpdir := c.MkDir()
+	expectedAuthFilename := filepath.Join(tmpdir, "auth.json")
+	os.Setenv("SNAPPY_STORE_AUTH_DATA_FILENAME", expectedAuthFilename)
+	defer os.Setenv("SNAPPY_STORE_AUTH_DATA_FILENAME", authFilenameOrig)
+
+	authFilename := client.TestStoreAuthFilename()
+
+	c.Check(authFilename, check.Equals, expectedAuthFilename)
+}
