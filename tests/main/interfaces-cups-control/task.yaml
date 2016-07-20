@@ -1,14 +1,42 @@
 summary: Ensure taht the cups interface works.
 
+prepare: |
+    echo "Given a snap declaring a cups plug is installed"
+    snapbuild $TESTSLIB/snaps/cups-control-consumer .
+    snap install cups-control-consumer_1.0_all.snap
+
+    echo "And the pdf printing driver is installed"
+    apt install printer-driver-cups-pdf
+
+restore: |
+    apt remove -y printer-driver-cups-pdf
+    rm -rf cups-control-consumer_1.0_all.snap $HOME/PDF test_file.txt print.error
+
 execute: |
-  echo "Given a snap declaring a cups plug is installed"
+    CONNECTED_PATTERN=":cups-control +cups-control-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +cups-control-consumer:cups-control"
 
-  echo "Then it is not shown as connected"
+    echo "Then it is not shown as connected"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-  echo "When the plug is connected"
+    echo "===================================="
 
-  echo "Then the snap command is able to print files"
+    echo "When the plug is connected"
+    snap connect cups-control-consumer:cups-control ubuntu-core:cups-control
 
-  echo "When the plug is disconnected"
+    echo "Then the snap command is able to print files"
+    echo "Hello World" > test_file.txt
+    cups-control-consumer test_file.txt
+    [ -f $HOME/PDF/test_file.pdf ]
 
-  echo "Then the snap command is not able to print files"
+    echo "===================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect cups-control-consumer:cups-control ubuntu-core:cups-control
+
+    echo "Then the snap command is not able to print files"
+    if cups-control-consumer test_file.txt 2>print.error; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi
+    cat print.error | grep -q "Permission denied"
