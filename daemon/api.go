@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -209,6 +210,8 @@ type loginResponseData struct {
 	Discharges []string `json:"discharges,omitempty"`
 }
 
+var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
+
 func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	var loginData struct {
 		Username string `json:"username"`
@@ -219,6 +222,19 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginData); err != nil {
 		return BadRequest("cannot decode login data from request body: %v", err)
+	}
+
+	// the "username" needs to look a lot like an email address
+	if !isEmailish(loginData.Username) {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: "please use a valid email address.",
+				Kind:    errorKindInvalidAuthData,
+				Value:   map[string][]string{"email": {"invalid"}},
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
 	}
 
 	serializedMacaroon, err := store.RequestStoreMacaroon()
