@@ -1,0 +1,14 @@
+summary: Ensure taht the cups interface works.
+
+execute: |
+  echo "Given a snap declaring a cups plug is installed"
+
+  echo "Then it is not shown as connected"
+
+  echo "When the plug is connected"
+
+  echo "Then the snap command is able to print files"
+
+  echo "When the plug is disconnected"
+
+  echo "Then the snap command is not able to print files"
