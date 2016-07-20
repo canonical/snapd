@@ -102,7 +102,7 @@ To run the various tests that we have to ensure a high quality source just run:
 This will check if the source format is consistent, that it build, all tests
 work as expected and that "go vet" and "golint" have nothing to complain.
 
-You can run individual test with:
+You can run individual test for a sub-package by changing into that directory and:
 
     go test -check.f $testname
 
