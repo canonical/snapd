@@ -296,13 +296,8 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		purchasesURI:      cfg.PurchasesURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
 		detailFields:      fields,
-		client: &http.Client{
-			Transport: &LoggedTransport{
-				Transport: http.DefaultTransport,
-				Key:       "SNAPD_DEBUG_HTTP",
-			},
-		},
-		authContext: authContext,
+		client:            newHTTPClient(),
+		authContext:       authContext,
 	}
 }
 
