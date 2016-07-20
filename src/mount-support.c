@@ -206,7 +206,10 @@ void setup_snappy_os_mounts()
 		"/var/tmp",	// to get access to the other temporary directory
 		"/var/log",	// to get access to log files via log-observe interface
 		"/run",		// to get /run with sockets and what not
+#ifdef MERGED_USR
+#else
 		"/media",	// access to the users removable devices
+#endif				// MERGED_USR
 		"/lib/modules",	// access to the modules of the running kernel
 	};
 	for (int i = 0; i < sizeof(source_mounts) / sizeof *source_mounts; i++) {
