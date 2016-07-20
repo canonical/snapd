@@ -3,8 +3,8 @@
 import subprocess
 import sys
 
-def run(addr):
-    print(subprocess.check_output("arp -s {} aa:aa:aa:aa:aa:aa -i eth0".format(addr), shell=True))
+def run(addr, iface):
+    subprocess.check_call("arp -s {} aa:aa:aa:aa:aa:aa -i {}".format(addr, iface), shell=True)
 
 if __name__ == '__main__':
-    sys.exit(run(sys.argv[1]))
+    sys.exit(run(sys.argv[1], sys.argv[2]))

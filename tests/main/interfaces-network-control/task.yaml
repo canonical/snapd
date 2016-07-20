@@ -31,12 +31,12 @@ prepare: |
 restore: |
     systemctl stop $SERVICE_NAME
     rm -f network-control-consumer_1.0_all.snap net-query.output net-command.output $SERVICE_FILE
-    arp -d $ARP_ENTRY_ADDR -i eth0
+    arp -d $ARP_ENTRY_ADDR -i $(ip route get 8.8.8.8 | awk '{ print $5; exit }')
 
 execute: |
     CONNECTED_PATTERN=":network-control +network-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +network-control-consumer:network-control"
-    INTERFACE=$(ip route get 8.8.8.8 | awk '{ print $5; exit }')
+    INTERFACE="$(ip route get 8.8.8.8 | awk '{ print $5; exit }')"
 
     echo "Then the plug disconnected by default"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -69,7 +69,7 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command can modify the network configuration"
-    network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR
+    network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR $INTERFACE
     expected="(?s)br0.*?state UP.*?bridge.*?foo@bar.*?veth.*?bar@foo.*?veth"
     arp | grep -Pq "$ARP_ENTRY_ADDR.*?ether.*?CM"
 
@@ -80,7 +80,7 @@ execute: |
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not modify the network configuration"
-    if network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR 2>net-command.output; then
+    if network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR $INTERFACE 2>net-command.output; then
         echo "Expected error caling command with disconnected plug"
     fi
     cat net-command.output | grep -Pq "Permission denied"
