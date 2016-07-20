@@ -1,8 +1,8 @@
 summary: Check that prepare-image works for uboot-systems
 environment:
     ROOT: /tmp/root
-    IMAGE: /tmp/root/diskimage
-    GADGET: /tmp/root/unpack-gadget
+    IMAGE: /tmp/root/image
+    GADGET: /tmp/root/gadget
 prepare:
     mkdir -p $IMAGE
     mkdir -p $GADGET
