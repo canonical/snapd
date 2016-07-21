@@ -2,14 +2,14 @@
 
 import socket
 import sys
+import time
 
-def run(msg):
+def run():
     clientsocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     clientsocket.connect("/run/snapd.socket")
 
-    clientsocket.sendall(msg.encode("utf-8"))
-
-    return clientsocket.recv(4096)
+    clientsocket.sendall('POST /v2/snaps/test-snapd-tools HTTP/1.0\n{"action": "install"}\n\n'.encode("utf-8"))
+    return clientsocket.recv(8192)
 
 if __name__ == '__main__':
-    sys.exit(run(sys.argv[1]))
+    sys.exit(run())
