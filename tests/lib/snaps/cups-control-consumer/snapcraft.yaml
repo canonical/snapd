@@ -4,6 +4,10 @@ summary: Basic cups-control consumer snap
 description: A basic snap declaring a plug on cups-control
 
 apps:
-    consumer:
-        command: bin/consumer
+    lpr:
+        command: lpr
         plugs: [cups-control]
+parts:
+    lpr:
+        plugin: nil
+        stage-packages: [cups-bsd]
