@@ -1,0 +1,18 @@
+summary: Ensure that the snapd-control interface works.
+
+execute: |
+    echo "Give a snap declaring a plug on the snapd-control interface is installed"
+
+    echo "Then it is reported to be unconnected"
+
+    echo "================================================"
+
+    echo "When the plug is connected"
+
+    echo "Then the snap command is able to control snapd"
+
+    echo "================================================"
+
+    echo "When the plug is disconnected"
+
+    echo "Then the snap command is not able to control snapd"
