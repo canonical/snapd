@@ -17,7 +17,7 @@
     /usr/lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libseccomp.so* mr,
 
-    /usr/bin/snap-confine r,
+    /usr/lib/snapd/snap-confine r,
 
     /dev/null rw,
     /dev/full rw,
@@ -106,7 +106,7 @@
     mount options=(rw rbind) /var/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
     mount options=(rw rbind) /media/ -> /tmp/snap.rootfs_*/media/,
-    mount options=(rw rbind) /lib/modules/ -> /tmp/snap.rootfs_*/lib/modules/,
+    mount options=(rw rbind) {/usr,}/lib/modules/ -> /tmp/snap.rootfs_*/lib/modules/,
     mount options=(rw bind) /snap/ubuntu-core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
 
     # Allow to mkdir /var/lib/snapd/hostfs
