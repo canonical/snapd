@@ -31,6 +31,7 @@ var allInterfaces = []interfaces.Interface{
 	&DbusInterface{},
 	&DockerInterface{},
 	&DockerSupportInterface{},
+	&EDSInterface{},
 	&FwupdInterface{},
 	&GpioInterface{},
 	&HidrawInterface{},
