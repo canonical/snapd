@@ -23,16 +23,28 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strconv"
 
 	"gopkg.in/yaml.v2"
 )
 
+type volume map[string]string
+
 type gadgetYaml struct {
-	Bootloader string `yaml:"bootloader,omitempty"`
+	Bootloader string              `yaml:"bootloader"`
+	Volumes    map[string][]volume `yaml:"volumes,omitempty"`
+}
+
+type Volume struct {
+	Name   string
+	Type   string
+	Data   string
+	Offset int64
 }
 
 type GadgetInfo struct {
 	Bootloader string
+	Volumes    map[string][]Volume
 }
 
 func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
@@ -54,5 +66,25 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 		return nil, fmt.Errorf(errorFormat, "missing bootloader in gadget.yaml")
 	}
 
-	return &GadgetInfo{Bootloader: gy.Bootloader}, nil
+	gi := &GadgetInfo{
+		Bootloader: gy.Bootloader,
+		Volumes:    make(map[string][]Volume),
+	}
+	for k, vl := range gy.Volumes {
+		gi.Volumes[k] = make([]Volume, len(vl))
+		for i, v := range vl {
+			offset, err := strconv.ParseInt(v["offset"], 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("cannot parse offset %v: %s", v["offset"], err)
+			}
+			gi.Volumes[k][i] = Volume{
+				Name:   v["name"],
+				Type:   v["type"],
+				Data:   v["data"],
+				Offset: offset,
+			}
+		}
+	}
+
+	return gi, nil
 }

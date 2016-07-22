@@ -42,6 +42,12 @@ type: gadget
 
 var mockGadgetYaml = []byte(`
 bootloader: grub
+volumes:
+ volumename:
+  - name: uboot
+    type: raw
+    data: u-boot.img
+    offset: 22082007
 `)
 
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
@@ -53,8 +59,8 @@ func (s *gadgetYamlTestSuite) TearDownTest(c *C) {
 }
 
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissing(c *C) {
-	fn := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
-	_, err := snap.ReadGadgetInfo(fn)
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	_, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, ErrorMatches, ".*meta/gadget.yaml: no such file or directory")
 }
 
@@ -65,5 +71,17 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 
 	ginfo, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, IsNil)
-	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{Bootloader: "grub"})
+	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
+		Bootloader: "grub",
+		Volumes: map[string][]snap.Volume{
+			"volumename": []snap.Volume{
+				{
+					Name:   "uboot",
+					Type:   "raw",
+					Data:   "u-boot.img",
+					Offset: 22082007,
+				},
+			},
+		},
+	})
 }
