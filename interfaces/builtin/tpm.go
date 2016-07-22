@@ -9,7 +9,7 @@ var tpmPermanentSlotAppArmor = []byte(`
 /dev/tpm0 rw,
 `)
 
-type TpmInterface struct { }
+type TpmInterface struct{}
 
 func (iface *TpmInterface) Name() string {
 	return "tpm"
@@ -64,4 +64,3 @@ func (iface *TpmInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *TpmInterface) AutoConnect() bool {
 	return false
 }
-
