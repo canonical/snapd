@@ -23,7 +23,7 @@ import "github.com/snapcore/snapd/interfaces"
 
 var tpmPermanentSlotAppArmor = []byte(`
 # Description: for those who need to talk to the system TPM chip over /dev/tpm0
-# Usage: common
+# Usage: reserved
 
 /dev/tpm0 rw,
 `)
