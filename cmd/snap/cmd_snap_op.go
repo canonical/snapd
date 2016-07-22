@@ -189,33 +189,54 @@ type channelMixin struct {
 	StableChannel    bool `long:"stable" description:"Install from the stable channel"`
 }
 
-func (x *channelMixin) setChannelFromCommandline() error {
+func (mx *channelMixin) setChannelFromCommandline() error {
 	for _, ch := range []struct {
 		enabled bool
 		chName  string
 	}{
-		{x.StableChannel, "stable"},
-		{x.CandidateChannel, "candidate"},
-		{x.BetaChannel, "beta"},
-		{x.EdgeChannel, "edge"},
+		{mx.StableChannel, "stable"},
+		{mx.CandidateChannel, "candidate"},
+		{mx.BetaChannel, "beta"},
+		{mx.EdgeChannel, "edge"},
 	} {
 		if !ch.enabled {
 			continue
 		}
-		if x.Channel != "" {
+		if mx.Channel != "" {
 			return fmt.Errorf("Please specify a single channel")
 		}
-		x.Channel = ch.chName
+		mx.Channel = ch.chName
 	}
 
 	return nil
 }
 
+func (mx *channelMixin) asksForChannel() bool {
+	return mx.Channel != ""
+}
+
+type modeMixin struct {
+	DevMode  bool `long:"devmode" description:"Request non-enforcing security"`
+	JailMode bool `long:"jailmode" description:"Override a snap's request for non-enforcing security"`
+}
+
+var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+
+func (mx modeMixin) validateMode() error {
+	if mx.DevMode && mx.JailMode {
+		return errModeConflict
+	}
+	return nil
+}
+
+func (mx modeMixin) asksForMode() bool {
+	return mx.DevMode || mx.JailMode
+}
+
 type cmdInstall struct {
 	channelMixin
+	modeMixin
 
-	DevMode    bool `long:"devmode" description:"Install the snap with non-enforcing security"`
-	JailMode   bool `long:"jailmode" description:"Override a snap's request for non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -223,6 +244,9 @@ type cmdInstall struct {
 
 func (x *cmdInstall) Execute([]string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+	if err := x.validateMode(); err != nil {
 		return err
 	}
 
@@ -263,6 +287,7 @@ func (x *cmdInstall) Execute([]string) error {
 
 type cmdRefresh struct {
 	channelMixin
+	modeMixin
 
 	List       bool `long:"list" description:"show available snaps for refresh"`
 	Positional struct {
@@ -285,6 +310,7 @@ func refreshAll() error {
 
 	names := make([]string, len(updates))
 	for i, update := range updates {
+		// TODO: set JailMode from snapstate
 		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
 		if err != nil {
 			return err
@@ -298,9 +324,9 @@ func refreshAll() error {
 	return listSnaps(names)
 }
 
-func refreshOne(name, channel string) error {
+func refreshOne(name string, opts *client.SnapOptions) error {
 	cli := Client()
-	changeID, err := cli.Refresh(name, &client.SnapOptions{Channel: channel})
+	changeID, err := cli.Refresh(name, opts)
 	if err != nil {
 		return err
 	}
@@ -346,28 +372,48 @@ func (x *cmdRefresh) Execute([]string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
 	}
+	if err := x.validateMode(); err != nil {
+		return err
+	}
 
 	if x.List {
+		if x.asksForMode() || x.asksForChannel() {
+			return errors.New("--list does not take mode nor channel flags")
+		}
+
 		return listRefresh()
 	}
 	if x.Positional.Snap == "" {
+		if x.asksForMode() || x.asksForChannel() {
+			return errors.New("a snap name is needed to specify mode or channel flags")
+		}
+
 		return refreshAll()
 	}
-	return refreshOne(x.Positional.Snap, x.Channel)
+
+	return refreshOne(x.Positional.Snap, &client.SnapOptions{
+		Channel:  x.Channel,
+		DevMode:  x.DevMode,
+		JailMode: x.JailMode,
+	})
 }
 
 type cmdTry struct {
-	DevMode    bool `long:"devmode" description:"Install in development mode and disable confinement"`
+	modeMixin
 	Positional struct {
 		SnapDir string `positional-arg-name:"<snap-dir>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdTry) Execute([]string) error {
+	if err := x.validateMode(); err != nil {
+		return err
+	}
 	cli := Client()
 	name := x.Positional.SnapDir
 	opts := &client.SnapOptions{
-		DevMode: x.DevMode,
+		DevMode:  x.DevMode,
+		JailMode: x.JailMode,
 	}
 
 	path, err := filepath.Abs(name)
