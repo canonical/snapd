@@ -72,6 +72,28 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	c.Check(os.VersionID, Equals, "18.09")
 }
 
+func (s *ReleaseTestSuite) TestReadWonkyOSRelease(c *C) {
+	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
+	dump := `NAME="elementary OS"
+VERSION="0.4 Loki"
+ID="elementary OS"
+ID_LIKE=ubuntu
+PRETTY_NAME="elementary OS Loki"
+VERSION_ID="0.4"
+HOME_URL="http://elementary.io/"
+SUPPORT_URL="http://elementary.io/support/"
+BUG_REPORT_URL="https://bugs.launchpad.net/elementary/+filebug"`
+	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
+	c.Assert(err, IsNil)
+
+	reset := release.MockOSReleasePath(mockOSRelease)
+	defer reset()
+
+	os := release.ReadOSRelease()
+	c.Check(os.ID, Equals, "elementary")
+	c.Check(os.VersionID, Equals, "0.4")
+}
+
 func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
 	reset := release.MockOSReleasePath("not-there")
 	defer reset()

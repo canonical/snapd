@@ -123,8 +123,13 @@ apps:
 
 		wrapperText, err := wrappers.GenerateSnapServiceFile(app)
 		c.Assert(err, IsNil)
-		c.Check(wrapperText, Matches,
-			`(?ms).*^Restart=`+name+`$.*`, Commentf(name))
+		if cond == systemd.RestartNever {
+			c.Check(wrapperText, Matches,
+				`(?ms).*^Restart=no$.*`, Commentf(name))
+		} else {
+			c.Check(wrapperText, Matches,
+				`(?ms).*^Restart=`+name+`$.*`, Commentf(name))
+		}
 	}
 }
 
