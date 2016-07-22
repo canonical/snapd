@@ -105,6 +105,13 @@ webcams.
 Usage: common
 Auto-Connect: no
 
+### tpm
+
+Can access the first tpm device.
+
+Usage: reserved
+Auto-Connect: no
+
 ## Supported Interfaces - Advanced
 
 ### cups-control
