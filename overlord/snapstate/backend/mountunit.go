@@ -49,6 +49,11 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 		return err
 	}
 
+	// systemd needs a little nudge
+	if err := sysd.DaemonReload(); err != nil {
+		return err
+	}
+
 	// we always enable the mount unit even in inhibit hooks
 	if err := sysd.Enable(mountUnitName); err != nil {
 		return err
@@ -68,6 +73,10 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 			return err
 		}
 		if err := os.Remove(unit); err != nil {
+			return err
+		}
+		// systemd needs a little nudge
+		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}
