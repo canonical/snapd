@@ -129,6 +129,18 @@ var (
 	doTimeout = 5 * time.Second
 )
 
+// MockDoRetry mocks the delays used by the do retry loop.
+func MockDoRetry(retry, timeout time.Duration) (restore func()) {
+	oldRetry := doRetry
+	oldTimeout := doTimeout
+	doRetry = retry
+	doTimeout = timeout
+	return func() {
+		doRetry = oldRetry
+		doTimeout = oldTimeout
+	}
+}
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.

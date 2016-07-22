@@ -102,7 +102,7 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 
 	snapstate.ReplaceStore(s.state, nil)
 	store1 := snapstate.Store(s.state)
-	c.Check(store1, FitsTypeOf, &store.SnapUbuntuStoreRepository{})
+	c.Check(store1, FitsTypeOf, &store.Store{})
 
 	// cached
 	store2 := snapstate.Store(s.state)
