@@ -112,25 +112,26 @@ func isValidLocalizedDesktopFilePrefix(line string) bool {
 }
 
 // rewriteExecLine rewrites a "Exec=" line to use the wrapper path for snap application.
-func rewriteExecLine(s *snap.Info, line string) (string, error) {
+func rewriteExecLine(s *snap.Info, desktopFile, line string) (string, error) {
 	cmd := strings.SplitN(line, "=", 2)[1]
 	for _, app := range s.Apps {
+		env := fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s ", desktopFile)
 		wrapper := app.WrapperPath()
 		validCmd := filepath.Base(wrapper)
 		// check the prefix to allow %flag style args
 		// this is ok because desktop files are not run through sh
 		// so we don't have to worry about the arguments too much
 		if cmd == validCmd {
-			return "Exec=" + wrapper, nil
+			return "Exec=" + env + wrapper, nil
 		} else if strings.HasPrefix(cmd, validCmd+" ") {
-			return fmt.Sprintf("Exec=%s%s", wrapper, line[len("Exec=")+len(validCmd):]), nil
+			return fmt.Sprintf("Exec=%s%s%s", env, wrapper, line[len("Exec=")+len(validCmd):]), nil
 		}
 	}
 
 	return "", fmt.Errorf("invalid exec command: %q", cmd)
 }
 
-func sanitizeDesktopFile(s *snap.Info, rawcontent []byte) []byte {
+func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []byte {
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
@@ -150,7 +151,7 @@ func sanitizeDesktopFile(s *snap.Info, rawcontent []byte) []byte {
 		// rewrite exec lines to an absolute path for the binary
 		if strings.HasPrefix(line, "Exec=") {
 			var err error
-			line, err = rewriteExecLine(s, line)
+			line, err = rewriteExecLine(s, desktopFile, line)
 			if err != nil {
 				// something went wrong, ignore the line
 				continue
@@ -198,9 +199,8 @@ func AddSnapDesktopFiles(s *snap.Info) error {
 			return err
 		}
 
-		content = sanitizeDesktopFile(s, content)
-
 		installedDesktopFileName := filepath.Join(dirs.SnapDesktopFilesDir, fmt.Sprintf("%s_%s", s.Name(), filepath.Base(df)))
+		content = sanitizeDesktopFile(s, installedDesktopFileName, content)
 		if err := osutil.AtomicWriteFile(installedDesktopFileName, []byte(content), 0755, 0); err != nil {
 			return err
 		}
