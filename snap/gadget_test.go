@@ -45,9 +45,11 @@ bootloader: grub
 volumes:
  volumename:
   - name: uboot
+    label: system-boot
     type: raw
     data: u-boot.img
     offset: 22082007
+    content: [uboot.env]
 `)
 
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
@@ -76,10 +78,12 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		Volumes: map[string][]snap.Volume{
 			"volumename": []snap.Volume{
 				{
-					Name:   "uboot",
-					Type:   "raw",
-					Data:   "u-boot.img",
-					Offset: 22082007,
+					Name:    "uboot",
+					Label:   "system-boot",
+					Type:    "raw",
+					Data:    "u-boot.img",
+					Offset:  22082007,
+					Content: []string{"uboot.env"},
 				},
 			},
 		},
