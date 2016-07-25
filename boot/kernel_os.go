@@ -66,12 +66,6 @@ func ExtractKernelAssets(s *snap.Info, inter progress.Meter) error {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
 	}
 
-	// sanity check that we have the new kernel format
-	_, err := snap.ReadKernelInfo(s)
-	if err != nil {
-		return err
-	}
-
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
 		return fmt.Errorf("cannot extract kernel assets: %s", err)
