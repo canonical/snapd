@@ -34,9 +34,6 @@ const hardwareObserveConnectedPlugAppArmor = `
 # files in /sys pertaining to hardware
 /sys/{block,bus,class,devices}/{,**} r,
 
-# USB IDs
-/var/lib/usbutils/usb.ids r,
-
 # DMI tables
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
