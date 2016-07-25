@@ -29,8 +29,6 @@ const hardwareObserveConnectedPlugAppArmor = `
 # from the system.  This is reserved for OS snap.
 # Usage: reserved
 
-#include <abstractions/base>
-
 # files in /sys pertaining to hardware
 /sys/{block,bus,class,devices}/{,**} r,
 
