@@ -830,7 +830,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=hi&channel=potato", nil)
+	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := searchStore(findCmd, req, nil).(*resp)
@@ -843,7 +843,6 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
 	c.Check(s.searchTerm, check.Equals, "hi")
-	c.Check(s.channel, check.Equals, "potato")
 	c.Check(s.refreshCandidates, check.HasLen, 0)
 }
 
@@ -874,7 +873,7 @@ func (s *apiSuite) TestFindPrivate(c *check.C) {
 
 	s.rsnaps = []*snap.Info{}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=foo&private=true", nil)
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&select=private", nil)
 	c.Assert(err, check.IsNil)
 
 	_ = searchStore(findCmd, req, nil).(*resp)
