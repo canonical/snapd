@@ -906,10 +906,13 @@ func (s *apiSuite) TestFindOne(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
 
-	_ = searchStore(findCmd, req, nil).(*resp)
+	rsp := searchStore(findCmd, req, nil).(*resp)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
 
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["name"], check.Equals, "store")
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
