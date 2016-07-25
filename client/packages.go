@@ -79,9 +79,11 @@ type ResultInfo struct {
 
 // FindOptions supports exactly one of the following options:
 // - Refresh: only return snaps that are refreshable
+// - Private: return snaps that are private
 // - Query: only return snaps that match the query string
 type FindOptions struct {
 	Refresh bool
+	Private bool
 	Query   string
 }
 
@@ -123,6 +125,9 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	q.Set("q", opts.Query)
 	if opts.Refresh {
 		q.Set("select", "refresh")
+	}
+	if opts.Private {
+		q.Set("private", "t")
 	}
 
 	return client.snapsFromPath("/v2/find", q)
