@@ -310,7 +310,6 @@ func refreshAll() error {
 
 	names := make([]string, len(updates))
 	for i, update := range updates {
-		// TODO: set JailMode from snapstate
 		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
 		if err != nil {
 			return err
