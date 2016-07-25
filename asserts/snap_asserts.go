@@ -24,12 +24,13 @@ import (
 	"time"
 )
 
+// TODO: adjust to new designs!
+
 // SnapDeclaration holds a snap-declaration assertion, declaring a
 // snap binding its identifying snap-id to a name, asserting its
 // publisher and its other properties.
 type SnapDeclaration struct {
 	assertionBase
-	gates     []string
 	timestamp time.Time
 }
 
@@ -51,11 +52,6 @@ func (snapdcl *SnapDeclaration) SnapName() string {
 // PublisherID returns the identifier of the publisher of the declared snap.
 func (snapdcl *SnapDeclaration) PublisherID() string {
 	return snapdcl.Header("publisher-id")
-}
-
-// Gates returns the list of snap-ids gated by this snap.
-func (snapdcl *SnapDeclaration) Gates() []string {
-	return snapdcl.gates
 }
 
 // Timestamp returns the time when the snap-declaration was issued.
@@ -94,11 +90,6 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	gates, err := checkCommaSepList(assert.headers, "gates")
-	if err != nil {
-		return nil, err
-	}
-
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
@@ -106,7 +97,6 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 
 	return &SnapDeclaration{
 		assertionBase: assert,
-		gates:         gates,
 		timestamp:     timestamp,
 	}, nil
 }

@@ -78,8 +78,9 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.Store(), Equals, "brand-store")
+	// XXX: these are empty atm
 	c.Check(model.AllowedModes(), HasLen, 0)
-	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
+	c.Check(model.RequiredSnaps(), HasLen, 0)
 }
 
 const (
@@ -108,10 +109,6 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
 		{"store: brand-store\n", "", `"store" header is mandatory`},
 		{"store: brand-store\n", "store: \n", `"store" header should not be empty`},
-		{"allowed-modes: \n", "", `"allowed-modes" header is mandatory`},
-		{"allowed-modes: \n", "allowed-modes: ,\n", `empty entry in comma separated "allowed-modes" header: ","`},
-		{"required-snaps: foo, bar\n", "", `"required-snaps" header is mandatory`},
-		{"required-snaps: foo, bar\n", "required-snaps: foo,\n", `empty entry in comma separated "required-snaps" header: "foo,"`},
 		{"class: fixed\n", "", `"class" header is mandatory`},
 		{"class: fixed\n", "class: \n", `"class" header should not be empty`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
