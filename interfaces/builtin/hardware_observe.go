@@ -26,7 +26,7 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
 const hardwareObserveConnectedPlugAppArmor = `
 # Description: This interface allows for getting hardware information
-# from the system.  This is reserved for OS snap.
+# from the system.  this is reserved because it allows reading potentially sensitive information.
 # Usage: reserved
 
 # files in /sys pertaining to hardware
