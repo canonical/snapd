@@ -116,6 +116,18 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
 }
 
+func (cs *clientSuite) TestClientFindPrefix(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo", Prefix: true})
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo%2A") // 2A is `*`
+}
+
+func (cs *clientSuite) TestClientFindOne(c *check.C) {
+	_, _, _ = cs.cli.FindOne("foo")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo")
+}
+
 const (
 	pkgName = "chatroom.ogra"
 )
