@@ -157,7 +157,7 @@ var (
 	headerNameSanity = regexp.MustCompile("^[a-z][a-z0-9-]*[a-z0-9]$")
 )
 
-func parseHeaders(head []byte) (map[string]string, error) {
+func parseHeadersNaive(head []byte) (map[string]string, error) {
 	if !utf8.Valid(head) {
 		return nil, fmt.Errorf("header is not utf8")
 	}
@@ -273,7 +273,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		head = content[:headersBodySplit]
 	}
 
-	headers, err := parseHeaders(head)
+	headers, err := parseHeadersNaive(head)
 	if err != nil {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
@@ -389,7 +389,7 @@ func (d *Decoder) Decode() (Assertion, error) {
 	}
 
 	headLen := len(headAndSep) - len(nlnl)
-	headers, err := parseHeaders(headAndSep[:headLen])
+	headers, err := parseHeadersNaive(headAndSep[:headLen])
 	if err != nil {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
