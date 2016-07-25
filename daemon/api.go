@@ -463,7 +463,13 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 		Sources:           []string{"store"},
 	}
 
-	return SyncResponse(webify(mapRemote(snapInfo), r.URL.Path), meta)
+	results := make([]*json.RawMessage, 1)
+	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	results[0] = (*json.RawMessage)(&data)
+	return SyncResponse(results, meta)
 }
 
 func shouldSearchStore(r *http.Request) bool {
