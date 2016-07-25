@@ -22,7 +22,6 @@ package client_test
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -55,9 +54,7 @@ func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 
-	private, err := strconv.ParseBool(cs.req.URL.Query().Get("private"))
-	c.Assert(err, check.IsNil)
-	c.Check(private, check.Equals, true)
+	c.Check(cs.req.URL.Query().Get("select"), check.Equals, "private")
 }
 
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
