@@ -31,22 +31,13 @@ const hardwareObserveConnectedPlugAppArmor = `
 
 #include <abstractions/base>
 
-/etc/udev/udev.conf r,
-@{PROC}/*/stat r,
-/run/udev/data/* r,
-/sys/bus/ r,
-/sys/bus/**/ r,
-/sys/class/ r,
-/sys/class/*/ r,
-/sys/devices/** r,
-@{PROC}/*/mountinfo r,
-@{PROC}/swaps r,
-/sys/block/ r,
-/sys/devices/** r,
-/dev/bus/usb/ r,
-/dev/bus/usb/** r,
-/sys/bus/usb/devices/ r,
+# files in /sys pertaining to hardware
+/sys/{block,bus,class,devices}/{,**} r,
+
+# USB IDs
 /var/lib/usbutils/usb.ids r,
+
+# DMI tables
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
 `
