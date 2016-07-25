@@ -595,7 +595,6 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 // A Search is what you do in order to Find something
 type Search struct {
 	Query   string
-	Channel string
 	Private bool
 	Prefix  bool
 }
@@ -645,9 +644,6 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	}
 
 	q.Set("confinement", "strict")
-	if search.Channel != "" {
-		q.Set("channel", search.Channel)
-	}
 	u.RawQuery = q.Encode()
 
 	req, err := s.newRequest("GET", u.String(), nil, user)
@@ -681,7 +677,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, search.Channel, user)
+	err = s.decoratePurchases(snaps, "", user)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}

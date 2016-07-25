@@ -63,7 +63,6 @@ type apiSuite struct {
 	err               error
 	vars              map[string]string
 	searchTerm        string
-	channel           string
 	private           bool
 	suggestedCurrency string
 	d                 *Daemon
@@ -88,7 +87,6 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState
 
 func (s *apiSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
 	s.searchTerm = search.Query
-	s.channel = search.Channel
 	s.private = search.Private
 	s.user = user
 
@@ -141,7 +139,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
 	s.searchTerm = ""
-	s.channel = ""
 	s.err = nil
 	s.vars = nil
 	s.user = nil
