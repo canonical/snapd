@@ -27,7 +27,14 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type volume map[string]interface{}
+type volume struct {
+	Name    string   `yaml:"name"`
+	Label   string   `yaml:"label"`
+	Type    string   `yaml:"type"`
+	Data    string   `yaml:"data"`
+	Offset  int64    `yaml:"offset"`
+	Content []string `yaml:"content"`
+}
 
 type gadgetYaml struct {
 	Bootloader string              `yaml:"bootloader"`
@@ -35,12 +42,11 @@ type gadgetYaml struct {
 }
 
 type Volume struct {
-	Name  string
-	Label string
-	Type  string
-	Data  string
-	// FIXME: use int64
-	Offset  int
+	Name    string
+	Label   string
+	Type    string
+	Data    string
+	Offset  int64
 	Content []string
 }
 
@@ -75,44 +81,13 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 	for k, vl := range gy.Volumes {
 		gi.Volumes[k] = make([]Volume, len(vl))
 		for i, v := range vl {
-			// name
-			name, ok := v["name"].(string)
-			if !ok {
-				return nil, fmt.Errorf(errorFormat, kmeta)
-			}
-			label, ok := v["label"].(string)
-			if !ok {
-				return nil, fmt.Errorf(errorFormat, kmeta)
-			}
-			typ, ok := v["type"].(string)
-			if !ok {
-				return nil, fmt.Errorf(errorFormat, kmeta)
-			}
-			data, ok := v["data"].(string)
-			if !ok {
-				return nil, fmt.Errorf(errorFormat, kmeta)
-			}
-			offset, ok := v["offset"].(int)
-			if !ok {
-				return nil, fmt.Errorf(errorFormat, kmeta)
-			}
-			// content
-			raw, ok := v["content"].([]interface{})
-			if !ok {
-				return nil, fmt.Errorf(errorFormat, kmeta)
-			}
-			content := make([]string, len(raw))
-			for i, s := range raw {
-				content[i] = s.(string)
-			}
-
 			gi.Volumes[k][i] = Volume{
-				Name:    name,
-				Label:   label,
-				Type:    typ,
-				Data:    data,
-				Offset:  offset,
-				Content: content,
+				Name:    v.Name,
+				Label:   v.Label,
+				Type:    v.Type,
+				Data:    v.Data,
+				Offset:  v.Offset,
+				Content: v.Content,
 			}
 		}
 	}
