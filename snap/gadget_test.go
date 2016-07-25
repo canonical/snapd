@@ -41,7 +41,7 @@ type: gadget
 `
 
 var mockGadgetYaml = []byte(`
-bootloader: grub
+bootloader: uboot
 volumes:
  volumename:
   - name: uboot
@@ -74,7 +74,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	ginfo, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
-		Bootloader: "grub",
+		Bootloader: "uboot",
 		Volumes: map[string][]snap.Volume{
 			"volumename": []snap.Volume{
 				{
