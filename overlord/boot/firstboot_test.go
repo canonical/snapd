@@ -97,21 +97,3 @@ version: 1.0`
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, "foo", "x1", "meta", "snap.yaml")), Equals, true)
 }
-
-func (s *FirstBootTestSuite) TestPopulateFromInstalledErrors(c *C) {
-	// put a broken firstboot snap into the SnapBlobDir
-	//
-	// (type: kernel without meta/kernel.yaml triggers an error on install)
-	snapYaml := `name: illegal-type
-type: kernel
-version: 1.0`
-	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
-	targetSnapFile := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
-	err := os.Rename(mockSnapFile, targetSnapFile)
-	c.Assert(err, IsNil)
-
-	// run the firstboot stuff
-	err = boot.PopulateStateFromInstalled()
-	c.Assert(err, ErrorMatches, "(?ms).*cannot read kernel snap details.*")
-
-}
