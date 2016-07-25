@@ -180,7 +180,9 @@ search, meant as the main interface to searching for snaps.
 #### `name`
 
 Search for snaps whose name matches the given string. Can't be used
-together with `q`. This is meant for things like autocompletion.
+together with `q`. This is meant for things like autocompletion. The
+match is exact (i.e. find would return 0 or 1 results) unless the
+string ends in `*`.
 
 #### `select`
 
@@ -263,18 +265,6 @@ Alter the collection searched:
 
 * `suggested-currency`: the suggested currency to use for presentation, 
    derived by Geo IP lookup.
-
-## /v2/find/[snap-name]
-### GET
-
-* Description: Find a snap in the store
-* Access: authenticated
-* Operation: sync
-* Return: information about a single snap, as in `/v2/find`.
-
-#### Result meta data:
-
-As for `/v2/find`.
 
 ## /v2/snaps
 

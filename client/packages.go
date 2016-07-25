@@ -130,7 +130,7 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	}
 	switch {
 	case opts.Refresh && opts.Private:
-		q.Set("select", "refresh,private")
+		return nil, nil, fmt.Errorf("cannot specify refresh and private together")
 	case opts.Refresh:
 		q.Set("select", "refresh")
 	case opts.Private:
