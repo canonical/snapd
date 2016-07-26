@@ -22,7 +22,6 @@ package client_test
 import (
 	"fmt"
 	"net/url"
-	"strconv"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -55,9 +54,7 @@ func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 
-	private, err := strconv.ParseBool(cs.req.URL.Query().Get("private"))
-	c.Assert(err, check.IsNil)
-	c.Check(private, check.Equals, true)
+	c.Check(cs.req.URL.Query().Get("select"), check.Equals, "private")
 }
 
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
@@ -117,6 +114,18 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo"})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
+}
+
+func (cs *clientSuite) TestClientFindPrefix(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo", Prefix: true})
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo%2A") // 2A is `*`
+}
+
+func (cs *clientSuite) TestClientFindOne(c *check.C) {
+	_, _, _ = cs.cli.FindOne("foo")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo")
 }
 
 const (

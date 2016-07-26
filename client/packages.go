@@ -84,6 +84,7 @@ type ResultInfo struct {
 type FindOptions struct {
 	Refresh bool
 	Private bool
+	Prefix  bool
 	Query   string
 }
 
@@ -122,15 +123,37 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	}
 
 	q := url.Values{}
-	q.Set("q", opts.Query)
-	if opts.Refresh {
-		q.Set("select", "refresh")
+	if opts.Prefix {
+		q.Set("name", opts.Query+"*")
+	} else {
+		q.Set("q", opts.Query)
 	}
-	if opts.Private {
-		q.Set("private", "t")
+	switch {
+	case opts.Refresh && opts.Private:
+		return nil, nil, fmt.Errorf("cannot specify refresh and private together")
+	case opts.Refresh:
+		q.Set("select", "refresh")
+	case opts.Private:
+		q.Set("select", "private")
 	}
 
 	return client.snapsFromPath("/v2/find", q)
+}
+
+func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
+	q := url.Values{}
+	q.Set("name", name)
+
+	snaps, ri, err := client.snapsFromPath("/v2/find", q)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot find snap %q: %s", name, err)
+	}
+
+	if len(snaps) == 0 {
+		return nil, nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
+	return snaps[0], ri, nil
 }
 
 func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {

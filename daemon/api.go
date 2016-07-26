@@ -389,29 +389,49 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 	query := r.URL.Query()
+	q := query.Get("q")
+	name := query.Get("name")
+	private := false
+	prefix := false
 
-	if query.Get("select") == "refresh" {
-		if query.Get("q") != "" {
-			return BadRequest("cannot use 'q' with 'select=refresh'")
+	if name != "" {
+		if q != "" {
+			return BadRequest("cannot use 'q' and 'name' together")
 		}
-		return storeUpdates(c, r, user)
+
+		if name[len(name)-1] != '*' {
+			return findOne(c, r, user, name)
+		}
+
+		prefix = true
+		q = name[:len(name)-1]
 	}
 
-	private, err := strconv.ParseBool(query.Get("private"))
-	if err != nil {
-		private = false
+	if sel := query.Get("select"); sel != "" {
+		switch sel {
+		case "refresh":
+			if prefix {
+				return BadRequest("cannot use 'name' with 'select=refresh'")
+			}
+			if q != "" {
+				return BadRequest("cannot use 'q' with 'select=refresh'")
+			}
+			return storeUpdates(c, r, user)
+		case "private":
+			private = true
+		}
 	}
 
 	theStore := getStore(c)
 	found, err := theStore.Find(&store.Search{
-		Query:   query.Get("q"),
-		Channel: query.Get("channel"),
+		Query:   q,
 		Private: private,
+		Prefix:  prefix,
 	}, user)
 	switch err {
 	case nil:
 		// pass
-	case store.ErrEmptyQuery, store.ErrBadQuery, store.ErrBadPrefix:
+	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
 	case store.ErrUnauthenticated:
 		return Unauthorized(err.Error())
@@ -425,6 +445,31 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return sendStorePackages(route, meta, found)
+}
+
+func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
+	if err := snap.ValidateName(name); err != nil {
+		return BadRequest(err.Error())
+	}
+
+	theStore := getStore(c)
+	snapInfo, err := theStore.Snap(name, "", false, user)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	meta := &Meta{
+		SuggestedCurrency: theStore.SuggestedCurrency(),
+		Sources:           []string{"store"},
+	}
+
+	results := make([]*json.RawMessage, 1)
+	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	results[0] = (*json.RawMessage)(&data)
+	return SyncResponse(results, meta)
 }
 
 func shouldSearchStore(r *http.Request) bool {
