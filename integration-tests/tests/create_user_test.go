@@ -46,7 +46,8 @@ func (s *createUserSuite) TestCreateUserCreatesUser(c *check.C) {
 }
 
 func (s *createUserSuite) TestCreateUserFails(c *check.C) {
-	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "nosuchuser@example.com")
+	createOutput, err := cli.ExecCommandErr("sudo", "snap", "create-user", "nosuchuser@example.com")
+	c.Check(err, check.NotNil)
 
 	expected := `error: bad user result: cannot create user "nosuchuser@example.com.*"`
 	c.Assert(createOutput, check.Matches, expected)
