@@ -397,13 +397,24 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
+	private, err := strconv.ParseBool(query.Get("private"))
+	if err != nil {
+		private = false
+	}
+
 	theStore := getStore(c)
-	found, err := theStore.Find(query.Get("q"), query.Get("channel"), user)
+	found, err := theStore.Find(&store.Search{
+		Query:   query.Get("q"),
+		Channel: query.Get("channel"),
+		Private: private,
+	}, user)
 	switch err {
 	case nil:
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery, store.ErrBadPrefix:
 		return BadRequest("%v", err)
+	case store.ErrUnauthenticated:
+		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
 	}
