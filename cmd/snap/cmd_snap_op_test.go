@@ -301,6 +301,95 @@ foo +4.2update1 +17 +bar +-.*
 	c.Check(n, check.Equals, 1)
 }
 
+func (s *SnapSuite) TestRefreshListErr(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--list", "--beta"})
+	c.Check(err, check.ErrorMatches, "--list does not take .* flags")
+}
+
+func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "refresh",
+			"name":   "one",
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "one"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "refresh",
+			"name":    "one",
+			"channel": "beta",
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "one"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshOneDevmode(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":  "refresh",
+			"name":    "one",
+			"devmode": true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--devmode", "one"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshOneJailmode(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":   "refresh",
+			"name":     "one",
+			"jailmode": true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--jailmode", "one"})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--jailmode", "--devmode", "one"})
+	c.Assert(err, check.ErrorMatches, `cannot use devmode and jailmode flags together`)
+}
+
+func (s *SnapOpSuite) TestRefreshOneChanErr(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "--channel=foo", "one"})
+	c.Assert(err, check.ErrorMatches, `Please specify a single channel`)
+}
+
+func (s *SnapOpSuite) TestRefreshAllChannel(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta"})
+	c.Assert(err, check.ErrorMatches, `a snap name is needed to specify mode or channel flags`)
+}
+
+func (s *SnapOpSuite) TestRefreshAllModeFlags(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--devmode"})
+	c.Assert(err, check.ErrorMatches, `a snap name is needed to specify mode or channel flags`)
+}
+
 func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {
 	// pass relative path to cmd
 	tryDir := "some-dir"
