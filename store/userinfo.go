@@ -57,7 +57,7 @@ func UserInfo(email string) (userinfo *User, err error) {
 	case 404:
 		return nil, fmt.Errorf("cannot find user %q", email)
 	default:
-		return nil, fmt.Errorf("unexpcted status code %d for %q", resp.StatusCode, email)
+		return nil, respToError(resp, fmt.Sprintf("look up user %q", email))
 	}
 
 	var v keysReply
