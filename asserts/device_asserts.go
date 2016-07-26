@@ -24,6 +24,8 @@ import (
 	"time"
 )
 
+// TODO: model assertion still needs final design review!
+
 // Model holds a model assertion, which is a statement by a brand
 // about the properties of a device model.
 type Model struct {
@@ -118,16 +120,6 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 
 	// TODO: check 'class' value already here? fundamental policy derives from it
 
-	allowedModes, err := checkCommaSepList(assert.headers, "allowed-modes")
-	if err != nil {
-		return nil, err
-	}
-
-	requiredSnaps, err := checkCommaSepList(assert.headers, "required-snaps")
-	if err != nil {
-		return nil, err
-	}
-
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
@@ -136,8 +128,8 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	// ignore extra headers and non-empty body for future compatibility
 	return &Model{
 		assertionBase: assert,
-		allowedModes:  allowedModes,
-		requiredSnaps: requiredSnaps,
+		allowedModes:  nil, // XXX: empty for now
+		requiredSnaps: nil, // XXX: empty for now
 		timestamp:     timestamp,
 	}, nil
 }
