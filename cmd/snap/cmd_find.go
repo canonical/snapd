@@ -84,6 +84,7 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 }
 
 type cmdFind struct {
+	Private    bool `long:"private" description:"search private snaps"`
 	Positional struct {
 		Query string `positional-arg-name:"<query>"`
 	} `positional-args:"yes"`
@@ -101,7 +102,8 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	return findSnaps(&client.FindOptions{
-		Query: x.Positional.Query,
+		Private: x.Private,
+		Query:   x.Positional.Query,
 	})
 }
 
