@@ -20,11 +20,11 @@
 package store
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"gopkg.in/macaroon.v1"
 )
@@ -105,7 +105,7 @@ func RequestStoreMacaroon() (string, error) {
 	}
 	macaroonJSONData, err := json.Marshal(data)
 
-	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, strings.NewReader(string(macaroonJSONData)))
+	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -113,8 +113,7 @@ func RequestStoreMacaroon() (string, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -147,7 +146,7 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", endpoint, strings.NewReader(string(dischargeJSONData)))
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(dischargeJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -155,8 +154,7 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}

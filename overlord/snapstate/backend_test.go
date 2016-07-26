@@ -79,7 +79,7 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserStat
 	return info, nil
 }
 
-func (f *fakeStore) Find(query, channel string, user *auth.UserState) ([]*snap.Info, error) {
+func (f *fakeStore) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
 	panic("Find called")
 }
 

@@ -64,6 +64,7 @@ type apiSuite struct {
 	vars              map[string]string
 	searchTerm        string
 	channel           string
+	private           bool
 	suggestedCurrency string
 	d                 *Daemon
 	user              *auth.UserState
@@ -85,9 +86,10 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState
 	return nil, s.err
 }
 
-func (s *apiSuite) Find(searchTerm, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	s.searchTerm = searchTerm
-	s.channel = channel
+func (s *apiSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+	s.searchTerm = search.Query
+	s.channel = search.Channel
+	s.private = search.Private
 	s.user = user
 
 	return s.rsnaps, s.err
@@ -865,6 +867,20 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(s.refreshCandidates, check.HasLen, 1)
+}
+
+func (s *apiSuite) TestFindPrivate(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&private=true", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.searchTerm, check.Equals, "foo")
+	c.Check(s.private, check.Equals, true)
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
