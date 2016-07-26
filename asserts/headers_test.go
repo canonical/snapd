@@ -50,7 +50,6 @@ bar: baz`))
 		"bar": "baz",
 	})
 
-	// XXX: do we want to support exactly this?
 	m, err = asserts.ParseHeaders([]byte(`foo: 1
 bar:
     baz`))
@@ -96,14 +95,12 @@ bar: baz`))
 }
 
 func (s *headersSuite) TestParseHeadersListNestedMultiline(c *C) {
-	// XXX: could support skipping one level of indent for multiline text
-	// when in another nesting structure, but less consistent?
 	m, err := asserts.ParseHeaders([]byte(`foo:
   - x
   -
-        y1
-        y2
-        
+      y1
+      y2
+      
   - z
 bar: baz`))
 	c.Assert(err, IsNil)
@@ -115,15 +112,35 @@ bar: baz`))
 	m, err = asserts.ParseHeaders([]byte(`bar: baz
 foo:
   -
-      - u1
-      - u2
+    - u1
+    - u2
   -
-        y1
-        y2
-        `))
+      y1
+      y2
+      `))
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"foo": []interface{}{[]interface{}{"u1", "u2"}, "y1\ny2\n"},
 		"bar": "baz",
 	})
+}
+
+func (s *headersSuite) TestParseHeadersErrors(c *C) {
+	_, err := asserts.ParseHeaders([]byte(`foo: 1
+bar:baz`))
+	c.Check(err, ErrorMatches, `header entry should have a space or newline \(for multiline\) before value: "bar:baz"`)
+
+	_, err = asserts.ParseHeaders([]byte(`foo:
+ - x
+  - y
+  - z
+bar: baz`))
+	c.Check(err, ErrorMatches, `expected 4 chars nesting prefix after multiline introduction "foo:": " - x"`)
+
+	_, err = asserts.ParseHeaders([]byte(`foo:
+  - x
+  - y
+  - z
+bar:`))
+	c.Check(err, ErrorMatches, `expected 4 chars nesting prefix after multiline introduction "bar:": EOF`)
 }
