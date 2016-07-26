@@ -36,13 +36,13 @@ execute: |
     ( snap install ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
-    expected="(?s)basic-devmode installed\n"
+    expected="basic-devmode 1.0 installed"
     snap install --devmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
     expected="^basic-devmode +.* +devmode"
     snap list | grep -Pq  "$expected"
 
     echo "Sideload devmode snap succeeds with --jailmode"
-    expected="(?s)basic-devmode installed\n"
+    expected="basic-devmode 1.0 installed"
     snap install --jailmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
     expected="^basic-devmode +.* +jailmode"
     snap list | grep -Pq  "$expected"
