@@ -24,7 +24,6 @@ import (
 	"path/filepath"
 	"syscall"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -38,8 +37,8 @@ import (
 func TestSysDB(t *testing.T) { TestingT(t) }
 
 type sysDBSuite struct {
-	extraTrustedAccKey asserts.Assertion
-	probeAssert        asserts.Assertion
+	extraTrusted []asserts.Assertion
+	probeAssert  asserts.Assertion
 }
 
 var _ = Suite(&sysDBSuite{})
@@ -49,45 +48,28 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	pk, _ := assertstest.GenerateKey(752)
 
-	trustedPubKey := pk.PublicKey()
-	trustedPubKeyEncoded, err := asserts.EncodePublicKey(trustedPubKey)
-	c.Assert(err, IsNil)
+	signingDB := assertstest.NewSigningDB("can0nical", pk)
 
-	keypairMgr := asserts.NewMemoryKeypairManager()
-	err = keypairMgr.Put("can0nical", pk)
-	c.Assert(err, IsNil)
-	signingDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: keypairMgr,
-	})
-	c.Assert(err, IsNil)
+	trustedAcct := assertstest.NewAccount(signingDB, "can0nical", map[string]string{
+		"account-id": "can0nical",
+		"validation": "certified",
+		"timestamp":  "2015-11-20T15:04:00Z",
+	}, "")
 
-	// self-signed
-	headers := map[string]string{
-		"authority-id":           "can0nical",
-		"account-id":             "can0nical",
-		"public-key-id":          trustedPubKey.ID(),
-		"public-key-fingerprint": trustedPubKey.Fingerprint(),
-		"since":                  "2015-11-20T15:04:00Z",
-		"until":                  "2500-11-20T15:04:00Z",
-	}
-	trustedAccKey, err := signingDB.Sign(asserts.AccountKeyType, headers, trustedPubKeyEncoded, trustedPubKey.ID())
-	c.Assert(err, IsNil)
-	sdbs.extraTrustedAccKey = trustedAccKey
+	trustedAccKey := assertstest.NewAccountKey(signingDB, trustedAcct, map[string]string{
+		"account-id": "can0nical",
+		"since":      "2015-11-20T15:04:00Z",
+		"until":      "2500-11-20T15:04:00Z",
+	}, pk.PublicKey(), "")
+
+	sdbs.extraTrusted = []asserts.Assertion{trustedAcct, trustedAccKey}
 
 	fakeRoot := filepath.Join(tmpdir, "root")
-	err = os.Mkdir(fakeRoot, os.ModePerm)
+	err := os.Mkdir(fakeRoot, os.ModePerm)
 	c.Assert(err, IsNil)
 	dirs.SetRootDir(fakeRoot)
 
-	headers = map[string]string{
-		"authority-id": "can0nical",
-		"account-id":   "acct1",
-		"display-name": "Acct 1",
-		"validation":   "unproven",
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	sdbs.probeAssert, err = signingDB.Sign(asserts.AccountType, headers, nil, trustedPubKey.ID())
-	c.Assert(err, IsNil)
+	sdbs.probeAssert = assertstest.NewAccount(signingDB, "probe", nil, "")
 }
 
 func (sdbs *sysDBSuite) TearDownTest(c *C) {
@@ -98,11 +80,11 @@ func (sdbs *sysDBSuite) TestTrusted(c *C) {
 	trusted := sysdb.Trusted()
 	c.Check(trusted, HasLen, 2)
 
-	restore := sysdb.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
+	restore := sysdb.InjectTrusted(sdbs.extraTrusted)
 	defer restore()
 
 	trustedEx := sysdb.Trusted()
-	c.Check(trustedEx, HasLen, 3)
+	c.Check(trustedEx, HasLen, 4)
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
@@ -131,7 +113,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabaseExtras(c *C) {
-	restore := sysdb.InjectTrusted([]asserts.Assertion{sdbs.extraTrustedAccKey})
+	restore := sysdb.InjectTrusted(sdbs.extraTrusted)
 	defer restore()
 
 	db, err := sysdb.Open()

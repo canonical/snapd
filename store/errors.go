@@ -41,6 +41,9 @@ var (
 	// ErrAssertionNotFound is returned when an assertion can not be found
 	ErrAssertionNotFound = errors.New("assertion not found")
 
+	// ErrUnauthenticated is returned when authentication is needed to complete the query
+	ErrUnauthenticated = errors.New("you need to log in first")
+
 	// ErrAuthenticationNeeds2fa is returned if the authentication needs 2factor
 	ErrAuthenticationNeeds2fa = errors.New("two factor authentication required")
 

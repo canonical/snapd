@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,6 +71,7 @@ var api = []*Command{
 	stateChangesCmd,
 	createUserCmd,
 	buyCmd,
+	paymentMethodsCmd,
 }
 
 var (
@@ -178,6 +180,12 @@ var (
 		Path:   "/v2/buy",
 		UserOK: false,
 		POST:   postBuy,
+	}
+
+	paymentMethodsCmd = &Command{
+		Path:   "/v2/buy/methods",
+		UserOK: false,
+		GET:    getPaymentMethods,
 	}
 )
 
@@ -389,13 +397,24 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return storeUpdates(c, r, user)
 	}
 
+	private, err := strconv.ParseBool(query.Get("private"))
+	if err != nil {
+		private = false
+	}
+
 	theStore := getStore(c)
-	found, err := theStore.Find(query.Get("q"), query.Get("channel"), user)
+	found, err := theStore.Find(&store.Search{
+		Query:   query.Get("q"),
+		Channel: query.Get("channel"),
+		Private: private,
+	}, user)
 	switch err {
 	case nil:
 		// pass
 	case store.ErrEmptyQuery, store.ErrBadQuery, store.ErrBadPrefix:
 		return BadRequest("%v", err)
+	case store.ErrUnauthenticated:
+		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
 	}
@@ -562,9 +581,10 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action  string `json:"action"`
-	Channel string `json:"channel"`
-	DevMode bool   `json:"devmode"`
+	Action   string `json:"action"`
+	Channel  string `json:"channel"`
+	DevMode  bool   `json:"devmode"`
+	JailMode bool   `json:"jailmode"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -626,10 +646,33 @@ func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, instal
 	return []*state.TaskSet{ts}, nil
 }
 
-func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errNoJailMode = errors.New("this system cannot honour the jailmode flag")
+
+func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
+	devModeOS := release.ReleaseInfo.ForceDevMode()
 	flags := snapstate.Flags(0)
-	if inst.DevMode || release.ReleaseInfo.ForceDevMode() {
+	if jailMode {
+		if devModeOS {
+			return 0, errNoJailMode
+		}
+		if devMode {
+			return 0, errModeConflict
+		}
+		flags |= snapstate.JailMode
+	}
+	if devMode || devModeOS {
 		flags |= snapstate.DevMode
+	}
+
+	return flags, nil
+
+}
+
+func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
 	}
 
 	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
@@ -803,6 +846,19 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
+func isTrue(form *multipart.Form, key string) bool {
+	value := form.Value[key]
+	if len(value) == 0 {
+		return false
+	}
+	b, err := strconv.ParseBool(value[0])
+	if err != nil {
+		return false
+	}
+
+	return b
+}
+
 func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
@@ -826,13 +882,9 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	var flags snapstate.Flags
-
-	if len(form.Value["devmode"]) > 0 && form.Value["devmode"][0] == "true" {
-		flags |= snapstate.DevMode
-	}
-	if release.ReleaseInfo.ForceDevMode() {
-		flags |= snapstate.DevMode
+	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"))
+	if err != nil {
+		return BadRequest(err.Error())
 	}
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
@@ -1359,4 +1411,21 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
+}
+
+func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	paymentMethods, err := s.PaymentMethods(user)
+
+	switch err {
+	default:
+		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	case nil:
+		// continue
+	}
+
+	return SyncResponse(paymentMethods, nil)
 }
