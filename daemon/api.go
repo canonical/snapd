@@ -692,7 +692,10 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snapstate.Flags(0)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
+	}
 
 	ts, err := snapstateUpdate(st, inst.snap, inst.Channel, inst.userID, flags)
 	if err != nil {
