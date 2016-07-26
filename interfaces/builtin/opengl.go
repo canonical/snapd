@@ -37,6 +37,9 @@ const openglConnectedPlugAppArmor = `
   /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
 
+  # eglfs
+  /dev/vchiq rw,
+
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
   /sys/bus/pci/devices/** r,
@@ -45,7 +48,7 @@ const openglConnectedPlugAppArmor = `
 `
 
 const openglConnectedPlugSecComp = `
-# Description: Can access opengl. 
+# Description: Can access opengl.
 # Usage: reserved
 
 getsockopt
