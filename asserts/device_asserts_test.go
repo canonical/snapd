@@ -130,11 +130,13 @@ func (mods *modelSuite) TestModelCheck(c *C) {
 	ex, err := asserts.Decode([]byte(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)))
 	c.Assert(err, IsNil)
 
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "brand-id1")
+	storeDB, db := makeStoreAndCheckDB(c)
+	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
 
 	headers := ex.Headers()
-	headers["timestamp"] = "2015-11-25T20:00:00Z"
-	model, err := accSignDB.Sign(asserts.ModelType, headers, nil, signingKeyID)
+	headers["brand-id"] = brandDB.AuthorityID
+	headers["timestamp"] = time.Now().Format(time.RFC3339)
+	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(model)
@@ -145,11 +147,13 @@ func (mods *modelSuite) TestModelCheckInconsistentTimestamp(c *C) {
 	ex, err := asserts.Decode([]byte(strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)))
 	c.Assert(err, IsNil)
 
-	signingKeyID, accSignDB, db := makeSignAndCheckDbWithAccountKey(c, "brand-id1")
+	storeDB, db := makeStoreAndCheckDB(c)
+	brandDB := setup3rdPartySigning(c, "brand1", storeDB, db)
 
 	headers := ex.Headers()
+	headers["brand-id"] = brandDB.AuthorityID
 	headers["timestamp"] = "2011-01-01T14:00:00Z"
-	model, err := accSignDB.Sign(asserts.ModelType, headers, nil, signingKeyID)
+	model, err := brandDB.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(model)

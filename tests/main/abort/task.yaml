@@ -1,7 +1,7 @@
 summary: Check change abort
 
 environment:
-    SNAP_NAME: hello-world
+    SNAP_NAME: test-snapd-tools
 
 execute: |
     echo "Abort with invalid id"

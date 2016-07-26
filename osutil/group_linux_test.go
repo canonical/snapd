@@ -62,9 +62,9 @@ func getgrnamForking(name string) (grp Group, err error) {
 }
 
 func (s *groupTestSuite) TestGetgrnam(c *C) {
-	expected, err := getgrnamForking("adm")
+	expected, err := getgrnamForking("nogroup")
 	c.Assert(err, IsNil)
-	groups, err := Getgrnam("adm")
+	groups, err := Getgrnam("nogroup")
 	c.Assert(err, IsNil)
 	c.Assert(groups, DeepEquals, expected)
 }

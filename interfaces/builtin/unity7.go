@@ -308,11 +308,18 @@ dbus (send)
     member="New{AttentionIcon,Icon,OverlayIcon,Status,Title,ToolTip}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
+dbus (send)
+    bus=session
+    path=/StatusNotifierItem/menu
+    interface=com.canonical.dbusmenu
+    member="{LayoutUpdated,ItemsPropertiesUpdated}"
+    peer=(name=org.freedesktop.DBus, label=unconfined),
+
 dbus (receive)
     bus=session
-    path=/StatusNotifierItem
-    interface=org.freedesktop.DBus.Properties
-    member=Get*
+    path=/StatusNotifierItem{,/menu}
+    interface={org.freedesktop.DBus.Properties,com.canonical.dbusmenu}
+    member={Get*,AboutTo*,Event*}
     peer=(label=unconfined),
 
 dbus (send)

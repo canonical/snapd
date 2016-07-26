@@ -2,9 +2,6 @@
 
 Version: v2pre0
 
-Note: The v2 API is going to be very different from the 1.0; right now, not
-so much.
-
 ## Versioning
 
 As the API evolves, some changes are deemed backwards-compatible (such
@@ -547,7 +544,6 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "channel": "moon-buggy",
     "price": "2.99",
     "currency": "USD"
 }
@@ -559,7 +555,6 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "channel": "moon-buggy",
     "price": "2.99",
     "currency": "USD",
     "backend-id": "credit_card",
@@ -573,4 +568,65 @@ Generally the UUID of a background operation you are interested in.
 {
  "state": "Complete",
 }
+```
+
+## /v2/buy/methods
+
+### GET
+
+* Description: Get a list of the available payment methods
+* Access: authenticated
+* Operation: sync
+* Return: Dict with payment methods.
+
+#### Sample result with one method that allows automatic payment:
+
+```javascript
+{
+    "allows-automatic-payment": true,
+    "methods": [
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 1111 (exp 23/2020)",
+        "id": 123,
+        "preferred": true,
+        "requires-interaction": false
+      }
+    ]
+  }
+```
+
+#### Sample with 3 methods and no automatic payments:
+
+```javascript
+{
+    "allows-automatic-payment": false,
+    "methods": [
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 1111 (exp 23/2020)",
+        "id": 123,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 2222 (exp 23/2025)",
+        "id": 234,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
+        "backend-id": "rest_paypal",
+        "currencies": ["USD", "GBP", "EUR"],
+        "description": "PayPal",
+        "id": 345,
+        "preferred": false,
+        "requires-interaction": true
+      }
+    ]
+  }
 ```

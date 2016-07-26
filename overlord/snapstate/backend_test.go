@@ -21,6 +21,7 @@ package snapstate_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/auth"
@@ -38,6 +39,7 @@ type fakeOp struct {
 	revno snap.Revision
 	sinfo snap.SideInfo
 	stype snap.Type
+	cand  store.RefreshCandidate
 
 	old string
 }
@@ -77,12 +79,68 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserStat
 	return info, nil
 }
 
-func (f *fakeStore) Find(query, channel string, user *auth.UserState) ([]*snap.Info, error) {
+func (f *fakeStore) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
 	panic("Find called")
 }
 
-func (f *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
-	panic("ListRefresh called")
+func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
+	if len(cands) == 0 {
+		return nil, nil
+	}
+	if len(cands) != 1 {
+		panic("ListRefresh unexpectedly called with more than one candidate")
+	}
+	cand := cands[0]
+
+	snapID := cand.SnapID
+
+	if snapID == "" {
+		return nil, nil
+	}
+
+	var name string
+	if snapID == "some-snap-id" {
+		name = "some-snap"
+	} else {
+		panic(fmt.Sprintf("ListRefresh: unknown snap-id: %s", snapID))
+	}
+
+	revno := snap.R(11)
+	if cand.Channel == "channel-for-7" {
+		revno = snap.R(7)
+	}
+
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: name,
+			Channel:  cand.Channel,
+			SnapID:   cand.SnapID,
+			Revision: revno,
+		},
+		Version: name,
+		DownloadInfo: snap.DownloadInfo{
+			DownloadURL: "https://some-server.com/some/path.snap",
+		},
+	}
+
+	var hit snap.Revision
+	if cand.Revision != revno {
+		hit = revno
+	}
+	for _, blocked := range cand.Block {
+		if blocked == revno {
+			hit = snap.Revision{}
+			break
+		}
+	}
+
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-list-refresh", cand: *cand, revno: hit})
+
+	if hit.Unset() {
+		return nil, nil
+	}
+
+	return []*snap.Info{info}, nil
 }
 
 func (f *fakeStore) SuggestedCurrency() string {
@@ -107,7 +165,11 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 }
 
 func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
-	panic("Never expected apiSuite.Buy to be called")
+	panic("Never expected fakeStore.Buy to be called")
+}
+
+func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
+	panic("Never expected fakeStore.PaymentMethods to be called")
 }
 
 type fakeSnappyBackend struct {

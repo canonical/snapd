@@ -4,7 +4,7 @@ Before contributing you should sign [Canonical's contributor agreement](http://w
 
 Before merging any pull request to snappy's code base we need to verify that the code functionality and quality is not degraded by that addition. In order to do that there's a set of checks that we run for each PR, some of them using external services (TravisCI and Coveralls) and others using our own CI infrastructure (integration tests and autopkgtests). The checks based on external services are run for all the pull request. We are using the [GitHub Pull Request Builder Plugin](https://github.com/jenkinsci/ghprb-plugin/blob/master/README.md) for easing the management of PRs in relation with our internal infrastructure.
 
-Depending on the afiliation of the GitHub user submitting a PR, the following actions may happen after receiving it:
+Depending on the affiliation of the GitHub user submitting a PR, the following actions may happen after receiving it:
 
 * If the user belongs to the `ubuntu-core` organization or has been previously whitelisted, the internal downstream verification jobs will be triggered, their progress is reported in the PR's status section. Any of the users of the organization can retrigger the execution by posting a `retest this please` comment in the PR.
 * For user's outside the `ubuntu-core` organization, the internal checks won't be triggered by default and the [snappy-m-o](https://github.com/snappy-m-o) user, managed by the ghrbp plugin, will post a comment "Can one of the admins verify this patch?". After this, an `ubuntu-core` admin can post one of these comments:
