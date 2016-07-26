@@ -44,3 +44,10 @@ func (s *createUserSuite) TestCreateUserCreatesUser(c *check.C) {
 	// content looks sane
 	cli.ExecCommand(c, "sudo", "grep", "ssh-rsa", "/home/mvo/.ssh/authorized_keys")
 }
+
+func (s *createUserSuite) TestCreateUserFails(c *check.C) {
+	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "nosuchuser@example.com")
+
+	expected := `error: bad user result: cannot create user "nosuchuser@example.com.*"`
+	c.Assert(createOutput, check.Matches, expected)
+}
