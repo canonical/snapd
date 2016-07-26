@@ -175,7 +175,8 @@ func (x *cmdRemove) Execute([]string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
-	fmt.Fprintln(Stdout, "Done")
+
+	fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
 	return nil
 }
 
@@ -208,6 +209,39 @@ func (mx *channelMixin) setChannelFromCommandline() error {
 		mx.Channel = ch.chName
 	}
 
+	return nil
+}
+
+// show what has been done
+func showDone(names []string, op string) error {
+	cli := Client()
+	snaps, err := cli.List(names)
+	if err != nil {
+		return err
+	}
+
+	for _, snap := range snaps {
+		channelStr := ""
+		if snap.Channel != "" {
+			channelStr = fmt.Sprintf(" (%s)", snap.Channel)
+		}
+		switch op {
+		case "install":
+			if snap.Developer != "" {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
+			}
+		case "upgrade":
+			if snap.Developer != "" {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' upgraded\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s upgraded\n"), snap.Name, channelStr, snap.Version)
+			}
+		default:
+			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
+		}
+	}
 	return nil
 }
 
@@ -282,7 +316,7 @@ func (x *cmdInstall) Execute([]string) error {
 		name = snapName
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "install")
 }
 
 type cmdRefresh struct {
@@ -320,7 +354,7 @@ func refreshAll() error {
 		names[i] = update.Name
 	}
 
-	return listSnaps(names)
+	return showDone(names, "upgrade")
 }
 
 func refreshOne(name string, opts *client.SnapOptions) error {
@@ -334,7 +368,7 @@ func refreshOne(name string, opts *client.SnapOptions) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "upgrade")
 }
 
 func listRefresh() error {
@@ -437,7 +471,17 @@ func (x *cmdTry) Execute([]string) error {
 	}
 	name = snapName
 
-	return listSnaps([]string{name})
+	// show output as speced
+	snaps, err := cli.List([]string{name})
+	if err != nil {
+		return err
+	}
+	if len(snaps) != 1 {
+		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
+	}
+	snap := snaps[0]
+	fmt.Fprintf(Stdout, i18n.G("%s %s mounted from %s\n"), name, snap.Version, path)
+	return nil
 }
 
 type cmdEnable struct {
@@ -460,7 +504,8 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	fmt.Fprintf(Stdout, i18n.G("%s enabled\n"), name)
+	return nil
 }
 
 type cmdDisable struct {
@@ -483,7 +528,8 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	fmt.Fprintf(Stdout, i18n.G("%s disabled\n"), name)
+	return nil
 }
 
 type cmdRevert struct {
@@ -517,7 +563,18 @@ func (x *cmdRevert) Execute(args []string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
-	return listSnaps([]string{name})
+
+	// show output as speced
+	snaps, err := cli.List([]string{name})
+	if err != nil {
+		return err
+	}
+	if len(snaps) != 1 {
+		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
+	}
+	snap := snaps[0]
+	fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), name, snap.Version)
+	return nil
 }
 
 func init() {
