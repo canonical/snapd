@@ -1705,9 +1705,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
-		if flags.DevModeAllowed() {
-			installQueue = append(installQueue, name)
-		}
+		installQueue = append(installQueue, name)
 
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -1729,12 +1727,40 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
-	c.Check(installQueue, check.HasLen, 0)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
 
-	// now again with devmode
-	inst.DevMode = true
-	summary, _, err = inst.dispatch()(inst, st)
+func (s *apiSuite) TestRefreshDevMode(c *check.C) {
+	calledFlags := snapstate.Flags(42)
+	calledUserID := 0
+	installQueue := []string{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		calledUserID = userID
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:  "refresh",
+		snap:    "some-snap",
+		userID:  17,
+		DevMode: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.DevMode))
