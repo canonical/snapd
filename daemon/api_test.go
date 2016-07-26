@@ -62,9 +62,7 @@ type apiSuite struct {
 	rsnaps            []*snap.Info
 	err               error
 	vars              map[string]string
-	searchTerm        string
-	channel           string
-	private           bool
+	storeSearch       store.Search
 	suggestedCurrency string
 	d                 *Daemon
 	user              *auth.UserState
@@ -87,9 +85,7 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState
 }
 
 func (s *apiSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
-	s.searchTerm = search.Query
-	s.channel = search.Channel
-	s.private = search.Private
+	s.storeSearch = *search
 	s.user = user
 
 	return s.rsnaps, s.err
@@ -140,8 +136,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
-	s.searchTerm = ""
-	s.channel = ""
+	s.storeSearch = store.Search{}
 	s.err = nil
 	s.vars = nil
 	s.user = nil
@@ -830,7 +825,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=hi&channel=potato", nil)
+	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := searchStore(findCmd, req, nil).(*resp)
@@ -842,8 +837,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
-	c.Check(s.searchTerm, check.Equals, "hi")
-	c.Check(s.channel, check.Equals, "potato")
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "hi"})
 	c.Check(s.refreshCandidates, check.HasLen, 0)
 }
 
@@ -874,13 +868,51 @@ func (s *apiSuite) TestFindPrivate(c *check.C) {
 
 	s.rsnaps = []*snap.Info{}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=foo&private=true", nil)
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&select=private", nil)
 	c.Assert(err, check.IsNil)
 
 	_ = searchStore(findCmd, req, nil).(*resp)
 
-	c.Check(s.searchTerm, check.Equals, "foo")
-	c.Check(s.private, check.Equals, true)
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{
+		Query:   "foo",
+		Private: true,
+	})
+}
+
+func (s *apiSuite) TestFindPrefix(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo*", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo", Prefix: true})
+}
+
+func (s *apiSuite) TestFindOne(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName:  "store",
+			Developer: "foo",
+		},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["name"], check.Equals, "store")
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
@@ -1106,7 +1138,7 @@ func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
 
-	c.Check(s.searchTerm, check.Equals, "foo")
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo"})
 
 	c.Assert(rsp.Result, check.NotNil)
 }
