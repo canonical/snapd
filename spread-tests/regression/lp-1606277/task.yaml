@@ -12,6 +12,6 @@ prepare: |
 execute: |
     echo "We can now see a non-empty /var/log directory"
     cd /
-    /snap/bin/snapd-hacker-toolbelt.busybox ls /var/log 
+    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox ls /var/log | wc -l)" != 0 ]
 restore: |
     snap remove snapd-hacker-toolbelt
