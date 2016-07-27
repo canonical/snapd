@@ -60,7 +60,7 @@ func populateStateFromInstalled() error {
 	for i, sn := range seed.Snaps {
 		st.Lock()
 
-		ts, err := snapstate.InstallPath(st, sn.RealName, sn.Path, "", 0)
+		ts, err := snapstate.InstallPath(st, sn.RealName, sn.Path, sn.Channel, 0)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
