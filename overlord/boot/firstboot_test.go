@@ -20,6 +20,7 @@
 package boot_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -50,6 +51,9 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	s.systemctl = testutil.MockCommand(c, "systemctl", "")
+
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
+	c.Assert(err, IsNil)
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -90,12 +94,22 @@ version: 1.0`
 	err := os.Rename(mockSnapFile, targetSnapFile)
 	c.Assert(err, IsNil)
 
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: foo
+   revision: 128
+   path: %s
+`, targetSnapFile))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
 	// run the firstboot stuff
 	err = boot.PopulateStateFromInstalled()
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, "foo", "x1", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromInstalledErrors(c *C) {
@@ -108,6 +122,15 @@ version: 1.0`
 	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
 	targetSnapFile := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
 	err := os.Rename(mockSnapFile, targetSnapFile)
+	c.Assert(err, IsNil)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: illegal-type
+   path: %s
+`, targetSnapFile))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
