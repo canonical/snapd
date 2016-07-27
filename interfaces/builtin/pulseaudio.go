@@ -131,11 +131,13 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		// If we're running on classic then allow access to the pulse config
 		// directory
 		if release.OnClassic {
-			b := bytes.NewBuffer(pulseaudioConnectedPlugAppArmorDesktop)
+			b0 := bytes.NewBuffer(pulseaudioConnectedPlugAppArmor)
+			b1 := bytes.NewBuffer(pulseaudioConnectedPlugAppArmorDesktop)
+			b1.Write(b0.Bytes())
 			// Add these bytes to the connected plug apparmor rules
-			b.Write([]byte("owner /{,var/}run/user/*/pulse/ rwk,\n"))
-			b.Write([]byte("owner /{,var/}run/user/*/pulse/native rwk,\n"))
-			return b.Bytes(), nil
+			b1.Write([]byte("owner /{,var/}run/user/*/pulse/ rwk,\n"))
+			b1.Write([]byte("owner /{,var/}run/user/*/pulse/native rwk,\n"))
+			return b1.Bytes(), nil
 		} else {
 			return pulseaudioConnectedPlugAppArmor, nil
 		}
