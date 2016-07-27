@@ -20,7 +20,7 @@ execute: |
     ! snap find test-snapd-private --private | grep -q "test-snapd-private +\d+\.\d+"
 
     echo "Given account store credentials are available"
-    if [ -z "$SPREAD_STORE_USER" ] && [ -z "$SPREAD_STORE_PASSWORD" ]; then
+    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ]; then
         echo "And the user has logged in"
         expect -f successful_login.exp
 
