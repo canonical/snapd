@@ -38,6 +38,7 @@ snaps:
    snap-id: snapidsnapidsnapid
    channel: stable
    revision: 31
+   path: /some/path/foo_1.0_all.snap
 `)
 
 func (s *seedYamlTestSuite) TestSimple(c *C) {
@@ -49,6 +50,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seed.Snaps, HasLen, 1)
 	c.Assert(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Path: "/some/path/foo_1.0_all.snap",
 		SideInfo: snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "snapidsnapidsnapid",

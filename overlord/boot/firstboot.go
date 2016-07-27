@@ -51,29 +51,16 @@ func populateStateFromInstalled() error {
 	}
 	st := ovld.State()
 
-	all, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "snaps", "*.snap"))
+	seed, err := snap.ReadSeedYaml(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
 	if err != nil {
 		return err
 	}
 
 	tsAll := []*state.TaskSet{}
-	for i, snapPath := range all {
+	for i, sn := range seed.Snaps {
 		st.Lock()
 
-		// XXX: needing to know the name here is too early
-
-		// everything will be sideloaded for now - that is
-		// ok, we will support adding assertions soon
-		snapf, err := snap.Open(snapPath)
-		if err != nil {
-			return err
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-		if err != nil {
-			return err
-		}
-		ts, err := snapstate.InstallPath(st, info.Name(), snapPath, "", 0)
-
+		ts, err := snapstate.InstallPath(st, sn.RealName, sn.Path, "", 0)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
@@ -82,6 +69,14 @@ func populateStateFromInstalled() error {
 		if err != nil {
 			return err
 		}
+
+		st.Lock()
+		var ss snapstate.SnapSetup
+		tasks := ts.Tasks()
+		tasks[0].Get("snap-setup", &ss)
+		ss.SideInfo = &sn.SideInfo
+		tasks[0].Set("snap-setup", &ss)
+		st.Unlock()
 
 		tsAll = append(tsAll, ts)
 	}
