@@ -20,10 +20,7 @@
 package builtin
 
 import (
-	"bytes"
-
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/release"
 )
 
 var pulseaudioConnectedPlugAppArmor = []byte(`
@@ -41,6 +38,8 @@ var pulseaudioConnectedPlugAppArmorDesktop = []byte(`
 /etc/pulse/* r,
 owner @{HOME}/.pulse-cookie rk,
 owner @{HOME}/.config/pulse/cookie rk,
+owner /{,var/}run/user/*/pulse/ rwk,
+owner /{,var/}run/user/*/pulse/native rwk,
 `)
 
 var pulseaudioConnectedPlugSecComp = []byte(`
@@ -128,19 +127,7 @@ func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		// If we're running on classic then allow access to the pulse config
-		// directory
-		if release.OnClassic {
-			b0 := bytes.NewBuffer(pulseaudioConnectedPlugAppArmor)
-			b1 := bytes.NewBuffer(pulseaudioConnectedPlugAppArmorDesktop)
-			b1.Write(b0.Bytes())
-			// Add these bytes to the connected plug apparmor rules
-			b1.Write([]byte("owner /{,var/}run/user/*/pulse/ rwk,\n"))
-			b1.Write([]byte("owner /{,var/}run/user/*/pulse/native rwk,\n"))
-			return b1.Bytes(), nil
-		} else {
-			return pulseaudioConnectedPlugAppArmor, nil
-		}
+		return pulseaudioConnectedPlugAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return pulseaudioConnectedPlugSecComp, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev:
