@@ -179,7 +179,7 @@ const serialExample = "type: serial\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
 	"serial: 2700\n" +
-	"device-key:\n DEVICEKEY\n" +
+	"device-key:\n    DEVICEKEY\n" +
 	"TSLINE" +
 	"body-length: 2\n\n" +
 	"HW" +
@@ -188,7 +188,7 @@ const serialExample = "type: serial\n" +
 
 func (ss *serialSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
-	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n ", -1), 1)
+	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SerialType)
@@ -218,14 +218,14 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		{ss.tsLine, "", `"timestamp" header is mandatory`},
 		{ss.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{ss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
-		{"device-key:\n DEVICEKEY\n", "", `"device-key" header is mandatory`},
-		{"device-key:\n DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
-		{"device-key:\n DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
+		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
+		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
+		{"device-key:\n    DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: could not decode base64 data:.*`},
 	}
 
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
-		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n ", -1), 1)
+		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
 
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)

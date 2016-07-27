@@ -218,8 +218,8 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
-func (db *Database) Sign(assertType *AssertionType, headers map[string]string, body []byte, keyID string) (Assertion, error) {
-	authorityID, err := checkNotEmpty(headers, "authority-id")
+func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyID string) (Assertion, error) {
+	authorityID, err := checkNotEmptyString(headers, "authority-id")
 	if err != nil {
 		return nil, err
 	}
@@ -293,7 +293,7 @@ func (db *Database) Add(assert Assertion) error {
 
 	keyValues := make([]string, len(assertType.PrimaryKey))
 	for i, k := range assertType.PrimaryKey {
-		keyVal := assert.Header(k)
+		keyVal := assert.HeaderString(k)
 		if keyVal == "" {
 			return fmt.Errorf("missing primary key header: %v", k)
 		}

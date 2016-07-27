@@ -22,6 +22,7 @@ package asserts
 import (
 	"bytes"
 	"fmt"
+	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -48,6 +49,14 @@ list-of-maps:
     entry: bar
 
 */
+
+var (
+	nl   = []byte("\n")
+	nlnl = []byte("\n\n")
+
+	// for basic sanity checking of header names
+	headerNameSanity = regexp.MustCompile("^[a-z][a-z0-9-]*[a-z0-9]$")
+)
 
 func parseHeaders(head []byte) (map[string]interface{}, error) {
 	if !utf8.Valid(head) {
@@ -161,4 +170,93 @@ func parseList(first int, lines []string, baseIndent int) (value interface{}, fi
 		lst = append(lst, v)
 	}
 	return lst, j, nil
+}
+
+// checkHeader checks that the header values are strings, or nested lists with strings as the only scalars
+func checkHeader(v interface{}) error {
+	switch x := v.(type) {
+	case string:
+		return nil
+	case []interface{}:
+		for _, elem := range x {
+			err := checkHeader(elem)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("header values must be strings or nested lists with strings as the only scalars: %v", v)
+	}
+}
+
+// checkHeaders checks that headers are of expected types
+func checkHeaders(headers map[string]interface{}) error {
+	for name, value := range headers {
+		err := checkHeader(value)
+		if err != nil {
+			return fmt.Errorf("header %q: %v", name, err)
+		}
+	}
+	return nil
+}
+
+// copyHeader helps deep copying header values to defend against external mutations
+func copyHeader(v interface{}) interface{} {
+	switch x := v.(type) {
+	case string:
+		return x
+	case []interface{}:
+		res := make([]interface{}, len(x))
+		for i, elem := range x {
+			res[i] = copyHeader(elem)
+		}
+		return res
+	case map[string]interface{}:
+		res := make(map[string]interface{}, len(x))
+		for name, value := range x {
+			if value == nil {
+				continue // normalize nils out
+			}
+			res[name] = copyHeader(value)
+		}
+		return res
+	default:
+		panic(fmt.Sprintf("internal error: encountered unexpected value type copying headers: %v", v))
+	}
+}
+
+// copyHeader helps deep copying headers to defend against external mutations
+func copyHeaders(headers map[string]interface{}) map[string]interface{} {
+	return copyHeader(headers).(map[string]interface{})
+}
+
+func appendEntry(buf *bytes.Buffer, intro string, v interface{}, baseIndent int) {
+	switch x := v.(type) {
+	case nil:
+		return // omit
+	case string:
+		buf.WriteByte('\n')
+		buf.WriteString(intro)
+		if strings.IndexRune(x, '\n') != -1 {
+			// multiline value => quote by 4-space indenting
+			buf.WriteByte('\n')
+			pfx := nestingPrefix(baseIndent, multilinePrefix)
+			buf.WriteString(pfx)
+			x = strings.Replace(x, "\n", "\n"+pfx, -1)
+		} else {
+			buf.WriteByte(' ')
+		}
+		buf.WriteString(x)
+	case []interface{}:
+		if len(x) == 0 {
+			return // simply omit
+		}
+		buf.WriteByte('\n')
+		buf.WriteString(intro)
+		pfx := nestingPrefix(baseIndent, listPrefix)
+		for _, elem := range x {
+			appendEntry(buf, pfx, elem, baseIndent+len(listPrefix)-1)
+		}
+	}
 }
