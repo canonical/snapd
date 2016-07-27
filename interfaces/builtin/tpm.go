@@ -36,7 +36,7 @@ func (iface *TpmInterface) Name() string {
 
 func (iface *TpmInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -45,7 +45,7 @@ func (iface *TpmInterface) PermanentPlugSnippet(plug *interfaces.Plug, securityS
 
 func (iface *TpmInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -56,7 +56,7 @@ func (iface *TpmInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return tpmPermanentSlotAppArmor, nil
-	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -65,7 +65,7 @@ func (iface *TpmInterface) PermanentSlotSnippet(slot *interfaces.Slot, securityS
 
 func (iface *TpmInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
