@@ -57,7 +57,15 @@ func (r Revision) MarshalJSON() ([]byte, error) {
 }
 
 func (r *Revision) UnmarshalYAML(unmarshal func(interface{}) error) error {
-	return unmarshal(&r.N)
+	var s string
+	if err := unmarshal(&s); err != nil {
+		return err
+	}
+	return r.UnmarshalJSON([]byte(`"` + s + `"`))
+}
+
+func (r Revision) MarshalYAML() (interface{}, error) {
+	return r.String(), nil
 }
 
 func (r *Revision) UnmarshalJSON(data []byte) error {
