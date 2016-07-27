@@ -52,7 +52,6 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
-		"gates: snap-id-3,snap-id-4\n" +
 		sds.tsLine +
 		"body-length: 0" +
 		"\n\n" +
@@ -67,7 +66,6 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
 	c.Check(snapDecl.SnapName(), Equals, "first")
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
-	c.Check(snapDecl.Gates(), DeepEquals, []string{"snap-id-3", "snap-id-4"})
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
@@ -77,7 +75,6 @@ func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: \n" +
 		"publisher-id: dev-id1\n" +
-		"gates: snap-id-3,snap-id-4\n" +
 		sds.tsLine +
 		"body-length: 0" +
 		"\n\n" +
@@ -99,7 +96,6 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
-		"gates: snap-id-3,snap-id-4\n" +
 		sds.tsLine +
 		"body-length: 0" +
 		"\n\n" +
@@ -116,8 +112,6 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
-		{"gates: snap-id-3,snap-id-4\n", "", `\"gates\" header is mandatory`},
-		{"gates: snap-id-3,snap-id-4\n", "gates: foo,\n", `empty entry in comma separated "gates" header: "foo,"`},
 	}
 
 	for _, test := range invalidTests {
