@@ -87,7 +87,7 @@ func checkInteger(headers map[string]interface{}, name string, defl int) (int, e
 	}
 	s, ok := value.(string)
 	if !ok {
-		return -1, fmt.Errorf("%q header must be a string representing an integer", name)
+		return -1, fmt.Errorf("%q header is not an integer: %v", name, value)
 	}
 	m, err := strconv.Atoi(s)
 	if err != nil {
