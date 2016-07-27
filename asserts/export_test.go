@@ -140,3 +140,8 @@ func MockRunGPG(mock func(prev GPGRunner, homedir string, input []byte, args ...
 		runGPG = prevRunGPG
 	}
 }
+
+// Headers helpers to test
+var (
+	ParseHeaders = parseHeaders
+)
