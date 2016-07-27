@@ -20,7 +20,10 @@
 package builtin
 
 import (
+	"bytes"
+
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/release"
 )
 
 var pulseaudioConnectedPlugAppArmor = []byte(`
@@ -127,7 +130,13 @@ func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return pulseaudioConnectedPlugAppArmor, nil
+		if release.OnClassic {
+			b := bytes.NewBuffer(pulseaudioConnectedPlugAppArmor)
+			b.Write(pulseaudioConnectedPlugAppArmorDesktop)
+			return b.Bytes(), nil
+		} else {
+			return pulseaudioConnectedPlugAppArmor, nil
+		}
 	case interfaces.SecuritySecComp:
 		return pulseaudioConnectedPlugSecComp, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev:
