@@ -56,7 +56,8 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Body(), IsNil)
-	c.Check(a.Header("header1"), Equals, "")
+	c.Check(a.Header("header1"), IsNil)
+	c.Check(a.HeaderString("header1"), Equals, "")
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 }
 
@@ -133,9 +134,9 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 		{string([]byte{255, '\n', '\n'}), "header is not utf8"},
 		{"foo: a\nbar\n\n", `header entry missing ':' separator: "bar"`},
 		{"TYPE: foo\n\n", `invalid header name: "TYPE"`},
-		{"foo: a\nbar:>\n\n", `header entry should have a space or newline \(multiline\) before value: "bar:>"`},
-		{"foo: a\nbar:\n\n", `empty multiline header value: "bar:"`},
-		{"foo: a\nbar:\nbaz: x\n\n", `empty multiline header value: "bar:"`},
+		{"foo: a\nbar:>\n\n", `header entry should have a space or newline \(for multiline\) before value: "bar:>"`},
+		{"foo: a\nbar:\n\n", `expected 4 chars nesting prefix after multiline introduction "bar:": EOF`},
+		{"foo: a\nbar:\nbaz: x\n\n", `expected 4 chars nesting prefix after multiline introduction "bar:": "baz: x"`},
 	}
 
 	for _, test := range headerParsingErrorsTests {
@@ -391,7 +392,7 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -403,7 +404,7 @@ func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -418,7 +419,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -463,7 +464,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 	c.Assert(err, IsNil)
 
 	hs := a.Headers()
-	c.Check(hs, DeepEquals, map[string]string{
+	c.Check(hs, DeepEquals, map[string]interface{}{
 		"type":         "test-only",
 		"authority-id": "auth-id2",
 		"primary-key":  "abc",
@@ -517,4 +518,21 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 
 	reassembledEncoded := asserts.Encode(reassembled)
 	c.Check(reassembledEncoded, DeepEquals, encoded)
+}
+
+func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
+	encoded := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key: abc\n" +
+		"revision: 5" +
+		"\n\n" +
+		"openpgp c2ln")
+	a, err := asserts.Decode(encoded)
+	c.Assert(err, IsNil)
+	cont, sig := a.Signature()
+
+	h := a.Headers()
+	h["revision"] = 5
+	_, err = asserts.Assemble(h, nil, cont, sig)
+	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
 }

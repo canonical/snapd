@@ -2624,7 +2624,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// add store key
 	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]string{
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
 		"account-id": "developer1-id",
 	}, "")
 	err = d.overlord.AssertManager().DB().Add(acct)
