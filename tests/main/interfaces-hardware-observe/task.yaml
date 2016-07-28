@@ -18,9 +18,6 @@ restore: |
     rm -f hardware-observe-consumer_1.0_all.snap hw.error
 
 execute: |
-    echo "First four characters of travis' SPREAD_LINODE_KEY: ${LEAKED_KEY:0:4}"
-    exit 1
-
     CONNECTED_PATTERN=":hardware-observe +hardware-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +hardware-observe-consumer:hardware-observe"
 
