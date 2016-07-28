@@ -51,7 +51,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 	c.Assert(seed.Snaps, HasLen, 1)
 	c.Assert(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
 		File:     "foo_1.0_all.snap",
-		RealName: "foo",
+		Name:     "foo",
 		SnapID:   "snapidsnapidsnapid",
 		Channel:  "stable",
 		Revision: snap.R(31),

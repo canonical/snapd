@@ -61,7 +61,7 @@ func populateStateFromInstalled() error {
 		st.Lock()
 
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-		ts, err := snapstate.InstallPath(st, sn.RealName, path, sn.Channel, 0)
+		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, 0)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
@@ -71,12 +71,14 @@ func populateStateFromInstalled() error {
 			return err
 		}
 
+		// XXX: this is a temporary hack until we have assertions
+		//      and do not need this anymore
 		st.Lock()
 		var ss snapstate.SnapSetup
 		tasks := ts.Tasks()
 		tasks[0].Get("snap-setup", &ss)
 		ss.SideInfo = &snap.SideInfo{
-			RealName:    sn.RealName,
+			RealName:    sn.Name,
 			SnapID:      sn.SnapID,
 			Revision:    sn.Revision,
 			Channel:     sn.Channel,
