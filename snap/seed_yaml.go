@@ -28,8 +28,9 @@ import (
 )
 
 type SeedSnap struct {
+	// XXX: this will all go away once we have assertions
 	// yaml needs to be in sync with SideInfo
-	RealName    string   `yaml:"name,omitempty" json:"name,omitempty"`
+	Name        string   `yaml:"name" json:"name"`
 	SnapID      string   `yaml:"snap-id" json:"snap-id"`
 	Revision    Revision `yaml:"revision" json:"revision"`
 	Channel     string   `yaml:"channel,omitempty" json:"channel,omitempty"`
