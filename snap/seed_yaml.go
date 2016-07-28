@@ -30,7 +30,7 @@ type seedSnapYaml struct {
 	// FIXME: eventually we only want to have "name", "channel" here
 	SideInfo `yaml:",inline"`
 
-	Path string `yaml:"path"`
+	File string `yaml:"file"`
 }
 
 type seedYaml struct {
@@ -40,7 +40,7 @@ type seedYaml struct {
 type SeedSnap struct {
 	SideInfo
 
-	Path string
+	File string
 }
 
 type Seed struct {
@@ -63,7 +63,7 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 	}
 	for i, ys := range y.Snaps {
 		seed.Snaps[i] = &SeedSnap{
-			Path: ys.Path,
+			File: ys.File,
 		}
 		seed.Snaps[i].SideInfo = ys.SideInfo
 	}
