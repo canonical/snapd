@@ -20,6 +20,8 @@
 package asserts_test
 
 import (
+	"bytes"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -143,4 +145,95 @@ bar: baz`))
   - z
 bar:`))
 	c.Check(err, ErrorMatches, `expected 4 chars nesting prefix after multiline introduction "bar:": EOF`)
+}
+
+func (s *headersSuite) TestAppendEntrySimple(c *C) {
+	buf := bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", "baz", 0)
+
+	m, err := asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
+		"bar":   "baz",
+	})
+}
+
+func (s *headersSuite) TestAppendEntryMultiline(c *C) {
+	multilines := []string{
+		"a\n",
+		"a\nb",
+		"baz\n baz1\nbaz2",
+		"baz\n baz1\nbaz2\n",
+		"baz\n baz1\nbaz2\n\n",
+	}
+
+	for _, multiline := range multilines {
+		buf := bytes.NewBufferString("start: .")
+
+		asserts.AppendEntry(buf, "bar:", multiline, 0)
+
+		m, err := asserts.ParseHeaders(buf.Bytes())
+		c.Assert(err, IsNil)
+		c.Check(m, DeepEquals, map[string]interface{}{
+			"start": ".",
+			"bar":   multiline,
+		})
+	}
+}
+
+func (s *headersSuite) TestAppendEntrySimpleList(c *C) {
+	lst := []interface{}{"x", "y", "z"}
+
+	buf := bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", lst, 0)
+
+	m, err := asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
+		"bar":   lst,
+	})
+}
+
+func (s *headersSuite) TestAppendEntryListNested(c *C) {
+	lst := []interface{}{"x", "a\nb\n", "", []interface{}{"u1", "u2"}}
+
+	buf := bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", lst, 0)
+
+	m, err := asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
+		"bar":   lst,
+	})
+}
+
+func (s *headersSuite) TestAppendEntryOmitting(c *C) {
+	buf := bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", []interface{}{}, 0)
+
+	m, err := asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
+	})
+
+	lst := []interface{}{nil, []interface{}{}, "z"}
+
+	buf = bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", lst, 0)
+
+	m, err = asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
+		"bar":   []interface{}{"z"},
+	})
 }

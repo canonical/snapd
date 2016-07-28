@@ -123,7 +123,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
-	dev1Acct := assertstest.NewAccount(storeDB, "developer1", map[string]string{
+	dev1Acct := assertstest.NewAccount(storeDB, "developer1", map[string]interface{}{
 		"account-id": "dev-id1",
 	}, "")
 	err := db.Add(dev1Acct)
@@ -135,7 +135,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 
 	prereqDevAccount(c, storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -155,7 +155,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -173,7 +173,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -302,7 +302,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": devDB.AuthorityID,
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -322,7 +322,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"series":      "16",
 		"snap-id":     "snap-id-1",
 		"snap-digest": "sha256 ...",
@@ -364,8 +364,8 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 		"openpgp c2ln"
 }
 
-func (srs *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
-	headers := map[string]string{
+func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+	headers := map[string]interface{}{
 		"authority-id":  "canonical",
 		"series":        "16",
 		"snap-id":       "snap-id-1",
@@ -435,7 +435,7 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 }
 
 func prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]string{
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -465,7 +465,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
 func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	headers := srs.makeHeaders(map[string]string{
+	headers := srs.makeHeaders(map[string]interface{}{
 		"timestamp": "2013-01-01T14:00:00Z",
 	})
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
@@ -526,8 +526,8 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 
 	_, err = db.Find(asserts.SnapRevisionType, map[string]string{
 		"series":      "16",
-		"snap-id":     headers["snap-id"],
-		"snap-digest": headers["snap-digest"],
+		"snap-id":     headers["snap-id"].(string),
+		"snap-digest": headers["snap-digest"].(string),
 	})
 	c.Assert(err, IsNil)
 }
