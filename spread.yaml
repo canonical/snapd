@@ -67,6 +67,9 @@ prepare: |
 
 suites:
     tests/main/:
+        environment:
+            SPREAD_STORE_USER: $(echo -n $SPREAD_STORE_USER)
+            SPREAD_STORE_PASSWORD: $(echo -n $SPREAD_STORE_PASSWORD)
         summary: Full-system tests for snapd
         prepare: |
             apt install -y ${SPREAD_PATH}/../snapd_*.deb
