@@ -174,6 +174,9 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
 
+  # For printing the cache (we don't allow updating the cache)
+  /{,usr/}sbin/ldconfig{,.real} ixr,
+
   # uptime
   /{,usr/}bin/uptime ixr,
   @{PROC}/uptime r,
