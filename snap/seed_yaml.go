@@ -22,6 +22,7 @@ package snap
 import (
 	"fmt"
 	"io/ioutil"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -53,6 +54,13 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 	var seed Seed
 	if err := yaml.Unmarshal(yamlData, &seed); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal %q: %s", yamlData, err)
+	}
+
+	// validate
+	for _, sn := range seed.Snaps {
+		if strings.Contains(sn.File, "/") {
+			return nil, fmt.Errorf("%q must be a filename, not a path", sn.File)
+		}
 	}
 
 	return &seed, nil
