@@ -30,6 +30,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/boot"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -99,6 +101,8 @@ version: 1.0`
 snaps:
  - name: foo
    revision: 128
+   snap-id: snapidsnapid
+   developer-id: developerid
    file: %s
 `, filepath.Base(targetSnapFile)))
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
@@ -110,4 +114,17 @@ snaps:
 
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	state, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	state.Lock()
+	defer state.Unlock()
+	info, err := snapstate.CurrentInfo(state, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(info.SideInfo.SnapID, Equals, "snapidsnapid")
+	c.Assert(info.SideInfo.DeveloperID, Equals, "developerid")
 }
