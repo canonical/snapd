@@ -6,6 +6,7 @@ environment:
     GOPATH: /gopath
     PATH: /gopath/bin:/snap/bin:$PATH
     TESTSLIB: $[PROJECT_PATH]/tests/lib
+    LEAKED_KEY: $(echo $SPREAD_LINODE_KEY)
 
 backends:
     linode:
