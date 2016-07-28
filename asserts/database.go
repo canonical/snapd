@@ -295,7 +295,7 @@ func (db *Database) Add(assert Assertion) error {
 	for i, k := range assertType.PrimaryKey {
 		keyVal := assert.HeaderString(k)
 		if keyVal == "" {
-			return fmt.Errorf("missing primary key header: %v", k)
+			return fmt.Errorf("missing or non-string primary key header: %v", k)
 		}
 		keyValues[i] = keyVal
 	}

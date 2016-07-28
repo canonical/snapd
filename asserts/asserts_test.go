@@ -523,18 +523,17 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 }
 
 func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
-	encoded := []byte("type: test-only\n" +
+	cont := []byte("type: test-only\n" +
 		"authority-id: auth-id2\n" +
 		"primary-key: abc\n" +
-		"revision: 5" +
-		"\n\n" +
-		"openpgp c2ln")
-	a, err := asserts.Decode(encoded)
-	c.Assert(err, IsNil)
-	cont, sig := a.Signature()
+		"revision: 5")
+	headers := map[string]interface{}{
+		"type":         "test-only",
+		"authority-id": "auth-id2",
+		"primary-key":  "abc",
+		"revision":     5, // must be a string actually!
+	}
 
-	h := a.Headers()
-	h["revision"] = 5
-	_, err = asserts.Assemble(h, nil, cont, sig)
+	_, err := asserts.Assemble(headers, nil, cont, nil)
 	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
 }
