@@ -57,3 +57,18 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 		Revision: snap.R(31),
 	})
 }
+
+var badMockSeedYaml = []byte(`
+snaps:
+ - name: foo
+   file: foo/bar.snap
+`)
+
+func (s *seedYamlTestSuite) TestNoPathAllowed(c *C) {
+	fn := filepath.Join(c.MkDir(), "seed.yaml")
+	err := ioutil.WriteFile(fn, badMockSeedYaml, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadSeedYaml(fn)
+	c.Assert(err, ErrorMatches, `"foo/bar.snap" must be a filename, not a path`)
+}
