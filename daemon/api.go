@@ -1414,7 +1414,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user %q: %s", createData.EMail, err)
 	}
 
-	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+	gecos := fmt.Sprintf("%s,%s", createData.EMail, v.OpenIDIdentifier)
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 

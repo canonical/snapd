@@ -31,9 +31,7 @@ import (
 
 var userLookup = user.Lookup
 
-func AddExtraUser(name string, sshKeys []string) error {
-	// FIXME: put date/time/openid in there
-	gecos := "created by snapd"
+func AddExtraUser(name string, sshKeys []string, gecos string) error {
 	cmd := exec.Command("adduser", "--gecos", gecos, "--extrausers", "--disabled-password", name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)

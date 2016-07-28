@@ -3079,13 +3079,15 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
-			Username: "karl",
-			SSHKeys:  []string{"ssh1", "ssh2"},
+			Username:         "karl",
+			SSHKeys:          []string{"ssh1", "ssh2"},
+			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
-	osutilAddExtraUser = func(username string, sshKeys []string) error {
+	osutilAddExtraUser = func(username string, sshKeys []string, gecos string) error {
 		c.Check(username, check.Equals, "karl")
 		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		c.Check(gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		return nil
 	}
 
