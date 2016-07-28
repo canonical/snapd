@@ -49,10 +49,10 @@ func (s *createUserSuite) TestAddExtraUser(c *check.C) {
 	mc := testutil.MockCommand(c, "adduser", "true")
 	defer mc.Restore()
 
-	err := osutil.AddExtraUser("karl", []string{"ssh-key1", "ssh-key2"})
+	err := osutil.AddExtraUser("karl", []string{"ssh-key1", "ssh-key2"}, "my gecos")
 	c.Assert(err, check.IsNil)
 	c.Check(mc.Calls(), check.DeepEquals, [][]string{
-		{"adduser", "--gecos", "created by snapd", "--extrausers", "--disabled-password", "karl"},
+		{"adduser", "--gecos", "my gecos", "--extrausers", "--disabled-password", "karl"},
 	})
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
