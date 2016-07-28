@@ -106,6 +106,7 @@ func parseEntry(consumedByIntro int, first int, lines []string, baseIndent int) 
 			// list
 			return parseList(i, lines, baseIndent)
 		}
+		// TODO: support maps
 
 		return parseMultilineText(i, lines, baseIndent)
 	}
@@ -185,6 +186,7 @@ func checkHeader(v interface{}) error {
 			}
 		}
 		return nil
+	// TODO: support maps
 	default:
 		return fmt.Errorf("header values must be strings or nested lists with strings as the only scalars: %v", v)
 	}
@@ -258,5 +260,8 @@ func appendEntry(buf *bytes.Buffer, intro string, v interface{}, baseIndent int)
 		for _, elem := range x {
 			appendEntry(buf, pfx, elem, baseIndent+len(listPrefix)-1)
 		}
+	// TODO: support maps
+	default:
+		panic(fmt.Sprintf("internal error: encountered unexpected value type formatting headers: %v", v))
 	}
 }
