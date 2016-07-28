@@ -24,38 +24,34 @@ import (
 	"time"
 )
 
+// TODO: adjust to new designs!
+
 // SnapDeclaration holds a snap-declaration assertion, declaring a
 // snap binding its identifying snap-id to a name, asserting its
 // publisher and its other properties.
 type SnapDeclaration struct {
 	assertionBase
-	gates     []string
 	timestamp time.Time
 }
 
 // Series returns the series for which the snap is being declared.
 func (snapdcl *SnapDeclaration) Series() string {
-	return snapdcl.Header("series")
+	return snapdcl.HeaderString("series")
 }
 
 // SnapID returns the snap id of the declared snap.
 func (snapdcl *SnapDeclaration) SnapID() string {
-	return snapdcl.Header("snap-id")
+	return snapdcl.HeaderString("snap-id")
 }
 
 // SnapName returns the declared snap name.
 func (snapdcl *SnapDeclaration) SnapName() string {
-	return snapdcl.Header("snap-name")
+	return snapdcl.HeaderString("snap-name")
 }
 
 // PublisherID returns the identifier of the publisher of the declared snap.
 func (snapdcl *SnapDeclaration) PublisherID() string {
-	return snapdcl.Header("publisher-id")
-}
-
-// Gates returns the list of snap-ids gated by this snap.
-func (snapdcl *SnapDeclaration) Gates() []string {
-	return snapdcl.gates
+	return snapdcl.HeaderString("publisher-id")
 }
 
 // Timestamp returns the time when the snap-declaration was issued.
@@ -84,17 +80,12 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
-	_, err := checkExists(assert.headers, "snap-name")
+	_, err := checkExistsString(assert.headers, "snap-name")
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = checkNotEmpty(assert.headers, "publisher-id")
-	if err != nil {
-		return nil, err
-	}
-
-	gates, err := checkCommaSepList(assert.headers, "gates")
+	_, err = checkNotEmptyString(assert.headers, "publisher-id")
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +97,6 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 
 	return &SnapDeclaration{
 		assertionBase: assert,
-		gates:         gates,
 		timestamp:     timestamp,
 	}, nil
 }
@@ -121,18 +111,18 @@ type SnapBuild struct {
 
 // Series returns the series for which the snap was built.
 func (snapbld *SnapBuild) Series() string {
-	return snapbld.Header("series")
+	return snapbld.HeaderString("series")
 }
 
 // SnapID returns the snap id of the snap.
 func (snapbld *SnapBuild) SnapID() string {
-	return snapbld.Header("snap-id")
+	return snapbld.HeaderString("snap-id")
 }
 
 // SnapDigest returns the digest of the snap. The digest is prefixed with the
 // algorithm used to generate it.
 func (snapbld *SnapBuild) SnapDigest() string {
-	return snapbld.Header("snap-digest")
+	return snapbld.HeaderString("snap-digest")
 }
 
 // SnapSize returns the size of the snap.
@@ -142,7 +132,7 @@ func (snapbld *SnapBuild) SnapSize() uint64 {
 
 // Grade returns the grade of the snap: devel|stable
 func (snapbld *SnapBuild) Grade() string {
-	return snapbld.Header("grade")
+	return snapbld.HeaderString("grade")
 }
 
 // Timestamp returns the time when the snap-build assertion was created.
@@ -153,7 +143,7 @@ func (snapbld *SnapBuild) Timestamp() time.Time {
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 	// TODO: more parsing/checking of snap-digest
 
-	_, err := checkNotEmpty(assert.headers, "grade")
+	_, err := checkNotEmptyString(assert.headers, "grade")
 	if err != nil {
 		return nil, err
 	}
@@ -188,18 +178,18 @@ type SnapRevision struct {
 // Series returns the series of the snap submitted to and acknowledged by the
 // store.
 func (snaprev *SnapRevision) Series() string {
-	return snaprev.Header("series")
+	return snaprev.HeaderString("series")
 }
 
 // SnapID returns the snap id of the snap.
 func (snaprev *SnapRevision) SnapID() string {
-	return snaprev.Header("snap-id")
+	return snaprev.HeaderString("snap-id")
 }
 
 // SnapDigest returns the digest of the snap submitted to and acknowledged by
 // the store. The digest is prefixed with the algorithm used to generate it.
 func (snaprev *SnapRevision) SnapDigest() string {
-	return snaprev.Header("snap-digest")
+	return snaprev.HeaderString("snap-digest")
 }
 
 // SnapSize returns the size in bytes of the snap submitted to the store.
@@ -215,7 +205,7 @@ func (snaprev *SnapRevision) SnapRevision() uint64 {
 // DeveloperID returns the id of the developer that submitted this build of the
 // snap.
 func (snaprev *SnapRevision) DeveloperID() string {
-	return snaprev.Header("developer-id")
+	return snaprev.HeaderString("developer-id")
 }
 
 // Timestamp returns the time when the snap-revision was issued.
@@ -267,7 +257,7 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkNotEmpty(assert.headers, "developer-id")
+	_, err = checkNotEmptyString(assert.headers, "developer-id")
 	if err != nil {
 		return nil, err
 	}
