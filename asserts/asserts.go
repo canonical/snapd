@@ -24,11 +24,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"regexp"
 	"sort"
 	"strconv"
-	"strings"
-	"unicode/utf8"
 )
 
 // AssertionType describes a known assertion type with its name and metadata.
@@ -80,10 +77,13 @@ type Assertion interface {
 	AuthorityID() string
 
 	// Header retrieves the header with name
-	Header(name string) string
+	Header(name string) interface{}
 
 	// Headers returns the complete headers
-	Headers() map[string]string
+	Headers() map[string]interface{}
+
+	// HeaderString retrieves the string value of header with name or ""
+	HeaderString(name string) string
 
 	// Body returns the body of this assertion
 	Body() []byte
@@ -97,7 +97,7 @@ const MediaType = "application/x.ubuntu.assertion"
 
 // assertionBase is the concrete base to hold representation data for actual assertions.
 type assertionBase struct {
-	headers map[string]string
+	headers map[string]interface{}
 	body    []byte
 	// parsed revision
 	revision int
@@ -107,9 +107,15 @@ type assertionBase struct {
 	signature []byte
 }
 
+// HeaderString retrieves the string value of header with name or ""
+func (ab *assertionBase) HeaderString(name string) string {
+	s, _ := ab.headers[name].(string)
+	return s
+}
+
 // Type returns the assertion type.
 func (ab *assertionBase) Type() *AssertionType {
-	return Type(ab.headers["type"])
+	return Type(ab.HeaderString("type"))
 }
 
 // Revision returns the assertion revision.
@@ -119,21 +125,21 @@ func (ab *assertionBase) Revision() int {
 
 // AuthorityID returns the authority-id a.k.a the signer id of the assertion.
 func (ab *assertionBase) AuthorityID() string {
-	return ab.headers["authority-id"]
+	return ab.HeaderString("authority-id")
 }
 
 // Header returns the value of an header by name.
-func (ab *assertionBase) Header(name string) string {
-	return ab.headers[name]
+func (ab *assertionBase) Header(name string) interface{} {
+	v := ab.headers[name]
+	if v == nil {
+		return nil
+	}
+	return copyHeader(v)
 }
 
 // Headers returns the complete headers.
-func (ab *assertionBase) Headers() map[string]string {
-	res := make(map[string]string, len(ab.headers))
-	for name, v := range ab.headers {
-		res[name] = v
-	}
-	return res
+func (ab *assertionBase) Headers() map[string]interface{} {
+	return copyHeaders(ab.headers)
 }
 
 // Body returns the body of the assertion.
@@ -149,71 +155,6 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 // sanity check
 var _ Assertion = (*assertionBase)(nil)
 
-var (
-	nl   = []byte("\n")
-	nlnl = []byte("\n\n")
-
-	// for basic sanity checking of header names
-	headerNameSanity = regexp.MustCompile("^[a-z][a-z0-9-]*[a-z0-9]$")
-)
-
-func parseHeaders(head []byte) (map[string]string, error) {
-	if !utf8.Valid(head) {
-		return nil, fmt.Errorf("header is not utf8")
-	}
-	headers := make(map[string]string)
-	lines := strings.Split(string(head), "\n")
-	for i := 0; i < len(lines); {
-		entry := lines[i]
-		i++
-		nameValueSplit := strings.Index(entry, ":")
-		if nameValueSplit == -1 {
-			return nil, fmt.Errorf("header entry missing ':' separator: %q", entry)
-		}
-		name := entry[:nameValueSplit]
-		if !headerNameSanity.MatchString(name) {
-			return nil, fmt.Errorf("invalid header name: %q", name)
-		}
-
-		afterSplit := nameValueSplit + 1
-		if afterSplit == len(entry) {
-			// multiline value
-			size := 0
-			j := i
-			for j < len(lines) {
-				iline := lines[j]
-				if len(iline) == 0 || iline[0] != ' ' {
-					break
-				}
-				size += len(iline)
-				j++
-			}
-			if j == i {
-				return nil, fmt.Errorf("empty multiline header value: %q", entry)
-			}
-
-			valueBuf := bytes.NewBuffer(make([]byte, 0, size-1))
-			valueBuf.WriteString(lines[i][1:])
-			i++
-			for i < j {
-				valueBuf.WriteByte('\n')
-				valueBuf.WriteString(lines[i][1:])
-				i++
-			}
-
-			headers[name] = valueBuf.String()
-			continue
-		}
-
-		if entry[afterSplit] != ' ' {
-			return nil, fmt.Errorf("header entry should have a space or newline (multiline) before value: %q", entry)
-		}
-
-		headers[name] = entry[afterSplit+1:]
-	}
-	return headers, nil
-}
-
 // Decode parses a serialized assertion.
 //
 // The expected serialisation format looks like:
@@ -228,11 +169,25 @@ func parseHeaders(head []byte) (map[string]string, error) {
 //
 // A header entry for a single line value (no '\n' in it) looks like:
 //
-//   NAME ": " VALUE
+//   NAME ": " SIMPLEVALUE
 //
-// A header entry for a multiline value (a value with '\n's in it) looks like:
+// The format supports multiline text values (with '\n's in them) and
+// lists possibly nested with string scalars in them.
 //
-//   NAME ":\n"  1-space indented VALUE
+// For those a header entry looks like:
+//
+//   NAME ":\n" MULTI(baseindent)
+//
+// where MULTI can be
+//
+// * (baseindent + 4)-space indented value (multiline text)
+// * entries of a list each of the form:
+//
+//   " "*baseindent "  -"  ( " " SIMPLEVALUE | "\n" MULTI )
+//
+// baseindent starts at 0 and then grows with nesting matching the
+// previous level introduction (the " "*baseindent " -" bit)
+// length minus 1.
 //
 // The following headers are mandatory:
 //
@@ -242,13 +197,12 @@ func parseHeaders(head []byte) (map[string]string, error) {
 // Further for a given assertion type all the primary key headers
 // must be non empty and must not contain '/'.
 //
-// The following headers expect integer values and if omitted
-// otherwise are assumed to be 0:
+// The following headers expect string representing integer values and
+// if omitted otherwise are assumed to be 0:
 //
 //   revision (a positive int)
 //   body-length (expected to be equal to the length of BODY)
 //
-// Typically list values in headers are expected to be comma separated.
 // Times are expected to be in the RFC3339 format: "2006-01-02T15:04:05Z07:00".
 func Decode(serializedAssertion []byte) (Assertion, error) {
 	// copy to get an independent backstorage that can't be mutated later
@@ -278,7 +232,7 @@ func Decode(serializedAssertion []byte) (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
-	return Assemble(headers, body, content, signature)
+	return assemble(headers, body, content, signature)
 }
 
 // Maximum assertion component sizes.
@@ -452,10 +406,10 @@ func (d *Decoder) Decode() (Assertion, error) {
 	finalSig := make([]byte, len(sig))
 	copy(finalSig, sig)
 
-	return Assemble(headers, finalBody, finalContent, finalSig)
+	return assemble(headers, finalBody, finalContent, finalSig)
 }
 
-func checkRevision(headers map[string]string) (int, error) {
+func checkRevision(headers map[string]interface{}) (int, error) {
 	revision, err := checkInteger(headers, "revision", 0)
 	if err != nil {
 		return -1, err
@@ -467,7 +421,16 @@ func checkRevision(headers map[string]string) (int, error) {
 }
 
 // Assemble assembles an assertion from its components.
-func Assemble(headers map[string]string, body, content, signature []byte) (Assertion, error) {
+func Assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
+	err := checkHeaders(headers)
+	if err != nil {
+		return nil, err
+	}
+	return assemble(headers, body, content, signature)
+}
+
+// assemble is the internal variant of Assemble, assumes headers are already checked for supported types
+func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
 	length, err := checkInteger(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
@@ -476,11 +439,11 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	if _, err := checkNotEmpty(headers, "authority-id"); err != nil {
+	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
-	typ, err := checkNotEmpty(headers, "type")
+	typ, err := checkNotEmptyString(headers, "type")
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -517,37 +480,29 @@ func Assemble(headers map[string]string, body, content, signature []byte) (Asser
 	return assert, nil
 }
 
-func writeHeader(buf *bytes.Buffer, headers map[string]string, name string) {
-	buf.WriteByte('\n')
-	buf.WriteString(name)
-	value := headers[name]
-	if strings.IndexRune(value, '\n') != -1 {
-		// multiline value => quote by 1-space indenting
-		buf.WriteString(":\n ")
-		value = strings.Replace(value, "\n", "\n ", -1)
-	} else {
-		buf.WriteString(": ")
-	}
-	buf.WriteString(value)
+func writeHeader(buf *bytes.Buffer, headers map[string]interface{}, name string) {
+	appendEntry(buf, fmt.Sprintf("%s:", name), headers[name], 0)
 }
 
-func assembleAndSign(assertType *AssertionType, headers map[string]string, body []byte, privKey PrivateKey) (Assertion, error) {
+func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
 	err := checkAssertType(assertType)
 	if err != nil {
 		return nil, err
 	}
 
-	finalHeaders := make(map[string]string, len(headers))
-	for name, value := range headers {
-		finalHeaders[name] = value
+	err = checkHeaders(headers)
+	if err != nil {
+		return nil, err
 	}
+
+	finalHeaders := copyHeaders(headers)
 	bodyLength := len(body)
 	finalBody := make([]byte, bodyLength)
 	copy(finalBody, body)
 	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 
-	if _, err := checkNotEmpty(finalHeaders, "authority-id"); err != nil {
+	if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
 		return nil, err
 	}
 

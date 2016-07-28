@@ -72,6 +72,7 @@ type apiSuite struct {
 	buyResult         *store.BuyResult
 	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
+	restoreRelease    func()
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -122,10 +123,15 @@ func (s *apiSuite) muxVars(*http.Request) map[string]string {
 
 func (s *apiSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
+	s.restoreRelease = release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "mocked",
+	})
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
+	s.restoreRelease()
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
@@ -1283,8 +1289,6 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -1331,8 +1335,6 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, snapstate.JailMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -2624,7 +2626,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// add store key
 	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]string{
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
 		"account-id": "developer1-id",
 	}, "")
 	err = d.overlord.AssertManager().DB().Add(acct)
