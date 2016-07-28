@@ -99,8 +99,8 @@ version: 1.0`
 snaps:
  - name: foo
    revision: 128
-   path: %s
-`, targetSnapFile))
+   file: %s
+`, filepath.Base(targetSnapFile)))
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
