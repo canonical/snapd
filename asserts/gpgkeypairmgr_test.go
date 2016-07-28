@@ -80,7 +80,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
-	devAcct := assertstest.NewAccount(store, "devel1", map[string]string{
+	devAcct := assertstest.NewAccount(store, "devel1", map[string]interface{}{
 		"account-id": "dev1-id",
 	}, "")
 	devAccKey := assertstest.NewAccountKey(store, devAcct, nil, devKey.PublicKey(), "")
@@ -105,7 +105,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	err = checkDB.Add(devAccKey)
 	c.Assert(err, IsNil)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "dev1-id",
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -241,7 +241,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "dev1-id",
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -299,7 +299,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "dev1-id",
 		"series":       "16",
 		"snap-id":      "snap-id-1",

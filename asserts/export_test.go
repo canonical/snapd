@@ -58,7 +58,7 @@ func EncoderAppend(enc *Encoder, encoded []byte) error {
 func BootstrapAccountForTest(authorityID string) *Account {
 	return &Account{
 		assertionBase: assertionBase{
-			headers: map[string]string{
+			headers: map[string]interface{}{
 				"type":         "account",
 				"authority-id": authorityID,
 				"account-id":   authorityID,
@@ -72,7 +72,7 @@ func BootstrapAccountForTest(authorityID string) *Account {
 func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
-			headers: map[string]string{
+			headers: map[string]interface{}{
 				"type":          "account-key",
 				"authority-id":  authorityID,
 				"account-id":    authorityID,
@@ -144,4 +144,5 @@ func MockRunGPG(mock func(prev GPGRunner, homedir string, input []byte, args ...
 // Headers helpers to test
 var (
 	ParseHeaders = parseHeaders
+	AppendEntry  = appendEntry
 )
