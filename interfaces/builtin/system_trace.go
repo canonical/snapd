@@ -34,6 +34,9 @@ const systemTraceConnectedPlugAppArmor = `
   capability sys_resource,
 
   # For kernel probes, etc
+  /sys/kernel/debug/kprobes/ r,
+  /sys/kernel/debug/kprobes/** r,
+
   /sys/kernel/debug/tracing/ r,
   /sys/kernel/debug/tracing/** rw,
 
