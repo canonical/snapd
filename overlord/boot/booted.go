@@ -66,12 +66,12 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	bv := "snappy_kernel"
+	bv := "snap_kernel"
 	kernelSnap, err := bootloader.GetBootVar(bv)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
-	bv = "snappy_os"
+	bv = "snap_core"
 	osSnap, err := bootloader.GetBootVar(bv)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)

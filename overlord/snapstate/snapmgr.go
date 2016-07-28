@@ -356,6 +356,10 @@ func Manager(s *state.State) (*SnapManager, error) {
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
+	// TODO: refresh-all needs logic at this level, to properly
+	// handle the logic for that mode (e.g. skip snaps installed
+	// with --devmode, set jailmode from snapstate).
+
 	// remove related
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
