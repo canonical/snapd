@@ -75,7 +75,15 @@ func populateStateFromInstalled() error {
 		var ss snapstate.SnapSetup
 		tasks := ts.Tasks()
 		tasks[0].Get("snap-setup", &ss)
-		ss.SideInfo = &sn.SideInfo
+		ss.SideInfo = &snap.SideInfo{
+			RealName:    sn.RealName,
+			SnapID:      sn.SnapID,
+			Revision:    sn.Revision,
+			Channel:     sn.Channel,
+			DeveloperID: sn.DeveloperID,
+			Developer:   sn.Developer,
+			Private:     sn.Private,
+		}
 		tasks[0].Set("snap-setup", &ss)
 		st.Unlock()
 

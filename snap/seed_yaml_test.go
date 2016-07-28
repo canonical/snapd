@@ -50,12 +50,10 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(seed.Snaps, HasLen, 1)
 	c.Assert(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
-		File: "foo_1.0_all.snap",
-		SideInfo: snap.SideInfo{
-			RealName: "foo",
-			SnapID:   "snapidsnapidsnapid",
-			Channel:  "stable",
-			Revision: snap.R(31),
-		},
+		File:     "foo_1.0_all.snap",
+		RealName: "foo",
+		SnapID:   "snapidsnapidsnapid",
+		Channel:  "stable",
+		Revision: snap.R(31),
 	})
 }

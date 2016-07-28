@@ -26,25 +26,22 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type seedSnapYaml struct {
-	// FIXME: eventually we only want to have "name", "channel" here
-	SideInfo `yaml:",inline"`
+type SeedSnap struct {
+	// yaml needs to be in sync with SideInfo
+	RealName    string   `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID      string   `yaml:"snap-id" json:"snap-id"`
+	Revision    Revision `yaml:"revision" json:"revision"`
+	Channel     string   `yaml:"channel,omitempty" json:"channel,omitempty"`
+	DeveloperID string   `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
+	Developer   string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
+	Private     bool     `yaml:"private,omitempty" json:"private,omitempty"`
 
+	// not in side-info
 	File string `yaml:"file"`
 }
 
-type seedYaml struct {
-	Snaps []seedSnapYaml `yaml:"snaps"`
-}
-
-type SeedSnap struct {
-	SideInfo
-
-	File string
-}
-
 type Seed struct {
-	Snaps []*SeedSnap
+	Snaps []*SeedSnap `yaml:"snaps"`
 }
 
 func ReadSeedYaml(fn string) (*Seed, error) {
@@ -53,19 +50,10 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 		return nil, fmt.Errorf("cannot read seed yaml: %s", fn)
 	}
 
-	var y seedYaml
-	if err := yaml.Unmarshal(yamlData, &y); err != nil {
+	var seed Seed
+	if err := yaml.Unmarshal(yamlData, &seed); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal %q: %s", yamlData, err)
 	}
 
-	seed := &Seed{
-		Snaps: make([]*SeedSnap, len(y.Snaps)),
-	}
-	for i, ys := range y.Snaps {
-		seed.Snaps[i] = &SeedSnap{
-			File: ys.File,
-		}
-		seed.Snaps[i].SideInfo = ys.SideInfo
-	}
-	return seed, nil
+	return &seed, nil
 }
