@@ -72,6 +72,11 @@ var defaultTemplate = []byte(`
 
   # End dangerous accesses
 
+  # Note: this potentially allows snaps to DoS other snaps via resource
+  # exhaustion but we can't sensibly mediate this today. In the future we may
+  # employ cgroup limits, AppArmor rlimit mlock rules or something else.
+  capability ipc_lock,
+
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
   /bin/bash ixr,
