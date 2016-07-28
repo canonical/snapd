@@ -252,6 +252,13 @@ Can configure network firewalling giving privileged access to networking.
 
 * Auto-Connect: no
 
+### fuse
+
+Can mount fuse filesystems (as root only).
+
+Usage: common
+Auto-Connect: yes
+
 ### hardware-observe
 
 Can query hardware information from the system.
