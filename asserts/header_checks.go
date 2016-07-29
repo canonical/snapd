@@ -20,6 +20,8 @@
 package asserts
 
 import (
+	"crypto"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -119,4 +121,20 @@ func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64
 		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
 	}
 	return value, nil
+}
+
+func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]byte, error) {
+	digestStr, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return nil, err
+	}
+	b, err := base64.RawURLEncoding.DecodeString(digestStr)
+	if err != nil {
+		return nil, fmt.Errorf("%q header cannot be decoded: %v", name, err)
+	}
+	if len(b) != h.Size() {
+		return nil, fmt.Errorf("%q header does not have the expected bit length: %d", name, len(b)*8)
+	}
+
+	return b, nil
 }
