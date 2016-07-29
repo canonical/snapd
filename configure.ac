@@ -116,5 +116,18 @@ AS_IF([test "x$enable_nvidia_arch" = "xyes"], [
     AC_DEFINE([NVIDIA_ARCH], [1],
         [Support for propietary nvidia drivers (Arch)])])
 
+AC_ARG_ENABLE([merged-usr],
+    AS_HELP_STRING([--enable-merged-usr], [Enable support for merged /usr directory]),
+    [case "${enableval}" in
+        yes) enable_merged_usr=yes ;;
+        no)  enable_merged_usr=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-merged-usr])
+    esac], [enable_merged_usr=no])
+AM_CONDITIONAL([MERGED_USR], [test "x$enable_merged_usr" = "xyes"])
+
+AS_IF([test "x$enable_merged_usr" = "xyes"], [
+    AC_DEFINE([MERGED_USR], [1],
+        [Support for merged /usr directory])])
+
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile docs/Makefile])
 AC_OUTPUT
