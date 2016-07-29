@@ -28,6 +28,12 @@ import (
 	"strconv"
 )
 
+type typeFlags int
+
+const (
+	freestanding typeFlags = iota + 1
+)
+
 // AssertionType describes a known assertion type with its name and metadata.
 type AssertionType struct {
 	// Name of the type.
@@ -37,19 +43,25 @@ type AssertionType struct {
 	PrimaryKey []string
 
 	assembler func(assert assertionBase) (Assertion, error)
+	flags     typeFlags
 }
 
 // Understood assertion types.
 var (
-	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount}
-	AccountKeyType      = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
-	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
-	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
-	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision}
+	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
+	AccountKeyType      = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey, 0}
+	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
+	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
+	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
+	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
+	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
 
 // ...
+)
+
+// Freestanding assertion types (on the wire and/or self-signed).
+var (
+	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, freestanding}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -60,6 +72,8 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
+	// freestanding
+	SerialRequestType.Name: SerialRequestType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -189,10 +203,10 @@ var _ Assertion = (*assertionBase)(nil)
 // previous level introduction (the " "*baseindent " -" bit)
 // length minus 1.
 //
-// The following headers are mandatory:
+// In general the following headers are mandatory:
 //
 //   type
-//   authority-id (the signer id)
+//   authority-id (the authority id, must be left of freestanding assertions though)
 //
 // Further for a given assertion type all the primary key headers
 // must be non empty and must not contain '/'.
@@ -439,10 +453,6 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
-		return nil, fmt.Errorf("assertion: %v", err)
-	}
-
 	typ, err := checkNotEmptyString(headers, "type")
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
@@ -450,6 +460,17 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	assertType := Type(typ)
 	if assertType == nil {
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
+	}
+
+	if assertType.flags&freestanding == 0 {
+		if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
+			return nil, fmt.Errorf("assertion: %v", err)
+		}
+	} else {
+		_, ok := headers["authority-id"]
+		if ok {
+			return nil, fmt.Errorf("freestanding %q assertion cannot have authority-id set", assertType.Name)
+		}
 	}
 
 	for _, primKey := range assertType.PrimaryKey {
@@ -490,6 +511,8 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		return nil, err
 	}
 
+	withAuthority := assertType.flags&freestanding == 0
+
 	err = checkHeaders(headers)
 	if err != nil {
 		return nil, err
@@ -502,8 +525,15 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
 
-	if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
-		return nil, err
+	if withAuthority {
+		if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
+			return nil, err
+		}
+	} else {
+		_, ok := finalHeaders["authority-id"]
+		if ok {
+			return nil, fmt.Errorf("freestanding %q assertion cannot have authority-id set", assertType.Name)
+		}
 	}
 
 	revision, err := checkRevision(finalHeaders)
@@ -514,7 +544,10 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	buf := bytes.NewBufferString("type: ")
 	buf.WriteString(assertType.Name)
 
-	writeHeader(buf, finalHeaders, "authority-id")
+	if withAuthority {
+		writeHeader(buf, finalHeaders, "authority-id")
+	}
+
 	if revision > 0 {
 		writeHeader(buf, finalHeaders, "revision")
 	} else {
@@ -581,6 +614,14 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	return assert, nil
 }
 
+// FreestandingSign assembles a freestanding assertion with the provided information and signs it with the given private key.
+func FreestandingSign(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
+	if assertType.flags&freestanding == 0 {
+		return nil, fmt.Errorf("cannot sign non-freestanding (i.e. with a definite authority) assertions with FreestandingSign")
+	}
+	return assembleAndSign(assertType, headers, body, privKey)
+}
+
 // Encode serializes an assertion.
 func Encode(assert Assertion) []byte {
 	content, signature := assert.Signature()
@@ -636,4 +677,18 @@ func (enc *Encoder) append(encoded []byte) error {
 func (enc *Encoder) Encode(assert Assertion) error {
 	encoded := Encode(assert)
 	return enc.append(encoded)
+}
+
+// SignatureCheck checks the signature of the assertion against the given public key. Useful for freestanding assertions.
+func SignatureCheck(assert Assertion, pubKey PublicKey) error {
+	content, encodedSig := assert.Signature()
+	sig, err := decodeSignature(encodedSig)
+	if err != nil {
+		return err
+	}
+	err = pubKey.verify(content, sig)
+	if err != nil {
+		return fmt.Errorf("failed signature verification: %v", err)
+	}
+	return nil
 }

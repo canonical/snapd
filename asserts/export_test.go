@@ -107,7 +107,7 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 
-var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly}
+var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly, 0}
 
 type TestOnly2 struct {
 	assertionBase
@@ -117,11 +117,26 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 	return &TestOnly2{assert}, nil
 }
 
-var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2}
+var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2, 0}
+
+type TestOnlyFreestanding struct {
+	assertionBase
+}
+
+func assembleTestOnlyFreeestanding(assert assertionBase) (Assertion, error) {
+	// for testing error cases
+	if _, err := checkNotEmptyString(assert.headers, "hdr"); err != nil {
+		return nil, err
+	}
+	return &TestOnlyFreestanding{assert}, nil
+}
+
+var TestOnlyFreestandingType = &AssertionType{"test-only-freestanding", nil, assembleTestOnlyFreeestanding, freestanding}
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
+	typeRegistry[TestOnlyFreestandingType.Name] = TestOnlyFreestandingType
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
