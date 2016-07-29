@@ -30,6 +30,7 @@ import (
 var implicitSlots = []string{
 	"firewall-control",
 	"home",
+	"hardware-observe",
 	"locale-control",
 	"log-observe",
 	"mount-observe",

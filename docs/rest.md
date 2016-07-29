@@ -174,33 +174,24 @@ Reserved for human-readable content describing the service.
 
 #### `q`
 
-Query.
+Search for snaps that match the given string. This is a weighted broad
+search, meant as the main interface to searching for snaps.
 
-The query is a whitespace-separated list<sup id=a1>[†](#f1)</sup> of terms, all of
-which will be satisfied by the returned snaps.
+#### `name`
 
-Each term can have an optional prefix followed by `:`.
-
-Supported prefixes are
-
-<dl>
-<dt>name</dt>
-<dd>The term matches the snap's name. It can end in <code>*</code> in which
-case the search is for a prefix, otherwise the whole name must match.</dd>
-<dt>text</dt>
-<dd>The term is looked up in a full-text index of name, summary and
-description.</dd>
-</dl>
-
-If no prefix is given, the term is treated as if it were a `*`-ended `name`
-search; this is: `snap find foo` is the same as `snap find name:foo*`.
-
-<b id=f1>†</b> that list can only have exactly one element, for now. [↩](#a1)
+Search for snaps whose name matches the given string. Can't be used
+together with `q`. This is meant for things like autocompletion. The
+match is exact (i.e. find would return 0 or 1 results) unless the
+string ends in `*`.
 
 #### `select`
 
-Filter from the given selection. Currently only limiting to refreshable
-snaps is supported via the `refresh` key.
+Alter the collection searched:
+
+* `refresh`: search refreshable snaps. Can't be used with `q`, nor `name`.
+* `private`: search private snaps (by default, find only searches
+  public snaps). Can't be used with `name`, only `q` (for now at
+  least).
 
 #### Sample result:
 

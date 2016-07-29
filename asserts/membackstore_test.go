@@ -102,7 +102,7 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 
 	found := map[string]asserts.Assertion{}
 	cb := func(a asserts.Assertion) {
-		found[a.Header("primary-key")] = a
+		found[a.HeaderString("primary-key")] = a
 	}
 	err = mbss.bs.Search(asserts.TestOnlyType, nil, cb)
 	c.Assert(err, IsNil)
@@ -161,7 +161,7 @@ func (mbss *memBackstoreSuite) TestSearch2Levels(c *C) {
 
 	found := map[string]asserts.Assertion{}
 	cb := func(a asserts.Assertion) {
-		found[a.Header("pk1")+":"+a.Header("pk2")] = a
+		found[a.HeaderString("pk1")+":"+a.HeaderString("pk2")] = a
 	}
 	err = mbss.bs.Search(asserts.TestOnly2Type, map[string]string{
 		"pk2": "x",

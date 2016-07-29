@@ -52,7 +52,6 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
-		"gates: snap-id-3,snap-id-4\n" +
 		sds.tsLine +
 		"body-length: 0" +
 		"\n\n" +
@@ -67,7 +66,6 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
 	c.Check(snapDecl.SnapName(), Equals, "first")
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
-	c.Check(snapDecl.Gates(), DeepEquals, []string{"snap-id-3", "snap-id-4"})
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
@@ -77,7 +75,6 @@ func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: \n" +
 		"publisher-id: dev-id1\n" +
-		"gates: snap-id-3,snap-id-4\n" +
 		sds.tsLine +
 		"body-length: 0" +
 		"\n\n" +
@@ -99,7 +96,6 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
-		"gates: snap-id-3,snap-id-4\n" +
 		sds.tsLine +
 		"body-length: 0" +
 		"\n\n" +
@@ -116,8 +112,6 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
-		{"gates: snap-id-3,snap-id-4\n", "", `\"gates\" header is mandatory`},
-		{"gates: snap-id-3,snap-id-4\n", "gates: foo,\n", `empty entry in comma separated "gates" header: "foo,"`},
 	}
 
 	for _, test := range invalidTests {
@@ -129,7 +123,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
-	dev1Acct := assertstest.NewAccount(storeDB, "developer1", map[string]string{
+	dev1Acct := assertstest.NewAccount(storeDB, "developer1", map[string]interface{}{
 		"account-id": "dev-id1",
 	}, "")
 	err := db.Add(dev1Acct)
@@ -141,7 +135,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 
 	prereqDevAccount(c, storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -161,7 +155,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -179,7 +173,7 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -204,13 +198,16 @@ func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 	sbs.tsLine = "timestamp: " + sbs.ts.Format(time.RFC3339) + "\n"
 }
 
+const (
+	blobSHA3_384 = "QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL"
+)
+
 func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
-		"series: 16\n" +
-		"snap-id: snap-id-1\n" +
-		"snap-digest: sha256 ...\n" +
+		"snap-sha3-384: " + blobSHA3_384 + "\n" +
 		"grade: stable\n" +
+		"snap-id: snap-id-1\n" +
 		"snap-size: 10000\n" +
 		sbs.tsLine +
 		"body-length: 0" +
@@ -222,9 +219,8 @@ func (sbs *snapBuildSuite) TestDecodeOK(c *C) {
 	snapBuild := a.(*asserts.SnapBuild)
 	c.Check(snapBuild.AuthorityID(), Equals, "dev-id1")
 	c.Check(snapBuild.Timestamp(), Equals, sbs.ts)
-	c.Check(snapBuild.Series(), Equals, "16")
 	c.Check(snapBuild.SnapID(), Equals, "snap-id-1")
-	c.Check(snapBuild.SnapDigest(), Equals, "sha256 ...")
+	c.Check(snapBuild.SnapSHA3_384(), Equals, blobSHA3_384)
 	c.Check(snapBuild.SnapSize(), Equals, uint64(10000))
 	c.Check(snapBuild.Grade(), Equals, "stable")
 }
@@ -234,12 +230,13 @@ const (
 )
 
 func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
+	digestHdr := "snap-sha3-384: " + blobSHA3_384 + "\n"
+
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
-		"series: 16\n" +
-		"snap-id: snap-id-1\n" +
-		"snap-digest: sha256 ...\n" +
+		digestHdr +
 		"grade: stable\n" +
+		"snap-id: snap-id-1\n" +
 		"snap-size: 10000\n" +
 		sbs.tsLine +
 		"body-length: 0" +
@@ -247,12 +244,11 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 		"openpgp c2ln"
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{"series: 16\n", "", `"series" header is mandatory`},
-		{"series: 16\n", "series: \n", `"series" header should not be empty`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
-		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
-		{"snap-digest: sha256 ...\n", "snap-digest: \n", `"snap-digest" header should not be empty`},
+		{digestHdr, "", `"snap-sha3-384" header is mandatory`},
+		{digestHdr, "snap-sha3-384: \n", `"snap-sha3-384" header should not be empty`},
+		{digestHdr, "snap-sha3-384: #\n", `"snap-sha3-384" header cannot be decoded:.*`},
 		{"snap-size: 10000\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
@@ -308,14 +304,13 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
-	headers := map[string]string{
-		"authority-id": devDB.AuthorityID,
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-digest":  "sha256 ...",
-		"grade":        "devel",
-		"snap-size":    "1025",
-		"timestamp":    time.Now().Format(time.RFC3339),
+	headers := map[string]interface{}{
+		"authority-id":  devDB.AuthorityID,
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
 	c.Assert(err, IsNil)
@@ -328,13 +323,12 @@ func (sbs *snapBuildSuite) TestSnapBuildCheckInconsistentTimestamp(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
-	headers := map[string]string{
-		"series":      "16",
-		"snap-id":     "snap-id-1",
-		"snap-digest": "sha256 ...",
-		"grade":       "devel",
-		"snap-size":   "1025",
-		"timestamp":   "2013-01-01T14:00:00Z",
+	headers := map[string]interface{}{
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     "2013-01-01T14:00:00Z",
 	}
 	snapBuild, err := devDB.Sign(asserts.SnapBuildType, headers, nil, "")
 	c.Assert(err, IsNil)
@@ -357,9 +351,8 @@ func (srs *snapRevSuite) SetUpSuite(c *C) {
 func (srs *snapRevSuite) makeValidEncoded() string {
 	return "type: snap-revision\n" +
 		"authority-id: store-id1\n" +
-		"series: 16\n" +
+		"snap-sha3-384: " + blobSHA3_384 + "\n" +
 		"snap-id: snap-id-1\n" +
-		"snap-digest: sha256 ...\n" +
 		"snap-size: 123\n" +
 		"snap-revision: 1\n" +
 		"developer-id: dev-id1\n" +
@@ -370,12 +363,11 @@ func (srs *snapRevSuite) makeValidEncoded() string {
 		"openpgp c2ln"
 }
 
-func (srs *snapRevSuite) makeHeaders(overrides map[string]string) map[string]string {
-	headers := map[string]string{
+func (srs *snapRevSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+	headers := map[string]interface{}{
 		"authority-id":  "canonical",
-		"series":        "16",
+		"snap-sha3-384": blobSHA3_384,
 		"snap-id":       "snap-id-1",
-		"snap-digest":   "sha256 ...",
 		"snap-size":     "123",
 		"snap-revision": "1",
 		"developer-id":  "dev-id1",
@@ -396,9 +388,8 @@ func (srs *snapRevSuite) TestDecodeOK(c *C) {
 	snapRev := a.(*asserts.SnapRevision)
 	c.Check(snapRev.AuthorityID(), Equals, "store-id1")
 	c.Check(snapRev.Timestamp(), Equals, srs.ts)
-	c.Check(snapRev.Series(), Equals, "16")
 	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
-	c.Check(snapRev.SnapDigest(), Equals, "sha256 ...")
+	c.Check(snapRev.SnapSHA3_384(), Equals, blobSHA3_384)
 	c.Check(snapRev.SnapSize(), Equals, uint64(123))
 	c.Check(snapRev.SnapRevision(), Equals, uint64(1))
 	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
@@ -411,13 +402,15 @@ const (
 
 func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 	encoded := srs.makeValidEncoded()
+
+	digestHdr := "snap-sha3-384: " + blobSHA3_384 + "\n"
 	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{"series: 16\n", "", `"series" header is mandatory`},
-		{"series: 16\n", "series: \n", `"series" header should not be empty`},
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
-		{"snap-digest: sha256 ...\n", "", `"snap-digest" header is mandatory`},
-		{"snap-digest: sha256 ...\n", "snap-digest: \n", `"snap-digest" header should not be empty`},
+		{digestHdr, "", `"snap-sha3-384" header is mandatory`},
+		{digestHdr, "snap-sha3-384: \n", `"snap-sha3-384" header should not be empty`},
+		{digestHdr, "snap-sha3-384: #\n", `"snap-sha3-384" header cannot be decoded:.*`},
+		{digestHdr, "snap-sha3-384: eHl6\n", `"snap-sha3-384" header does not have the expected bit length: 24`},
 		{"snap-size: 123\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 123\n", "snap-size: \n", `"snap-size" header should not be empty`},
 		{"snap-size: 123\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
@@ -441,7 +434,7 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 }
 
 func prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
-	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]string{
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
@@ -471,7 +464,7 @@ func (srs *snapRevSuite) TestSnapRevisionCheck(c *C) {
 func (srs *snapRevSuite) TestSnapRevisionCheckInconsistentTimestamp(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
-	headers := srs.makeHeaders(map[string]string{
+	headers := srs.makeHeaders(map[string]interface{}{
 		"timestamp": "2013-01-01T14:00:00Z",
 	})
 	snapRev, err := storeDB.Sign(asserts.SnapRevisionType, headers, nil, "")
@@ -531,9 +524,7 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 	c.Assert(err, IsNil)
 
 	_, err = db.Find(asserts.SnapRevisionType, map[string]string{
-		"series":      "16",
-		"snap-id":     headers["snap-id"],
-		"snap-digest": headers["snap-digest"],
+		"snap-sha3-384": headers["snap-sha3-384"].(string),
 	})
 	c.Assert(err, IsNil)
 }
