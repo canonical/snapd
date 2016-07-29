@@ -197,6 +197,7 @@ void setup_snappy_os_mounts()
 		"/dev",		// because it contains devices on host OS
 		"/etc",		// because that's where /etc/resolv.conf lives, perhaps a bad idea
 		"/home",	// to support /home/*/snap and home interface
+		"/root",	// because that is $HOME for services
 		"/proc",	// fundamental filesystem
 		"/snap",	// to get access to all the snaps
 		"/sys",		// fundamental filesystem
