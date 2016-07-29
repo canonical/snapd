@@ -1,0 +1,56 @@
+summary: Ensure that the fuse interface works.
+
+details: |
+    The fuse interface allows a snap to manage FUSE file systems.
+
+    A snap which defines the fuse plug must be shown in the interfaces list.
+    The plug must be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to create a fuse filesystem
+    in a writable zone. The fuse-consumer test snap creates a readable file with a known
+    name and content in the mount point given to the command.
+
+environment:
+    MOUNT_POINT: /var/snap/test-snapd-fuse-consumer/current/mount_point
+
+prepare: |
+    echo "Given a snap declaring a fuse plug is installed"
+    snap install test-snapd-fuse-consumer
+
+    echo "And a user writable mount point is created"
+    mkdir -p $MOUNT_POINT
+
+restore: |
+    umount $MOUNT_POINT || true
+    rm -rf $MOUNT_POINT fuse.error
+
+execute: |
+    CONNECTED_PATTERN=":fuse +test-snapd-fuse-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-fuse-consumer:fuse"
+
+    echo "Then the fuse plug is connected by default"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-fuse-consumer:fuse ubuntu-core:fuse
+
+    echo "Then the snap is not able to create a fuse file system"
+    if test-snapd-fuse-consumer.create $MOUNT_POINT 2>${PWD}/fuse.error; then
+        echo "Expected permission error creating fuse filesystem with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" fuse.error
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect test-snapd-fuse-consumer:fuse ubuntu-core:fuse
+
+    echo "Then the snap is able to create a fuse filesystem"
+    test-snapd-fuse-consumer.create $MOUNT_POINT
+    PID=$(ps aux | grep test-snapd.*create | grep -v grep | awk '{print $2}')
+    grep -q "Hello World!" /proc/${PID}/root/$MOUNT_POINT/hello
+    kill -9 ${PID}
