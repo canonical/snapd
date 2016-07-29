@@ -229,6 +229,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 		return err
 	}
 	_, err = db.Find(SnapDeclarationType, map[string]string{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
 		"series":  release.Series,
 		"snap-id": snaprev.SnapID(),
 	})
