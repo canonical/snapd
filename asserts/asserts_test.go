@@ -179,6 +179,17 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
+func (as *assertsSuite) TestDecodeFreestandingInvalid(c *C) {
+	invalid := "type: test-only-freestanding\n" +
+		"authority-id: auth-id1\n" +
+		"hdr: FOO" +
+		"\n\n" +
+		"openpgp c2ln"
+
+	_, err := asserts.Decode([]byte(invalid))
+	c.Check(err, ErrorMatches, `freestanding "test-only-freestanding" assertion cannot have authority-id set`)
+}
+
 func checkContent(c *C, a asserts.Assertion, encoded string) {
 	expected, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
@@ -536,4 +547,27 @@ func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
 
 	_, err := asserts.Assemble(headers, nil, cont, nil)
 	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
+}
+
+func (as *assertsSuite) TestFreestandingSignMisuse(c *C) {
+	_, err := asserts.FreestandingSign(asserts.TestOnlyType, nil, nil, testPrivKey1)
+	c.Check(err, ErrorMatches, `cannot sign non-freestanding \(i\.e\. with a definite authority\) assertions with FreestandingSign`)
+
+	_, err = asserts.FreestandingSign(asserts.TestOnlyFreestandingType,
+		map[string]interface{}{
+			"authority-id": "auth-id1",
+			"hdr":          "FOO",
+		}, nil, testPrivKey1)
+	c.Check(err, ErrorMatches, `freestanding "test-only-freestanding" assertion cannot have authority-id set`)
+}
+
+func (ss *serialSuite) TestSignatureCheckError(c *C) {
+	sreq, err := asserts.FreestandingSign(asserts.TestOnlyFreestandingType,
+		map[string]interface{}{
+			"hdr": "FOO",
+		}, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	err = asserts.SignatureCheck(sreq, testPrivKey2.PublicKey())
+	c.Check(err, ErrorMatches, `failed signature verification:.*`)
 }
