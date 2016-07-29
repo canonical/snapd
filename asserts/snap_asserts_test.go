@@ -230,11 +230,11 @@ const (
 )
 
 func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
-	hh := "snap-sha3-384: " + blobSHA3_384 + "\n"
+	digestHdr := "snap-sha3-384: " + blobSHA3_384 + "\n"
 
 	encoded := "type: snap-build\n" +
 		"authority-id: dev-id1\n" +
-		hh +
+		digestHdr +
 		"grade: stable\n" +
 		"snap-id: snap-id-1\n" +
 		"snap-size: 10000\n" +
@@ -246,9 +246,9 @@ func (sbs *snapBuildSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
-		{hh, "", `"snap-sha3-384" header is mandatory`},
-		{hh, "snap-sha3-384: \n", `"snap-sha3-384" header should not be empty`},
-		{hh, "snap-sha3-384: #\n", `"snap-sha3-384" header cannot be decoded:.*`},
+		{digestHdr, "", `"snap-sha3-384" header is mandatory`},
+		{digestHdr, "snap-sha3-384: \n", `"snap-sha3-384" header should not be empty`},
+		{digestHdr, "snap-sha3-384: #\n", `"snap-sha3-384" header cannot be decoded:.*`},
 		{"snap-size: 10000\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 10000\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
 		{"snap-size: 10000\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
@@ -403,14 +403,14 @@ const (
 func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 	encoded := srs.makeValidEncoded()
 
-	hh := "snap-sha3-384: " + blobSHA3_384 + "\n"
+	digestHdr := "snap-sha3-384: " + blobSHA3_384 + "\n"
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
 		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
-		{hh, "", `"snap-sha3-384" header is mandatory`},
-		{hh, "snap-sha3-384: \n", `"snap-sha3-384" header should not be empty`},
-		{hh, "snap-sha3-384: #\n", `"snap-sha3-384" header cannot be decoded:.*`},
-		{hh, "snap-sha3-384: eHl6\n", `"snap-sha3-384" header does not have the expected bit length: 24`},
+		{digestHdr, "", `"snap-sha3-384" header is mandatory`},
+		{digestHdr, "snap-sha3-384: \n", `"snap-sha3-384" header should not be empty`},
+		{digestHdr, "snap-sha3-384: #\n", `"snap-sha3-384" header cannot be decoded:.*`},
+		{digestHdr, "snap-sha3-384: eHl6\n", `"snap-sha3-384" header does not have the expected bit length: 24`},
 		{"snap-size: 123\n", "", `"snap-size" header is mandatory`},
 		{"snap-size: 123\n", "snap-size: \n", `"snap-size" header should not be empty`},
 		{"snap-size: 123\n", "snap-size: -1\n", `"snap-size" header is not an unsigned integer: -1`},
