@@ -124,7 +124,6 @@ type TestOnlyFreestanding struct {
 }
 
 func assembleTestOnlyFreeestanding(assert assertionBase) (Assertion, error) {
-	// for testing error cases
 	if _, err := checkNotEmptyString(assert.headers, "hdr"); err != nil {
 		return nil, err
 	}
