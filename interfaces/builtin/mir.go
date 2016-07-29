@@ -44,6 +44,14 @@ network netlink raw,
 
 `)
 
+var mirConnectedSlotAppArmor = []byte(`
+# Description: Permit clients to use Mir
+# Usage: reserver
+
+unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###)
+
+`)
+
 var mirPermanentSlotSecComp = []byte(`
 # Description: Allow operating as the mir service. Reserved because this
 # gives privileged access to the system.
@@ -70,6 +78,7 @@ var mirConnectedPlugAppArmor = []byte(`
 # Usage: reserver
 
 unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###)
+/run/mir_socket rw,
 
 `)
 
@@ -80,14 +89,6 @@ getsockname
 recvmsg
 sendmsg
 sendto
-`)
-
-var mirConnectedSlotAppArmor = []byte(`
-# Description: Permit clients to use Mir
-# Usage: reserver
-
-unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###)
-
 `)
 
 type MirInterface struct{}
