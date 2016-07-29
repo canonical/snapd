@@ -97,6 +97,7 @@
     mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
     mount options=(rw rbind) /etc/ -> /tmp/snap.rootfs_*/etc/,
     mount options=(rw rbind) /home/ -> /tmp/snap.rootfs_*/home/,
+    mount options=(rw rbind) /root/ -> /tmp/snap.rootfs_*/root/,
     mount options=(rw rbind) /proc/ -> /tmp/snap.rootfs_*/proc/,
     mount options=(rw rbind) /snap/ -> /tmp/snap.rootfs_*/snap/,
     mount options=(rw rbind) /sys/ -> /tmp/snap.rootfs_*/sys/,
