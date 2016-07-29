@@ -80,7 +80,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
-	devAcct := assertstest.NewAccount(store, "devel1", map[string]string{
+	devAcct := assertstest.NewAccount(store, "devel1", map[string]interface{}{
 		"account-id": "dev1-id",
 	}, "")
 	devAccKey := assertstest.NewAccountKey(store, devAcct, nil, devKey.PublicKey(), "")
@@ -105,14 +105,13 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	err = checkDB.Add(devAccKey)
 	c.Assert(err, IsNil)
 
-	headers := map[string]string{
-		"authority-id": "dev1-id",
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-digest":  "sha512-...",
-		"grade":        "devel",
-		"snap-size":    "1025",
-		"timestamp":    time.Now().Format(time.RFC3339),
+	headers := map[string]interface{}{
+		"authority-id":  "dev1-id",
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 	snapBuild, err := signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
 	c.Assert(err, IsNil)
@@ -241,14 +240,13 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	headers := map[string]string{
-		"authority-id": "dev1-id",
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-digest":  "sha512-...",
-		"grade":        "devel",
-		"snap-size":    "1025",
-		"timestamp":    time.Now().Format(time.RFC3339),
+	headers := map[string]interface{}{
+		"authority-id":  "dev1-id",
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
 	tests := []struct {
@@ -299,14 +297,13 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	headers := map[string]string{
-		"authority-id": "dev1-id",
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-digest":  "sha512-...",
-		"grade":        "devel",
-		"snap-size":    "1025",
-		"timestamp":    time.Now().Format(time.RFC3339),
+	headers := map[string]interface{}{
+		"authority-id":  "dev1-id",
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
 	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)

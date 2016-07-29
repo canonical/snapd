@@ -184,7 +184,7 @@ func buySnapFindURL(c *check.C) *expectedURL {
 	return &expectedURL{
 		Body: buySnapFindJson,
 		Checker: func(r *http.Request) {
-			c.Check(r.URL.Query().Get("q"), check.Equals, "name:hello")
+			c.Check(r.URL.Query().Get("name"), check.Equals, "hello")
 		},
 	}
 }
