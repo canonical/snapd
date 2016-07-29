@@ -206,7 +206,7 @@ var _ Assertion = (*assertionBase)(nil)
 // In general the following headers are mandatory:
 //
 //   type
-//   authority-id (the authority id, must be left of freestanding assertions though)
+//   authority-id (the authority id, must be left out of freestanding assertions though)
 //
 // Further for a given assertion type all the primary key headers
 // must be non empty and must not contain '/'.
