@@ -8,7 +8,7 @@ def run():
     clientsocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     clientsocket.connect("/run/snapd.socket")
 
-    clientsocket.sendall('POST /v2/snaps/test-snapd-tools HTTP/1.0\n{"action": "install"}\n\n'.encode("utf-8"))
+    clientsocket.sendall('POST /v2/snaps/test-snapd-tools HTTP/1.1\nHost: uid:1000\n\n{"action": "install"}\n\n'.encode("utf-8"))
     return clientsocket.recv(8192)
 
 if __name__ == '__main__':
