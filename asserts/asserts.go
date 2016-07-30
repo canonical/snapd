@@ -98,7 +98,7 @@ type Assertion interface {
 	Signature() (content, signature []byte)
 
 	// SigningKey returns the signer identifier and key id for the key that signed this assertion.
-	SigningKey() (signedID, keyID string, err error)
+	SigningKey() (signerID, keyID string, err error)
 
 	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
 	Prerequisites() []*Ref
@@ -165,7 +165,7 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 }
 
 // SigningKey returns the signer identifier and key id for the key that signed this assertion.
-func (ab *assertionBase) SigningKey() (signedID, keyID string, err error) {
+func (ab *assertionBase) SigningKey() (signerID, keyID string, err error) {
 	sig, err := decodeSignature(ab.signature)
 	if err != nil {
 		return "", "", err
