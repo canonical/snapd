@@ -84,7 +84,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 // sanity
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
-// Prerequisites returns references to this snap-declaration prerequisite assertions.
+// Prerequisites returns references to this snap-declaration's prerequisite assertions.
 func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
 	return []*Ref{
 		&Ref{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
@@ -252,7 +252,7 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 // sanity
 var _ consistencyChecker = (*SnapRevision)(nil)
 
-// Prerequisites returns references to this snap-revision prerequisite assertions.
+// Prerequisites returns references to this snap-revision's prerequisite assertions.
 func (snaprev *SnapRevision) Prerequisites() []*Ref {
 	return []*Ref{
 		// XXX: mediate getting current series through some context object? this gets the job done for now
