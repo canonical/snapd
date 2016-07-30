@@ -81,6 +81,12 @@ func Type(name string) *AssertionType {
 	return typeRegistry[name]
 }
 
+// Ref expresses a reference to an assertion.
+type Ref struct {
+	Type       *AssertionType
+	PrimaryKey []string
+}
+
 // Assertion represents an assertion through its general elements.
 type Assertion interface {
 	// Type returns the type of this assertion
@@ -104,6 +110,12 @@ type Assertion interface {
 
 	// Signature returns the signed content and its unprocessed signature
 	Signature() (content, signature []byte)
+
+	// SigningKey returns the signer identifier and key id for the key that signed this assertion.
+	SigningKey() (signerID, keyID string, err error)
+
+	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
+	Prerequisites() []*Ref
 }
 
 // MediaType is the media type for encoded assertions on the wire.
@@ -164,6 +176,20 @@ func (ab *assertionBase) Body() []byte {
 // Signature returns the signed content and its unprocessed signature.
 func (ab *assertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
+}
+
+// SigningKey returns the signer identifier and key id for the key that signed this assertion.
+func (ab *assertionBase) SigningKey() (signerID, keyID string, err error) {
+	sig, err := decodeSignature(ab.signature)
+	if err != nil {
+		return "", "", err
+	}
+	return ab.AuthorityID(), sig.KeyID(), nil
+}
+
+// Prerequisites returns references to the prerequisite assertions for the validity of this one.
+func (ab *assertionBase) Prerequisites() []*Ref {
+	return nil
 }
 
 // sanity check
@@ -362,7 +388,7 @@ func (d *Decoder) Decode() (Assertion, error) {
 		return nil, fmt.Errorf("parsing assertion headers: %v", err)
 	}
 
-	length, err := checkInteger(headers, "body-length", 0)
+	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -424,7 +450,7 @@ func (d *Decoder) Decode() (Assertion, error) {
 }
 
 func checkRevision(headers map[string]interface{}) (int, error) {
-	revision, err := checkInteger(headers, "revision", 0)
+	revision, err := checkIntWithDefault(headers, "revision", 0)
 	if err != nil {
 		return -1, err
 	}
@@ -445,7 +471,7 @@ func Assemble(headers map[string]interface{}, body, content, signature []byte) (
 
 // assemble is the internal variant of Assemble, assumes headers are already checked for supported types
 func assemble(headers map[string]interface{}, body, content, signature []byte) (Assertion, error) {
-	length, err := checkInteger(headers, "body-length", 0)
+	length, err := checkIntWithDefault(headers, "body-length", 0)
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}

@@ -101,7 +101,7 @@ type TestOnly struct {
 
 func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	// for testing error cases
-	if _, err := checkInteger(assert.headers, "count", 0); err != nil {
+	if _, err := checkIntWithDefault(assert.headers, "count", 0); err != nil {
 		return nil, err
 	}
 	return &TestOnly{assert}, nil
