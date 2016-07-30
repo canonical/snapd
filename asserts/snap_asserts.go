@@ -84,6 +84,13 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 // sanity
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
+// Prerequisites returns references to this snap-declaration's prerequisite assertions.
+func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
+	}
+}
+
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
 	if err != nil {
@@ -178,7 +185,7 @@ func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 type SnapRevision struct {
 	assertionBase
 	snapSize     uint64
-	snapRevision uint64
+	snapRevision int
 	timestamp    time.Time
 }
 
@@ -198,7 +205,7 @@ func (snaprev *SnapRevision) SnapSize() uint64 {
 }
 
 // SnapRevision returns the revision assigned to this build of the snap.
-func (snaprev *SnapRevision) SnapRevision() uint64 {
+func (snaprev *SnapRevision) SnapRevision() int {
 	return snaprev.snapRevision
 }
 
@@ -245,6 +252,15 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 // sanity
 var _ consistencyChecker = (*SnapRevision)(nil)
 
+// Prerequisites returns references to this snap-revision's prerequisite assertions.
+func (snaprev *SnapRevision) Prerequisites() []*Ref {
+	return []*Ref{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, snaprev.SnapID()}},
+		&Ref{Type: AccountType, PrimaryKey: []string{snaprev.DeveloperID()}},
+	}
+}
+
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
 	if err != nil {
@@ -261,9 +277,12 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
+	snapRevision, err := checkInt(assert.headers, "snap-revision")
 	if err != nil {
 		return nil, err
+	}
+	if snapRevision < 1 {
+		return nil, fmt.Errorf(`"snap-revision" header must be >=1: %d`, snapRevision)
 	}
 
 	_, err = checkNotEmptyString(assert.headers, "developer-id")
