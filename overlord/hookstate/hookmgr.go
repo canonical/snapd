@@ -22,16 +22,16 @@
 package hookstate
 
 import (
+	"bytes"
 	"fmt"
 	"os/exec"
 	"regexp"
-	"bytes"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/osutil"
 )
 
 // HookManager is responsible for the maintenance of hooks in the system state.
