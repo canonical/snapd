@@ -72,7 +72,7 @@ type KeypairManager interface {
 
 // DatabaseConfig for an assertion database.
 type DatabaseConfig struct {
-	// trusted assertions (account and account-key supported)
+	// trusted set of assertions (account and account-key supported)
 	Trusted []Assertion
 	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
@@ -114,6 +114,10 @@ type RODatabase interface {
 	// Provided headers must contain the primary key for the assertion type.
 	// It returns ErrNotFound if the assertion cannot be found.
 	Find(assertionType *AssertionType, headers map[string]string) (Assertion, error)
+	// FindTrusted finds an assertion in the trusted set based on arbitrary headers.
+	// Provided headers must contain the primary key for the assertion type.
+	// It returns ErrNotFound if the assertion cannot be found.
+	FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error)
 	// FindMany finds assertions based on arbitrary headers.
 	// It returns ErrNotFound if no assertion can be found.
 	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
@@ -258,6 +262,7 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	_, signature := assert.Signature()
+	// TODO: rework not to do this here, and use SigningKey
 	sig, err := decodeSignature(signature)
 	if err != nil {
 		return err
@@ -327,10 +332,7 @@ func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {
 	return true
 }
 
-// Find an assertion based on arbitrary headers.
-// Provided headers must contain the primary key for the assertion type.
-// It returns ErrNotFound if the assertion cannot be found.
-func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+func find(backstores []Backstore, assertionType *AssertionType, headers map[string]string) (Assertion, error) {
 	err := checkAssertType(assertionType)
 	if err != nil {
 		return nil, err
@@ -345,7 +347,7 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 	}
 
 	var assert Assertion
-	for _, bs := range db.backstores {
+	for _, bs := range backstores {
 		a, err := bs.Get(assertionType, keyValues)
 		if err == nil {
 			assert = a
@@ -361,6 +363,20 @@ func (db *Database) Find(assertionType *AssertionType, headers map[string]string
 	}
 
 	return assert, nil
+}
+
+// Find an assertion based on arbitrary headers.
+// Provided headers must contain the primary key for the assertion type.
+// It returns ErrNotFound if the assertion cannot be found.
+func (db *Database) Find(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+	return find(db.backstores, assertionType, headers)
+}
+
+// FindTrusted finds an assertion in the trusted set based on arbitrary headers.
+// Provided headers must contain the primary key for the assertion type.
+// It returns ErrNotFound if the assertion cannot be found.
+func (db *Database) FindTrusted(assertionType *AssertionType, headers map[string]string) (Assertion, error) {
+	return find([]Backstore{db.trusted}, assertionType, headers)
 }
 
 // FindMany finds assertions based on arbitrary headers.
