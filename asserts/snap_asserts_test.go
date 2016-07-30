@@ -193,6 +193,29 @@ type snapBuildSuite struct {
 	tsLine string
 }
 
+func (sds *snapDeclSuite) TestPrerequisites(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: first\n" +
+		"publisher-id: dev-id1\n" +
+		"gates: snap-id-3,snap-id-4\n" +
+		sds.tsLine +
+		"body-length: 0" +
+		"\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 1)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"dev-id1"},
+	})
+}
+
 func (sbs *snapBuildSuite) SetUpSuite(c *C) {
 	sbs.ts = time.Now().Truncate(time.Second).UTC()
 	sbs.tsLine = "timestamp: " + sbs.ts.Format(time.RFC3339) + "\n"
@@ -391,7 +414,7 @@ func (srs *snapRevSuite) TestDecodeOK(c *C) {
 	c.Check(snapRev.SnapID(), Equals, "snap-id-1")
 	c.Check(snapRev.SnapSHA3_384(), Equals, blobSHA3_384)
 	c.Check(snapRev.SnapSize(), Equals, uint64(123))
-	c.Check(snapRev.SnapRevision(), Equals, uint64(1))
+	c.Check(snapRev.SnapRevision(), Equals, 1)
 	c.Check(snapRev.DeveloperID(), Equals, "dev-id1")
 	c.Check(snapRev.Revision(), Equals, 1)
 }
@@ -417,8 +440,9 @@ func (srs *snapRevSuite) TestDecodeInvalid(c *C) {
 		{"snap-size: 123\n", "snap-size: zzz\n", `"snap-size" header is not an unsigned integer: zzz`},
 		{"snap-revision: 1\n", "", `"snap-revision" header is mandatory`},
 		{"snap-revision: 1\n", "snap-revision: \n", `"snap-revision" header should not be empty`},
-		{"snap-revision: 1\n", "snap-revision: -1\n", `"snap-revision" header is not an unsigned integer: -1`},
-		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an unsigned integer: zzz`},
+		{"snap-revision: 1\n", "snap-revision: -1\n", `"snap-revision" header must be >=1: -1`},
+		{"snap-revision: 1\n", "snap-revision: 0\n", `"snap-revision" header must be >=1: 0`},
+		{"snap-revision: 1\n", "snap-revision: zzz\n", `"snap-revision" header is not an integer: zzz`},
 		{"developer-id: dev-id1\n", "", `"developer-id" header is mandatory`},
 		{"developer-id: dev-id1\n", "developer-id: \n", `"developer-id" header should not be empty`},
 		{srs.tsLine, "", `"timestamp" header is mandatory`},
@@ -527,4 +551,21 @@ func (srs *snapRevSuite) TestPrimaryKey(c *C) {
 		"snap-sha3-384": headers["snap-sha3-384"].(string),
 	})
 	c.Assert(err, IsNil)
+}
+
+func (srs *snapRevSuite) TestPrerequisites(c *C) {
+	encoded := srs.makeValidEncoded()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 2)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "snap-id-1"},
+	})
+	c.Check(prereqs[1], DeepEquals, &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"dev-id1"},
+	})
 }
