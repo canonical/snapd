@@ -209,7 +209,7 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "canonical",
 		"display-name": "Acct1",
 		"account-id":   "acc-id1",
@@ -227,7 +227,7 @@ func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -249,7 +249,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 func (aks *accountKeySuite) TestAccountKeyCheckNoAccount(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -273,7 +273,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	storeDB := assertstest.NewSigningDB("canonical", trustedKey)
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
 		"public-key-fingerprint": aks.fp,
@@ -290,7 +290,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,

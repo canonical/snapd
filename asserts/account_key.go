@@ -35,7 +35,7 @@ type AccountKey struct {
 
 // AccountID returns the account-id of this account-key.
 func (ak *AccountKey) AccountID() string {
-	return ak.Header("account-id")
+	return ak.HeaderString("account-id")
 }
 
 // Since returns the time when the account key starts being valid.
@@ -73,14 +73,14 @@ func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (Publi
 	if err != nil {
 		return nil, err
 	}
-	fp, err := checkNotEmpty(ab.headers, fingerprintName)
+	fp, err := checkNotEmptyString(ab.headers, fingerprintName)
 	if err != nil {
 		return nil, err
 	}
 	if fp != pubKey.Fingerprint() {
 		return nil, fmt.Errorf("public key does not match provided fingerprint")
 	}
-	keyID, err := checkNotEmpty(ab.headers, keyIDName)
+	keyID, err := checkNotEmptyString(ab.headers, keyIDName)
 	if err != nil {
 		return nil, err
 	}

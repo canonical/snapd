@@ -124,11 +124,23 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), ss.Name(), revisionStr))
 	addTask(linkSnap)
 
-	// do GC!
-	if snapst.HasCurrent() {
+	// Do not do that if we are reverting to a local revision
+	if snapst.HasCurrent() && !revisionIsLocal {
 		prev := linkSnap
 		seq := snapst.Sequence
 		currentIndex := snapst.findIndex(snapst.Current)
+
+		// discard everything after "current" (we may have reverted to
+		// a previous versions earlier)
+		for i := currentIndex + 1; i < len(seq); i++ {
+			si := seq[i]
+			ts := removeInactiveRevision(s, ss.Name(), si.Revision)
+			ts.WaitFor(prev)
+			tasks = append(tasks, ts.Tasks()...)
+			prev = tasks[len(tasks)-1]
+		}
+
+		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
 			ts := removeInactiveRevision(s, ss.Name(), si.Revision)

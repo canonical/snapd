@@ -56,7 +56,8 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(ok, Equals, true)
 	c.Check(a.Revision(), Equals, 0)
 	c.Check(a.Body(), IsNil)
-	c.Check(a.Header("header1"), Equals, "")
+	c.Check(a.Header("header1"), IsNil)
+	c.Check(a.HeaderString("header1"), Equals, "")
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 }
 
@@ -133,9 +134,9 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 		{string([]byte{255, '\n', '\n'}), "header is not utf8"},
 		{"foo: a\nbar\n\n", `header entry missing ':' separator: "bar"`},
 		{"TYPE: foo\n\n", `invalid header name: "TYPE"`},
-		{"foo: a\nbar:>\n\n", `header entry should have a space or newline \(multiline\) before value: "bar:>"`},
-		{"foo: a\nbar:\n\n", `empty multiline header value: "bar:"`},
-		{"foo: a\nbar:\nbaz: x\n\n", `empty multiline header value: "bar:"`},
+		{"foo: a\nbar:>\n\n", `header entry should have a space or newline \(for multiline\) before value: "bar:>"`},
+		{"foo: a\nbar:\n\n", `expected 4 chars nesting prefix after multiline introduction "bar:": EOF`},
+		{"foo: a\nbar:\nbaz: x\n\n", `expected 4 chars nesting prefix after multiline introduction "bar:": "baz: x"`},
 	}
 
 	for _, test := range headerParsingErrorsTests {
@@ -164,8 +165,10 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"type: test-only\n", "", `assertion: "type" header is mandatory`},
 		{"type: test-only\n", "type: unknown\n", `unknown assertion type: "unknown"`},
 		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
+		{"revision: 0\n", "revision:\n  - 1\n", `assertion: "revision" header is not an integer: \[1\]`},
 		{"revision: 0\n", "revision: -10\n", "assertion: revision should be positive: -10"},
 		{"primary-key: abc\n", "", `assertion test-only: "primary-key" header is mandatory`},
+		{"primary-key: abc\n", "primary-key:\n  - abc\n", `assertion test-only: "primary-key" header must be a string`},
 		{"primary-key: abc\n", "primary-key: a/c\n", `assertion test-only: "primary-key" primary key header cannot contain '/'`},
 	}
 
@@ -391,7 +394,7 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -403,7 +406,7 @@ func (as *assertsSuite) TestSignFormatSanityEmptyBody(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -418,7 +421,7 @@ func (as *assertsSuite) TestSignFormatSanityNonEmptyBody(c *C) {
 }
 
 func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -463,7 +466,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 	c.Assert(err, IsNil)
 
 	hs := a.Headers()
-	c.Check(hs, DeepEquals, map[string]string{
+	c.Check(hs, DeepEquals, map[string]interface{}{
 		"type":         "test-only",
 		"authority-id": "auth-id2",
 		"primary-key":  "abc",
@@ -520,7 +523,7 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 }
 
 func (as *assertsSuite) TestSigningKey(c *C) {
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
 	}
@@ -539,4 +542,20 @@ func (as *assertsSuite) TestSigningKeyError(c *C) {
 
 	_, _, err = a.SigningKey()
 	c.Check(err, ErrorMatches, `cannot decode signature data:.*`)
+}
+
+func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
+	cont := []byte("type: test-only\n" +
+		"authority-id: auth-id2\n" +
+		"primary-key: abc\n" +
+		"revision: 5")
+	headers := map[string]interface{}{
+		"type":         "test-only",
+		"authority-id": "auth-id2",
+		"primary-key":  "abc",
+		"revision":     5, // must be a string actually!
+	}
+
+	_, err := asserts.Assemble(headers, nil, cont, nil)
+	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
 }

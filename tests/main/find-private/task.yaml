@@ -1,0 +1,29 @@
+summary: Check that find works with private snaps.
+
+details: |
+    These tests rely on the existence of a snap in the production store set to private.
+
+    In order to do the full checks, it also needs the credentials of the owner of that
+    snap set in the environment variables SPREAD_STORE_USER and SPREAD_STORE_PASSWORD, if
+    they are not present then only the negative check (private snap does not show up in
+    the find results without specifying private search or without the owner logged) is
+    performed.
+
+restore: |
+    snap logout || true
+
+execute: |
+    echo "When a snap is private it doesn't show up in the find without login and without specifying private search"
+    ! snap find test-snapd-private | grep -q "test-snapd-private +\d+\.\d+"
+
+    echo "When a snap is private it doesn't show up in the find --private results without login"
+    ! snap find test-snapd-private --private | grep -q "test-snapd-private +\d+\.\d+"
+
+    echo "Given account store credentials are available"
+    if [ ! -z "$SPREAD_STORE_USER" ] && [ ! -z "$SPREAD_STORE_PASSWORD" ]; then
+        echo "And the user has logged in"
+        expect -f successful_login.exp
+
+        echo "Then a private snap belonging to that user shows up in the find results"
+        snap find test-snapd-private --private | grep -q "test-snapd-private +\d+\.\d+"
+    fi
