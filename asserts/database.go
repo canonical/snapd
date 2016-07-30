@@ -262,6 +262,7 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	_, signature := assert.Signature()
+	// TODO: rework not to do this here, and use SigningKey
 	sig, err := decodeSignature(signature)
 	if err != nil {
 		return err
