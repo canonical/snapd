@@ -32,7 +32,7 @@ import (
 
 var userLookup = user.Lookup
 
-func AddExtraUser(name string, sshKeys []string, gecos string) error {
+func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 	// we check the (user)name ourselfs, adduser is a bit too
 	// strict (i.e. no `.`)
 	validNames := regexp.MustCompile(`^[a-z][-a-z0-9_.]*$`)
@@ -40,7 +40,13 @@ func AddExtraUser(name string, sshKeys []string, gecos string) error {
 		return fmt.Errorf("cannot add user %q: name contains invalid charackters", name)
 	}
 
-	cmd := exec.Command("adduser", "--force-badname", "--gecos", gecos, "--extrausers", "--disabled-password", name)
+	cmd := exec.Command("adduser",
+		"--force-badname",
+		"--gecos", gecos,
+		"--extrausers",
+		"--disabled-password",
+		"--add_extra_groups", "sudo",
+		name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
