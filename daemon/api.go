@@ -1384,7 +1384,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 var (
 	postCreateUserUcrednetGetUID = ucrednetGetUID
 	storeUserInfo                = store.UserInfo
-	osutilAddExtraUser           = osutil.AddExtraUser
+	osutilAddExtraSudoUser       = osutil.AddExtraSudoUser
 )
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1418,7 +1418,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	gecos := fmt.Sprintf("%s,%s", createData.EMail, v.OpenIDIdentifier)
-	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos); err != nil {
+	if err := osutilAddExtraSudoUser(v.Username, v.SSHKeys, gecos); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
