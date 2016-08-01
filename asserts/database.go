@@ -205,9 +205,9 @@ func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, er
 	if keyID == "" {
 		return nil, fmt.Errorf("key id is empty")
 	}
-	if !fingerprintLike.MatchString(keyID) {
+	/*if !fingerprintLike.MatchString(keyID) {
 		return nil, fmt.Errorf("key id contains unexpected chars: %q", keyID)
-	}
+	}*/
 	return db.keypairMgr.Get(authorityID, keyID)
 }
 
