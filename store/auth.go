@@ -20,10 +20,13 @@
 package store
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+
+	"gopkg.in/macaroon.v1"
 )
 
 var (
@@ -35,12 +38,9 @@ var (
 	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
+	// UbuntuoneRefreshDischargeAPI points to SSO endpoint to refresh a discharge macaroon
+	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
-
-// Authenticator interface to set required authorization headers for requests to the store
-type Authenticator interface {
-	Authenticate(r *http.Request)
-}
 
 type ssoMsg struct {
 	Code    string `json:"code"`
@@ -57,6 +57,45 @@ func httpStatusCodeClientError(httpStatusCode int) bool {
 	return httpStatusCode/100 == 4
 }
 
+// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
+func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
+	marshalled, err := m.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
+	return encoded, nil
+}
+
+// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
+func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
+	var m macaroon.Macaroon
+	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+	err = m.UnmarshalBinary(decoded)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// LoginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
+func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
+	caveatID := ""
+	for _, caveat := range m.Caveats() {
+		if caveat.Location == UbuntuoneLocation {
+			caveatID = caveat.Id
+			break
+		}
+	}
+	if caveatID == "" {
+		return "", fmt.Errorf("missing login caveat")
+	}
+	return caveatID, nil
+}
+
 // RequestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
 func RequestStoreMacaroon() (string, error) {
 	const errorPrefix = "cannot get snap access permission from store: "
@@ -66,7 +105,7 @@ func RequestStoreMacaroon() (string, error) {
 	}
 	macaroonJSONData, err := json.Marshal(data)
 
-	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, strings.NewReader(string(macaroonJSONData)))
+	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -74,8 +113,7 @@ func RequestStoreMacaroon() (string, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -100,24 +138,15 @@ func RequestStoreMacaroon() (string, error) {
 	return responseData.Macaroon, nil
 }
 
-// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
-func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+func requestDischargeMacaroon(endpoint string, data map[string]string) (string, error) {
 	const errorPrefix = "cannot authenticate on snap store: "
 
-	data := map[string]string{
-		"email":     username,
-		"password":  password,
-		"caveat_id": caveat,
-	}
-	if otp != "" {
-		data["otp"] = otp
-	}
 	dischargeJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", UbuntuoneDischargeAPI, strings.NewReader(string(dischargeJSONData)))
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(dischargeJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -125,8 +154,7 @@ func DischargeAuthCaveat(caveat, username, password, otp string) (string, error)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -169,4 +197,27 @@ func DischargeAuthCaveat(caveat, username, password, otp string) (string, error)
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
+}
+
+// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
+func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+	data := map[string]string{
+		"email":     username,
+		"password":  password,
+		"caveat_id": caveat,
+	}
+	if otp != "" {
+		data["otp"] = otp
+	}
+
+	return requestDischargeMacaroon(UbuntuoneDischargeAPI, data)
+}
+
+// RefreshDischargeMacaroon returns a soft-refreshed discharge macaroon.
+func RefreshDischargeMacaroon(discharge string) (string, error) {
+	data := map[string]string{
+		"discharge_macaroon": discharge,
+	}
+
+	return requestDischargeMacaroon(UbuntuoneRefreshDischargeAPI, data)
 }
