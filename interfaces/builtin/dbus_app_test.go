@@ -153,10 +153,8 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
 	c.Assert(err, IsNil)
-	c.Assert(names, Not(IsNil))
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesSystem(c *C) {
@@ -174,10 +172,8 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
 	c.Assert(err, IsNil)
-	c.Assert(names, Not(IsNil))
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesFull(c *C) {
@@ -194,10 +190,8 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
 	c.Assert(err, IsNil)
-	c.Assert(names, Not(IsNil))
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesNonexistentBus(c *C) {
@@ -214,10 +208,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "bus must be one of 'session' or 'system'")
-	c.Assert(names, IsNil)
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesMissingName(c *C) {
@@ -233,10 +226,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "bus attribute is not a list")
-	c.Assert(names, IsNil)
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesEmptyName(c *C) {
@@ -253,10 +245,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "bus name must be set")
-	c.Assert(names, IsNil)
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesNameTooLong(c *C) {
@@ -282,10 +273,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "bus name is too long \\(must be <= 255\\)")
-	c.Assert(names, IsNil)
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesNameStartsWithColon(c *C) {
@@ -302,10 +292,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "invalid bus name: \":dbus-app-snap.bar\"")
-	c.Assert(names, IsNil)
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesNameStartsWithNum(c *C) {
@@ -322,10 +311,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "invalid bus name: \"0dbus-app-snap.bar\"")
-	c.Assert(names, IsNil)
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesNameMissingDot(c *C) {
@@ -342,10 +330,9 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-app-snap\"")
-	c.Assert(names, IsNil)
 }
 
 func (s *DbusAppInterfaceSuite) TestGetBusNamesNameMissingElement(c *C) {
@@ -362,14 +349,11 @@ slots:
 	c.Assert(err, IsNil)
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["dbus-app-slot"]}
-	iface := &builtin.DbusAppInterface{}
-	names, err := iface.GetBusNames(slot.Attrs)
+	err = s.iface.SanitizeSlot(slot)
+	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "invalid bus name: \"dbus-app-snap\\.\"")
-	c.Assert(names, IsNil)
 }
 
-// most of SanitizePlug and SanitizeSlot is GetBusNames(), so just do a cursory
-// test for these
 func (s *DbusAppInterfaceSuite) TestSanitizeSlotSystem(c *C) {
 	var mockSnapYaml = []byte(`name: dbus-app-snap
 version: 1.0
