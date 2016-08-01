@@ -44,14 +44,6 @@ network netlink raw,
 
 `)
 
-var mirConnectedSlotAppArmor = []byte(`
-# Description: Permit clients to use Mir
-# Usage: reserver
-
-unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###)
-
-`)
-
 var mirPermanentSlotSecComp = []byte(`
 # Description: Allow operating as the mir service. Reserved because this
 # gives privileged access to the system.
@@ -73,12 +65,21 @@ sendmsg
 
 `)
 
+var mirConnectedSlotAppArmor = []byte(`
+# Description: Permit clients to use Mir
+# Usage: reserver
+
+/run/user/*/mir_socket rw,
+unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###)
+
+`)
+
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserver
 
+/run/user/*/mir_socket rw,
 unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###)
-/run/mir_socket rw,
 
 `)
 
@@ -101,12 +102,10 @@ func (iface *MirInterface) PermanentPlugSnippet(
 	plug *interfaces.Plug,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return mirPermanentSlotAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return mirPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
-		return nil, nil
+					case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+				interfaces.SecurityUDev, interfaces.SecurityDBus,
+		                interfaces.SecurityMount:
+				return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
@@ -117,7 +116,12 @@ func (iface *MirInterface) ConnectedPlugSnippet(
 	slot *interfaces.Slot,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+	case interfaces.SecurityAppArmor:
+		old := []byte("###SLOT_SECURITY_TAGS###")
+		new := slotAppLabelExpr(slot)
+		snippet := bytes.Replace(mirConnectedPlugAppArmor, old, new, -1)
+		return snippet, nil
+	case interfaces.SecuritySecComp,
 		interfaces.SecurityUDev, interfaces.SecurityDBus,
                 interfaces.SecurityMount:
 		return nil, nil
@@ -130,9 +134,11 @@ func (iface *MirInterface) PermanentSlotSnippet(
 	slot *interfaces.Slot,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityDBus,
-                interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor:
+		return mirPermanentSlotAppArmor, nil
+	case interfaces.SecuritySecComp:
+		return mirPermanentSlotSecComp, nil
+	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -141,7 +147,12 @@ func (iface *MirInterface) PermanentSlotSnippet(
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+	case interfaces.SecurityAppArmor:
+		old := []byte("###PLUG_SECURITY_TAGS###")
+		new := plugAppLabelExpr(plug)
+		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
+		return snippet, nil
+	case interfaces.SecuritySecComp,
 		interfaces.SecurityUDev, interfaces.SecurityDBus,
                 interfaces.SecurityMount:
 		return nil, nil
