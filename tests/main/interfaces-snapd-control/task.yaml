@@ -49,6 +49,6 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to control snapd"
-    ! snapd-control-consumer.list | grep -Pq "test-snapd-tools"
+    ! snapd-control-consumer.list | grep -q test-snapd-tools
     snapd-control-consumer.install test-snapd-tools
-    while ! snapd-control-consumer.list | grep -Pq "test-snapd-tools"; do sleep 1; done
+    while ! snapd-control-consumer.list | grep -q test-snapd-tools; do sleep 1; done
