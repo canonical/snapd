@@ -115,6 +115,17 @@ privileged access to configure printing.
 Usage: reserved
 Auto-Connect: no
 
+### dbus-bind
+
+Allows access for binding to a well-known name on DBus on Classic systems.
+
+Usage: common
+Auto-Connect: yes
+Attributes:
+* session|system (slot): DBus public bus to register names. Set to list of
+  well-known DBus names to bind.
+* session|system (plugs): Set to list of well-known DBus names to connect.
+
 ### firewall-control
 
 Can configure firewall. This is restricted because it gives privileged access

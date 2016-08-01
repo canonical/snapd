@@ -34,6 +34,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	all := builtin.Interfaces()
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
 	c.Check(all, Contains, &builtin.BluezInterface{})
+	c.Check(all, Contains, &builtin.DbusBindInterface{})
 	c.Check(all, Contains, &builtin.LocationControlInterface{})
 	c.Check(all, Contains, &builtin.LocationObserveInterface{})
 	c.Check(all, Contains, &builtin.MprisInterface{})
