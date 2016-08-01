@@ -8,7 +8,7 @@ summary: |
     reconnected.
 
     A snap declaring a plug on this interface must be able to access the /etc/default/locale
-    file.
+    file both for reading and writing.
 
 prepare: |
     echo "Given a snap declaring a plug on the locale-control interface is installed"
@@ -45,7 +45,7 @@ execute: |
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi
-    cat locale-read.error | grep -q "Permission denied"
+    grep -q "Permission denied" locale-read.error
 
     echo "==================================="
 
@@ -53,8 +53,8 @@ execute: |
     snap connect locale-control-consumer:locale-control ubuntu-core:locale-control
 
     echo "Then the snap is able to write the locale configuration"
-    sudo -i -u test /bin/sh -c 'locale-control-consumer.set LANG mylang'
-    cat /etc/default/locale | grep -q "LANG=mylang"
+    locale-control-consumer.set LANG mylang
+    grep -q "LANG=\"mylang\"" /etc/default/locale
 
     echo "==================================="
 
@@ -62,8 +62,8 @@ execute: |
     snap disconnect locale-control-consumer:locale-control ubuntu-core:locale-control
 
     echo "Then the snap is not able to read the locale configuration"
-    if sudo -i -u test /bin/sh -c "locale-control-consumer.set LANG mylang 2>${PWD}/locale-write.error"; then
+    if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi
-    cat locale-write.error | grep -q "Permission denied"
+    grep -q "Permission denied" locale-write.error
