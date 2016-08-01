@@ -37,7 +37,7 @@ fly themselves); the `systemd` units still use this name.
 For more details of when it is to be triggered you could dig into the
 implementation, via
 
-    systemctl list-timers snapd.refresh.timer
+    systemctl list-timers snap.refresh.timer
 
 To check whether the update ran, run
 
