@@ -39,17 +39,16 @@ import (
 )
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
-func GenerateKey(bits int) (asserts.PrivateKey, *packet.PrivateKey) {
+func GenerateKey(bits int) (asserts.PrivateKey, *rsa.PrivateKey) {
 	priv, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		panic(fmt.Errorf("failed to create private key: %v", err))
 	}
-	pkt := packet.NewRSAPrivateKey(time.Now(), priv)
-	return asserts.OpenPGPPrivateKey(pkt), pkt
+	return asserts.RSAPrivateKey(priv), priv
 }
 
 // ReadPrivKey reads a PGP private key (either armored or simply base64 encoded). It panics on error.
-func ReadPrivKey(pk string) (asserts.PrivateKey, *packet.PrivateKey) {
+func ReadPrivKey(pk string) (asserts.PrivateKey, *rsa.PrivateKey) {
 	rd := bytes.NewReader([]byte(pk))
 	blk, err := armor.Decode(rd)
 	var body io.Reader
@@ -66,7 +65,12 @@ func ReadPrivKey(pk string) (asserts.PrivateKey, *packet.PrivateKey) {
 	}
 
 	pkPkt := pkt.(*packet.PrivateKey)
-	return asserts.OpenPGPPrivateKey(pkPkt), pkPkt
+	rsaPrivKey, ok := pkPkt.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		panic("not a RSA key")
+	}
+
+	return asserts.RSAPrivateKey(rsaPrivKey), rsaPrivKey
 }
 
 // A sample developer key.
@@ -181,7 +185,6 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]i
 	}
 	otherHeaders["account-id"] = acct.AccountID()
 	otherHeaders["public-key-id"] = pubKey.ID()
-	otherHeaders["public-key-fingerprint"] = pubKey.Fingerprint()
 	if otherHeaders["since"] == nil {
 		otherHeaders["since"] = time.Now().Format(time.RFC3339)
 	}

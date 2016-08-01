@@ -44,7 +44,7 @@ func (mkms *memKeypairMgtSuite) TestPutAndGet(c *C) {
 	got, err := mkms.keypairMgr.Get("auth-id1", keyID)
 	c.Assert(err, IsNil)
 	c.Assert(got, NotNil)
-	c.Check(got.PublicKey().Fingerprint(), Equals, pk1.PublicKey().Fingerprint())
+	c.Check(got.PublicKey().SHA3_384(), Equals, pk1.PublicKey().SHA3_384())
 }
 
 func (mkms *memKeypairMgtSuite) TestPutAlreadyExists(c *C) {

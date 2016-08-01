@@ -46,7 +46,7 @@ const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"primary-key: abc" +
 	"\n\n" +
-	"openpgp c2ln"
+	"AXNpZw=="
 
 func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
@@ -68,7 +68,7 @@ const exampleEmptyBody2NlNl = "type: test-only\n" +
 	"body-length: 0" +
 	"\n\n" +
 	"\n\n" +
-	"openpgp c2ln\n"
+	"AXNpZw==\n"
 
 func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 	a, err := asserts.Decode([]byte(exampleEmptyBody2NlNl))
@@ -87,7 +87,7 @@ const exampleBodyAndExtraHeaders = "type: test-only\n" +
 	"body-length: 8\n\n" +
 	"THE-BODY" +
 	"\n\n" +
-	"openpgp c2ln\n"
+	"AXNpZw==\n"
 
 func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	a, err := asserts.Decode([]byte(exampleBodyAndExtraHeaders))
@@ -112,13 +112,13 @@ func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 		"THE-BODY"
 	encoded := content +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
 	cont, signature := a.Signature()
-	c.Check(signature, DeepEquals, []byte("openpgp c2ln"))
+	c.Check(signature, DeepEquals, []byte("AXNpZw=="))
 	c.Check(cont, DeepEquals, []byte(content))
 }
 
@@ -154,14 +154,14 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		"\n\n" +
 		"abcde" +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 
 	invalidAssertTests := []struct{ original, invalid, expectedErr string }{
 		{"body-length: 5", "body-length: z", `assertion: "body-length" header is not an integer: z`},
 		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", `assertion: "authority-id" header is mandatory`},
 		{"authority-id: auth-id\n", "authority-id: \n", `assertion: "authority-id" header should not be empty`},
-		{"openpgp c2ln", "", "empty assertion signature"},
+		{"AXNpZw==", "", "empty assertion signature"},
 		{"type: test-only\n", "", `assertion: "type" header is mandatory`},
 		{"type: test-only\n", "type: unknown\n", `unknown assertion type: "unknown"`},
 		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
@@ -331,7 +331,7 @@ func (as *assertsSuite) TestEncode(c *C) {
 		"body-length: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 	encodeRes := asserts.Encode(a)
@@ -348,7 +348,7 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 		"body-length: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a0, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 	cont0, _ := a0.Signature()
@@ -377,7 +377,7 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 		"body-length: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a0, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 	cont0, _ := a0.Signature()
@@ -461,7 +461,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 		"body-length: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 
@@ -487,7 +487,7 @@ func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 		"body-length: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 
@@ -507,7 +507,7 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 		"body-length: 8\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 

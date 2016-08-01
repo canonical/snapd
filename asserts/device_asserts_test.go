@@ -198,7 +198,7 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 	c.Check(serial.BrandID(), Equals, "brand-id1")
 	c.Check(serial.Model(), Equals, "baz-3000")
 	c.Check(serial.Serial(), Equals, "2700")
-	c.Check(serial.DeviceKey().Fingerprint(), Equals, ss.deviceKey.PublicKey().Fingerprint())
+	c.Check(serial.DeviceKey().SHA3_384(), Equals, ss.deviceKey.PublicKey().SHA3_384())
 }
 
 const (
