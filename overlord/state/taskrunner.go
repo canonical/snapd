@@ -225,10 +225,6 @@ func (r *TaskRunner) Ensure() {
 	defer r.state.Unlock()
 
 	r.someBlocked = false
-	blocked := r.blocked
-	if blocked == nil {
-		blocked = func(*Task, []*Task) bool { return false }
-	}
 	running := make([]*Task, 0, len(r.tombs))
 	for tid := range r.tombs {
 		t := r.state.Task(tid)
@@ -288,7 +284,7 @@ func (r *TaskRunner) Ensure() {
 			continue
 		}
 
-		if blocked(t, running) {
+		if r.blocked != nil && r.blocked(t, running) {
 			r.someBlocked = true
 			continue
 		}
