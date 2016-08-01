@@ -115,7 +115,7 @@ func splitFormatAndBase64Decode(formatAndBase64 []byte) (string, []byte, error) 
 	buf := make([]byte, base64.StdEncoding.DecodedLen(len(parts[1])))
 	n, err := base64.StdEncoding.Decode(buf, parts[1])
 	if err != nil {
-		return "", nil, fmt.Errorf("could not decode base64 data: %v", err)
+		return "", nil, fmt.Errorf("cannot decode base64 data: %v", err)
 	}
 	return string(parts[0]), buf[:n], nil
 }
@@ -133,7 +133,7 @@ func decodeOpenpgp(formatAndBase64 []byte, kind string) (packet.Packet, error) {
 	}
 	pkt, err := packet.Read(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("could not decode %s data: %v", kind, err)
+		return nil, fmt.Errorf("cannot decode %s data: %v", kind, err)
 	}
 	return pkt, nil
 }
@@ -303,17 +303,13 @@ func OpenPGPPrivateKey(privk *packet.PrivateKey) PrivateKey {
 	return openpgpPrivateKey{privk}
 }
 
-func generateKey(bits int) (PrivateKey, error) {
-	priv, err := rsa.GenerateKey(rand.Reader, bits)
+// GenerateKey generates a private/public key pair.
+func GenerateKey() (PrivateKey, error) {
+	priv, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return nil, err
 	}
 	return OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Now(), priv)), nil
-}
-
-// GenerateKey generates a private/public key pair.
-func GenerateKey() (PrivateKey, error) {
-	return generateKey(4096)
 }
 
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {

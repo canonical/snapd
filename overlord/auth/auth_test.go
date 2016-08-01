@@ -20,7 +20,6 @@
 package auth_test
 
 import (
-	"net/http"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -200,6 +199,43 @@ func (as *authSuite) TestUser(c *C) {
 	c.Check(userFromState, DeepEquals, user)
 }
 
+func (as *authSuite) TestUpdateUser(c *C) {
+	as.state.Lock()
+	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	user.Username = "different"
+	user.StoreDischarges = []string{"updated-discharge"}
+
+	as.state.Lock()
+	err := auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, user)
+}
+
+func (as *authSuite) TestUpdateUserInvalid(c *C) {
+	as.state.Lock()
+	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	user := &auth.UserState{
+		ID:       102,
+		Username: "username",
+		Macaroon: "macaroon",
+	}
+
+	as.state.Lock()
+	err := auth.UpdateUser(as.state, user)
+	as.state.Unlock()
+	c.Assert(err, ErrorMatches, "invalid user")
+}
+
 func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
@@ -227,27 +263,53 @@ func (as *authSuite) TestRemove(c *C) {
 	c.Assert(err, ErrorMatches, "invalid user")
 }
 
-func (as *authSuite) TestGetAuthenticatorFromUser(c *C) {
+func (as *authSuite) TestSetDevice(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	device, err := auth.Device(as.state)
 	as.state.Unlock()
 	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{})
 
-	authenticator := user.Authenticator()
-	c.Check(authenticator.Macaroon, Equals, user.Macaroon)
-	c.Check(authenticator.Discharges, DeepEquals, user.Discharges)
+	as.state.Lock()
+	err = auth.SetDevice(as.state, &auth.DeviceState{Brand: "some-brand"})
+	c.Check(err, IsNil)
+	device, err = auth.Device(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
 }
 
-func (as *authSuite) TestAuthenticatorSetHeaders(c *C) {
+func (as *authSuite) TestAuthContextUpdateUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
+
+	user.Username = "different"
+	user.StoreDischarges = []string{"updated-discharge"}
+
+	authContext := auth.NewAuthContext(as.state)
+	err := authContext.UpdateUser(user)
 	c.Check(err, IsNil)
 
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	authenticator := user.Authenticator()
-	authenticator.Authenticate(req)
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, user)
+}
 
-	authorization := req.Header.Get("Authorization")
-	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
+func (as *authSuite) TestAuthContextUpdateUserInvalid(c *C) {
+	as.state.Lock()
+	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+
+	user := &auth.UserState{
+		ID:       102,
+		Username: "username",
+		Macaroon: "macaroon",
+	}
+
+	authContext := auth.NewAuthContext(as.state)
+	err := authContext.UpdateUser(user)
+	c.Assert(err, ErrorMatches, "invalid user")
 }

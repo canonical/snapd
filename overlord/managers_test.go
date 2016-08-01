@@ -146,35 +146,20 @@ apps:
 }
 
 func (ms *mgrsSuite) TestHappyRemove(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
 	snapYamlContent := `name: foo
 apps:
  bar:
   command: bin/bar
 `
-	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.0")
+	snap := ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 
-	st := ms.o.State()
-	st.Lock()
-	defer st.Unlock()
-
-	ts, err := snapstate.InstallPath(st, "foo", snapPath, "", snapstate.DevMode)
+	ts, err := snapstate.Remove(st, "foo")
 	c.Assert(err, IsNil)
-	chg := st.NewChange("install-snap", "...")
-	chg.AddAll(ts)
-
-	st.Unlock()
-	err = ms.o.Settle()
-	st.Lock()
-	c.Assert(err, IsNil)
-
-	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
-
-	snap, err := snap.ReadInfo("foo", &snap.SideInfo{Revision: snap.R(-1)})
-	c.Assert(err, IsNil)
-
-	ts, err = snapstate.Remove(st, "foo")
-	c.Assert(err, IsNil)
-	chg = st.NewChange("remove-snap", "...")
+	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
 
 	st.Unlock()
@@ -199,27 +184,22 @@ apps:
 }
 
 const fooSearchHit = `{
-    "_embedded": {
-        "clickindex:package": [
-            {
-                "anon_download_url": "@URL@",
-                "architecture": [
-                    "all"
-                ],
-                "channel": "stable",
-                "content": "application",
-                "description": "this is a description",
-                "download_url": "@URL@",
-                "icon_url": "@ICON@",
-                "origin": "bar",
-                "package_name": "foo",
-                "revision": @REVISION@,
-                "snap_id": "idididididididididididididididid",
-                "summary": "Foo",
-                "version": "@VERSION@"
-            }
-        ]
-    }
+	"anon_download_url": "@URL@",
+	"architecture": [
+	    "all"
+	],
+	"channel": "stable",
+	"content": "application",
+	"description": "this is a description",
+        "developer_id": "devdevdev",
+	"download_url": "@URL@",
+	"icon_url": "@ICON@",
+	"origin": "bar",
+	"package_name": "foo",
+	"revision": @REVISION@,
+	"snap_id": "idididididididididididididididid",
+	"summary": "Foo",
+	"version": "@VERSION@"
 }`
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeSvc(c *C) {
@@ -245,14 +225,27 @@ apps:
 	c.Assert(err, IsNil)
 
 	var baseURL string
+	fillHit := func() string {
+		hit := strings.Replace(fooSearchHit, "@URL@", baseURL+"/snap", -1)
+		hit = strings.Replace(hit, "@ICON@", baseURL+"/icon", -1)
+		hit = strings.Replace(hit, "@VERSION@", ver, -1)
+		hit = strings.Replace(hit, "@REVISION@", revno, -1)
+		return hit
+	}
+
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/search":
+		case "/details/foo":
 			w.WriteHeader(http.StatusOK)
-			output := strings.Replace(fooSearchHit, "@URL@", baseURL+"/snap", -1)
-			output = strings.Replace(output, "@ICON@", baseURL+"/icon", -1)
-			output = strings.Replace(output, "@VERSION@", ver, -1)
-			output = strings.Replace(output, "@REVISION@", revno, -1)
+			io.WriteString(w, fillHit())
+		case "/metadata":
+			w.WriteHeader(http.StatusOK)
+			output := `{
+    "_embedded": {
+	    "clickindex:package": [@HIT@]
+    }
+}`
+			output = strings.Replace(output, "@HIT@", fillHit(), 1)
 			io.WriteString(w, output)
 		case "/snap":
 			io.Copy(w, snapR)
@@ -265,19 +258,21 @@ apps:
 
 	baseURL = mockServer.URL
 
-	searchURL, err := url.Parse(baseURL + "/search")
+	detailsURL, err := url.Parse(baseURL + "/details/")
 	c.Assert(err, IsNil)
-	storeCfg := store.SnapUbuntuStoreConfig{
-		SearchURI: searchURL,
+	bulkURL, err := url.Parse(baseURL + "/metadata")
+	c.Assert(err, IsNil)
+	storeCfg := store.Config{
+		DetailsURI: detailsURL,
+		BulkURI:    bulkURL,
 	}
 
-	mStore := store.NewUbuntuStoreSnapRepository(&storeCfg, "")
-
-	ms.o.SnapManager().ReplaceStore(mStore)
+	mStore := store.New(&storeCfg, "", nil)
 
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+	snapstate.ReplaceStore(ms.o.State(), mStore)
 
 	ts, err := snapstate.Install(st, "foo", "stable", 0, 0)
 	c.Assert(err, IsNil)
@@ -296,6 +291,7 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(42))
 	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
@@ -327,6 +323,7 @@ apps:
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
 	info, err = snapstate.CurrentInfo(st, "foo")
@@ -334,6 +331,7 @@ apps:
 
 	c.Check(info.Revision, Equals, snap.R(50))
 	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "2.0")
 
 	// check udpated wrapper
@@ -382,8 +380,8 @@ type: os
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_os":   "core_x1.snap",
-		"snappy_mode": "try",
+		"snap_try_core": "core_x1.snap",
+		"snap_mode":     "try",
 	})
 }
 
@@ -424,7 +422,90 @@ type: kernel`
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_kernel": "krnl_x1.snap",
-		"snappy_mode":   "try",
+		"snap_try_kernel": "krnl_x1.snap",
+		"snap_mode":       "try",
 	})
+}
+
+func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.Info {
+	st := ms.o.State()
+
+	snapPath := makeTestSnap(c, snapYamlContent)
+	snapf, err := snap.Open(snapPath)
+	c.Assert(err, IsNil)
+	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+	c.Assert(err, IsNil)
+
+	// store current state
+	snapName := info.Name()
+	var snapst snapstate.SnapState
+	snapstate.Get(st, snapName, &snapst)
+
+	ts, err := snapstate.InstallPath(st, snapName, snapPath, "", snapstate.DevMode)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	return info
+}
+
+func (ms *mgrsSuite) TestHappyRevert(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	x1Yaml := `name: foo
+version: 1.0
+apps:
+ x1:
+  command: bin/bar
+`
+	x1binary := filepath.Join(dirs.SnapBinariesDir, "foo.x1")
+
+	x2Yaml := `name: foo
+version: 2.0
+apps:
+ x2:
+  command: bin/bar
+`
+	x2binary := filepath.Join(dirs.SnapBinariesDir, "foo.x2")
+
+	ms.installLocalTestSnap(c, x1Yaml)
+	ms.installLocalTestSnap(c, x2Yaml)
+
+	// ensure we are on x2
+	c.Assert(osutil.FileExists(x2binary), Equals, true)
+	c.Assert(osutil.FileExists(x1binary), Equals, false)
+
+	// now do the revert
+	ts, err := snapstate.Revert(st, "foo")
+	c.Assert(err, IsNil)
+	chg := st.NewChange("revert-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("revert-snap change failed with: %v", chg.Err()))
+
+	// ensure that we use x1 now
+	c.Assert(osutil.FileExists(x1binary), Equals, true)
+	c.Assert(osutil.FileExists(x2binary), Equals, false)
+
+	// ensure that x1,x2 is still there, revert just moves the "current"
+	// pointer
+	for _, fn := range []string{"foo_x2.snap", "foo_x1.snap"} {
+		p := filepath.Join(dirs.SnapBlobDir, fn)
+		c.Assert(osutil.FileExists(p), Equals, true)
+	}
 }

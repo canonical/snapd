@@ -125,7 +125,7 @@ func (s *bootloaderTestSuite) TestBootSystemForUBoot(c *check.C) {
 
 func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
 	s.fakeConf = map[string]string{
-		"snappy_mode": "test_mode",
+		"snap_mode": "test_mode",
 	}
 
 	mode, err := Mode()
@@ -136,7 +136,7 @@ func (s *bootloaderTestSuite) TestModeReturnsSnappyModeFromConf(c *check.C) {
 
 func (s *bootloaderTestSuite) TestOSSnapNameReturnsSnapFromConf(c *check.C) {
 	s.fakeConf = map[string]string{
-		"snappy_os": "test-os-snap.developer_version.snap",
+		"snap_core": "test-os-snap.developer_version.snap",
 	}
 
 	osSnapName := OSSnapName(c)
@@ -147,7 +147,7 @@ func (s *bootloaderTestSuite) TestOSSnapNameReturnsSnapFromConf(c *check.C) {
 
 func (s *bootloaderTestSuite) TestSnappyKernelReturnsSnapFromConf(c *check.C) {
 	s.fakeConf = map[string]string{
-		"snappy_kernel": "test-kernel-snap.developer_version.snap",
+		"snap_kernel": "test-kernel-snap.developer_version.snap",
 	}
 
 	snappyOS, err := SnappyKernel()

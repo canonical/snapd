@@ -34,11 +34,11 @@ import (
 )
 
 var (
-	defaultAddr = "localhost:11028"
 	// FIXME: make both hardcoded values configurable via
 	//        e.g. a "foo_1.0.snap.info" file next to the snap
-	defaultDeveloper = "canonical"
-	defaultRevision  = 424242
+	defaultDeveloper   = "canonical"
+	defaultDeveloperID = "canonical"
+	defaultRevision    = 424242
 )
 
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -48,9 +48,8 @@ func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 
 // Store is our snappy software store implementation
 type Store struct {
-	url              string
-	blobDir          string
-	defaultDeveloper string
+	url     string
+	blobDir string
 
 	srv *graceful.Server
 
@@ -61,9 +60,8 @@ type Store struct {
 func NewStore(blobDir, addr string) *Store {
 	mux := http.NewServeMux()
 	store := &Store{
-		blobDir:          blobDir,
-		snaps:            make(map[string]string),
-		defaultDeveloper: defaultDeveloper,
+		blobDir: blobDir,
+		snaps:   make(map[string]string),
 
 		url: fmt.Sprintf("http://%s", addr),
 		srv: &graceful.Server{
@@ -78,8 +76,8 @@ func NewStore(blobDir, addr string) *Store {
 
 	mux.HandleFunc("/", rootEndpoint)
 	mux.HandleFunc("/search", store.searchEndpoint)
-	mux.HandleFunc("/package/", store.detailsEndpoint)
-	mux.HandleFunc("/metadata", store.bulkEndpoint)
+	mux.HandleFunc("/snaps/details/", store.detailsEndpoint)
+	mux.HandleFunc("/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
 
 	return store
@@ -88,6 +86,10 @@ func NewStore(blobDir, addr string) *Store {
 // URL returns the base-url that the store is listening on
 func (s *Store) URL() string {
 	return s.url
+}
+
+func (s *Store) SnapsDir() string {
+	return s.blobDir
 }
 
 // Start listening
@@ -141,40 +143,28 @@ type searchReplyJSON struct {
 }
 
 type detailsReplyJSON struct {
-	Name            string `json:"name"`
 	SnapID          string `json:"snap_id"`
 	PackageName     string `json:"package_name"`
 	Developer       string `json:"origin"`
+	DeveloperID     string `json:"developer_id"`
 	AnonDownloadURL string `json:"anon_download_url"`
 	DownloadURL     string `json:"download_url"`
 	Version         string `json:"version"`
 	Revision        int    `json:"revision"`
 }
 
-func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
+func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(501)
-	fmt.Fprintf(w, "details not implemented anymore")
-	return
+	fmt.Fprintf(w, "search not implemented")
 }
 
-func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
-	query := req.URL.Query()
-	q := query.Get("q")
-	if !strings.HasPrefix(q, "package_name:\"") {
-		w.WriteHeader(501)
-		fmt.Fprintf(w, "full search not implemented")
-		return
-
-	}
-	if !strings.HasSuffix(q, "\"") {
-		w.WriteHeader(400)
-		fmt.Fprintf(w, "missing final \"")
-		return
+func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
+	pkg := strings.TrimPrefix(req.URL.Path, "/snaps/details/")
+	if pkg == req.URL.Path {
+		panic("how?")
 	}
 
 	s.refreshSnaps()
-
-	pkg := q[len("package_name:\"") : len(q)-1]
 
 	fn, ok := s.snaps[pkg]
 	if !ok {
@@ -195,26 +185,20 @@ func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 
 	details := detailsReplyJSON{
-		Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
 		PackageName:     info.Name(),
 		Developer:       defaultDeveloper,
+		DeveloperID:     defaultDeveloperID,
 		AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 		DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 		Version:         info.Version,
 		Revision:        makeRevision(info),
 	}
 
-	replyData := searchReplyJSON{
-		Payload: searchPayloadJSON{
-			Packages: []detailsReplyJSON{details},
-		},
-	}
-
 	// use indent because this is a development tool, output
 	// should look nice
-	out, err := json.MarshalIndent(replyData, "", "    ")
+	out, err := json.MarshalIndent(details, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can marshal: %v: %v", replyData, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("can't marshal: %v: %v", details, err), http.StatusBadRequest)
 		return
 	}
 	w.Write(out)
@@ -268,6 +252,7 @@ var snapIDtoName = map[string]string{
 	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
 	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
 	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
+	"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",
 }
 
 func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -306,10 +291,10 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			}
 
 			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
-				Name:            fmt.Sprintf("%s.%s", info.Name(), s.defaultDeveloper),
 				SnapID:          pkg.SnapID,
 				PackageName:     info.Name(),
 				Developer:       defaultDeveloper,
+				DeveloperID:     defaultDeveloperID,
 				DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				Version:         info.Version,

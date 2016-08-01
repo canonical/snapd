@@ -90,7 +90,9 @@ func (s *SquashfsTestSuite) TestHashFile(c *C) {
 	snap := makeSnap(c, "name: test", "")
 	size, digest, err := snap.HashDigest(crypto.SHA256)
 	c.Assert(err, IsNil)
-	c.Check(size, Equals, uint64(4096))
+	fileInfo, err := os.Stat(snap.Path())
+	c.Assert(err, IsNil)
+	c.Check(int64(size), Equals, fileInfo.Size())
 	c.Check(digest, HasLen, crypto.SHA256.Size())
 }
 

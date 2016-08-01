@@ -1,0 +1,19 @@
+summary: Check that enable/disable works
+
+execute: |
+    echo "Install test-snapd-tools and ensure it runs"
+    snap install test-snapd-tools
+    test-snapd-tools.echo Hello|grep Hello
+    echo "Disable test-snapd-tools and ensure it is listed as disabled"
+    snap disable test-snapd-tools|grep disabled
+
+    echo "Ensure the test-snapd-tools command is no longer there"
+    if ls /snap/bin/test-snapd-tools*; then
+        echo "test-snapd-tools binaries are not disabled"
+        exit 1
+    fi
+
+    echo "Enable test-snapd-tools again and ensure it is no longer listed as disabled"
+    snap enable test-snapd-tools|grep -v disabled
+    echo "Ensure test-snapd-tools runs normally after it was enabled"
+    test-snapd-tools.echo Hello |grep Hello

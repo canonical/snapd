@@ -74,8 +74,8 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	}
 
 	si := &snap.SideInfo{
-		OfficialName: "ubuntu-kernel",
-		Revision:     snap.R(42),
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
 	}
 	snap := snaptest.MockSnap(c, packageKernel, si)
 	snaptest.PopulateDir(snap.MountDir(), files)
@@ -117,8 +117,8 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		{"meta/kernel.yaml", "version: 4.2"},
 	}
 	si := &snap.SideInfo{
-		OfficialName: "ubuntu-kernel",
-		Revision:     snap.R(42),
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
 	}
 	snap := snaptest.MockSnap(c, packageKernel, si)
 	snaptest.PopulateDir(snap.MountDir(), files)
@@ -158,15 +158,15 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 
 	info := &snap.Info{}
 	info.Type = snap.TypeOS
-	info.OfficialName = "core"
+	info.RealName = "core"
 	info.Revision = snap.R(100)
 
 	err := boot.SetNextBoot(info)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_os":   "core_100.snap",
-		"snappy_mode": "try",
+		"snap_try_core": "core_100.snap",
+		"snap_mode":     "try",
 	})
 
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
@@ -178,22 +178,22 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 
 	info := &snap.Info{}
 	info.Type = snap.TypeKernel
-	info.OfficialName = "krnl"
+	info.RealName = "krnl"
 	info.Revision = snap.R(42)
 
 	err := boot.SetNextBoot(info)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_kernel": "krnl_42.snap",
-		"snappy_mode":   "try",
+		"snap_try_kernel": "krnl_42.snap",
+		"snap_mode":       "try",
 	})
 
-	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_40.snap"
-	s.bootloader.BootVars["snappy_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snap_kernel"] = "krnl_40.snap"
+	s.bootloader.BootVars["snap_try_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
 
 	// simulate good boot
-	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
 }

@@ -37,6 +37,7 @@ var allInterfaces = []interfaces.Interface{
 	&SerialPortInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
+	NewHardwareObserveInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),

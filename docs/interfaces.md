@@ -204,3 +204,10 @@ Can manage timeservers directly separate from config ubuntu-core.
 
 Usage: reserved
 Auto-Connect: no
+
+### hardware-observe
+
+Can query hardware information from the system.
+
+Usage: reserved
+Auto-Connect: no
