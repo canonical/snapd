@@ -139,9 +139,9 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 	invalidPublicKeyTests := []struct{ body, expectedErr string }{
 		{"", "empty public key"},
 		{"stuff", "public key: expected format and base64 data separated by space"},
-		{"openpgp _", "public key: could not decode base64 data: .*"},
+		{"openpgp _", "public key: cannot decode base64 data: .*"},
 		{strings.Replace(aks.pubKeyBody, "openpgp", "mystery", 1), `unsupported public key format: "mystery"`},
-		{"openpgp anVuaw==", "could not decode public key data: .*"},
+		{"openpgp anVuaw==", "cannot decode public key data: .*"},
 	}
 
 	for _, test := range invalidPublicKeyTests {
@@ -209,7 +209,7 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "canonical",
 		"display-name": "Acct1",
 		"account-id":   "acc-id1",
@@ -227,7 +227,7 @@ func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -249,7 +249,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 func (aks *accountKeySuite) TestAccountKeyCheckNoAccount(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -273,7 +273,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	storeDB := assertstest.NewSigningDB("canonical", trustedKey)
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
 		"public-key-fingerprint": aks.fp,
@@ -290,7 +290,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -340,4 +340,26 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until), Equals, false)
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, -1, 0)), Equals, true)
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, 1, 0)), Equals, false)
+}
+
+func (aks *accountKeySuite) TestPrerequisites(c *C) {
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
+		aks.sinceLine +
+		aks.untilLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 1)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"acc-id1"},
+	})
 }
