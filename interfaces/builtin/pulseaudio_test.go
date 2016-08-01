@@ -86,6 +86,9 @@ func (s *PulseAudioInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 }
 
 func (s *PulseAudioInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
