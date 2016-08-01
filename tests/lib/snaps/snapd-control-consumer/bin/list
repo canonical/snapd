@@ -2,7 +2,6 @@
 
 import socket
 import sys
-import time
 
 def run():
     clientsocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
