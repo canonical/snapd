@@ -59,11 +59,6 @@ slots:
     interface: dbus-app
     system:
     - org.test-system
-plugs:
-  test-plug:
-    interface: dbus-app
-    session:
-    - org.test-slot
 
 apps:
   test-provider:
@@ -75,9 +70,6 @@ apps:
   test-system-provider:
     slots:
     - test-system
-  test-consumer:
-    plugs:
-    - test-plug
 `))
 	c.Assert(err, IsNil)
 	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["test-plug"]}
