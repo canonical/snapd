@@ -82,7 +82,7 @@ func checkAssertType(assertType *AssertionType) error {
 }
 
 // use 'defl' default if missing
-func checkInteger(headers map[string]interface{}, name string, defl int) (int, error) {
+func checkIntWithDefault(headers map[string]interface{}, name string, defl int) (int, error) {
 	value, ok := headers[name]
 	if !ok {
 		return defl, nil
@@ -96,6 +96,18 @@ func checkInteger(headers map[string]interface{}, name string, defl int) (int, e
 		return -1, fmt.Errorf("%q header is not an integer: %v", name, s)
 	}
 	return m, nil
+}
+
+func checkInt(headers map[string]interface{}, name string) (int, error) {
+	valueStr, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return -1, err
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return -1, fmt.Errorf("%q header is not an integer: %v", name, valueStr)
+	}
+	return value, nil
 }
 
 func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, error) {
