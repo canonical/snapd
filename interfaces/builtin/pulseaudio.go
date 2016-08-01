@@ -120,7 +120,7 @@ func (iface *PulseAudioInterface) Name() string {
 
 func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.MountSecurity:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -139,7 +139,7 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		}
 	case interfaces.SecuritySecComp:
 		return pulseaudioConnectedPlugSecComp, nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.MountSecurity:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -152,7 +152,7 @@ func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 		return pulseaudioPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return pulseaudioPermanentSlotSecComp, nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.MountSecurity:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -161,7 +161,7 @@ func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 
 func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.MountSecurity:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
