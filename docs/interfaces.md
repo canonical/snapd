@@ -125,6 +125,14 @@ Attributes:
 * session|system (slot): DBus public bus to register names. Set to list of
   well-known DBus names to bind.
 
+Example slot yaml:
+
+    slots:
+      dbus-app-slot:
+        interface: dbus-app
+        session:
+        - org.some.name
+
 ### firewall-control
 
 Can configure firewall. This is restricted because it gives privileged access
