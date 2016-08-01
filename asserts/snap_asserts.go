@@ -20,8 +20,13 @@
 package asserts
 
 import (
+	"crypto"
 	"fmt"
 	"time"
+
+	_ "golang.org/x/crypto/sha3" // expected for digests
+
+	"github.com/snapcore/snapd/release"
 )
 
 // TODO: adjust to new designs!
@@ -79,6 +84,13 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 // sanity
 var _ consistencyChecker = (*SnapDeclaration)(nil)
 
+// Prerequisites returns references to this snap-declaration's prerequisite assertions.
+func (snapdcl *SnapDeclaration) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: AccountType, PrimaryKey: []string{snapdcl.PublisherID()}},
+	}
+}
+
 func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 	_, err := checkExistsString(assert.headers, "snap-name")
 	if err != nil {
@@ -109,20 +121,14 @@ type SnapBuild struct {
 	timestamp time.Time
 }
 
-// Series returns the series for which the snap was built.
-func (snapbld *SnapBuild) Series() string {
-	return snapbld.HeaderString("series")
+// SnapSHA3_384 returns the SHA3-384 digest of the snap.
+func (snapbld *SnapBuild) SnapSHA3_384() string {
+	return snapbld.HeaderString("snap-sha3-384")
 }
 
 // SnapID returns the snap id of the snap.
 func (snapbld *SnapBuild) SnapID() string {
 	return snapbld.HeaderString("snap-id")
-}
-
-// SnapDigest returns the digest of the snap. The digest is prefixed with the
-// algorithm used to generate it.
-func (snapbld *SnapBuild) SnapDigest() string {
-	return snapbld.HeaderString("snap-digest")
 }
 
 // SnapSize returns the size of the snap.
@@ -141,9 +147,17 @@ func (snapbld *SnapBuild) Timestamp() time.Time {
 }
 
 func assembleSnapBuild(assert assertionBase) (Assertion, error) {
-	// TODO: more parsing/checking of snap-digest
+	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
+	if err != nil {
+		return nil, err
+	}
 
-	_, err := checkNotEmptyString(assert.headers, "grade")
+	_, err = checkNotEmptyString(assert.headers, "snap-id")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "grade")
 	if err != nil {
 		return nil, err
 	}
@@ -171,25 +185,18 @@ func assembleSnapBuild(assert assertionBase) (Assertion, error) {
 type SnapRevision struct {
 	assertionBase
 	snapSize     uint64
-	snapRevision uint64
+	snapRevision int
 	timestamp    time.Time
 }
 
-// Series returns the series of the snap submitted to and acknowledged by the
-// store.
-func (snaprev *SnapRevision) Series() string {
-	return snaprev.HeaderString("series")
+// SnapSHA3_384 returns the SHA3-384 digest of the snap.
+func (snaprev *SnapRevision) SnapSHA3_384() string {
+	return snaprev.HeaderString("snap-sha3-384")
 }
 
 // SnapID returns the snap id of the snap.
 func (snaprev *SnapRevision) SnapID() string {
 	return snaprev.HeaderString("snap-id")
-}
-
-// SnapDigest returns the digest of the snap submitted to and acknowledged by
-// the store. The digest is prefixed with the algorithm used to generate it.
-func (snaprev *SnapRevision) SnapDigest() string {
-	return snaprev.HeaderString("snap-digest")
 }
 
 // SnapSize returns the size in bytes of the snap submitted to the store.
@@ -198,7 +205,7 @@ func (snaprev *SnapRevision) SnapSize() uint64 {
 }
 
 // SnapRevision returns the revision assigned to this build of the snap.
-func (snaprev *SnapRevision) SnapRevision() uint64 {
+func (snaprev *SnapRevision) SnapRevision() int {
 	return snaprev.snapRevision
 }
 
@@ -229,7 +236,8 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 		return err
 	}
 	_, err = db.Find(SnapDeclarationType, map[string]string{
-		"series":  snaprev.Series(),
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		"series":  release.Series,
 		"snap-id": snaprev.SnapID(),
 	})
 	if err == ErrNotFound {
@@ -244,17 +252,37 @@ func (snaprev *SnapRevision) checkConsistency(db RODatabase, acck *AccountKey) e
 // sanity
 var _ consistencyChecker = (*SnapRevision)(nil)
 
+// Prerequisites returns references to this snap-revision's prerequisite assertions.
+func (snaprev *SnapRevision) Prerequisites() []*Ref {
+	return []*Ref{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, snaprev.SnapID()}},
+		&Ref{Type: AccountType, PrimaryKey: []string{snaprev.DeveloperID()}},
+	}
+}
+
 func assembleSnapRevision(assert assertionBase) (Assertion, error) {
-	// TODO: more parsing/checking of snap-digest
+	_, err := checkDigest(assert.headers, "snap-sha3-384", crypto.SHA3_384)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "snap-id")
+	if err != nil {
+		return nil, err
+	}
 
 	snapSize, err := checkUint(assert.headers, "snap-size", 64)
 	if err != nil {
 		return nil, err
 	}
 
-	snapRevision, err := checkUint(assert.headers, "snap-revision", 64)
+	snapRevision, err := checkInt(assert.headers, "snap-revision")
 	if err != nil {
 		return nil, err
+	}
+	if snapRevision < 1 {
+		return nil, fmt.Errorf(`"snap-revision" header must be >=1: %d`, snapRevision)
 	}
 
 	_, err = checkNotEmptyString(assert.headers, "developer-id")
