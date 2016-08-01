@@ -111,7 +111,7 @@ func (iface *DbusAppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 }
 
 func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	dbusAppBusNames, err := iface.GetBusNames(slot.Attrs)
+	dbusAppBusNames, err := iface.getBusNames(slot.Attrs)
 	if err != nil {
 		return nil, err
 	}
@@ -165,7 +165,7 @@ func (iface *DbusAppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 }
 
 // Obtain yaml-specified DBus well-known names by bus
-func (iface *DbusAppInterface) GetBusNames(attribs map[string]interface{}) (map[string][]string, error) {
+func (iface *DbusAppInterface) getBusNames(attribs map[string]interface{}) (map[string][]string, error) {
 	busNames := make(map[string][]string)
 	for attr := range attribs {
 		bus := attr
@@ -204,7 +204,7 @@ func (iface *DbusAppInterface) GetBusNames(attribs map[string]interface{}) (map[
 
 // verify that name for bus is in list
 func (iface *DbusAppInterface) verifyNameInAttributes(bus string, name string, attribs map[string]interface{}) bool {
-	otherBusNames, err := iface.GetBusNames(attribs)
+	otherBusNames, err := iface.getBusNames(attribs)
 	if err != nil {
 		return false
 	}
@@ -262,7 +262,7 @@ func (iface *DbusAppInterface) SanitizePlug(plug *interfaces.Plug) error {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 
-	_, err := iface.GetBusNames(plug.Attrs)
+	_, err := iface.getBusNames(plug.Attrs)
 	return err
 }
 
@@ -271,7 +271,7 @@ func (iface *DbusAppInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 
-	_, err := iface.GetBusNames(slot.Attrs)
+	_, err := iface.getBusNames(slot.Attrs)
 	return err
 }
 
