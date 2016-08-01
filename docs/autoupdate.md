@@ -41,8 +41,8 @@ implementation, via
 
 To check whether the update ran, run
 
-    systemctl status -l snapd.refresh.service
+    systemctl status -l snap.refresh.service
 
 and to view any output from the command run
 
-    sudo journalctl -u snapd.refresh.service
+    sudo journalctl -u snap.refresh.service
