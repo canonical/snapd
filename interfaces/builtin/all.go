@@ -27,7 +27,7 @@ var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BluezInterface{},
 	&ContentInterface{},
-	&DbusBindInterface{},
+	&DbusAppInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&ModemManagerInterface{},
