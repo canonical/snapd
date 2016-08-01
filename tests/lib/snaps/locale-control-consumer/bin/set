@@ -4,7 +4,7 @@ import re
 import sys
 
 def set(key, value):
-    with open("/etc/default/locale", "w") as f:
+    with open("/etc/default/locale", "r+") as f:
         data = f.read()
         f.seek(0)
         f.write(replace(key, value, data))
@@ -12,7 +12,7 @@ def set(key, value):
 
 def replace(key, value, content):
     if key in content:
-        return re.sub(r"^{}=.*$".format(key), "{}={}".format(key, value), content)
+        return re.sub(r"^{}=.*$".format(key), "{}=\"{}\"".format(key, value), content, flags=re.MULTILINE)
     else:
         return "{}\n{}=\"{}\"\n".format(content, key, value)
 
