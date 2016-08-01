@@ -134,7 +134,7 @@ func respToError(resp *http.Response, msg string) error {
 		return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL, oops)
 	}
 
-	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.URL)
+	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
 func getStructFields(s interface{}) []string {
@@ -592,66 +592,58 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 	return info, nil
 }
 
+// A Search is what you do in order to Find something
+type Search struct {
+	Query   string
+	Private bool
+	Prefix  bool
+}
+
 // Find finds  (installable) snaps from the store, matching the
-// given search term.
-func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	// see https://github.com/snapcore/snapd/blob/master/docs/rest.md#v2find
+// given Search.
+func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
+	searchTerm := search.Query
+
+	if search.Private && user == nil {
+		return nil, ErrUnauthenticated
+	}
 
 	searchTerm = strings.TrimSpace(searchTerm)
-
-	prefix := "name"
-	exact := false
-	if idx := strings.IndexRune(searchTerm, ':'); idx >= 0 {
-		prefix = searchTerm[:idx]
-		searchTerm = searchTerm[idx+1:]
-
-		if prefix == "name" {
-			trimmed := strings.TrimSuffix(searchTerm, "*")
-			if len(trimmed) == len(searchTerm) {
-				exact = true
-			}
-			searchTerm = trimmed
-		}
-	}
 
 	if searchTerm == "" {
 		return nil, ErrEmptyQuery
 	}
 
-	if strings.ContainsAny(searchTerm, ":*") {
+	// these characters might have special meaning on the search
+	// server, and don't form part of a reasonable search, so
+	// abort if they're included.
+	//
+	// "-" might also be special on the server, but it's also a
+	// valid part of a package name, so we let it pass
+	if strings.ContainsAny(searchTerm, `+=&|><!(){}[]^"~*?:\/`) {
 		return nil, ErrBadQuery
-	}
-
-	if exact {
-		// this is actually a request for a single snap's details; short-cut out
-		snapInfo, err := s.Snap(searchTerm, channel, false, user)
-		switch err {
-		case nil:
-			return []*snap.Info{snapInfo}, nil
-		case ErrSnapNotFound:
-			// not finding something is an error for Snap but not for Find
-			return nil, nil
-		default:
-			return nil, err
-		}
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
 	q := u.Query()
 
-	switch prefix {
-	case "name":
+	if search.Private {
+		if search.Prefix {
+			// The store only supports "fuzzy" search for private snaps.
+			// See http://search.apps.ubuntu.com/docs/
+			return nil, ErrBadQuery
+		}
+
+		q.Set("private", "true")
+	}
+
+	if search.Prefix {
 		q.Set("name", searchTerm)
-	case "text":
+	} else {
 		q.Set("q", searchTerm)
-	default:
-		return nil, ErrBadPrefix
 	}
 
 	q.Set("confinement", "strict")
-	if channel != "" {
-		q.Set("channel", channel)
-	}
 	u.RawQuery = q.Encode()
 
 	req, err := s.newRequest("GET", u.String(), nil, user)
@@ -685,7 +677,7 @@ func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, channel, user)
+	err = s.decoratePurchases(snaps, "", user)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
