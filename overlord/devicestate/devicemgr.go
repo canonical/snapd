@@ -144,7 +144,7 @@ var (
 	keyLength = 4096
 	// XXX: a 2nd different URL for nonce?
 	// TODO: this will come as config from the gadget snap
-	serialRequestURL = "https://serial.request"  // XXX dummy value!
+	serialRequestURL = "https://serial.request" // XXX dummy value!
 )
 
 func doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
