@@ -207,6 +207,7 @@ var defaultTemplate = []byte(`
   owner @{PROC}/@{pid}/cmdline r,
 
   # Miscellaneous accesses
+  @{PROC}/version_signature r,
   /etc/machine-id r,
   /etc/mime.types r,
   @{PROC}/ r,
