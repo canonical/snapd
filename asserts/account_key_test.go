@@ -72,9 +72,10 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 		"public-key-id: " + aks.keyid + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
 		aks.pubKeyBody + "\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.AccountKeyType)
@@ -96,9 +97,10 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		"public-key-id: " + aks.keyid + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
 		aks.pubKeyBody + "\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
@@ -145,9 +147,10 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 
 	for _, test := range invalidPublicKeyTests {
 		invalid := headers +
-			fmt.Sprintf("body-length: %v", len(test.body)) + "\n\n" +
+			fmt.Sprintf("body-length: %v", len(test.body)) + "\n" +
+			"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
 			test.body + "\n\n" +
-			"openpgp c2ln"
+			"AXNpZw=="
 
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, accKeyErrPrefix+test.expectedErr)
@@ -161,9 +164,10 @@ func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
 		"public-key-id: aa\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
 		aks.pubKeyBody + "\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, accKeyErrPrefix+"public key does not match provided key id")
@@ -302,9 +306,10 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 		"public-key-id: " + aks.keyid + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
 		aks.pubKeyBody + "\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 
@@ -326,9 +331,10 @@ func (aks *accountKeySuite) TestPrerequisites(c *C) {
 		"public-key-id: " + aks.keyid + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
 		aks.pubKeyBody + "\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 
