@@ -40,7 +40,7 @@ execute: |
         echo "Expected error with plug disconnected"
         exit 1
     fi
-    cat snapd.error | grep -q "Permission denied"
+    grep -q "Permission denied" snapd.error
 
     echo "================================================"
 
