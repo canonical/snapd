@@ -4,6 +4,9 @@ summary: Basic snapd-control consumer snap
 description: A basic snap declaring a plug on snapd-control
 
 apps:
-  snapd-control-consumer:
-    command: bin/consumer
+  install:
+    command: bin/install
+    plugs: [network, snapd-control]
+  list:
+    command: bin/list
     plugs: [network, snapd-control]
