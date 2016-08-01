@@ -29,8 +29,9 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/tests/lib/fakestore/store"
+
 	"github.com/snapcore/snapd/integration-tests/testutils/cli"
-	"github.com/snapcore/snapd/integration-tests/testutils/store"
 )
 
 // ChangeFakeUpdateSnap is the type of the functions used to modify a snap before it is served as

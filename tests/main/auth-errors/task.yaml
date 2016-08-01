@@ -1,0 +1,24 @@
+summary: Check that the authentication errors are properly reported.
+
+prepare: |
+    mkdir -p /home/test/.snap
+    echo -n "{\"macaroon\":\"yummy\",\"discharges\":[ \"some \"]}" > /home/test/.snap/auth.json
+
+restore: |
+    rm -rf /home/test/.snap install.output connect.output
+
+execute: |
+    echo "An unauthenticated user cannot install snaps"
+    if sudo -i -u test /bin/sh -c "snap install test-snapd-tools 2>${PWD}/install.output"; then
+        echo "Expected error installing snap from unauthenticated account"
+        exit 1
+    fi
+    expected="error: access denied (snap login --help)"
+    [ "$(cat install.output)" = "$expected" ]
+
+    echo "An unauthenticated user cannot connect plugs to slots"
+    if sudo -i -u test /bin/sh -c "snap connect foo:bar baz:fromp 2>${PWD}/connect.output"; then
+        echo "Expected error connecting plugs to slots from unauthenticated account"
+        exit 1
+    fi
+    [ "$(cat connect.output)" = "$expected" ]

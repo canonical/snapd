@@ -29,15 +29,25 @@ prepare: |
     apt purge -y snapd || true
     apt update
     # utilities
-    apt install -y devscripts jq
+    apt install -y devscripts expect jq software-properties-common
+
+    # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
+    # in trusty
+    add-apt-repository --update ppa:snappy-dev/image
+    # this should not be needed but apparently it is :/
+    apt update
+
     apt build-dep -y ./
+
+    # and remove the image PPA again
+    add-apt-repository --remove ppa:snappy-dev/image
 
     # increment version so upgrade can work
     dch -i "testing build"
 
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
     chown test.test -R ..
-    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
+    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip"
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
@@ -63,10 +73,10 @@ suites:
             # Snapshot the state including core.
             if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
                 ! snap list | grep core || exit 1
-                snap install hello-world
+                snap install test-snapd-tools
                 snap list | grep core
-                snap remove hello-world
-                rmdir /snap/hello-world # Should be done by snapd.
+                snap remove test-snapd-tools
+                rmdir /snap/test-snapd-tools # Should be done by snapd.
 
                 systemctl stop snapd.service snapd.socket
                 systemctl daemon-reload

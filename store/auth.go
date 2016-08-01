@@ -20,25 +20,27 @@
 package store
 
 import (
+	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
+
+	"gopkg.in/macaroon.v1"
 )
 
 var (
 	myappsAPIBase = myappsURL()
-	// MyAppsPackageAccessAPI points to MyApps endpoint to get a package access macaroon
-	MyAppsPackageAccessAPI = myappsAPIBase + "api/2.0/acl/package_access/"
-	ubuntuoneAPIBase       = authURL()
+	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
+	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
+	ubuntuoneAPIBase     = authURL()
+	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
+	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
 	UbuntuoneDischargeAPI = ubuntuoneAPIBase + "/tokens/discharge"
+	// UbuntuoneRefreshDischargeAPI points to SSO endpoint to refresh a discharge macaroon
+	UbuntuoneRefreshDischargeAPI = ubuntuoneAPIBase + "/tokens/refresh"
 )
-
-// Authenticator interface to set required authorization headers for requests to the store
-type Authenticator interface {
-	Authenticate(r *http.Request)
-}
 
 type ssoMsg struct {
 	Code    string `json:"code"`
@@ -55,21 +57,63 @@ func httpStatusCodeClientError(httpStatusCode int) bool {
 	return httpStatusCode/100 == 4
 }
 
-// RequestPackageAccessMacaroon requests a macaroon for accessing package data from the ubuntu store.
-func RequestPackageAccessMacaroon() (string, error) {
-	const errorPrefix = "cannot get package access macaroon from store: "
+// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
+func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
+	marshalled, err := m.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
+	return encoded, nil
+}
 
-	emptyJSONData := "{}"
-	req, err := http.NewRequest("POST", MyAppsPackageAccessAPI, strings.NewReader(emptyJSONData))
+// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
+func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
+	var m macaroon.Macaroon
+	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+	err = m.UnmarshalBinary(decoded)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// LoginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
+func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
+	caveatID := ""
+	for _, caveat := range m.Caveats() {
+		if caveat.Location == UbuntuoneLocation {
+			caveatID = caveat.Id
+			break
+		}
+	}
+	if caveatID == "" {
+		return "", fmt.Errorf("missing login caveat")
+	}
+	return caveatID, nil
+}
+
+// RequestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
+func RequestStoreMacaroon() (string, error) {
+	const errorPrefix = "cannot get snap access permission from store: "
+
+	data := map[string]interface{}{
+		"permissions": []string{"package_access", "package_purchase"},
+	}
+	macaroonJSONData, err := json.Marshal(data)
+
+	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -94,33 +138,23 @@ func RequestPackageAccessMacaroon() (string, error) {
 	return responseData.Macaroon, nil
 }
 
-// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
-func DischargeAuthCaveat(username, password, macaroon, otp string) (string, error) {
-	const errorPrefix = "cannot get discharge macaroon from store: "
+func requestDischargeMacaroon(endpoint string, data map[string]string) (string, error) {
+	const errorPrefix = "cannot authenticate on snap store: "
 
-	data := map[string]string{
-		"email":    username,
-		"password": password,
-		"macaroon": macaroon,
-	}
-	if otp != "" {
-		data["otp"] = otp
-	}
 	dischargeJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", UbuntuoneDischargeAPI, strings.NewReader(string(dischargeJSONData)))
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(dischargeJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("accept", "application/json")
-	req.Header.Set("content-type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -163,4 +197,27 @@ func DischargeAuthCaveat(username, password, macaroon, otp string) (string, erro
 		return "", fmt.Errorf(errorPrefix + "empty macaroon returned")
 	}
 	return responseData.Macaroon, nil
+}
+
+// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
+func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+	data := map[string]string{
+		"email":     username,
+		"password":  password,
+		"caveat_id": caveat,
+	}
+	if otp != "" {
+		data["otp"] = otp
+	}
+
+	return requestDischargeMacaroon(UbuntuoneDischargeAPI, data)
+}
+
+// RefreshDischargeMacaroon returns a soft-refreshed discharge macaroon.
+func RefreshDischargeMacaroon(discharge string) (string, error) {
+	data := map[string]string{
+		"discharge_macaroon": discharge,
+	}
+
+	return requestDischargeMacaroon(UbuntuoneRefreshDischargeAPI, data)
 }

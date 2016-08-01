@@ -65,7 +65,7 @@ func localSnapInfo(st *state.State, name string) (*snap.Info, *snapstate.SnapSta
 		return nil, nil, fmt.Errorf("cannot consult state: %v", err)
 	}
 
-	info, err := snapst.CurrentInfo(name)
+	info, err := snapst.CurrentInfo()
 	if err == snapstate.ErrNoCurrent {
 		return nil, nil, errNoSnap
 	}
@@ -90,20 +90,12 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	about := make([]aboutSnap, 0, len(snapStates))
 
 	var firstErr error
-	for name, snapState := range snapStates {
-		info, err := snapState.CurrentInfo(name)
+	for _, snapState := range snapStates {
+		info, err := snapState.CurrentInfo()
 		if err != nil {
-			// FIXME: this is just a tiny step forward to not
-			//        totally break if a snap can no longer
-			//        be found. we will add more smartness to
-			//        this
-			if _, ok := err.(*snap.NotFoundError); ok {
-				continue
-			}
 			// XXX: aggregate instead?
 			if firstErr == nil {
 				firstErr = err
@@ -114,13 +106,6 @@ func allLocalSnapInfos(st *state.State) ([]aboutSnap, error) {
 	}
 
 	return about, firstErr
-}
-
-func effectiveConfinement(snapst *snapstate.SnapState) snap.ConfinementType {
-	if snapst.DevMode() {
-		return snap.DevmodeConfinement
-	}
-	return snap.StrictConfinement
 }
 
 // appJSON contains the json for snap.AppInfo
@@ -160,6 +145,7 @@ func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]inte
 		"trymode":        snapst.TryMode(),
 		"private":        localSnap.Private,
 		"apps":           apps,
+		"broken":         localSnap.Broken,
 	}
 }
 

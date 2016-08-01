@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/macaroon.v1"
 )
 
 type authTestSuite struct{}
@@ -72,39 +73,39 @@ const mockStoreReturnDischarge = `
 
 const mockStoreReturnNoMacaroon = `{}`
 
-func (s *authTestSuite) TestRequestPackageAccessMacaroon(c *C) {
+func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestPackageAccessMacaroon()
+	macaroon, err := RequestStoreMacaroon()
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
 
-func (s *authTestSuite) TestRequestPackageAccessMacaroonMissingData(c *C) {
+func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, mockStoreReturnNoMacaroon)
 	}))
 	defer mockServer.Close()
-	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestPackageAccessMacaroon()
-	c.Assert(err, ErrorMatches, "cannot get package access macaroon from store: empty macaroon returned")
+	macaroon, err := RequestStoreMacaroon()
+	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: empty macaroon returned")
 	c.Assert(macaroon, Equals, "")
 }
 
-func (s *authTestSuite) TestRequestPackageAccessMacaroonError(c *C) {
+func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
 	}))
 	defer mockServer.Close()
-	MyAppsPackageAccessAPI = mockServer.URL + "/acl/package_access/"
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestPackageAccessMacaroon()
-	c.Assert(err, ErrorMatches, "cannot get package access macaroon from store: store server returned status 500")
+	macaroon, err := RequestStoreMacaroon()
+	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: store server returned status 500")
 	c.Assert(macaroon, Equals, "")
 }
 
@@ -115,7 +116,7 @@ func (s *authTestSuite) TestDischargeAuthCaveat(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("guy@example.com", "passwd", "root-macaroon", "")
+	discharge, err := DischargeAuthCaveat("third-party-caveat", "guy@example.com", "passwd", "")
 	c.Assert(err, IsNil)
 	c.Assert(discharge, Equals, "the-discharge-macaroon-serialized-data")
 }
@@ -128,7 +129,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatNeeds2fa(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
+	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
 	c.Assert(err, Equals, ErrAuthenticationNeeds2fa)
 	c.Assert(discharge, Equals, "")
 }
@@ -141,7 +142,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatFails2fa(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
+	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
 	c.Assert(err, Equals, Err2faFailed)
 	c.Assert(discharge, Equals, "")
 }
@@ -154,8 +155,8 @@ func (s *authTestSuite) TestDischargeAuthCaveatInvalidLogin(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
-	c.Assert(err, ErrorMatches, "cannot get discharge macaroon from store: Provided email/password is not correct.")
+	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: Provided email/password is not correct.")
 	c.Assert(discharge, Equals, "")
 }
 
@@ -166,8 +167,8 @@ func (s *authTestSuite) TestDischargeAuthCaveatMissingData(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
-	c.Assert(err, ErrorMatches, "cannot get discharge macaroon from store: empty macaroon returned")
+	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: empty macaroon returned")
 	c.Assert(discharge, Equals, "")
 }
 
@@ -178,7 +179,119 @@ func (s *authTestSuite) TestDischargeAuthCaveatError(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("foo@example.com", "passwd", "root-macaroon", "")
-	c.Assert(err, ErrorMatches, "cannot get discharge macaroon from store: server returned status 500")
+	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: server returned status 500")
 	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestRefreshDischargeMacaroon(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnDischarge)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, IsNil)
+	c.Assert(discharge, Equals, "the-discharge-macaroon-serialized-data")
+}
+
+func (s *authTestSuite) TestRefreshDischargeMacaroonInvalidLogin(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(mockStoreInvalidLoginCode)
+		io.WriteString(w, mockStoreInvalidLogin)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: Provided email/password is not correct.")
+	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNoMacaroon)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: empty macaroon returned")
+	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
+
+	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: server returned status 500")
+	c.Assert(discharge, Equals, "")
+}
+
+func (s *authTestSuite) TestMacaroonSerialize(c *C) {
+	m, err := makeTestMacaroon()
+	c.Check(err, IsNil)
+
+	serialized, err := MacaroonSerialize(m)
+	c.Check(err, IsNil)
+
+	deserialized, err := MacaroonDeserialize(serialized)
+	c.Check(err, IsNil)
+	c.Check(deserialized, DeepEquals, m)
+}
+
+func (s *authTestSuite) TestMacaroonSerializeDeserializeStoreMacaroon(c *C) {
+	// sample serialized macaroon using store server setup.
+	serialized := `MDAxNmxvY2F0aW9uIGxvY2F0aW9uCjAwMTdpZGVudGlmaWVyIHNvbWUgaWQKMDAwZmNpZCBjYXZlYXQKMDAxOWNpZCAzcmQgcGFydHkgY2F2ZWF0CjAwNTF2aWQgcyvpXSVlMnj9wYw5b-WPCLjTnO_8lVzBrRr8tJfu9tOhPORbsEOFyBwPOM_YiiXJ_qh-Pp8HY0HsUueCUY4dxONLIxPWTdMzCjAwMTJjbCByZW1vdGUuY29tCjAwMmZzaWduYXR1cmUgcm_Gdz75wUCWF9KGXZQEANhwfvBcLNt9xXGfAmxurPMK`
+
+	deserialized, err := MacaroonDeserialize(serialized)
+	c.Check(err, IsNil)
+
+	// expected json serialization of the above macaroon
+	jsonData := []byte(`{"caveats":[{"cid":"caveat"},{"cid":"3rd party caveat","vid":"cyvpXSVlMnj9wYw5b-WPCLjTnO_8lVzBrRr8tJfu9tOhPORbsEOFyBwPOM_YiiXJ_qh-Pp8HY0HsUueCUY4dxONLIxPWTdMz","cl":"remote.com"}],"location":"location","identifier":"some id","signature":"726fc6773ef9c1409617d2865d940400d8707ef05c2cdb7dc5719f026c6eacf3"}`)
+
+	var expected macaroon.Macaroon
+	err = expected.UnmarshalJSON(jsonData)
+	c.Check(err, IsNil)
+	c.Check(deserialized, DeepEquals, &expected)
+
+	// reserializing the macaroon should give us the same original store serialization
+	reserialized, err := MacaroonSerialize(deserialized)
+	c.Check(err, IsNil)
+	c.Check(reserialized, Equals, serialized)
+}
+
+func (s *authTestSuite) TestMacaroonDeserializeInvalidData(c *C) {
+	serialized := "invalid-macaroon-data"
+
+	deserialized, err := MacaroonDeserialize(serialized)
+	c.Check(deserialized, IsNil)
+	c.Check(err, NotNil)
+}
+
+func (s *authTestSuite) TestLoginCaveatIDReturnCaveatID(c *C) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Check(err, IsNil)
+	err = m.AddThirdPartyCaveat([]byte("shared-key"), "third-party-caveat", UbuntuoneLocation)
+	c.Check(err, IsNil)
+
+	caveat, err := LoginCaveatID(m)
+	c.Check(err, IsNil)
+	c.Check(caveat, Equals, "third-party-caveat")
+}
+
+func (s *authTestSuite) TestLoginCaveatIDMacaroonMissingCaveat(c *C) {
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Check(err, IsNil)
+	err = m.AddThirdPartyCaveat([]byte("shared-key"), "third-party-caveat", "other-location")
+	c.Check(err, IsNil)
+
+	caveat, err := LoginCaveatID(m)
+	c.Check(err, NotNil)
+	c.Check(caveat, Equals, "")
 }

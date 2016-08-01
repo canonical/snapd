@@ -30,11 +30,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
 type desktopSuite struct {
 	tempdir string
+
+	mockUpdateDesktopDatabase *testutil.MockCmd
 }
 
 var _ = Suite(&desktopSuite{})
@@ -42,6 +45,8 @@ var _ = Suite(&desktopSuite{})
 func (s *desktopSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
+
+	s.mockUpdateDesktopDatabase = testutil.MockCommand(c, "update-desktop-database", "")
 }
 
 func (s *desktopSuite) TearDownTest(c *C) {
@@ -75,6 +80,9 @@ func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 	err = wrappers.AddSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
+		{"update-desktop-database"},
+	})
 }
 
 func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
@@ -90,6 +98,9 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 	err = wrappers.RemoveSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
+		{"update-desktop-database"},
+	})
 }
 
 // sanitize
@@ -99,7 +110,7 @@ type sanitizeDesktopFileSuite struct{}
 var _ = Suite(&sanitizeDesktopFileSuite{})
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeIgnoreNotWhitelisted(c *C) {
-	snap := &snap.Info{SideInfo: snap.SideInfo{OfficialName: "foo", Revision: snap.R(12)}}
+	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(12)}}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 UnknownKey=baz
