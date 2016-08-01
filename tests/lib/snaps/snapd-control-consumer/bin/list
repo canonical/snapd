@@ -8,8 +8,13 @@ def run():
     clientsocket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     clientsocket.connect("/run/snapd.socket")
 
-    clientsocket.sendall('POST /v2/snaps/test-snapd-tools HTTP/1.0\ncontent-type: application-json\n\n{"action": "install"}\n\n'.encode("utf-8"))
+    clientsocket.sendall("""GET http://localhost/v2/snaps HTTP/1.1
+Host: localhost
+User-Agent: agent
+Accept: */*
+
+""".encode("utf-8"))
     return clientsocket.recv(8192)
 
 if __name__ == '__main__':
-    sys.exit(run())
+    print(run())
