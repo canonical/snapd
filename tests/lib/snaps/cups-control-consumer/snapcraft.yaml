@@ -6,7 +6,7 @@ description: A basic snap declaring a plug on cups-control
 apps:
     lpr:
         command: lpr
-        plugs: [cups-control]
+        plugs: [cups-control, network]
 parts:
     lpr:
         plugin: nil
