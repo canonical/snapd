@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+        "bytes"
 )
 
 var mirPermanentSlotAppArmor = []byte(`
@@ -69,6 +70,8 @@ var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserver
 
+/usr/share/applications/ r,
+/run/mir_socket rw,
 /run/user/*/mir_socket rw,
 unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###)
 
@@ -78,6 +81,8 @@ var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserver
 
+/usr/share/applications/ r,
+/run/mir_socket rw,
 /run/user/*/mir_socket rw,
 unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###)
 
