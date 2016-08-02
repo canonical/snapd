@@ -393,6 +393,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateInstallPath",
 		"snapstateTryPath",
 		"snapstateGet",
+		"snapstateUpdateMany",
+		"snapstateRefreshCandidates",
 		"readSnapInfo",
 		"osutilAddExtraSudoUser",
 		"storeUserInfo",
@@ -1257,7 +1259,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
-	inst := &snapInstruction{}
+	inst := &snapInstruction{Snaps: []string{"foo"}}
 
 	type T struct {
 		s    string
@@ -1369,7 +1371,7 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "cannot use devmode and jailmode flags together")
 }
@@ -1396,7 +1398,7 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	restore := release.MockReleaseInfo(&release.OS{ID: "x-devmode-distro"})
 	defer restore()
 
-	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "this system cannot honour the jailmode flag")
 }
@@ -1420,7 +1422,7 @@ func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 		req.Header.Set(k, v)
 	}
 
-	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Assert(rsp.Result.(*errorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
@@ -1557,7 +1559,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		req.Header.Set(k, v)
 	}
 
-	rsp := sideloadSnap(snapsCmd, req, nil).(*resp)
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	n := 1
 	if !hasUbuntuCore {
@@ -1755,7 +1757,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action: "refresh",
-		snap:   "some-snap",
+		Snaps:  []string{"some-snap"},
 		userID: 17,
 	}
 
@@ -1793,9 +1795,9 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action:  "refresh",
-		snap:    "some-snap",
-		userID:  17,
 		DevMode: true,
+		Snaps:   []string{"some-snap"},
+		userID:  17,
 	}
 
 	st := d.overlord.State()
@@ -1809,6 +1811,84 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestPostSnapsOp(c *check.C) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 0)
+		t := s.NewTask("fake-refresh-all", "Refreshing everything")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	buf := bytes.NewBufferString(`{"action": "refresh"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "application/json")
+
+	rsp, ok := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+	c.Check(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(rsp.Change)
+	st.Unlock()
+	c.Check(chg.Summary(), check.Equals, "Refresh all snaps in the system")
+}
+
+func (s *apiSuite) TestRefreshAll(c *check.C) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 0)
+		t := s.NewTask("fake-refresh-all", "Refreshing everything")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "refresh"}
+	st := d.overlord.State()
+	st.Lock()
+	summary, _, err := snapUpdateMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, "Refresh all snaps in the system")
+}
+
+func (s *apiSuite) TestRefreshMany(c *check.C) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-refresh-2", "Refreshing two")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "refresh", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, _, err := snapUpdateMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Refresh snaps "foo", "bar"`)
+}
+
+func (s *apiSuite) TestRefreshMany1(c *check.C) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 1)
+		t := s.NewTask("fake-refresh-1", "Refreshing one")
+		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "refresh", Snaps: []string{"foo"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, _, err := snapUpdateMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Refresh snap "foo"`)
 }
 
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
@@ -1877,7 +1957,7 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action: "install",
-		snap:   "ubuntu-core",
+		Snaps:  []string{"ubuntu-core"},
 	}
 
 	st := d.overlord.State()
@@ -1974,6 +2054,7 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 		Action: "install",
 		// Install the snap in developer mode
 		DevMode: true,
+		Snaps:   []string{"fake"},
 	}
 
 	st := d.overlord.State()
@@ -2000,6 +2081,7 @@ func (s *apiSuite) TestInstallJailMode(c *check.C) {
 	inst := &snapInstruction{
 		Action:   "install",
 		JailMode: true,
+		Snaps:    []string{"fake"},
 	}
 
 	st := d.overlord.State()
@@ -2019,6 +2101,7 @@ func (s *apiSuite) TestInstallJailModeDevModeOS(c *check.C) {
 	inst := &snapInstruction{
 		Action:   "install",
 		JailMode: true,
+		Snaps:    []string{"foo"},
 	}
 
 	st := d.overlord.State()
@@ -2034,6 +2117,7 @@ func (s *apiSuite) TestInstallJailModeDevMode(c *check.C) {
 		Action:   "install",
 		DevMode:  true,
 		JailMode: true,
+		Snaps:    []string{"foo"},
 	}
 
 	st := d.overlord.State()

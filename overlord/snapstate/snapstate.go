@@ -24,11 +24,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"sort"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 // Flags are used to pass additional flags to operations and to keep track of snap modes.
@@ -245,6 +248,122 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	}
 
 	return doInstall(s, &snapst, ss)
+}
+
+// like strings.Contains but assumes the list is sorted
+func contains(ns []string, n string) bool {
+	i := sort.SearchStrings(ns, n)
+	if i >= len(ns) {
+		return false
+	}
+	return ns[i] == n
+}
+
+// RefreshCandidates gets a list of candidates for update
+// (call it with the state lock held)
+func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
+	updates, _, err := refreshCandidates(st, nil, user)
+	return updates, err
+}
+
+func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([]*snap.Info, map[string]*SnapState, error) {
+	snapStates, err := All(st)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sort.Strings(names)
+
+	stateByID := make(map[string]*SnapState, len(snapStates))
+	candidatesInfo := make([]*store.RefreshCandidate, 0, len(snapStates))
+	for _, snapst := range snapStates {
+		if snapst.TryMode() || snapst.DevMode() {
+			// no automatic refreshes for trymode nor devmode
+			continue
+		}
+
+		// FIXME: snaps that are not active are skipped for now
+		//        until we know what we want to do
+		if !snapst.Active {
+			continue
+		}
+
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			// log something maybe?
+			continue
+		}
+
+		if len(names) > 0 && !contains(names, snapInfo.Name()) {
+			continue
+		}
+
+		stateByID[snapInfo.SnapID] = snapst
+
+		// get confinement preference from the snapstate
+		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
+			// the desired channel (not info.Channel!)
+			Channel: snapst.Channel,
+			DevMode: snapst.DevModeAllowed(),
+			Block:   snapst.Block(),
+
+			SnapID:   snapInfo.SnapID,
+			Revision: snapInfo.Revision,
+			Epoch:    snapInfo.Epoch,
+		})
+	}
+
+	theStore := Store(st)
+
+	st.Unlock()
+	updates, err := theStore.ListRefresh(candidatesInfo, user)
+	st.Lock()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return updates, stateByID, nil
+}
+
+// UpdateMany updates everything from the given list of names that the
+// store says is updateable. If the list is empty, update everything.
+// (state must be locked)
+func UpdateMany(st *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	updates, stateByID, err := refreshCandidates(st, names, user)
+	if err != nil {
+		return nil, err
+	}
+
+	tts := make([]*state.TaskSet, 0, len(updates))
+	for _, update := range updates {
+		snapst := stateByID[update.SnapID]
+		// XXX: this check goes away when update-to-local is done
+		if err := checkRevisionIsNew(update.Name(), snapst, update.Revision); err != nil {
+			continue
+		}
+
+		ss := &SnapSetup{
+			Channel:      snapst.Channel,
+			UserID:       userID,
+			Flags:        SnapSetupFlags(snapst.Flags),
+			DownloadInfo: &update.DownloadInfo,
+			SideInfo:     &update.SideInfo,
+		}
+
+		ts, err := doInstall(st, snapst, ss)
+		if err != nil {
+			// log?
+			continue
+		}
+		tts = append(tts, ts)
+	}
+
+	return tts, nil
 }
 
 // Update initiates a change updating a snap.
