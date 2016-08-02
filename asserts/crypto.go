@@ -27,7 +27,6 @@ import (
 	_ "crypto/sha256" // be explicit about supporting SHA256
 	_ "crypto/sha512" // be explicit about needing SHA512
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"time"
@@ -140,17 +139,10 @@ func decodeV1(b []byte, kind string) (packet.Packet, error) {
 }
 
 // Signature is a cryptographic signature.
-type Signature interface {
-	// KeyID() returns a suffix of the signing key fingerprint
-	KeyID() string
-}
+type Signature interface{}
 
 type openpgpSignature struct {
 	sig *packet.Signature
-}
-
-func (opgSig openpgpSignature) KeyID() string {
-	return fmt.Sprintf("%016x", *opgSig.sig.IssuerKeyId)
 }
 
 func verifyContentSignature(content []byte, sig Signature, pubKey *packet.PublicKey) error {
@@ -173,18 +165,12 @@ func decodeSignature(signature []byte) (Signature, error) {
 	if !ok {
 		return nil, fmt.Errorf("expected signature, got instead: %T", pkt)
 	}
-	if sig.IssuerKeyId == nil {
-		return nil, fmt.Errorf("expected issuer key id in signature")
-	}
 	return openpgpSignature{sig}, nil
 }
 
 // PublicKey is the public part of a cryptographic private/public key pair.
 type PublicKey interface {
-	// ID returns the id of the key as used to match signatures to their signing key.
-	ID() string
-
-	// SHA3_384 returns the hash of the key  used to match signatures to their signing key.
+	// SHA3_384 returns the hash of the key used for lookup.
 	SHA3_384() string
 
 	// verify verifies signature is valid for content using the key.
@@ -195,17 +181,7 @@ type PublicKey interface {
 
 type openpgpPubKey struct {
 	pubKey   *packet.PublicKey
-	fp       string
 	sha3_384 string
-}
-
-func (opgPubKey *openpgpPubKey) Fingerprint() string {
-	return opgPubKey.fp
-}
-
-func (opgPubKey *openpgpPubKey) ID() string {
-	// the key id is defined as the 64 bits suffix of the 160 bits fingerprint
-	return opgPubKey.fp[24:40]
 }
 
 func (opgPubKey *openpgpPubKey) SHA3_384() string {
@@ -221,7 +197,6 @@ func (opgPubKey openpgpPubKey) keyEncode(w io.Writer) error {
 }
 
 func newOpenPGPPubKey(intPubKey *packet.PublicKey) *openpgpPubKey {
-	fp := hex.EncodeToString(intPubKey.Fingerprint[:])
 	h := sha3.New384()
 	h.Write(v1Header)
 	err := intPubKey.Serialize(h)
@@ -232,7 +207,7 @@ func newOpenPGPPubKey(intPubKey *packet.PublicKey) *openpgpPubKey {
 	if err != nil {
 		panic("internal error: cannot compute public key sha3-384")
 	}
-	return &openpgpPubKey{pubKey: intPubKey, fp: fp, sha3_384: sha3_384}
+	return &openpgpPubKey{pubKey: intPubKey, sha3_384: sha3_384}
 }
 
 // RSAPublicKey returns a database useable public key out of rsa.PublicKey.
@@ -292,7 +267,6 @@ func (opgPrivK openpgpPrivateKey) sign(content []byte) (*packet.Signature, error
 	sig.PubKeyAlgo = privk.PubKeyAlgo
 	sig.Hash = openpgpConfig.Hash()
 	sig.CreationTime = time.Now()
-	sig.IssuerKeyId = &privk.KeyId
 
 	h := openpgpConfig.Hash().New()
 	h.Write(content)
@@ -344,11 +318,11 @@ func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
 type extPGPPrivateKey struct {
 	pubKey         PublicKey
 	from           string
-	extFingerprint string
-	doSign         func(extFingerprint string, content []byte) ([]byte, error)
+	pgpFingerprint string
+	doSign         func(content []byte) ([]byte, error)
 }
 
-func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(fingerprint string, content []byte) ([]byte, error)) (PrivateKey, error) {
+func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(content []byte) ([]byte, error)) (*extPGPPrivateKey, error) {
 	var pubKey *packet.PublicKey
 
 	rd := packet.NewReader(exportedPubKeyStream)
@@ -390,9 +364,13 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(
 	return &extPGPPrivateKey{
 		pubKey:         RSAPublicKey(rsaPubKey),
 		from:           from,
+		pgpFingerprint: fmt.Sprintf("%X", pubKey.Fingerprint),
 		doSign:         sign,
-		extFingerprint: fmt.Sprintf("%x", pubKey.Fingerprint),
 	}, nil
+}
+
+func (expk *extPGPPrivateKey) fingerprint() string {
+	return expk.pgpFingerprint
 }
 
 func (expk *extPGPPrivateKey) PublicKey() PublicKey {
@@ -404,7 +382,7 @@ func (expk *extPGPPrivateKey) keyEncode(w io.Writer) error {
 }
 
 func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
-	out, err := expk.doSign(expk.extFingerprint, content)
+	out, err := expk.doSign(content)
 	if err != nil {
 		return nil, err
 	}
@@ -422,16 +400,6 @@ func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
 	}
 
 	opgSig := openpgpSignature{sig}
-
-	if sig.IssuerKeyId == nil {
-		return nil, fmt.Errorf(badSig + "no key id in the signature")
-	}
-
-	sigKeyID := opgSig.KeyID()
-	wantedID := expk.pubKey.ID()
-	if sigKeyID != wantedID {
-		return nil, fmt.Errorf(badSig+"wrong key id (expected %q): %s", wantedID, sigKeyID)
-	}
 
 	if sig.Hash != crypto.SHA512 {
 		return nil, fmt.Errorf(badSig + "expected SHA512 digest")

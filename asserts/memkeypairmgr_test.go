@@ -37,11 +37,11 @@ func (mkms *memKeypairMgtSuite) SetUpTest(c *C) {
 
 func (mkms *memKeypairMgtSuite) TestPutAndGet(c *C) {
 	pk1 := testPrivKey1
-	keyID := pk1.PublicKey().ID()
+	keyHash := pk1.PublicKey().SHA3_384()
 	err := mkms.keypairMgr.Put("auth-id1", pk1)
 	c.Assert(err, IsNil)
 
-	got, err := mkms.keypairMgr.Get("auth-id1", keyID)
+	got, err := mkms.keypairMgr.Get("auth-id1", keyHash)
 	c.Assert(err, IsNil)
 	c.Assert(got, NotNil)
 	c.Check(got.PublicKey().SHA3_384(), Equals, pk1.PublicKey().SHA3_384())
@@ -53,21 +53,21 @@ func (mkms *memKeypairMgtSuite) TestPutAlreadyExists(c *C) {
 	c.Assert(err, IsNil)
 
 	err = mkms.keypairMgr.Put("auth-id1", pk1)
-	c.Check(err, ErrorMatches, "key pair with given key id already exists")
+	c.Check(err, ErrorMatches, "key pair with given key hash already exists")
 }
 
 func (mkms *memKeypairMgtSuite) TestGetNotFound(c *C) {
 	pk1 := testPrivKey1
-	keyID := pk1.PublicKey().ID()
+	keyHash := pk1.PublicKey().SHA3_384()
 
-	got, err := mkms.keypairMgr.Get("auth-id1", keyID)
+	got, err := mkms.keypairMgr.Get("auth-id1", keyHash)
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "cannot find key pair")
 
 	err = mkms.keypairMgr.Put("auth-id1", pk1)
 	c.Assert(err, IsNil)
 
-	got, err = mkms.keypairMgr.Get("auth-id1", keyID+"x")
+	got, err = mkms.keypairMgr.Get("auth-id1", keyHash+"x")
 	c.Check(got, IsNil)
 	c.Check(err, ErrorMatches, "cannot find key pair")
 }

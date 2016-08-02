@@ -34,7 +34,7 @@ import (
 
 type accountKeySuite struct {
 	pubKeyBody           string
-	keyid                string
+	keyHash              string
 	since, until         time.Time
 	sinceLine, untilLine string
 }
@@ -50,9 +50,9 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	pk := testPrivKey1
 	err = accDb.ImportKey("acc-id1", pk)
 	c.Assert(err, IsNil)
-	aks.keyid = pk.PublicKey().ID()
+	aks.keyHash = pk.PublicKey().SHA3_384()
 
-	pubKey, err := accDb.PublicKey("acc-id1", aks.keyid)
+	pubKey, err := accDb.PublicKey("acc-id1", aks.keyHash)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
@@ -69,7 +69,7 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
-		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-sha3-384: " + aks.keyHash + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
@@ -81,7 +81,7 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(a.Type(), Equals, asserts.AccountKeyType)
 	accKey := a.(*asserts.AccountKey)
 	c.Check(accKey.AccountID(), Equals, "acc-id1")
-	c.Check(accKey.PublicKeyID(), Equals, aks.keyid)
+	c.Check(accKey.PublicKeySHA3_384(), Equals, aks.keyHash)
 	c.Check(accKey.Since(), Equals, aks.since)
 	c.Check(accKey.Until(), Equals, aks.until)
 }
@@ -94,7 +94,7 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
-		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-sha3-384: " + aks.keyHash + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
@@ -105,8 +105,8 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
 		{"account-id: acc-id1\n", "account-id: \n", `"account-id" header should not be empty`},
-		{"public-key-id: " + aks.keyid + "\n", "", `"public-key-id" header is mandatory`},
-		{"public-key-id: " + aks.keyid + "\n", "public-key-id: \n", `"public-key-id" header should not be empty`},
+		{"public-key-sha3-384: " + aks.keyHash + "\n", "", `"public-key-sha3-384" header is mandatory`},
+		{"public-key-sha3-384: " + aks.keyHash + "\n", "public-key-sha3-384: \n", `"public-key-sha3-384" header should not be empty`},
 		{aks.sinceLine, "", `"since" header is mandatory`},
 		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
 		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
@@ -128,7 +128,7 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 	headers := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
-		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-sha3-384: " + aks.keyHash + "\n" +
 		aks.sinceLine +
 		aks.untilLine
 
@@ -157,11 +157,11 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 	}
 }
 
-func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
+func (aks *accountKeySuite) TestDecodeKeyHashMismatch(c *C) {
 	invalid := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
-		"public-key-id: aa\n" +
+		"public-key-sha3-384: aa\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
@@ -170,7 +170,7 @@ func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
 		"AXNpZw=="
 
 	_, err := asserts.Decode([]byte(invalid))
-	c.Check(err, ErrorMatches, accKeyErrPrefix+"public key does not match provided key id")
+	c.Check(err, ErrorMatches, accKeyErrPrefix+"public key does not match provided key hash")
 }
 
 func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
@@ -214,11 +214,11 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	trustedKey := testPrivKey0
 
 	headers := map[string]interface{}{
-		"authority-id":  "canonical",
-		"account-id":    "acc-id1",
-		"public-key-id": aks.keyid,
-		"since":         aks.since.Format(time.RFC3339),
-		"until":         aks.until.Format(time.RFC3339),
+		"authority-id":        "canonical",
+		"account-id":          "acc-id1",
+		"public-key-sha3-384": aks.keyHash,
+		"since":               aks.since.Format(time.RFC3339),
+		"until":               aks.until.Format(time.RFC3339),
 	}
 	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
@@ -235,11 +235,11 @@ func (aks *accountKeySuite) TestAccountKeyCheckNoAccount(c *C) {
 	trustedKey := testPrivKey0
 
 	headers := map[string]interface{}{
-		"authority-id":  "canonical",
-		"account-id":    "acc-id1",
-		"public-key-id": aks.keyid,
-		"since":         aks.since.Format(time.RFC3339),
-		"until":         aks.until.Format(time.RFC3339),
+		"authority-id":        "canonical",
+		"account-id":          "acc-id1",
+		"public-key-sha3-384": aks.keyHash,
+		"since":               aks.since.Format(time.RFC3339),
+		"until":               aks.until.Format(time.RFC3339),
 	}
 	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
@@ -258,10 +258,10 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
 	headers := map[string]interface{}{
-		"account-id":    "acc-id1",
-		"public-key-id": aks.keyid,
-		"since":         aks.since.Format(time.RFC3339),
-		"until":         aks.until.Format(time.RFC3339),
+		"account-id":          "acc-id1",
+		"public-key-sha3-384": aks.keyHash,
+		"since":               aks.since.Format(time.RFC3339),
+		"until":               aks.until.Format(time.RFC3339),
 	}
 	accKey, err := otherDB.Sign(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), "")
 	c.Assert(err, IsNil)
@@ -274,11 +274,11 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	trustedKey := testPrivKey0
 
 	headers := map[string]interface{}{
-		"authority-id":  "canonical",
-		"account-id":    "acc-id1",
-		"public-key-id": aks.keyid,
-		"since":         aks.since.Format(time.RFC3339),
-		"until":         aks.until.Format(time.RFC3339),
+		"authority-id":        "canonical",
+		"account-id":          "acc-id1",
+		"public-key-sha3-384": aks.keyHash,
+		"since":               aks.since.Format(time.RFC3339),
+		"until":               aks.until.Format(time.RFC3339),
 	}
 	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
 	c.Assert(err, IsNil)
@@ -291,8 +291,8 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	c.Assert(err, IsNil)
 
 	found, err := db.Find(asserts.AccountKeyType, map[string]string{
-		"account-id":    "acc-id1",
-		"public-key-id": aks.keyid,
+		"account-id":          "acc-id1",
+		"public-key-sha3-384": aks.keyHash,
 	})
 	c.Assert(err, IsNil)
 	c.Assert(found, NotNil)
@@ -303,7 +303,7 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
-		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-sha3-384: " + aks.keyHash + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
@@ -328,7 +328,7 @@ func (aks *accountKeySuite) TestPrerequisites(c *C) {
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
-		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-sha3-384: " + aks.keyHash + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
