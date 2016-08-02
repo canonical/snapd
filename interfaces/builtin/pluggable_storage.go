@@ -34,7 +34,11 @@ capability sys_admin,
 
 # Mount/unmount USB storage devices
 mount /dev/sd* -> /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
-umount /dev/sd* -> /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
+umount /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
+
+# Mount/unmount SD cards
+mount /dev/mmcblk* -> /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
+umount /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
 
 # Allow calling the system mount/umount binaries to do the dirty work
 /bin/mount ixr,
@@ -45,6 +49,9 @@ umount /dev/sd* -> /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
 
 # USB dev files (sda, sdb, etc...)
 /dev/sd* r,
+
+# SD card dev files
+/dev/mmcblk* r,
 `
 
 const pluggableStorageConnectedPlugSecComp = `
