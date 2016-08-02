@@ -319,6 +319,7 @@ type extPGPPrivateKey struct {
 	pubKey         PublicKey
 	from           string
 	pgpFingerprint string
+	bitLen         int
 	doSign         func(content []byte) ([]byte, error)
 }
 
@@ -356,15 +357,11 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(
 		return nil, fmt.Errorf("not a RSA key")
 	}
 
-	bitLen := rsaPubKey.N.BitLen()
-	if bitLen < 4096 {
-		return nil, fmt.Errorf("need at least 4096 bits key, got %d", bitLen)
-	}
-
 	return &extPGPPrivateKey{
 		pubKey:         RSAPublicKey(rsaPubKey),
 		from:           from,
 		pgpFingerprint: fmt.Sprintf("%X", pubKey.Fingerprint),
+		bitLen:         rsaPubKey.N.BitLen(),
 		doSign:         sign,
 	}, nil
 }
@@ -382,6 +379,10 @@ func (expk *extPGPPrivateKey) keyEncode(w io.Writer) error {
 }
 
 func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
+	if expk.bitLen < 4096 {
+		return nil, fmt.Errorf("signing needs at least a 4096 bits key, got %d", expk.bitLen)
+	}
+
 	out, err := expk.doSign(content)
 	if err != nil {
 		return nil, err
