@@ -53,11 +53,12 @@ func runGPGImpl(homedir string, input []byte, args ...string) ([]byte, error) {
 
 var runGPG = runGPGImpl
 
-type gpgKeypairManager struct {
+// A key pair manager backed by a local GnuPG setup.
+type GPGKeypairManager struct {
 	homedir string
 }
 
-func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) {
+func (gkm *GPGKeypairManager) gpg(input []byte, args ...string) ([]byte, error) {
 	return runGPG(gkm.homedir, input, args...)
 }
 
@@ -67,13 +68,13 @@ func (gkm *gpgKeypairManager) gpg(input []byte, args ...string) ([]byte, error) 
 // Importing keys through the keypair manager interface is not
 // suppored.
 // Main purpose is allowing signing using keys from a GPG setup.
-func NewGPGKeypairManager(homedir string) KeypairManager {
-	return &gpgKeypairManager{
+func NewGPGKeypairManager(homedir string) *GPGKeypairManager {
+	return &GPGKeypairManager{
 		homedir: homedir,
 	}
 }
 
-func (gkm *gpgKeypairManager) retrieve(fpr string) (PrivateKey, error) {
+func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", "0x"+fpr)
 	if err != nil {
 		return nil, err
@@ -97,7 +98,7 @@ func (gkm *gpgKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 }
 
 // Walk iterates over all the RSA private keys in the local GPG setup calling the provided callback until this returns true for done, or errors.
-func (gkm *gpgKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string) (done bool, err error)) error {
+func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string) (done bool, err error)) error {
 	// see GPG source doc/DETAILS
 	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
 	if err != nil {
@@ -151,21 +152,21 @@ func (gkm *gpgKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 	return nil
 }
 
-func (gkm *gpgKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+func (gkm *GPGKeypairManager) Put(authorityID string, privKey PrivateKey) error {
 	// NOTE: we don't need this initially at least and this keypair mgr is not for general arbitrary usage
 	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-func (gkm *gpgKeypairManager) Get(authorityID, keyHash string) (PrivateKey, error) {
+func (gkm *GPGKeypairManager) Get(authorityID, keyHash string) (PrivateKey, error) {
 	var hit PrivateKey
-	check := func(privk PrivateKey, fpr string) (bool, error) {
+	match := func(privk PrivateKey, fpr string) (bool, error) {
 		if privk.PublicKey().SHA3_384() == keyHash {
 			hit = privk
 			return true, nil
 		}
 		return false, nil
 	}
-	err := gkm.Walk(check)
+	err := gkm.Walk(match)
 	if err != nil {
 		return nil, err
 	}
@@ -175,7 +176,7 @@ func (gkm *gpgKeypairManager) Get(authorityID, keyHash string) (PrivateKey, erro
 	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyHash)
 }
 
-func (gkm *gpgKeypairManager) sign(fingerprint string, content []byte) ([]byte, error) {
+func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, error) {
 	out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--detach-sign")
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign using GPG: %v", err)
