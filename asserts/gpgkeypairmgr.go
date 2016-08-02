@@ -123,7 +123,7 @@ func (gkm *gpgKeypairManager) findByKeyHash(keyHash string) (PrivateKey, error) 
 		if secFields[3] != "1" { // not RSA
 			continue
 		}
-		keyId := secFields[4]
+		keyID := secFields[4]
 		if j+1 >= n || !strings.HasPrefix(lines[j+1], "fpr:") {
 			continue
 		}
@@ -132,7 +132,7 @@ func (gkm *gpgKeypairManager) findByKeyHash(keyHash string) (PrivateKey, error) 
 			continue
 		}
 		fpr := fprFields[9]
-		if !strings.HasSuffix(fpr, keyId) {
+		if !strings.HasSuffix(fpr, keyID) {
 			continue // strange, skip
 		}
 		privKey, err := gkm.retrieve(fpr)
