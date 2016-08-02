@@ -236,6 +236,31 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
 }
 
+func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current: snap.R(1),
+	})
+
+	tts, err := snapstate.UpdateMany(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 1)
+
+	ts := tts[0]
+	i := verifyInstallUpdateTasks(c, true, ts, s.state)
+	c.Assert(ts.Tasks(), HasLen, i+6)
+	c.Assert(s.state.NumTask(), Equals, i+6)
+}
+
 func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
