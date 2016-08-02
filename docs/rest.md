@@ -138,9 +138,10 @@ Reserved for human-readable content describing the service.
 
 ```javascript
 {
- "flavor": "core",
  "series": "16",
- "store": "store-id"          // only if not default
+ "version": "2.0",
+ "os-release": {"id": "ubuntu", "version-id": "16.10"},
+ "on-classic": true
 }
 ```
 
