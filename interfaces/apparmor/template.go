@@ -172,6 +172,10 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
 
+  # util-linux
+  /{,usr/}bin/lscpu ixr,
+  @{PROC}/bus/pci/devices r,
+
   # uptime
   /{,usr/}bin/uptime ixr,
   @{PROC}/uptime r,
