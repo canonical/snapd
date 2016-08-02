@@ -148,7 +148,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 	_, rsaPrivKey := assertstest.ReadPrivKey(assertstest.DevKey)
-	pgpPrivKey := packet.NewRSAPrivateKey(time.Unix(1,0), rsaPrivKey)
+	pgpPrivKey := packet.NewRSAPrivateKey(time.Unix(1, 0), rsaPrivKey)
 
 	var breakSig func(sig *packet.Signature, cont []byte) []byte
 
