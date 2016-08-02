@@ -62,12 +62,12 @@ func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(As
 type KeypairManager interface {
 	// Put stores the given private/public key pair for identity,
 	// making sure it can be later retrieved by authority-id and
-	// key id with Get().
-	// Trying to store a key with an already present key id should
+	// key hash with Get().
+	// Trying to store a key with an already present key hash should
 	// result in an error.
 	Put(authorityID string, privKey PrivateKey) error
-	// Get returns the private/public key pair with the given key id.
-	Get(authorityID, keyID string) (PrivateKey, error)
+	// Get returns the private/public key pair with the given key hash.
+	Get(authorityID, keyHash string) (PrivateKey, error)
 }
 
 // DatabaseConfig for an assertion database.
@@ -158,7 +158,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 			accKey := accepted
 			err := trustedBackstore.Put(AccountKeyType, accKey)
 			if err != nil {
-				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
+				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeySHA3_384(), accKey.AccountID(), err)
 			}
 
 		case *Account:
@@ -197,23 +197,23 @@ func (db *Database) ImportKey(authorityID string, privKey PrivateKey) error {
 }
 
 var (
-	// for sanity checking of fingerprint-like strings
-	fingerprintLike = regexp.MustCompile("^[0-9a-f]*$")
+	// for sanity checking of base64 hash strings
+	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 )
 
-func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, error) {
-	if keyID == "" {
-		return nil, fmt.Errorf("key id is empty")
+func (db *Database) safeGetPrivateKey(authorityID, keyHash string) (PrivateKey, error) {
+	if keyHash == "" {
+		return nil, fmt.Errorf("key hash is empty")
 	}
-	/*if !fingerprintLike.MatchString(keyID) {
-		return nil, fmt.Errorf("key id contains unexpected chars: %q", keyID)
-	}*/
-	return db.keypairMgr.Get(authorityID, keyID)
+	if !base64HashLike.MatchString(keyHash) {
+		return nil, fmt.Errorf("key hash contains unexpected chars: %q", keyHash)
+	}
+	return db.keypairMgr.Get(authorityID, keyHash)
 }
 
-// PublicKey returns the public key owned by authorityID that has the given key id.
-func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, error) {
-	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
+// PublicKey returns the public key owned by authorityID that has the given key hash.
+func (db *Database) PublicKey(authorityID string, keyHash string) (PublicKey, error) {
+	privKey, err := db.safeGetPrivateKey(authorityID, keyHash)
 	if err != nil {
 		return nil, err
 	}
@@ -221,27 +221,31 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 }
 
 // Sign assembles an assertion with the provided information and signs it
-// with the private key from `headers["authority-id"]` that has the provided key id.
-func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyID string) (Assertion, error) {
+// with the private key from `headers["authority-id"]` that has the provided key hash.
+func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyHash string) (Assertion, error) {
 	authorityID, err := checkNotEmptyString(headers, "authority-id")
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
+	privKey, err := db.safeGetPrivateKey(authorityID, keyHash)
 	if err != nil {
 		return nil, err
 	}
 	return assembleAndSign(assertType, headers, body, privKey)
 }
 
-// findAccountKey finds an AccountKey exactly by account id and key id.
-func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, error) {
-	key := []string{authorityID, keyID}
+// findAccountKey finds an AccountKey exactly with account id and key hash.
+func (db *Database) findAccountKey(authorityID, keyHash string) (*AccountKey, error) {
+	key := []string{keyHash}
 	// consider trusted account keys then disk stored account keys
 	for _, bs := range db.backstores {
 		a, err := bs.Get(AccountKeyType, key)
 		if err == nil {
-			return a.(*AccountKey), nil
+			hit := a.(*AccountKey)
+			if hit.AccountID() != authorityID {
+				return nil, fmt.Errorf("found public key %q from %q but expected it from: %s", keyHash, hit.AccountID(), authorityID)
+			}
+			return hit, nil
 		}
 		if err != ErrNotFound {
 			return nil, err
@@ -268,9 +272,9 @@ func (db *Database) Check(assert Assertion) error {
 		return err
 	}
 	// TODO: later may need to consider type of assert to find candidate keys
-	accKey, err := db.findAccountKey(assert.AuthorityID(), sig.KeyID())
+	accKey, err := db.findAccountKey(assert.AuthorityID(), assert.SigningKey())
 	if err == ErrNotFound {
-		return fmt.Errorf("no matching public key %q for signature by %q", sig.KeyID(), assert.AuthorityID())
+		return fmt.Errorf("no matching public key %q for signature by %q", assert.SigningKey(), assert.AuthorityID())
 	}
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
@@ -404,7 +408,7 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 // CheckSigningKeyIsNotExpired checks that the signing key is not expired.
 func CheckSigningKeyIsNotExpired(assert Assertion, signature Signature, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
 	if !signingKey.isKeyValidAt(checkTime) {
-		return fmt.Errorf("assertion is signed with expired public key %q from %q", signature.KeyID(), assert.AuthorityID())
+		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SigningKey(), assert.AuthorityID())
 	}
 	return nil
 }

@@ -22,7 +22,9 @@ package assertstest_test
 import (
 	"encoding/hex"
 	"testing"
+	"time"
 
+	"golang.org/x/crypto/openpgp/packet"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -36,12 +38,12 @@ type helperSuite struct{}
 var _ = Suite(&helperSuite{})
 
 func (s *helperSuite) TestReadPrivKeyArmored(c *C) {
-	opgpPK, pkt := assertstest.ReadPrivKey(assertstest.DevKey)
-	c.Check(opgpPK, NotNil)
-	c.Check(pkt, NotNil)
-	c.Check(opgpPK.PublicKey().ID(), Equals, assertstest.DevKeyID)
-	c.Check(opgpPK.PublicKey().Fingerprint(), Equals, assertstest.DevKeyFingerprint)
-	c.Check(hex.EncodeToString(pkt.Fingerprint[:]), Equals, assertstest.DevKeyFingerprint)
+	pk, rsaPrivKey := assertstest.ReadPrivKey(assertstest.DevKey)
+	c.Check(pk, NotNil)
+	c.Check(rsaPrivKey, NotNil)
+	c.Check(pk.PublicKey().SHA3_384(), Equals, assertstest.DevKeyHash)
+	pkt := packet.NewRSAPrivateKey(time.Unix(1, 0), rsaPrivKey)
+	c.Check(hex.EncodeToString(pkt.Fingerprint[:]), Equals, assertstest.DevKeyPGPFingerprint)
 }
 
 const (
@@ -67,11 +69,9 @@ NejDkxUnC2wIvJzHWo1FQ18=
 )
 
 func (s *helperSuite) TestReadPrivKeyUnarmored(c *C) {
-	opgpPK, pkt := assertstest.ReadPrivKey(base64PrivKey)
-	c.Check(opgpPK, NotNil)
-	c.Check(pkt, NotNil)
-	// extracted with base64 -d|gpg --list-packet
-	c.Check(opgpPK.PublicKey().ID(), Equals, "84c3cda52e420332")
+	pk, rsaPrivKey := assertstest.ReadPrivKey(base64PrivKey)
+	c.Check(pk, NotNil)
+	c.Check(rsaPrivKey, NotNil)
 }
 
 func (s *helperSuite) TestStoreStack(c *C) {
@@ -97,7 +97,7 @@ func (s *helperSuite) TestStoreStack(c *C) {
 
 	c.Check(storeAccKey.AccountID(), Equals, "super")
 	c.Check(storeAccKey.AccountID(), Equals, store.AuthorityID)
-	c.Check(storeAccKey.PublicKeyID(), Equals, store.KeyID)
+	c.Check(storeAccKey.PublicKeySHA3_384(), Equals, store.KeyHash)
 
 	acct := assertstest.NewAccount(store, "devel1", nil, "")
 	c.Check(acct.Username(), Equals, "devel1")

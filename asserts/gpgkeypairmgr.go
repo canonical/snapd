@@ -73,30 +73,85 @@ func NewGPGKeypairManager(homedir string) KeypairManager {
 	}
 }
 
+func (gkm *gpgKeypairManager) retrieve(fpr string) (PrivateKey, error) {
+	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", "0x"+fpr)
+	if err != nil {
+		return nil, err
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("cannot retrieve key with fingerprint %q in GPG keyring", fpr)
+	}
+
+	pubKeyBuf := bytes.NewBuffer(out)
+	privKey, err := newExtPGPPrivateKey(pubKeyBuf, "GPG", func(content []byte) ([]byte, error) {
+		return gkm.sign(fpr, content)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot load GPG public key with fingerprint %q: %v", fpr, err)
+	}
+	gotFingerprint := privKey.fingerprint()
+	if gotFingerprint != fpr {
+		return nil, fmt.Errorf("got wrong public key from GPG, expected fingerprint %q: %s", fpr, gotFingerprint)
+	}
+	return privKey, nil
+}
+
+func (gkm *gpgKeypairManager) findByKeyHash(keyHash string) (PrivateKey, error) {
+	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(string(out), "\n")
+	n := len(lines)
+	if n > 0 && lines[n-1] == "" {
+		n--
+	}
+	if n == 0 {
+		return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyHash)
+	}
+	lines = lines[:n]
+	for j := 0; j < n; j++ {
+		line := lines[j]
+		if !strings.HasPrefix(line, "sec:") {
+			continue
+		}
+		secFields := strings.Split(line, ":")
+		if len(secFields) < 5 {
+			continue
+		}
+		if secFields[3] != "1" { // not RSA
+			continue
+		}
+		keyId := secFields[4]
+		if j+1 >= n || !strings.HasPrefix(lines[j+1], "fpr:") {
+			continue
+		}
+		fprFields := strings.Split(lines[j+1], ":")
+		if len(fprFields) < 10 {
+			continue
+		}
+		fpr := fprFields[9]
+		if !strings.HasSuffix(fpr, keyId) {
+			continue // strange, skip
+		}
+		privKey, err := gkm.retrieve(fpr)
+		if err != nil {
+			return nil, err
+		}
+		if privKey.PublicKey().SHA3_384() == keyHash {
+			return privKey, nil
+		}
+	}
+	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyHash)
+}
+
 func (gkm *gpgKeypairManager) Put(authorityID string, privKey PrivateKey) error {
 	// NOTE: we don't need this initially at least and this keypair mgr is not for general arbitrary usage
 	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-func (gkm *gpgKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
-	out, err := gkm.gpg(nil, "--batch", "--export", "--export-options", "export-minimal,export-clean,no-export-attributes", "0x"+keyID)
-	if err != nil {
-		return nil, err
-	}
-	if len(out) == 0 {
-		return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
-	}
-
-	pubKeyBuf := bytes.NewBuffer(out)
-	privKey, err := newExtPGPPrivateKey(pubKeyBuf, "GPG", gkm.sign)
-	if err != nil {
-		return nil, fmt.Errorf("cannot use GPG key %q: %v", keyID, err)
-	}
-	gotID := privKey.PublicKey().ID()
-	if gotID != keyID {
-		return nil, fmt.Errorf("got wrong key from GPG, expected %q: %s", keyID, gotID)
-	}
-	return privKey, nil
+func (gkm *gpgKeypairManager) Get(authorityID, keyHash string) (PrivateKey, error) {
+	return gkm.findByKeyHash(keyHash)
 }
 
 func (gkm *gpgKeypairManager) sign(fingerprint string, content []byte) ([]byte, error) {

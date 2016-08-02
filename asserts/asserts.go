@@ -43,7 +43,7 @@ type AssertionType struct {
 // Understood assertion types.
 var (
 	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount}
-	AccountKeyType      = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
