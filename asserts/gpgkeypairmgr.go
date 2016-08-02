@@ -97,6 +97,7 @@ func (gkm *gpgKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 }
 
 func (gkm *gpgKeypairManager) findByKeyHash(keyHash string) (PrivateKey, error) {
+	// see GPG source doc/DETAILS
 	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
 	if err != nil {
 		return nil, err
