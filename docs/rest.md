@@ -148,6 +148,7 @@ Reserved for human-readable content describing the service.
    "id": "ubuntu",
    "version-id": "17.04",
  },
+ "on-classic": true,
  "store": "store-id"          // only if not default
 }
 ```

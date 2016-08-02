@@ -202,6 +202,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"on-classic": release.OnClassic,
 	}
 
+	// TODO: set the store-id here from the model information
+	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
+		m["store"] = storeID
+	}
+
 	return SyncResponse(m, nil)
 }
 
