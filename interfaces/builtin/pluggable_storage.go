@@ -32,10 +32,9 @@ const pluggableStorageConnectedPlugAppArmor = `
 # Needed for mount/unmount operations
 capability sys_admin,
 
-# TODO: These should be confined by path, need to come up with reasonable
-# values
-mount,
-umount,
+# Mount/unmount USB storage devices
+mount /dev/sd* -> /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
+umount /dev/sd* -> /var/snap/${SNAP_NAME}/${SNAP_REVISION}/**,
 
 # Allow calling the system mount/umount binaries to do the dirty work
 /bin/mount ixr,
