@@ -323,6 +323,7 @@ apps:
 	st.Lock()
 	c.Assert(err, IsNil)
 
+	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
 
 	info, err = snapstate.CurrentInfo(st, "foo")
@@ -379,8 +380,8 @@ type: os
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_os":   "core_x1.snap",
-		"snappy_mode": "try",
+		"snap_try_core": "core_x1.snap",
+		"snap_mode":     "try",
 	})
 }
 
@@ -421,8 +422,8 @@ type: kernel`
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
 
 	c.Assert(bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_kernel": "krnl_x1.snap",
-		"snappy_mode":   "try",
+		"snap_try_kernel": "krnl_x1.snap",
+		"snap_mode":       "try",
 	})
 }
 
