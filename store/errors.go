@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 var (
@@ -59,4 +60,18 @@ type ErrDownload struct {
 
 func (e *ErrDownload) Error() string {
 	return fmt.Sprintf("received an unexpected http response code (%v) when trying to download %s", e.Code, e.URL)
+}
+
+// ErrInvalidAuthData signals that the authentication data didn't pass validation.
+type ErrInvalidAuthData map[string][]string
+
+func (e ErrInvalidAuthData) Error() string {
+	var es []string
+	for _, v := range e {
+		es = append(es, v...)
+	}
+	// XXX: confirm with server people that extra args are all
+	//      full sentences (with periods and capitalization)
+	//      (empirically this checks out)
+	return strings.Join(es, "  ")
 }
