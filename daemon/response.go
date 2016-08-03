@@ -120,7 +120,6 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 type errorKind string
 
 const (
-	errorKindLicenseRequired   = errorKind("license-required")
 	errorKindTwoFactorRequired = errorKind("two-factor-required")
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
 	errorKindLoginRequired     = errorKind("login-required")
