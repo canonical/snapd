@@ -81,7 +81,7 @@ func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
-		{"update-desktop-database"},
+		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
 }
 
@@ -99,7 +99,7 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
 	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
-		{"update-desktop-database"},
+		{"update-desktop-database", dirs.SnapDesktopFilesDir},
 	})
 }
 
