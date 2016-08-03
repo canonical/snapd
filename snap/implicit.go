@@ -42,6 +42,7 @@ var implicitSlots = []string{
 	"process-control",
 	"snapd-control",
 	"system-observe",
+	"system-trace",
 	"timeserver-control",
 	"timezone-control",
 }
