@@ -7,3 +7,6 @@ apps:
     get:
         command: bin/get
         plugs: [locale-control]
+    set:
+        command: bin/set
+        plugs: [locale-control]
