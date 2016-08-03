@@ -62,6 +62,9 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 		}
 	}
 
+	// dst file
+	dst := filepath.Join(targetPath, filepath.Base(s.path))
+
 	// This is required so that the tests can simulate a mounted
 	// snap when we "install" a squashfs snap in the tests.
 	// We can not mount it for real in the tests, so we just unpack
@@ -73,12 +76,12 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	}
 
 	// nothing to do, happens on e.g. first-boot
-	if s.path == targetPath {
+	if s.path == dst || osutil.FilesAreEqual(s.path, dst) {
 		return nil
 	}
 
 	// FIXME: cp.CopyFile() has no preserve attribute flag yet
-	return runCommand("cp", "-a", s.path, targetPath)
+	return runCommand("cp", "-a", s.path, dst)
 }
 
 var runCommandWithOutput = func(args ...string) ([]byte, error) {
