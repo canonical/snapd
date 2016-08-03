@@ -62,8 +62,7 @@ type apiSuite struct {
 	rsnaps            []*snap.Info
 	err               error
 	vars              map[string]string
-	searchTerm        string
-	channel           string
+	storeSearch       store.Search
 	suggestedCurrency string
 	d                 *Daemon
 	user              *auth.UserState
@@ -73,6 +72,7 @@ type apiSuite struct {
 	buyResult         *store.BuyResult
 	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
+	restoreRelease    func()
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -85,9 +85,8 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState
 	return nil, s.err
 }
 
-func (s *apiSuite) Find(searchTerm, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	s.searchTerm = searchTerm
-	s.channel = channel
+func (s *apiSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+	s.storeSearch = *search
 	s.user = user
 
 	return s.rsnaps, s.err
@@ -124,10 +123,15 @@ func (s *apiSuite) muxVars(*http.Request) map[string]string {
 
 func (s *apiSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
+	s.restoreRelease = release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "mocked",
+	})
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
+	s.restoreRelease()
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
@@ -138,8 +142,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
-	s.searchTerm = ""
-	s.channel = ""
+	s.storeSearch = store.Search{}
 	s.err = nil
 	s.vars = nil
 	s.user = nil
@@ -370,6 +373,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	})
 
 	exceptions := []string{ // keep sorted, for scanning ease
+		"isEmailish",
 		"api",
 		"maxReadBuflen",
 		"muxVars",
@@ -509,7 +513,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	mockSSOServer := s.makeSSOServer(200, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -526,7 +530,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	expectedUser := auth.UserState{
 		ID:         1,
-		Username:   "username",
+		Username:   "email@.com",
 		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
@@ -579,7 +583,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 	mockMyAppsServer := s.makeMyAppsServer(200, "{}")
 	defer mockMyAppsServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -602,7 +606,7 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	mockSSOServer := s.makeSSOServer(401, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -625,7 +629,7 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	mockSSOServer := s.makeSSOServer(403, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -648,7 +652,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	mockSSOServer := s.makeSSOServer(401, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -656,7 +660,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate on snap store")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate to snap store")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
@@ -828,7 +832,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=hi&channel=potato", nil)
+	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := searchStore(findCmd, req, nil).(*resp)
@@ -840,8 +844,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
-	c.Check(s.searchTerm, check.Equals, "hi")
-	c.Check(s.channel, check.Equals, "potato")
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "hi"})
 	c.Check(s.refreshCandidates, check.HasLen, 0)
 }
 
@@ -865,6 +868,58 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(s.refreshCandidates, check.HasLen, 1)
+}
+
+func (s *apiSuite) TestFindPrivate(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&select=private", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{
+		Query:   "foo",
+		Private: true,
+	})
+}
+
+func (s *apiSuite) TestFindPrefix(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo*", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo", Prefix: true})
+}
+
+func (s *apiSuite) TestFindOne(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName:  "store",
+			Developer: "foo",
+		},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["name"], check.Equals, "store")
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
@@ -1090,7 +1145,7 @@ func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
 
-	c.Check(s.searchTerm, check.Equals, "foo")
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo"})
 
 	c.Assert(rsp.Result, check.NotNil)
 }
@@ -1235,8 +1290,6 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -1283,8 +1336,6 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, snapstate.JailMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -1709,6 +1760,45 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
+	c.Check(calledUserID, check.Equals, 17)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRefreshDevMode(c *check.C) {
+	calledFlags := snapstate.Flags(42)
+	calledUserID := 0
+	installQueue := []string{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		calledUserID = userID
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:  "refresh",
+		snap:    "some-snap",
+		userID:  17,
+		DevMode: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.DevMode))
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
@@ -2537,7 +2627,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// add store key
 	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]string{
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
 		"account-id": "developer1-id",
 	}, "")
 	err = d.overlord.AssertManager().DB().Add(acct)

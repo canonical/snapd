@@ -72,7 +72,7 @@ func BootDir(bootSystem string) string {
 
 // Mode returns the current bootloader mode, regular or try.
 func Mode() (mode string, err error) {
-	return confValue("snappy_mode")
+	return confValue("snap_mode")
 }
 
 // OSSnapName returns the name of the OS snap.
@@ -86,13 +86,13 @@ func OSSnapName(c *check.C) string {
 // snappyOS returns the name of the OS snap in the form name.developer_version.snap
 // This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
 func snappyOS() (string, error) {
-	return confValue("snappy_os")
+	return confValue("snap_core")
 }
 
 // SnappyKernel returns the name of the Kernel snap in the form name.developer_version.snap
 // This is a workaround for https://bugs.launchpad.net/snappy/+bug/1532245
 func SnappyKernel() (string, error) {
-	return confValue("snappy_kernel")
+	return confValue("snap_kernel")
 }
 
 func getConfValue(key string) (string, error) {

@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -201,6 +202,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"on-classic": release.OnClassic,
 	}
 
+	// TODO: set the store-id here from the model information
+	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
+		m["store"] = storeID
+	}
+
 	return SyncResponse(m, nil)
 }
 
@@ -208,6 +214,8 @@ type loginResponseData struct {
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
+
+var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 
 func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	var loginData struct {
@@ -219,6 +227,19 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginData); err != nil {
 		return BadRequest("cannot decode login data from request body: %v", err)
+	}
+
+	// the "username" needs to look a lot like an email address
+	if !isEmailish(loginData.Username) {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: "please use a valid email address.",
+				Kind:    errorKindInvalidAuthData,
+				Value:   map[string][]string{"email": {"invalid"}},
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
 	}
 
 	serializedMacaroon, err := store.RequestStoreMacaroon()
@@ -253,6 +274,17 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 			Status: http.StatusUnauthorized,
 		}, nil)
 	default:
+		if err, ok := err.(store.ErrInvalidAuthData); ok {
+			return SyncResponse(&resp{
+				Type: ResponseTypeError,
+				Result: &errorResult{
+					Message: err.Error(),
+					Kind:    errorKindInvalidAuthData,
+					Value:   err,
+				},
+				Status: http.StatusBadRequest,
+			}, nil)
+		}
 		return Unauthorized(err.Error())
 	case nil:
 		// continue
@@ -389,21 +421,52 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 	query := r.URL.Query()
+	q := query.Get("q")
+	name := query.Get("name")
+	private := false
+	prefix := false
 
-	if query.Get("select") == "refresh" {
-		if query.Get("q") != "" {
-			return BadRequest("cannot use 'q' with 'select=refresh'")
+	if name != "" {
+		if q != "" {
+			return BadRequest("cannot use 'q' and 'name' together")
 		}
-		return storeUpdates(c, r, user)
+
+		if name[len(name)-1] != '*' {
+			return findOne(c, r, user, name)
+		}
+
+		prefix = true
+		q = name[:len(name)-1]
+	}
+
+	if sel := query.Get("select"); sel != "" {
+		switch sel {
+		case "refresh":
+			if prefix {
+				return BadRequest("cannot use 'name' with 'select=refresh'")
+			}
+			if q != "" {
+				return BadRequest("cannot use 'q' with 'select=refresh'")
+			}
+			return storeUpdates(c, r, user)
+		case "private":
+			private = true
+		}
 	}
 
 	theStore := getStore(c)
-	found, err := theStore.Find(query.Get("q"), query.Get("channel"), user)
+	found, err := theStore.Find(&store.Search{
+		Query:   q,
+		Private: private,
+		Prefix:  prefix,
+	}, user)
 	switch err {
 	case nil:
 		// pass
-	case store.ErrEmptyQuery, store.ErrBadQuery, store.ErrBadPrefix:
+	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
+	case store.ErrUnauthenticated:
+		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
 	}
@@ -414,6 +477,31 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return sendStorePackages(route, meta, found)
+}
+
+func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
+	if err := snap.ValidateName(name); err != nil {
+		return BadRequest(err.Error())
+	}
+
+	theStore := getStore(c)
+	snapInfo, err := theStore.Snap(name, "", false, user)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	meta := &Meta{
+		SuggestedCurrency: theStore.SuggestedCurrency(),
+		Sources:           []string{"store"},
+	}
+
+	results := make([]*json.RawMessage, 1)
+	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	results[0] = (*json.RawMessage)(&data)
+	return SyncResponse(results, meta)
 }
 
 func shouldSearchStore(r *http.Request) bool {
@@ -681,7 +769,10 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snapstate.Flags(0)
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
+	}
 
 	ts, err := snapstateUpdate(st, inst.snap, inst.Channel, inst.userID, flags)
 	if err != nil {

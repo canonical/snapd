@@ -111,6 +111,16 @@ the user of the error or otherwise adapt to the error condition,
 for `kind` (and associated `value` metadata) will be added as needed
 by client implementations.
 
+#### Error kinds
+
+kind               | value description
+-------------------|--------------------
+`license-required` | see "A note on licenses", below
+`two-factor-required` | the client needs to retry the `login` command including an OTP
+`two-factor-failed` | the OTP provided wasn't recognised
+`login-required` | the requested operation cannot be performed without an authenticated user. This is the kind of any other 401 Unauthorized response.
+`invalid-auth-data` | the authentication data provided failed to validate (e.g. a malformed email address). The `value` of the error is an object with a key per failed field and a list of the failures on each field.
+
 ### Timestamps
 
 Timestamps are presented in RFC3339 format, with µs precision, and in
@@ -132,8 +142,13 @@ Reserved for human-readable content describing the service.
 
 ```javascript
 {
- "flavor": "core",
  "series": "16",
+ "version": "2.0.17",
+ "os-release": {
+   "id": "ubuntu",
+   "version-id": "17.04",
+ },
+ "on-classic": true,
  "store": "store-id"          // only if not default
 }
 ```
@@ -146,6 +161,16 @@ Reserved for human-readable content describing the service.
 * Operation: sync
 * Return: Dict with the authenticated user information.
 
+#### Sample input
+
+```javascript
+{
+  "username": "foo@bar.com", // username is an email
+  "password": "swordfish",   // the password (!)
+  "otp": "123456"            // OTP, if the account needs it
+}
+```
+
 #### Sample result:
 
 ```javascript
@@ -154,6 +179,10 @@ Reserved for human-readable content describing the service.
  "discharges": ["discharge-for-macaroon-authentication"]
 }
 ```
+
+See also the error kinds `two-factor-required` and
+`two-factor-failed`.
+
 
 ## /v2/find
 ### GET
@@ -168,33 +197,30 @@ Reserved for human-readable content describing the service.
 
 #### `q`
 
-Query.
+Search for snaps that match the given string. This is a weighted broad
+search, meant as the main interface to searching for snaps.
 
-The query is a whitespace-separated list<sup id=a1>[†](#f1)</sup> of terms, all of
-which will be satisfied by the returned snaps.
+#### `name`
 
-Each term can have an optional prefix followed by `:`.
-
-Supported prefixes are
-
-<dl>
-<dt>name</dt>
-<dd>The term matches the snap's name. It can end in <code>*</code> in which
-case the search is for a prefix, otherwise the whole name must match.</dd>
-<dt>text</dt>
-<dd>The term is looked up in a full-text index of name, summary and
-description.</dd>
-</dl>
-
-If no prefix is given, the term is treated as if it were a `*`-ended `name`
-search; this is: `snap find foo` is the same as `snap find name:foo*`.
-
-<b id=f1>†</b> that list can only have exactly one element, for now. [↩](#a1)
+Search for snaps whose name matches the given string. Can't be used
+together with `q`. This is meant for things like autocompletion. The
+match is exact (i.e. find would return 0 or 1 results) unless the
+string ends in `*`.
 
 #### `select`
 
-Filter from the given selection. Currently only limiting to refreshable
-snaps is supported via the `refresh` key.
+Alter the collection searched:
+
+* `refresh`: search refreshable snaps. Can't be used with `q`, nor `name`.
+* `private`: search private snaps (by default, find only searches
+  public snaps). Can't be used with `name`, only `q` (for now at
+  least).
+
+#### `private`
+
+A boolean flag that, if `true` (or `t` or `yes` or...), makes the search look
+in the user's private snaps. Requires that the user be authenticated. Only
+works with broad (`text`-prefix) search; defaults the prefix to `text`.
 
 #### Sample result:
 
@@ -376,7 +402,7 @@ named "snap".
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `refresh`, or `remove`
+`action`   |                   | Required; a string, one of `install`, `refresh`, `remove`, `revert`, `enable`, or `disable`.
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 
 ## /v2/icons/[name]/icon

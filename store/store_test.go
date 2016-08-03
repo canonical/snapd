@@ -49,12 +49,22 @@ type remoteRepoTestSuite struct {
 	logbuf *bytes.Buffer
 	user   *auth.UserState
 
-	origDownloadFunc func(string, io.Writer, *http.Request, progress.Meter) error
+	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
 }
 
 func TestStore(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&remoteRepoTestSuite{})
+
+type testAuthContext struct {
+	c    *C
+	user *auth.UserState
+}
+
+func (ac *testAuthContext) UpdateUser(u *auth.UserState) error {
+	ac.c.Assert(u, DeepEquals, ac.user)
+	return nil
+}
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
 	m, err := macaroon.New([]byte("secret"), "some-id", "location")
@@ -76,6 +86,15 @@ func makeTestDischarge() (*macaroon.Macaroon, error) {
 	}
 
 	return m, nil
+}
+
+func makeTestRefreshDischargeResponse() (string, error) {
+	m, err := macaroon.New([]byte("shared-key"), "refreshed-third-party-caveat", UbuntuoneLocation)
+	if err != nil {
+		return "", err
+	}
+
+	return MacaroonSerialize(m)
 }
 
 func createTestUser(userID int, root, discharge *macaroon.Macaroon) (*auth.UserState, error) {
@@ -145,8 +164,8 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
-	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
-		c.Check(req.URL.String(), Equals, "anon-url")
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
 		return nil
 	}
@@ -166,13 +185,11 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
-		// check authorization is set
-		authorization := req.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		c.Check(req.UserAgent(), Equals, userAgent)
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		// check user is pass and auth url is used
+		c.Check(user, Equals, t.user)
+		c.Check(url, Equals, "AUTH-URL")
 
-		c.Check(req.URL.String(), Equals, "AUTH-URL")
 		w.Write([]byte("I was downloaded"))
 		return nil
 	}
@@ -193,7 +210,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		return fmt.Errorf("uh, it failed")
 	}
@@ -212,7 +229,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
@@ -495,6 +512,60 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 	c.Check(snap.MustBuy, Equals, false)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	// mock purchases response
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockPurchaseJSON)
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+
+	// mock store response (requiring auth refresh)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			io.WriteString(w, MockDetailsJSON)
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	detailsURI, _ := url.Parse(mockServer.URL + "/details/")
+
+	authContext := &testAuthContext{c, t.user}
+	cfg := Config{
+		DetailsURI:   detailsURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := New(&cfg, "", authContext)
+	c.Assert(repo, NotNil)
+
+	snap, err := repo.Snap("hello-world", "edge", false, t.user)
+	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+	c.Assert(snap, NotNil)
+	c.Check(snap.MustBuy, Equals, false)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
@@ -643,15 +714,11 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		q := query.Get("q")
 
 		switch n {
-		case 0, 1:
+		case 0:
 			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "hello")
 			c.Check(q, Equals, "")
-		case 2:
-			c.Check(r.URL.Path, Equals, "/details/hello")
-			c.Check(name, Equals, "")
-			c.Check(q, Equals, "")
-		case 3:
+		case 1:
 			c.Check(r.URL.Path, Equals, "/search")
 			c.Check(name, Equals, "")
 			c.Check(q, Equals, "hello")
@@ -674,41 +741,72 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	for _, query := range []string{
-		"hello",
-		"name:hello*",
-		"name:hello",
-		"text:hello",
+	for _, query := range []Search{
+		{Query: "hello", Prefix: true},
+		{Query: "hello"},
 	} {
-		repo.Find(query, "", nil)
+		repo.Find(&query, nil)
 	}
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+
+		name := query.Get("name")
+		q := query.Get("q")
+
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, Equals, "/search")
+			c.Check(name, Equals, "")
+			c.Check(q, Equals, "foo")
+			c.Check(query.Get("private"), Equals, "true")
+		default:
+			c.Fatalf("what? %d", n)
+		}
+
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, strings.Replace(MockSearchJSON, `"EUR": 2.99, "USD": 3.49`, "", -1))
+
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	searchURI, _ := serverURL.Parse("/search")
+	cfg := Config{
+		SearchURI: searchURI,
+	}
+	repo := New(&cfg, "", nil)
+	c.Assert(repo, NotNil)
+
+	_, err := repo.Find(&Search{Query: "foo", Private: true}, t.user)
+	c.Check(err, IsNil)
+
+	_, err = repo.Find(&Search{Query: "foo", Private: true}, nil)
+	c.Check(err, Equals, ErrUnauthenticated)
+
+	_, err = repo.Find(&Search{Query: "name:foo", Private: true}, t.user)
+	c.Check(err, Equals, ErrBadQuery)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	repo := New(&Config{SearchURI: new(url.URL)}, "", nil)
-	_, err := repo.Find("", "", nil)
+	_, err := repo.Find(&Search{}, nil)
 	c.Check(err, Equals, ErrEmptyQuery)
-	_, err = repo.Find("foo:bar", "", nil)
-	c.Check(err, Equals, ErrBadPrefix)
-
-	for _, prefix := range []string{"text:", "name:"} {
-		_, err = repo.Find(prefix, "", nil)
-		c.Check(err, Equals, ErrEmptyQuery, Commentf(prefix))
-		_, err = repo.Find(prefix+":", "", nil)
-		c.Check(err, Equals, ErrBadQuery, Commentf(prefix))
-		_, err = repo.Find(prefix+"foo*bar", "", nil)
-		c.Check(err, Equals, ErrBadQuery, Commentf(prefix))
-	}
-	_, err = repo.Find("text:foo*", "", nil)
+	_, err = repo.Find(&Search{Query: "foo:bar"}, nil)
 	c.Check(err, Equals, ErrBadQuery)
-
-	_, err = repo.Find("name:foo*bar", "", nil)
+	_, err = repo.Find(&Search{Query: "foo", Private: true, Prefix: true}, t.user)
 	c.Check(err, Equals, ErrBadQuery)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Query().Get("name"), Equals, "hello")
+		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		http.Error(w, http.StatusText(http.StatusTeapot), http.StatusTeapot)
 	}))
 	c.Assert(mockServer, NotNil)
@@ -724,14 +822,14 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via http://\S+[?&]name=hello.*`)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.URL.Query().Get("name"), Equals, "hello")
+		c.Check(r.URL.Query().Get("q"), Equals, "hello")
 		io.WriteString(w, MockSearchJSON)
 	}))
 	c.Assert(mockServer, NotNil)
@@ -747,15 +845,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]name=hello.*"`)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		c.Check(query.Get("name"), Equals, "hello")
+		c.Check(query.Get("q"), Equals, "hello")
 		c.Check(query.Get("confinement"), Equals, "strict")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, "<hello>")
@@ -773,8 +871,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("hello", "", nil)
-	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]name=hello.*"`)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
 
@@ -785,7 +883,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 		authorization := r.Header.Get("Authorization")
 		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
 
-		c.Check(r.URL.Query().Get("name"), Equals, "foo")
+		c.Check(r.URL.Query().Get("q"), Equals, "foo")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
 	}))
@@ -815,8 +913,68 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("foo", "", t.user)
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
 	c.Assert(err, IsNil)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
+	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
+	c.Check(snaps[0].MustBuy, Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreFindRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	// mock purchases response
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+		io.WriteString(w, mockPurchaseJSON)
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+	c.Assert(err, IsNil)
+
+	// mock store response (requiring auth refresh)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			c.Check(r.URL.Query().Get("q"), Equals, "foo")
+			w.Header().Set("Content-Type", "application/hal+json")
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, MockSearchJSON)
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	searchURI, _ := url.Parse(mockServer.URL)
+	cfg := Config{
+		SearchURI:    searchURI,
+		PurchasesURI: purchasesURI,
+	}
+	authContext := &testAuthContext{c, t.user}
+
+	repo := New(&cfg, "", authContext)
+	c.Assert(repo, NotNil)
+
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
+	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
 	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
@@ -830,7 +988,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
 
 		query := r.URL.Query()
-		c.Check(query.Get("name"), Equals, "foo")
+		c.Check(query.Get("q"), Equals, "foo")
 		c.Check(query.Get("confinement"), Equals, "strict")
 		w.Header().Set("Content-Type", "application/hal+json")
 		io.WriteString(w, MockSearchJSON)
@@ -860,7 +1018,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find("foo", "", t.user)
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.
@@ -1159,6 +1317,57 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	// mock store response (requiring auth refresh)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			io.WriteString(w, MockUpdatesJSON)
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	bulkURI, _ := url.Parse(mockServer.URL + "/updates/")
+
+	authContext := &testAuthContext{c, t.user}
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	repo := New(&cfg, "", authContext)
+	c.Assert(repo, NotNil)
+
+	_, err = repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(1),
+			Epoch:    "0",
+			DevMode:  false,
+		},
+	}, t.user)
+	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
 func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	type s struct {
 		Foo int `json:"hello"`
@@ -1294,6 +1503,50 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionSetsAuth(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	// mock store response (requiring auth refresh)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
+			c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
+			io.WriteString(w, testAssertion)
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	assertionsURI, _ := url.Parse(mockServer.URL + "/assertions/")
+
+	authContext := &testAuthContext{c, t.user}
+	cfg := Config{
+		AssertionsURI: assertionsURI,
+	}
+	repo := New(&cfg, "", authContext)
+
+	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
+	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -1395,6 +1648,68 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 
 	err = repo.decoratePurchases(snaps, "edge", t.user)
 	c.Assert(err, IsNil)
+
+	c.Check(helloWorld.MustBuy, Equals, false)
+	c.Check(funkyApp.MustBuy, Equals, false)
+	c.Check(otherApp.MustBuy, Equals, true)
+	c.Check(otherApp2.MustBuy, Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			io.WriteString(w, mockPurchasesJSON)
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+
+	authContext := &testAuthContext{c, t.user}
+	cfg := Config{
+		PurchasesURI: purchasesURI,
+	}
+	repo := New(&cfg, "", authContext)
+	c.Assert(repo, NotNil)
+
+	helloWorld := &snap.Info{}
+	helloWorld.SnapID = helloWorldSnapID
+	helloWorld.Prices = map[string]float64{"USD": 1.23}
+
+	funkyApp := &snap.Info{}
+	funkyApp.SnapID = funkyAppSnapID
+	funkyApp.Prices = map[string]float64{"USD": 2.34}
+
+	otherApp := &snap.Info{}
+	otherApp.SnapID = "other"
+	otherApp.Prices = map[string]float64{"USD": 3.45}
+
+	otherApp2 := &snap.Info{}
+	otherApp2.SnapID = "other2"
+
+	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
+
+	err = repo.decoratePurchases(snaps, "edge", t.user)
+	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
 	c.Check(funkyApp.MustBuy, Equals, false)
@@ -1676,6 +1991,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 			purchaseServerGetCalled = true
 		case "POST":
 			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			c.Check(r.Header.Get("Content-Type"), Equals, "application/json")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
@@ -1726,6 +2042,56 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 	c.Check(searchServerCalled, Equals, true)
 	c.Check(purchaseServerGetCalled, Equals, true)
 	c.Check(purchaseServerPostCalled, Equals, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuyRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			io.WriteString(w, mockSinglePurchaseJSON)
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+	cfg := Config{
+		PurchasesURI: purchasesURI,
+	}
+	repo := New(&cfg, "", nil)
+	c.Assert(repo, NotNil)
+
+	result, err := repo.Buy(&BuyOptions{
+		SnapID:   helloWorldSnapID,
+		SnapName: "hello-world",
+		Currency: "EUR",
+		Price:    0.99,
+		User:     t.user,
+
+		BackendID: "123",
+		MethodID:  234,
+	})
+
+	c.Assert(result, NotNil)
+	c.Check(result.State, Equals, "Complete")
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
@@ -2044,4 +2410,44 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethods(c *C) {
 	})
 
 	c.Check(purchaseServerGetCalled, Equals, 1)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			io.WriteString(w, paymentMethodsJson)
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	paymentMethodsURI, _ := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
+	cfg := Config{
+		PaymentMethodsURI: paymentMethodsURI,
+	}
+	repo := New(&cfg, "", nil)
+	c.Assert(repo, NotNil)
+
+	result, err := repo.PaymentMethods(t.user)
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 }

@@ -37,15 +37,25 @@ const openglConnectedPlugAppArmor = `
   /dev/nvidia-modeset rw,
   /dev/nvidia* rw,
 
+  # eglfs
+  /dev/vchiq rw,
+
   # FIXME: this is an information leak and snapd should instead query udev for
   # the specific accesses associated with the above devices.
   /sys/bus/pci/devices/** r,
   /run/udev/data/+drm:card* r,
   /run/udev/data/+pci:[0-9]* r,
+
+  # FIXME: for each device in /dev that this policy references, lookup the
+  # device type, major and minor and create rules of this form:
+  # /run/udev/data/<type><major>:<minor> r,
+  # For now, allow 'c'haracter devices and 'b'lock devices based on
+  # https://www.kernel.org/doc/Documentation/devices.txt
+  /run/udev/data/c226:[0-9]* r,  # 226 drm
 `
 
 const openglConnectedPlugSecComp = `
-# Description: Can access opengl. 
+# Description: Can access opengl.
 # Usage: reserved
 
 getsockopt

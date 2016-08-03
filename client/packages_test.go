@@ -47,6 +47,16 @@ func (cs *clientSuite) TestClientFindRefreshSetsQuery(c *check.C) {
 	})
 }
 
+func (cs *clientSuite) TestClientFindPrivateSetsQuery(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{
+		Private: true,
+	})
+	c.Check(cs.req.Method, check.Equals, "GET")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+
+	c.Check(cs.req.URL.Query().Get("select"), check.Equals, "private")
+}
+
 func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
@@ -54,6 +64,18 @@ func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	}`
 	_, err := cs.cli.List(nil)
 	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
+}
+
+func (cs *clientSuite) TestClientNoSnaps(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": [],
+		"suggested-currency": "GBP"
+	}`
+	_, err := cs.cli.List(nil)
+	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
+	_, err = cs.cli.List([]string{"foo"})
+	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
 }
 
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
@@ -104,6 +126,18 @@ func (cs *clientSuite) TestClientFilterSnaps(c *check.C) {
 	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo"})
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
 	c.Check(cs.req.URL.RawQuery, check.Equals, "q=foo")
+}
+
+func (cs *clientSuite) TestClientFindPrefix(c *check.C) {
+	_, _, _ = cs.cli.Find(&client.FindOptions{Query: "foo", Prefix: true})
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo%2A") // 2A is `*`
+}
+
+func (cs *clientSuite) TestClientFindOne(c *check.C) {
+	_, _, _ = cs.cli.FindOne("foo")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/find")
+	c.Check(cs.req.URL.RawQuery, check.Equals, "name=foo")
 }
 
 const (
