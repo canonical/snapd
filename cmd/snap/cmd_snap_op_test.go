@@ -171,7 +171,6 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"name":    "foo",
 			"channel": "chan",
 		})
 		s.srv.channel = "chan"
@@ -192,7 +191,6 @@ func (s *SnapOpSuite) TestInstallDevMode(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"name":    "foo",
 			"devmode": true,
 			"channel": "chan",
 		})
@@ -264,7 +262,6 @@ func (s *SnapOpSuite) TestRevert(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action": "revert",
-			"name":   "foo",
 		})
 	}
 
@@ -316,7 +313,6 @@ func (s *SnapOpSuite) TestRefreshOne(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action": "refresh",
-			"name":   "one",
 		})
 	}
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "one"})
@@ -330,7 +326,6 @@ func (s *SnapOpSuite) TestRefreshOneSwitchChannel(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "refresh",
-			"name":    "one",
 			"channel": "beta",
 		})
 	}
@@ -345,7 +340,6 @@ func (s *SnapOpSuite) TestRefreshOneDevmode(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "refresh",
-			"name":    "one",
 			"devmode": true,
 		})
 	}
@@ -360,7 +354,6 @@ func (s *SnapOpSuite) TestRefreshOneJailmode(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":   "refresh",
-			"name":     "one",
 			"jailmode": true,
 		})
 	}
@@ -447,7 +440,6 @@ func (s *SnapOpSuite) TestInstallFromChannel(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action":  "install",
-			"name":    "foo",
 			"channel": "edge",
 		})
 		s.srv.channel = "edge"
@@ -469,7 +461,6 @@ func (s *SnapOpSuite) TestEnable(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action": "enable",
-			"name":   "foo",
 		})
 	}
 
@@ -489,7 +480,6 @@ func (s *SnapOpSuite) TestDisable(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action": "disable",
-			"name":   "foo",
 		})
 	}
 
@@ -509,7 +499,6 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 			"action": "remove",
-			"name":   "foo",
 		})
 	}
 
