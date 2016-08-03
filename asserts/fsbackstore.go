@@ -87,7 +87,7 @@ func (fsbs *filesystemBackstore) Put(assertType *AssertionType, assert Assertion
 
 	primaryPath := make([]string, len(assertType.PrimaryKey))
 	for i, k := range assertType.PrimaryKey {
-		primaryPath[i] = assert.Header(k)
+		primaryPath[i] = assert.HeaderString(k)
 	}
 
 	diskPrimaryPath := buildDiskPrimaryPath(primaryPath)
