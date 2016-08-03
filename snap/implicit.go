@@ -39,6 +39,7 @@ var implicitSlots = []string{
 	"network-control",
 	"network-observe",
 	"ppp",
+	"process-control",
 	"snapd-control",
 	"system-observe",
 	"timeserver-control",

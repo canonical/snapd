@@ -107,8 +107,11 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 		if err := bootloader.SetBootVar(newKey, value); err != nil {
 			return err
 		}
-
 		if err := bootloader.SetBootVar("snap_mode", modeSuccess); err != nil {
+			return err
+		}
+		// clear "snap_try_{core,kernel}"
+		if err := bootloader.SetBootVar(k, ""); err != nil {
 			return err
 		}
 	}

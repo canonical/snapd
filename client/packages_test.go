@@ -66,6 +66,18 @@ func (cs *clientSuite) TestClientSnapsInvalidSnapsJSON(c *check.C) {
 	c.Check(err, check.ErrorMatches, `.*cannot unmarshal.*`)
 }
 
+func (cs *clientSuite) TestClientNoSnaps(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"result": [],
+		"suggested-currency": "GBP"
+	}`
+	_, err := cs.cli.List(nil)
+	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
+	_, err = cs.cli.List([]string{"foo"})
+	c.Check(err, check.Equals, client.ErrNoSnapsInstalled)
+}
+
 func (cs *clientSuite) TestClientSnaps(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",

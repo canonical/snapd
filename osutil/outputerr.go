@@ -17,34 +17,23 @@
  *
  */
 
-package builtin
+package osutil
 
 import (
-	"github.com/snapcore/snapd/interfaces"
+	"bytes"
+	"fmt"
 )
 
-const pulseaudioConnectedPlugAppArmor = `
-/etc/pulse/ r,
-/etc/pulse/* r,
-/{run,dev}/shm/pulse-shm-* rwk,
-owner /{,var/}run/user/*/pulse/ r,
-owner /{,var/}run/user/*/pulse/native rwk,
-`
-
-const pulseaudioConnectedPlugSecComp = `
-getsockopt
-setsockopt
-connect
-sendto
-`
-
-// NewPulseAudioInterface returns a new "pulseaudio" interface.
-func NewPulseAudioInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "pulseaudio",
-		connectedPlugAppArmor: pulseaudioConnectedPlugAppArmor,
-		connectedPlugSecComp:  pulseaudioConnectedPlugSecComp,
-		reservedForOS:         true,
-		autoConnect:           true,
+// OutputErr formats an error based on output if its length is not zero,
+// or returns err otherwise.
+func OutputErr(output []byte, err error) error {
+	output = bytes.TrimSpace(output)
+	if len(output) > 0 {
+		if bytes.Contains(output, []byte{'\n'}) {
+			err = fmt.Errorf("\n-----\n%s\n-----", output)
+		} else {
+			err = fmt.Errorf("%s", output)
+		}
 	}
+	return err
 }
