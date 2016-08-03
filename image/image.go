@@ -53,8 +53,6 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	// FIXME: seed.yaml support (once that is better defined)
-	//        for e.g. channel per snap
 	return bootstrapToRootdir(opts)
 }
 
@@ -83,7 +81,7 @@ func downloadUnpackGadget(opts *Options) error {
 		StoreID:      model.Store(),
 		Architecture: model.Architecture(),
 	}
-	snapFn, err := acquireSnap(model.Gadget(), dlOpts)
+	snapFn, _, err := acquireSnap(model.Gadget(), dlOpts)
 	if err != nil {
 		return err
 	}
@@ -93,7 +91,7 @@ func downloadUnpackGadget(opts *Options) error {
 	return snap.Unpack("*", opts.GadgetUnpackDir)
 }
 
-func acquireSnap(snapName string, dlOpts *downloadOptions) (string, error) {
+func acquireSnap(snapName string, dlOpts *downloadOptions) (string, *snap.Info, error) {
 	if osutil.FileExists(snapName) {
 		return copyLocalSnapFile(snapName, dlOpts.TargetDir)
 	}
@@ -144,9 +142,11 @@ func bootstrapToRootdir(opts *Options) error {
 			return err
 		}
 	}
+
+	var seedYaml snap.Seed
 	for _, snapName := range snaps {
 		fmt.Printf("Fetching %s\n", snapName)
-		fn, err := acquireSnap(snapName, dlOpts)
+		fn, info, err := acquireSnap(snapName, dlOpts)
 		if err != nil {
 			return err
 		}
@@ -156,6 +156,19 @@ func bootstrapToRootdir(opts *Options) error {
 				return err
 			}
 		}
+		// set seed.yaml
+		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
+			Name:        info.Name(),
+			SnapID:      info.SnapID,
+			Revision:    info.Revision,
+			Channel:     info.Channel,
+			DeveloperID: info.DeveloperID,
+			Developer:   info.Developer,
+			File:        filepath.Base(fn),
+		})
+	}
+	if err := seedYaml.Write(); err != nil {
+		return fmt.Errorf("cannot write seed.yaml: %s", err)
 	}
 
 	// now do the bootloader stuff
@@ -271,14 +284,14 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 	return nil
 }
 
-func copyLocalSnapFile(snapName, targetDir string) (string, error) {
+func copyLocalSnapFile(snapName, targetDir string) (string, *snap.Info, error) {
 	snapFile, err := snap.Open(snapName)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	// local snap gets sideloaded revision
 	if info.Revision.Unset() {
@@ -286,7 +299,7 @@ func copyLocalSnapFile(snapName, targetDir string) (string, error) {
 	}
 	dst := filepath.Join(targetDir, filepath.Dir(info.MountFile()))
 
-	return dst, osutil.CopyFile(snapName, dst, 0)
+	return dst, info, osutil.CopyFile(snapName, dst, 0)
 }
 
 type downloadOptions struct {
@@ -298,7 +311,7 @@ type downloadOptions struct {
 }
 
 // FIXME: move to snapstate next to InstallPathWithSideInfo()
-func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error) {
+func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, *snap.Info, error) {
 	if opts == nil {
 		opts = &downloadOptions{}
 	}
@@ -316,6 +329,8 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 		arch.SetArchitecture(arch.ArchitectureType(opts.Architecture))
 	}
 
+	// FIXME: this really should be done on the server side
+	//
 	// *sigh* we need to adjust the storeID if its set to "canonical"
 	//        because there is no "canonical" store in the store server
 	//        it is just ""
@@ -326,7 +341,7 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 
 	pwd, err := os.Getwd()
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	targetDir := opts.TargetDir
 	if targetDir == "" {
@@ -336,28 +351,28 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, error
 	m := store.New(nil, storeID, nil)
 	snap, err := m.Snap(name, opts.Channel, false, nil)
 	if err != nil {
-		return "", fmt.Errorf("failed to find snap: %s", err)
+		return "", nil, fmt.Errorf("failed to find snap: %s", err)
 	}
 	pb := progress.NewTextProgress()
 	tmpName, err := m.Download(name, &snap.DownloadInfo, pb, nil)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	defer os.Remove(tmpName)
 
 	baseName := filepath.Base(snap.MountFile())
 	path := filepath.Join(targetDir, baseName)
 	if err := osutil.CopyFile(tmpName, path, 0); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	out, err := json.Marshal(snap)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 	if err := ioutil.WriteFile(path+".sideinfo", []byte(out), 0644); err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return path, nil
+	return path, snap, nil
 }

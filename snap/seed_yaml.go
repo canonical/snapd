@@ -22,9 +22,12 @@ package snap
 import (
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v2"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 type SeedSnap struct {
@@ -65,4 +68,16 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 	}
 
 	return &seed, nil
+}
+
+func (seed *Seed) Write() error {
+	seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	data, err := yaml.Marshal(&seed)
+	if err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(seedFn, data, 0644); err != nil {
+		return err
+	}
+	return nil
 }
