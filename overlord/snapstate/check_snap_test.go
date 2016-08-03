@@ -117,15 +117,17 @@ func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: snap.R(2)}
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: gadget
@@ -156,15 +158,17 @@ func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: snap.R(2)}
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: zgadget
@@ -246,4 +250,25 @@ version: 1
 	err = snapstate.CheckSnap(st, "snap-path", nil, 0)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot install a gadget snap on classic")
+}
+
+func (s *checkSnapSuite) TestCheckSnapErrorOnDevModeDisallowed(c *C) {
+	const yaml = `name: hello
+version: 1.10
+confinement: devmode
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		c.Check(path, Equals, "snap-path")
+		c.Check(si, IsNil)
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+
+	c.Assert(err, ErrorMatches, ".* requires devmode or confinement override")
 }

@@ -86,6 +86,32 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	}
 }
 
+func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		s.udevadmCmd.ForgetCalls()
+		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.hook.apply-config.rules")
+
+		// Verify that "70-snap.foo.hook.apply-config.rules" was created.
+		_, err := os.Stat(fname)
+		c.Check(err, IsNil)
+
+		// Verify that udevadm was used to reload rules and re-run triggers.
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestSecurityIsStable(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -146,6 +172,33 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	}
 }
 
+func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		s.udevadmCmd.ForgetCalls()
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.apply-config.rules")
+
+		// Verify that "70-snap.samba.hook.apply-config.rules" was created
+		_, err := os.Stat(fname)
+		c.Check(err, IsNil)
+
+		// Verify that udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -161,6 +214,33 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 0)
+		s.udevadmCmd.ForgetCalls()
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.apply-config.rules")
+
+		// Verify that  "70-snap.samba.hook.apply-config.rules" was removed
+		_, err := os.Stat(fname)
+		c.Check(os.IsNotExist(err), Equals, true)
+
+		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
 			{"udevadm", "trigger"},

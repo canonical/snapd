@@ -108,6 +108,12 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change.AddAll(ts)
 	s.state.Unlock()
 
@@ -118,6 +124,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	c.Assert(change.Err(), IsNil)
 	task := change.Tasks()[0]
 	c.Check(task.Kind(), Equals, "connect")
 	c.Check(task.Status(), Equals, state.DoneStatus)
@@ -167,6 +174,11 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
 	c.Assert(err, IsNil)
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -178,6 +190,7 @@ func (s *interfaceManagerSuite) TestEnsureProcessesDisconnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	c.Assert(change.Err(), IsNil)
 	task := change.Tasks()[0]
 	c.Check(task.Kind(), Equals, "disconnect")
 	c.Check(task.Status(), Equals, state.DoneStatus)
@@ -196,8 +209,11 @@ func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 }
 
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
-	sideInfo := &snap.SideInfo{}
+	sideInfo := &snap.SideInfo{
+		Revision: snap.R(1),
+	}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	sideInfo.RealName = snapInfo.Name()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -206,6 +222,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	snapstate.Set(s.state, snapInfo.Name(), &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
 	})
 	return snapInfo
 }
@@ -213,6 +230,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 func (s *interfaceManagerSuite) mockUpdatedSnap(c *C, yamlText string, revision int) *snap.Info {
 	sideInfo := &snap.SideInfo{Revision: snap.R(revision)}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
+	sideInfo.RealName = snapInfo.Name()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -244,7 +262,11 @@ func (s *interfaceManagerSuite) addRemoveSnapSecurityChange(c *C, snapName strin
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("remove-profiles", "")
-	ss := snapstate.SnapSetup{Name: snapName}
+	ss := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+		},
+	}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
@@ -257,7 +279,11 @@ func (s *interfaceManagerSuite) addDiscardConnsChange(c *C, snapName string) *st
 	defer s.state.Unlock()
 
 	task := s.state.NewTask("discard-conns", "")
-	ss := snapstate.SnapSetup{Name: snapName}
+	ss := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+		},
+	}
 	task.Set("snap-setup", ss)
 	taskset := state.NewTaskSet(task)
 	change := s.state.NewChange("test", "")
@@ -311,7 +337,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: snapInfo.Name(), Revision: snapInfo.Revision})
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -348,7 +378,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
 
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: snapInfo.Name(), Revision: snapInfo.Revision})
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -399,7 +433,11 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyKeepsExistingConnectionSt
 
 	// Run the setup-snap-security task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: snapInfo.Name(), Revision: snapInfo.Revision})
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -436,7 +474,11 @@ func (s *interfaceManagerSuite) TestDoSetupProfilesAddsImplicitSlots(c *C) {
 
 	// Run the setup-profiles task and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: snapInfo.Name(), Revision: snapInfo.Revision})
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+	})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -480,7 +522,12 @@ func (s *interfaceManagerSuite) testDoSetupSnapSecuirtyReloadsConnectionsWhenInv
 	mgr := s.manager(c)
 
 	// Run the setup-profiles task
-	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{Name: snapName, Revision: revision})
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapName,
+			Revision: revision,
+		},
+	})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -515,7 +562,12 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	// Run the setup-profiles task and let it finish.
 	// Note that the task will see SnapSetup.Flags equal to DeveloperMode.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: snapInfo.Name(), Flags: snapstate.DevMode, Revision: snapInfo.Revision})
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			Revision: snapInfo.Revision,
+		},
+		Flags: snapstate.DevMode,
+	})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -531,19 +583,6 @@ func (s *interfaceManagerSuite) TestSetupProfilesHonorsDevMode(c *C) {
 	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
 	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, "snap")
 	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
-
-	// SnapState stored the value of DevMode
-	var snapState snapstate.SnapState
-	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
-	c.Assert(err, IsNil)
-	c.Check(snapState.DevMode(), Equals, true)
-
-	// The old value of DevMode was saved in the task in case undo is needed.
-	task := change.Tasks()[0]
-	var oldDevMode bool
-	err = task.Get("old-devmode", &oldDevMode)
-	c.Assert(err, IsNil)
-	c.Check(oldDevMode, Equals, false)
 }
 
 // setup-profiles uses the new snap.Info when setting up security for the new
@@ -576,7 +615,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 
 	// Run the setup-profiles task for the new revision and let it finish.
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name: newSnapInfo.Name(), Revision: newSnapInfo.Revision})
+		SideInfo: &snap.SideInfo{
+			RealName: newSnapInfo.Name(),
+			Revision: newSnapInfo.Revision,
+		},
+	})
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -585,6 +628,7 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	defer s.state.Unlock()
 
 	// Ensure that the task succeeded.
+	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	// Ensure that both snaps were setup correctly.
@@ -596,60 +640,6 @@ func (s *interfaceManagerSuite) TestSetupProfilesUsesFreshSnapInfo(c *C) {
 	// The OS snap was setup (because it was affected).
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, coreSnapInfo.Name())
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Revision, Equals, coreSnapInfo.Revision)
-}
-
-// The undo handler of the setup-profiles task will honor `old-devmode` that
-// is optionally stored in the task state and use it to set the DevMode flag in
-// the SnapState.
-//
-// This variant checks restoring DevMode to true
-func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeTrue(c *C) {
-	s.undoDevModeCheck(c, 0, true)
-}
-
-// The undo handler of the setup-profiles task will honor `old-devmode` that
-// is optionally stored in the task state and use it to set the DevMode flag in
-// the SnapState.
-//
-// This variant checks restoring DevMode to false
-func (s *interfaceManagerSuite) TestSetupProfilesUndoDevModeFalse(c *C) {
-	s.undoDevModeCheck(c, 0, false)
-}
-
-func (s *interfaceManagerSuite) undoDevModeCheck(c *C, flags snapstate.Flags, devMode bool) {
-	// Put the OS and sample snaps in place.
-	s.mockSnap(c, osSnapYaml)
-	snapInfo := s.mockSnap(c, sampleSnapYaml)
-
-	// Initialize the manager. This registers both snaps.
-	mgr := s.manager(c)
-
-	// Run the setup-profiles task in UndoMode and let it finish.
-	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
-		Name:     snapInfo.Name(),
-		Flags:    snapstate.SnapSetupFlags(flags),
-		Revision: snapInfo.Revision,
-	})
-	s.state.Lock()
-	task := change.Tasks()[0]
-	// Inject the old value of DevMode flag for the task handler to restore
-	task.Set("old-devmode", devMode)
-	task.SetStatus(state.UndoStatus)
-	s.state.Unlock()
-	mgr.Ensure()
-	mgr.Wait()
-	mgr.Stop()
-
-	// Change succeeds
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(change.Status(), Equals, state.UndoneStatus)
-
-	// SnapState.Flags now holds the original value of DevMode
-	var snapState snapstate.SnapState
-	err := snapstate.Get(s.state, snapInfo.Name(), &snapState)
-	c.Assert(err, IsNil)
-	c.Check(snapState.DevMode(), Equals, devMode)
 }
 
 func (s *interfaceManagerSuite) TestDoDiscardConnsPlug(c *C) {
@@ -805,6 +795,12 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("connect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -816,6 +812,7 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
@@ -837,6 +834,12 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("connect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -848,6 +851,7 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
@@ -875,6 +879,12 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("disconnect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -886,6 +896,7 @@ func (s *interfaceManagerSuite) TestDisconnectSetsUpSecurity(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 
 	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
@@ -912,6 +923,12 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	s.state.Lock()
 	ts, err := ifacestate.Disconnect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
 	change := s.state.NewChange("disconnect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
@@ -923,6 +940,7 @@ func (s *interfaceManagerSuite) TestDisconnectTracksConnectionsInState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	c.Assert(change.Err(), IsNil)
 	c.Check(change.Status(), Equals, state.DoneStatus)
 	var conns map[string]interface{}
 	err = s.state.Get("conns", &conns)
@@ -950,4 +968,61 @@ func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	c.Assert(slot.Connections, HasLen, 1)
 	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+}
+
+func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
+	mgr := s.manager(c)
+	repo := mgr.Repository()
+
+	// setup two snaps that are connected
+	siP := s.mockSnap(c, producerYaml)
+	siC := s.mockSnap(c, consumerYaml)
+	err := repo.AddInterface(&interfaces.TestInterface{
+		InterfaceName: "test",
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddSlot(&interfaces.Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      siC,
+			Name:      "slot",
+			Interface: "test",
+		},
+	})
+	c.Assert(err, IsNil)
+	err = repo.AddPlug(&interfaces.Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      siP,
+			Name:      "plug",
+			Interface: "test",
+		},
+	})
+	c.Assert(err, IsNil)
+	err = repo.Connect(siP.Name(), "plug", siC.Name(), "slot")
+	c.Assert(err, IsNil)
+
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: siC.Name(),
+			Revision: siC.Revision,
+		},
+		Flags: snapstate.DevMode,
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// The first snap is setup in devmode, the second is not
+	c.Assert(s.secBackend.SetupCalls, HasLen, 2)
+	c.Assert(s.secBackend.RemoveCalls, HasLen, 0)
+	c.Check(s.secBackend.SetupCalls[0].SnapInfo.Name(), Equals, siC.Name())
+	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
+	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, siP.Name())
+	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
 }

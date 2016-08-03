@@ -60,7 +60,7 @@ type PlaceInfo interface {
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
 func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
-	return &Info{SideInfo: SideInfo{OfficialName: name, Revision: revision}}
+	return &Info{SideInfo: SideInfo{RealName: name, Revision: revision}}
 }
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
@@ -91,11 +91,12 @@ func HookSecurityTag(snapName, hookName string) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	OfficialName      string   `yaml:"name,omitempty" json:"name,omitempty"`
+	RealName          string   `yaml:"name,omitempty" json:"name,omitempty"`
 	SnapID            string   `yaml:"snap-id" json:"snap-id"`
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Developer         string   `yaml:"developer,omitempty" json:"developer,omitempty"`
+	DeveloperID       string   `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
+	Developer         string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
 	Size              int64    `yaml:"size,omitempty" json:"size,omitempty"`
@@ -129,18 +130,18 @@ type Info struct {
 	SideInfo
 
 	// The information in these fields is ephemeral, available only from the store.
-	AnonDownloadURL string
-	DownloadURL     string
+	DownloadInfo
 
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 	MustBuy bool
+	Broken  string
 }
 
 // Name returns the blessed name for the snap.
 func (s *Info) Name() string {
-	if s.OfficialName != "" {
-		return s.OfficialName
+	if s.RealName != "" {
+		return s.RealName
 	}
 	return s.SuggestedName
 }
@@ -199,6 +200,13 @@ func (s *Info) CommonDataHomeDir() string {
 // NeedsDevMode retursn whether the snap needs devmode.
 func (s *Info) NeedsDevMode() bool {
 	return s.Confinement == DevmodeConfinement
+}
+
+// DownloadInfo contains the information to download a snap.
+// It can be marshalled.
+type DownloadInfo struct {
+	AnonDownloadURL string `json:"anon-download-url,omitempty"`
+	DownloadURL     string `json:"download-url,omitempty"`
 }
 
 // sanity check that Info is a PlaceInfo
@@ -344,6 +352,16 @@ func (hook *HookInfo) SecurityTag() string {
 	return HookSecurityTag(hook.Snap.Name(), hook.Name)
 }
 
+// Env returns the hook-specific environment overrides
+func (hook *HookInfo) Env() []string {
+	env := []string{}
+	hookEnv := copyEnv(hook.Snap.Environment)
+	for k, v := range hookEnv {
+		env = append(env, fmt.Sprintf("%s=%s\n", k, v))
+	}
+	return env
+}
+
 func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	info, err := InfoFromSnapYaml(meta)
 	if err != nil {
@@ -357,12 +375,21 @@ func infoFromSnapYamlWithSideInfo(meta []byte, si *SideInfo) (*Info, error) {
 	return info, nil
 }
 
+type NotFoundError struct {
+	Snap     string
+	Revision Revision
+}
+
+func (e NotFoundError) Error() string {
+	return fmt.Sprintf("cannot find installed snap %q at revision %s", e.Snap, e.Revision)
+}
+
 // ReadInfo reads the snap information for the installed snap with the given name and given side-info.
 func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	snapYamlFn := filepath.Join(MountDir(name, si.Revision), "meta", "snap.yaml")
 	meta, err := ioutil.ReadFile(snapYamlFn)
 	if os.IsNotExist(err) {
-		return nil, fmt.Errorf("cannot find mounted snap %q at revision %s", name, si.Revision)
+		return nil, &NotFoundError{Snap: name, Revision: si.Revision}
 	}
 	if err != nil {
 		return nil, err

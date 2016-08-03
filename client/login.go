@@ -79,6 +79,10 @@ func (client *Client) LoggedIn() bool {
 }
 
 func storeAuthDataFilename() string {
+	authFilename := os.Getenv("SNAPPY_STORE_AUTH_DATA_FILENAME")
+	if authFilename != "" {
+		return authFilename
+	}
 	homeDir, err := osutil.CurrentHomeDir()
 	if err != nil {
 		panic(err)

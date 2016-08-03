@@ -44,7 +44,11 @@ func (cmd *cmdHelp) setParser(parser *flags.Parser) {
 	cmd.parser = parser
 }
 
-func (cmd cmdHelp) Execute([]string) error {
+func (cmd cmdHelp) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	if cmd.Manpage {
 		cmd.parser.WriteManPage(Stdout)
 		os.Exit(0)

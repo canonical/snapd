@@ -62,9 +62,17 @@ func getgrnamForking(name string) (grp Group, err error) {
 }
 
 func (s *groupTestSuite) TestGetgrnam(c *C) {
-	expected, err := getgrnamForking("adm")
-	c.Assert(err, IsNil)
-	groups, err := Getgrnam("adm")
+	// figure out whether we want "nobody" or "nogroup" or just bail
+	name := "nogroup"
+	expected, err := getgrnamForking(name)
+	if err != nil {
+		name = "nobody"
+		expected, err = getgrnamForking(name)
+		if err != nil {
+			c.Skip("unable to find an innocuous group name to use")
+		}
+	}
+	groups, err := Getgrnam(name)
 	c.Assert(err, IsNil)
 	c.Assert(groups, DeepEquals, expected)
 }

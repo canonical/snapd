@@ -72,6 +72,11 @@ var defaultTemplate = []byte(`
 
   # End dangerous accesses
 
+  # Note: this potentially allows snaps to DoS other snaps via resource
+  # exhaustion but we can't sensibly mediate this today. In the future we may
+  # employ cgroup limits, AppArmor rlimit mlock rules or something else.
+  capability ipc_lock,
+
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
   /bin/bash ixr,
@@ -93,6 +98,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/bzip2 ixr,
   /{,usr/}bin/cat ixr,
   /{,usr/}bin/chmod ixr,
+  /{,usr/}bin/clear ixr,
   /{,usr/}bin/cmp ixr,
   /{,usr/}bin/cp ixr,
   /{,usr/}bin/cpio ixr,
@@ -122,6 +128,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
   /{,usr/}bin/link ixr,
+  /{,usr/}bin/locale ixr,
   /{,usr/}bin/logger ixr,
   /{,usr/}bin/ls ixr,
   /{,usr/}bin/md5sum ixr,
@@ -145,6 +152,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
   /{,usr/}bin/stat ixr,
+  /{,usr/}bin/stdbuf ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -170,6 +178,9 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/z{,e,f}grep ixr,
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
+
+  # For printing the cache (we don't allow updating the cache)
+  /{,usr/}sbin/ldconfig{,.real} ixr,
 
   # uptime
   /{,usr/}bin/uptime ixr,
@@ -206,12 +217,14 @@ var defaultTemplate = []byte(`
   owner @{PROC}/@{pid}/cmdline r,
 
   # Miscellaneous accesses
+  /etc/machine-id r,
   /etc/mime.types r,
   @{PROC}/ r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
+  @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
@@ -226,6 +239,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
   owner @{PROC}/@{pid}/oom_{,score_}adj r,

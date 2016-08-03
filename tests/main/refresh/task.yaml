@@ -1,0 +1,54 @@
+summary: Check that the refresh command works.
+
+details: |
+    These tests exercise the refresh command using different store backends.
+    The concrete store to be used is controlled with the STORE_TYPE environment
+    vairiable, if it is empty, a fake local store is used, if it has a value of
+    staginig or production the corresponding remote store is used.
+    When executing against the remote stores the tests rely in the existence of
+    a given snap with an updatable version (version string like 2.0+fake1) in the
+    edge channel.
+
+environment:
+    SNAP_NAME: test-snapd-tools
+    SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
+    CONFIG_DIR: /etc/systemd/system/snapd.service.d
+    STORE_CONFIG: $[CONFIG_DIR]/fakestore.conf
+    BLOB_DIR: $(mktemp -d)
+    STORE_ADDR: localhost:11028
+    STORE_TYPE/fake: fake
+    STORE_TYPE/staging: staging
+    STORE_TYPE/production: production
+
+prepare: |
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "Given a snap is installed"
+        snap install test-snapd-tools
+    fi
+
+    . $TESTSLIB/store.sh
+    setup_store $STORE_TYPE $BLOB_DIR
+
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "And a new version of that snap put in the controlled store"
+        fakestore -blobdir $BLOB_DIR -make-refreshable test-snapd-tools
+    fi
+
+restore: |
+    . $TESTSLIB/store.sh
+    teardown_store $STORE_TYPE $BLOB_DIR
+
+execute: |
+    # FIXME: currently the --list from channel doesn't work
+    # echo "Then the new version is available for the snap to be refreshed"
+    # expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"
+    # snap refresh --list | grep -Pzq "$expected"
+    #
+    # echo "================================="
+
+    echo "When the snap is refreshed"
+    snap refresh --channel=edge $SNAP_NAME
+
+    echo "Then the new version is listed"
+    expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"
+    snap list | grep -Pzq "$expected"

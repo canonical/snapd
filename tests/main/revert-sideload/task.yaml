@@ -1,0 +1,20 @@
+summary: Checks for snap sideload reverts
+
+prepare: |
+    snapbuild $TESTSLIB/snaps/basic .
+
+restore: |
+    rm ./basic_1.0_all.snap
+
+execute: |
+    echo Installing sideloaded snap
+    snap install ./basic_1.0_all.snap
+    snap list | grep -Pzq "x1"
+
+    echo Installing new version of sideloaded snap
+    snap install ./basic_1.0_all.snap
+    snap list | grep -Pzq "x2"
+
+    echo Reverting to the previous version
+    snap revert basic | grep reverted
+    snap list | grep -Pzq "x1"

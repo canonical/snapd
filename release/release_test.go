@@ -67,20 +67,39 @@ func (s *ReleaseTestSuite) TestReadOSRelease(c *C) {
 	reset := release.MockOSReleasePath(mockOSRelease(c))
 	defer reset()
 
-	os, err := release.ReadOSRelease()
+	os := release.ReadOSRelease()
+	c.Check(os.ID, Equals, "ubuntu")
+	c.Check(os.VersionID, Equals, "18.09")
+}
+
+func (s *ReleaseTestSuite) TestReadWonkyOSRelease(c *C) {
+	mockOSRelease := filepath.Join(c.MkDir(), "mock-os-release")
+	dump := `NAME="elementary OS"
+VERSION="0.4 Loki"
+ID="elementary OS"
+ID_LIKE=ubuntu
+PRETTY_NAME="elementary OS Loki"
+VERSION_ID="0.4"
+HOME_URL="http://elementary.io/"
+SUPPORT_URL="http://elementary.io/support/"
+BUG_REPORT_URL="https://bugs.launchpad.net/elementary/+filebug"`
+	err := ioutil.WriteFile(mockOSRelease, []byte(dump), 0644)
 	c.Assert(err, IsNil)
-	c.Assert(os.ID, Equals, "ubuntu")
-	c.Assert(os.Name, Equals, "Ubuntu")
-	c.Assert(os.Release, Equals, "18.09")
-	c.Assert(os.Codename, Equals, "awesome")
+
+	reset := release.MockOSReleasePath(mockOSRelease)
+	defer reset()
+
+	os := release.ReadOSRelease()
+	c.Check(os.ID, Equals, "elementary")
+	c.Check(os.VersionID, Equals, "0.4")
 }
 
 func (s *ReleaseTestSuite) TestReadOSReleaseNotFound(c *C) {
 	reset := release.MockOSReleasePath("not-there")
 	defer reset()
 
-	_, err := release.ReadOSRelease()
-	c.Assert(err, ErrorMatches, "cannot read os-release:.*")
+	os := release.ReadOSRelease()
+	c.Assert(os, DeepEquals, release.OS{ID: "linux", VersionID: "unknown"})
 }
 
 func (s *ReleaseTestSuite) TestOnClassic(c *C) {
@@ -122,7 +141,7 @@ func (s *ReleaseTestSuite) TestForceDevMode(c *C) {
 		{id: "ubuntu", devmode: false},
 	}
 	for _, distro := range distros {
-		rel := &release.OS{ID: distro.id, Release: distro.idVersion}
+		rel := &release.OS{ID: distro.id, VersionID: distro.idVersion}
 		c.Logf("checking distribution %#v", rel)
 		release.MockReleaseInfo(rel)
 		c.Assert(release.ReleaseInfo.ForceDevMode(), Equals, distro.devmode)

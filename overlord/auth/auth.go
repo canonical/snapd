@@ -20,9 +20,7 @@
 package auth
 
 import (
-	"bytes"
 	"fmt"
-	"net/http"
 	"sort"
 
 	"github.com/snapcore/snapd/overlord/state"
@@ -30,8 +28,16 @@ import (
 
 // AuthState represents current authenticated users as tracked in state
 type AuthState struct {
-	LastID int         `json:"last-id"`
-	Users  []UserState `json:"users"`
+	LastID int          `json:"last-id"`
+	Users  []UserState  `json:"users"`
+	Device *DeviceState `json:"device,omitempty"`
+}
+
+// DeviceState represents the device's identity and store credentials
+type DeviceState struct {
+	Brand  string `json:"brand,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Serial string `json:"serial,omitempty"`
 }
 
 // UserState represents an authenticated user
@@ -113,6 +119,61 @@ func User(st *state.State, id int) (*UserState, error) {
 	return nil, fmt.Errorf("invalid user")
 }
 
+// UpdateUser updates user in state
+func UpdateUser(st *state.State, user *UserState) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return err
+	}
+
+	for i := range authStateData.Users {
+		if authStateData.Users[i].ID == user.ID {
+			authStateData.Users[i] = *user
+			st.Set("auth", authStateData)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid user")
+}
+
+// Device returns the device details from the state.
+func Device(st *state.State) (*DeviceState, error) {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return &DeviceState{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	if authStateData.Device == nil {
+		return &DeviceState{}, nil
+	}
+
+	return authStateData.Device, nil
+}
+
+// SetDevice updates the device details in the state.
+func SetDevice(st *state.State, device *DeviceState) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		authStateData = AuthState{}
+	} else if err != nil {
+		return err
+	}
+
+	authStateData.Device = device
+	st.Set("auth", authStateData)
+
+	return nil
+}
+
 var ErrInvalidAuth = fmt.Errorf("invalid authentication")
 
 // CheckMacaroon returns the UserState for the given macaroon/discharges credentials
@@ -143,30 +204,25 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
-func (us *UserState) Authenticator() *MacaroonAuthenticator {
-	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
+// An AuthContext handles user updates.
+type AuthContext interface {
+	UpdateUser(user *UserState) error
 }
 
-// MacaroonAuthenticator is a store authenticator based on macaroons
-type MacaroonAuthenticator struct {
-	Macaroon   string
-	Discharges []string
+// authContext helps keeping track and updating users in the state.
+type authContext struct {
+	state *state.State
 }
 
-func newMacaroonAuthenticator(macaroon string, discharges []string) *MacaroonAuthenticator {
-	return &MacaroonAuthenticator{
-		Macaroon:   macaroon,
-		Discharges: discharges,
-	}
+// NewAuthContext returns an AuthContext for state.
+func NewAuthContext(st *state.State) AuthContext {
+	return &authContext{state: st}
 }
 
-// Authenticate will add the store expected Authorization header for macaroons
-func (ma *MacaroonAuthenticator) Authenticate(r *http.Request) {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `Macaroon root="%s"`, ma.Macaroon)
-	for _, discharge := range ma.Discharges {
-		fmt.Fprintf(&buf, `, discharge="%s"`, discharge)
-	}
-	r.Header.Set("Authorization", buf.String())
+// UpdateUser updates user in state.
+func (ac *authContext) UpdateUser(user *UserState) error {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return UpdateUser(ac.state, user)
 }

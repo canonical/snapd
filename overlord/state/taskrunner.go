@@ -20,8 +20,8 @@
 package state
 
 import (
-	"errors"
 	"sync"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -33,8 +33,16 @@ type HandlerFunc func(task *Task, tomb *tomb.Tomb) error
 
 // Retry is returned from a handler to signal that is ok to rerun the
 // task at a later point. It's to be used also when a task goroutine
-// is asked to stop through its tomb.
-var Retry = errors.New("task should be retried")
+// is asked to stop through its tomb. After can be used to indicate
+// how much to postpone the retry, 0 (the default) means at the next
+// ensure pass and is what should be used if stopped through its tomb.
+type Retry struct {
+	After time.Duration
+}
+
+func (r *Retry) Error() string {
+	return "task should be retried"
+}
 
 // TaskRunner controls the running of goroutines to execute known task kinds.
 type TaskRunner struct {
@@ -44,6 +52,9 @@ type TaskRunner struct {
 	mu       sync.Mutex
 	handlers map[string]handlerPair
 	stopped  bool
+
+	blocked     func(t *Task, running []*Task) bool
+	someBlocked bool
 
 	// go-routines lifecycle
 	tombs map[string]*tomb.Tomb
@@ -71,6 +82,14 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	r.handlers[kind] = handlerPair{do, undo}
 }
 
+// SetBlocked sets a predicate function to decide whether to block a task from running based on the current running tasks. It can be used to control task serialisation.
+func (r *TaskRunner) SetBlocked(pred func(t *Task, running []*Task) bool) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.blocked = pred
+}
+
 // run must be called with the state lock in place
 func (r *TaskRunner) run(t *Task) {
 	var handler HandlerFunc
@@ -94,6 +113,7 @@ func (r *TaskRunner) run(t *Task) {
 		panic("internal error: attempted to run task with nil handler for status " + t.Status().String())
 	}
 
+	t.At(time.Time{}) // clear schedule
 	tomb := &tomb.Tomb{}
 	r.tombs[t.ID()] = tomb
 	tomb.Go(func() error {
@@ -110,13 +130,21 @@ func (r *TaskRunner) run(t *Task) {
 
 		delete(r.tombs, t.ID())
 
-		switch err := tomb.Err(); err {
-		case Retry:
+		// some tasks were blocked, now there's chance the
+		// blocked predicate will change its value
+		if r.someBlocked {
+			r.state.EnsureBefore(0)
+		}
+
+		switch err := tomb.Err(); x := err.(type) {
+		case *Retry:
 			// Handler asked to be called again later.
 			// TODO Allow postponing retries past the next Ensure.
 			if t.Status() == AbortStatus {
 				// Would work without it but might take two ensures.
 				r.tryUndo(t)
+			} else if x.After != 0 {
+				t.At(timeNow().Add(x.After))
 			}
 		case nil:
 			var next []*Task
@@ -196,6 +224,17 @@ func (r *TaskRunner) Ensure() {
 	r.state.Lock()
 	defer r.state.Unlock()
 
+	r.someBlocked = false
+	running := make([]*Task, 0, len(r.tombs))
+	for tid := range r.tombs {
+		t := r.state.Task(tid)
+		if t != nil {
+			running = append(running, t)
+		}
+	}
+
+	ensureTime := timeNow()
+	nextTaskTime := time.Time{}
 	for _, t := range r.state.Tasks() {
 		handlers, ok := r.handlers[t.Kind()]
 		if !ok {
@@ -235,8 +274,30 @@ func (r *TaskRunner) Ensure() {
 			// Dependencies still unhandled.
 			continue
 		}
+
+		// skip tasks scheduled for later and also track the earliest one
+		tWhen := t.AtTime()
+		if !tWhen.IsZero() && ensureTime.Before(tWhen) {
+			if nextTaskTime.IsZero() || nextTaskTime.After(tWhen) {
+				nextTaskTime = tWhen
+			}
+			continue
+		}
+
+		if r.blocked != nil && r.blocked(t, running) {
+			r.someBlocked = true
+			continue
+		}
+
 		logger.Debugf("Running task %s on %s: %s", t.ID(), t.Status(), t.Summary())
 		r.run(t)
+
+		running = append(running, t)
+	}
+
+	// schedule next Ensure no later than the next task time
+	if !nextTaskTime.IsZero() {
+		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
 	}
 }
 

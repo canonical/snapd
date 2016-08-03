@@ -60,7 +60,9 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 	s.state.Lock()
 	t := s.state.NewTask("prepare-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
-		Name: "foo",
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+		},
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -71,10 +73,11 @@ func (s *prepareSnapSuite) TestDoPrepareSnapSimple(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	var snapst snapstate.SnapState
-	err := snapstate.Get(s.state, "foo", &snapst)
-	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate, DeepEquals, &snap.SideInfo{
+
+	var ss snapstate.SnapSetup
+	t.Get("snap-setup", &ss)
+	c.Check(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "foo",
 		Revision: snap.R(-1),
 	})
 	c.Check(t.Status(), Equals, state.DoneStatus)

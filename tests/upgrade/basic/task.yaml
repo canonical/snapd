@@ -1,6 +1,7 @@
 summary: Check that upgrade works
 restore: |
     sed -i -e '/SNAP_REEXEC=0/d' /etc/environment
+    rm -f /var/tmp/myevil.txt
 execute: |
     echo Install previous version...
     apt install -y snapd
@@ -8,10 +9,11 @@ execute: |
     prevsnapdver=$(snap --version|grep "snapd ")
 
     echo Install a snap with it
-    snap install hello-world
+    snap install test-snapd-tools
 
     echo Sanity check install
-    hello-world.echo | grep Hello
+    test-snapd-tools.echo Hello | grep Hello
+    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
 
     # setup not to reexec
     export SNAP_REEXEC=0
@@ -26,13 +28,14 @@ execute: |
 
     echo Sanity check already installed snaps after upgrade
     snap list | grep core
-    snap list | grep hello-world
-    hello-world.echo | grep Hello
-    hello-world.env | grep SNAP_NAME=hello-world
-    hello-world.evil && exit 1 || true
+    snap list | grep test-snapd-tools
+    test-snapd-tools.echo Hello | grep Hello
+    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    echo Hello > /var/tmp/myevil.txt
+    test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
 
     echo Check migrating to types in state
     coreType=$(jq -r '.data.snaps["ubuntu-core"].type' /var/lib/snapd/state.json)
-    helloType=$(jq -r '.data.snaps["hello-world"].type' /var/lib/snapd/state.json)
+    testSnapType=$(jq -r '.data.snaps["test-snapd-tools"].type' /var/lib/snapd/state.json)
     [ "$coreType" = "os" ]
-    [ "$helloType" = "app" ]
+    [ "$testSnapType" = "app" ]

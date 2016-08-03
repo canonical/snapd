@@ -61,8 +61,8 @@ func (s *mountunitSuite) TearDownTest(c *C) {
 func (s *mountunitSuite) TestAddMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(13),
+			RealName: "foo",
+			Revision: snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},
@@ -79,6 +79,7 @@ Description=Mount unit for foo
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
 Where=/snap/foo/13
+Type=squashfs
 
 [Install]
 WantedBy=multi-user.target
@@ -89,8 +90,8 @@ WantedBy=multi-user.target
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	info := &snap.Info{
 		SideInfo: snap.SideInfo{
-			OfficialName: "foo",
-			Revision:     snap.R(13),
+			RealName: "foo",
+			Revision: snap.R(13),
 		},
 		Version:       "1.1",
 		Architectures: []string{"all"},

@@ -44,6 +44,9 @@ var ops = []struct {
 	{(*client.Client).Install, "install"},
 	{(*client.Client).Refresh, "refresh"},
 	{(*client.Client).Remove, "remove"},
+	{(*client.Client).Revert, "revert"},
+	{(*client.Client).Enable, "enable"},
+	{(*client.Client).Disable, "disable"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
@@ -169,8 +172,10 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 	snapdir := filepath.Join(c.MkDir(), "/some/path")
 
 	for _, opts := range []*client.SnapOptions{
-		{DevMode: false},
-		{DevMode: true},
+		{DevMode: false, JailMode: false},
+		{DevMode: false, JailMode: true},
+		{DevMode: true, JailMode: true},
+		{DevMode: true, JailMode: false},
 	} {
 		id, err := cs.cli.Try(snapdir, opts)
 		c.Assert(err, check.IsNil)
@@ -184,6 +189,7 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 			"action":    "try",
 			"snap-path": snapdir,
 			"devmode":   strconv.FormatBool(opts.DevMode),
+			"jailmode":  strconv.FormatBool(opts.JailMode),
 		})
 
 		c.Check(cs.req.Method, check.Equals, "POST")
