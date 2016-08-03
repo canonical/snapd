@@ -62,8 +62,7 @@ type apiSuite struct {
 	rsnaps            []*snap.Info
 	err               error
 	vars              map[string]string
-	searchTerm        string
-	channel           string
+	storeSearch       store.Search
 	suggestedCurrency string
 	d                 *Daemon
 	user              *auth.UserState
@@ -71,7 +70,9 @@ type apiSuite struct {
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
+	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
+	restoreRelease    func()
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -84,9 +85,8 @@ func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState
 	return nil, s.err
 }
 
-func (s *apiSuite) Find(searchTerm, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	s.searchTerm = searchTerm
-	s.channel = channel
+func (s *apiSuite) Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error) {
+	s.storeSearch = *search
 	s.user = user
 
 	return s.rsnaps, s.err
@@ -94,6 +94,7 @@ func (s *apiSuite) Find(searchTerm, channel string, user *auth.UserState) ([]*sn
 
 func (s *apiSuite) ListRefresh(snaps []*store.RefreshCandidate, user *auth.UserState) ([]*snap.Info, error) {
 	s.refreshCandidates = snaps
+	s.user = user
 
 	return s.rsnaps, s.err
 }
@@ -111,16 +112,26 @@ func (s *apiSuite) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
 	return s.buyResult, s.err
 }
 
+func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
+	s.user = user
+	return s.paymentMethods, s.err
+}
+
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
 	return s.vars
 }
 
 func (s *apiSuite) SetUpSuite(c *check.C) {
 	muxVars = s.muxVars
+	s.restoreRelease = release.MockReleaseInfo(&release.OS{
+		ID:        "ubuntu",
+		VersionID: "mocked",
+	})
 }
 
 func (s *apiSuite) TearDownSuite(c *check.C) {
 	muxVars = nil
+	s.restoreRelease()
 }
 
 func (s *apiSuite) SetUpTest(c *check.C) {
@@ -131,8 +142,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.rsnaps = nil
 	s.suggestedCurrency = ""
-	s.searchTerm = ""
-	s.channel = ""
+	s.storeSearch = store.Search{}
 	s.err = nil
 	s.vars = nil
 	s.user = nil
@@ -143,7 +153,7 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.buyOptions = nil
 	s.buyResult = nil
-
+	s.paymentMethods = nil
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
@@ -821,7 +831,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 		},
 	}}
 
-	req, err := http.NewRequest("GET", "/v2/find?q=hi&channel=potato", nil)
+	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := searchStore(findCmd, req, nil).(*resp)
@@ -833,8 +843,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
-	c.Check(s.searchTerm, check.Equals, "hi")
-	c.Check(s.channel, check.Equals, "potato")
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "hi"})
 	c.Check(s.refreshCandidates, check.HasLen, 0)
 }
 
@@ -858,6 +867,58 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(s.refreshCandidates, check.HasLen, 1)
+}
+
+func (s *apiSuite) TestFindPrivate(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=foo&select=private", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{
+		Query:   "foo",
+		Private: true,
+	})
+}
+
+func (s *apiSuite) TestFindPrefix(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{}
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo*", nil)
+	c.Assert(err, check.IsNil)
+
+	_ = searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo", Prefix: true})
+}
+
+func (s *apiSuite) TestFindOne(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName:  "store",
+			Developer: "foo",
+		},
+	}}
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Check(snaps[0]["name"], check.Equals, "store")
 }
 
 func (s *apiSuite) TestFindRefreshNotQ(c *check.C) {
@@ -1083,7 +1144,7 @@ func (s *apiSuite) TestSnapsInfoFilterRemote(c *check.C) {
 
 	rsp := getSnapsInfo(snapsCmd, req, nil).(*resp)
 
-	c.Check(s.searchTerm, check.Equals, "foo")
+	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo"})
 
 	c.Assert(rsp.Result, check.NotNil)
 }
@@ -1228,8 +1289,6 @@ func (s *apiSuite) TestSideloadSnapOnNonDevModeDistro(c *check.C) {
 	// try a multipart/form-data upload
 	body := sideLoadBodyWithoutDevMode
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, 0, false)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "a/b/local.snap"`)
 }
@@ -1276,8 +1335,6 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
-	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
-	defer restore()
 	chgSummary := s.sideloadCheck(c, body, head, snapstate.JailMode, true)
 	c.Check(chgSummary, check.Equals, `Install "local" snap from file "x"`)
 }
@@ -1702,6 +1759,45 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
+	c.Check(calledUserID, check.Equals, 17)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
+func (s *apiSuite) TestRefreshDevMode(c *check.C) {
+	calledFlags := snapstate.Flags(42)
+	calledUserID := 0
+	installQueue := []string{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		calledUserID = userID
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:  "refresh",
+		snap:    "some-snap",
+		userID:  17,
+		DevMode: true,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.DevMode))
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
 	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
@@ -2530,7 +2626,7 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	// add store key
 	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]string{
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
 		"account-id": "developer1-id",
 	}, "")
 	err = d.overlord.AssertManager().DB().Add(acct)
@@ -3017,7 +3113,6 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	buf := bytes.NewBufferString(`{
 	  "snap-id": "the-snap-id-1234abcd",
 	  "snap-name": "the snap name",
-	  "channel": "channel-1234abcd",
 	  "price": 1.23,
 	  "currency": "EUR"
 	}`)
@@ -3030,7 +3125,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, user).(*resp)
+	rsp := postBuy(buyCmd, req, user).(*resp)
 
 	expected := buyResponseData{
 		State: "Complete",
@@ -3043,7 +3138,6 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
 		SnapID:   "the-snap-id-1234abcd",
 		SnapName: "the snap name",
-		Channel:  "channel-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
 		User:     user,
@@ -3057,7 +3151,6 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	// snap name missing
 	buf := bytes.NewBufferString(`{
 	  "snap-id": "the-snap-id-1234abcd",
-	  "channel": "channel-1234abcd",
 	  "price": 1.23,
 	  "currency": "EUR"
 	}`)
@@ -3070,7 +3163,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	rsp := postBuy(snapCmd, req, user).(*resp)
+	rsp := postBuy(buyCmd, req, user).(*resp)
 
 	c.Check(rsp.Status, check.Equals, http.StatusInternalServerError)
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
@@ -3078,7 +3171,6 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 
 	c.Check(s.buyOptions, check.DeepEquals, &store.BuyOptions{
 		SnapID:   "the-snap-id-1234abcd",
-		Channel:  "channel-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
 		User:     user,
@@ -3096,4 +3188,37 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 		form.Value = map[string][]string{"foo": []string{t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
+}
+
+func (s *apiSuite) TestPaymentMethods(c *check.C) {
+	s.paymentMethods = &store.PaymentInformation{
+		AllowsAutomaticPayment: true,
+		Methods: []*store.PaymentMethod{
+			&store.PaymentMethod{
+				BackendID:           "credit_card",
+				Currencies:          []string{"GBP", "USD"},
+				Description:         "**** **** **** 1234 (exp 20/2020)",
+				ID:                  123,
+				Preferred:           true,
+				RequiresInteraction: false,
+			},
+		},
+	}
+	s.err = nil
+
+	req, err := http.NewRequest("GET", "/v2/buy/methods", nil)
+	c.Assert(err, check.IsNil)
+
+	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	rsp := getPaymentMethods(paymentMethodsCmd, req, user).(*resp)
+
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
+	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
 }

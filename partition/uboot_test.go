@@ -56,16 +56,16 @@ func (s *PartitionTestSuite) TestUbootGetEnvVar(c *C) {
 
 	u := newUboot()
 	c.Assert(u, NotNil)
-	err := u.SetBootVar("snappy_mode", "regular")
+	err := u.SetBootVar("snap_mode", "")
 	c.Assert(err, IsNil)
-	err = u.SetBootVar("snappy_os", "4")
+	err = u.SetBootVar("snap_core", "4")
 	c.Assert(err, IsNil)
 
 	v, err := u.GetBootVar(bootmodeVar)
 	c.Assert(err, IsNil)
-	c.Assert(v, Equals, "regular")
+	c.Assert(v, Equals, "")
 
-	v, err = u.GetBootVar("snappy_os")
+	v, err = u.GetBootVar("snap_core")
 	c.Assert(err, IsNil)
 	c.Assert(v, Equals, "4")
 }
@@ -84,8 +84,8 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	envFile := (&uboot{}).envFile()
 	env, err := uenv.Create(envFile, 4096)
 	c.Assert(err, IsNil)
-	env.Set("snappy_ab", "b")
-	env.Set("snappy_mode", "regular")
+	env.Set("snap_ab", "b")
+	env.Set("snap_mode", "")
 	err = env.Save()
 	c.Assert(err, IsNil)
 
@@ -97,12 +97,12 @@ func (s *PartitionTestSuite) TestUbootSetEnvNoUselessWrites(c *C) {
 	c.Assert(u, NotNil)
 
 	// note that we set to the same var as above
-	err = u.SetBootVar("snappy_ab", "b")
+	err = u.SetBootVar("snap_ab", "b")
 	c.Assert(err, IsNil)
 
 	env, err = uenv.Open(envFile)
 	c.Assert(err, IsNil)
-	c.Assert(env.String(), Equals, "snappy_ab=b\nsnappy_mode=regular\n")
+	c.Assert(env.String(), Equals, "snap_ab=b\n")
 
 	st2, err := os.Stat(envFile)
 	c.Assert(err, IsNil)

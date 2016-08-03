@@ -2,9 +2,6 @@
 
 Version: v2pre0
 
-Note: The v2 API is going to be very different from the 1.0; right now, not
-so much.
-
 ## Versioning
 
 As the API evolves, some changes are deemed backwards-compatible (such
@@ -177,33 +174,24 @@ Reserved for human-readable content describing the service.
 
 #### `q`
 
-Query.
+Search for snaps that match the given string. This is a weighted broad
+search, meant as the main interface to searching for snaps.
 
-The query is a whitespace-separated list<sup id=a1>[†](#f1)</sup> of terms, all of
-which will be satisfied by the returned snaps.
+#### `name`
 
-Each term can have an optional prefix followed by `:`.
-
-Supported prefixes are
-
-<dl>
-<dt>name</dt>
-<dd>The term matches the snap's name. It can end in <code>*</code> in which
-case the search is for a prefix, otherwise the whole name must match.</dd>
-<dt>text</dt>
-<dd>The term is looked up in a full-text index of name, summary and
-description.</dd>
-</dl>
-
-If no prefix is given, the term is treated as if it were a `*`-ended `name`
-search; this is: `snap find foo` is the same as `snap find name:foo*`.
-
-<b id=f1>†</b> that list can only have exactly one element, for now. [↩](#a1)
+Search for snaps whose name matches the given string. Can't be used
+together with `q`. This is meant for things like autocompletion. The
+match is exact (i.e. find would return 0 or 1 results) unless the
+string ends in `*`.
 
 #### `select`
 
-Filter from the given selection. Currently only limiting to refreshable
-snaps is supported via the `refresh` key.
+Alter the collection searched:
+
+* `refresh`: search refreshable snaps. Can't be used with `q`, nor `name`.
+* `private`: search private snaps (by default, find only searches
+  public snaps). Can't be used with `name`, only `q` (for now at
+  least).
 
 #### Sample result:
 
@@ -547,7 +535,6 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "channel": "moon-buggy",
     "price": "2.99",
     "currency": "USD"
 }
@@ -559,7 +546,6 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "channel": "moon-buggy",
     "price": "2.99",
     "currency": "USD",
     "backend-id": "credit_card",
@@ -573,4 +559,65 @@ Generally the UUID of a background operation you are interested in.
 {
  "state": "Complete",
 }
+```
+
+## /v2/buy/methods
+
+### GET
+
+* Description: Get a list of the available payment methods
+* Access: authenticated
+* Operation: sync
+* Return: Dict with payment methods.
+
+#### Sample result with one method that allows automatic payment:
+
+```javascript
+{
+    "allows-automatic-payment": true,
+    "methods": [
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 1111 (exp 23/2020)",
+        "id": 123,
+        "preferred": true,
+        "requires-interaction": false
+      }
+    ]
+  }
+```
+
+#### Sample with 3 methods and no automatic payments:
+
+```javascript
+{
+    "allows-automatic-payment": false,
+    "methods": [
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 1111 (exp 23/2020)",
+        "id": 123,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD", "GBP"],
+        "description": "**** **** **** 2222 (exp 23/2025)",
+        "id": 234,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
+        "backend-id": "rest_paypal",
+        "currencies": ["USD", "GBP", "EUR"],
+        "description": "PayPal",
+        "id": 345,
+        "preferred": false,
+        "requires-interaction": true
+      }
+    ]
+  }
 ```
