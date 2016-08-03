@@ -1,4 +1,4 @@
-summary: Ensure taht the cups interface works.
+summary: Ensure that the cups interface works.
 
 details: |
     The cups-control interface allows a snap to access the locale configuration.
@@ -14,26 +14,19 @@ details: |
     snap.
 
 environment:
-    BUILD_DIR: $(mktemp -d)
     TEST_FILE: /var/snap/cups-control-consumer/current/test_file.txt
 
 prepare: |
     echo "Given a snap declaring a cups plug is installed"
-    apt install -y snapcraft
-    mkdir -p $BUILD_DIR
-    cp -ar $TESTSLIB/snaps/cups-control-consumer/* $BUILD_DIR
-    cd $BUILD_DIR
-    snapcraft
-    snap install cups-control-consumer_1.0_$(dpkg-architecture -q DEB_HOST_ARCH_CPU).snap
-    cd $SPREAD_PATH
+    snap install test-snapd-cups-control-consumer
 
     echo "And the pdf printer is available"
     apt install -y printer-driver-cups-pdf
 
 restore: |
-    apt remove -y printer-driver-cups-pdf snapcraft
+    apt remove -y printer-driver-cups-pdf
     apt autoremove -y
-    rm -rf cups-control-consumer_1.0_$(dpkg-architecture -q DEB_HOST_ARCH_CPU).snap $HOME/PDF $TEST_FILE print.error $BUILD_DIR
+    rm -rf $HOME/PDF $TEST_FILE print.error
 
 execute: |
     CONNECTED_PATTERN=":cups-control +cups-control-consumer"

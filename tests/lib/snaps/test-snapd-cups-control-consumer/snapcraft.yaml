@@ -1,4 +1,4 @@
-name: cups-control-consumer
+name: test-snapd-cups-control-consumer
 version: 1.0
 summary: Basic cups-control consumer snap
 description: A basic snap declaring a plug on cups-control
