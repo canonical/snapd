@@ -49,6 +49,13 @@ var ops = []struct {
 	{(*client.Client).Disable, "disable"},
 }
 
+var multiOps = []struct {
+	op     func(*client.Client, []string, *client.SnapOptions) (string, error)
+	action string
+}{
+	{(*client.Client).RefreshMany, "refresh"},
+}
+
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
 	cs.err = errors.New("fail")
 	for _, s := range ops {
@@ -57,10 +64,26 @@ func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {
 	}
 }
 
+func (cs *clientSuite) TestClientMultiOpSnapServerError(c *check.C) {
+	cs.err = errors.New("fail")
+	for _, s := range multiOps {
+		_, err := s.op(cs.cli, nil, nil)
+		c.Check(err, check.ErrorMatches, `.*fail`, check.Commentf(s.action))
+	}
+}
+
 func (cs *clientSuite) TestClientOpSnapResponseError(c *check.C) {
 	cs.rsp = `{"type": "error", "status": "potatoes"}`
 	for _, s := range ops {
 		_, err := s.op(cs.cli, pkgName, nil)
+		c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`, check.Commentf(s.action))
+	}
+}
+
+func (cs *clientSuite) TestClientMultiOpSnapResponseError(c *check.C) {
+	cs.rsp = `{"type": "error", "status": "potatoes"}`
+	for _, s := range multiOps {
+		_, err := s.op(cs.cli, nil, nil)
 		c.Check(err, check.ErrorMatches, `.*server error: "potatoes"`, check.Commentf(s.action))
 	}
 }
@@ -105,18 +128,44 @@ func (cs *clientSuite) TestClientOpSnap(c *check.C) {
 		id, err := s.op(cs.cli, pkgName, &client.SnapOptions{Channel: chanName})
 		c.Assert(err, check.IsNil)
 
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
+
 		body, err := ioutil.ReadAll(cs.req.Body)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		jsonBody := make(map[string]string)
 		err = json.Unmarshal(body, &jsonBody)
 		c.Assert(err, check.IsNil, check.Commentf(s.action))
 		c.Check(jsonBody["action"], check.Equals, s.action, check.Commentf(s.action))
-		c.Check(jsonBody["name"], check.Equals, pkgName, check.Commentf(s.action))
 		c.Check(jsonBody["channel"], check.Equals, chanName, check.Commentf(s.action))
-		c.Check(jsonBody, check.HasLen, 3, check.Commentf(s.action))
+		c.Check(jsonBody, check.HasLen, 2, check.Commentf(s.action))
 
-		c.Check(cs.req.Method, check.Equals, "POST", check.Commentf(s.action))
 		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps/%s", pkgName), check.Commentf(s.action))
+		c.Check(id, check.Equals, "d728", check.Commentf(s.action))
+	}
+}
+
+func (cs *clientSuite) TestClientMultiOpSnap(c *check.C) {
+	cs.rsp = `{
+		"change": "d728",
+		"status-code": 202,
+		"type": "async"
+	}`
+	for _, s := range multiOps {
+		id, err := s.op(cs.cli, []string{pkgName}, nil)
+		c.Assert(err, check.IsNil)
+
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, "application/json", check.Commentf(s.action))
+
+		body, err := ioutil.ReadAll(cs.req.Body)
+		c.Assert(err, check.IsNil, check.Commentf(s.action))
+		jsonBody := make(map[string]interface{})
+		err = json.Unmarshal(body, &jsonBody)
+		c.Assert(err, check.IsNil, check.Commentf(s.action))
+		c.Check(jsonBody["action"], check.Equals, s.action, check.Commentf(s.action))
+		c.Check(jsonBody["snaps"], check.DeepEquals, []interface{}{pkgName}, check.Commentf(s.action))
+		c.Check(jsonBody, check.HasLen, 2, check.Commentf(s.action))
+
+		c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps", check.Commentf(s.action))
 		c.Check(id, check.Equals, "d728", check.Commentf(s.action))
 	}
 }

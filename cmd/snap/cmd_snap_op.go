@@ -325,36 +325,32 @@ type cmdRefresh struct {
 
 	List       bool `long:"list" description:"show available snaps for refresh"`
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
-func refreshAll() error {
-	// FIXME: move this to snapd instead and have a new refresh-all endpoint
+func refreshMany(snaps []string) error {
 	cli := Client()
-	updates, _, err := cli.Find(&client.FindOptions{Refresh: true})
+	changeID, err := cli.RefreshMany(snaps, nil)
 	if err != nil {
-		return fmt.Errorf("cannot list updates: %s", err)
-	}
-	// nothing to update/list
-	if len(updates) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
-		return nil
+		return err
 	}
 
-	names := make([]string, len(updates))
-	for i, update := range updates {
-		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
-		if err != nil {
-			return err
-		}
-		if _, err := wait(cli, changeID); err != nil {
-			return err
-		}
-		names[i] = update.Name
+	chg, err := wait(cli, changeID)
+	if err != nil {
+		return err
 	}
 
-	return showDone(names, "upgrade")
+	var upgraded []string
+	if err := chg.Get("snap-names", &upgraded); err != nil && err != client.ErrNoData {
+		return err
+	}
+
+	if len(upgraded) > 0 {
+		return showDone(upgraded, "upgrade")
+	}
+
+	return nil
 }
 
 func refreshOne(name string, opts *client.SnapOptions) error {
@@ -416,19 +412,19 @@ func (x *cmdRefresh) Execute([]string) error {
 
 		return listRefresh()
 	}
-	if x.Positional.Snap == "" {
-		if x.asksForMode() || x.asksForChannel() {
-			return errors.New("a snap name is needed to specify mode or channel flags")
-		}
-
-		return refreshAll()
+	if len(x.Positional.Snaps) == 1 {
+		return refreshOne(x.Positional.Snaps[0], &client.SnapOptions{
+			Channel:  x.Channel,
+			DevMode:  x.DevMode,
+			JailMode: x.JailMode,
+		})
 	}
 
-	return refreshOne(x.Positional.Snap, &client.SnapOptions{
-		Channel:  x.Channel,
-		DevMode:  x.DevMode,
-		JailMode: x.JailMode,
-	})
+	if x.asksForMode() || x.asksForChannel() {
+		return errors.New("a snap name is needed to specify mode or channel flags")
+	}
+
+	return refreshMany(x.Positional.Snaps)
 }
 
 type cmdTry struct {
