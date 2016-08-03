@@ -117,8 +117,7 @@ func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 	}
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		var snippets bytes.Buffer
-		snippets.WriteString(``)
+		snippets := bytes.NewBufferString("")
 
 		for bus, names := range dbusAppBusNames {
 			// common permanent slot policy
