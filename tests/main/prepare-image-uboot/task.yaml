@@ -22,8 +22,8 @@ execute: |
     required-snaps:  
     architecture: armhf
     store: canonical
-    gadget: canonical-pi2
-    kernel: canonical-pi2-linux
+    gadget: pi2
+    kernel: pi2-kernel
     core: ubuntu-core
     timestamp: 2016-01-02T10:00:00-05:00
     body-length: 0
@@ -51,3 +51,11 @@ execute: |
     echo Verify the unpacked gadget
     ls -lR $GADGET
     ls $GADGET/meta/snap.yaml
+
+    echo Verify that we have valid looking seed.yaml
+    cat $IMAGE/var/lib/snapd/seed/seed.yaml
+    # snap-id of ubuntu-core
+    grep -q "snap-id: b8X2psL1ryVrPt5WEmpYiqfr5emixTd7" $IMAGE/var/lib/snapd/seed/seed.yaml
+    for snap in pi2 pi2-kernel ubuntu-core; do
+      grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+    done
