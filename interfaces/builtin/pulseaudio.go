@@ -32,6 +32,7 @@ owner /{,var/}run/user/*/pulse/native rwk,
 `
 
 const pulseaudioConnectedPlugSecComp = `
+getsockopt
 setsockopt
 connect
 sendto

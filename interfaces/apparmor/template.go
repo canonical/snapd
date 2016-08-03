@@ -72,6 +72,11 @@ var defaultTemplate = []byte(`
 
   # End dangerous accesses
 
+  # Note: this potentially allows snaps to DoS other snaps via resource
+  # exhaustion but we can't sensibly mediate this today. In the future we may
+  # employ cgroup limits, AppArmor rlimit mlock rules or something else.
+  capability ipc_lock,
+
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
   /bin/bash ixr,
@@ -93,6 +98,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/bzip2 ixr,
   /{,usr/}bin/cat ixr,
   /{,usr/}bin/chmod ixr,
+  /{,usr/}bin/clear ixr,
   /{,usr/}bin/cmp ixr,
   /{,usr/}bin/cp ixr,
   /{,usr/}bin/cpio ixr,
@@ -146,6 +152,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
   /{,usr/}bin/stat ixr,
+  /{,usr/}bin/stdbuf ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -171,6 +178,9 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/z{,e,f}grep ixr,
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
+
+  # For printing the cache (we don't allow updating the cache)
+  /{,usr/}sbin/ldconfig{,.real} ixr,
 
   # uptime
   /{,usr/}bin/uptime ixr,
