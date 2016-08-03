@@ -1,4 +1,7 @@
 summary: Check that snaps vanishing are handled gracefully
+environment:
+    SNAP_NAME/test_snapd_tools: test-snapd-tools
+    SNAP_NAME/network_bind_consumer: network-bind-consumer
 
 restore: |
     rm -rf $TRYDIR
@@ -6,18 +9,33 @@ restore: |
 execute: |
     TRYDIR="$(mktemp -d)"
     export TRYDIR
-    cp -ar  $TESTSLIB/snaps/basic/* $TRYDIR
+    cp -ar  $TESTSLIB/snaps/$SNAP_NAME/* $TRYDIR
 
     echo Trying a snap
     snap try $TRYDIR
-    snap list |grep basic
+    snap list |grep $SNAP_NAME
 
     echo Removing a snap try dir does not break everything
     rm -rf $TRYDIR
     snap list |grep core
 
     echo A snap in broken state can be removed
-    snap remove basic
+    snap remove $SNAP_NAME
 
     echo And is gone afterwards
-    snap list |grep -v basic
+    snap list |grep -v $SNAP_NAME
+
+    echo And all its binaries
+    N="$(ls /snap/bin/$SNAP_NAME*|wc -l)"
+    if [ "$N" -ne 0 ]; then
+       echo "Some binaries are not cleaned"
+       exit 1
+    fi
+
+    echo And all its services
+    N="$(ls /etc/systemd/system/snap.$SNAP_NAME.*|wc -l)"
+    if [ "$N" -ne 0 ]; then
+       echo "Some services are not cleaned"
+       exit 1
+    fi
+
