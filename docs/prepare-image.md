@@ -1,18 +1,18 @@
 # Bootstraping a snappy device
 
-The `snap prepare-image` command is designed to do the snap specific
+The `snap prepare-image` command is designed to do the snap-specific
 part of building an image.
 
 ## Running it
 
-The `snap prepare-image` command takes a model assertion and a rootdir
-as intput. It will create $ROOT/image that contains the directory layout
-with content for the image. It will also create $ROOT/gadget that
-contains the unpacked gadget snap content for ubuntu-image.
+The `snap prepare-image` command takes a model assertion and a a
+directory (henceforth $ROOT) as intput. It will create `$ROOT/image`
+that will contain the directory layout with content for the image. It
+will also create `$ROOT/gadget` that will contain the unpacked gadget
+snap content for ubuntu-image.
 
-It will also inspect the gadget snap for the bootloader
-configuration file and instlal that into the root-dir
-into the right place.
+It will also inspect the gadget snap for the bootloader configuration
+file and instlal that into `$ROOT` into the right place.
 
 ### Example
 
@@ -41,7 +41,8 @@ $ sudo snap prepare-image \
    --channel edge \
    model.assertion  \
    /tmp/prepare-image/
-...
+[some progress output]
+
 $ ls /tmp/prepare-image/gadget
 boot-assets  canonical-pi2_6.snap  canonical-pi2_6.snap.sideinfo  meta
 
