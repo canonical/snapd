@@ -373,27 +373,6 @@ slots:
 	c.Assert(err, IsNil)
 }
 
-/*
-func (s *DbusAppInterfaceSuite) TestSanitizePlugSession(c *C) {
-	var mockSnapYaml = []byte(`name: dbus-app-snap
-version: 1.0
-plugs:
- dbus-app-plug:
-  interface: dbus-app
-  session:
-  - org.dbus-app-snap.session-1
-  - org.dbus-app-snap.session-2
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["dbus-app-plug"]}
-	err = s.iface.SanitizePlug(plug)
-	c.Assert(err, IsNil)
-}
-*/
-
 func (s *DbusAppInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 	snippet, err := s.iface.PermanentSlotSnippet(s.testSessionSlot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
