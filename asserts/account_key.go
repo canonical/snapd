@@ -110,6 +110,13 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*AccountKey)(nil)
 
+// Prerequisites returns references to this account-key's prerequisite assertions.
+func (ak *AccountKey) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: AccountType, PrimaryKey: []string{ak.AccountID()}},
+	}
+}
+
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	since, err := checkRFC3339Date(assert.headers, "since")
 	if err != nil {

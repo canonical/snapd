@@ -20,6 +20,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -88,12 +89,18 @@ type FindOptions struct {
 	Query   string
 }
 
+var ErrNoSnapsInstalled = errors.New("no snaps installed")
+
 // List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
 func (client *Client) List(names []string) ([]*Snap, error) {
 	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(snaps) == 0 {
+		return nil, ErrNoSnapsInstalled
 	}
 
 	if len(names) == 0 {
