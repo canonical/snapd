@@ -56,12 +56,13 @@ const systemTraceConnectedPlugSecComp = `
 bpf
 perf_event_open
 `
+
 // NewSystemTraceInterface returns a new "system-trace" interface.
 func NewSystemTraceInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "system-trace",
 		connectedPlugAppArmor: systemTraceConnectedPlugAppArmor,
-		connectedPlugSecComp: systemTraceConnectedPlugSecComp,
+		connectedPlugSecComp:  systemTraceConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
