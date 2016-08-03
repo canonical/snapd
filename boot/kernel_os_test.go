@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBoot(t *testing.T) { TestingT(t) }
@@ -196,4 +197,22 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	// simulate good boot
 	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
+}
+
+func (s *kernelOSSuite) TestExtractKernelAssetsUsesRightCp(c *C) {
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	snap := snaptest.MockSnap(c, packageKernel, si)
+
+	cmd := testutil.MockCommand(c, "cp", "")
+	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), HasLen, 2)
+	dst := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_42.snap")
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"cp", "-aLv", filepath.Join(dirs.SnapSnapsDir, "ubuntu-kernel", "42", "kernel.img"), dst},
+		{"cp", "-aLv", filepath.Join(dirs.SnapSnapsDir, "ubuntu-kernel", "42", "initrd.img"), dst},
+	})
 }
