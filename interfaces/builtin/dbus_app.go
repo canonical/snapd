@@ -202,24 +202,6 @@ func (iface *DbusAppInterface) getBusNames(attribs map[string]interface{}) (map[
 	return busNames, nil
 }
 
-// verify that name for bus is in list
-func (iface *DbusAppInterface) verifyNameInAttributes(bus string, name string, attribs map[string]interface{}) bool {
-	otherBusNames, err := iface.getBusNames(attribs)
-	if err != nil {
-		return false
-	}
-
-	if otherNames, ok := otherBusNames[bus]; ok {
-		for _, otherName := range otherNames {
-			if name == otherName {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
 // Determine AppArmor dbus abstraction to use based on bus
 func getAppArmorAbstraction(bus string) (string, error) {
 	var abstraction string
