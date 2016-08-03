@@ -59,13 +59,13 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 	const errorFormat = "cannot read gadget snap details: %s"
 
 	gadgetYamlFn := filepath.Join(info.MountDir(), "meta", "gadget.yaml")
-	kmeta, err := ioutil.ReadFile(gadgetYamlFn)
+	gmeta, err := ioutil.ReadFile(gadgetYamlFn)
 	if err != nil {
 		return nil, fmt.Errorf(errorFormat, err)
 	}
 
 	var gy gadgetYaml
-	if err := yaml.Unmarshal(kmeta, &gy); err != nil {
+	if err := yaml.Unmarshal(gmeta, &gy); err != nil {
 		return nil, fmt.Errorf(errorFormat, err)
 	}
 
@@ -81,6 +81,10 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 	for k, vl := range gy.Volumes {
 		gi.Volumes[k] = make([]Volume, len(vl))
 		for i, v := range vl {
+			if v.Name == "" {
+				return nil, fmt.Errorf("volume name cannot be empty")
+			}
+
 			gi.Volumes[k][i] = Volume{
 				Name:    v.Name,
 				Label:   v.Label,
