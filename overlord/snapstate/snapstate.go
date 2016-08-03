@@ -328,17 +328,18 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // (state must be locked)
-func UpdateMany(st *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	updates, stateByID, err := refreshCandidates(st, names, user)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
+	updated := make([]string, 0, len(updates))
 	tts := make([]*state.TaskSet, 0, len(updates))
 	for _, update := range updates {
 		snapst := stateByID[update.SnapID]
@@ -360,10 +361,11 @@ func UpdateMany(st *state.State, names []string, userID int) ([]*state.TaskSet, 
 			// log?
 			continue
 		}
+		updated = append(updated, update.Name())
 		tts = append(tts, ts)
 	}
 
-	return tts, nil
+	return updated, tts, nil
 }
 
 // Update initiates a change updating a snap.
