@@ -53,15 +53,15 @@ func (cs *clientSuite) TestClientAssertsCallsEndpoint(c *C) {
 
 func (cs *clientSuite) TestClientAssertsCallsEndpointWithFilter(c *C) {
 	_, _ = cs.cli.Known("snap-revision", map[string]string{
-		"snap-id":     "snap-id-1",
-		"snap-digest": "sha256 digest...",
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": "sha3-384...",
 	})
 	u, err := url.ParseRequestURI(cs.req.URL.String())
 	c.Assert(err, IsNil)
 	c.Check(u.Path, Equals, "/v2/assertions/snap-revision")
 	c.Check(u.Query(), DeepEquals, url.Values{
-		"snap-digest": []string{"sha256 digest..."},
-		"snap-id":     []string{"snap-id-1"},
+		"snap-sha3-384": []string{"sha3-384..."},
+		"snap-id":       []string{"snap-id-1"},
 	})
 }
 
@@ -91,9 +91,8 @@ func (cs *clientSuite) TestClientAsserts(c *C) {
 	cs.header.Add("X-Ubuntu-Assertions-Count", "2")
 	cs.rsp = `type: snap-revision
 authority-id: store-id1
-series: 16
+snap-sha3-384: P1wNUk5O_5tO5spqOLlqUuAk7gkNYezIMHp5N9hMUg1a6YEjNeaCc4T0BaYz7IWs
 snap-id: snap-id-1
-snap-digest: sha256 ...
 snap-size: 123
 snap-revision: 1
 developer-id: dev-id1
@@ -105,9 +104,8 @@ openpgp ...
 
 type: snap-revision
 authority-id: store-id1
-series: 16
+snap-sha3-384: 0Yt6-GXQeTZWUAHo1IKDpS9kqO6zMaizY6vGEfGM-aSfpghPKir1Ic7teQ5Zadaj
 snap-id: snap-id-2
-snap-digest: sha256 ...
 snap-size: 456
 snap-revision: 1
 developer-id: dev-id1

@@ -46,6 +46,8 @@ import (
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
 
 const (
+	// halJsonContentType is the default accept value for store requests
+	halJsonContentType = "application/hal+json"
 	// UbuntuCoreWireProtocol is the protocol level we support when
 	// communicating with the store. History:
 	//  - "1": client supports squashfs snaps
@@ -134,7 +136,7 @@ func respToError(resp *http.Response, msg string) error {
 		return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL, oops)
 	}
 
-	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.URL)
+	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
 func getStructFields(s interface{}) []string {
@@ -296,13 +298,8 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		purchasesURI:      cfg.PurchasesURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
 		detailFields:      fields,
-		client: &http.Client{
-			Transport: &LoggedTransport{
-				Transport: http.DefaultTransport,
-				Key:       "SNAPD_DEBUG_HTTP",
-			},
-		},
-		authContext: authContext,
+		client:            newHTTPClient(),
+		authContext:       authContext,
 	}
 }
 
@@ -337,8 +334,68 @@ func authenticate(r *http.Request, user *auth.UserState) {
 	r.Header.Set("Authorization", buf.String())
 }
 
+// refreshMacaroon will request a refreshed discharge macaroon for the user
+func refreshMacaroon(user *auth.UserState) error {
+	for i, d := range user.StoreDischarges {
+		discharge, err := MacaroonDeserialize(d)
+		if err != nil {
+			return err
+		}
+		if discharge.Location() == UbuntuoneLocation {
+			refreshedDischarge, err := RefreshDischargeMacaroon(d)
+			if err != nil {
+				return err
+			}
+			user.StoreDischarges[i] = refreshedDischarge
+		}
+	}
+	return nil
+}
+
+// doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
+func (s *Store) doRequest(client *http.Client, method, urlStr, accept, contentType string, data []byte, user *auth.UserState) (*http.Response, error) {
+	var body io.Reader
+	if data != nil {
+		body = bytes.NewBuffer(data)
+	}
+	req, err := s.newRequest(method, urlStr, accept, contentType, body, user)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	wwwAuth := resp.Header.Get("WWW-Authenticate")
+	if resp.StatusCode == 401 && user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+		// close previous response, refresh and retry
+		resp.Body.Close()
+		err = refreshMacaroon(user)
+		if err != nil {
+			return nil, err
+		}
+		if s.authContext != nil {
+			err = s.authContext.UpdateUser(user)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if data != nil {
+			body = bytes.NewBuffer(data)
+		}
+		req, err := s.newRequest(method, urlStr, accept, contentType, body, user)
+		if err != nil {
+			return nil, err
+		}
+		resp, err = client.Do(req)
+	}
+	return resp, err
+}
+
 // build a new http.Request with headers for the store
-func (s *Store) newRequest(method, urlStr string, body io.Reader, user *auth.UserState) (*http.Request, error) {
+func (s *Store) newRequest(method, urlStr, accept, contentType string, body io.Reader, user *auth.UserState) (*http.Request, error) {
 	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		return nil, err
@@ -349,10 +406,14 @@ func (s *Store) newRequest(method, urlStr string, body io.Reader, user *auth.Use
 	}
 
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/hal+json")
+	req.Header.Set("Accept", accept)
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Series", release.Series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
 
 	if s.storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", s.storeID)
@@ -419,12 +480,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
 
-	req, err := s.newRequest("GET", url.String(), nil, user)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, "GET", url.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -556,12 +612,7 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 
 	u.RawQuery = query.Encode()
 
-	req, err := s.newRequest("GET", u.String(), nil, user)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, "GET", u.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -597,74 +648,61 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 	return info, nil
 }
 
+// A Search is what you do in order to Find something
+type Search struct {
+	Query   string
+	Private bool
+	Prefix  bool
+}
+
 // Find finds  (installable) snaps from the store, matching the
-// given search term.
-func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([]*snap.Info, error) {
-	// see https://github.com/snapcore/snapd/blob/master/docs/rest.md#v2find
+// given Search.
+func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
+	searchTerm := search.Query
+
+	if search.Private && user == nil {
+		return nil, ErrUnauthenticated
+	}
 
 	searchTerm = strings.TrimSpace(searchTerm)
-
-	prefix := "name"
-	exact := false
-	if idx := strings.IndexRune(searchTerm, ':'); idx >= 0 {
-		prefix = searchTerm[:idx]
-		searchTerm = searchTerm[idx+1:]
-
-		if prefix == "name" {
-			trimmed := strings.TrimSuffix(searchTerm, "*")
-			if len(trimmed) == len(searchTerm) {
-				exact = true
-			}
-			searchTerm = trimmed
-		}
-	}
 
 	if searchTerm == "" {
 		return nil, ErrEmptyQuery
 	}
 
-	if strings.ContainsAny(searchTerm, ":*") {
+	// these characters might have special meaning on the search
+	// server, and don't form part of a reasonable search, so
+	// abort if they're included.
+	//
+	// "-" might also be special on the server, but it's also a
+	// valid part of a package name, so we let it pass
+	if strings.ContainsAny(searchTerm, `+=&|><!(){}[]^"~*?:\/`) {
 		return nil, ErrBadQuery
-	}
-
-	if exact {
-		// this is actually a request for a single snap's details; short-cut out
-		snapInfo, err := s.Snap(searchTerm, channel, false, user)
-		switch err {
-		case nil:
-			return []*snap.Info{snapInfo}, nil
-		case ErrSnapNotFound:
-			// not finding something is an error for Snap but not for Find
-			return nil, nil
-		default:
-			return nil, err
-		}
 	}
 
 	u := *s.searchURI // make a copy, so we can mutate it
 	q := u.Query()
 
-	switch prefix {
-	case "name":
+	if search.Private {
+		if search.Prefix {
+			// The store only supports "fuzzy" search for private snaps.
+			// See http://search.apps.ubuntu.com/docs/
+			return nil, ErrBadQuery
+		}
+
+		q.Set("private", "true")
+	}
+
+	if search.Prefix {
 		q.Set("name", searchTerm)
-	case "text":
+	} else {
 		q.Set("q", searchTerm)
-	default:
-		return nil, ErrBadPrefix
 	}
 
 	q.Set("confinement", "strict")
-	if channel != "" {
-		q.Set("channel", channel)
-	}
 	u.RawQuery = q.Encode()
 
-	req, err := s.newRequest("GET", u.String(), nil, user)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, "GET", u.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -674,15 +712,15 @@ func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([
 		return nil, respToError(resp, "search")
 	}
 
-	if ct := resp.Header.Get("Content-Type"); ct != "application/hal+json" {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, req.URL)
+	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
 	}
 
 	var searchData searchResults
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, req.URL)
+		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
@@ -690,7 +728,7 @@ func (s *Store) Find(searchTerm string, channel string, user *auth.UserState) ([
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, channel, user)
+	err = s.decoratePurchases(snaps, "", user)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
@@ -772,12 +810,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	req, err := s.newRequest("POST", s.bulkURI.String(), bytes.NewBuffer([]byte(jsonData)), user)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, "POST", s.bulkURI.String(), halJsonContentType, "application/json", jsonData, user)
 	if err != nil {
 		return nil, err
 	}
@@ -848,12 +881,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	req, err := s.newRequest("GET", url, nil, user)
-	if err != nil {
-		return "", err
-	}
-
-	if err := download(name, w, req, pbar); err != nil {
+	if err := download(name, url, user, s, w, pbar); err != nil {
 		return "", err
 	}
 
@@ -861,17 +889,17 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+var download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 	client := &http.Client{}
 
-	resp, err := client.Do(req)
+	resp, err := s.doRequest(client, "GET", url, halJsonContentType, "", nil, user)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return &ErrDownload{Code: resp.StatusCode, URL: req.URL}
+		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
 	if pbar != nil {
@@ -900,13 +928,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		return nil, err
 	}
 
-	req, err := s.newRequest("GET", url.String(), nil, user)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Accept", asserts.MediaType)
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, "GET", url.String(), asserts.MediaType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1023,12 +1045,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		return nil, err
 	}
 
-	req, err := s.newRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData), options.User)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, "POST", s.purchasesURI.String(), halJsonContentType, "application/json", jsonData, options.User)
 	if err != nil {
 		return nil, err
 	}
@@ -1111,12 +1128,7 @@ type PaymentInformation struct {
 
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
-	req, err := s.newRequest("GET", s.paymentMethodsURI.String(), nil, user)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, "GET", s.paymentMethodsURI.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
