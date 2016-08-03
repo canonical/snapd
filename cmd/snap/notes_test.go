@@ -46,16 +46,43 @@ func (notesSuite) TestNotesPrivate(c *check.C) {
 	}).String(), check.Equals, "private")
 }
 
-func (notesSuite) TestNotesPrivateDevmode(c *check.C) {
-	c.Check((&snap.Notes{
-		Private:     true,
-		Confinement: "devmode",
-	}).String(), check.Equals, "devmode,private")
-}
-
-func (notesSuite) TestNotesOtherDevmode(c *check.C) {
+func (notesSuite) TestNotesDevMode(c *check.C) {
 	c.Check((&snap.Notes{
 		DevMode: true,
+	}).String(), check.Equals, "devmode")
+}
+
+func (notesSuite) TestNotesJailMode(c *check.C) {
+	c.Check((&snap.Notes{
+		JailMode: true,
+	}).String(), check.Equals, "jailmode")
+}
+
+func (notesSuite) TestNotesTryMode(c *check.C) {
+	c.Check((&snap.Notes{
 		TryMode: true,
-	}).String(), check.Equals, "devmode,try")
+	}).String(), check.Equals, "try")
+}
+
+func (notesSuite) TestNotesDisabled(c *check.C) {
+	c.Check((&snap.Notes{
+		Disabled: true,
+	}).String(), check.Equals, "disabled")
+}
+
+func (notesSuite) TestNotesBroken(c *check.C) {
+	c.Check((&snap.Notes{
+		Broken: true,
+	}).String(), check.Equals, "broken")
+}
+
+func (notesSuite) TestNotesNothing(c *check.C) {
+	c.Check((&snap.Notes{}).String(), check.Equals, "-")
+}
+
+func (notesSuite) TestNotesTwo(c *check.C) {
+	c.Check((&snap.Notes{
+		DevMode: true,
+		Broken:  true,
+	}).String(), check.Matches, "(devmode,broken|broken,devmode)")
 }

@@ -1,0 +1,20 @@
+summary: Checks that removing the base directory of a tried snap works.
+
+execute: |
+    echo "Given a tried snap"
+    base_dir=$(mktemp -d)
+    cp -R $TESTSLIB/snaps/test-snapd-tools/* $base_dir
+    snap try $base_dir
+
+    echo "Then it is listed as installed"
+    installed_pattern="(?s)Name +Version +Rev +Developer +Notes\n\
+    test-snapd-tools +.*?try"
+    snap list | grep -Pzq "$installed_pattern"
+
+    echo "When its base directory is removed"
+    rm -rf $base_dir
+
+    installed_broken_pattern="(?s)Name +Version +Rev +Developer +Notes\n\
+    test-snapd-tools +.*?broken"
+    echo "Then the snap is listed as a broken install"
+    snap list | grep -Pzq "$installed_broken_pattern"

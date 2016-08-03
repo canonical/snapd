@@ -34,7 +34,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -62,6 +64,7 @@ type Overlord struct {
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
+	hookMgr   *hookstate.HookManager
 }
 
 // New creates a new Overlord with all its state managers.
@@ -103,6 +106,13 @@ func New() (*Overlord, error) {
 	o.ifaceMgr = ifaceMgr
 	o.stateEng.AddManager(o.ifaceMgr)
 
+	hookMgr, err := hookstate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.hookMgr = hookMgr
+	o.stateEng.AddManager(o.hookMgr)
+
 	return o, nil
 }
 
@@ -115,7 +125,7 @@ func loadState(backend state.Backend) (*state.State, error) {
 			return nil, fmt.Errorf("fatal: directory %q must be present", stateDir)
 		}
 		s := state.New(backend)
-		initialize(s)
+		patch.Init(s)
 		return s, nil
 	}
 
@@ -131,7 +141,7 @@ func loadState(backend state.Backend) (*state.State, error) {
 	}
 
 	// one-shot migrations
-	err = migrate(s)
+	err = patch.Apply(s)
 	if err != nil {
 		return nil, err
 	}
@@ -278,4 +288,10 @@ func (o *Overlord) AssertManager() *assertstate.AssertManager {
 // interface connections under the overlord.
 func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 	return o.ifaceMgr
+}
+
+// HookManager returns the hook manager responsible for running hooks under the
+// overlord.
+func (o *Overlord) HookManager() *hookstate.HookManager {
+	return o.hookMgr
 }

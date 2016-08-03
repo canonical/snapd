@@ -30,6 +30,9 @@ const logObserveConnectedPlugAppArmor = `
 
 /var/log/ r,
 /var/log/** r,
+/run/log/journal/ r,
+/run/log/journal/** r,
+/var/lib/systemd/catalog/database r,
 
 # Allow sysctl -w kernel.printk_ratelimit=#
 /{,usr/}sbin/sysctl ixr,

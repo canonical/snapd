@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 
 	. "gopkg.in/check.v1"
@@ -34,16 +35,21 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 )
 
-type infoSuite struct{}
+type infoSuite struct {
+	restore func()
+}
 
 var _ = Suite(&infoSuite{})
 
 func (s *infoSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	hookType := snap.NewHookType(regexp.MustCompile(".*"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
 }
 
 func (s *infoSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	s.restore()
 }
 
 func (s *infoSuite) TestSideInfoOverrides(c *C) {
@@ -54,11 +60,12 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		OfficialName:      "newname",
+		RealName:          "newname",
 		EditedSummary:     "fixed summary",
 		EditedDescription: "fixed desc",
 		Revision:          snap.R(1),
 		SnapID:            "snapidsnapidsnapidsnapidsnapidsn",
+		DeveloperID:       "deviddeviddeviddeviddeviddevidde",
 	}
 
 	c.Check(info.Name(), Equals, "newname")
@@ -66,6 +73,7 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Description(), Equals, "fixed desc")
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
+	c.Check(info.DeveloperID, Equals, "deviddeviddeviddeviddeviddevidde")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
@@ -203,8 +211,8 @@ type: app`
 	c.Assert(err, IsNil)
 
 	info, err := snap.ReadInfoFromSnapFile(snapf, &snap.SideInfo{
-		OfficialName: "baz",
-		Revision:     snap.R(42),
+		RealName: "baz",
+		Revision: snap.R(42),
 	})
 	c.Assert(err, IsNil)
 	c.Check(info.Name(), Equals, "baz")
@@ -329,7 +337,7 @@ func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidHook(c *C) {
 	yaml := `name: foo
 version: 1.0
 hooks:
-  abc123:`
+  123abc:`
 	snapPath := makeTestSnap(c, yaml)
 
 	snapf, err := snap.Open(snapPath)
@@ -342,7 +350,7 @@ hooks:
 func (s *infoSuite) TestReadInfoFromSnapFileCatchesInvalidImplicitHook(c *C) {
 	yaml := `name: foo
 version: 1.0`
-	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("abc123"))
+	snapPath := snaptest.MakeTestSnapWithFiles(c, yaml, emptyHooks("123abc"))
 
 	snapf, err := snap.Open(snapPath)
 	c.Assert(err, IsNil)

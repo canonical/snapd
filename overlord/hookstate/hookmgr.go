@@ -22,11 +22,14 @@
 package hookstate
 
 import (
+	"bytes"
 	"fmt"
+	"os/exec"
 	"regexp"
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -143,13 +146,58 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	// TODO: Actually dispatch the hook.
+	// Actually run the hook
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, tomb)
+	if err != nil {
+		err = osutil.OutputErr(output, err)
+		if handlerErr := handler.Error(err); handlerErr != nil {
+			return handlerErr
+		}
 
-	// Done with the hook. TODO: Check the result, if success call Done(), if
-	// error, call Error(). Since we have no hooks, for now we just call Done().
-	if err := handler.Done(); err != nil {
+		return err
+	}
+
+	// Assuming no error occurred, notify the handler that the hook has
+	// finished.
+	if err = handler.Done(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
+	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+
+	// Make sure we can obtain stdout and stderror. Same buffer so they're
+	// combined.
+	buffer := bytes.NewBuffer(nil)
+	command.Stdout = buffer
+	command.Stderr = buffer
+
+	// Actually run the hook.
+	if err := command.Start(); err != nil {
+		return nil, err
+	}
+
+	hookCompleted := make(chan struct{})
+	var hookError error
+	go func() {
+		// Wait for hook to complete
+		hookError = command.Wait()
+		close(hookCompleted)
+	}()
+
+	select {
+	// Hook completed; it may or may not have been successful.
+	case <-hookCompleted:
+		return buffer.Bytes(), hookError
+
+	// Hook was aborted.
+	case <-tomb.Dying():
+		if err := command.Process.Kill(); err != nil {
+			return nil, fmt.Errorf("cannot abort hook %q: %s", hookName, err)
+		}
+		return nil, fmt.Errorf("hook %q aborted", hookName)
+	}
 }

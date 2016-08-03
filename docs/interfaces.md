@@ -248,6 +248,13 @@ Can configure network firewalling giving privileged access to networking.
 * Auto-Connect: no
 * Availability: OS snap
 
+### hardware-observe
+
+Can query hardware information from the system.
+
+* Auto-Connect: no
+* Availability: OS snap
+
 ### locale-control
 
 Can manage locales directly separate from ``config core``.
@@ -322,6 +329,13 @@ networking information.
 
 Can access Point-to-Point protocol daemon which gives privileged access to
 configure and observe PPP networking.
+
+* Auto-Connect: no
+* Availability: OS snap
+
+### process-control
+
+Can manage processes via signals and nice.
 
 * Auto-Connect: no
 * Availability: OS snap

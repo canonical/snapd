@@ -31,8 +31,9 @@ import (
 )
 
 type SnapOptions struct {
-	Channel string `json:"channel,omitempty"`
-	DevMode bool   `json:"devmode,omitempty"`
+	Channel  string `json:"channel,omitempty"`
+	DevMode  bool   `json:"devmode,omitempty"`
+	JailMode bool   `json:"jailmode,omitempty"`
 }
 
 type actionData struct {
@@ -57,6 +58,19 @@ func (client *Client) Remove(name string, options *SnapOptions) (changeID string
 // the given channel if given).
 func (client *Client) Refresh(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("refresh", name, options)
+}
+
+func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("enable", name, options)
+}
+
+func (client *Client) Disable(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("disable", name, options)
+}
+
+// Revert rolls the snap back to the previous on-disk state
+func (client *Client) Revert(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("revert", name, options)
 }
 
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
@@ -109,6 +123,7 @@ func (client *Client) Try(path string, options *SnapOptions) (changeID string, e
 	mw.WriteField("action", "try")
 	mw.WriteField("snap-path", path)
 	mw.WriteField("devmode", strconv.FormatBool(options.DevMode))
+	mw.WriteField("jailmode", strconv.FormatBool(options.JailMode))
 	mw.Close()
 
 	headers := map[string]string{
@@ -130,6 +145,7 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("snap-path", action.SnapPath),
 		mw.WriteField("channel", action.Channel),
 		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
+		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
 	}
 	for _, err := range errs {
 		if err != nil {

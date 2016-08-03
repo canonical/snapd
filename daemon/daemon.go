@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/store"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -119,15 +118,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	state.Unlock()
 
 	if !c.canAccess(r, user) {
-		rsp := &resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: "access denied",
-				Kind:    errorKindLoginRequired,
-			},
-			Status: http.StatusUnauthorized,
-		}
-		rsp.ServeHTTP(w, r)
+		Unauthorized("access denied").ServeHTTP(w, r)
 		return
 	}
 
@@ -248,18 +239,6 @@ func (d *Daemon) Stop() error {
 // Dying is a tomb-ish thing
 func (d *Daemon) Dying() <-chan struct{} {
 	return d.tomb.Dying()
-}
-
-func (d *Daemon) auther(r *http.Request) (store.Authenticator, error) {
-	overlord := d.overlord
-	state := overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, r)
-	state.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	return user.Authenticator(), nil
 }
 
 // New Daemon
