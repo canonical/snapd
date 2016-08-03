@@ -1011,6 +1011,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 	}
 
 	req, err := s.newRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData), options.User)
+	req.Header.Set("Content-Type", "application/json")
 	if err != nil {
 		return nil, err
 	}
