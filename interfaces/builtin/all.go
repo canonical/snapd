@@ -48,6 +48,7 @@ var allInterfaces = []interfaces.Interface{
 	NewProcessControlInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
+	NewSystemTraceInterface(),
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
 	NewUnity7Interface(),
