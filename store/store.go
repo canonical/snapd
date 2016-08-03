@@ -334,8 +334,8 @@ func authenticate(r *http.Request, user *auth.UserState) {
 	r.Header.Set("Authorization", buf.String())
 }
 
-// refresh will request a refreshed discharge macaroon for the user
-func refresh(user *auth.UserState) error {
+// refreshMacaroon will request a refreshed discharge macaroon for the user
+func refreshMacaroon(user *auth.UserState) error {
 	for i, d := range user.StoreDischarges {
 		discharge, err := MacaroonDeserialize(d)
 		if err != nil {
@@ -373,7 +373,7 @@ func (s *Store) doStoreRequest(client *http.Client, method, urlStr, accept strin
 		if strings.Contains(www_authenticate, "needs_refresh=1") {
 			// close previous response, refresh and retry
 			resp.Body.Close()
-			err = refresh(user)
+			err = refreshMacaroon(user)
 			if err != nil {
 				return nil, err
 			}
