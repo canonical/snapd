@@ -28,14 +28,14 @@ import (
 
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
-	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
-	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
-	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
+	Snap(name, channel string, devmode bool, user *auth.UserState, device *auth.DeviceState) (*snap.Info, error)
+	Find(search *store.Search, user *auth.UserState, device *auth.DeviceState) ([]*snap.Info, error)
+	ListRefresh([]*store.RefreshCandidate, *auth.UserState, *auth.DeviceState) ([]*snap.Info, error)
 	SuggestedCurrency() string
 
-	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
+	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState, *auth.DeviceState) (string, error)
 	Buy(options *store.BuyOptions) (*store.BuyResult, error)
-	PaymentMethods(*auth.UserState) (*store.PaymentInformation, error)
+	PaymentMethods(*auth.UserState, *auth.DeviceState) (*store.PaymentInformation, error)
 }
 
 type managerBackend interface {

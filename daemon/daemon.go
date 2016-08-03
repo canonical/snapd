@@ -49,7 +49,7 @@ type Daemon struct {
 }
 
 // A ResponseFunc handles one of the individual verbs for a method
-type ResponseFunc func(*Command, *http.Request, *auth.UserState) Response
+type ResponseFunc func(*Command, *http.Request, *auth.UserState, *auth.DeviceState) Response
 
 // A Command routes a request to an individual per-verb ResponseFUnc
 type Command struct {
@@ -103,6 +103,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	state.Lock()
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
 	user, _ := UserFromRequest(state, r)
+	device, _ := auth.Device(state)
 	state.Unlock()
 
 	if !c.canAccess(r, user) {
@@ -125,7 +126,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if rspf != nil {
-		rsp = rspf(c, r, user)
+		rsp = rspf(c, r, user, device)
 	}
 
 	rsp.ServeHTTP(w, r)

@@ -49,7 +49,7 @@ type remoteRepoTestSuite struct {
 	logbuf *bytes.Buffer
 	user   *auth.UserState
 
-	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
+	origDownloadFunc func(string, string, *auth.UserState, *auth.DeviceState, *Store, io.Writer, progress.Meter) error
 }
 
 func TestStore(t *testing.T) { TestingT(t) }
@@ -164,7 +164,7 @@ func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) 
 
 func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, device *auth.DeviceState, s *Store, w io.Writer, pbar progress.Meter) error {
 		c.Check(url, Equals, "anon-url")
 		w.Write([]byte("I was downloaded"))
 		return nil
@@ -175,7 +175,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -185,7 +185,7 @@ func (t *remoteRepoTestSuite) TestDownloadOK(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, device *auth.DeviceState, s *Store, w io.Writer, pbar progress.Meter) error {
 		// check user is pass and auth url is used
 		c.Check(user, Equals, t.user)
 		c.Check(url, Equals, "AUTH-URL")
@@ -199,7 +199,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.user)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.user, nil)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -210,7 +210,7 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, device *auth.DeviceState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		return fmt.Errorf("uh, it failed")
 	}
@@ -220,7 +220,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 	// simulate a failed download
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, "uh, it failed")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -229,7 +229,7 @@ func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 
 func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	var tmpfile *os.File
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+	download = func(name, url string, user *auth.UserState, device *auth.DeviceState, s *Store, w io.Writer, pbar progress.Meter) error {
 		tmpfile = w.(*os.File)
 		w.Write([]byte("sync will fail"))
 		err := tmpfile.Close()
@@ -243,7 +243,7 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	// simulate a failed sync
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, nil, nil)
 	c.Assert(err, ErrorMatches, "fsync:.*")
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
@@ -400,7 +400,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", true, nil)
+	result, err := repo.Snap("hello-world", "edge", true, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
@@ -459,10 +459,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", false, nil)
+	result, err := repo.Snap("hello-world", "edge", false, nil, nil)
 	c.Check(err, Equals, ErrSnapNotFound)
 	c.Check(result, IsNil)
-	result, err = repo.Snap("hello-world", "edge", true, nil)
+	result, err = repo.Snap("hello-world", "edge", true, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(result, NotNil)
 
@@ -506,7 +506,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snap, err := repo.Snap("hello-world", "edge", false, t.user)
+	snap, err := repo.Snap("hello-world", "edge", false, t.user, nil)
 	c.Assert(snap, NotNil)
 	c.Assert(err, IsNil)
 	c.Check(snap.MustBuy, Equals, false)
@@ -559,7 +559,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsRefreshesAuth(c *C
 	repo := New(&cfg, "", authContext)
 	c.Assert(repo, NotNil)
 
-	snap, err := repo.Snap("hello-world", "edge", false, t.user)
+	snap, err := repo.Snap("hello-world", "edge", false, t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 	c.Assert(snap, NotNil)
@@ -589,7 +589,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	_, err = repo.Snap("hello-world", "edge", false, nil)
+	_, err = repo.Snap("hello-world", "edge", false, nil, nil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world" in channel "edge": got unexpected HTTP status code 5.. via GET to "http://\S+" \[OOPS-[[:xdigit:]]*\]`)
 }
 
@@ -633,7 +633,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNoDetails(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("no-such-pkg", "edge", false, nil)
+	result, err := repo.Snap("no-such-pkg", "edge", false, nil, nil)
 	c.Assert(err, NotNil)
 	c.Assert(result, IsNil)
 }
@@ -745,7 +745,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		{Query: "hello", Prefix: true},
 		{Query: "hello"},
 	} {
-		repo.Find(&query, nil)
+		repo.Find(&query, nil, nil)
 	}
 }
 
@@ -784,23 +784,23 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindPrivate(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	_, err := repo.Find(&Search{Query: "foo", Private: true}, t.user)
+	_, err := repo.Find(&Search{Query: "foo", Private: true}, t.user, nil)
 	c.Check(err, IsNil)
 
-	_, err = repo.Find(&Search{Query: "foo", Private: true}, nil)
+	_, err = repo.Find(&Search{Query: "foo", Private: true}, nil, nil)
 	c.Check(err, Equals, ErrUnauthenticated)
 
-	_, err = repo.Find(&Search{Query: "name:foo", Private: true}, t.user)
+	_, err = repo.Find(&Search{Query: "name:foo", Private: true}, t.user, nil)
 	c.Check(err, Equals, ErrBadQuery)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindFailures(c *C) {
 	repo := New(&Config{SearchURI: new(url.URL)}, "", nil)
-	_, err := repo.Find(&Search{}, nil)
+	_, err := repo.Find(&Search{}, nil, nil)
 	c.Check(err, Equals, ErrEmptyQuery)
-	_, err = repo.Find(&Search{Query: "foo:bar"}, nil)
+	_, err = repo.Find(&Search{Query: "foo:bar"}, nil, nil)
 	c.Check(err, Equals, ErrBadQuery)
-	_, err = repo.Find(&Search{Query: "foo", Private: true, Prefix: true}, t.user)
+	_, err = repo.Find(&Search{Query: "foo", Private: true, Prefix: true}, t.user, nil)
 	c.Check(err, Equals, ErrBadQuery)
 }
 
@@ -822,7 +822,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindFails(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil, nil)
 	c.Check(err, ErrorMatches, `cannot search: got unexpected HTTP status code 418 via GET to "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -845,7 +845,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadContentType(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil, nil)
 	c.Check(err, ErrorMatches, `received an unexpected content type \("text/plain[^"]+"\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -871,7 +871,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find(&Search{Query: "hello"}, nil)
+	snaps, err := repo.Find(&Search{Query: "hello"}, nil, nil)
 	c.Check(err, ErrorMatches, `cannot decode reply \(got invalid character.*\) when trying to search via "http://\S+[?&]q=hello.*"`)
 	c.Check(snaps, HasLen, 0)
 }
@@ -913,7 +913,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user, nil)
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
@@ -972,7 +972,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindRefreshesAuth(c *C) {
 	repo := New(&cfg, "", authContext)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 	c.Assert(snaps, HasLen, 1)
@@ -1018,7 +1018,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
+	snaps, err := repo.Find(&Search{Query: "foo"}, t.user, nil)
 	c.Assert(err, IsNil)
 
 	// Check that we log an error.
@@ -1130,7 +1130,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			Epoch:    "0",
 			DevMode:  false,
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 1)
 	c.Assert(results[0].Name(), Equals, "hello-world")
@@ -1183,7 +1183,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c 
 			Epoch:    "0",
 			DevMode:  false,
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -1233,7 +1233,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 			DevMode:  false,
 			Block:    []snap.Revision{snap.R(26)},
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
 }
@@ -1280,7 +1280,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 			Epoch:    "0",
 			DevMode:  true,
 		},
-	}, nil)
+	}, nil, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1313,7 +1313,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
 			Epoch:    "0",
 			DevMode:  false,
 		},
-	}, t.user)
+	}, t.user, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1363,7 +1363,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesRefreshesAuth(c *C
 			Epoch:    "0",
 			DevMode:  false,
 		},
-	}, t.user)
+	}, t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
@@ -1471,7 +1471,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	}
 	repo := New(&cfg, "", nil)
 
-	a, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	a, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil, nil)
 	c.Assert(err, IsNil)
 	c.Check(a, NotNil)
 	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
@@ -1499,7 +1499,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionSetsAuth(c *C) {
 	}
 	repo := New(&cfg, "", nil)
 
-	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
+	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -1542,7 +1542,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionRefreshesAuth(c 
 	}
 	repo := New(&cfg, "", authContext)
 
-	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
+	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
@@ -1567,7 +1567,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	}
 	repo := New(&cfg, "", nil)
 
-	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
+	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil, nil)
 	c.Check(err, Equals, ErrAssertionNotFound)
 }
 
@@ -1596,7 +1596,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	c.Check(repo.SuggestedCurrency(), Equals, "USD")
 
 	// we should soon have a suggested currency
-	result, err := repo.Snap("hello-world", "edge", false, nil)
+	result, err := repo.Snap("hello-world", "edge", false, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "GBP")
@@ -1604,7 +1604,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 	suggestedCurrency = "EUR"
 
 	// checking the currency updates
-	result, err = repo.Snap("hello-world", "edge", false, nil)
+	result, err = repo.Snap("hello-world", "edge", false, nil, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(repo.SuggestedCurrency(), Equals, "EUR")
@@ -1646,7 +1646,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err = repo.decoratePurchases(snaps, "edge", t.user)
+	err = repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
@@ -1707,7 +1707,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesRefreshesAuth(c *C
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err = repo.decoratePurchases(snaps, "edge", t.user)
+	err = repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)
 
@@ -1754,7 +1754,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesFailedAccess(c *C)
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err = repo.decoratePurchases(snaps, "edge", t.user)
+	err = repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, NotNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -1785,7 +1785,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesNoAuth(c *C) {
 
 	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
 
-	err := repo.decoratePurchases(snaps, "edge", nil)
+	err := repo.decoratePurchases(snaps, "edge", nil, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(helloWorld.MustBuy, Equals, true)
@@ -1825,7 +1825,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesAllFree(c *C) {
 	snaps := []*snap.Info{helloWorld, funkyApp}
 
 	// There should be no request to the purchases server.
-	err = repo.decoratePurchases(snaps, "edge", t.user)
+	err = repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(requestRecieved, Equals, false)
 }
@@ -1856,7 +1856,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingle(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err = repo.decoratePurchases(snaps, "edge", t.user)
+	err = repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
@@ -1871,7 +1871,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleFreeSnap(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err := repo.decoratePurchases(snaps, "edge", t.user)
+	err := repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, IsNil)
 	c.Check(helloWorld.MustBuy, Equals, false)
 }
@@ -1903,7 +1903,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesSingleNotFound(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err = repo.decoratePurchases(snaps, "edge", t.user)
+	err = repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
@@ -1935,7 +1935,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreGetPurchasesTokenExpired(c *C) {
 
 	snaps := []*snap.Info{helloWorld}
 
-	err = repo.decoratePurchases(snaps, "edge", t.user)
+	err = repo.decoratePurchases(snaps, "edge", t.user, nil)
 	c.Assert(err, NotNil)
 	c.Check(helloWorld.MustBuy, Equals, true)
 }
@@ -2018,7 +2018,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 	c.Assert(repo, NotNil)
 
 	// Find the snap first
-	snap, err := repo.Snap("hello-world", "edge", false, t.user)
+	snap, err := repo.Snap("hello-world", "edge", false, t.user, nil)
 	c.Assert(err, IsNil)
 
 	// Now buy the snap using the suggested currency
@@ -2028,6 +2028,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 		Currency: repo.SuggestedCurrency(),
 		Price:    snap.Prices[repo.SuggestedCurrency()],
 		User:     t.user,
+		Device:   nil,
 
 		BackendID: "123",
 		MethodID:  234,
@@ -2084,6 +2085,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyRefreshesAuth(c *C) {
 		Currency: "EUR",
 		Price:    0.99,
 		User:     t.user,
+		Device:   nil,
 
 		BackendID: "123",
 		MethodID:  234,
@@ -2147,7 +2149,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 	c.Assert(repo, NotNil)
 
 	// Find the snap first
-	snap, err := repo.Snap("hello-world", "edge", false, t.user)
+	snap, err := repo.Snap("hello-world", "edge", false, t.user, nil)
 	c.Assert(err, IsNil)
 
 	// Attempt to buy the snap using the wrong price in USD
@@ -2157,6 +2159,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 		Price:    0.99,
 		Currency: "USD",
 		User:     t.user,
+		Device:   nil,
 	})
 
 	c.Assert(result, IsNil)
@@ -2223,7 +2226,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 	c.Assert(repo, NotNil)
 
 	// Find the snap first
-	snap, err := repo.Snap("hello-world", "edge", false, t.user)
+	snap, err := repo.Snap("hello-world", "edge", false, t.user, nil)
 	c.Assert(err, IsNil)
 
 	// Now try and buy the snap, but with an invalid ID
@@ -2233,6 +2236,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 		Price:    snap.Prices[repo.SuggestedCurrency()],
 		Currency: repo.SuggestedCurrency(),
 		User:     t.user,
+		Device:   nil,
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -2253,6 +2257,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		Price:    1.0,
 		Currency: "USD",
 		User:     t.user,
+		Device:   nil,
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -2264,6 +2269,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		Price:    1.0,
 		Currency: "USD",
 		User:     t.user,
+		Device:   nil,
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -2275,6 +2281,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		SnapName: "snap name",
 		Currency: "USD",
 		User:     t.user,
+		Device:   nil,
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -2286,6 +2293,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		SnapName: "snap name",
 		Price:    1.0,
 		User:     t.user,
+		Device:   nil,
 	})
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -2378,7 +2386,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethods(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	result, err := repo.PaymentMethods(t.user)
+	result, err := repo.PaymentMethods(t.user, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 
@@ -2446,7 +2454,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsRefreshesAuth(c *C) {
 	repo := New(&cfg, "", nil)
 	c.Assert(repo, NotNil)
 
-	result, err := repo.PaymentMethods(t.user)
+	result, err := repo.PaymentMethods(t.user, nil)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
 	c.Check(refreshDischargeEndpointHit, Equals, true)

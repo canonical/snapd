@@ -300,6 +300,10 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	if err != nil {
 		return nil, err
 	}
+	device, err := auth.Device(st)
+	if err != nil {
+		return nil, err
+	}
 	curInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return nil, err
@@ -322,7 +326,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	res, err := theStore.ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
+	res, err := theStore.ListRefresh([]*store.RefreshCandidate{refreshCand}, user, device)
 	st.Lock()
 	if len(res) == 0 {
 		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
@@ -335,9 +339,13 @@ func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*
 	if err != nil {
 		return nil, err
 	}
+	device, err := auth.Device(st)
+	if err != nil {
+		return nil, err
+	}
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), user)
+	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), user, device)
 	st.Lock()
 	return snap, err
 }
@@ -491,19 +499,26 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	device, err := auth.Device(st)
+	st.Unlock()
+	if err != nil {
+		return err
+	}
+
 	var downloadedSnapFile string
 	if ss.DownloadInfo == nil {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := theStore.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), user)
+		storeInfo, err := theStore.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), user, device)
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = theStore.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user)
+		downloadedSnapFile, err = theStore.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user, device)
 		ss.SideInfo = &storeInfo.SideInfo
 	} else {
-		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.DownloadInfo, meter, user)
+		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.DownloadInfo, meter, user, device)
 	}
 	if err != nil {
 		return err
