@@ -34,7 +34,8 @@ type FileState struct {
 	Mode    os.FileMode
 }
 
-var errSameState = fmt.Errorf("file state has not changed")
+// ErrSameState is returned when the state of a file has not changed.
+var ErrSameState = fmt.Errorf("file state has not changed")
 
 // EnsureDirState ensures that directory content matches expectations.
 //
@@ -78,8 +79,8 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 	var firstErr error
 	for baseName, fileState := range content {
 		filePath := filepath.Join(dir, baseName)
-		err := writeFile(filePath, fileState)
-		if err == errSameState {
+		err := EnsureFileState(filePath, fileState)
+		if err == ErrSameState {
 			continue
 		}
 		if err != nil {
@@ -119,7 +120,9 @@ func EnsureDirState(dir, glob string, content map[string]*FileState) (changed, r
 	return changed, removed, firstErr
 }
 
-func writeFile(filePath string, fileState *FileState) error {
+// EnsureFileState ensures that the file is in the expected state. It will not attempt
+// to remove the file if no content is provided.
+func EnsureFileState(filePath string, fileState *FileState) error {
 	stat, err := os.Stat(filePath)
 	if os.IsNotExist(err) {
 		return AtomicWriteFile(filePath, fileState.Content, fileState.Mode, 0)
@@ -134,7 +137,7 @@ func writeFile(filePath string, fileState *FileState) error {
 		}
 		if bytes.Equal(content, fileState.Content) {
 			// Return a special error if the file doesn't need to be changed
-			return errSameState
+			return ErrSameState
 		}
 	}
 	return AtomicWriteFile(filePath, fileState.Content, fileState.Mode, 0)
