@@ -118,15 +118,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	state.Unlock()
 
 	if !c.canAccess(r, user) {
-		rsp := &resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: "access denied",
-				Kind:    errorKindLoginRequired,
-			},
-			Status: http.StatusUnauthorized,
-		}
-		rsp.ServeHTTP(w, r)
+		Unauthorized("access denied").ServeHTTP(w, r)
 		return
 	}
 
