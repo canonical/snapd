@@ -209,3 +209,10 @@ Can query hardware information from the system.
 
 Usage: reserved
 Auto-Connect: no
+
+### process-control
+
+Can manage processes via signals and nice.
+
+Usage: reserved
+Auto-Connect: no

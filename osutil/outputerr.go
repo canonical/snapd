@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,27 +17,23 @@
  *
  */
 
-package asserts
+package osutil
 
 import (
-	"crypto"
-	"encoding/base64"
+	"bytes"
 	"fmt"
 )
 
-// EncodeDigest encodes the digest from hash algorithm to be put in an assertion header.
-func EncodeDigest(hash crypto.Hash, hashDigest []byte) (string, error) {
-	algo := ""
-	switch hash {
-	case crypto.SHA512:
-		algo = "sha512"
-	case crypto.SHA3_384:
-		algo = "sha3-384"
-	default:
-		return "", fmt.Errorf("unsupported hash")
+// OutputErr formats an error based on output if its length is not zero,
+// or returns err otherwise.
+func OutputErr(output []byte, err error) error {
+	output = bytes.TrimSpace(output)
+	if len(output) > 0 {
+		if bytes.Contains(output, []byte{'\n'}) {
+			err = fmt.Errorf("\n-----\n%s\n-----", output)
+		} else {
+			err = fmt.Errorf("%s", output)
+		}
 	}
-	if len(hashDigest) != hash.Size() {
-		return "", fmt.Errorf("hash digest by %s should be %d bytes", algo, hash.Size())
-	}
-	return base64.RawURLEncoding.EncodeToString(hashDigest), nil
+	return err
 }

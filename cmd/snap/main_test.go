@@ -125,7 +125,8 @@ func (s *SnapSuite) TestAccessDeniedHint(c *C) {
 	os.Args = []string{"snap", "install", "foo"}
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `access denied \(snap login --help\)`)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, `access denied (try with sudo)`)
 }
 
 func (s *SnapSuite) TestExtraArgs(c *C) {

@@ -20,6 +20,8 @@
 package asserts
 
 import (
+	"crypto"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -80,7 +82,7 @@ func checkAssertType(assertType *AssertionType) error {
 }
 
 // use 'defl' default if missing
-func checkInteger(headers map[string]interface{}, name string, defl int) (int, error) {
+func checkIntWithDefault(headers map[string]interface{}, name string, defl int) (int, error) {
 	value, ok := headers[name]
 	if !ok {
 		return defl, nil
@@ -94,6 +96,18 @@ func checkInteger(headers map[string]interface{}, name string, defl int) (int, e
 		return -1, fmt.Errorf("%q header is not an integer: %v", name, s)
 	}
 	return m, nil
+}
+
+func checkInt(headers map[string]interface{}, name string) (int, error) {
+	valueStr, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return -1, err
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return -1, fmt.Errorf("%q header is not an integer: %v", name, valueStr)
+	}
+	return value, nil
 }
 
 func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, error) {
@@ -119,4 +133,20 @@ func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64
 		return 0, fmt.Errorf("%q header is not an unsigned integer: %v", name, valueStr)
 	}
 	return value, nil
+}
+
+func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]byte, error) {
+	digestStr, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return nil, err
+	}
+	b, err := base64.RawURLEncoding.DecodeString(digestStr)
+	if err != nil {
+		return nil, fmt.Errorf("%q header cannot be decoded: %v", name, err)
+	}
+	if len(b) != h.Size() {
+		return nil, fmt.Errorf("%q header does not have the expected bit length: %d", name, len(b)*8)
+	}
+
+	return b, nil
 }
