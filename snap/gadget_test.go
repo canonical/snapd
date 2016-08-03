@@ -89,3 +89,19 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		},
 	})
 }
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidVolume(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	mockGadgetYamlBroken := []byte(`
+bootloader: uboot
+volumes:
+ volumename:
+  - name: ""
+`)
+
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info)
+	c.Assert(err, ErrorMatches, "volume name cannot be empty")
+}
