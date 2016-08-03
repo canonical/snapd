@@ -165,8 +165,8 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_os":   "core_100.snap",
-		"snappy_mode": "try",
+		"snap_try_core": "core_100.snap",
+		"snap_mode":     "try",
 	})
 
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
@@ -185,15 +185,15 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_kernel": "krnl_42.snap",
-		"snappy_mode":   "try",
+		"snap_try_kernel": "krnl_42.snap",
+		"snap_mode":       "try",
 	})
 
-	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_40.snap"
-	s.bootloader.BootVars["snappy_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snap_kernel"] = "krnl_40.snap"
+	s.bootloader.BootVars["snap_try_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
 
 	// simulate good boot
-	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
 }

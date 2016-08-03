@@ -26,7 +26,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/store"
 
@@ -76,23 +75,10 @@ func buySnap(opts *store.BuyOptions) error {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)
 	}
 
-	snaps, resultInfo, err := cli.Find(&client.FindOptions{
-		Query: fmt.Sprintf("name:%s", opts.SnapName),
-	})
-
+	snap, resultInfo, err := cli.FindOne(opts.SnapName)
 	if err != nil {
 		return err
 	}
-
-	if len(snaps) < 1 {
-		return fmt.Errorf(i18n.G("cannot find snap %q"), opts.SnapName)
-	}
-
-	if len(snaps) > 1 {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: muliple results found"), opts.SnapName)
-	}
-
-	snap := snaps[0]
 
 	opts.SnapID = snap.ID
 	if opts.Currency == "" {
