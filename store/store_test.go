@@ -518,8 +518,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsRefreshesAuth(c *C
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
+	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
@@ -559,6 +561,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsRefreshesAuth(c *C
 
 	snap, err := repo.Snap("hello-world", "edge", false, t.user)
 	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 	c.Assert(snap, NotNil)
 	c.Check(snap.MustBuy, Equals, false)
 }
@@ -924,8 +927,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindRefreshesAuth(c *C) {
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
+	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
@@ -969,6 +974,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindRefreshesAuth(c *C) {
 
 	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
 	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 	c.Assert(snaps, HasLen, 1)
 	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
 	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
@@ -1317,8 +1323,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesRefreshesAuth(c *C
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
+	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
@@ -1357,6 +1365,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesRefreshesAuth(c *C
 		},
 	}, t.user)
 	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
@@ -1500,8 +1509,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionRefreshesAuth(c 
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
+	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
@@ -1533,6 +1544,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionRefreshesAuth(c 
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
 	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
@@ -1649,8 +1661,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesRefreshesAuth(c *C
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
+	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
@@ -1695,6 +1709,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesRefreshesAuth(c *C
 
 	err = repo.decoratePurchases(snaps, "edge", t.user)
 	c.Assert(err, IsNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
 	c.Check(funkyApp.MustBuy, Equals, false)
@@ -2035,8 +2050,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyRefreshesAuth(c *C) {
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
+	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
@@ -2074,6 +2091,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyRefreshesAuth(c *C) {
 
 	c.Assert(result, NotNil)
 	c.Check(result.State, Equals, "Complete")
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
@@ -2400,8 +2418,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsRefreshesAuth(c *C) {
 	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
 
 	// mock refresh response
+	refreshDischargeEndpointHit := false
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
 	}))
 	defer mockSSOServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
@@ -2429,4 +2449,5 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsRefreshesAuth(c *C) {
 	result, err := repo.PaymentMethods(t.user)
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
+	c.Check(refreshDischargeEndpointHit, Equals, true)
 }
