@@ -353,12 +353,12 @@ func refreshMacaroon(user *auth.UserState) error {
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
-func (s *Store) doRequest(client *http.Client, method, urlStr, accept string, data []byte, user *auth.UserState) (*http.Response, error) {
+func (s *Store) doRequest(client *http.Client, method, urlStr, accept, contentType string, data []byte, user *auth.UserState) (*http.Response, error) {
 	var body io.Reader
 	if data != nil {
 		body = bytes.NewBuffer(data)
 	}
-	req, err := s.newRequest(method, urlStr, accept, body, user)
+	req, err := s.newRequest(method, urlStr, accept, contentType, body, user)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func (s *Store) doRequest(client *http.Client, method, urlStr, accept string, da
 		if data != nil {
 			body = bytes.NewBuffer(data)
 		}
-		req, err := s.newRequest(method, urlStr, accept, body, user)
+		req, err := s.newRequest(method, urlStr, accept, contentType, body, user)
 		if err != nil {
 			return nil, err
 		}
@@ -395,7 +395,7 @@ func (s *Store) doRequest(client *http.Client, method, urlStr, accept string, da
 }
 
 // build a new http.Request with headers for the store
-func (s *Store) newRequest(method, urlStr, accept string, body io.Reader, user *auth.UserState) (*http.Request, error) {
+func (s *Store) newRequest(method, urlStr, accept, contentType string, body io.Reader, user *auth.UserState) (*http.Request, error) {
 	req, err := http.NewRequest(method, urlStr, body)
 	if err != nil {
 		return nil, err
@@ -410,6 +410,10 @@ func (s *Store) newRequest(method, urlStr, accept string, body io.Reader, user *
 	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
 	req.Header.Set("X-Ubuntu-Series", release.Series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
 
 	if s.storeID != "" {
 		req.Header.Set("X-Ubuntu-Store", s.storeID)
@@ -476,7 +480,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
 
-	resp, err := s.doRequest(s.client, "GET", url.String(), halJsonContentType, nil, user)
+	resp, err := s.doRequest(s.client, "GET", url.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -608,7 +612,7 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 
 	u.RawQuery = query.Encode()
 
-	resp, err := s.doRequest(s.client, "GET", u.String(), halJsonContentType, nil, user)
+	resp, err := s.doRequest(s.client, "GET", u.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -698,7 +702,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	resp, err := s.doRequest(s.client, "GET", u.String(), halJsonContentType, nil, user)
+	resp, err := s.doRequest(s.client, "GET", u.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -806,7 +810,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	resp, err := s.doRequest(s.client, "POST", s.bulkURI.String(), halJsonContentType, jsonData, user)
+	resp, err := s.doRequest(s.client, "POST", s.bulkURI.String(), halJsonContentType, "application/json", jsonData, user)
 	if err != nil {
 		return nil, err
 	}
@@ -888,7 +892,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 var download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 	client := &http.Client{}
 
-	resp, err := s.doRequest(client, "GET", url, halJsonContentType, nil, user)
+	resp, err := s.doRequest(client, "GET", url, halJsonContentType, "", nil, user)
 	if err != nil {
 		return err
 	}
@@ -924,7 +928,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		return nil, err
 	}
 
-	resp, err := s.doRequest(s.client, "GET", url.String(), asserts.MediaType, nil, user)
+	resp, err := s.doRequest(s.client, "GET", url.String(), asserts.MediaType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1041,7 +1045,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		return nil, err
 	}
 
-	resp, err := s.doRequest(s.client, "POST", s.purchasesURI.String(), halJsonContentType, jsonData, options.User)
+	resp, err := s.doRequest(s.client, "POST", s.purchasesURI.String(), halJsonContentType, "application/json", jsonData, options.User)
 	if err != nil {
 		return nil, err
 	}
@@ -1124,7 +1128,7 @@ type PaymentInformation struct {
 
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
-	resp, err := s.doRequest(s.client, "GET", s.paymentMethodsURI.String(), halJsonContentType, nil, user)
+	resp, err := s.doRequest(s.client, "GET", s.paymentMethodsURI.String(), halJsonContentType, "", nil, user)
 	if err != nil {
 		return nil, err
 	}
