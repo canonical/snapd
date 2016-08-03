@@ -21,7 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
-        "bytes"
+  "bytes"
 )
 
 var mirPermanentSlotAppArmor = []byte(`
@@ -68,33 +68,35 @@ sendmsg
 
 var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
-# Usage: reserver
+# Usage: reserved
 
+unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###) type=seqpacket addr=none,
 /usr/share/applications/ r,
 /run/mir_socket rw,
 /run/user/*/mir_socket rw,
-unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###)
 
 `)
 
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
-# Usage: reserver
+# Usage: reserved
 
-/usr/share/applications/ r,
-/run/mir_socket rw,
+unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###) type=seqpacket addr=none,
+/usr/share/applications/ rix,
+/run/mir_socket rwix,
 /run/user/*/mir_socket rw,
-unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###)
 
 `)
 
 var mirConnectedPlugSecComp = []byte(`
 # Description: Permit clients to use Mir
-# Usage: reserver
+# Usage: reserved
 getsockname
+open
 recvmsg
 sendmsg
 sendto
+
 `)
 
 type MirInterface struct{}
@@ -108,8 +110,8 @@ func (iface *MirInterface) PermanentPlugSnippet(
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 					case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-				interfaces.SecurityUDev, interfaces.SecurityDBus,
-		                interfaces.SecurityMount:
+				 		   interfaces.SecurityUDev, interfaces.SecurityDBus,
+		           interfaces.SecurityMount:
 				return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -126,9 +128,9 @@ func (iface *MirInterface) ConnectedPlugSnippet(
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(mirConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityDBus,
-                interfaces.SecurityMount:
+	case interfaces.SecuritySecComp:
+		return mirConnectedPlugSecComp, nil
+	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -157,8 +159,9 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityDBus,
+	case interfaces.SecuritySecComp:
+		return mirConnectedSlotSecComp, nil
+	case interfaces.SecurityUDev, interfaces.SecurityDBus,
                 interfaces.SecurityMount:
 		return nil, nil
 	default:
