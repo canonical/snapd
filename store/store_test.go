@@ -1703,6 +1703,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 			purchaseServerGetCalled = true
 		case "POST":
 			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			c.Check(r.Header.Get("Content-Type"), Equals, "application/json")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
