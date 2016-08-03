@@ -251,9 +251,10 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 		Current: snap.R(1),
 	})
 
-	tts, err := snapstate.UpdateMany(s.state, nil, 0)
+	updates, tts, err := snapstate.UpdateMany(s.state, nil, 0)
 	c.Assert(err, IsNil)
 	c.Assert(tts, HasLen, 1)
+	c.Check(updates, DeepEquals, []string{"some-snap"})
 
 	ts := tts[0]
 	i := verifyInstallUpdateTasks(c, true, ts, s.state)

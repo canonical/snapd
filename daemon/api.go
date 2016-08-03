@@ -727,15 +727,14 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 
 }
 
-func snapUpdateMany(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
 	// TODO: check inst flags and bail if any are given (-many
 	// doesn't take options)
-	tts, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	updated, tts, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
-		return "", nil, err
+		return "", nil, nil, err
 	}
 
-	var msg string
 	switch len(inst.Snaps) {
 	case 0:
 		// all snaps
@@ -751,7 +750,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (string, []*state.Ta
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), strings.Join(quoted, ", "))
 	}
 
-	return msg, tts, nil
+	return msg, updated, tts, nil
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -974,7 +973,7 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	msg, tsets, err := snapUpdateMany(&inst, st)
+	msg, updated, tsets, err := snapUpdateMany(&inst, st)
 	if err != nil {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
 	}
@@ -984,9 +983,10 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg = st.NewChange(inst.Action+"-snap", msg)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, inst.Action+"-snap", msg, tsets, inst.Snaps)
+		chg = newChange(st, inst.Action+"-snap", msg, tsets, updated)
 		ensureStateSoon(st)
 	}
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

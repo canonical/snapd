@@ -1814,10 +1814,10 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
-	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
 	d := s.daemon(c)
@@ -1835,60 +1835,65 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 
 	st := d.overlord.State()
 	st.Lock()
+	defer st.Unlock()
 	chg := st.Change(rsp.Change)
-	st.Unlock()
 	c.Check(chg.Summary(), check.Equals, "Refresh all snaps in the system")
+	var apiData map[string]interface{}
+	c.Check(chg.Get("api-data", &apiData), check.IsNil)
+	c.Check(apiData["snap-names"], check.DeepEquals, []interface{}{"fake1", "fake2"})
 }
 
 func (s *apiSuite) TestRefreshAll(c *check.C) {
-	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
-		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
 	d := s.daemon(c)
 	inst := &snapInstruction{Action: "refresh"}
 	st := d.overlord.State()
 	st.Lock()
-	summary, _, err := snapUpdateMany(inst, st)
+	summary, _, _, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, "Refresh all snaps in the system")
 }
 
 func (s *apiSuite) TestRefreshMany(c *check.C) {
-	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
-		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
 	d := s.daemon(c)
 	inst := &snapInstruction{Action: "refresh", Snaps: []string{"foo", "bar"}}
 	st := d.overlord.State()
 	st.Lock()
-	summary, _, err := snapUpdateMany(inst, st)
+	summary, updates, _, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, `Refresh snaps "foo", "bar"`)
+	c.Check(updates, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestRefreshMany1(c *check.C) {
-	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 1)
 		t := s.NewTask("fake-refresh-1", "Refreshing one")
-		return []*state.TaskSet{state.NewTaskSet(t)}, nil
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	}
 
 	d := s.daemon(c)
 	inst := &snapInstruction{Action: "refresh", Snaps: []string{"foo"}}
 	st := d.overlord.State()
 	st.Lock()
-	summary, _, err := snapUpdateMany(inst, st)
+	summary, updates, _, err := snapUpdateMany(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, `Refresh snap "foo"`)
+	c.Check(updates, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
