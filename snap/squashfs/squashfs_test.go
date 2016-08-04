@@ -33,6 +33,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -78,6 +79,29 @@ func makeSnap(c *C, manifest, data string) *Snap {
 func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	err := os.Chdir(c.MkDir())
 	c.Assert(err, IsNil)
+}
+
+func (s *SquashfsTestSuite) TestInstallSimple(c *C) {
+	snap := makeSnap(c, "name: test", "")
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	mountDir := c.MkDir()
+	err := snap.Install(targetPath, mountDir)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(targetPath), Equals, true)
+}
+
+func (s *SquashfsTestSuite) TestInstallNotCopyTwice(c *C) {
+	snap := makeSnap(c, "name: test2", "")
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	mountDir := c.MkDir()
+	err := snap.Install(targetPath, mountDir)
+	c.Assert(err, IsNil)
+
+	cmd := testutil.MockCommand(c, "cp", "")
+	defer cmd.Restore()
+	err = snap.Install(targetPath, mountDir)
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
 func (s *SquashfsTestSuite) TestPath(c *C) {

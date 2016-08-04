@@ -46,8 +46,10 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
 	NewPluggableStorageInterface(),
+	NewProcessControlInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
+	NewSystemTraceInterface(),
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
 	NewUnity7Interface(),
@@ -57,6 +59,7 @@ var allInterfaces = []interfaces.Interface{
 	NewCupsControlInterface(),
 	NewOpticalDriveInterface(),
 	NewCameraInterface(),
+	NewBluetoothControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
