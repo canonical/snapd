@@ -47,10 +47,28 @@ owner /dev/shm/.org.chromium.Chromium.* rw,
 owner /dev/shm/.com.google.Chrome.* rw,
 `
 
+const browserConnectedPlugAppArmorWithoutSandbox = `
+# ptrace can be used to break out of the seccomp sandbox, but ps requests
+# 'ptrace (trace)' even though it isn't tracing other processes. Unfortunately,
+# this is due to the kernel overloading trace such that the LSMs are unable to
+# distinguish between tracing other processes and other accesses. We deny the
+# trace here to silence the log.
+# Note: for now, explicitly deny to avoid confusion and accidentally giving
+# away this dangerous access frivolously. We may conditionally deny this in the
+# future. If the kernel has https://lkml.org/lkml/2016/5/26/354 we could also
+# allow this.
+deny ptrace (trace) peer=snap.@{SNAP_NAME}.**,
+`
+
 const browserConnectedPlugAppArmorWithSandbox = `
 # Policy needed only when using the chrome/chromium setuid sandbox
-unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
 ptrace (trace) peer=snap.@{SNAP_NAME}.**,
+unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
+
+# noisy and only used for legacy system settings
+deny dbus (send)
+    bus=session
+    interface="org.gnome.GConf.Server",
 
 # If this were going to be allowed to all snaps, then for all the following
 # rules we would want to wrap in a 'browser_sandbox' profile, but a limitation
@@ -158,6 +176,8 @@ func (iface *BrowserInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		snippet := []byte(browserConnectedPlugAppArmor)
 		if allow_browser_sandbox {
 			snippet = append(snippet, browserConnectedPlugAppArmorWithSandbox...)
+		} else {
+			snippet = append(snippet, browserConnectedPlugAppArmorWithoutSandbox...)
 		}
 		return snippet, nil
 	case interfaces.SecuritySecComp:
