@@ -115,7 +115,6 @@ sandboxes in major browsers from vendors like Google and Mozilla.
 
 Usage: reserved
 Auto-Connect: yes
-Transitional: yes
 Attributes:
 - allow-browser-sandbox: true|false (defaults to ``false``)
 

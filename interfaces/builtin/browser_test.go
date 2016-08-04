@@ -102,7 +102,7 @@ plugs:
 }
 
 func (s *BrowserInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
-	snippet, err:= s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
@@ -127,7 +127,7 @@ plugs:
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-plug"]}
 
-	snippet, err:= s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
@@ -152,7 +152,7 @@ plugs:
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-plug"]}
 
-	snippet, err:= s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), testutil.Contains, `capability sys_admin,`)
