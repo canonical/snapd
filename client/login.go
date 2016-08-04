@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -79,29 +80,53 @@ func (client *Client) LoggedIn() bool {
 }
 
 func storeAuthDataFilename() string {
-	authFilename := os.Getenv("SNAPPY_STORE_AUTH_DATA_FILENAME")
-	if authFilename != "" {
-		return authFilename
-	}
-	homeDir, err := osutil.CurrentHomeDir()
+	real, err := osutil.RealUser()
 	if err != nil {
 		panic(err)
 	}
+
+	return storeAuthDataFilenameFromHome(real.HomeDir)
+}
+
+const authFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
+
+func storeAuthDataFilenameFromHome(homeDir string) string {
+	if fn := os.Getenv(authFileEnvKey); fn != "" {
+		return fn
+	}
+
 	return filepath.Join(homeDir, ".snap", "auth.json")
 }
 
 // writeAuthData saves authentication details for later reuse through ReadAuthData
 func writeAuthData(user User) error {
-	targetFile := storeAuthDataFilename()
-	if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
+	real, err := osutil.RealUser()
+	if err != nil {
 		return err
 	}
+
+	uid, err := strconv.Atoi(real.Uid)
+	if err != nil {
+		return err
+	}
+
+	gid, err := strconv.Atoi(real.Gid)
+	if err != nil {
+		return err
+	}
+
+	targetFile := storeAuthDataFilenameFromHome(real.HomeDir)
+
+	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
+		return err
+	}
+
 	outStr, err := json.Marshal(user)
 	if err != nil {
 		return nil
 	}
 
-	return osutil.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
+	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
 }
 
 // readAuthData reads previously written authentication details
