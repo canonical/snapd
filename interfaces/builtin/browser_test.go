@@ -106,6 +106,7 @@ func (s *BrowserInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
+	c.Assert(string(snippet), testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
@@ -131,6 +132,7 @@ plugs:
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
 	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
+	c.Assert(string(snippet), testutil.Contains, `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
 	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
@@ -155,7 +157,8 @@ plugs:
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
-	c.Assert(string(snippet), testutil.Contains, `capability sys_admin,`)
+	c.Assert(string(snippet), testutil.Contains, `ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
+	c.Assert(string(snippet), Not(testutil.Contains), `deny ptrace (trace) peer=snap.@{SNAP_NAME}.**`)
 
 	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
