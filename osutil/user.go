@@ -34,8 +34,9 @@ var userLookup = user.Lookup
 
 func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 	// we check the (user)name ourselfs, adduser is a bit too
-	// strict (i.e. no `.`)
-	validNames := regexp.MustCompile(`^[a-z][-a-z0-9_.]*$`)
+	// strict (i.e. no `.`) - this regexp is in sync with that SSO
+	// allows as valid usernames
+	validNames := regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`)
 	if !validNames.MatchString(name) {
 		return fmt.Errorf("cannot add user %q: name contains invalid charackters", name)
 	}
