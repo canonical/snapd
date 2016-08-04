@@ -8,13 +8,13 @@ plug and a slot can be connected if they use the same interface name.  The
 connection grants necessary permissions for snaps to operate according to the
 protocol.
 
-Slots may support multiple connections to plugs.  For example the OS snap
+Slots may support multiple connections to plugs.  For example the core snap
 exposes the ``network`` slot and all applications that can talk over the
 network connect their plugs there.
 
-The availability of an interface depends on whether snapd is running on a
-classic (eg, traditional desktop or server) or on a native system. Interfaces
-may be provided by the OS snap or provided solely via snaps providing the slot.
+The availability of an interface depends on a number of factors and may be
+may be provided by the core snap or via snaps providing the slot.  The
+available interfaces on a given system can be seen with ``snap interfaces``.
 
 ## Transitional interfaces
 Most interfaces are designed for strong application isolation and user control
@@ -22,9 +22,12 @@ such that auto-connected interfaces are considered safe and users choose what
 applications to trust and to what extent via manually connected interfaces.
 
 Some interfaces are considered transitional to support traditional Linux
-desktop environments. Since many of the underlying technologies in these
-environments were not designed with strong application isolation in mind. Users
-should only install applications using these interfaces from trusted sources.
+desktop environments and these transitional interfaces typically are
+auto-connected. Since many of the underlying technologies in these environments
+were not designed with strong application isolation in mind, users should only
+install applications using these interfaces from trusted sources.  Transitional
+interfaces will be deprecated as replacement or modified technologies that
+enforce strong application isolation are available.
 
 ## Making connections
 Interfaces may either be auto-connected on install or manually connected after
@@ -74,20 +77,20 @@ install:
     $ sudo snap install bar
     $ snap interfaces
     Slot                 Plug
-    :home                bar:home
+    :network             bar:network
 
 You may disconnect an auto-connected interface:
 
-    $ sudo snap disconnect bar:home core:home
+    $ sudo snap disconnect bar:network core:network
     $ snap interfaces
     Slot                 Plug
-    :home                -
-    -                    bar:home
+    :network             -
+    -                    bar:network
 
-Whether the slot is provided by the OS snap or not doesn't matter in terms of
+Whether the slot is provided by the core snap or not doesn't matter in terms of
 snap interfaces except that if the slot is provided by a snap, a snap that
 implements the slot must be installed for it to be connectable. Eg, the
-``bluez`` interface is not provided by the OS snap so a snap author
+``bluez`` interface is not provided by the core snap so a snap author
 implementing the bluez service might use ``slots: [ bluez ]``. Then after
 install, the bluez interface shows up as available:
 
@@ -117,7 +120,6 @@ Can access the first video camera. Suitable for programs wanting to use
 webcams.
 
 * Auto-Connect: no
-* Availability: OS snap (classic)
 
 ### gsettings
 
@@ -126,15 +128,15 @@ to sensitive information stored in gsettings and allows adjusting settings of
 other applications.
 
 * Auto-Connect: yes
-* Availability: OS snap (classic)
+* Transitional: yes
 
 ### home
 
 Can access non-hidden files in user's `$HOME` and gvfs mounted directories
 owned by the user to read/write/lock.
 
-* Auto-Connect: yes on classic, no on native
-* Availability: OS snap
+* Auto-Connect: yes on classic (traditional distributions), no otherwise
+* Transitional: yes
 
 ### mpris
 
@@ -145,28 +147,24 @@ Consuming snaps can access media players implementing mpris via the providing
 snap's well-known DBus name.
 
 * Auto-Connect: no
-* Availability: with providing snap
 
 ### network
 
 Can access the network as a client.
 
 * Auto-Connect: yes
-* Availability: OS snap
 
 ### network-bind
 
 Can access the network as a server.
 
 * Auto-Connect: yes
-* Availability: OS snap
 
 ### opengl
 
 Can access OpenGL hardware.
 
 * Auto-Connect: yes
-* Availability: OS snap (classic)
 
 ### optical-drive
 
@@ -174,7 +172,6 @@ Can access the first optical drive in read-only mode. Suitable for CD/DVD
 playback.
 
 * Auto-Connect: yes
-* Availability: OS snap (classic)
 
 ### pulseaudio
 
@@ -182,7 +179,6 @@ Can access the PulseAudio sound server which allows for sound playback in games
 and media application. Recording not supported but will be in a future release.
 
 * Auto-Connect: yes
-* Availability: OS snap (classic)
 
 ### unity7
 
@@ -192,7 +188,7 @@ the Unity 7 environment does not prevent eavesdropping or apps interfering with
 one another.
 
 * Auto-Connect: yes
-* Availability: OS snap (classic)
+* Transitional: yes
 
 ### x11
 
@@ -200,9 +196,15 @@ Can access the X server which gives privileged access to the user's session
 since X does not prevent eavesdropping or apps interfering with one another.
 
 * Auto-Connect: yes
-* Availability: OS snap (classic)
+* Transitional: yes
 
 ## Supported Interfaces - Advanced
+
+### bluetooth-control
+
+Allow to manage the kernel side Bluetooth stack.
+
+* Auto-Connect: no
 
 ### bluez
 
@@ -210,16 +212,6 @@ Can access snaps providing the bluez interface which gives privileged access to
 bluetooth.
 
 * Auto-Connect: no
-* Availability: with providing snap
-
-### bool-file
-
-Can access GPIO paths for LED brightness and GPIO values.
-
-* Auto-Connect: no
-* Availability: OS snap
-* Attributes:
-    * path (slot): path to GPIO bool file
 
 ### content
 
@@ -227,10 +219,9 @@ Can access content from the providing snap from within the consuming snap's
 filesystem area.
 
 * Auto-Connect: yes for snaps from same publisher, no otherwise
-* Availability: with providing snap
 * Attributes:
-    * read (slot): read-only path from providing snap to expose to the consuming snap
-    * write (slot): read-write path from providing snap to expose to the consuming snap
+    * read (slot): read-only paths from providing snap to expose to the consuming snap
+    * write (slot): read-write paths from providing snap to expose to the consuming snap
     * target (plug): path in consuming snap to find providing snap's files
 
 ### cups-control
@@ -239,28 +230,24 @@ Can access cups control socket which gives privileged access to configure
 printing.
 
 * Auto-Connect: no
-* Availability: OS snap (classic)
 
 ### firewall-control
 
 Can configure network firewalling giving privileged access to networking.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### hardware-observe
 
 Can query hardware information from the system.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### locale-control
 
 Can manage locales directly separate from ``config core``.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### location-control
 
@@ -268,7 +255,6 @@ Can access snaps providing the location-control interface which gives
 privileged access to configure, observe and use location services.
 
 * Auto-Connect: no
-* Availability: with providing snap
 
 ### location-observe
 
@@ -276,14 +262,12 @@ Can access snaps providing the location-observe interface which gives
 privileged access to query location services.
 
 * Auto-Connect: no
-* Availability: with providing snap
 
 ### log-observe
 
 Can read system logs and set kernel log rate-limiting.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### modem-manager
 
@@ -291,7 +275,6 @@ Can access snaps providing the modem-manager interface which gives privileged
 access to configure, observe and use modems.
 
 * Auto-Connect: no
-* Availability: OS snap (classic), with providing snap (native)
 
 ### mount-observe
 
@@ -300,14 +283,12 @@ privileged read access to mount arguments and should only be used with trusted
 apps.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### network-control
 
 Can configure networking which gives wide, privileged access to networking.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### network-manager
 
@@ -315,7 +296,6 @@ Can access snaps providing the network-manager interface which gives privileged
 access to configure and observe networking.
 
 * Auto-Connect: no
-* Availability: OS snap (classic), with providing snap (native)
 
 ### network-observe
 
@@ -323,7 +303,6 @@ Can query network status information which gives privileged read-only access to
 networking information.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### ppp
 
@@ -331,14 +310,12 @@ Can access Point-to-Point protocol daemon which gives privileged access to
 configure and observe PPP networking.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### process-control
 
 Can manage processes via signals and nice.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### serial-port
 
@@ -346,7 +323,6 @@ Can access serial ports. This is restricted because it provides privileged
 access to configure serial port hardware.
 
 * Auto-Connect: no
-* Availability: OS snap
 * Attributes:
     * path (slot): path to serial device
 
@@ -355,7 +331,6 @@ access to configure serial port hardware.
 Can manage snaps via snapd.
 
 * Auto-Connect: no
-* Availability: OS snap
 
 ### system-observe
 
@@ -363,11 +338,18 @@ Can query system status information which gives privileged read access to all
 processes on the system.
 
 * Auto-Connect: no
-* Availability: OS snap
+
+### system-trace
+
+Can use kernel tracing facilities. This is restricted because it gives
+privileged access to all processes on the system and should only be used with
+trusted apps.
+
+Usage: reserved
+Auto-Connect: no
 
 ### timeserver-control
 
 Can manage timeservers directly separate from ``config core``.
 
 * Auto-Connect: no
-* Availability: OS snap
