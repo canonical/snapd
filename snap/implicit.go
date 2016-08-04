@@ -47,6 +47,7 @@ var implicitSlots = []string{
 }
 
 var implicitClassicSlots = []string{
+	"browser",
 	"camera",
 	"cups-control",
 	"gsettings",
