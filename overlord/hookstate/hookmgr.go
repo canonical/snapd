@@ -26,6 +26,8 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strconv"
+	"sync"
 
 	"gopkg.in/tomb.v2"
 
@@ -41,6 +43,12 @@ type HookManager struct {
 	state      *state.State
 	runner     *state.TaskRunner
 	repository *repository
+
+	lastHookID      int
+	lastHookIDMutex sync.Mutex
+
+	activeHandlers      map[int]Handler
+	activeHandlersMutex sync.RWMutex
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -53,6 +61,12 @@ type Handler interface {
 
 	// Error is called if the hook encounters an error while running.
 	Error(err error) error
+
+	// Get this hook's data that is associated with the given key.
+	Get(key string) (map[string]interface{}, error)
+
+	// Set this hook's data that is associated with the given key.
+	Set(key string, data map[string]interface{}) error
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
@@ -69,9 +83,10 @@ type hookSetup struct {
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
 	manager := &HookManager{
-		state:      s,
-		runner:     runner,
-		repository: newRepository(),
+		state:          s,
+		runner:         runner,
+		repository:     newRepository(),
+		activeHandlers: make(map[int]Handler),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -113,6 +128,52 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
+// GetHookData obtains the data that a specific hook instance has associated with the given key.
+func (m *HookManager) GetHookData(hookID int, key string) (map[string]interface{}, error) {
+	m.activeHandlersMutex.RLock()
+	defer m.activeHandlersMutex.RUnlock()
+
+	if handler, ok := m.activeHandlers[hookID]; ok {
+		return handler.Get(key)
+	}
+
+	return nil, fmt.Errorf("no hook with ID %d", hookID)
+}
+
+// SetHookData sets the data that a specific hook instance has associated with the given key.
+func (m *HookManager) SetHookData(hookID int, key string, data map[string]interface{}) error {
+	m.activeHandlersMutex.RLock()
+	defer m.activeHandlersMutex.RUnlock()
+
+	if handler, ok := m.activeHandlers[hookID]; ok {
+		return handler.Set(key, data)
+	}
+
+	return fmt.Errorf("no hook with ID %d", hookID)
+}
+
+func (m *HookManager) getNextHookTaskID() int {
+	m.lastHookIDMutex.Lock()
+	defer m.lastHookIDMutex.Unlock()
+
+	m.lastHookID++
+	return m.lastHookID
+}
+
+func (m *HookManager) addActiveHandler(id int, handler Handler) {
+	m.activeHandlersMutex.Lock()
+	defer m.activeHandlersMutex.Unlock()
+
+	m.activeHandlers[id] = handler
+}
+
+func (m *HookManager) removeActiveHandler(id int) {
+	m.activeHandlersMutex.Lock()
+	defer m.activeHandlersMutex.Unlock()
+
+	delete(m.activeHandlers, id)
+}
+
 // doRunHook actually runs the hook that was requested.
 //
 // Note that this method is synchronous, as the task is already running in a
@@ -141,13 +202,22 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 
 	handler := handlers[0]
 
+	// Each hook instance needs to be able to communicate with their handler via
+	// the REST API. The only way this works is if the hook instance can specify
+	// the handler with which it needs to communicate. We generate a unique ID
+	// per hook instance here and associate it with the handler in order to
+	// solve that problem.
+	hookID := m.getNextHookTaskID()
+	m.addActiveHandler(hookID, handler)
+	defer m.removeActiveHandler(hookID)
+
 	// About to run the hook-- notify the handler
-	if err := handler.Before(); err != nil {
+	if err = handler.Before(); err != nil {
 		return err
 	}
 
 	// Actually run the hook
-	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, hookID, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
@@ -166,8 +236,10 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+func runHookAndWait(snapName string, revision snap.Revision, hookName string, hookID int, tomb *tomb.Tomb) ([]byte, error) {
+	command := exec.Command(
+		"snap", "run", "--hook", hookName, "-r", revision.String(),
+		"-i", strconv.Itoa(hookID), snapName)
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.

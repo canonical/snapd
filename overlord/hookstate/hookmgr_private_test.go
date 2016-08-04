@@ -79,8 +79,8 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 }
 
 func (s *hookManagerSuite) TestHookSetupJsonMarshal(c *C) {
-	hookSetup := hookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
-	out, err := json.Marshal(hookSetup)
+	setup := hookSetup{Snap: "snap-name", Revision: snap.R(1), Hook: "hook-name"}
+	out, err := json.Marshal(setup)
 	c.Assert(err, IsNil)
 	c.Check(string(out), Equals, "{\"snap\":\"snap-name\",\"revision\":\"1\",\"hook\":\"hook-name\"}")
 }

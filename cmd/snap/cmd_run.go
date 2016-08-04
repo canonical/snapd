@@ -44,6 +44,7 @@ type cmdRun struct {
 	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
 	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
 	Revision string `short:"r" description:"use a specific snap revision when running hook" default:"unset" hidden:"yes"`
+	HookID   string `short:"i" description:"hook instance's unique ID" hidden:"yes"`
 	Shell    bool   `long:"shell" description:"run a shell instead of the command (useful for debugging)"`
 }
 
@@ -70,13 +71,19 @@ func (x *cmdRun) Execute(args []string) error {
 	if x.Revision != "unset" && x.Revision != "" && x.Hook == "" {
 		return fmt.Errorf("-r can only be used with --hook")
 	}
+	if x.HookID != "" && x.Hook == "" {
+		return fmt.Errorf("-i can only be used with --hook")
+	}
+	if x.Hook != "" && x.HookID == "" {
+		return fmt.Errorf("--hook must be used with -i")
+	}
 	if x.Hook != "" && len(args) > 0 {
 		return fmt.Errorf("too many arguments for hook %q: %s", x.Hook, strings.Join(args, " "))
 	}
 
 	// Now actually handle the dispatching
 	if x.Hook != "" {
-		return snapRunHook(snapApp, x.Revision, x.Hook)
+		return snapRunHook(snapApp, x.Revision, x.Hook, x.HookID)
 	}
 
 	// pass shell as a special command to snap-exec
@@ -116,9 +123,12 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 
 // returns the environment that is important for the later stages of execution
 // (like SNAP_REVISION that snap-exec requires to work)
-func snapExecEnv(info *snap.Info) []string {
+func snapExecEnv(info *snap.Info, hookID string) []string {
 	env := snapenv.Basic(info)
 	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
+	if hookID != "" {
+		env = append(env, fmt.Sprintf("SNAP_HOOK_ID=%s", hookID))
+	}
 	return env
 }
 
@@ -151,10 +161,10 @@ func snapRunApp(snapApp, command string, args []string) error {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", args)
+	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", "", args)
 }
 
-func snapRunHook(snapName, snapRevision, hookName string) error {
+func snapRunHook(snapName, snapRevision, hookName, hookID string) error {
 	revision, err := snap.ParseRevision(snapRevision)
 	if err != nil {
 		return err
@@ -173,10 +183,10 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 		return nil
 	}
 
-	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
+	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, hookID, nil)
 }
 
-func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
+func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook, hookID string, args []string) error {
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
 	}
@@ -200,7 +210,7 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	env := append(os.Environ(), snapExecEnv(info)...)
+	env := append(os.Environ(), snapExecEnv(info, hookID)...)
 
 	return syscallExec(cmd[0], cmd, env)
 }
