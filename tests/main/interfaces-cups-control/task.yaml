@@ -14,7 +14,7 @@ details: |
     snap.
 
 environment:
-    TEST_FILE: /var/snap/cups-control-consumer/current/test_file.txt
+    TEST_FILE: /var/snap/test-snapd-cups-control-consumer/current/test_file.txt
 
 prepare: |
     echo "Given a snap declaring a cups plug is installed"
@@ -29,8 +29,8 @@ restore: |
     rm -rf $HOME/PDF $TEST_FILE print.error
 
 execute: |
-    CONNECTED_PATTERN=":cups-control +cups-control-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +cups-control-consumer:cups-control"
+    CONNECTED_PATTERN=":cups-control +test-snapd-cups-control-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-cups-control-consumer:cups-control"
 
     echo "Then it is not shown as connected"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -38,22 +38,22 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect cups-control-consumer:cups-control ubuntu-core:cups-control
+    snap connect test-snapd-cups-control-consumer:cups-control ubuntu-core:cups-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command is able to print files"
     echo "Hello World" > $TEST_FILE
-    cups-control-consumer.lpr $TEST_FILE
+    test-snapd-cups-control-consumer.lpr $TEST_FILE
     while ! test -e $HOME/PDF/test_file.pdf; do sleep 1; done
 
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect cups-control-consumer:cups-control ubuntu-core:cups-control
+    snap disconnect test-snapd-cups-control-consumer:cups-control ubuntu-core:cups-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command is not able to print files"
-    if cups-control-consumer.lpr $TEST_FILE 2>print.error; then
+    if test-snapd-cups-control-consumer.lpr $TEST_FILE 2>print.error; then
         echo "Expected error with plug disconnected"
         exit 1
     fi
