@@ -21,7 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
-  "bytes"
+        "bytes"
 )
 
 var mirPermanentSlotAppArmor = []byte(`
@@ -54,7 +54,6 @@ bind
 listen
 setsockopt
 getsockname
-
 # Needed by server upon client connect
 sendto
 accept
@@ -70,30 +69,28 @@ var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
 
-#unix (receive, send) type=seqpacket addr=none,
-unix (receive, send) peer=(label=###PLUG_SECURITY_TAGS###) type=seqpacket addr=none,
-/usr/share/applications/ r,
+unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS###),
 /run/mir_socket rw,
-/run/user/*/mir_socket rw,
+/run/user/[0-9]*/mir_socket rw,
 
 `)
 
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
-#unix (receive, send) type=seqpacket addr=none,
-unix (receive, send) peer=(label=###SLOT_SECURITY_TAGS###) type=seqpacket addr=none,
+
+unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /usr/share/applications/ r,
 /run/mir_socket rw,
-/run/user/*/mir_socket rw,
+/run/user/[0-9]*/mir_socket rw,
 
 `)
 
 var mirConnectedPlugSecComp = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
-# getsockname
-# open
+getsockname
+open
 recvmsg
 sendmsg
 sendto
@@ -110,9 +107,9 @@ func (iface *MirInterface) PermanentPlugSnippet(
 	plug *interfaces.Plug,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-					case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-				 		   interfaces.SecurityUDev, interfaces.SecurityDBus,
-		           interfaces.SecurityMount:
+		case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+		     interfaces.SecurityUDev, interfaces.SecurityDBus,
+		     interfaces.SecurityMount:
 				return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
