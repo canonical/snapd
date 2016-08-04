@@ -85,10 +85,12 @@ func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	err := MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
 	c.Assert(b.bootVars, DeepEquals, map[string]string{
+		// cleared
 		"snap_mode":       "",
-		"snap_try_kernel": "k1",
-		"snap_kernel":     "k1",
-		"snap_try_core":   "os1",
-		"snap_core":       "os1",
+		"snap_try_kernel": "",
+		"snap_try_core":   "",
+		// updated
+		"snap_kernel": "k1",
+		"snap_core":   "os1",
 	})
 }

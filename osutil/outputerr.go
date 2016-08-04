@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -18,15 +17,23 @@
  *
  */
 
-package main
+package osutil
 
 import (
-	"testing"
-
-	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
+	"bytes"
+	"fmt"
 )
 
-func TestRunMain(t *testing.T) {
-	testutils.RemoveTestFlags()
-	main()
+// OutputErr formats an error based on output if its length is not zero,
+// or returns err otherwise.
+func OutputErr(output []byte, err error) error {
+	output = bytes.TrimSpace(output)
+	if len(output) > 0 {
+		if bytes.Contains(output, []byte{'\n'}) {
+			err = fmt.Errorf("\n-----\n%s\n-----", output)
+		} else {
+			err = fmt.Errorf("%s", output)
+		}
+	}
+	return err
 }
