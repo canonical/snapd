@@ -89,15 +89,14 @@ var (
 	}
 
 	loginCmd = &Command{
-		Path:     "/v2/login",
-		POST:     loginUser,
-		SudoerOK: true,
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	logoutCmd = &Command{
-		Path:     "/v2/logout",
-		POST:     logoutUser,
-		SudoerOK: true,
+		Path:   "/v2/logout",
+		POST:   logoutUser,
+		UserOK: true,
 	}
 
 	appIconCmd = &Command{
