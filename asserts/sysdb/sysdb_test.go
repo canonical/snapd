@@ -78,15 +78,13 @@ func (sdbs *sysDBSuite) TearDownTest(c *C) {
 
 func (sdbs *sysDBSuite) TestTrusted(c *C) {
 	trusted := sysdb.Trusted()
-	// FIXME: must be 2!
-	c.Check(trusted, HasLen, 0)
+	c.Check(trusted, HasLen, 2)
 
 	restore := sysdb.InjectTrusted(sdbs.extraTrusted)
 	defer restore()
 
 	trustedEx := sysdb.Trusted()
-	// FIXME: must be 4!
-	c.Check(trustedEx, HasLen, 2)
+	c.Check(trustedEx, HasLen, 4)
 }
 
 func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
@@ -94,12 +92,10 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(db, NotNil)
 
-	c.Skip("FIXME")
-
 	// check trusted
 	_, err = db.Find(asserts.AccountKeyType, map[string]string{
 		"account-id":          "canonical",
-		"public-key-sha3-384": "FIXME",
+		"public-key-sha3-384": "meokUyTBYzujY2PRL1LQnLZD4VFJuv023xqqZGvSHvZBuTOvJ82jiDZUI4WdsiKZ",
 	})
 	c.Assert(err, IsNil)
 
