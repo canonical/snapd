@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type BrowserInterfaceSuite struct {
@@ -60,9 +61,106 @@ func (s *BrowserInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *BrowserInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *BrowserInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
+}
+
+func (s *BrowserInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
+	var mockSnapYaml = []byte(`name: browser-plug-snap
+version: 1.0
+plugs:
+ browser-plug:
+  interface: browser
+  allow-browser-sandbox: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
+}
+
+func (s *BrowserInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
+	var mockSnapYaml = []byte(`name: browser-plug-snap
+version: 1.0
+plugs:
+ browser-plug:
+  interface: browser
+  allow-browser-sandbox: bad
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "browser plug requires bool with 'allow-browser-sandbox'")
+}
+
+func (s *BrowserInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
+	snippet, err:= s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
+}
+
+func (s *BrowserInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c *C) {
+	var mockSnapYaml = []byte(`name: browser-plug-snap
+version: 1.0
+plugs:
+ browser-plug:
+  interface: browser
+  allow-browser-sandbox: false
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-plug"]}
+
+	snippet, err:= s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(string(snippet), Not(testutil.Contains), `capability sys_admin,`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(string(snippet), Not(testutil.Contains), `chroot`)
+}
+
+func (s *BrowserInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c *C) {
+	var mockSnapYaml = []byte(`name: browser-plug-snap
+version: 1.0
+plugs:
+ browser-plug:
+  interface: browser
+  allow-browser-sandbox: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-plug"]}
+
+	snippet, err:= s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(string(snippet), testutil.Contains, `capability sys_admin,`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# Description: Can access various APIs needed by modern browers`)
+	c.Assert(string(snippet), testutil.Contains, `chroot`)
 }
 
 func (s *BrowserInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
@@ -73,7 +171,7 @@ func (s *BrowserInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *BrowserInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
-		interfaces.SecurityUDev}
+		interfaces.SecurityUDev, interfaces.SecurityMount}
 	for _, system := range systems {
 		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
 		c.Assert(err, IsNil)
@@ -88,14 +186,21 @@ func (s *BrowserInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
 
 func (s *BrowserInterfaceSuite) TestUsedSecuritySystems(c *C) {
-	// connected plugs have a non-nil security snippet for apparmor
+	// connected plugs have a non-nil security snippet for apparmor and
+	// seccomp
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }

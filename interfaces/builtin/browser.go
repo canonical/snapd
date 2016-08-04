@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -112,6 +114,18 @@ func (iface *BrowserInterface) SanitizeSlot(slot *interfaces.Slot) error {
 }
 
 func (iface *BrowserInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
+	}
+
+	// It's fine if allow-browser-sandbox isn't specified, but it it is,
+	// it needs to be bool
+	if _, ok := plug.Attrs["allow-browser-sandbox"]; ok {
+		if _, ok = plug.Attrs["allow-browser-sandbox"].(bool); !ok {
+			return fmt.Errorf("browser plug requires bool with 'allow-browser-sandbox'")
+		}
+	}
+
 	return nil
 }
 
@@ -134,14 +148,24 @@ func (iface *BrowserInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 	}
 }
 
-
 func (iface *BrowserInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	allow_browser_sandbox := false
+	if _, ok := plug.Attrs["allow-browser-sandbox"]; ok {
+		allow_browser_sandbox, _ = plug.Attrs["allow-browser-sandbox"].(bool)
+	}
+
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		snippet := []byte(browserConnectedPlugAppArmor)
+		if allow_browser_sandbox {
+			snippet = append(snippet, browserConnectedPlugAppArmorWithSandbox...)
+		}
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		snippet := []byte(browserConnectedPlugSecComp)
+		if allow_browser_sandbox {
+			snippet = append(snippet, browserConnectedPlugSecCompWithSandbox...)
+		}
 		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
