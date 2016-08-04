@@ -58,6 +58,7 @@ var allInterfaces = []interfaces.Interface{
 	NewCupsControlInterface(),
 	NewOpticalDriveInterface(),
 	NewCameraInterface(),
+	NewBluetoothControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
