@@ -354,11 +354,11 @@ func refreshMacaroon(user *auth.UserState) error {
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
-	Method      string `json:"method"`
-	Url         string `json:"url"`
-	Accept      string `json:"accept"`
-	ContentType string `json:"content-type"`
-	Data        []byte `json:"data"`
+	Method      string
+	URL         *url.URL
+	Accept      string
+	ContentType string
+	Data        []byte
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -403,7 +403,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		body = bytes.NewBuffer(reqOptions.Data)
 	}
 
-	req, err := http.NewRequest(reqOptions.Method, reqOptions.Url, body)
+	req, err := http.NewRequest(reqOptions.Method, reqOptions.URL.String(), body)
 	if err != nil {
 		return nil, err
 	}
@@ -489,7 +489,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		Url:    url.String(),
+		URL:    url,
 		Accept: halJsonContentType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
@@ -626,7 +626,7 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		Url:    u.String(),
+		URL:    u,
 		Accept: halJsonContentType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
@@ -721,7 +721,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		Url:    u.String(),
+		URL:    &u,
 		Accept: halJsonContentType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
@@ -834,7 +834,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		Url:         s.bulkURI.String(),
+		URL:         s.bulkURI,
 		Accept:      halJsonContentType,
 		ContentType: "application/json",
 		Data:        jsonData,
@@ -918,12 +918,17 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 	client := &http.Client{}
+
+	storeURL, err := url.Parse(downloadURL)
+	if err != nil {
+		return err
+	}
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		Url:    url,
+		URL:    storeURL,
 	}
 	resp, err := s.doRequest(client, reqOptions, user)
 	if err != nil {
@@ -963,7 +968,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		Url:    url.String(),
+		URL:    url,
 		Accept: asserts.MediaType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
@@ -1085,7 +1090,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		Url:         s.purchasesURI.String(),
+		URL:         s.purchasesURI,
 		Accept:      halJsonContentType,
 		ContentType: "application/json",
 		Data:        jsonData,
@@ -1175,7 +1180,7 @@ type PaymentInformation struct {
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
 	reqOptions := &requestOptions{
 		Method: "GET",
-		Url:    s.paymentMethodsURI.String(),
+		URL:    s.paymentMethodsURI,
 		Accept: halJsonContentType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
