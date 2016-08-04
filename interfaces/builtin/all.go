@@ -26,6 +26,7 @@ import (
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BluezInterface{},
+	&BrowserInterface{},
 	&ContentInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
@@ -34,7 +35,6 @@ var allInterfaces = []interfaces.Interface{
 	&NetworkManagerInterface{},
 	&PppInterface{},
 	&SerialPortInterface{},
-	NewBrowserInterface(),
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
 	NewHardwareObserveInterface(),

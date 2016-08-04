@@ -101,13 +101,64 @@ setuid
 setgid
 `
 
-// NewBrowserInterface returns a new "browser" interface.
-func NewBrowserInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "browser",
-		connectedPlugAppArmor: browserConnectedPlugAppArmor,
-		connectedPlugSecComp:  browserConnectedPlugSecComp,
-		reservedForOS:         true,
-		autoConnect:           true,
+type BrowserInterface struct{}
+
+func (iface *BrowserInterface) Name() string {
+	return "browser"
+}
+
+func (iface *BrowserInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *BrowserInterface) SanitizePlug(plug *interfaces.Plug) error {
+	return nil
+}
+
+func (iface *BrowserInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
 	}
+}
+
+func (iface *BrowserInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+
+	switch securitySystem {
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+
+func (iface *BrowserInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		snippet := []byte(browserConnectedPlugAppArmor)
+		return snippet, nil
+	case interfaces.SecuritySecComp:
+		snippet := []byte(browserConnectedPlugSecComp)
+		return snippet, nil
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+func (iface *BrowserInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+func (iface *BrowserInterface) AutoConnect() bool {
+	return true
 }
