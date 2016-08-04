@@ -139,6 +139,11 @@ func addImplicitHooksFromContainer(snapInfo *Info, snapf Container) error {
 }
 
 func addHookName(snapInfo *Info, hookName string) {
+	// Verify that the hook name is actually supported. If not, ignore it.
+	if !IsHookSupported(hookName) {
+		return
+	}
+
 	// Don't overwrite a hook that has already been loaded from the YAML
 	if _, ok := snapInfo.Hooks[hookName]; !ok {
 		snapInfo.Hooks[hookName] = &HookInfo{Snap: snapInfo, Name: hookName}
