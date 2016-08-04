@@ -33,6 +33,8 @@ var (
 	myappsAPIBase = myappsURL()
 	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
 	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
+	// MyAppsDeviceNonceAPI points to MyApps endpoint to get a nonce
+	MyAppsDeviceNonceAPI = myappsAPIBase + "identity/api/v1/nonces"
 	ubuntuoneAPIBase     = authURL()
 	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
 	UbuntuoneLocation = authLocation()
@@ -224,4 +226,40 @@ func RefreshDischargeMacaroon(discharge string) (string, error) {
 	}
 
 	return requestDischargeMacaroon(UbuntuoneRefreshDischargeAPI, data)
+}
+
+// RequestStoreDeviceNonce requests a nonce for device authentication against the store.
+func RequestStoreDeviceNonce() (string, error) {
+	const errorPrefix = "cannot get nonce from store: "
+
+	req, err := http.NewRequest("POST", MyAppsDeviceNonceAPI, nil)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+	defer resp.Body.Close()
+
+	// check return code, error on anything !200
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	var responseData struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := dec.Decode(&responseData); err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+
+	if responseData.Nonce == "" {
+		return "", fmt.Errorf(errorPrefix + "empty nonce returned")
+	}
+	return responseData.Nonce, nil
 }
