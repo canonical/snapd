@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -208,7 +207,44 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook from the active revision
-	err := snaprun.SnapRunHook("snapname", "apply-config", "")
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "snapname"})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
+	c.Check(execArgs, check.DeepEquals, []string{
+		"/usr/bin/ubuntu-core-launcher",
+		"snap.snapname.hook.apply-config",
+		"snap.snapname.hook.apply-config",
+		"/usr/lib/snapd/snap-exec",
+		"snapname", "--hook=apply-config"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+}
+
+func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockServer(c)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// Specifically pass "unset" which would use the active version.
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=unset", "snapname"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -249,7 +285,7 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook on revision 41
-	err := snaprun.SnapRunHook("snapname", "apply-config", "41")
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=41", "snapname"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -281,13 +317,13 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Attempt to run a hook on revision 41, which doesn't exist
-	err := snaprun.SnapRunHook("snapname", "apply-config", "41")
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=41", "snapname"})
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "cannot find .*")
 }
 
 func (s *SnapSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
-	err := snaprun.SnapRunHook("snapname", "apply-config", "invalid")
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=invalid", "snapname"})
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "invalid snap revision: \"invalid\"")
 }
@@ -313,7 +349,7 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	})
 	defer restorer()
 
-	err := snaprun.SnapRunHook("snapname", "missing-hook", "")
+	err := snaprun.SnapRunHook("snapname", "unset", "missing-hook")
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, false)
 }

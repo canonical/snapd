@@ -28,6 +28,7 @@ import (
 )
 
 var implicitSlots = []string{
+	"bluetooth-control",
 	"firewall-control",
 	"home",
 	"hardware-observe",
@@ -39,8 +40,10 @@ var implicitSlots = []string{
 	"network-control",
 	"network-observe",
 	"ppp",
+	"process-control",
 	"snapd-control",
 	"system-observe",
+	"system-trace",
 	"timeserver-control",
 	"timezone-control",
 }

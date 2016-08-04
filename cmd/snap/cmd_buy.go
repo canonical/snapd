@@ -110,26 +110,43 @@ func buySnap(opts *store.BuyOptions) error {
 	if !paymentInfo.AllowsAutomaticPayment {
 		w := tabwriter.NewWriter(Stdout, 0, 3, 2, ' ', 0)
 
+		index := -1
+
 		fmt.Fprintln(w, i18n.G("\tSelection\tDescription"))
 		for i, method := range paymentInfo.Methods {
-			fmt.Fprintf(w, "\t%d\t%s\n", i+1, method.Description)
+			preferred := ""
+			if method.Preferred {
+				preferred = "*"
+				index = i + 1
+			}
+			fmt.Fprintf(w, "%s\t%d\t%s\n", preferred, i+1, method.Description)
 		}
 		w.Flush()
 
-		fmt.Fprintf(Stdout, i18n.G("Select payment method: "))
+		if index > 0 {
+			// If the user has a preferred payment method
+			fmt.Fprintf(Stdout, i18n.G("Press <enter> to use your default[*], or type a number to select payment method: "))
+		} else {
+			fmt.Fprintf(Stdout, i18n.G("Type a number to select payment method: "))
+		}
 
 		response, _, err := reader.ReadLine()
 		if err != nil {
 			return err
 		}
 
-		index, err := strconv.Atoi(string(response))
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot buy snap %q: invalid payment method selection %q"), snap.Name, response)
-		}
+		stringResponse := string(response)
 
-		if index <= 0 || index > len(paymentInfo.Methods) {
-			return fmt.Errorf(i18n.G("cannot buy snap %q: unknown payment method selection %d"), snap.Name, index)
+		if !(stringResponse == "" && index > 0) {
+			// If the user answered and also has no preferred method, we need to parse the response.
+			index, err = strconv.Atoi(stringResponse)
+			if err != nil {
+				return fmt.Errorf(i18n.G("cannot buy snap %q: invalid payment method selection %q"), snap.Name, stringResponse)
+			}
+
+			if index <= 0 || index > len(paymentInfo.Methods) {
+				return fmt.Errorf(i18n.G("cannot buy snap %q: unknown payment method selection %d"), snap.Name, index)
+			}
 		}
 
 		// Convert the payment selection to a zero-index

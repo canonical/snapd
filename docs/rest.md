@@ -116,6 +116,10 @@ by client implementations.
 kind               | value description
 -------------------|--------------------
 `license-required` | see "A note on licenses", below
+`two-factor-required` | the client needs to retry the `login` command including an OTP
+`two-factor-failed` | the OTP provided wasn't recognised
+`login-required` | the requested operation cannot be performed without an authenticated user. This is the kind of any other 401 Unauthorized response.
+`invalid-auth-data` | the authentication data provided failed to validate (e.g. a malformed email address). The `value` of the error is an object with a key per failed field and a list of the failures on each field.
 
 ### Timestamps
 
@@ -138,8 +142,13 @@ Reserved for human-readable content describing the service.
 
 ```javascript
 {
- "flavor": "core",
  "series": "16",
+ "version": "2.0.17",
+ "os-release": {
+   "id": "ubuntu",
+   "version-id": "17.04",
+ },
+ "on-classic": true,
  "store": "store-id"          // only if not default
 }
 ```
@@ -152,6 +161,16 @@ Reserved for human-readable content describing the service.
 * Operation: sync
 * Return: Dict with the authenticated user information.
 
+#### Sample input
+
+```javascript
+{
+  "username": "foo@bar.com", // username is an email
+  "password": "swordfish",   // the password (!)
+  "otp": "123456"            // OTP, if the account needs it
+}
+```
+
 #### Sample result:
 
 ```javascript
@@ -160,6 +179,10 @@ Reserved for human-readable content describing the service.
  "discharges": ["discharge-for-macaroon-authentication"]
 }
 ```
+
+See also the error kinds `two-factor-required` and
+`two-factor-failed`.
+
 
 ## /v2/find
 ### GET
@@ -192,6 +215,12 @@ Alter the collection searched:
 * `private`: search private snaps (by default, find only searches
   public snaps). Can't be used with `name`, only `q` (for now at
   least).
+
+#### `private`
+
+A boolean flag that, if `true` (or `t` or `yes` or...), makes the search look
+in the user's private snaps. Requires that the user be authenticated. Only
+works with broad (`text`-prefix) search; defaults the prefix to `text`.
 
 #### Sample result:
 
@@ -373,29 +402,8 @@ named "snap".
 
 field      | ignored except in action | description
 -----------|-------------------|------------
-`action`   |                   | Required; a string, one of `install`, `refresh`, or `remove`
+`action`   |                   | Required; a string, one of `install`, `refresh`, `remove`, `revert`, `enable`, or `disable`.
 `channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
-
-#### A note on licenses
-
-When requesting to install a snap that requires agreeing to a license before
-install succeeds, or when requesting an update to a snap with such an
-agreement that has an updated license version, the initial request will fail
-with an error, and the error object will contain the intro and license texts to
-present to the user for their approval. An example of the command's `output`
-field would be
-
-```javascript
-"output": {
-    "value": {
-        "agreed": false,
-        "intro": "licensed requires that you accept the following license before continuing",
-        "license": "In order to use this software you must agree with us."
-    },
-    "kind": "license-required",
-    "message": "License agreement required."
-}
-```
 
 ## /v2/icons/[name]/icon
 

@@ -156,7 +156,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatInvalidLogin(c *C) {
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
-	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: Provided email/password is not correct.")
+	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: Provided email/password is not correct.")
 	c.Assert(discharge, Equals, "")
 }
 
@@ -168,7 +168,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatMissingData(c *C) {
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
-	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: empty macaroon returned")
+	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: empty macaroon returned")
 	c.Assert(discharge, Equals, "")
 }
 
@@ -180,7 +180,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatError(c *C) {
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
 	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
-	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: server returned status 500")
+	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: server returned status 500")
 	c.Assert(discharge, Equals, "")
 }
 
@@ -205,7 +205,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonInvalidLogin(c *C) {
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
 	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
-	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: Provided email/password is not correct.")
+	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: Provided email/password is not correct.")
 	c.Assert(discharge, Equals, "")
 }
 
@@ -217,7 +217,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
 	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
-	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: empty macaroon returned")
+	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: empty macaroon returned")
 	c.Assert(discharge, Equals, "")
 }
 
@@ -229,7 +229,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
 	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
-	c.Assert(err, ErrorMatches, "cannot authenticate on snap store: server returned status 500")
+	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: server returned status 500")
 	c.Assert(discharge, Equals, "")
 }
 

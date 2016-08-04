@@ -327,7 +327,7 @@ dbus (send)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member="{GetCapabilities,GetServerInformation,Notify}"
-    peer=(name=org.freedesktop.Notifications, label=unconfined),
+    peer=(label=unconfined),
 
 dbus (receive)
     bus=session
