@@ -32,16 +32,16 @@ execute: |
     EOF
 
     echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps webdm model.assertion $ROOT
+    snap prepare-image --channel edge --extra-snaps snapweb model.assertion $ROOT
 
     echo Verifying the result
     ls -lR $IMAGE
-    for f in canonical-pc canonical-pc-linux ubuntu-core webdm; do
+    for f in pc pc-kernel ubuntu-core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap.sideinfo
     done
     grep snappy_os=ubuntu-core $IMAGE/boot/grub/grubenv
-    grep snappy_kernel=canonical-pc-linux $IMAGE/boot/grub/grubenv
+    grep snappy_kernel=pc-kernel $IMAGE/boot/grub/grubenv
 
     echo Verify the unpacked gadget
     ls -lR $GADGET

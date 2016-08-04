@@ -32,21 +32,21 @@ execute: |
     EOF
 
     echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps webdm model.assertion $ROOT
+    snap prepare-image --channel edge --extra-snaps snapweb model.assertion $ROOT
 
     echo Verifying the result
     ls -lR $IMAGE
-    for f in canonical-pi2 canonical-pi2-linux ubuntu-core webdm; do
+    for f in pi2 pi2-kernel ubuntu-core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap.sideinfo
     done
     grep snappy_os=ubuntu-core $IMAGE/boot/uboot/uboot.env
-    grep snappy_kernel=canonical-pi2-linux $IMAGE/boot/uboot/uboot.env
+    grep snappy_kernel=pi2-kernel $IMAGE/boot/uboot/uboot.env
 
     echo Verify that the kernel is available unpacked
-    ls $IMAGE/boot/uboot/canonical-pi2-linux_*.snap/kernel.img
-    ls $IMAGE/boot/uboot/canonical-pi2-linux_*.snap/initrd.img
-    ls $IMAGE/boot/uboot/canonical-pi2-linux_*.snap/dtbs/
+    ls $IMAGE/boot/uboot/pi2-kernel_*.snap/kernel.img
+    ls $IMAGE/boot/uboot/pi2-kernel_*.snap/initrd.img
+    ls $IMAGE/boot/uboot/pi2-kernel_*.snap/dtbs/
 
     echo Verify the unpacked gadget
     ls -lR $GADGET
