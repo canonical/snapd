@@ -193,7 +193,7 @@ func (s *snapExecSuite) TestSnapExecErrorsOnMissingSnapApp(c *C) {
 	c.Check(err, ErrorMatches, "need the application to run as argument")
 }
 
-func (s *snapExecSuite) TestSnapExecRealIntegration(c *C) {
+func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 	// we need a lot of mocks
 	dirs.SetRootDir(c.MkDir())
 
@@ -239,6 +239,55 @@ func (s *snapExecSuite) TestSnapExecRealIntegration(c *C) {
 foo
 --bar=baz
 foobar
+
+`)
+}
+
+func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
+	// we need a lot of mocks
+	dirs.SetRootDir(c.MkDir())
+
+	oldOsArgs := os.Args
+	defer func() { os.Args = oldOsArgs }()
+
+	os.Setenv("SNAP_REVISION", "42")
+	defer os.Unsetenv("SNAP_REVISION")
+
+	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
+
+	testSnap := snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+	hookPath := filepath.Join("meta", "hooks", "apply-config")
+	hookPathAndContents := []string{hookPath, fmt.Sprintf(""+
+		"#!/bin/sh\n"+
+		"echo \"$(basename \"$0\")\" >> %[1]q\n"+
+		"for arg in \"$@\"; do\n"+
+		"    echo \"$arg\" >> %[1]q\n"+
+		"done\n"+
+		"printf \"\\n\" >> %[1]q\n", canaryFile)}
+	snaptest.PopulateDir(testSnap.MountDir(), [][]string{hookPathAndContents})
+	hookPath = filepath.Join(testSnap.MountDir(), hookPath)
+	c.Assert(os.Chmod(hookPath, 0755), IsNil)
+
+	// we can not use the real syscall.execv here because it would
+	// replace the entire test :)
+	syscallExec = func(argv0 string, argv []string, env []string) error {
+		cmd := exec.Command(argv[0], argv[1:]...)
+		cmd.Env = env
+		output, err := cmd.CombinedOutput()
+		c.Assert(output, HasLen, 0)
+		return err
+	}
+
+	// run it
+	os.Args = []string{"snap-exec", "--hook=apply-config", "snapname"}
+	err := run()
+	c.Assert(err, IsNil)
+
+	output, err := ioutil.ReadFile(canaryFile)
+	c.Assert(err, IsNil)
+	c.Assert(string(output), Equals, `apply-config
 
 `)
 }
