@@ -13,6 +13,9 @@ backends:
         systems:
             - ubuntu-16.04-64-grub
             - ubuntu-16.04-32-grub
+    qemu:
+        systems:
+            - adt-xenial-amd64-cloud.img
 
 path: $[PROJECT_PATH]
 
@@ -104,3 +107,34 @@ suites:
             apt purge -y snapd || true
         restore-each: |
             $TESTSLIB/reset.sh
+
+    tests/image/:
+        summary: Tests run inside the all-snap image
+        prepare: |
+            apt install -y kpartx snapd
+            wget https://people.canonical.com/~mvo/all-snaps/16/ubuntu-device-flash
+            chmod +x ubuntu-device-flash
+
+            # FIXME: download/modify the core snap
+            # FIXME2: add "root:$(current_pw)" to core snap
+
+            mkdir /image
+            ./ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os ubuntu-core --install snapweb  -o /image/all-snap-amd64.img
+
+            cat > /image/reflash.sh << EOF
+            #!/bin/sh
+            dd if=/image/all-snap-amd64.img of=/dev/sda bs=4M
+            echo b > /proc/sysreq-trigger
+            EOF
+            chmod +x /image/reflash.sh
+
+            cat >> /boot/grub.cfg <<EOF
+            menuentry 'all-snaps' {
+            linux /vmlinuz root=/dev/sda1 ro init=/image/reflash.sh
+            initrd /initrd.img
+            }
+            EOF
+
+            grub-reboot "all-snaps"
+            # FIXME: make spread reboot the system
+            reboot
