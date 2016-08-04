@@ -34,7 +34,7 @@ type BrowserInterfaceSuite struct {
 }
 
 var _ = Suite(&BrowserInterfaceSuite{
-	iface: builtin.NewBrowserInterface(),
+	iface: &builtin.BrowserInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
@@ -58,12 +58,6 @@ func (s *BrowserInterfaceSuite) TestName(c *C) {
 func (s *BrowserInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
-	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "browser",
-		Interface: "browser",
-	}})
-	c.Assert(err, ErrorMatches, "browser slots are reserved for the operating system snap")
 }
 
 func (s *BrowserInterfaceSuite) TestSanitizePlug(c *C) {
@@ -72,8 +66,6 @@ func (s *BrowserInterfaceSuite) TestSanitizePlug(c *C) {
 }
 
 func (s *BrowserInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
-	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "browser"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
 		PanicMatches, `plug is not of interface "browser"`)
 }
