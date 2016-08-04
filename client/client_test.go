@@ -109,22 +109,19 @@ func (cs *clientSuite) TestClientWorks(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "json"))
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	var v string
 	_ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	c.Assert(cs.req, check.NotNil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, check.Equals, "")
 }
 
 func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "json"))
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	mockUserData := client.User{
 		Macaroon:   "macaroon",
