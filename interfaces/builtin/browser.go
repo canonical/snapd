@@ -52,7 +52,6 @@ const browserConnectedPlugAppArmorWithSandbox = `
 unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
 ptrace (trace) peer=snap.@{SNAP_NAME}.**,
 
-# FIXME: make this as attribute for setuid sandbox policy
 # If this were going to be allowed to all snaps, then for all the following
 # rules we would want to wrap in a 'browser_sandbox' profile, but a limitation
 # in AppArmor profile transitions prevents this.
