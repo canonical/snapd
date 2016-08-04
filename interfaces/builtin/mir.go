@@ -70,7 +70,8 @@ var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
 
-unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###) type=seqpacket addr=none,
+#unix (receive, send) type=seqpacket addr=none,
+unix (receive, send) peer=(label=###PLUG_SECURITY_TAGS###) type=seqpacket addr=none,
 /usr/share/applications/ r,
 /run/mir_socket rw,
 /run/user/*/mir_socket rw,
@@ -80,10 +81,10 @@ unix (send, receive) peer=(label=###PLUG_SECURITY_TAGS###) type=seqpacket addr=n
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
-
-unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###) type=seqpacket addr=none,
-/usr/share/applications/ rix,
-/run/mir_socket rwix,
+#unix (receive, send) type=seqpacket addr=none,
+unix (receive, send) peer=(label=###SLOT_SECURITY_TAGS###) type=seqpacket addr=none,
+/usr/share/applications/ r,
+/run/mir_socket rw,
 /run/user/*/mir_socket rw,
 
 `)
@@ -91,8 +92,8 @@ unix (send, receive) peer=(label=###SLOT_SECURITY_TAGS###) type=seqpacket addr=n
 var mirConnectedPlugSecComp = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
-getsockname
-open
+# getsockname
+# open
 recvmsg
 sendmsg
 sendto
@@ -128,6 +129,7 @@ func (iface *MirInterface) ConnectedPlugSnippet(
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(mirConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
+//return mirConnectedPlugAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return mirConnectedPlugSecComp, nil
 	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
@@ -159,10 +161,9 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mirConnectedSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus,
-                interfaces.SecurityMount:
+//return mirConnectedSlotAppArmor, nil
+	case interfaces.SecuritySecComp, interfaces.SecurityUDev,
+	    interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
