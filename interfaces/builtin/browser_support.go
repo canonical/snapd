@@ -153,8 +153,8 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 
 	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
-	if _, ok := plug.Attrs["allow-sandbox"]; ok {
-		if _, ok = plug.Attrs["allow-sandbox"].(bool); !ok {
+	if v, ok := plug.Attrs["allow-sandbox"]; ok {
+		if _, ok = v.(bool); !ok {
 			return fmt.Errorf("browser-support plug requires bool with 'allow-sandbox'")
 		}
 	}
