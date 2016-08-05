@@ -54,6 +54,7 @@ type clientSuite struct {
 var _ = check.Suite(&clientSuite{})
 
 func (cs *clientSuite) SetUpTest(c *check.C) {
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "auth.json"))
 	cs.cli = client.New(nil)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
@@ -64,6 +65,10 @@ func (cs *clientSuite) SetUpTest(c *check.C) {
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (cs *clientSuite) TearDownTest(c *check.C) {
+	os.Unsetenv(client.TestAuthFileEnvKey)
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
