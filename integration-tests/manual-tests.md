@@ -198,3 +198,21 @@ $ snap remove bluez
    and verify it actually passes. If some of the tests fail
    there will be a problem with the particular kernel used on
    the device.
+
+# Test uefi-manager interface
+
+1. Ensure your BIOS support UEFI firmware upgrading via UEFI capsule format
+
+2. Install the uefi-fw-tools snap from the store
+
+3. Ensure the 'uefi-manager' interface is connected
+
+4. Get available UEFI firmware from the server
+
+ $ uefi-fw-tools.fwupdmgr refresh
+
+5. Download firmware
+
+ $ uefi-fw-tools.fwupdmgr update
+
+6. Reboot and ensure it start the upgrading process.

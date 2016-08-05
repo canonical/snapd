@@ -223,3 +223,10 @@ Allow to manage the kernel side Bluetooth stack.
 
 Usage: reserved
 Auto-Connect: no
+
+### uefi-manager
+
+Allow to update UEFI capsule format firmware.
+
+Usage: reserved
+Auto-Connect: no
