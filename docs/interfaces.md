@@ -107,7 +107,7 @@ Auto-Connect: no
 
 ## Supported Interfaces - Advanced
 
-### browser
+### browser-support
 
 Can access files and IPC needed by modern browsers. This interface is
 intended to be used when using an embedded Chromium Content API or using the
