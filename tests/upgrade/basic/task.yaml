@@ -21,7 +21,9 @@ execute: |
     cat /etc/environment
 
     echo Do upgrade
-    apt install -y ${SPREAD_PATH}/../snapd*.deb
+    # allow-downgrades prevents errors when new versions hit the archive, for instance,
+    # trying to install 2.11ubuntu1 over 2.11+0.16.04
+    apt install -y --allow-downgrades ${SPREAD_PATH}/../snapd*.deb
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]
