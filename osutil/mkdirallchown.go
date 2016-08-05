@@ -26,8 +26,7 @@ import (
 )
 
 // MkdirAllChown is like os.MkdirAll but it calls os.Chown on any
-// directories it creates.  Also it assumes path has been passed
-// through filepath.Clean first.
+// directories it creates.
 func MkdirAllChown(path string, perm os.FileMode, uid, gid int) error {
 	if s, err := os.Stat(path); err == nil {
 		if s.IsDir() {
@@ -49,11 +48,17 @@ func MkdirAllChown(path string, perm os.FileMode, uid, gid int) error {
 		}
 	}
 
-	if err := os.Mkdir(path, perm); err != nil {
+	cand := path + ".mkdir-new"
+
+	if err := os.Mkdir(cand, perm); err != nil && !os.IsExist(err) {
 		return err
 	}
 
-	if err := os.Chown(path, uid, gid); err != nil {
+	if err := os.Chown(cand, uid, gid); err != nil {
+		return err
+	}
+
+	if err := os.Rename(cand, path); err != nil {
 		return err
 	}
 

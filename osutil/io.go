@@ -20,6 +20,7 @@
 package osutil
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -86,6 +87,8 @@ func AtomicWriteFileChown(filename string, data []byte, perm os.FileMode, flags 
 		if err := fd.Chown(uid, gid); err != nil {
 			return err
 		}
+	} else if uid > -1 || gid > -1 {
+		return errors.New("internal error: AtomicWriteFileChown needs none or both of uid and gid set")
 	}
 
 	if err := fd.Sync(); err != nil {
