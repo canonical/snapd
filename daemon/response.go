@@ -120,10 +120,10 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 type errorKind string
 
 const (
-	errorKindLicenseRequired   = errorKind("license-required")
 	errorKindTwoFactorRequired = errorKind("two-factor-required")
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
 	errorKindLoginRequired     = errorKind("login-required")
+	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
 )
 
 type errorValue interface{}
@@ -165,11 +165,15 @@ func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
 // makeErrorResponder builds an errorResponder from the given error status.
 func makeErrorResponder(status int) errorResponder {
 	return func(format string, v ...interface{}) Response {
+		res := &errorResult{
+			Message: fmt.Sprintf(format, v...),
+		}
+		if status == http.StatusUnauthorized {
+			res.Kind = errorKindLoginRequired
+		}
 		return &resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: fmt.Sprintf(format, v...),
-			},
+			Type:   ResponseTypeError,
+			Result: res,
 			Status: status,
 		}
 	}

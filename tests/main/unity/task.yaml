@@ -11,7 +11,7 @@ prepare: |
 restore: |
     systemctl stop unity-app
     apt remove -y x11-utils xvfb unity
-    apt autoremove
+    apt autoremove -y
 
 execute: |
     echo "Given a unity snap is installed"

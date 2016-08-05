@@ -37,6 +37,7 @@ var allInterfaces = []interfaces.Interface{
 	&PulseAudioInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
+	NewHardwareObserveInterface(),
 	NewHomeInterface(),
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),
@@ -45,8 +46,10 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
+	NewProcessControlInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
+	NewSystemTraceInterface(),
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
 	NewUnity7Interface(),
@@ -55,6 +58,7 @@ var allInterfaces = []interfaces.Interface{
 	NewCupsControlInterface(),
 	NewOpticalDriveInterface(),
 	NewCameraInterface(),
+	NewBluetoothControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

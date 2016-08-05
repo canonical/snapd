@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -39,16 +38,14 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type SnapSuite struct {
+type BaseSnapSuite struct {
 	testutil.BaseTest
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
 }
 
-var _ = Suite(&SnapSuite{})
-
-func (s *SnapSuite) SetUpTest(c *C) {
+func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
@@ -58,27 +55,33 @@ func (s *SnapSuite) SetUpTest(c *C) {
 	snap.Stderr = s.stderr
 }
 
-func (s *SnapSuite) TearDownTest(c *C) {
+func (s *BaseSnapSuite) TearDownTest(c *C) {
 	snap.Stdin = os.Stdin
 	snap.Stdout = os.Stdout
 	snap.Stderr = os.Stderr
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *SnapSuite) Stdout() string {
+func (s *BaseSnapSuite) Stdout() string {
 	return s.stdout.String()
 }
 
-func (s *SnapSuite) Stderr() string {
+func (s *BaseSnapSuite) Stderr() string {
 	return s.stderr.String()
 }
 
-func (s *SnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter, *http.Request)) {
+func (s *BaseSnapSuite) RedirectClientToTestServer(handler func(http.ResponseWriter, *http.Request)) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 	s.BaseTest.AddCleanup(func() { server.Close() })
 	snap.ClientConfig.BaseURL = server.URL
 	s.BaseTest.AddCleanup(func() { snap.ClientConfig.BaseURL = "" })
 }
+
+type SnapSuite struct {
+	BaseSnapSuite
+}
+
+var _ = Suite(&SnapSuite{})
 
 // DecodedRequestBody returns the JSON-decoded body of the request.
 func DecodedRequestBody(c *C, r *http.Request) map[string]interface{} {
@@ -121,5 +124,16 @@ func (s *SnapSuite) TestAccessDeniedHint(c *C) {
 	os.Args = []string{"snap", "install", "foo"}
 
 	err := snap.RunMain()
-	c.Assert(err, ErrorMatches, `access denied \(snap login --help\)`)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, `access denied (try with sudo)`)
+}
+
+func (s *SnapSuite) TestExtraArgs(c *C) {
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+
+	os.Args = []string{"snap", "abort", "1", "xxx", "zzz"}
+
+	err := snap.RunMain()
+	c.Assert(err, ErrorMatches, `too many arguments for command`)
 }

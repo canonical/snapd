@@ -24,7 +24,9 @@ setup_fake_store(){
 
 setup_staging_store(){
     echo "Given ubuntu-core snap is available before switching to staging"
-    snap install hello-world
+    if ! snap list | grep -q ubuntu-core; then
+        snap install ubuntu-core
+    fi
 
     echo "And snapd is configured to use the staging store"
     configure_store_backend search.apps.staging.ubuntu.com/api/v1/
