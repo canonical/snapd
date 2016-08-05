@@ -26,14 +26,14 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-var pulseaudioConnectedPlugAppArmor = []byte(`
+const pulseaudioConnectedPlugAppArmor = `
 /{run,dev}/shm/pulse-shm-* rwk,
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
-`)
+`
 
-var pulseaudioConnectedPlugAppArmorDesktop = []byte(`
+const pulseaudioConnectedPlugAppArmorDesktop = `
 # Only on desktop do we need access to /etc/pulse for any PulseAudio client
 # to read available client side configuration settings. On an Ubuntu Core
 # device those things will be stored inside the snap directory.
@@ -43,9 +43,9 @@ owner @{HOME}/.pulse-cookie rk,
 owner @{HOME}/.config/pulse/cookie rk,
 owner /{,var/}run/user/*/pulse/ rwk,
 owner /{,var/}run/user/*/pulse/native rwk,
-`)
+`
 
-var pulseaudioConnectedPlugSecComp = []byte(`
+const pulseaudioConnectedPlugSecComp = `
 getsockopt
 setsockopt
 connect
@@ -55,9 +55,9 @@ getsockname
 getpeername
 sendmsg
 recvmsg
-`)
+`
 
-var pulseaudioPermanentSlotAppArmor = []byte(`
+const pulseaudioPermanentSlotAppArmor = `
 # When running PulseAudio in system mode it will switch to the at
 # build time configured user/group on startup.
 capability setuid,
@@ -89,9 +89,9 @@ owner /{,var/}run/pulse/** rwk,
 
 # Shared memory based communication with clients
 /{run,dev}/shm/pulse-shm-* rwk,
-`)
+`
 
-var pulseaudioPermanentSlotSecComp = []byte(`
+const pulseaudioPermanentSlotSecComp = `
 # The following are needed for UNIX sockets
 personality
 setpriority
@@ -110,7 +110,7 @@ recvmsg
 # Needed to set root as group for different state dirs
 # pulseaudio creates on startup.
 setgroups
-`)
+`
 
 type PulseAudioInterface struct{}
 
@@ -131,14 +131,14 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		if release.OnClassic {
-			b := bytes.NewBuffer(pulseaudioConnectedPlugAppArmor)
-			b.Write(pulseaudioConnectedPlugAppArmorDesktop)
+			b := bytes.NewBuffer([]byte(pulseaudioConnectedPlugAppArmor))
+			b.Write([]byte(pulseaudioConnectedPlugAppArmorDesktop))
 			return b.Bytes(), nil
 		} else {
-			return pulseaudioConnectedPlugAppArmor, nil
+			return []byte(pulseaudioConnectedPlugAppArmor), nil
 		}
 	case interfaces.SecuritySecComp:
-		return pulseaudioConnectedPlugSecComp, nil
+		return []byte(pulseaudioConnectedPlugSecComp), nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
@@ -149,9 +149,9 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return pulseaudioPermanentSlotAppArmor, nil
+		return []byte(pulseaudioPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return pulseaudioPermanentSlotSecComp, nil
+		return []byte(pulseaudioPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
