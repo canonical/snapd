@@ -35,6 +35,8 @@ owner @{PROC}/@{pid}/mounts r,
 owner @{PROC}/@{pid}/mountinfo r,
 owner @{PROC}/@{pid}/mountstats r,
 
+@{PROC}/swaps r,
+
 # This is often out of date but some apps insist on using it
 /etc/mtab r,
 /etc/fstab r,

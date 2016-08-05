@@ -187,9 +187,39 @@ with trusted apps.
 Usage: reserved
 Auto-Connect: no
 
+### system-trace
+
+Can use kernel tracing facilities. This is restricted because it gives
+privileged access to all processes on the system and should only be used with
+trusted apps.
+
+Usage: reserved
+Auto-Connect: no
+
 ### timeserver-control
 
 Can manage timeservers directly separate from config ubuntu-core.
+
+Usage: reserved
+Auto-Connect: no
+
+### hardware-observe
+
+Can query hardware information from the system.
+
+Usage: reserved
+Auto-Connect: no
+
+### process-control
+
+Can manage processes via signals and nice.
+
+Usage: reserved
+Auto-Connect: no
+
+### bluetooth-control
+
+Allow to manage the kernel side Bluetooth stack.
 
 Usage: reserved
 Auto-Connect: no

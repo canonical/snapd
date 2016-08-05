@@ -193,3 +193,25 @@
    valid output status from pulseaudio
 5. Use /snap/bin/simple-pulseaudio.paplay $SNAP/usr/share/sounds/alsa/Noise.wav and verify
    that you can hear the sound playing
+
+# Test bluetooth-control interface
+
+1. Using Ubuntu classic build and install the bluetooth-tests snap
+   from the store.
+
+2. Stop system BlueZ service
+
+$ sudo systemctl stop bluetooth
+
+or if you have the bluez snap installed
+
+$ snap remove bluez
+
+3. Run one of the tests provided by the bluetooth-tests snap
+
+ $ sudo /snap/bin/bluetooth-tests.hci-tester
+
+   and verify it actually passes. If some of the tests fail
+   there will be a problem with the particular kernel used on
+   the device.
+>>>>>>> 0c73e0338672e1d72c399f301707ec351f008c00

@@ -46,8 +46,8 @@ owner /{,var/}run/user/*/pulse/native rwk,
 `)
 
 var pulseaudioConnectedPlugSecComp = []byte(`
-setsockopt
 getsockopt
+setsockopt
 connect
 sendto
 shmctl
