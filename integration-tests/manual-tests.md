@@ -214,4 +214,3 @@ $ snap remove bluez
    and verify it actually passes. If some of the tests fail
    there will be a problem with the particular kernel used on
    the device.
->>>>>>> 0c73e0338672e1d72c399f301707ec351f008c00
