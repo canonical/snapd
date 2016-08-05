@@ -1,0 +1,102 @@
+summary: Ensure that the gsettings interface works.
+
+summary: |
+    The gsettings interface allows a snap to access the locale configuration.
+
+    A snap which defines the gsettings plug must be shown in the interfaces list.
+    The plug must be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to access the files
+    /var/run/user/*/dconf/user and $HOME/.config/dconf/user both for reading and writing.
+    Instead of installing all the dconf/gsettings machinery the test checks the required
+    read and write permissions on the target locations.
+
+prepare: |
+    echo "Given a snap declaring a plug on the gsettings interface is installed"
+    snapbuild $TESTSLIB/snaps/gsettings-consumer .
+    snap install gsettings-consumer_1.0_all.snap
+
+    echo "And the gsettings files are kept back"
+    if test -f /var/run/user/1000/dconf/user; then
+        cp /var/run/user/1000/dconf/user run.back
+    else
+        mkdir -p /var/run/user/1000/dconf && chown test:test /var/run/user/1000/dconf
+    fi
+    if test -f /var/run/user/1000/dconf/user; then
+        cp /home/test/.config/dconf/user config.back
+    else
+        mkdir -p /home/test/.config/dconf && chown test:test /home/test/.config/dconf
+    fi
+
+restore: |
+    rm -f gsettings-consumer_1.0_all.snap gsettings*.error
+    if test -f run.back; then
+        mv run.back /var/run/user/1000/dconf/user
+    else
+        rm -rf /var/run/user/1000/dconf
+    fi
+    if test -f config.back; then
+        mv config.back /home/test/.config/dconf/user
+    else
+        rm -rf /home/test/.config/dconf
+    fi
+
+execute: |
+    CONNECTED_PATTERN=":gsettings +gsettings-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +gsettings-consumer:gsettings"
+
+    echo "Then it is connected by default"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect gsettings-consumer:gsettings ubuntu-core:gsettings
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to write the gsettings user configuration"
+    sudo -i -u test /bin/sh -c 'gsettings-consumer.write /home/test/.config/dconf/user gsettings_content'
+
+    echo "And the snap is able to write the gsettings user run file"
+    sudo -i -u test /bin/sh -c 'gsettings-consumer.write /var/run/user/1000/dconf/user gsettings_content'
+
+    echo "And the snap is able to read the gsettings user configuration"
+    [ "$(sudo -i -u test /bin/sh -c 'gsettings-consumer.read /home/test/.config/dconf/user')" = "gsettings_content" ]
+
+    echo "And the snap is able to read the gsettings user run file"
+    [ "$(sudo -i -u test /bin/sh -c 'gsettings-consumer.read /var/run/user/1000/dconf/user')" = "gsettings_content" ]
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect gsettings-consumer:gsettings ubuntu-core:gsettings
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to write the gsettings user configuration"
+    if sudo -i -u test /bin/sh -c "gsettings-consumer.write /home/test/.config/dconf/user another_content 2>${PWD}/gsettings-config-write.error"; then
+        echo "Expected permission error writing gsettings user configuration with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" gsettings-config-write.error
+
+    echo "And the snap is not able to write the gsettings user run file"
+    if sudo -i -u test /bin/sh -c "gsettings-consumer.write /home/test/.config/dconf/user another_content 2>${PWD}/gsettings-run-write.error"; then
+        echo "Expected permission error writing gsettings user run file with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" gsettings-run-write.error
+
+    echo "And the snap is not able to read the gsettings user configuration"
+    if sudo -i -u test /bin/sh -c "gsettings-consumer.read /home/test/.config/dconf/user 2>${PWD}/gsettings-config-read.error"; then
+        echo "Expected permission error reading gsettings user configuration with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" gsettings-config-read.error
+
+    echo "And the snap is not able to read the gsettings user run file"
+    if sudo -i -u test /bin/sh -c "gsettings-consumer.read /home/test/.config/dconf/user 2>${PWD}/gsettings-run-read.error"; then
+        echo "Expected permission error reading gsettings user run file configuration with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" gsettings-run-read.error
