@@ -1,0 +1,69 @@
+summary: Check that `snap run` can actually run hooks
+
+prepare: |
+    echo "Ensure we have a core snap with snap run"
+    $SPREAD_PATH/tests/lib/reset.sh
+    snap install --channel=candidate ubuntu-core
+    snapbuild $TESTSLIB/snaps/basic-hooks .
+    snap install basic-hooks_1.0_all.snap
+
+    # Use the in-tree snap-exec, not the one in the core snap. We'll do that via
+    # overlayfs and a copy.
+    tmp=$(mktemp -d)
+    overlay="$tmp/overlay"
+    work="$tmp/work"
+    mkdir "$overlay" "$work"
+    to_overlay="$(realpath /snap/ubuntu-core/current)"
+    mount -t overlayfs -o lowerdir=$to_overlay,upperdir=$overlay,workdir=$work overlayfs $to_overlay
+    cp /usr/lib/snapd/snap-exec $to_overlay/usr/lib/snapd/
+
+restore: |
+    rm basic-hooks_1.0_all.snap
+    umount "$(realpath /snap/ubuntu-core/current)"
+
+execute: |
+    # snap-confine can't run from /gopath
+    cd /home/test
+
+    # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
+    # check stdout instead.
+
+    echo "Test that snap run can call valid hooks"
+
+    output="$(snap run --hook=apply-config basic-hooks)"
+    if [ $? -ne 0 ]; then
+        echo "Failed to run apply-config hook"
+        exit 1
+    fi
+
+    expected_output="apply-config hook"
+    if [ "$output" != "$expected_output" ]; then
+        echo "Expected apply-config output to be '$expected_output', but it was '$output'"
+        exit 1
+    fi
+
+    output="$(snap run --hook=check-config basic-hooks)"
+    if [ $? -ne 0 ]; then
+        echo "Failed to run check-config hook"
+        exit 1
+    fi
+
+    expected_output="check-config hook"
+    if [ "$output" != "$expected_output" ]; then
+        echo "Expected check-config output to be '$expected_output', but it was '$output'"
+        exit 1
+    fi
+
+    echo "Test that snap run cannot call invalid hooks"
+
+    output="$(snap run --hook=invalid-hook basic-hooks)"
+    if [ $? -ne 0 ]; then
+        echo "Expected snap run to exit successfully upon missing hook"
+        exit 1
+    fi
+
+    expected_output=""
+    if [ "$output" != "$expected_output" ]; then
+        echo "Expected invalid-hook output to be '$expected_output', but it was '$output'"
+        exit 1
+    fi
