@@ -45,6 +45,12 @@ owner /var/tmp/etilqs_* rw,
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
 owner /dev/shm/.org.chromium.Chromium.* rw,
 owner /dev/shm/.com.google.Chrome.* rw,
+
+# Chrome/Chromium should be adjusted to not use gconf. It is only used with
+# legacy systems that don't have snapd
+deny dbus (send)
+    bus=session
+    interface="org.gnome.GConf.Server",
 `
 
 const browserConnectedPlugAppArmorWithoutSandbox = `
@@ -61,14 +67,15 @@ deny ptrace (trace) peer=snap.@{SNAP_NAME}.**,
 `
 
 const browserConnectedPlugAppArmorWithSandbox = `
+# Leaks installed applications
+# TODO: should this be somewhere else?
+/etc/mailcap r,
+/usr/share/applications/{,*} r,
+/var/lib/snapd/desktop/applications/{,*} r,
+
 # Policy needed only when using the chrome/chromium setuid sandbox
 ptrace (trace) peer=snap.@{SNAP_NAME}.**,
 unix (receive, send) peer=(label=snap.@{SNAP_NAME}.**),
-
-# noisy and only used for legacy system settings
-deny dbus (send)
-    bus=session
-    interface="org.gnome.GConf.Server",
 
 # If this were going to be allowed to all snaps, then for all the following
 # rules we would want to wrap in a 'browser_sandbox' profile, but a limitation
@@ -118,6 +125,10 @@ chroot
 # releases
 setuid
 setgid
+
+# Policy needed for Mozilla userns sandbox
+unshare
+quotactl
 `
 
 type BrowserInterface struct{}
