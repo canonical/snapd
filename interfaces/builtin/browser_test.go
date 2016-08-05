@@ -72,7 +72,7 @@ version: 1.0
 plugs:
  browser-plug:
   interface: browser
-  allow-browser-sandbox: true
+  allow-sandbox: true
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -89,7 +89,7 @@ version: 1.0
 plugs:
  browser-plug:
   interface: browser
-  allow-browser-sandbox: bad
+  allow-sandbox: bad
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -98,7 +98,7 @@ plugs:
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-plug"]}
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "browser plug requires bool with 'allow-browser-sandbox'")
+	c.Assert(err, ErrorMatches, "browser plug requires bool with 'allow-sandbox'")
 }
 
 func (s *BrowserInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
@@ -120,7 +120,7 @@ version: 1.0
 plugs:
  browser-plug:
   interface: browser
-  allow-browser-sandbox: false
+  allow-sandbox: false
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
@@ -146,7 +146,7 @@ version: 1.0
 plugs:
  browser-plug:
   interface: browser
-  allow-browser-sandbox: true
+  allow-sandbox: true
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
