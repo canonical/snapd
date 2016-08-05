@@ -76,23 +76,22 @@ func (client *Client) Logout() error {
 
 // LoggedIn returns whether the client has authentication data available.
 func (client *Client) LoggedIn() bool {
-	return osutil.FileExists(storeAuthDataFilename())
-}
-
-func storeAuthDataFilename() string {
-	real, err := osutil.RealUser()
-	if err != nil {
-		panic(err)
-	}
-
-	return storeAuthDataFilenameFromHome(real.HomeDir)
+	return osutil.FileExists(storeAuthDataFilename(""))
 }
 
 const authFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
 
-func storeAuthDataFilenameFromHome(homeDir string) string {
+func storeAuthDataFilename(homeDir string) string {
 	if fn := os.Getenv(authFileEnvKey); fn != "" {
 		return fn
+	}
+
+	if homeDir == "" {
+		real, err := osutil.RealUser()
+		if err != nil {
+			panic(err)
+		}
+		homeDir = real.HomeDir
 	}
 
 	return filepath.Join(homeDir, ".snap", "auth.json")
@@ -115,7 +114,7 @@ func writeAuthData(user User) error {
 		return err
 	}
 
-	targetFile := storeAuthDataFilenameFromHome(real.HomeDir)
+	targetFile := storeAuthDataFilename(real.HomeDir)
 
 	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
 		return err
@@ -131,7 +130,7 @@ func writeAuthData(user User) error {
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	sourceFile := storeAuthDataFilename()
+	sourceFile := storeAuthDataFilename("")
 	f, err := os.Open(sourceFile)
 	if err != nil {
 		return nil, err
@@ -149,6 +148,6 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
-	filename := storeAuthDataFilename()
+	filename := storeAuthDataFilename("")
 	return os.Remove(filename)
 }
