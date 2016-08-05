@@ -24,7 +24,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strconv"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -48,28 +47,6 @@ type SnapManager struct {
 
 // SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
 type SnapSetupFlags Flags
-
-// backward compatibility: upgrade old flags based on snappy.* flags values
-// to Flags if needed
-// XXX: this can be dropped and potentially the type at the earliest
-// in 2.0.9 (after being out for about two prune cycles), at the
-// latest when we need to recover the reserved unusable flag values,
-// or this gets annoying for other reasons
-func (ssfl *SnapSetupFlags) UnmarshalJSON(b []byte) error {
-	f, err := strconv.Atoi(string(b))
-	if err != nil {
-		return fmt.Errorf("invalid snap-setup flags: %v", err)
-	}
-	if f >= interimUnusableLegacyFlagValueMin && f < (interimUnusableLegacyFlagValueLast<<1) {
-		// snappy.DeveloperMode was 0x10, TryMode was 0x20,
-		// snapstate values are 1 and 2 so this does what we need
-		f >>= 4
-	}
-
-	*ssfl = SnapSetupFlags(f)
-
-	return nil
-}
 
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
@@ -106,7 +83,15 @@ func (ss *SnapSetup) MountDir() string {
 
 // DevMode returns true if the snap is being installed in developer mode.
 func (ss *SnapSetup) DevMode() bool {
-	return ss.Flags&DevMode != 0
+	return Flags(ss.Flags).DevMode()
+}
+
+func (ss *SnapSetup) JailMode() bool {
+	return Flags(ss.Flags).JailMode()
+}
+
+func (ss *SnapSetup) DevModeAllowed() bool {
+	return Flags(ss.Flags).DevModeAllowed()
 }
 
 // TryMode returns true if the snap is being installed in try mode directly from a directory.
@@ -235,7 +220,11 @@ func readInfoAnyway(name string, si *snap.SideInfo) (*snap.Info, error) {
 	info, err := snap.ReadInfo(name, si)
 	if _, ok := err.(*snap.NotFoundError); ok {
 		reason := fmt.Sprintf("cannot read snap %q: %s", name, err)
-		info := &snap.Info{SuggestedName: name, Broken: reason}
+		info := &snap.Info{
+			SuggestedName: name,
+			Broken:        reason,
+		}
+		info.Apps = snap.GuessAppsForBroken(info)
 		if si != nil {
 			info.SideInfo = *si
 		}
@@ -255,7 +244,7 @@ func (snapst *SnapState) CurrentInfo() (*snap.Info, error) {
 
 // DevMode returns true if the snap is installed in developer mode.
 func (snapst *SnapState) DevMode() bool {
-	return snapst.Flags&DevMode != 0
+	return Flags(snapst.Flags).DevMode()
 }
 
 // SetDevMode sets/clears the DevMode flag in the SnapState.
@@ -265,6 +254,23 @@ func (snapst *SnapState) SetDevMode(active bool) {
 	} else {
 		snapst.Flags &= ^DevMode
 	}
+}
+
+func (snapst *SnapState) JailMode() bool {
+	return Flags(snapst.Flags).JailMode()
+}
+
+// SetJailMode sets/clears the JailMode flag in the SnapState.
+func (snapst *SnapState) SetJailMode(active bool) {
+	if active {
+		snapst.Flags |= JailMode
+	} else {
+		snapst.Flags &= ^JailMode
+	}
+}
+
+func (snapst *SnapState) DevModeAllowed() bool {
+	return Flags(snapst.Flags).DevModeAllowed()
 }
 
 // TryMode returns true if the snap is installed in `try` mode as an
@@ -294,8 +300,6 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	if err != nil {
 		return nil, err
 	}
-	devmode := flags&DevMode > 0
-
 	curInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return nil, err
@@ -308,7 +312,7 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	refreshCand := &store.RefreshCandidate{
 		// the desired channel
 		Channel: channel,
-		DevMode: devmode,
+		DevMode: flags.DevModeAllowed(),
 		Block:   snapst.Block(),
 
 		SnapID:   curInfo.SnapID,
@@ -316,7 +320,10 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 		Epoch:    curInfo.Epoch,
 	}
 
-	res, err := Store(st).ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	res, err := theStore.ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
+	st.Lock()
 	if len(res) == 0 {
 		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
 	}
@@ -328,8 +335,11 @@ func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*
 	if err != nil {
 		return nil, err
 	}
-	devmode := flags&DevMode > 0
-	return Store(st).Snap(name, channel, devmode, user)
+	theStore := Store(st)
+	st.Unlock() // calls to the store should be done without holding the state lock
+	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), user)
+	st.Lock()
+	return snap, err
 }
 
 // Manager returns a new snap manager.
@@ -356,6 +366,10 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
+
+	// TODO: refresh-all needs logic at this level, to properly
+	// handle the logic for that mode (e.g. skip snaps installed
+	// with --devmode, set jailmode from snapstate).
 
 	// remove related
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
@@ -389,7 +403,7 @@ func cachedStore(s *state.State) StoreService {
 }
 
 // the store implementation has the interface consumed here
-var _ StoreService = (*store.SnapUbuntuStoreRepository)(nil)
+var _ StoreService = (*store.Store)(nil)
 
 // Store returns the store service used by the snapstate package.
 func Store(s *state.State) StoreService {
@@ -404,7 +418,7 @@ func Store(s *state.State) StoreService {
 	}
 
 	authContext := auth.NewAuthContext(s)
-	s.Cache(cachedStoreKey{}, store.NewUbuntuStoreSnapRepository(nil, storeID, authContext))
+	s.Cache(cachedStoreKey{}, store.New(nil, storeID, authContext))
 	return cachedStore(s)
 }
 
@@ -470,7 +484,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 	meter := &TaskProgressAdapter{task: t}
 
 	st.Lock()
-	store := Store(st)
+	theStore := Store(st)
 	user, err := userFromUserID(st, ss.UserID)
 	st.Unlock()
 	if err != nil {
@@ -482,14 +496,14 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := store.Snap(ss.Name(), ss.Channel, ss.DevMode(), user)
+		storeInfo, err := theStore.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), user)
 		if err != nil {
 			return err
 		}
-		downloadedSnapFile, err = store.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user)
+		downloadedSnapFile, err = theStore.Download(ss.Name(), &storeInfo.DownloadInfo, meter, user)
 		ss.SideInfo = &storeInfo.SideInfo
 	} else {
-		downloadedSnapFile, err = store.Download(ss.Name(), ss.DownloadInfo, meter, user)
+		downloadedSnapFile, err = theStore.Download(ss.Name(), ss.DownloadInfo, meter, user)
 	}
 	if err != nil {
 		return err
@@ -876,6 +890,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.SetTryMode(ss.TryMode())
 	oldDevMode := snapst.DevMode()
 	snapst.SetDevMode(ss.DevMode())
+	oldJailMode := snapst.JailMode()
+	snapst.SetJailMode(ss.JailMode())
 
 	newInfo, err := readInfo(ss.Name(), cand)
 	if err != nil {
@@ -905,6 +921,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
+	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
 	t.Set("had-candidate", hadCandidate)
@@ -951,6 +968,11 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	var oldJailMode bool
+	err = t.Get("old-jailmode", &oldJailMode)
+	if err != nil {
+		return err
+	}
 	var oldCurrent snap.Revision
 	err = t.Get("old-current", &oldCurrent)
 	if err != nil {
@@ -975,6 +997,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Channel = oldChannel
 	snapst.SetTryMode(oldTryMode)
 	snapst.SetDevMode(oldDevMode)
+	snapst.SetJailMode(oldJailMode)
 
 	newInfo, err := readInfo(ss.Name(), ss.SideInfo)
 	if err != nil {

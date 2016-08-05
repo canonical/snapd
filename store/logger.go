@@ -24,6 +24,7 @@ import (
 	"net/http/httputil"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/snapcore/snapd/logger"
 )
@@ -82,4 +83,15 @@ func (tr *LoggedTransport) getFlags() debugflag {
 	}
 
 	return debugflag(flags)
+}
+
+// returns a new http.Client with a LoggedTransport and a Timeout
+func newHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &LoggedTransport{
+			Transport: http.DefaultTransport,
+			Key:       "SNAPD_DEBUG_HTTP",
+		},
+		Timeout: 10 * time.Second,
+	}
 }

@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"text/tabwriter"
@@ -62,10 +63,13 @@ func listSnaps(names []string) error {
 	cli := Client()
 	snaps, err := cli.List(names)
 	if err != nil {
+		if err == client.ErrNoSnapsInstalled {
+			fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
+			return nil
+		}
 		return err
 	} else if len(snaps) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
-		return nil
+		return errors.New(i18n.G("no matching snaps installed"))
 	}
 	sort.Sort(snapsByName(snaps))
 
@@ -75,10 +79,13 @@ func listSnaps(names []string) error {
 	fmt.Fprintln(w, i18n.G("Name\tVersion\tRev\tDeveloper\tNotes"))
 
 	for _, snap := range snaps {
+		// TODO: make JailMode a flag in the snap itself
+		jailMode := snap.Confinement == client.DevmodeConfinement && !snap.DevMode
 		notes := &Notes{
-			Private: snap.Private,
-			DevMode: snap.DevMode,
-			TryMode: snap.TryMode,
+			Private:  snap.Private,
+			DevMode:  snap.DevMode,
+			JailMode: jailMode,
+			TryMode:  snap.TryMode,
 			// FIXME: a bit confusing, a installed snap
 			//        is either "active" or "installed", so
 			//        if it is not "active" it means it is

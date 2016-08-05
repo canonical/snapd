@@ -49,3 +49,14 @@ func (client *Client) Buy(opts *store.BuyOptions) (*BuyResult, error) {
 
 	return &result, nil
 }
+
+func (client *Client) PaymentMethods() (*store.PaymentInformation, error) {
+	var result store.PaymentInformation
+	_, err := client.doSync("GET", "/v2/buy/methods", nil, nil, nil, &result)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}

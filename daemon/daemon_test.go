@@ -154,34 +154,6 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
-func (s *daemonSuite) TestGroupAccess(c *check.C) {
-	oldf := isUIDInAny
-	isSudo := false
-	isUIDInAny = func(uint32, ...string) bool {
-		return isSudo
-	}
-	defer func() {
-		isUIDInAny = oldf
-	}()
-
-	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, false)
-	c.Check(cmd.canAccess(put, nil), check.Equals, false)
-
-	isSudo = false
-	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, false)
-	c.Check(cmd.canAccess(put, nil), check.Equals, false)
-
-	isSudo = true
-	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, true)
-	c.Check(cmd.canAccess(put, nil), check.Equals, true)
-}
-
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "uid=0;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}

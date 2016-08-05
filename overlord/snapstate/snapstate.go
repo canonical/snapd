@@ -39,23 +39,26 @@ const (
 	// TryMode is set for snaps installed to try directly from a local directory.
 	TryMode
 
-	// the following flag values cannot be used until we drop the
-	// backward compatible support for flags values in SnapSetup
-	// that were based on snappy.* flags, after that we can
-	// start using them
-	interimUnusableLegacyFlagValueMin
-	interimUnusableLegacyFlagValue1
-	interimUnusableLegacyFlagValue2
-	interimUnusableLegacyFlagValueLast
+	// JailMode is set when the user has requested confinement
+	// always be enforcing, even if the snap requests otherwise.
+	JailMode
 
-	// the following flag value is the first that can be grabbed
-	// for use in the interim time while we have the backward compatible
-	// support
-	firstInterimUsableFlagValue
 	// if we need flags for just SnapSetup it may be easier
 	// to start a new sequence from the other end with:
 	// 0x40000000 >> iota
 )
+
+func (f Flags) DevModeAllowed() bool {
+	return f&(DevMode|JailMode) != 0
+}
+
+func (f Flags) DevMode() bool {
+	return f&DevMode != 0
+}
+
+func (f Flags) JailMode() bool {
+	return f&JailMode != 0
+}
 
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name()); err != nil {
@@ -121,11 +124,23 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	linkSnap := s.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), ss.Name(), revisionStr))
 	addTask(linkSnap)
 
-	// do GC!
-	if snapst.HasCurrent() {
+	// Do not do that if we are reverting to a local revision
+	if snapst.HasCurrent() && !revisionIsLocal {
 		prev := linkSnap
 		seq := snapst.Sequence
 		currentIndex := snapst.findIndex(snapst.Current)
+
+		// discard everything after "current" (we may have reverted to
+		// a previous versions earlier)
+		for i := currentIndex + 1; i < len(seq); i++ {
+			si := seq[i]
+			ts := removeInactiveRevision(s, ss.Name(), si.Revision)
+			ts.WaitFor(prev)
+			tasks = append(tasks, ts.Tasks()...)
+			prev = tasks[len(tasks)-1]
+		}
+
+		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
 			ts := removeInactiveRevision(s, ss.Name(), si.Revision)

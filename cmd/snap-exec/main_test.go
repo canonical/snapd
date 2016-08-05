@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -47,6 +46,7 @@ var _ = Suite(&snapExecSuite{})
 func (s *snapExecSuite) SetUpTest(c *C) {
 	// clean previous parse runs
 	opts.Command = ""
+	opts.Hook = ""
 }
 
 func (s *snapExecSuite) TearDown(c *C) {
@@ -66,6 +66,24 @@ apps:
  nostop:
   command: nostop
 `)
+
+var mockHookYaml = []byte(`name: snapname
+version: 1.0
+hooks:
+ apply-config:
+`)
+
+func (s *snapExecSuite) TestInvalidCombinedParameters(c *C) {
+	invalidParameters := []string{"--hook=hook-name", "--command=command-name", "snap-name"}
+	_, _, err := parseArgs(invalidParameters)
+	c.Check(err, ErrorMatches, ".*cannot use --hook and --command together.*")
+}
+
+func (s *snapExecSuite) TestInvalidExtraParameters(c *C) {
+	invalidParameters := []string{"--hook=hook-name", "snap-name", "foo", "bar"}
+	_, _, err := parseArgs(invalidParameters)
+	c.Check(err, ErrorMatches, ".*too many arguments for hook \"hook-name\": snap-name foo bar.*")
+}
 
 func (s *snapExecSuite) TestFindCommand(c *C) {
 	info, err := snap.InfoFromSnapYaml(mockYaml)
@@ -101,7 +119,7 @@ func (s *snapExecSuite) TestFindCommandNoCommand(c *C) {
 	c.Check(err, ErrorMatches, `no "stop" command found for "nostop"`)
 }
 
-func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
+func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
 		Revision: snap.R("42"),
@@ -118,11 +136,43 @@ func (s *snapExecSuite) TestSnapLaunchIntegration(c *C) {
 	}
 
 	// launch and verify its run the right way
-	err := snapExec("snapname.app", "42", "stop", []string{"arg1", "arg2"})
+	err := snapExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
 	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapSnapsDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
+}
+
+func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	execArgv0 := ""
+	execArgs := []string{}
+	syscallExec = func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		return nil
+	}
+
+	// launch and verify it ran correctly
+	err := snapExecHook("snapname", "42", "apply-config")
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/apply-config", dirs.SnapSnapsDir))
+	c.Check(execArgs, DeepEquals, []string{execArgv0})
+}
+
+func (s *snapExecSuite) TestSnapExecHookMissingHookIntegration(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockHookYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	err := snapExecHook("snapname", "42", "missing-hook")
+	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, "cannot find hook \"missing-hook\" in \"snapname\"")
 }
 
 func (s *snapExecSuite) TestSnapExecIgnoresUnknownArgs(c *C) {
