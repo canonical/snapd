@@ -3128,7 +3128,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 
 	rsp := postBuy(buyCmd, req, user).(*resp)
 
-	expected := buyResponseData{
+	expected := &store.BuyResult{
 		State: "Complete",
 	}
 	c.Check(rsp.Status, check.Equals, http.StatusOK)

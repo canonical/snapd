@@ -1025,9 +1025,9 @@ type BuyOptions struct {
 // BuyResult holds information required to complete the purchase when state
 // is "InProgress", in which case it requires user interaction to complete.
 type BuyResult struct {
-	State      string
-	RedirectTo string
-	PartnerID  string
+	State      string `json:"state,omitempty"`
+	RedirectTo string `json:"redirect-to,omitempty"`
+	PartnerID  string `json:"partner-id,omitempty"`
 }
 
 // purchaseInstruction holds data sent to the store for purchases.
@@ -1114,9 +1114,14 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
 		}
 
+		redirectTo := ""
+		if purchaseDetails.RedirectTo != "" {
+			redirectTo = fmt.Sprintf("%s://%s%s", s.purchasesURI.Scheme, s.purchasesURI.Host, purchaseDetails.RedirectTo)
+		}
+
 		return &BuyResult{
 			State:      purchaseDetails.State,
-			RedirectTo: purchaseDetails.RedirectTo,
+			RedirectTo: redirectTo,
 			PartnerID:  resp.Header.Get("X-Partner-Id"),
 		}, nil
 	case http.StatusBadRequest:

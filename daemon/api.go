@@ -1457,10 +1457,6 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	return SyncResponse(createResponseData, nil)
 }
 
-type buyResponseData struct {
-	State string `json:"state,omitempty"`
-}
-
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts store.BuyOptions
 
@@ -1484,12 +1480,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		// continue
 	}
 
-	// TODO: Support purchasing redirects
-	if buyResult.State == "InProgress" {
-		return InternalError("payment backend %q is not yet supported", opts.BackendID)
-	}
-
-	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
+	return SyncResponse(buyResult, nil)
 }
 
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
