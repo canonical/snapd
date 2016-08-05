@@ -20,8 +20,8 @@
 package builtin
 
 import (
+	"bytes"
 	"github.com/snapcore/snapd/interfaces"
-        "bytes"
 )
 
 var mirPermanentSlotAppArmor = []byte(`
@@ -75,9 +75,22 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 /usr/share/applications/ r,
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
+/dev/dri/card0 rw,
+# failure for line below was /run/udev/data/+pci:0000:00:02.0
+/run/udev/data/* r,
 `)
 
 var mirConnectedPlugSecComp = []byte(`
+# Description: Permit clients to use Mir
+# Usage: reserved
+getsockname
+open
+recvmsg
+sendmsg
+sendto
+`)
+
+var mirConnectedSlotSecComp = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
 getsockname
@@ -97,10 +110,10 @@ func (iface *MirInterface) PermanentPlugSnippet(
 	plug *interfaces.Plug,
 	securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-		case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-		     interfaces.SecurityUDev, interfaces.SecurityDBus,
-		     interfaces.SecurityMount:
-				return nil, nil
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
+		interfaces.SecurityUDev, interfaces.SecurityDBus,
+		interfaces.SecurityMount:
+		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
@@ -147,8 +160,9 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp, interfaces.SecurityUDev,
-	    interfaces.SecurityDBus, interfaces.SecurityMount:
+	case interfaces.SecuritySecComp:
+		return mirConnectedSlotSecComp, nil
+	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
