@@ -63,8 +63,6 @@ var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
 unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS###),
-#/run/mir_socket rw,
-#/run/user/[0-9]*/mir_socket rw,
 `)
 
 var mirConnectedPlugAppArmor = []byte(`
@@ -81,8 +79,6 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 var mirConnectedPlugSecComp = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
-getsockname
-open
 recvmsg
 sendmsg
 sendto
