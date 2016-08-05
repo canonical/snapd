@@ -37,10 +37,12 @@ execute: |
     content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-tools_env\""
     echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-tools.rules
     udevadm control --reload-rules
+    udevadm settle
     udevadm trigger
+    udevadm settle
 
     echo "Then the device is shown as assigned to the snap"
-    while ! udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"; do sleep 1; done
+    udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
 
     echo "And other devices are not shown as assigned to the snap"
     ! udevadm info $OTHER_UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
