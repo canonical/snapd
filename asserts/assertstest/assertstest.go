@@ -146,25 +146,25 @@ func GPGImportKey(homedir, armoredKey string) {
 
 // A SignerDB can sign assertions using its key pairs.
 type SignerDB interface {
-	Sign(assertType *asserts.AssertionType, headers map[string]string, body []byte, keyID string) (asserts.Assertion, error)
+	Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error)
 }
 
 // NewAccount creates an account assertion for username, it fills in values for other missing headers as needed. It panics on error.
-func NewAccount(db SignerDB, username string, otherHeaders map[string]string, keyID string) *asserts.Account {
+func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{}, keyID string) *asserts.Account {
 	if otherHeaders == nil {
-		otherHeaders = make(map[string]string)
+		otherHeaders = make(map[string]interface{})
 	}
 	otherHeaders["username"] = username
-	if otherHeaders["account-id"] == "" {
+	if otherHeaders["account-id"] == nil {
 		otherHeaders["account-id"] = strutil.MakeRandomString(32)
 	}
-	if otherHeaders["display-name"] == "" {
+	if otherHeaders["display-name"] == nil {
 		otherHeaders["display-name"] = strings.ToTitle(username)
 	}
-	if otherHeaders["validation"] == "" {
+	if otherHeaders["validation"] == nil {
 		otherHeaders["validation"] = "unproven"
 	}
-	if otherHeaders["timestamp"] == "" {
+	if otherHeaders["timestamp"] == nil {
 		otherHeaders["timestamp"] = time.Now().Format(time.RFC3339)
 	}
 	a, err := db.Sign(asserts.AccountType, otherHeaders, nil, keyID)
@@ -175,18 +175,18 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]string, ke
 }
 
 // NewAccountKey creates an account-key assertion for the account, it fills in values for missing headers as needed. In panics on error.
-func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]string, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
+func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]interface{}, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
 	if otherHeaders == nil {
-		otherHeaders = make(map[string]string)
+		otherHeaders = make(map[string]interface{})
 	}
 	otherHeaders["account-id"] = acct.AccountID()
 	otherHeaders["public-key-id"] = pubKey.ID()
 	otherHeaders["public-key-fingerprint"] = pubKey.Fingerprint()
-	if otherHeaders["since"] == "" {
+	if otherHeaders["since"] == nil {
 		otherHeaders["since"] = time.Now().Format(time.RFC3339)
 	}
-	if otherHeaders["until"] == "" {
-		since, err := time.Parse(time.RFC3339, otherHeaders["since"])
+	if otherHeaders["until"] == nil {
+		since, err := time.Parse(time.RFC3339, otherHeaders["since"].(string))
 		if err != nil {
 			panic(err)
 		}
@@ -232,7 +232,7 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 	}
 }
 
-func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]string, body []byte, keyID string) (asserts.Assertion, error) {
+func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
 	headers["authority-id"] = db.AuthorityID
 	if keyID == "" {
 		keyID = db.KeyID
@@ -264,7 +264,7 @@ type StoreStack struct {
 // NewStoreStack creates a new store assertion stack. It panics on error.
 func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreStack {
 	rootSigning := NewSigningDB(authorityID, rootPrivKey)
-	trustedAcct := NewAccount(rootSigning, authorityID, map[string]string{
+	trustedAcct := NewAccount(rootSigning, authorityID, map[string]interface{}{
 		"account-id": authorityID,
 		"validation": "certified",
 	}, "")

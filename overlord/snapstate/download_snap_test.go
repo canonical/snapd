@@ -46,6 +46,7 @@ func (s *downloadSnapSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 
 	s.fakeStore = &fakeStore{
+		state:       s.state,
 		fakeBackend: s.fakeBackend,
 	}
 	snapstate.ReplaceStore(s.state, s.fakeStore)

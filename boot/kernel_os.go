@@ -52,7 +52,7 @@ func RemoveKernelAssets(s snap.PlaceInfo, inter progress.Meter) error {
 }
 
 func copyAll(src, dst string) error {
-	if output, err := exec.Command("cp", "-a", src, dst).CombinedOutput(); err != nil {
+	if output, err := exec.Command("cp", "-aLv", src, dst).CombinedOutput(); err != nil {
 		return fmt.Errorf("cannot copy %q -> %q: %s (%s)", src, dst, err, output)
 	}
 	return nil
@@ -64,12 +64,6 @@ func copyAll(src, dst string) error {
 func ExtractKernelAssets(s *snap.Info, inter progress.Meter) error {
 	if s.Type != snap.TypeKernel {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
-	}
-
-	// sanity check that we have the new kernel format
-	_, err := snap.ReadKernelInfo(s)
-	if err != nil {
-		return err
 	}
 
 	bootloader, err := partition.FindBootloader()
@@ -133,16 +127,16 @@ func SetNextBoot(s *snap.Info) error {
 	var bootvar string
 	switch s.Type {
 	case snap.TypeOS:
-		bootvar = "snappy_os"
+		bootvar = "snap_try_core"
 	case snap.TypeKernel:
-		bootvar = "snappy_kernel"
+		bootvar = "snap_try_kernel"
 	}
 	blobName := filepath.Base(s.MountFile())
 	if err := bootloader.SetBootVar(bootvar, blobName); err != nil {
 		return err
 	}
 
-	if err := bootloader.SetBootVar("snappy_mode", "try"); err != nil {
+	if err := bootloader.SetBootVar("snap_mode", "try"); err != nil {
 		return err
 	}
 
@@ -164,11 +158,11 @@ func KernelOrOsRebootRequired(s *snap.Info) bool {
 	var nextBoot, goodBoot string
 	switch s.Type {
 	case snap.TypeKernel:
-		nextBoot = "snappy_kernel"
-		goodBoot = "snappy_good_kernel"
+		nextBoot = "snap_try_kernel"
+		goodBoot = "snap_kernel"
 	case snap.TypeOS:
-		nextBoot = "snappy_os"
-		goodBoot = "snappy_good_os"
+		nextBoot = "snap_try_core"
+		goodBoot = "snap_core"
 	}
 
 	nextBootVer, err := bootloader.GetBootVar(nextBoot)

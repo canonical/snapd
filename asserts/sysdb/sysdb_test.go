@@ -50,13 +50,13 @@ func (sdbs *sysDBSuite) SetUpTest(c *C) {
 
 	signingDB := assertstest.NewSigningDB("can0nical", pk)
 
-	trustedAcct := assertstest.NewAccount(signingDB, "can0nical", map[string]string{
+	trustedAcct := assertstest.NewAccount(signingDB, "can0nical", map[string]interface{}{
 		"account-id": "can0nical",
 		"validation": "certified",
 		"timestamp":  "2015-11-20T15:04:00Z",
 	}, "")
 
-	trustedAccKey := assertstest.NewAccountKey(signingDB, trustedAcct, map[string]string{
+	trustedAccKey := assertstest.NewAccountKey(signingDB, trustedAcct, map[string]interface{}{
 		"account-id": "can0nical",
 		"since":      "2015-11-20T15:04:00Z",
 		"until":      "2500-11-20T15:04:00Z",
