@@ -367,6 +367,17 @@ const mockSinglePurchaseJSON = `
 }
 `
 
+const mockSinglePurchaseInteractiveJSON = `
+{
+  "open_id": "https://login.staging.ubuntu.com/+id/open_id",
+  "package_name": "hello-world.canonical",
+  "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+  "refundable_until": "2015-07-15 18:46:21",
+  "state": "InProgress",
+  "redirect_to": "/api/2.0/click/checkout/75733/?currency=EUR&method=0&backend=rest_paypal"
+}
+`
+
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
@@ -2038,6 +2049,85 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 	c.Check(result.PartnerID, Equals, "")
 	c.Check(result.RedirectTo, Equals, "")
 	c.Assert(err, IsNil)
+
+	c.Check(searchServerCalled, Equals, true)
+	c.Check(purchaseServerGetCalled, Equals, true)
+	c.Check(purchaseServerPostCalled, Equals, true)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuyInteractive(c *C) {
+	searchServerCalled := false
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Method, Equals, "GET")
+		c.Check(r.URL.Path, Equals, "/hello-world")
+		w.Header().Set("Content-Type", "application/hal+json")
+		w.Header().Set("X-Suggested-Currency", "EUR")
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, MockDetailsJSON)
+		searchServerCalled = true
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	purchaseServerGetCalled := false
+	purchaseServerPostCalled := false
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
+			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
+			io.WriteString(w, "{}")
+			purchaseServerGetCalled = true
+		case "POST":
+			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			c.Check(r.Header.Get("Content-Type"), Equals, "application/json")
+			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
+			jsonReq, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(jsonReq), Equals, "{\"snap_id\":\""+helloWorldSnapID+"\",\"amount\":0.99,\"currency\":\"EUR\",\"backend_id\":\"paypal_rest\",\"method_id\":234}")
+			io.WriteString(w, mockSinglePurchaseInteractiveJSON)
+			purchaseServerPostCalled = true
+		default:
+			c.Error("Unexpected request method: ", r.Method)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL)
+	c.Assert(err, IsNil)
+	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		DetailsURI:   detailsURI,
+		PurchasesURI: purchasesURI,
+	}
+	repo := New(&cfg, "", nil)
+	c.Assert(repo, NotNil)
+
+	// Find the snap first
+	snap, err := repo.Snap("hello-world", "edge", false, t.user)
+	c.Assert(err, IsNil)
+
+	// Now buy the snap using the suggested currency
+	result, err := repo.Buy(&BuyOptions{
+		SnapID:   snap.SnapID,
+		SnapName: snap.Name(),
+		Currency: repo.SuggestedCurrency(),
+		Price:    snap.Prices[repo.SuggestedCurrency()],
+		User:     t.user,
+
+		BackendID: "paypal_rest",
+		MethodID:  234,
+	})
+
+	c.Assert(err, IsNil)
+	c.Assert(result, NotNil)
+	c.Check(result.State, Equals, "InProgress")
+	c.Check(result.PartnerID, Equals, "")
+	c.Check(result.RedirectTo, Equals, mockPurchasesServer.URL+"/api/2.0/click/checkout/75733/?currency=EUR&method=0&backend=rest_paypal")
 
 	c.Check(searchServerCalled, Equals, true)
 	c.Check(purchaseServerGetCalled, Equals, true)
