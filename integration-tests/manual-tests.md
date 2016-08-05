@@ -198,3 +198,59 @@ $ snap remove bluez
    and verify it actually passes. If some of the tests fail
    there will be a problem with the particular kernel used on
    the device.
+
+# Test systemd-control interface
+
+1. Create a simple example snap which uses the systemd-control
+   interface:
+
+```yaml
+name: systemd-control-example
+version: 1
+summary: Simple snap to demonstrate systemd-control interface use
+description: |
+  Simple snap that ships a small script which utilises the systemd-control
+  interface to talk with systemd.
+confinement: strict
+apps:
+  status:
+    command: bin/system-status
+    plugs: [systemd-control]
+parts:
+  system-status:
+    plugin: copy
+    files:
+      system-status: bin/system-status
+```
+
+The system-status script has the following content
+
+```
+#!/bin/sh
+/bin/systemctl status --no-pager
+```
+
+2. Install the snap and connect its plug 
+
+```
+$ snap install systemd-control-example
+$ snap connect systemd-control-example:systemd-control ubuntu-core:systemd-control
+```
+
+3. Run the status app from the snap
+
+```
+$ systemd-control-example.status
+● nirvana
+    State: degraded
+     Jobs: 0 queued
+   Failed: 1 units
+    Since: Do 2016-08-04 09:16:07 CEST; 1 day 4h ago
+   CGroup: /
+           ├─3743 /sbin/cgmanager -m name=systemd
+           ├─init.scope
+           │ └─1 /sbin/init splash
+...
+```
+
+Verify the command prints out the current system status.

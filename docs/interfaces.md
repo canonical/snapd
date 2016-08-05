@@ -223,3 +223,10 @@ Allow to manage the kernel side Bluetooth stack.
 
 Usage: reserved
 Auto-Connect: no
+
+### systemd-control
+
+Allow to manage systemd (services, system reboot/halt/shutdown)
+
+Usage: reserved
+Auto-Connect: no
