@@ -26,7 +26,7 @@ import (
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/log-observe
-const browserConnectedPlugAppArmor = `
+const browserSupportConnectedPlugAppArmor = `
 # Description: Can access various APIs needed by modern browers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
@@ -53,7 +53,7 @@ deny dbus (send)
     interface="org.gnome.GConf.Server",
 `
 
-const browserConnectedPlugAppArmorWithoutSandbox = `
+const browserSupportConnectedPlugAppArmorWithoutSandbox = `
 # ptrace can be used to break out of the seccomp sandbox, but ps requests
 # 'ptrace (trace)' even though it isn't tracing other processes. Unfortunately,
 # this is due to the kernel overloading trace such that the LSMs are unable to
@@ -66,7 +66,7 @@ const browserConnectedPlugAppArmorWithoutSandbox = `
 deny ptrace (trace) peer=snap.@{SNAP_NAME}.**,
 `
 
-const browserConnectedPlugAppArmorWithSandbox = `
+const browserSupportConnectedPlugAppArmorWithSandbox = `
 # Leaks installed applications
 # TODO: should this be somewhere else?
 /etc/mailcap r,
@@ -107,7 +107,7 @@ owner @{PROC}/@{pid}/uid_map rw,
 owner @{PROC}/@{pid}/gid_map rw,
 `
 
-const browserConnectedPlugSecComp = `
+const browserSupportConnectedPlugSecComp = `
 # Description: Can access various APIs needed by modern browers (eg, Google
 # Chrome/Chromium and Mozilla) and file paths they expect. This interface is
 # transitional and is only in place while upstream's work to change their paths
@@ -123,7 +123,7 @@ listen
 setpriority
 `
 
-const browserConnectedPlugSecCompWithSandbox = `
+const browserSupportConnectedPlugSecCompWithSandbox = `
 # Policy needed only when using the chrome/chromium setuid sandbox
 chroot
 # TODO: fine-tune when seccomp arg filtering available in stable distro
@@ -136,17 +136,17 @@ unshare
 quotactl
 `
 
-type BrowserInterface struct{}
+type BrowserSupportInterface struct{}
 
-func (iface *BrowserInterface) Name() string {
-	return "browser"
+func (iface *BrowserSupportInterface) Name() string {
+	return "browser-support"
 }
 
-func (iface *BrowserInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *BrowserSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *BrowserInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
@@ -155,14 +155,14 @@ func (iface *BrowserInterface) SanitizePlug(plug *interfaces.Plug) error {
 	// it needs to be bool
 	if _, ok := plug.Attrs["allow-sandbox"]; ok {
 		if _, ok = plug.Attrs["allow-sandbox"].(bool); !ok {
-			return fmt.Errorf("browser plug requires bool with 'allow-sandbox'")
+			return fmt.Errorf("browser-support plug requires bool with 'allow-sandbox'")
 		}
 	}
 
 	return nil
 }
 
-func (iface *BrowserInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
@@ -171,7 +171,7 @@ func (iface *BrowserInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 	}
 }
 
-func (iface *BrowserInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
@@ -181,25 +181,22 @@ func (iface *BrowserInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 	}
 }
 
-func (iface *BrowserInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	allow_browser_sandbox := false
-	if _, ok := plug.Attrs["allow-sandbox"]; ok {
-		allow_browser_sandbox, _ = plug.Attrs["allow-sandbox"].(bool)
-	}
+func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	allowSandbox, _ := plug.Attrs["allow-sandbox"].(bool)
 
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := []byte(browserConnectedPlugAppArmor)
-		if allow_browser_sandbox {
-			snippet = append(snippet, browserConnectedPlugAppArmorWithSandbox...)
+		snippet := []byte(browserSupportConnectedPlugAppArmor)
+		if allowSandbox {
+			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithSandbox...)
 		} else {
-			snippet = append(snippet, browserConnectedPlugAppArmorWithoutSandbox...)
+			snippet = append(snippet, browserSupportConnectedPlugAppArmorWithoutSandbox...)
 		}
 		return snippet, nil
 	case interfaces.SecuritySecComp:
-		snippet := []byte(browserConnectedPlugSecComp)
-		if allow_browser_sandbox {
-			snippet = append(snippet, browserConnectedPlugSecCompWithSandbox...)
+		snippet := []byte(browserSupportConnectedPlugSecComp)
+		if allowSandbox {
+			snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
 		}
 		return snippet, nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
@@ -209,7 +206,7 @@ func (iface *BrowserInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 	}
 }
 
-func (iface *BrowserInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
@@ -218,6 +215,6 @@ func (iface *BrowserInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 	}
 }
 
-func (iface *BrowserInterface) AutoConnect() bool {
+func (iface *BrowserSupportInterface) AutoConnect() bool {
 	return true
 }
