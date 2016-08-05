@@ -7,7 +7,7 @@ execute: |
     echo "Ack the test store key"
     snap ack testrootorg-store.account-key
 
-    snap known account-key public-key-sha3-384=hkVpnRUvqv8Pma2cmjLkk7TpeUqrSduajRKZzR-iwggotFdaQ2Awgab5wl2NVopk | grep "^sign-key-sha3-384: hkVpnRUvqv8Pma2cmjLkk7TpeUqrSduajRKZzR-iwggotFdaQ2Awgab5wl2NVopk$"
+    snap known account-key public-key-sha3-384=vF8QJet0Gs6l5Z4vARXVYfVHuz9Dksfm3a1KKpl1iAOqSsohLop7cEsnqYYNRmx7 | grep "^sign-key-sha3-384: rpIu6dZXBZhPcDRJciue_j9iZgUZ38GzjgiUY8XaL0rvBDWvlXsOW0FWqlUIsN2x$"
 
     echo "Ack a developer account signed by that"
     snap ack developer1.account
