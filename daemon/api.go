@@ -189,11 +189,11 @@ var (
 	}
 )
 
-func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
+func tbd(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	return SyncResponse([]string{"TBD"}, nil)
 }
 
-func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+func sysInfo(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	m := map[string]interface{}{
 		"series":     release.Series,
 		"version":    c.d.Version,
@@ -216,7 +216,7 @@ type loginResponseData struct {
 
 var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 
-func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
+func loginUser(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	var loginData struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
@@ -305,7 +305,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(result, nil)
 }
 
-func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
+func logoutUser(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
@@ -357,7 +357,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 var muxVars = mux.Vars
 
-func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+func getSnapInfo(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
@@ -414,7 +414,7 @@ func getStore(c *Command) snapstate.StoreService {
 	return snapstate.Store(st)
 }
 
-func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
+func searchStore(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
@@ -431,7 +431,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 
 		if name[len(name)-1] != '*' {
-			return findOne(c, r, user, name)
+			return findOne(c, r, user, device, name)
 		}
 
 		prefix = true
@@ -447,7 +447,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 			if q != "" {
 				return BadRequest("cannot use 'q' with 'select=refresh'")
 			}
-			return storeUpdates(c, r, user)
+			return storeUpdates(c, r, user, device)
 		case "private":
 			private = true
 		}
@@ -458,7 +458,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		Query:   q,
 		Private: private,
 		Prefix:  prefix,
-	}, user)
+	}, user, device)
 	switch err {
 	case nil:
 		// pass
@@ -478,13 +478,13 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	return sendStorePackages(route, meta, found)
 }
 
-func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
+func findOne(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState, name string) Response {
 	if err := snap.ValidateName(name); err != nil {
 		return BadRequest(err.Error())
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", false, user)
+	snapInfo, err := theStore.Snap(name, "", false, user, device)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -525,7 +525,7 @@ func shouldSearchStore(r *http.Request) bool {
 	return false
 }
 
-func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
+func storeUpdates(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	route := c.d.router.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
@@ -563,7 +563,7 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	store := getStore(c)
-	updates, err := store.ListRefresh(candidatesInfo, user)
+	updates, err := store.ListRefresh(candidatesInfo, user, device)
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
@@ -592,11 +592,11 @@ func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Respons
 }
 
 // plural!
-func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 
 	if shouldSearchStore(r) {
 		logger.Noticef("jumping to \"find\" to better support legacy request %q", r.URL)
-		return searchStore(c, r, user)
+		return searchStore(c, r, user, device)
 	}
 
 	route := c.d.router.Get(snapCmd.Path)
@@ -841,7 +841,7 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 	return snapInstructionDispTable[inst.Action]
 }
 
-func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
+func postSnap(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -894,7 +894,7 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 
 const maxReadBuflen = 1024 * 1024
 
-func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, flags snapstate.Flags) Response {
+func trySnap(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState, trydir string, flags snapstate.Flags) Response {
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -938,7 +938,7 @@ func isTrue(form *multipart.Form, key string) bool {
 	return b
 }
 
-func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
+func sideloadSnap(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
@@ -970,7 +970,7 @@ func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 		if len(form.Value["snap-path"]) == 0 {
 			return BadRequest("need 'snap-path' value in form")
 		}
-		return trySnap(c, r, user, form.Value["snap-path"][0], flags)
+		return trySnap(c, r, user, device, form.Value["snap-path"][0], flags)
 	}
 
 	// find the file for the "snap" form field
@@ -1081,7 +1081,7 @@ func iconGet(st *state.State, name string) Response {
 	return FileResponse(path)
 }
 
-func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
+func appIconGet(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	vars := muxVars(r)
 	name := vars["name"]
 
@@ -1089,7 +1089,7 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 // getInterfaces returns all plugs and slots.
-func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+func getInterfaces(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	repo := c.d.overlord.InterfaceManager().Repository()
 	return SyncResponse(repo.Interfaces(), nil)
 }
@@ -1127,7 +1127,7 @@ type interfaceAction struct {
 // Plugs can be connected to and disconnected from slots.
 // When enableInternalInterfaceActions is true plugs and slots can also be
 // explicitly added and removed.
-func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
+func changeInterfaces(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	var a interfaceAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&a); err != nil {
@@ -1178,7 +1178,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
-func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
+func doAssert(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return BadRequest("reading assert request body gave %v", err)
@@ -1200,7 +1200,7 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 }
 
-func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response {
+func assertsFindMany(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	assertTypeName := muxVars(r)["assertType"]
 	assertType := asserts.Type(assertTypeName)
 	if assertType == nil {
@@ -1221,7 +1221,7 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	return AssertResponse(assertions, true)
 }
 
-func getEvents(c *Command, r *http.Request, user *auth.UserState) Response {
+func getEvents(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	return EventResponse(c.d.hub)
 }
 
@@ -1308,7 +1308,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	return chgInfo
 }
 
-func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
+func getChange(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	chID := muxVars(r)["id"]
 	state := c.d.overlord.State()
 	state.Lock()
@@ -1321,7 +1321,7 @@ func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(change2changeInfo(chg), nil)
 }
 
-func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
+func getChanges(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	query := r.URL.Query()
 	qselect := query.Get("select")
 	if qselect == "" {
@@ -1376,7 +1376,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(chgInfos, nil)
 }
 
-func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
+func abortChange(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	chID := muxVars(r)["id"]
 	state := c.d.overlord.State()
 	state.Lock()
@@ -1418,7 +1418,7 @@ var (
 	osutilAddExtraUser           = osutil.AddExtraUser
 )
 
-func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
+func postCreateUser(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
@@ -1461,7 +1461,7 @@ type buyResponseData struct {
 	State string `json:"state,omitempty"`
 }
 
-func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+func postBuy(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	var opts store.BuyOptions
 
 	decoder := json.NewDecoder(r.Body)
@@ -1470,6 +1470,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
+	opts.Device = device
 	opts.User = user
 	s := getStore(c)
 
@@ -1492,10 +1493,10 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
 }
 
-func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
+func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 	s := getStore(c)
 
-	paymentMethods, err := s.PaymentMethods(user)
+	paymentMethods, err := s.PaymentMethods(user, device)
 
 	switch err {
 	default:

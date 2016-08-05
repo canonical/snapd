@@ -72,7 +72,7 @@ func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func mkRF(c *check.C, cmd *Command, mck *mockHandler) ResponseFunc {
-	return func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
+	return func(innerCmd *Command, req *http.Request, user *auth.UserState, device *auth.DeviceState) Response {
 		c.Assert(cmd, check.Equals, innerCmd)
 		return mck
 	}

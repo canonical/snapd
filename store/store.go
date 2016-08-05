@@ -362,8 +362,8 @@ type requestOptions struct {
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
-func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	req, err := s.newRequest(reqOptions, user)
+func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, device *auth.DeviceState) (*http.Response, error) {
+	req, err := s.newRequest(reqOptions, user, device)
 	if err != nil {
 		return nil, err
 	}
@@ -387,7 +387,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 				return nil, err
 			}
 		}
-		req, err := s.newRequest(reqOptions, user)
+		req, err := s.newRequest(reqOptions, user, device)
 		if err != nil {
 			return nil, err
 		}
@@ -397,7 +397,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 }
 
 // build a new http.Request with headers for the store
-func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
+func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState, device *auth.DeviceState) (*http.Request, error) {
 	var body io.Reader
 	if reqOptions.Data != nil {
 		body = bytes.NewBuffer(reqOptions.Data)
@@ -482,7 +482,7 @@ type purchase struct {
 	RedirectTo      string `json:"redirect_to,omitempty"`
 }
 
-func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) ([]*purchase, error) {
+func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState, device *auth.DeviceState) ([]*purchase, error) {
 	if user == nil {
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
@@ -492,7 +492,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		URL:    url,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user, device)
 	if err != nil {
 		return nil, err
 	}
@@ -535,7 +535,7 @@ func hasPriced(snaps []*snap.Info) bool {
 }
 
 // decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
-func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth.UserState) error {
+func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth.UserState, device *auth.DeviceState) error {
 	// Mark every non-free snap as must buy until we know better.
 	setMustBuy(snaps)
 
@@ -564,7 +564,7 @@ func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth
 		purchasesURL = s.purchasesURI
 	}
 
-	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, user)
+	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, user, device)
 	if err != nil {
 		return err
 	}
@@ -603,7 +603,7 @@ func mustBuy(prices map[string]float64, purchases []*purchase) bool {
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState, device *auth.DeviceState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(name)
 	if err != nil {
 		return nil, err
@@ -629,7 +629,7 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 		URL:    u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user, device)
 	if err != nil {
 		return nil, err
 	}
@@ -655,7 +655,7 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 
 	info := infoFromRemote(remote)
 
-	err = s.decoratePurchases([]*snap.Info{info}, channel, user)
+	err = s.decoratePurchases([]*snap.Info{info}, channel, user, device)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
@@ -674,7 +674,7 @@ type Search struct {
 
 // Find finds  (installable) snaps from the store, matching the
 // given Search.
-func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error) {
+func (s *Store) Find(search *Search, user *auth.UserState, device *auth.DeviceState) ([]*snap.Info, error) {
 	searchTerm := search.Query
 
 	if search.Private && user == nil {
@@ -724,7 +724,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user, device)
 	if err != nil {
 		return nil, err
 	}
@@ -750,7 +750,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, "", user)
+	err = s.decoratePurchases(snaps, "", user, device)
 	if err != nil {
 		logger.Noticef("cannot get user purchases: %v", err)
 	}
@@ -793,7 +793,7 @@ type metadataWrapper struct {
 }
 
 // ListRefresh returns the available updates for a list of snap identified by fullname with channel.
-func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState) (snaps []*snap.Info, err error) {
+func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState, device *auth.DeviceState) (snaps []*snap.Info, err error) {
 
 	candidateMap := map[string]*RefreshCandidate{}
 	currentSnaps := make([]currentSnapJson, 0, len(installed))
@@ -839,7 +839,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user, device)
 	if err != nil {
 		return nil, err
 	}
@@ -890,7 +890,7 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // filename.
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
-func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, device *auth.DeviceState) (path string, err error) {
 	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
@@ -910,7 +910,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	if err := download(name, url, user, s, w, pbar); err != nil {
+	if err := download(name, url, user, device, s, w, pbar); err != nil {
 		return "", err
 	}
 
@@ -918,7 +918,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+var download = func(name, downloadURL string, user *auth.UserState, device *auth.DeviceState, s *Store, w io.Writer, pbar progress.Meter) error {
 	client := &http.Client{}
 
 	storeURL, err := url.Parse(downloadURL)
@@ -930,7 +930,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		Method: "GET",
 		URL:    storeURL,
 	}
-	resp, err := s.doRequest(client, reqOptions, user)
+	resp, err := s.doRequest(client, reqOptions, user, device)
 	if err != nil {
 		return err
 	}
@@ -960,7 +960,7 @@ type assertionSvcError struct {
 }
 
 // Assertion retrivies the assertion for the given type and primary key.
-func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState, device *auth.DeviceState) (asserts.Assertion, error) {
 	url, err := s.assertionsURI.Parse(path.Join(assertType.Name, path.Join(primaryKey...)))
 	if err != nil {
 		return nil, err
@@ -971,7 +971,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    url,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user, device)
 	if err != nil {
 		return nil, err
 	}
@@ -1011,11 +1011,12 @@ func (s *Store) SuggestedCurrency() string {
 // BuyOptions specifies parameters for store purchases.
 type BuyOptions struct {
 	// Required
-	SnapID   string          `json:"snap-id"`
-	SnapName string          `json:"snap-name"`
-	Price    float64         `json:"price"`
-	Currency string          `json:"currency"` // ISO 4217 code as string
-	User     *auth.UserState `json:"-"`
+	SnapID   string            `json:"snap-id"`
+	SnapName string            `json:"snap-name"`
+	Price    float64           `json:"price"`
+	Currency string            `json:"currency"` // ISO 4217 code as string
+	User     *auth.UserState   `json:"-"`
+	Device   *auth.DeviceState `json:"-"`
 
 	// Optional
 	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
@@ -1095,7 +1096,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, options.User)
+	resp, err := s.doRequest(s.client, reqOptions, options.User, options.Device)
 	if err != nil {
 		return nil, err
 	}
@@ -1177,13 +1178,13 @@ type PaymentInformation struct {
 }
 
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
-func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
+func (s *Store) PaymentMethods(user *auth.UserState, device *auth.DeviceState) (*PaymentInformation, error) {
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    s.paymentMethodsURI,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user, device)
 	if err != nil {
 		return nil, err
 	}
