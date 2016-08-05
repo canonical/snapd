@@ -122,6 +122,22 @@ func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, e
 	return date, nil
 }
 
+func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, defl time.Time) (time.Time, error) {
+	value, ok := headers[name]
+	if !ok {
+		return defl, nil
+	}
+	dateStr, ok := value.(string)
+	if !ok {
+		return time.Time{}, fmt.Errorf("%q header must be a string", name)
+	}
+	date, err := time.Parse(time.RFC3339, dateStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%q header is not a RFC3339 date: %v", name, err)
+	}
+	return date, nil
+}
+
 func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64, error) {
 	valueStr, err := checkNotEmptyString(headers, name)
 	if err != nil {
