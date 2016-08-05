@@ -73,6 +73,13 @@ hooks:
  apply-config:
 `)
 
+var binaryTemplate = `#!/bin/sh
+echo "$(basename $0)" >> %[1]q
+for arg in "$@"; do
+echo "$arg" >> %[1]q
+done
+printf "\n" >> %[1]q`
+
 func (s *snapExecSuite) TestInvalidCombinedParameters(c *C) {
 	invalidParameters := []string{"--hook=hook-name", "--command=command-name", "snap-name"}
 	_, _, err := parseArgs(invalidParameters)
@@ -209,24 +216,12 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
 	script := filepath.Join(dirs.GlobalRootDir, "/snap/snapname/42/run-app")
-	err := ioutil.WriteFile(script, []byte(fmt.Sprintf(""+
-		"#!/bin/sh\n"+
-		"echo \"$(basename \"$0\")\" >> %[1]q\n"+
-		"for arg in \"$@\"; do\n"+
-		"    echo \"$arg\" >> %[1]q\n"+
-		"done\n"+
-		"printf \"\\n\" >> %[1]q\n", canaryFile)), 0755)
+	err := ioutil.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755)
 	c.Assert(err, IsNil)
 
 	// we can not use the real syscall.execv here because it would
 	// replace the entire test :)
-	syscallExec = func(argv0 string, argv []string, env []string) error {
-		cmd := exec.Command(argv[0], argv[1:]...)
-		cmd.Env = env
-		output, err := cmd.CombinedOutput()
-		c.Assert(output, HasLen, 0)
-		return err
-	}
+	syscallExec = actuallyExec
 
 	// run it
 	os.Args = []string{"snap-exec", "snapname.app", "foo", "--bar=baz", "foobar"}
@@ -259,26 +254,14 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 		Revision: snap.R("42"),
 	})
 	hookPath := filepath.Join("meta", "hooks", "apply-config")
-	hookPathAndContents := []string{hookPath, fmt.Sprintf(""+
-		"#!/bin/sh\n"+
-		"echo \"$(basename \"$0\")\" >> %[1]q\n"+
-		"for arg in \"$@\"; do\n"+
-		"    echo \"$arg\" >> %[1]q\n"+
-		"done\n"+
-		"printf \"\\n\" >> %[1]q\n", canaryFile)}
+	hookPathAndContents := []string{hookPath, fmt.Sprintf(binaryTemplate, canaryFile)}
 	snaptest.PopulateDir(testSnap.MountDir(), [][]string{hookPathAndContents})
 	hookPath = filepath.Join(testSnap.MountDir(), hookPath)
 	c.Assert(os.Chmod(hookPath, 0755), IsNil)
 
 	// we can not use the real syscall.execv here because it would
 	// replace the entire test :)
-	syscallExec = func(argv0 string, argv []string, env []string) error {
-		cmd := exec.Command(argv[0], argv[1:]...)
-		cmd.Env = env
-		output, err := cmd.CombinedOutput()
-		c.Assert(output, HasLen, 0)
-		return err
-	}
+	syscallExec = actuallyExec
 
 	// run it
 	os.Args = []string{"snap-exec", "--hook=apply-config", "snapname"}
@@ -287,7 +270,15 @@ func (s *snapExecSuite) TestSnapExecHookRealIntegration(c *C) {
 
 	output, err := ioutil.ReadFile(canaryFile)
 	c.Assert(err, IsNil)
-	c.Assert(string(output), Equals, `apply-config
+	c.Assert(string(output), Equals, "apply-config\n\n")
+}
 
-`)
+func actuallyExec(argv0 string, argv []string, env []string) error {
+	cmd := exec.Command(argv[0], argv[1:]...)
+	cmd.Env = env
+	output, err := cmd.CombinedOutput()
+	if len(output) > 0 {
+		return fmt.Errorf("Expected output length to be 0, it was %d", len(output))
+	}
+	return err
 }
