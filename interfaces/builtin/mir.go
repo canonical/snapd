@@ -28,9 +28,8 @@ var mirPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the Mir server. Reserved because this
 # gives privileged access to the system.
 # Usage: reserved
-capability dac_override,
+# needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
-capability sys_admin,
 unix (receive, send) type=seqpacket addr=none,
 /dev/dri/card0 rw,
 /dev/shm/\#* rw,
@@ -64,15 +63,14 @@ var mirConnectedSlotAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
 unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS###),
-/run/mir_socket rw,
-/run/user/[0-9]*/mir_socket rw,
+#/run/mir_socket rw,
+#/run/user/[0-9]*/mir_socket rw,
 `)
 
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
 # Usage: reserved
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
-/usr/share/applications/ r,
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
 /dev/dri/card0 rw,
@@ -150,9 +148,7 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp:
-		return mirConnectedSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
+	case interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
