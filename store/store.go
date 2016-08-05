@@ -303,8 +303,8 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 	}
 }
 
-// authenticate will add the store expected Authorization header for macaroons
-func authenticate(r *http.Request, user *auth.UserState) {
+// authenticateUser will add the store expected Macaroon Authorization header for user
+func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
 
@@ -350,6 +350,22 @@ func refreshMacaroon(user *auth.UserState) error {
 		}
 	}
 	return nil
+}
+
+// authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
+func (s *Store) authenticateDevice(r *http.Request) {
+	if s.authContext != nil {
+		device, err := s.authContext.Device()
+		if err != nil {
+			logger.Debugf("cannot get device from state: %v", err)
+			return
+		}
+		if device != nil && device.SessionMacaroon != "" {
+			var buf bytes.Buffer
+			fmt.Fprintf(&buf, `Macaroon root="%s"`, device.SessionMacaroon)
+			r.Header.Set("X-Device-Authorization", buf.String())
+		}
+	}
 }
 
 // requestOptions specifies parameters for store requests.
@@ -408,8 +424,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
+	s.authenticateDevice(req)
 	if user != nil {
-		authenticate(req, user)
+		authenticateUser(req, user)
 	}
 
 	req.Header.Set("User-Agent", userAgent)

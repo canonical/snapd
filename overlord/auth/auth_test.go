@@ -313,3 +313,42 @@ func (as *authSuite) TestAuthContextUpdateUserInvalid(c *C) {
 	err := authContext.UpdateUser(user)
 	c.Assert(err, ErrorMatches, "invalid user")
 }
+
+func (as *authSuite) TestAuthContextDeviceForNonExistent(c *C) {
+	authContext := auth.NewAuthContext(as.state)
+
+	device, err := authContext.Device()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{})
+}
+
+func (as *authSuite) TestAuthContextDevice(c *C) {
+	device := &auth.DeviceState{Brand: "some-brand"}
+	as.state.Lock()
+	err := auth.SetDevice(as.state, device)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	authContext := auth.NewAuthContext(as.state)
+
+	deviceFromState, err := authContext.Device()
+	c.Check(err, IsNil)
+	c.Check(deviceFromState, DeepEquals, device)
+}
+
+func (as *authSuite) TestAuthContextUpdateDevice(c *C) {
+	as.state.Lock()
+	device, err := auth.Device(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(device, DeepEquals, &auth.DeviceState{})
+
+	authContext := auth.NewAuthContext(as.state)
+	device.SessionMacaroon = "the-device-macaroon"
+	err = authContext.UpdateDevice(device)
+	c.Check(err, IsNil)
+
+	deviceFromState, err := authContext.Device()
+	c.Check(err, IsNil)
+	c.Check(deviceFromState, DeepEquals, device)
+}
