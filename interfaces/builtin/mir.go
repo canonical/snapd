@@ -90,16 +90,6 @@ sendmsg
 sendto
 `)
 
-var mirConnectedSlotSecComp = []byte(`
-# Description: Permit clients to use Mir
-# Usage: reserved
-getsockname
-open
-recvmsg
-sendmsg
-sendto
-`)
-
 type MirInterface struct{}
 
 func (iface *MirInterface) Name() string {
