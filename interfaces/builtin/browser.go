@@ -151,11 +151,11 @@ func (iface *BrowserInterface) SanitizePlug(plug *interfaces.Plug) error {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
 
-	// It's fine if allow-browser-sandbox isn't specified, but it it is,
+	// It's fine if allow-sandbox isn't specified, but it it is,
 	// it needs to be bool
-	if _, ok := plug.Attrs["allow-browser-sandbox"]; ok {
-		if _, ok = plug.Attrs["allow-browser-sandbox"].(bool); !ok {
-			return fmt.Errorf("browser plug requires bool with 'allow-browser-sandbox'")
+	if _, ok := plug.Attrs["allow-sandbox"]; ok {
+		if _, ok = plug.Attrs["allow-sandbox"].(bool); !ok {
+			return fmt.Errorf("browser plug requires bool with 'allow-sandbox'")
 		}
 	}
 
@@ -183,8 +183,8 @@ func (iface *BrowserInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 
 func (iface *BrowserInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	allow_browser_sandbox := false
-	if _, ok := plug.Attrs["allow-browser-sandbox"]; ok {
-		allow_browser_sandbox, _ = plug.Attrs["allow-browser-sandbox"].(bool)
+	if _, ok := plug.Attrs["allow-sandbox"]; ok {
+		allow_browser_sandbox, _ = plug.Attrs["allow-sandbox"].(bool)
 	}
 
 	switch securitySystem {

@@ -111,12 +111,14 @@ Auto-Connect: no
 
 Can access files and IPC needed by modern browsers. This interface is
 intended to be used when using an embedded Chromium Content API or using the
-sandboxes in major browsers from vendors like Google and Mozilla.
+sandboxes in major browsers from vendors like Google and Mozilla. The
+``allow-sandbox`` attribute may be used to give the necessary access to use
+the browser's sandbox functionality.
 
 Usage: reserved
 Auto-Connect: yes
 Attributes:
-- allow-browser-sandbox: true|false (defaults to ``false``)
+- allow-sandbox: true|false (defaults to ``false``)
 
 ### cups-control
 
