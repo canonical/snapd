@@ -19,11 +19,11 @@ restore: |
 execute: |
     echo "When a temporary file is created by one snap"
     test-snapd-tools.cmd touch /tmp/foo
-    stat /tmp/foo | grep -Pqz "(?s)File: '/tmp/foo'.*?Size: 0"
+    test-snapd-tools.cmd stat /tmp/foo | grep -Pqz "(?s)File: '/tmp/foo'.*?Size: 0"
 
     echo "Then that file is not accessible by the other snap"
     if not-test-snapd-tools.cmd stat /tmp/foo 2>stat.error; then
         echo "Expected error not present"
         exit 1
     fi
-    cat stat.error | grep -q "stat: cannot stat '/tmp/foo': No such file or directory"
+    grep -q "stat: cannot stat '/tmp/foo': No such file or directory" stat.error
