@@ -14,16 +14,22 @@ prepare: |
 
 restore: |
     rm -f test-snapd-tools_1.0_all.snap not-test-snapd-tools_1.0_all.snap \
-          $SNAP_INSTALL_DIR /tmp/foo stat.error
+          $SNAP_INSTALL_DIR /tmp/foo *stat.error
 
 execute: |
     echo "When a temporary file is created by one snap"
-    test-snapd-tools.cmd touch /tmp/foo
-    test-snapd-tools.cmd stat /tmp/foo | grep -Pqz "(?s)File: '/tmp/foo'.*?Size: 0"
+    expect -f tmp-create.exp
 
-    echo "Then that file is not accessible by the other snap"
-    if not-test-snapd-tools.cmd stat /tmp/foo 2>stat.error; then
+    echo "Then that file is not accessible from other calls of commands from the same snap"
+    if test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
         echo "Expected error not present"
         exit 1
     fi
-    grep -q "stat: cannot stat '/tmp/foo': No such file or directory" stat.error
+    grep -q "stat: cannot stat '/tmp/foo': No such file or directory" same-stat.error
+
+    echo "And that file is not accessible by other snaps"
+    if not-test-snapd-tools.cmd stat /tmp/foo 2>other-stat.error; then
+        echo "Expected error not present"
+        exit 1
+    fi
+    grep -q "stat: cannot stat '/tmp/foo': No such file or directory" other-stat.error
