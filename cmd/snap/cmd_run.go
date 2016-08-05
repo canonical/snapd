@@ -186,7 +186,6 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		securityTag,
 		securityTag,
 		"/usr/lib/snapd/snap-exec",
-		snapApp,
 	}
 
 	if command != "" {
@@ -197,6 +196,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		cmd = append(cmd, "--hook="+hook)
 	}
 
+	// snap-exec is POSIXly-- options must come before positionals.
+	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
 	env := append(os.Environ(), snapExecEnv(info)...)
