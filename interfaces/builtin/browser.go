@@ -100,6 +100,11 @@ capability fsetid,
 capability setgid,
 capability setuid,
 capability sys_chroot,
+
+# User namespace sandbox
+owner @{PROC}/@{pid}/setgroups rw,
+owner @{PROC}/@{pid}/uid_map rw,
+owner @{PROC}/@{pid}/gid_map rw,
 `
 
 const browserConnectedPlugSecComp = `
