@@ -206,12 +206,12 @@ func (s *hookManagerSuite) TestSetHookData(c *C) {
 func (s *hookManagerSuite) TestGetHookDataFailsWithoutActiveHook(c *C) {
 	data, err := s.manager.GetHookData(1, "foo")
 	c.Check(data, IsNil)
-	c.Check(err, ErrorMatches, ".*no hook with ID 1.*")
+	c.Check(err, ErrorMatches, ".*no handler with ID 1.*")
 }
 
 func (s *hookManagerSuite) TestSetHookDataFailsWithoutActiveHook(c *C) {
 	err := s.manager.SetHookData(1, "foo", map[string]interface{}{"bar": "baz"})
-	c.Check(err, ErrorMatches, ".*no hook with ID 1.*")
+	c.Check(err, ErrorMatches, ".*no handler with ID 1.*")
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {

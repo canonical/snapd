@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
-	"sync"
 
 	"gopkg.in/tomb.v2"
 
@@ -44,29 +43,7 @@ type HookManager struct {
 	runner     *state.TaskRunner
 	repository *repository
 
-	lastHookID      int
-	lastHookIDMutex sync.Mutex
-
-	activeHandlers      map[int]Handler
-	activeHandlersMutex sync.RWMutex
-}
-
-// Handler is the interface a client must satify to handle hooks.
-type Handler interface {
-	// Before is called right before the hook is to be run.
-	Before() error
-
-	// Done is called right after the hook has finished successfully.
-	Done() error
-
-	// Error is called if the hook encounters an error while running.
-	Error(err error) error
-
-	// Get this hook's data that is associated with the given key.
-	Get(key string) (map[string]interface{}, error)
-
-	// Set this hook's data that is associated with the given key.
-	Set(key string, data map[string]interface{}) error
+	activeHandlers *HandlerCollection
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
@@ -86,7 +63,7 @@ func Manager(s *state.State) (*HookManager, error) {
 		state:          s,
 		runner:         runner,
 		repository:     newRepository(),
-		activeHandlers: make(map[int]Handler),
+		activeHandlers: NewHandlerCollection(),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -130,48 +107,12 @@ func (m *HookManager) Stop() {
 
 // GetHookData obtains the data that a specific hook instance has associated with the given key.
 func (m *HookManager) GetHookData(hookID int, key string) (map[string]interface{}, error) {
-	m.activeHandlersMutex.RLock()
-	defer m.activeHandlersMutex.RUnlock()
-
-	if handler, ok := m.activeHandlers[hookID]; ok {
-		return handler.Get(key)
-	}
-
-	return nil, fmt.Errorf("no hook with ID %d", hookID)
+	return m.activeHandlers.GetHandlerData(hookID, key)
 }
 
 // SetHookData sets the data that a specific hook instance has associated with the given key.
 func (m *HookManager) SetHookData(hookID int, key string, data map[string]interface{}) error {
-	m.activeHandlersMutex.RLock()
-	defer m.activeHandlersMutex.RUnlock()
-
-	if handler, ok := m.activeHandlers[hookID]; ok {
-		return handler.Set(key, data)
-	}
-
-	return fmt.Errorf("no hook with ID %d", hookID)
-}
-
-func (m *HookManager) getNextHookTaskID() int {
-	m.lastHookIDMutex.Lock()
-	defer m.lastHookIDMutex.Unlock()
-
-	m.lastHookID++
-	return m.lastHookID
-}
-
-func (m *HookManager) addActiveHandler(id int, handler Handler) {
-	m.activeHandlersMutex.Lock()
-	defer m.activeHandlersMutex.Unlock()
-
-	m.activeHandlers[id] = handler
-}
-
-func (m *HookManager) removeActiveHandler(id int) {
-	m.activeHandlersMutex.Lock()
-	defer m.activeHandlersMutex.Unlock()
-
-	delete(m.activeHandlers, id)
+	return m.activeHandlers.SetHandlerData(hookID, key, data)
 }
 
 // doRunHook actually runs the hook that was requested.
@@ -207,9 +148,8 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	// the handler with which it needs to communicate. We generate a unique ID
 	// per hook instance here and associate it with the handler in order to
 	// solve that problem.
-	hookID := m.getNextHookTaskID()
-	m.addActiveHandler(hookID, handler)
-	defer m.removeActiveHandler(hookID)
+	hookID := m.activeHandlers.AddHandler(handler)
+	defer m.activeHandlers.RemoveHandler(hookID)
 
 	// About to run the hook-- notify the handler
 	if err = handler.Before(); err != nil {
