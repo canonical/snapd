@@ -55,3 +55,24 @@ func AddExtraUser(name string, sshKeys []string) error {
 
 	return nil
 }
+
+// RealUser finds the user behind a sudo invocation, if applicable and possible.
+func RealUser() (*user.User, error) {
+	cur, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+
+	realName := os.Getenv("SUDO_USER")
+	if realName == "" {
+		// not sudo; current is correct
+		return cur, nil
+	}
+
+	real, err := user.Lookup(realName)
+	if err != nil {
+		return nil, err
+	}
+
+	return real, nil
+}
