@@ -61,5 +61,5 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 
 func (s *createUserSuite) TestAddExtraSudoUserInvalid(c *check.C) {
 	err := osutil.AddExtraSudoUser("k!", nil, "my gecos")
-	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid charackters`)
+	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid characters`)
 }
