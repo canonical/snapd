@@ -36,7 +36,7 @@ type createUserSuite struct {
 
 var _ = check.Suite(&createUserSuite{})
 
-func (s *createUserSuite) TestAddExtraUser(c *check.C) {
+func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 	mockHome := c.MkDir()
 	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
 		return &user.User{
@@ -48,12 +48,17 @@ func (s *createUserSuite) TestAddExtraUser(c *check.C) {
 	mc := testutil.MockCommand(c, "adduser", "true")
 	defer mc.Restore()
 
-	err := osutil.AddExtraUser("karl", []string{"ssh-key1", "ssh-key2"})
+	err := osutil.AddExtraSudoUser("karl", []string{"ssh-key1", "ssh-key2"}, "my gecos")
 	c.Assert(err, check.IsNil)
 	c.Check(mc.Calls(), check.DeepEquals, [][]string{
-		{"adduser", "--gecos", "created by snapd", "--extrausers", "--disabled-password", "karl"},
+		{"adduser", "--force-badname", "--gecos", "my gecos", "--extrausers", "--disabled-password", "--add_extra_groups", "sudo", "karl"},
 	})
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
 	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
+}
+
+func (s *createUserSuite) TestAddExtraSudoUserInvalid(c *check.C) {
+	err := osutil.AddExtraSudoUser("k!", nil, "my gecos")
+	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid characters`)
 }
