@@ -107,8 +107,9 @@ func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, *auth.Us
 	panic("Download not expected to be called")
 }
 
-func (s *apiSuite) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
 	s.buyOptions = options
+	s.user = user
 	return s.buyResult, s.err
 }
 
@@ -3141,8 +3142,8 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 		SnapName: "the snap name",
 		Price:    1.23,
 		Currency: "EUR",
-		User:     user,
 	})
+	c.Check(s.user, check.Equals, user)
 }
 
 func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
@@ -3174,8 +3175,8 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 		SnapID:   "the-snap-id-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
-		User:     user,
 	})
+	c.Check(s.user, check.Equals, user)
 }
 
 func (s *apiSuite) TestIsTrue(c *check.C) {
