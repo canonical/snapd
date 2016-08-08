@@ -99,8 +99,8 @@ func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 	case interfaces.SecurityAppArmor:
 		path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
 		// Entries in /sys/class/gpio for single GPIO's are just symlinks
-		// to their correct device part in the sysfs tree. As AppArmor
-		// does not handle symlinks we need to dereference the GPIO
+		// to their correct device part in the sysfs tree. Given AppArmor
+		// requires symlinks to be dereferenced, evaluate the GPIO
 		// path and add the correct absolute path to the AppArmor snippet.
 		dereferencedPath, err := evalSymlinks(path)
 		if err != nil {
@@ -126,13 +126,29 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// We need to export the GPIO so that it becomes as entry in sysfs
 	// available and we can assign it to a connecting plug.
-	number := []byte(strconv.Itoa(slot.Attrs["number"].(int)))
-	fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
-	defer fileExport.Close()
-	if err != nil {
-		return nil, err
+	numAttr, ok := slot.Attrs["number"]
+	if !ok {
+		return nil, fmt.Errorf("Failed to get number attribute")
 	}
-	fileExport.Write(number)
+	numInt, ok := numAttr.(int)
+	if !ok {
+		return nil, fmt.Errorf("Number attribute not an int")
+	}
+	numBytes := []byte(strconv.Itoa(numInt))
+
+	// Check if the gpio symlink is present, if not it needs exporting. Attempting
+	// to export a gpio again will cause an error on the Write() call
+	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, numAttr)); os.IsNotExist(err) {
+		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
+		if err != nil {
+			return nil, err
+		}
+		defer fileExport.Close()
+		_, err = fileExport.Write(numBytes)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
@@ -144,7 +160,7 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	}
 }
 
-// AutoConnect - this interface does not auto-connect
+// AutoConnect returns whether interface should be auto-connected by default
 func (iface *GpioInterface) AutoConnect() bool {
 	return false
 }
