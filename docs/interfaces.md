@@ -252,12 +252,11 @@ Can configure network firewalling giving privileged access to networking.
 
 * Auto-Connect: no
 
-### fuse
+### fuse-support
 
 Can mount fuse filesystems (as root only).
 
-Usage: common
-Auto-Connect: yes
+* Auto-Connect: no
 
 ### hardware-observe
 
