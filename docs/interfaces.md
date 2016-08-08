@@ -255,6 +255,12 @@ Can query hardware information from the system.
 
 * Auto-Connect: no
 
+### kernel-module-control
+
+Can insert kernel modules. This interface gives privileged access to the device.
+
+* Auto-Connect: no
+
 ### locale-control
 
 Can manage locales directly separate from ``config core``.
