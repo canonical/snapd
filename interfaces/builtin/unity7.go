@@ -249,21 +249,21 @@ dbus (send)
 # dbusmenu
 dbus (send)
     bus=session
-    path=/MenuBar{,/[0-9]*}
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{LayoutUpdated,ItemsPropertiesUpdated}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/MenuBar{,/[0-9]*}
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface="{com.canonical.dbusmenu,org.freedesktop.DBus.Properties}"
     member=Get*
     peer=(label=unconfined),
 
 dbus (receive)
     bus=session
-    path=/MenuBar{,/[0-9]*}
+    path=/{MenuBar{,/[0-9A-F]*},com/canonical/menu/[0-9A-F]*}
     interface=com.canonical.dbusmenu
     member="{AboutTo*,Event*}"
     peer=(label=unconfined),
