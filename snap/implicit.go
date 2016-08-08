@@ -46,6 +46,7 @@ var implicitSlots = []string{
 	"system-trace",
 	"timeserver-control",
 	"timezone-control",
+	"systemd-control",
 }
 
 var implicitClassicSlots = []string{
