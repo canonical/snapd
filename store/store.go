@@ -360,10 +360,8 @@ func (s *Store) authenticateDevice(r *http.Request) {
 			logger.Debugf("cannot get device from state: %v", err)
 			return
 		}
-		if device != nil && device.SessionMacaroon != "" {
-			var buf bytes.Buffer
-			fmt.Fprintf(&buf, `Macaroon root="%s"`, device.SessionMacaroon)
-			r.Header.Set("X-Device-Authorization", buf.String())
+		if device.SessionMacaroon != "" {
+			r.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
 		}
 	}
 }
