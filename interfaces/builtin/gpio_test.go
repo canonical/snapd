@@ -153,5 +153,5 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
 	// gpio slot not accepted on app snap
 	err := s.iface.SanitizeSlot(s.appGpioSlot)
 	c.Assert(err, ErrorMatches,
-		"gpio slots only allowed on gadget or os snaps")
+		"gpio slots only allowed on gadget or core snaps")
 }

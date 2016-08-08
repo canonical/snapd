@@ -53,7 +53,7 @@ func (iface *GpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 	// We will only allow creation of this type of slot by a gadget or OS snap
 	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("gpio slots only allowed on gadget or os snaps")
+		return fmt.Errorf("gpio slots only allowed on gadget or core snaps")
 	}
 
 	// Must have a GPIO number
@@ -63,11 +63,7 @@ func (iface *GpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	}
 
 	// Valid values of number
-	switch t := number.(type) {
-	case int:
-		break
-	default:
-		_ = t
+	if _, ok := number.(int); !ok {
 		return fmt.Errorf("gpio slot number attribute must be an int")
 	}
 
