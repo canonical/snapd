@@ -34,7 +34,7 @@ type StoreService interface {
 	SuggestedCurrency() string
 
 	Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error)
-	Buy(options *store.BuyOptions) (*store.BuyResult, error)
+	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
 	PaymentMethods(*auth.UserState) (*store.PaymentInformation, error)
 }
 

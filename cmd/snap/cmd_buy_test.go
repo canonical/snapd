@@ -306,6 +306,14 @@ const buyMethodsSelectPaymentMethodJson = `
         "requires-interaction": false
       },
       {
+        "backend-id": "credit_card",
+        "currencies": ["EUR"],
+        "description": "**** **** **** 3333 (exp 30/2027)",
+        "id": 345,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
         "backend-id": "rest_paypal",
         "currencies": ["USD", "GBP", "EUR"],
         "description": "PayPal",
@@ -375,7 +383,7 @@ func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `  Selection  Description
   1          **** **** **** 1111 (exp 23/2020)
   2          **** **** **** 2222 (exp 23/2025)
-  3          PayPal
+  3          **** **** **** 3333 (exp 30/2027)
 Type a number to select payment method: Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): hello bought
 `)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -402,6 +410,14 @@ const buyMethodsSelectPaymentMethodWithDefaultJson = `
         "currencies": ["USD"],
         "description": "**** **** **** 2222 (exp 23/2025)",
         "id": 234,
+        "preferred": false,
+        "requires-interaction": false
+      },
+      {
+        "backend-id": "credit_card",
+        "currencies": ["USD"],
+        "description": "**** **** **** 3333 (exp 30/2027)",
+        "id": 345,
         "preferred": false,
         "requires-interaction": false
       },
@@ -475,7 +491,7 @@ func (s *SnapSuite) TestBuySnapSelectPaymentMethodWithDefault(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `   Selection  Description
 *  1          **** **** **** 1111 (exp 23/2020)
    2          **** **** **** 2222 (exp 23/2025)
-   3          PayPal
+   3          **** **** **** 3333 (exp 30/2027)
 Press <enter> to use your default[*], or type a number to select payment method: Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): hello bought
 `)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -545,7 +561,7 @@ func (s *SnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `  Selection  Description
   1          **** **** **** 1111 (exp 23/2020)
   2          **** **** **** 2222 (exp 23/2025)
-  3          PayPal
+  3          **** **** **** 3333 (exp 30/2027)
 Type a number to select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -575,7 +591,7 @@ func (s *SnapSuite) TestBuySnapFailsEmptyMethodID(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `  Selection  Description
   1          **** **** **** 1111 (exp 23/2020)
   2          **** **** **** 2222 (exp 23/2025)
-  3          PayPal
+  3          **** **** **** 3333 (exp 30/2027)
 Type a number to select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
@@ -605,7 +621,7 @@ func (s *SnapSuite) TestBuySnapFailsOutOfRangeMethodID(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `  Selection  Description
   1          **** **** **** 1111 (exp 23/2020)
   2          **** **** **** 2222 (exp 23/2025)
-  3          PayPal
+  3          **** **** **** 3333 (exp 30/2027)
 Type a number to select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
