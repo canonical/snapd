@@ -22,7 +22,6 @@ package builtin
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -67,18 +66,18 @@ func (iface *GpioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		return fmt.Errorf("gpio slot number attribute must be an int")
 	}
 
-	// Must have a direction
-	direction, ok := slot.Attrs["direction"].(string)
-	if !ok {
-		return fmt.Errorf("gpio slot must have a direction attribute")
-	}
-
-	// Valid values of direction
-	if !(direction == "out" || direction == "in") {
-		return fmt.Errorf("gpio slot direction attribute must be in or out")
-	}
-
 	// Slot is good
+	return nil
+}
+
+// SanitizePlug checks the plug definition is valid
+func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
+	// Make sure right interface type
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface))
+	}
+
+	// Plug is good
 	return nil
 }
 
@@ -107,12 +106,13 @@ func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 		if err != nil {
 			return nil, err
 		}
-		return []byte(fmt.Sprintf("%s/value rwk,\n", dereferencedPath)), nil
+		return []byte(fmt.Sprintf("%s/* rwk,\n", dereferencedPath)), nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
 }
 
+// PermanentSlotSnippet - no slot snippets provided
 func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
@@ -122,9 +122,10 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	}
 }
 
+// ConnectedSlotSnippet - no slot snippets provided
 func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// We need to export the GPIO so that it becomes as entry in sysfs
-	// availalbe and we can assign it to a connecting plug.
+	// available and we can assign it to a connecting plug.
 	number := []byte(strconv.Itoa(slot.Attrs["number"].(int)))
 	fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
 	defer fileExport.Close()
@@ -132,14 +133,6 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 		return nil, err
 	}
 	fileExport.Write(number)
-
-	directionPath := filepath.Join(fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"]), "direction")
-	fileDirection, err := os.OpenFile(directionPath, os.O_WRONLY, 0200)
-	defer fileDirection.Close()
-	if err != nil {
-		return nil, err
-	}
-	fileDirection.WriteString(slot.Attrs["direction"].(string))
 
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
@@ -151,10 +144,7 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	}
 }
 
-func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
-	return nil
-}
-
+// AutoConnect - this interface does not auto-connect
 func (iface *GpioInterface) AutoConnect() bool {
 	return false
 }
