@@ -2038,11 +2038,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 		SnapName: snap.Name(),
 		Currency: repo.SuggestedCurrency(),
 		Price:    snap.Prices[repo.SuggestedCurrency()],
-		User:     t.user,
 
 		BackendID: "123",
 		MethodID:  234,
-	})
+	}, t.user)
 
 	c.Assert(result, NotNil)
 	c.Check(result.State, Equals, "Complete")
@@ -2117,11 +2116,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyInteractive(c *C) {
 		SnapName: snap.Name(),
 		Currency: repo.SuggestedCurrency(),
 		Price:    snap.Prices[repo.SuggestedCurrency()],
-		User:     t.user,
 
 		BackendID: "paypal_rest",
 		MethodID:  234,
-	})
+	}, t.user)
 
 	c.Assert(err, IsNil)
 	c.Assert(result, NotNil)
@@ -2173,11 +2171,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyRefreshesAuth(c *C) {
 		SnapName: "hello-world",
 		Currency: "EUR",
 		Price:    0.99,
-		User:     t.user,
 
 		BackendID: "123",
 		MethodID:  234,
-	})
+	}, t.user)
 
 	c.Assert(result, NotNil)
 	c.Check(result.State, Equals, "Complete")
@@ -2246,8 +2243,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 		SnapName: snap.Name(),
 		Price:    0.99,
 		Currency: "USD",
-		User:     t.user,
-	})
+	}, t.user)
 
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
@@ -2322,8 +2318,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 		SnapName: snap.Name(),
 		Price:    snap.Prices[repo.SuggestedCurrency()],
 		Currency: repo.SuggestedCurrency(),
-		User:     t.user,
-	})
+	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"hello-world\": server says not found (snap got removed?)")
@@ -2342,8 +2337,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
-		User:     t.user,
-	})
+	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": snap ID missing")
@@ -2353,8 +2347,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		SnapID:   "snap ID",
 		Price:    1.0,
 		Currency: "USD",
-		User:     t.user,
-	})
+	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap ID\": snap name missing")
@@ -2364,8 +2357,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		SnapID:   "snap ID",
 		SnapName: "snap name",
 		Currency: "USD",
-		User:     t.user,
-	})
+	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": invalid expected price")
@@ -2375,8 +2367,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		SnapID:   "snap ID",
 		SnapName: "snap name",
 		Price:    1.0,
-		User:     t.user,
-	})
+	}, t.user)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": currency missing")
@@ -2387,7 +2378,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 		SnapName: "snap name",
 		Price:    1.0,
 		Currency: "USD",
-	})
+	}, nil)
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot buy snap \"snap name\": authentication credentials missing")

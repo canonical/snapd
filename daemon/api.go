@@ -1466,10 +1466,9 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	opts.User = user
 	s := getStore(c)
 
-	buyResult, err := s.Buy(&opts)
+	buyResult, err := s.Buy(&opts, user)
 
 	switch err {
 	default:
