@@ -388,7 +388,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
-		"osutilAddExtraUser",
+		"osutilAddExtraSudoUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
@@ -3076,17 +3076,44 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username:         "karl",
+			OpenIDIdentifier: "xxyyzz",
+		}, nil
+	}
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot create user for popper@lse.ac.uk: no ssh keys found")
+}
+
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
-			Username: "karl",
-			SSHKeys:  []string{"ssh1", "ssh2"},
+			Username:         "karl",
+			SSHKeys:          []string{"ssh1", "ssh2"},
+			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
-	osutilAddExtraUser = func(username string, sshKeys []string) error {
+	osutilAddExtraSudoUser = func(username string, sshKeys []string, gecos string) error {
 		c.Check(username, check.Equals, "karl")
 		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		c.Check(gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		return nil
 	}
 
@@ -3094,7 +3121,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return 0, nil
 	}
 	defer func() {
-		osutilAddExtraUser = osutil.AddExtraUser
+		osutilAddExtraSudoUser = osutil.AddExtraSudoUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
 

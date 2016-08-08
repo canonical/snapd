@@ -26,15 +26,28 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
 var userLookup = user.Lookup
 
-func AddExtraUser(name string, sshKeys []string) error {
-	// FIXME: put date/time/openid in there
-	gecos := "created by snapd"
-	cmd := exec.Command("adduser", "--gecos", gecos, "--extrausers", "--disabled-password", name)
+func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
+	// we check the (user)name ourselves, adduser is a bit too
+	// strict (i.e. no `.`) - this regexp is in sync with that SSO
+	// allows as valid usernames
+	validNames := regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`)
+	if !validNames.MatchString(name) {
+		return fmt.Errorf("cannot add user %q: name contains invalid characters", name)
+	}
+
+	cmd := exec.Command("adduser",
+		"--force-badname",
+		"--gecos", gecos,
+		"--extrausers",
+		"--disabled-password",
+		"--add_extra_groups", "sudo",
+		name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
@@ -54,4 +67,25 @@ func AddExtraUser(name string, sshKeys []string) error {
 	}
 
 	return nil
+}
+
+// RealUser finds the user behind a sudo invocation, if applicable and possible.
+func RealUser() (*user.User, error) {
+	cur, err := user.Current()
+	if err != nil {
+		return nil, err
+	}
+
+	realName := os.Getenv("SUDO_USER")
+	if realName == "" {
+		// not sudo; current is correct
+		return cur, nil
+	}
+
+	real, err := user.Lookup(realName)
+	if err != nil {
+		return nil, err
+	}
+
+	return real, nil
 }

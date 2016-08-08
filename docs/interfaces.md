@@ -107,6 +107,19 @@ Auto-Connect: no
 
 ## Supported Interfaces - Advanced
 
+### browser-support
+
+Can access files and IPC needed by modern browsers. This interface is
+intended to be used when using an embedded Chromium Content API or using the
+sandboxes in major browsers from vendors like Google and Mozilla. The
+``allow-sandbox`` attribute may be used to give the necessary access to use
+the browser's sandbox functionality.
+
+Usage: reserved
+Auto-Connect: yes
+Attributes:
+- allow-sandbox: true|false (defaults to ``false``)
+
 ### cups-control
 
 Can access cups control socket. This is restricted because it provides
