@@ -30,17 +30,15 @@ import (
 
 type GpioInterfaceSuite struct {
 	testutil.BaseTest
-	iface                      interfaces.Interface
-	gadgetGpioSlot             *interfaces.Slot
-	gadgetMissingNumberSlot    *interfaces.Slot
-	gadgetMissingDirectionSlot *interfaces.Slot
-	gadgetBadDirectionSlot     *interfaces.Slot
-	gadgetBadNumberSlot        *interfaces.Slot
-	gadgetBadInterfaceSlot     *interfaces.Slot
-	gadgetPlug                 *interfaces.Plug
-	gadgetBadInterfacePlug     *interfaces.Plug
-	osGpioSlot                 *interfaces.Slot
-	appGpioSlot                *interfaces.Slot
+	iface                   interfaces.Interface
+	gadgetGpioSlot          *interfaces.Slot
+	gadgetMissingNumberSlot *interfaces.Slot
+	gadgetBadNumberSlot     *interfaces.Slot
+	gadgetBadInterfaceSlot  *interfaces.Slot
+	gadgetPlug              *interfaces.Plug
+	gadgetBadInterfacePlug  *interfaces.Plug
+	osGpioSlot              *interfaces.Slot
+	appGpioSlot             *interfaces.Slot
 }
 
 var _ = Suite(&GpioInterfaceSuite{
@@ -55,20 +53,10 @@ slots:
     my-pin:
         interface: gpio
         number: 100
-        direction: out
     missing-number:
         interface: gpio
-        direction: in
-    missing-direction:
-        interface: gpio
-        number: 7
-    bad-direction:
-        interface: gpio
-        direction: up
-        number: 399
     bad-number:
         interface: gpio
-        direction: in
         number: forty-two
     bad-interface: other-interface
 plugs:
@@ -78,8 +66,6 @@ plugs:
 	c.Assert(gadgetErr, IsNil)
 	s.gadgetGpioSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["my-pin"]}
 	s.gadgetMissingNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["missing-number"]}
-	s.gadgetMissingDirectionSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["missing-direction"]}
-	s.gadgetBadDirectionSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-direction"]}
 	s.gadgetBadNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-number"]}
 	s.gadgetBadInterfaceSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-interface"]}
 	s.gadgetPlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["plug"]}
@@ -123,16 +109,6 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 	c.Assert(err, ErrorMatches,
 		"gpio slot must have a number attribute")
 
-	// slots without direction attribute are rejected
-	err = s.iface.SanitizeSlot(s.gadgetMissingDirectionSlot)
-	c.Assert(err, ErrorMatches,
-		"gpio slot must have a direction attribute")
-
-	// slots with direction that isnt in or out
-	err = s.iface.SanitizeSlot(s.gadgetBadDirectionSlot)
-	c.Assert(err, ErrorMatches,
-		"gpio slot direction attribute must be in or out")
-
 	// slots with number attribute that isnt a number
 	err = s.iface.SanitizeSlot(s.gadgetBadNumberSlot)
 	c.Assert(err, ErrorMatches,
@@ -154,4 +130,13 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotAppSnap(c *C) {
 	err := s.iface.SanitizeSlot(s.appGpioSlot)
 	c.Assert(err, ErrorMatches,
 		"gpio slots only allowed on gadget or core snaps")
+}
+
+func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
+	err := s.iface.SanitizePlug(s.gadgetPlug)
+	c.Assert(err, IsNil)
+
+	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
+	c.Assert(func() { s.iface.SanitizePlug(s.gadgetBadInterfacePlug) }, PanicMatches,
+		`plug is not of interface "gpio"`)
 }
