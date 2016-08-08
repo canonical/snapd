@@ -59,25 +59,13 @@ const mockStore2faFailedResponse = `
 }
 `
 
-const mockStoreReturnMacaroon = `
-{
-    "macaroon": "the-root-macaroon-serialized-data"
-}
-`
+const mockStoreReturnMacaroon = `{"macaroon": "the-root-macaroon-serialized-data"}`
 
-const mockStoreReturnDischarge = `
-{
-    "discharge_macaroon": "the-discharge-macaroon-serialized-data"
-}
-`
+const mockStoreReturnDischarge = `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 
 const mockStoreReturnNoMacaroon = `{}`
 
-const mockStoreReturnNonce = `
-{
-    "nonce": "the-nonce"
-}
-`
+const mockStoreReturnNonce = `{"nonce": "the-nonce"}`
 
 const mockStoreReturnNoNonce = `{}`
 
