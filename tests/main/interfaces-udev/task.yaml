@@ -21,6 +21,8 @@ restore: |
 execute: |
     echo "Then the udev rules files specific to it are created"
     test -f /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
+    expected="ATTRS{idVendor}==\".*?\", ATTRS{idProduct}==\".*?\""
+    grep -Pq "$expected" /etc/udev/rules.d/70-snap.modem-manager-consumer.rules
 
     echo "======================================="
 
