@@ -30,7 +30,6 @@ var mirPermanentSlotAppArmor = []byte(`
 # Usage: reserved
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
-unix (receive, send) type=seqpacket addr=none,
 /dev/dri/card0 rw,
 /dev/shm/\#* rw,
 /dev/tty* wr,
@@ -67,7 +66,7 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###PLUG_SECURITY_TAGS#
 
 var mirConnectedPlugAppArmor = []byte(`
 # Description: Permit clients to use Mir
-# Usage: reserved
+# Usage: common
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
@@ -78,7 +77,7 @@ unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS#
 
 var mirConnectedPlugSecComp = []byte(`
 # Description: Permit clients to use Mir
-# Usage: reserved
+# Usage: common
 recvmsg
 sendmsg
 sendto
