@@ -6,10 +6,10 @@ description: A basic snap declaring a plug on gsettings
 apps:
     get:
         command: bin/get
-        plugs: [gsettings, home]
+        plugs: [gsettings]
     set:
         command: bin/set
-        plugs: [gsettings, home]
+        plugs: [gsettings]
 
 parts:
     gsettings:
