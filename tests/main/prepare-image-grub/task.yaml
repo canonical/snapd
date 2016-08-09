@@ -3,12 +3,8 @@ environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
     GADGET: /tmp/root/gadget
-prepare:
-    mkdir -p $IMAGE
-    mkdir -p $GADGET
 restore:
-    rm -rf $IMAGE
-    rm -rf $GADGET
+    rm -rf $ROOT
 execute: |
     echo Creating model assertion
     cat > model.assertion <<EOF

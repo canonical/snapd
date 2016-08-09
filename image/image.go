@@ -74,6 +74,9 @@ func downloadUnpackGadget(opts *Options) error {
 	if err != nil {
 		return err
 	}
+	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
+		return fmt.Errorf("cannot create gadget unpack dir: %s", err)
+	}
 
 	dlOpts := &downloadOptions{
 		TargetDir:    opts.GadgetUnpackDir,
