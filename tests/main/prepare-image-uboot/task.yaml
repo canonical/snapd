@@ -36,8 +36,8 @@ execute: |
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap.sideinfo
     done
-    grep snappy_os=ubuntu-core $IMAGE/boot/uboot/uboot.env
-    grep snappy_kernel=pi2-kernel $IMAGE/boot/uboot/uboot.env
+    grep snap_core=ubuntu-core $IMAGE/boot/uboot/uboot.env
+    grep snap_kernel=pi2-kernel $IMAGE/boot/uboot/uboot.env
 
     echo Verify that the kernel is available unpacked
     ls $IMAGE/boot/uboot/pi2-kernel_*.snap/kernel.img

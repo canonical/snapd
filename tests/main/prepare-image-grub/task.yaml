@@ -36,8 +36,8 @@ execute: |
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap.sideinfo
     done
-    grep snappy_os=ubuntu-core $IMAGE/boot/grub/grubenv
-    grep snappy_kernel=pc-kernel $IMAGE/boot/grub/grubenv
+    grep snap_core=ubuntu-core $IMAGE/boot/grub/grubenv
+    grep snap_kernel=pc-kernel $IMAGE/boot/grub/grubenv
 
     echo Verify the unpacked gadget
     ls -lR $GADGET
