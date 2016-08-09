@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os/exec"
 	"regexp"
+	"strconv"
 
 	"gopkg.in/tomb.v2"
 
@@ -41,18 +42,8 @@ type HookManager struct {
 	state      *state.State
 	runner     *state.TaskRunner
 	repository *repository
-}
 
-// Handler is the interface a client must satify to handle hooks.
-type Handler interface {
-	// Before is called right before the hook is to be run.
-	Before() error
-
-	// Done is called right after the hook has finished successfully.
-	Done() error
-
-	// Error is called if the hook encounters an error while running.
-	Error(err error) error
+	activeHandlers *HandlerCollection
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
@@ -69,9 +60,10 @@ type hookSetup struct {
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
 	manager := &HookManager{
-		state:      s,
-		runner:     runner,
-		repository: newRepository(),
+		state:          s,
+		runner:         runner,
+		repository:     newRepository(),
+		activeHandlers: NewHandlerCollection(),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -113,6 +105,16 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
+// GetHookData obtains the data that a specific hook instance has associated with the given key.
+func (m *HookManager) GetHookData(hookID int, key string) (map[string]interface{}, error) {
+	return m.activeHandlers.GetHandlerData(hookID, key)
+}
+
+// SetHookData sets the data that a specific hook instance has associated with the given key.
+func (m *HookManager) SetHookData(hookID int, key string, data map[string]interface{}) error {
+	return m.activeHandlers.SetHandlerData(hookID, key, data)
+}
+
 // doRunHook actually runs the hook that was requested.
 //
 // Note that this method is synchronous, as the task is already running in a
@@ -141,13 +143,21 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 
 	handler := handlers[0]
 
+	// Each hook instance needs to be able to communicate with their handler via
+	// the REST API. The only way this works is if the hook instance can specify
+	// the handler with which it needs to communicate. We generate a unique ID
+	// per hook instance here and associate it with the handler in order to
+	// solve that problem.
+	hookID := m.activeHandlers.AddHandler(handler)
+	defer m.activeHandlers.RemoveHandler(hookID)
+
 	// About to run the hook-- notify the handler
-	if err := handler.Before(); err != nil {
+	if err = handler.Before(); err != nil {
 		return err
 	}
 
 	// Actually run the hook
-	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, hookID, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
@@ -166,8 +176,10 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+func runHookAndWait(snapName string, revision snap.Revision, hookName string, hookID int, tomb *tomb.Tomb) ([]byte, error) {
+	command := exec.Command(
+		"snap", "run", "--hook", hookName, "-r", revision.String(),
+		"-i", strconv.Itoa(hookID), snapName)
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.

@@ -20,6 +20,7 @@
 package hookstate
 
 import (
+	"fmt"
 	"regexp"
 
 	. "gopkg.in/check.v1"
@@ -38,7 +39,7 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	var calledContext *Context
 	mockHandlerGenerator := func(context *Context) Handler {
 		calledContext = context
-		return newMockHandler()
+		return NewMockHandler()
 	}
 
 	// Verify that a handler generator can be added to the repository
@@ -67,34 +68,84 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	c.Check(calledContext, DeepEquals, context)
 }
 
-type mockHandler struct {
-	beforeCalled bool
-	doneCalled   bool
-	errorCalled  bool
-	err          error
+type MockHandler struct {
+	BeforeCalled bool
+	BeforeError  bool
+
+	DoneCalled bool
+	DoneError  bool
+
+	ErrorCalled bool
+	ErrorError  bool
+	Err         error
+
+	GetCalled bool
+	GetError  bool
+	SetCalled bool
+	SetError  bool
+	Key       string
+	Data      map[string]interface{}
 }
 
-func newMockHandler() *mockHandler {
-	return &mockHandler{
-		beforeCalled: false,
-		doneCalled:   false,
-		errorCalled:  false,
-		err:          nil,
+func NewMockHandler() *MockHandler {
+	return &MockHandler{
+		BeforeCalled: false,
+		BeforeError:  false,
+
+		DoneCalled: false,
+		DoneError:  false,
+
+		ErrorCalled: false,
+		ErrorError:  false,
+		Err:         nil,
+
+		GetCalled: false,
+		GetError:  false,
+		SetCalled: false,
+		SetError:  false,
 	}
 }
 
-func (h *mockHandler) Before() error {
-	h.beforeCalled = true
+func (h *MockHandler) Before() error {
+	h.BeforeCalled = true
+	if h.BeforeError {
+		return fmt.Errorf("before failed at user request")
+	}
 	return nil
 }
 
-func (h *mockHandler) Done() error {
-	h.doneCalled = true
+func (h *MockHandler) Done() error {
+	h.DoneCalled = true
+	if h.DoneError {
+		return fmt.Errorf("done failed at user request")
+	}
 	return nil
 }
 
-func (h *mockHandler) Error(err error) error {
-	h.err = err
-	h.errorCalled = true
+func (h *MockHandler) Error(err error) error {
+	h.Err = err
+	h.ErrorCalled = true
+	if h.ErrorError {
+		return fmt.Errorf("error failed at user request")
+	}
+	return nil
+}
+
+func (h *MockHandler) Get(key string) (map[string]interface{}, error) {
+	h.GetCalled = true
+	h.Key = key
+	if h.GetError {
+		return nil, fmt.Errorf("get failed at user request")
+	}
+	return map[string]interface{}{"foo": "bar"}, nil
+}
+
+func (h *MockHandler) Set(key string, data map[string]interface{}) error {
+	h.SetCalled = true
+	h.Key = key
+	h.Data = data
+	if h.SetError {
+		return fmt.Errorf("set failed at user request")
+	}
 	return nil
 }
