@@ -1415,7 +1415,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 var (
 	postCreateUserUcrednetGetUID = ucrednetGetUID
 	storeUserInfo                = store.UserInfo
-	osutilAddExtraSudoUser       = osutil.AddExtraSudoUser
+	osutilAddExtraUser           = osutil.AddExtraUser
 )
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1428,7 +1428,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	var createData struct {
-		EMail string `json:"email"`
+		EMail  string `json:"email"`
+		Sudoer bool   `json:"sudoer"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -1449,14 +1450,16 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	gecos := fmt.Sprintf("%s,%s", createData.EMail, v.OpenIDIdentifier)
-	if err := osutilAddExtraSudoUser(v.Username, v.SSHKeys, gecos); err != nil {
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos, createData.Sudoer); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
 	var createResponseData struct {
-		Username string `json:"username"`
+		Username    string `json:"username"`
+		SshKeyCount int    `json:"ssh_key_count"`
 	}
 	createResponseData.Username = v.Username
+	createResponseData.SshKeyCount = len(v.SSHKeys)
 
 	return SyncResponse(createResponseData, nil)
 }
