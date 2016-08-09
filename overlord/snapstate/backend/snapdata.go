@@ -86,7 +86,7 @@ func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
 		return nil, err
 	}
 	// then root common data
-	found = append(found, snap.CommonRootUserDataDir())
+	found = append(found, snap.RootCommonUserDataDir())
 
 	// then system data
 	found = append(found, snap.CommonDataDir())
