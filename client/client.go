@@ -355,14 +355,16 @@ type CreateUserResult struct {
 
 // createUserRequest holds the user creation request
 type createUserRequest struct {
-	EMail string `json:"email"`
+	EMail  string `json:"email"`
+	Sudoer bool   `json:"sudoer"`
 }
 
 // CreateUser creates a user from the given mail address
 func (client *Client) CreateUser(mail string, sudoer bool) (*CreateUserResult, error) {
 	var createResult CreateUserResult
 	b, err := json.Marshal(createUserRequest{
-		EMail: mail,
+		EMail:  mail,
+		Sudoer: sudoer,
 	})
 	if err != nil {
 		return nil, err
