@@ -22,3 +22,12 @@ package image
 var (
 	DownloadUnpackGadget = downloadUnpackGadget
 )
+
+func ReplaceStore(f func(storeID string) Store) (restorer func()) {
+	prevStoreNew := storeNew
+	restorer = func() {
+		storeNew = prevStoreNew
+	}
+	storeNew = f
+	return restorer
+}

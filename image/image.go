@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -75,7 +76,7 @@ func downloadUnpackGadget(opts *Options) error {
 		return err
 	}
 	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
-		return fmt.Errorf("cannot create gadget unpack dir: %s", err)
+		return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
 	}
 
 	dlOpts := &downloadOptions{
@@ -313,7 +314,16 @@ type downloadOptions struct {
 	Architecture string
 }
 
-// FIXME: move to snapstate next to InstallPathWithSideInfo()
+// replaced in the tests
+var storeNew = func(storeID string) Store {
+	return store.New(nil, storeID, nil)
+}
+
+type Store interface {
+	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
+	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
+}
+
 func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, *snap.Info, error) {
 	if opts == nil {
 		opts = &downloadOptions{}
@@ -351,7 +361,7 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, *snap
 		targetDir = pwd
 	}
 
-	m := store.New(nil, storeID, nil)
+	m := storeNew(storeID)
 	snap, err := m.Snap(name, opts.Channel, false, nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to find snap: %s", err)
