@@ -385,7 +385,7 @@ named "snap".
 
 ### POST
 
-* Description: Install, refresh, revert or remove
+* Description: Install, refresh, remove, revert, enable or disable
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -403,7 +403,7 @@ named "snap".
 field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `refresh`, `remove`, `revert`, `enable`, or `disable`.
-`channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
+`channel`  | `install` `refresh` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 
 ## /v2/icons/[name]/icon
 
