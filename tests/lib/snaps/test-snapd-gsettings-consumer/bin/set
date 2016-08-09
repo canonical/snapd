@@ -1,0 +1,7 @@
+#!/bin/sh
+
+schema="$1"
+key="$2"
+value="$3"
+
+gsettings set "$schema" "$key" "$value"

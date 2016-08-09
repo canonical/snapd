@@ -9,16 +9,25 @@ summary: |
 
     A snap declaring a plug on this interface must be able to act as a gsettings client.
 
+environment:
+    GSETTINGS_SCHEMA: com.canonical.UserMetrics
+    GSETTINGS_KEY: theme
+
 prepare: |
     echo "Given a snap declaring a plug on the gsettings interface is installed"
     snap install test-snapd-gsettings-consumer
 
+    echo "And a package with a gsettings backend is installed"
+    apt install -y usermetricsservice
+
     echo "And a gsettings value is kept back"
-    echo $(test-snapd-gsettings-consumer.get $GSETTINGS_KEY) > gsettings-key.back
+    echo $(test-snapd-gsettings-consumer.get $GSETTINGS_SCHEMA $GSETTINGS_KEY) > gsettings-key.back
 
 restore: |
     cat gsettings-key.back | xargs test-snapd-gsettings-consumer.set $GESETTINGS_KEY
     rm -f gsettings*.error gsettings-key.back
+    apt remove -y usermetricsservice
+    apt autoremove -y
 
 execute: |
     CONNECTED_PATTERN=":gsettings +test-snapd-gsettings-consumer"
@@ -34,10 +43,10 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to write the gsettings keys"
-    sudo -i -u test /bin/sh -c "test-snapd-gsettings-consumer.set $GSETTINGS_KEY value"
+    sudo -i -u test /bin/sh -c "test-snapd-gsettings-consumer.set $GSETTINGS_SCHEMA $GSETTINGS_KEY value"
 
     echo "And the snap is able to read the gsettings keys"
-    [ "$(sudo -i -u test /bin/sh -c 'test-snapd--gsettings-consumer.get $GSETTINGS_KEY')" = "value" ]
+    [ "$(sudo -i -u test /bin/sh -c 'test-snapd--gsettings-consumer.get $GSETTINGS_SCHEMA $GSETTINGS_KEY')" = "value" ]
 
     echo "==================================="
 
@@ -46,14 +55,14 @@ execute: |
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to write the gsettings keys"
-    if sudo -i -u test /bin/sh -c "test-snapd-gsettings-consumer.set $GSETTINGS_KEY value 2>${PWD}/gsettings-write.error"; then
+    if sudo -i -u test /bin/sh -c "test-snapd-gsettings-consumer.set $GSETTINGS_SCHEMA $GSETTINGS_KEY value 2>${PWD}/gsettings-write.error"; then
         echo "Expected permission error writing gsettings key with disconnected plug"
         exit 1
     fi
     grep -q "Permission denied" gsettings-write.error
 
     echo "And the snap is not able to read gsettings keys"
-    if sudo -i -u test /bin/sh -c "test-snapd.gsettings-consumer.get $GSETTINGS_KEY 2>${PWD}/gsettings-read.error"; then
+    if sudo -i -u test /bin/sh -c "test-snapd.gsettings-consumer.get $GSETTINGS_SCHEMA $GSETTINGS_KEY 2>${PWD}/gsettings-read.error"; then
         echo "Expected permission error reading gsettings key with disconnected plug"
         exit 1
     fi
