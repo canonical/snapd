@@ -65,10 +65,13 @@ func removeDirs(dirs []string) error {
 // snapDataDirs returns the list of data directories for the given snap version
 func snapDataDirs(snap *snap.Info) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.DataHomeDir())
+	found, err := filepath.Glob(snap.DataHomeGlob())
 	if err != nil {
 		return nil, err
 	}
+	// then root data
+	found = append(found, snap.RootUserDataDir())
+
 	// then system data
 	found = append(found, snap.DataDir())
 
@@ -78,10 +81,13 @@ func snapDataDirs(snap *snap.Info) ([]string, error) {
 // snapCommonDataDirs returns the list of data directories common between versions of the given snap
 func snapCommonDataDirs(snap *snap.Info) ([]string, error) {
 	// collect the directories, homes first
-	found, err := filepath.Glob(snap.CommonDataHomeDir())
+	found, err := filepath.Glob(snap.CommonDataHomeGlob())
 	if err != nil {
 		return nil, err
 	}
+	// then root common data
+	found = append(found, snap.CommonRootUserDataDir())
+
 	// then system data
 	found = append(found, snap.CommonDataDir())
 

@@ -51,11 +51,11 @@ type PlaceInfo interface {
 	// CommonDataDir returns the data directory common across revisions of the snap.
 	CommonDataDir() string
 
-	// DataHomeDir returns the per user data directory of the snap.
-	DataHomeDir() string
+	// DataHomeGlob returns the per user data directory of the snap.
+	DataHomeGlob() string
 
-	// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
-	CommonDataHomeDir() string
+	// CommonDataHomeGlob returns the per user data directory common across revisions of the snap.
+	CommonDataHomeGlob() string
 }
 
 // MinimalPlaceInfo returns a PlaceInfo with just the location information for a snap of the given name and revision.
@@ -187,8 +187,8 @@ func (s *Info) CommonDataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), "common")
 }
 
-// DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir() string {
+// DataHomeGlob returns the per user data directory of the snap.
+func (s *Info) DataHomeGlob() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.Revision.String())
 }
 
@@ -197,9 +197,14 @@ func (s *Info) RootUserDataDir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/root/snap/", s.Name(), s.Revision.String())
 }
 
-// CommonDataHomeDir returns the per user data directory common across revisions of the snap.
-func (s *Info) CommonDataHomeDir() string {
+// CommonDataHomeGlob returns the per user data directory common across revisions of the snap.
+func (s *Info) CommonDataHomeGlob() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
+}
+
+// RootCommonUserDataDir returns the user data dir for the root user
+func (s *Info) RootUserDataDir() string {
+	return filepath.Join(dirs.GlobalRootDir, "/root/snap/", s.Name(), "common")
 }
 
 // NeedsDevMode retursn whether the snap needs devmode.
