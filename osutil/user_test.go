@@ -51,7 +51,8 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 	err := osutil.AddExtraSudoUser("karl", []string{"ssh-key1", "ssh-key2"}, "my gecos")
 	c.Assert(err, check.IsNil)
 	c.Check(mc.Calls(), check.DeepEquals, [][]string{
-		{"adduser", "--force-badname", "--gecos", "my gecos", "--extrausers", "--disabled-password", "--add_extra_groups", "sudo", "karl"},
+		{"adduser", "--force-badname", "--gecos", "my gecos", "--extrausers", "--disabled-password", "karl"},
+		{"adduser", "karl", "sudo"},
 	})
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
