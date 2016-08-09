@@ -51,7 +51,7 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
 
-	cmd = exec.Command("adduser", name, "sudo")
+	cmd = exec.Command("adduser", "--extrausers", name, "sudo")
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adding user to sudo group failed with %s: %s", err, output)
 	}
