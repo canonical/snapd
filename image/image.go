@@ -59,12 +59,12 @@ func Prepare(opts *Options) error {
 func decodeModelAssertion(fn string) (*asserts.Model, error) {
 	rawAssert, err := ioutil.ReadFile(fn)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot read model assertion: %s", err)
 	}
 
 	ass, err := asserts.Decode(rawAssert)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot decode model assertion %q: %s", fn, err)
 	}
 	return ass.(*asserts.Model), nil
 }
