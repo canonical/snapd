@@ -1426,6 +1426,9 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if uid != 0 {
 		return BadRequest("cannot use create-user as non-root")
 	}
+	if release.OnClassic {
+		return BadRequest("cannot use create-user on classic system")
+	}
 
 	var createData struct {
 		EMail string `json:"email"`

@@ -3077,6 +3077,35 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestPostCreateUserOnClassic(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username:         "karl",
+			OpenIDIdentifier: "xxyyzz",
+		}, nil
+	}
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot use create-user on classic system")
+
+}
 func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
@@ -3091,6 +3120,9 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	defer func() {
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
+
+	restore := release.MockOnClassic(false)
+	defer restore()
 
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
@@ -3125,6 +3157,8 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		osutilAddExtraSudoUser = osutil.AddExtraSudoUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
+	restore := release.MockOnClassic(false)
+	defer restore()
 
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
