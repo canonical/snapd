@@ -205,7 +205,6 @@ func setBootvars() error {
 	}
 	for _, fullname := range snaps {
 		bootvar := ""
-		bootvar2 := ""
 
 		// detect type
 		snapFile, err := snap.Open(fullname)
@@ -235,22 +234,18 @@ func setBootvars() error {
 
 		switch info.Type {
 		case snap.TypeOS:
-			bootvar = "snappy_os"
-			bootvar2 = "snappy_good_os"
+			bootvar = "snap_core"
 		case snap.TypeKernel:
-			bootvar = "snappy_kernel"
-			bootvar2 = "snappy_good_kernel"
+			bootvar = "snap_kernel"
 			if err := extractKernelAssets(fullname, info); err != nil {
 				return err
 			}
 		}
 
 		name := filepath.Base(fullname)
-		for _, b := range []string{bootvar, bootvar2} {
-			if b != "" {
-				if err := bootloader.SetBootVar(b, name); err != nil {
-					return err
-				}
+		if bootvar != "" {
+			if err := bootloader.SetBootVar(bootvar, name); err != nil {
+				return err
 			}
 		}
 	}
