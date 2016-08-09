@@ -203,7 +203,7 @@ func (s *Info) CommonDataHomeGlob() string {
 }
 
 // RootCommonUserDataDir returns the user data dir for the root user
-func (s *Info) RootUserDataDir() string {
+func (s *Info) RootCommonUserDataDir() string {
 	return filepath.Join(dirs.GlobalRootDir, "/root/snap/", s.Name(), "common")
 }
 
