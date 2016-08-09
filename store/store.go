@@ -303,8 +303,8 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 	}
 }
 
-// authenticate will add the store expected Authorization header for macaroons
-func authenticate(r *http.Request, user *auth.UserState) {
+// authenticateUser will add the store expected Macaroon Authorization header for user
+func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
 
@@ -350,6 +350,20 @@ func refreshMacaroon(user *auth.UserState) error {
 		}
 	}
 	return nil
+}
+
+// authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
+func (s *Store) authenticateDevice(r *http.Request) {
+	if s.authContext != nil {
+		device, err := s.authContext.Device()
+		if err != nil {
+			logger.Debugf("cannot get device from state: %v", err)
+			return
+		}
+		if device.SessionMacaroon != "" {
+			r.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
+		}
+	}
 }
 
 // requestOptions specifies parameters for store requests.
@@ -408,8 +422,9 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
+	s.authenticateDevice(req)
 	if user != nil {
-		authenticate(req, user)
+		authenticateUser(req, user)
 	}
 
 	req.Header.Set("User-Agent", userAgent)
@@ -1011,11 +1026,10 @@ func (s *Store) SuggestedCurrency() string {
 // BuyOptions specifies parameters for store purchases.
 type BuyOptions struct {
 	// Required
-	SnapID   string          `json:"snap-id"`
-	SnapName string          `json:"snap-name"`
-	Price    float64         `json:"price"`
-	Currency string          `json:"currency"` // ISO 4217 code as string
-	User     *auth.UserState `json:"-"`
+	SnapID   string  `json:"snap-id"`
+	SnapName string  `json:"snap-name"`
+	Price    float64 `json:"price"`
+	Currency string  `json:"currency"` // ISO 4217 code as string
 
 	// Optional
 	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
@@ -1025,9 +1039,9 @@ type BuyOptions struct {
 // BuyResult holds information required to complete the purchase when state
 // is "InProgress", in which case it requires user interaction to complete.
 type BuyResult struct {
-	State      string
-	RedirectTo string
-	PartnerID  string
+	State      string `json:"state,omitempty"`
+	RedirectTo string `json:"redirect-to,omitempty"`
+	PartnerID  string `json:"partner-id,omitempty"`
 }
 
 // purchaseInstruction holds data sent to the store for purchases.
@@ -1058,7 +1072,7 @@ func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 
 // Buy sends a purchase request for the specified snap.
 // Returns the state of the purchase: Complete, Cancelled, InProgress or Pending.
-func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
+func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError(options, "snap ID missing")
 	}
@@ -1071,7 +1085,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 	if options.Currency == "" {
 		return buyOptionError(options, "currency missing")
 	}
-	if options.User == nil {
+	if user == nil {
 		return buyOptionError(options, "authentication credentials missing")
 	}
 
@@ -1095,7 +1109,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, options.User)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1114,9 +1128,14 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
 		}
 
+		redirectTo := ""
+		if purchaseDetails.RedirectTo != "" {
+			redirectTo = fmt.Sprintf("%s://%s%s", s.purchasesURI.Scheme, s.purchasesURI.Host, purchaseDetails.RedirectTo)
+		}
+
 		return &BuyResult{
 			State:      purchaseDetails.State,
-			RedirectTo: purchaseDetails.RedirectTo,
+			RedirectTo: redirectTo,
 			PartnerID:  resp.Header.Get("X-Partner-Id"),
 		}, nil
 	case http.StatusBadRequest:
