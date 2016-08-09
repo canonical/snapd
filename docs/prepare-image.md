@@ -6,13 +6,13 @@ part of building an image.
 ## Running it
 
 The `snap prepare-image` command takes a model assertion and a a
-directory (henceforth $ROOT) as intput. It will create `$ROOT/image`
+directory (henceforth $ROOT) as input. It will create `$ROOT/image`
 that will contain the directory layout with content for the image. It
 will also create `$ROOT/gadget` that will contain the unpacked gadget
 snap content for ubuntu-image.
 
 It will also inspect the gadget snap for the bootloader configuration
-file and instlal that into `$ROOT` into the right place.
+file and install that into `$ROOT` into the right place.
 
 ### Example
 
