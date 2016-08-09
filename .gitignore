@@ -5,3 +5,4 @@ tags
 .coverage
 cmd/version_generated.go
 *~
+*.swp
