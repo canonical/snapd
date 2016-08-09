@@ -192,6 +192,11 @@ func (s *Info) DataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.Revision.String())
 }
 
+// RootUserDataDir returns the user data dir for the root user
+func (s *Info) RootUserDataDir() string {
+	return filepath.Join(dirs.GlobalRootDir, "/root/snap/", s.Name(), s.Revision.String())
+}
+
 // CommonDataHomeDir returns the per user data directory common across revisions of the snap.
 func (s *Info) CommonDataHomeDir() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), "common")
