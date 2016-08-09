@@ -70,6 +70,11 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		return fmt.Errorf("cannot write %s: %s", authKeys, err)
 	}
 
+	cmd = exec.Command("chown", "-R", u.Uid+":"+u.Gid, sshDir)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("changing ownser of sshDir failed %s: %s", err, output)
+	}
+
 	return nil
 }
 

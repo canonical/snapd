@@ -41,19 +41,29 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
 		return &user.User{
 			HomeDir: mockHome,
+			Gid:     "new-group",
+			Uid:     "new-user",
 		}, nil
 	})
 	defer restorer()
 
-	mc := testutil.MockCommand(c, "adduser", "true")
-	defer mc.Restore()
+	mockAddUser := testutil.MockCommand(c, "adduser", "true")
+	defer mockAddUser.Restore()
+	mockChown := testutil.MockCommand(c, "chown", "true")
+	defer mockChown.Restore()
 
 	err := osutil.AddExtraSudoUser("karl", []string{"ssh-key1", "ssh-key2"}, "my gecos")
 	c.Assert(err, check.IsNil)
-	c.Check(mc.Calls(), check.DeepEquals, [][]string{
+
+	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
 		{"adduser", "--force-badname", "--gecos", "my gecos", "--extrausers", "--disabled-password", "karl"},
 		{"adduser", "karl", "sudo"},
 	})
+
+	c.Check(mockChown.Calls(), check.DeepEquals, [][]string{
+		{"chown", "-R", "new-user:new-group", filepath.Join(mockHome, ".ssh")},
+	})
+
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
 	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
