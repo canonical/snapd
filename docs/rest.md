@@ -501,8 +501,8 @@ Sample input:
 ```javascript
 {
     "action": "connect",
-    "slots": {{"snap": "canonical-pi2",   "slot": "pin-13"}},
-    "plugs": {{"snap": "keyboard-lights", "plug": "capslock-led"}}
+    "slots": [{"snap": "canonical-pi2",   "slot": "pin-13"}],
+    "plugs": [{"snap": "keyboard-lights", "plug": "capslock-led"}]
 }
 ```
 
