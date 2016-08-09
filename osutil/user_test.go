@@ -46,6 +46,9 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 		}, nil
 	})
 	defer restorer()
+	mockSudoers := c.MkDir()
+	restorer = osutil.MockSudoersDotD(mockSudoers)
+	defer restorer()
 
 	mockAddUser := testutil.MockCommand(c, "adduser", "true")
 	defer mockAddUser.Restore()
@@ -57,7 +60,6 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 
 	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
 		{"adduser", "--force-badname", "--gecos", "my gecos", "--extrausers", "--disabled-password", "karl"},
-		{"adduser", "karl", "sudo"},
 	})
 
 	c.Check(mockChown.Calls(), check.DeepEquals, [][]string{
@@ -67,6 +69,17 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
 	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
+
+	fs, _ := filepath.Glob(filepath.Join(mockSudoers, "*"))
+	c.Assert(fs, check.HasLen, 1)
+	bs, err := ioutil.ReadFile(fs[0])
+	c.Assert(err, check.IsNil)
+	c.Check(string(bs), check.Equals, `
+# Created by snap create-user
+
+# User rules for karl
+karl ALL=(ALL) NOPASSWD:ALL
+`)
 }
 
 func (s *createUserSuite) TestAddExtraSudoUserInvalid(c *check.C) {
