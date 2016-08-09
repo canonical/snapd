@@ -19,6 +19,10 @@
 
 package boottest
 
+import (
+	"path/filepath"
+)
+
 // MockBootloader mocks the bootloader interface and records all
 // set/get calls.
 type MockBootloader struct {
@@ -55,5 +59,5 @@ func (b *MockBootloader) Name() string {
 }
 
 func (b *MockBootloader) ConfigFile() string {
-	return "/boot/mock/mock.cfg"
+	return filepath.Join(b.bootdir, "mockboot/mockboot.cfg")
 }

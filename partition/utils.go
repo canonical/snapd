@@ -57,6 +57,9 @@ func runCommandImpl(args ...string) (string, error) {
 func find(root, fn string) (string, error) {
 	var fullPath string
 	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		if info.Name() == fn {
 			fullPath = path
 		}

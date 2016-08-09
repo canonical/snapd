@@ -21,6 +21,7 @@ package image
 
 var (
 	DownloadUnpackGadget = downloadUnpackGadget
+	BootstrapToRootdir   = bootstrapToRootdir
 )
 
 func ReplaceStore(f func(storeID string) Store) (restorer func()) {
