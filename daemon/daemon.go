@@ -32,7 +32,6 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/notifications"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 )
@@ -60,8 +59,6 @@ type Command struct {
 	PUT    ResponseFunc
 	POST   ResponseFunc
 	DELETE ResponseFunc
-	// can sudoer do stuff?
-	SudoerOK bool
 	// can guest GET?
 	GuestOK bool
 	// can non-admin GET?
@@ -69,8 +66,6 @@ type Command struct {
 	//
 	d *Daemon
 }
-
-var isUIDInAny = osutil.IsUIDInAny
 
 func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	if user != nil {
@@ -82,13 +77,6 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
 		if uid == 0 {
 			// Superuser does anything.
-			return true
-		}
-
-		if c.SudoerOK && isUIDInAny(uid, "sudo", "admin", "wheel") {
-			// If user is in a group that grants sudo in
-			// the default install, and the command says
-			// that's ok, then it's ok.
 			return true
 		}
 
@@ -118,15 +106,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	state.Unlock()
 
 	if !c.canAccess(r, user) {
-		rsp := &resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: "access denied",
-				Kind:    errorKindLoginRequired,
-			},
-			Status: http.StatusUnauthorized,
-		}
-		rsp.ServeHTTP(w, r)
+		Unauthorized("access denied").ServeHTTP(w, r)
 		return
 	}
 
