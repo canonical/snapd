@@ -41,7 +41,7 @@ var sudoersTemplate = `
 %[1]s ALL=(ALL) NOPASSWD:ALL
 `
 
-func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
+func AddExtraUser(name string, sshKeys []string, gecos string, sudoer bool) error {
 	// we check the (user)name ourselves, adduser is a bit too
 	// strict (i.e. no `.`) - this regexp is in sync with that SSO
 	// allows as valid usernames
@@ -60,10 +60,12 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
 
-	// Must escape "." as files containing it are ignored in sudoers.d.
-	sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", "%2E", -1))
-	if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
-		return fmt.Errorf("cannot create file under sudoers.d: %s", err)
+	if sudoer {
+		// Must escape "." as files containing it are ignored in sudoers.d.
+		sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", "%2E", -1))
+		if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
+			return fmt.Errorf("cannot create file under sudoers.d: %s", err)
+		}
 	}
 
 	u, err := userLookup(name)
