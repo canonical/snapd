@@ -70,6 +70,21 @@ apps:
 slots:
     iface:
 `
+const SambaYamlV1NoSlot = `
+name: samba
+version: 1
+developer: acme
+apps:
+    smbd:
+`
+const SambaYamlV1WithNmbdNoSlot = `
+name: samba
+version: 1
+developer: acme
+apps:
+    smbd:
+    nmbd:
+`
 const SambaYamlV2 = `
 name: samba
 version: 2

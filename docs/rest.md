@@ -372,7 +372,7 @@ furthermore, `download-size` and `price` cannot occur in the output of `/v2/snap
 #### Input
 
 The snap to install must be provided as part of the body of a
-`mutlipart/form-data` request. The form should have one file
+`multipart/form-data` request. The form should have one file
 named "snap".
 
 ## /v2/snaps/[name]
@@ -501,8 +501,8 @@ Sample input:
 ```javascript
 {
     "action": "connect",
-    "slots": {{"snap": "canonical-pi2",   "slot": "pin-13"}},
-    "plugs": {{"snap": "keyboard-lights", "plug": "capslock-led"}}
+    "slots": [{"snap": "canonical-pi2",   "slot": "pin-13"}],
+    "plugs": [{"snap": "keyboard-lights", "plug": "capslock-led"}]
 }
 ```
 
