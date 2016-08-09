@@ -1,0 +1,16 @@
+summary: Ensure that the udev interface backend works.
+
+execute: |
+    echo "Given a snap is installed"
+
+    echo "Then the udev rules files specific to it are created"
+
+    echo "And the udev rules are reloaded"
+
+    echo "======================================="
+
+    echo "When the snap is removed"
+
+    echo "Then the udev rules files are removed"
+
+    echo "And the udev rules are reloaded"
