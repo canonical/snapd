@@ -89,15 +89,14 @@ var (
 	}
 
 	loginCmd = &Command{
-		Path:     "/v2/login",
-		POST:     loginUser,
-		SudoerOK: true,
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	logoutCmd = &Command{
-		Path:     "/v2/logout",
-		POST:     logoutUser,
-		SudoerOK: true,
+		Path:   "/v2/logout",
+		POST:   logoutUser,
+		UserOK: true,
 	}
 
 	appIconCmd = &Command{
@@ -1416,7 +1415,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 var (
 	postCreateUserUcrednetGetUID = ucrednetGetUID
 	storeUserInfo                = store.UserInfo
-	osutilAddExtraUser           = osutil.AddExtraUser
+	osutilAddExtraSudoUser       = osutil.AddExtraSudoUser
 )
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1445,8 +1444,12 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return BadRequest("cannot create user %q: %s", createData.EMail, err)
 	}
+	if len(v.SSHKeys) == 0 {
+		return BadRequest("cannot create user for %s: no ssh keys found", createData.EMail)
+	}
 
-	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+	gecos := fmt.Sprintf("%s,%s", createData.EMail, v.OpenIDIdentifier)
+	if err := osutilAddExtraSudoUser(v.Username, v.SSHKeys, gecos); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
@@ -1458,10 +1461,6 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	return SyncResponse(createResponseData, nil)
 }
 
-type buyResponseData struct {
-	State string `json:"state,omitempty"`
-}
-
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	var opts store.BuyOptions
 
@@ -1471,10 +1470,9 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	opts.User = user
 	s := getStore(c)
 
-	buyResult, err := s.Buy(&opts)
+	buyResult, err := s.Buy(&opts, user)
 
 	switch err {
 	default:
@@ -1485,12 +1483,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		// continue
 	}
 
-	// TODO: Support purchasing redirects
-	if buyResult.State == "InProgress" {
-		return InternalError("payment backend %q is not yet supported", opts.BackendID)
-	}
-
-	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
+	return SyncResponse(buyResult, nil)
 }
 
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {

@@ -128,22 +128,24 @@
 
 1. Using ubuntu classic build and install a simple snap with lpr inside.
 
-	name: lpr
-	version: 2.1.3-4
-	summary: submit files for printing
-	description: |
-	   lpr submits files for printing.  Files named on the command line are sent to
-	   the named printer or the default destination if no destination is specified.
-	   If no files are listed on the command-line, lpr reads the print file from
-	   the standard input.
-	apps:
-		lpr:
-			command: lpr
-			plugs: [cups]
-	parts:
-		lpr:
-			plugin: nil
-			stage-packages: [cups-bsd]
+```yaml
+    name: lpr
+    version: 2.1.3-4
+    summary: submit files for printing
+    description: |
+       lpr submits files for printing.  Files named on the command line are sent to
+       the named printer or the default destination if no destination is specified.
+       If no files are listed on the command-line, lpr reads the print file from
+       the standard input.
+    apps:
+        lpr:
+            command: lpr
+            plugs: [cups]
+    parts:
+        lpr:
+            plugin: nil
+            stage-packages: [cups-bsd]
+```
 2. Ensure that the 'cups' interface is connected to lpr
 3. Use /snap/bin/lpr to print a short text file (e.g. the snapcraft file)
 4. Ensure that it was added to the queue of the default CUPS printer.  This can
@@ -169,19 +171,54 @@
   version: 1
   summary: pySerial miniterm in a snap
   description: |
-    Simple snap that contains the modules necessary to run
-    pySerial. Useful for testing serial ports.
+      Simple snap that contains the modules necessary to run
+      pySerial. Useful for testing serial ports.
   confinement: strict
   apps:
-    open:
-      command: python3 -m serial.tools.miniterm
-      plugs: [serial-port]
+      open:
+        command: python3 -m serial.tools.miniterm
+        plugs: [serial-port]
   parts:
-    my-part:
-      plugin: nil
-      stage-packages:
-        - python3-serial
+      my-part:
+        plugin: nil
+        stage-packages:
+          - python3-serial
 ```
 
 2. Ensure the 'serial-port' interface is connected to miniterm
 3. Use sudo miniterm.open /dev/tty<DEV> to open a serial port
+
+# Test pulseaudio interface using paplay, pactl
+
+1. Using a Snappy core image on a device like an RPi2/3, install the
+   build and install the simple-pulseaudio snap from the following
+   git repo:
+   git://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/examples
+2. $ cd examples/simple-pulseaudio
+3. Ensure that the 'pulseaudio' interface is connected to paplay
+   $ sudo snap interfaces
+4. Use /snap/bin/simple-pulseaudio.pactl stat and verify that you see
+   valid output status from pulseaudio
+5. Use /snap/bin/simple-pulseaudio.paplay $SNAP/usr/share/sounds/alsa/Noise.wav and verify
+   that you can hear the sound playing
+
+# Test bluetooth-control interface
+
+1. Using Ubuntu classic build and install the bluetooth-tests snap
+   from the store.
+
+2. Stop system BlueZ service
+
+$ sudo systemctl stop bluetooth
+
+or if you have the bluez snap installed
+
+$ snap remove bluez
+
+3. Run one of the tests provided by the bluetooth-tests snap
+
+ $ sudo /snap/bin/bluetooth-tests.hci-tester
+
+   and verify it actually passes. If some of the tests fail
+   there will be a problem with the particular kernel used on
+   the device.
