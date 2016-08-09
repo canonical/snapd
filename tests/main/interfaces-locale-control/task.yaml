@@ -8,15 +8,17 @@ summary: |
     reconnected.
 
     A snap declaring a plug on this interface must be able to access the /etc/default/locale
-    file.
+    file both for reading and writing.
 
 prepare: |
     echo "Given a snap declaring a plug on the locale-control interface is installed"
     snapbuild $TESTSLIB/snaps/locale-control-consumer .
     snap install locale-control-consumer_1.0_all.snap
+    cp /etc/default/locale locale.back
 
 restore: |
-    rm -f locale-control-consumer_1.0_all.snap
+    rm -f locale-control-consumer_1.0_all.snap locale-read.error locale-write.error
+    mv locale.back /etc/default/locale
 
 execute: |
     CONNECTED_PATTERN=":locale-control +locale-control-consumer"
@@ -39,7 +41,29 @@ execute: |
     snap disconnect locale-control-consumer:locale-control ubuntu-core:locale-control
 
     echo "Then the snap is not able to read the locale configuration"
-    if sudo -i -u test /bin/sh -c "locale-control-consumer.get LANG"; then
+    if sudo -i -u test /bin/sh -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error"; then
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi
+    grep -q "Permission denied" locale-read.error
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect locale-control-consumer:locale-control ubuntu-core:locale-control
+
+    echo "Then the snap is able to write the locale configuration"
+    locale-control-consumer.set LANG mylang
+    grep -q "LANG=\"mylang\"" /etc/default/locale
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect locale-control-consumer:locale-control ubuntu-core:locale-control
+
+    echo "Then the snap is not able to read the locale configuration"
+    if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then
+        echo "Expected permission error accessing locale configuration with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" locale-write.error

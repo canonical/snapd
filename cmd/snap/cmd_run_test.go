@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -161,7 +160,7 @@ func (s *SnapSuite) TestSnapRunAppWithCommandIntegration(c *check.C) {
 		"snap.snapname.app",
 		"snap.snapname.app",
 		"/usr/lib/snapd/snap-exec",
-		"snapname.app", "--command=my-command",
+		"--command=my-command", "snapname.app",
 		"arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
@@ -216,7 +215,7 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 		"snap.snapname.hook.apply-config",
 		"snap.snapname.hook.apply-config",
 		"/usr/lib/snapd/snap-exec",
-		"snapname", "--hook=apply-config"})
+		"--hook=apply-config", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -253,7 +252,7 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 		"snap.snapname.hook.apply-config",
 		"snap.snapname.hook.apply-config",
 		"/usr/lib/snapd/snap-exec",
-		"snapname", "--hook=apply-config"})
+		"--hook=apply-config", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -294,7 +293,7 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 		"snap.snapname.hook.apply-config",
 		"snap.snapname.hook.apply-config",
 		"/usr/lib/snapd/snap-exec",
-		"snapname", "--hook=apply-config"})
+		"--hook=apply-config", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=41")
 }
 
