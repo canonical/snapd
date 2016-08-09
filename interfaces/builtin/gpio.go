@@ -126,19 +126,15 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// We need to export the GPIO so that it becomes as entry in sysfs
 	// available and we can assign it to a connecting plug.
-	numAttr, ok := slot.Attrs["number"]
+	numInt, ok := slot.Attrs["number"].(int)
 	if !ok {
-		return nil, fmt.Errorf("Failed to get number attribute")
-	}
-	numInt, ok := numAttr.(int)
-	if !ok {
-		return nil, fmt.Errorf("Number attribute not an int")
+		return nil, fmt.Errorf("gpio slot has invalid number attribute")
 	}
 	numBytes := []byte(strconv.Itoa(numInt))
 
 	// Check if the gpio symlink is present, if not it needs exporting. Attempting
 	// to export a gpio again will cause an error on the Write() call
-	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, numAttr)); os.IsNotExist(err) {
+	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, numInt)); os.IsNotExist(err) {
 		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
 		if err != nil {
 			return nil, err
