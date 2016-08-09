@@ -46,10 +46,14 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		"--gecos", gecos,
 		"--extrausers",
 		"--disabled-password",
-		"--add_extra_groups", "sudo",
 		name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
+	}
+
+	cmd = exec.Command("adduser", name, "sudo")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("adding user to sudo group failed with %s: %s", err, output)
 	}
 
 	u, err := userLookup(name)
