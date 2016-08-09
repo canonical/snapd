@@ -32,6 +32,15 @@ import (
 
 var userLookup = user.Lookup
 
+var sudoersDotD = "/etc/sudoers.d"
+
+var sudoersTemplate = `
+# Created by snap create-user
+
+# User rules for %[1]s
+%[1]s ALL=(ALL) NOPASSWD:ALL
+`
+
 func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 	// we check the (user)name ourselves, adduser is a bit too
 	// strict (i.e. no `.`) - this regexp is in sync with that SSO
@@ -51,9 +60,9 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
 
-	cmd = exec.Command("adduser", "--extrausers", name, "sudo")
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("adding user to sudo group failed with %s: %s", err, output)
+	sudoersFile := filepath.Join(sudoersDotD, "create-user-"+name)
+	if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
+		return fmt.Errorf("creating sudoers fragment failed with %s", err)
 	}
 
 	u, err := userLookup(name)
