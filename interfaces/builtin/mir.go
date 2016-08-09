@@ -30,10 +30,8 @@ var mirPermanentSlotAppArmor = []byte(`
 # Usage: reserved
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
-/dev/dri/card0 rw,
 /dev/shm/\#* rw,
 /dev/tty* wr,
-/run/udev/data/* r,
 network netlink raw,
 /run/mir_socket rw,
 #NOTE: this allows reading and inserting all input events
@@ -70,9 +68,6 @@ var mirConnectedPlugAppArmor = []byte(`
 unix (receive, send) type=seqpacket addr=none peer=(label=###SLOT_SECURITY_TAGS###),
 /run/mir_socket rw,
 /run/user/[0-9]*/mir_socket rw,
-/dev/dri/card0 rw,
-# failure for line below was /run/udev/data/+pci:0000:00:02.0
-/run/udev/data/* r,
 `)
 
 var mirConnectedPlugSecComp = []byte(`
