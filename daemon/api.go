@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -73,6 +74,7 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	paymentMethodsCmd,
+	snaptoolCmd,
 }
 
 var (
@@ -186,6 +188,12 @@ var (
 		Path:   "/v2/buy/methods",
 		UserOK: false,
 		GET:    getPaymentMethods,
+	}
+
+	snaptoolCmd = &Command{
+		Path:   "/v2/snaptool",
+		UserOK: false,
+		POST:   runSnaptool,
 	}
 )
 
@@ -1501,4 +1509,28 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	return SyncResponse(paymentMethods, nil)
+}
+
+func runSnaptool(c *Command, r *http.Request, user *auth.UserState) Response {
+	var toolRequest hookstate.ToolRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&toolRequest); err != nil {
+		return BadRequest("cannot decode snaptool request: %v", err)
+	}
+
+	if toolRequest.Context == "" {
+		return BadRequest("snaptool cannot run without context")
+	}
+
+	if len(toolRequest.Args) == 0 {
+		return BadRequest("snaptool cannot run without args")
+	}
+
+	stdout, stderr := c.d.overlord.HookManager().RunTool(toolRequest)
+	result := map[string]string{
+		"stdout": stdout,
+		"stderr": stderr,
+	}
+
+	return SyncResponse(result, nil)
 }

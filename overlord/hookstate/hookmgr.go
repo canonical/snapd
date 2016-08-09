@@ -41,6 +41,10 @@ type HookManager struct {
 	state      *state.State
 	runner     *state.TaskRunner
 	repository *repository
+
+	// RunTool is used to run the requested tool. It's exported here for testing
+	// purposes.
+	RunTool func(ToolRequest) (string, string)
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -58,6 +62,12 @@ type Handler interface {
 // HandlerGenerator is the function signature required to register for hooks.
 type HandlerGenerator func(*Context) Handler
 
+// ToolRequest contains a request from a hook to conduct some action.
+type ToolRequest struct {
+	Context string
+	Args    []string
+}
+
 // hookSetup is a reference to a hook within a specific snap.
 type hookSetup struct {
 	Snap     string        `json:"snap"`
@@ -73,6 +83,8 @@ func Manager(s *state.State) (*HookManager, error) {
 		runner:     runner,
 		repository: newRepository(),
 	}
+
+	manager.RunTool = manager.doRunTool
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
 
@@ -111,6 +123,12 @@ func (m *HookManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *HookManager) Stop() {
 	m.runner.Stop()
+}
+
+// doRunTool is used to run the requested tool.
+func (m *HookManager) doRunTool(request ToolRequest) (stdout string, stderr string) {
+	// TODO: Make this do something useful
+	return "", ""
 }
 
 // doRunHook actually runs the hook that was requested.
