@@ -83,7 +83,7 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}
 	for _, system := range systems {
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
+		snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, Not(IsNil))
 		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
