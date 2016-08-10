@@ -249,21 +249,12 @@ func runCommand(cmdStr ...string) error {
 }
 
 func extractKernelAssets(snapPath string, info *snap.Info) error {
-	// FIXME: hrm, hrm, we need to be root for this - alternatively
-	//        we could make boot.ExtractKernelAssets() work on
-	//        a plain .snap file again (i.e. revert bee59a2)
-	if err := os.MkdirAll(info.MountDir(), 0755); err != nil {
+	snapf, err := snap.Open(snapPath)
+	if err != nil {
 		return err
 	}
-	defer os.Remove(filepath.Dir(info.MountDir()))
-	defer os.Remove(info.MountDir())
 
-	if err := runCommand("mount", snapPath, info.MountDir()); err != nil {
-		return err
-	}
-	defer runCommand("umount", info.MountDir())
-
-	if err := boot.ExtractKernelAssets(info); err != nil {
+	if err := boot.ExtractKernelAssets(info, snapf); err != nil {
 		return err
 	}
 	return nil
