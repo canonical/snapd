@@ -44,7 +44,7 @@ func (s *createUserSuite) TestCreateUserCreatesUser(c *check.C) {
 	// content looks sane
 	cli.ExecCommand(c, "sudo", "grep", "ssh-rsa", "/home/mvo/.ssh/authorized_keys")
 	// new user is a sudoer
-	cli.ExecCommand(c, "sudo", "-u", "mvo", "sudo", "true")
+	cli.ExecCommand(c, "/usr/bin/sudo", "-u", "mvo", "sudo", "true")
 }
 
 func (s *createUserSuite) TestCreateUserFails(c *check.C) {
