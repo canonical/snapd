@@ -216,12 +216,6 @@ Alter the collection searched:
   public snaps). Can't be used with `name`, only `q` (for now at
   least).
 
-#### `private`
-
-A boolean flag that, if `true` (or `t` or `yes` or...), makes the search look
-in the user's private snaps. Requires that the user be authenticated. Only
-works with broad (`text`-prefix) search; defaults the prefix to `text`.
-
 #### Sample result:
 
 [//]: # (keep the fields sorted, both in the sample and its description below. Makes scanning easier)
