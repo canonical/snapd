@@ -69,10 +69,9 @@ type Bootloader interface {
 // snap dir into the right place.
 func InstallBootConfig(gadgetDir string) error {
 	for _, bl := range []Bootloader{&grub{}, &uboot{}} {
-		// FIXME: do not "find", instead force it to be in the top
-		//        level of the snap
-		gadgetFile, err := find(gadgetDir, filepath.Base(bl.ConfigFile()))
-		if err != nil {
+		// the bootloader config file has to be root of the gadget snap
+		gadgetFile := filepath.Join(gadgetDir, filepath.Base(bl.ConfigFile()))
+		if !osutil.FileExists(gadgetFile) {
 			continue
 		}
 
