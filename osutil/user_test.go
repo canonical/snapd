@@ -41,7 +41,7 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
 		current, err := user.Current()
 		if err != nil {
-			c.Fatal("user.Current() failed with %s", err)
+			c.Fatalf("user.Current() failed with %s", err)
 		}
 		return &user.User{
 			HomeDir: mockHome,
