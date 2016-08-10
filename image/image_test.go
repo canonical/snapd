@@ -134,6 +134,29 @@ func (s *imageSuite) TestIncorrectModelAssertions(c *C) {
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot decode model assertion "%s": assertion content/signature separator not found`, fn))
 }
 
+func (s *imageSuite) TestValidButDifferentAssertion(c *C) {
+	var differentAssertion = []byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-id: snap-id-1
+snap-name: first
+publisher-id: dev-id1
+timestamp: 2016-01-02T10:00:00-05:00
+body-length: 0
+
+openpgpg 2cln
+`)
+
+	fn := filepath.Join(c.MkDir(), "different.assertion")
+	err := ioutil.WriteFile(fn, differentAssertion, 0644)
+	c.Assert(err, IsNil)
+
+	err = image.DownloadUnpackGadget(&image.Options{
+		ModelFile: fn,
+	})
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion in "%s" is not a model assertion`, fn))
+}
+
 func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
 	fn := makeFakeModelAssertion(c)
 	err := image.DownloadUnpackGadget(&image.Options{
