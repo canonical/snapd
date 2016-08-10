@@ -3,7 +3,7 @@ summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/15800
 systems: [-debian-8]
 prepare:
     echo "Having installed the snapd-hacker-toolbelt snap"
-    snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
+    snap install snapd-hacker-toolbelt
 execute: |
     cd /
     echo "We can check the inode number of /etc/alternatives" 
