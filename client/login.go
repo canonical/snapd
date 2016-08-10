@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/snapcore/snapd/osutil"
 )
@@ -75,34 +76,61 @@ func (client *Client) Logout() error {
 
 // LoggedIn returns whether the client has authentication data available.
 func (client *Client) LoggedIn() bool {
-	return osutil.FileExists(storeAuthDataFilename())
+	return osutil.FileExists(storeAuthDataFilename(""))
 }
 
-func storeAuthDataFilename() string {
-	homeDir, err := osutil.CurrentHomeDir()
-	if err != nil {
-		panic(err)
+const authFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
+
+func storeAuthDataFilename(homeDir string) string {
+	if fn := os.Getenv(authFileEnvKey); fn != "" {
+		return fn
 	}
+
+	if homeDir == "" {
+		real, err := osutil.RealUser()
+		if err != nil {
+			panic(err)
+		}
+		homeDir = real.HomeDir
+	}
+
 	return filepath.Join(homeDir, ".snap", "auth.json")
 }
 
 // writeAuthData saves authentication details for later reuse through ReadAuthData
 func writeAuthData(user User) error {
-	targetFile := storeAuthDataFilename()
-	if err := os.MkdirAll(filepath.Dir(targetFile), 0700); err != nil {
+	real, err := osutil.RealUser()
+	if err != nil {
 		return err
 	}
+
+	uid, err := strconv.Atoi(real.Uid)
+	if err != nil {
+		return err
+	}
+
+	gid, err := strconv.Atoi(real.Gid)
+	if err != nil {
+		return err
+	}
+
+	targetFile := storeAuthDataFilename(real.HomeDir)
+
+	if err := osutil.MkdirAllChown(filepath.Dir(targetFile), 0700, uid, gid); err != nil {
+		return err
+	}
+
 	outStr, err := json.Marshal(user)
 	if err != nil {
 		return nil
 	}
 
-	return osutil.AtomicWriteFile(targetFile, []byte(outStr), 0600, 0)
+	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
 }
 
 // readAuthData reads previously written authentication details
 func readAuthData() (*User, error) {
-	sourceFile := storeAuthDataFilename()
+	sourceFile := storeAuthDataFilename("")
 	f, err := os.Open(sourceFile)
 	if err != nil {
 		return nil, err
@@ -120,6 +148,6 @@ func readAuthData() (*User, error) {
 
 // removeAuthData removes any previously written authentication details.
 func removeAuthData() error {
-	filename := storeAuthDataFilename()
+	filename := storeAuthDataFilename("")
 	return os.Remove(filename)
 }

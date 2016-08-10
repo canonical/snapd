@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -50,6 +51,12 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	if err := m.initialize(extra); err != nil {
 		return nil, err
 	}
+
+	// interface tasks might touch more than the immediate task target snap, serialize them
+	runner.SetBlocked(func(_ *state.Task, running []*state.Task) bool {
+		return len(running) != 0
+	})
+
 	runner.AddHandler("connect", m.doConnect, nil)
 	runner.AddHandler("disconnect", m.doDisconnect, nil)
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
@@ -116,8 +123,8 @@ func (m *InterfaceManager) Repository() *interfaces.Repository {
 // MockSecurityBackends mocks the list of security backends that are used for setting up security.
 //
 // This function is public because it is referenced in the daemon
-func MockSecurityBackends(backends []interfaces.SecurityBackend) func() {
-	old := securityBackends
-	securityBackends = backends
-	return func() { securityBackends = old }
+func MockSecurityBackends(be []interfaces.SecurityBackend) func() {
+	old := backends.All
+	backends.All = be
+	return func() { backends.All = old }
 }

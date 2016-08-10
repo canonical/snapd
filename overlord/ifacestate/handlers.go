@@ -31,6 +31,31 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func (m *InterfaceManager) setupAffectedSnaps(task *state.Task, affectingSnap string, affectedSnaps []string) error {
+	st := task.State()
+
+	// Setup security of the affected snaps.
+	for _, affectedSnapName := range affectedSnaps {
+		// the snap that triggered the change needs to be skipped
+		if affectedSnapName == affectingSnap {
+			continue
+		}
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, affectedSnapName, &snapst); err != nil {
+			return err
+		}
+		affectedSnapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		snap.AddImplicitSlots(affectedSnapInfo)
+		if err := setupSnapSecurity(task, affectedSnapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error {
 	task.State().Lock()
 	defer task.State().Unlock()
@@ -40,23 +65,13 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err != nil {
 		return err
 	}
-	snapInfo, err := snapstate.Info(task.State(), ss.Name, ss.Revision)
+
+	snapInfo, err := snap.ReadInfo(ss.Name(), ss.SideInfo)
 	if err != nil {
 		return err
 	}
 	snap.AddImplicitSlots(snapInfo)
 	snapName := snapInfo.Name()
-	var snapState snapstate.SnapState
-	if err := snapstate.Get(task.State(), snapName, &snapState); err != nil {
-		task.Errorf("cannot get state of snap %q: %s", snapName, err)
-		return err
-	}
-
-	// Set DevMode flag if SnapSetup.Flags indicates it should be done
-	// but remember the old value in the task in case we undo.
-	task.Set("old-devmode", snapState.DevMode())
-	snapState.SetDevMode(ss.DevMode())
-	snapstate.Set(task.State(), snapName, &snapState)
 
 	// The snap may have been updated so perform the following operation to
 	// ensure that we are always working on the correct state:
@@ -91,24 +106,11 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.autoConnect(task, snapName, blacklist); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
+	if err := setupSnapSecurity(task, snapInfo, ss.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
-	for _, snapName := range affectedSnaps {
-		// The affected snap is setup explicitly so skip it here.
-		if snapName == snapInfo.Name() {
-			continue
-		}
-		snapInfo, err := snapstate.CurrentInfo(task.State(), snapName)
-		if err != nil {
-			return err
-		}
-		snap.AddImplicitSlots(snapInfo)
-		if err := setupSnapSecurity(task, snapInfo, m.repo); err != nil {
-			return err
-		}
-	}
-	return nil
+
+	return m.setupAffectedSnaps(task, snapName, affectedSnaps)
 }
 
 func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) error {
@@ -121,27 +123,7 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	if err != nil {
 		return err
 	}
-	snapName := snapSetup.Name
-
-	// Get SnapState for this snap
-	var snapState snapstate.SnapState
-	err = snapstate.Get(st, snapName, &snapState)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-
-	// Get the old-devmode flag from the task.
-	// This flag is set by setup-profiles in case we have to undo.
-	var oldDevMode bool
-	err = task.Get("old-devmode", &oldDevMode)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	// Restore the state of DevMode flag if old-devmode was saved in the task.
-	if err == nil {
-		snapState.SetDevMode(oldDevMode)
-		snapstate.Set(st, snapName, &snapState)
-	}
+	snapName := snapSetup.Name()
 
 	// Disconnect the snap entirely.
 	// This is required to remove the snap from the interface repository.
@@ -151,20 +133,8 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 	if err != nil {
 		return err
 	}
-
-	// Setup security of the affected snaps.
-	for _, affectedSnapName := range affectedSnaps {
-		if affectedSnapName == snapName {
-			// Skip setup for the snap being removed as this is handled below.
-			continue
-		}
-		affectedSnapInfo, err := snapstate.CurrentInfo(task.State(), affectedSnapName)
-		if err != nil {
-			return err
-		}
-		if err := setupSnapSecurity(task, affectedSnapInfo, m.repo); err != nil {
-			return err
-		}
+	if err := m.setupAffectedSnaps(task, snapName, affectedSnaps); err != nil {
+		return err
 	}
 
 	// Remove the snap from the interface repository.
@@ -175,7 +145,8 @@ func (m *InterfaceManager) doRemoveProfiles(task *state.Task, _ *tomb.Tomb) erro
 
 	// Remove security artefacts of the snap.
 	if err := removeSnapSecurity(task, snapName); err != nil {
-		return state.Retry
+		// TODO: how long to wait?
+		return &state.Retry{}
 	}
 
 	return nil
@@ -191,7 +162,7 @@ func (m *InterfaceManager) doDiscardConns(task *state.Task, _ *tomb.Tomb) error 
 		return err
 	}
 
-	snapName := snapSetup.Name
+	snapName := snapSetup.Name()
 
 	var snapState snapstate.SnapState
 	err = snapstate.Get(st, snapName, &snapState)
@@ -267,11 +238,20 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
+	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+	var slotSnapst snapstate.SnapState
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+		return err
+	}
+
+	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
+		return err
+	}
+	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
 
@@ -302,11 +282,20 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	}
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	if err := setupSnapSecurity(task, plug.Snap, m.repo); err != nil {
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
 		return err
 	}
-	if err := setupSnapSecurity(task, slot.Snap, m.repo); err != nil {
+	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+	var slotSnapst snapstate.SnapState
+	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+		return err
+	}
+
+	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
+		return err
+	}
+	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
 		return err
 	}
 

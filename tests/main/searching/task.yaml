@@ -1,17 +1,14 @@
 summary: Check snap search
 
 execute: |
-    echo "List all snaps"
-    expected="(?s)Name +Version +Developer +Notes +Summary *\n\
-    [a-z-]+ .*?\
-    .*"
-    snap find | grep -Pzq "$expected"
+    echo "Try to list all snaps"
+    ( snap find 2>&1 || echo FAILED ) | grep -Pzq "(?ms)empty query.*FAILED"
 
     echo "Exact matches"
-    for snapName in hello-world xkcd-webserver
+    for snapName in test-snapd-tools xkcd-webserver
     do
         expected="(?s)Name +Version +Developer +Notes +Summary *\n\
-    .*?\n\
+    (.*?\n)?\
     $snapName +.*? *\n\
     .*"
         snap find $snapName | grep -Pzq "$expected"
@@ -19,7 +16,7 @@ execute: |
 
     echo "Partial terms work too"
     expected="(?s)Name +Version +Developer +Notes +Summary *\n\
-    .*?\n\
-    hello-world +.*? *\n\
+    (.*?\n)?\
+    test-snapd-tools +.*? *\n\
     .*"
-    snap find hello- | grep -Pzq "$expected"
+    snap find test-snapd- | grep -Pzq "$expected"
