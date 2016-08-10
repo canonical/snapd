@@ -35,7 +35,7 @@ type TpmInterfaceSuite struct {
 }
 
 var _ = Suite(&TpmInterfaceSuite{
-	iface: &builtin.TpmInterface{},
+	iface: builtin.NewTpmInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
@@ -128,6 +128,6 @@ func (s *TpmInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *NetworkInterfaceSuite) TestAutoConnect(c *C) {
+func (s *TpmInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, false)
 }
