@@ -67,7 +67,11 @@ func decodeModelAssertion(fn string) (*asserts.Model, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode model assertion %q: %s", fn, err)
 	}
-	return ass.(*asserts.Model), nil
+	modela, ok := ass.(*asserts.Model)
+	if !ok {
+		return nil, fmt.Errorf("assertion in %q is not a model assertion", fn)
+	}
+	return modela, nil
 }
 
 func downloadUnpackGadget(opts *Options) error {
