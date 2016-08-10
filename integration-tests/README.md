@@ -204,6 +204,25 @@ to the `test-build-tags` flag:
 
     go run integration-tests/main.go -test-build-tags=excludereboots
 
+### Update-rollback stress test
+
+While validating a new image before release one of the key aspects tested is the ability
+to upgrade from a previous version and later rollback to the original state, this way we
+can assure that existing users' systems won't break after the new image is out and they
+try the upgrade. It is also useful to do the complete upgrade-rollback cycle more than once
+so that we can be sure that after any rollback the system is still able to update to the
+latest version.
+
+Because of the nature of this kind of tests, they need some initial state to be present in the
+system before executing, the image must be updatable. For that reason, they can not be executed
+with the complete suite, the other tests don't make any assumption, and this test is guarded
+by the `rollbackstress` build tag. Taking into account both requirements and assuming that you
+have an updatable system running on ip `<updatable_ip>` with ssh listening on port `<updatable_port>`,
+this tests can be executed with:
+
+    go run integration-tests/main.go -ip <updatable_ip> -port <updatable_port> \
+            -test-build-tags rollbackstress -filter updateRollbackSuite
+
 ### Excluding flaky tests on low-performance systems
 
 We have found that some tests give random results on low-performance systems. You can
