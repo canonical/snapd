@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
@@ -38,6 +39,8 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 func makeFakeModelAssertion(c *C) string {
 	var modelAssertion = []byte(`type: model
