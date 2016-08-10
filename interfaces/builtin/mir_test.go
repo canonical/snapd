@@ -72,7 +72,7 @@ func (s *MirInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 			snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
 			c.Assert(err, IsNil)
 			c.Assert(snippet, IsNil)
-			snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+			snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
 			c.Assert(err, IsNil)
 			c.Assert(snippet, IsNil)
 		}
