@@ -21,14 +21,11 @@ package image
 
 var (
 	DownloadUnpackGadget = downloadUnpackGadget
-	BootstrapToRootdir   = bootstrapToRootdir
+	BootstrapToRootDir   = bootstrapToRootDir
 )
 
-func ReplaceStore(f func(storeID string) Store) (restorer func()) {
-	prevStoreNew := storeNew
-	restorer = func() {
-		storeNew = prevStoreNew
-	}
+func MockStoreNew(f func(storeID string) Store) (restorer func()) {
+	old := storeNew
 	storeNew = f
-	return restorer
+	return func() { storeNew = old }
 }

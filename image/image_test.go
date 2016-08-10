@@ -82,7 +82,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 
 	s.downloadedSnaps = make(map[string]string)
 	s.storeSnapInfo = make(map[string]*snap.Info)
-	s.storeRestorer = image.ReplaceStore(func(storeID string) image.Store {
+	s.storeRestorer = image.MockStoreNew(func(storeID string) image.Store {
 		return s
 	})
 }
@@ -129,7 +129,7 @@ func (s *imageSuite) TestIncorrectModelAssertions(c *C) {
 	err := ioutil.WriteFile(fn, nil, 0644)
 	c.Assert(err, IsNil)
 	err = image.DownloadUnpackGadget(&image.Options{
-		ModelAssertionFn: fn,
+		ModelFile: fn,
 	})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot decode model assertion "%s": assertion content/signature separator not found`, fn))
 }
@@ -137,7 +137,7 @@ func (s *imageSuite) TestIncorrectModelAssertions(c *C) {
 func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
 	fn := makeFakeModelAssertion(c)
 	err := image.DownloadUnpackGadget(&image.Options{
-		ModelAssertionFn: fn,
+		ModelFile: fn,
 	})
 	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
 }
@@ -160,8 +160,8 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
 	err := image.DownloadUnpackGadget(&image.Options{
-		ModelAssertionFn: fn,
-		GadgetUnpackDir:  gadgetUnpackDir,
+		ModelFile:       fn,
+		GadgetUnpackDir: gadgetUnpackDir,
 	})
 	c.Assert(err, IsNil)
 
@@ -177,11 +177,11 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	}
 }
 
-func (s *imageSuite) TestBootstrapToRootdir(c *C) {
+func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	fn := makeFakeModelAssertion(c)
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 
-	// FIXME: bootstrapToRootdir needs an unpacked gadget yaml
+	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
 	err := os.MkdirAll(gadgetUnpackDir, 0755)
 	c.Assert(err, IsNil)
@@ -201,10 +201,10 @@ func (s *imageSuite) TestBootstrapToRootdir(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	defer c2.Restore()
 
-	err = image.BootstrapToRootdir(&image.Options{
-		ModelAssertionFn: fn,
-		Rootdir:          rootdir,
-		GadgetUnpackDir:  gadgetUnpackDir,
+	err = image.BootstrapToRootDir(&image.Options{
+		ModelFile:       fn,
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
 	})
 	c.Assert(err, IsNil)
 
