@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func TestBoot(t *testing.T) { TestingT(t) }
@@ -77,10 +76,14 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		RealName: "ubuntu-kernel",
 		Revision: snap.R(42),
 	}
-	snap := snaptest.MockSnap(c, packageKernel, si)
-	snaptest.PopulateDir(snap.MountDir(), files)
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
 
-	err := boot.ExtractKernelAssets(snap)
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = boot.ExtractKernelAssets(info, snapf)
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -100,7 +103,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	}
 
 	// remove
-	err = boot.RemoveKernelAssets(snap)
+	err = boot.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
@@ -120,10 +123,14 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		RealName: "ubuntu-kernel",
 		Revision: snap.R(42),
 	}
-	snap := snaptest.MockSnap(c, packageKernel, si)
-	snaptest.PopulateDir(snap.MountDir(), files)
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
 
-	err := boot.ExtractKernelAssets(snap)
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = boot.ExtractKernelAssets(info, snapf)
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -135,7 +142,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
 	info := &snap.Info{}
 	info.Type = snap.TypeApp
 
-	err := boot.ExtractKernelAssets(info)
+	err := boot.ExtractKernelAssets(info, nil)
 	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 
@@ -196,22 +203,4 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	// simulate good boot
 	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
-}
-
-func (s *kernelOSSuite) TestExtractKernelAssetsUsesRightCp(c *C) {
-	si := &snap.SideInfo{
-		RealName: "ubuntu-kernel",
-		Revision: snap.R(42),
-	}
-	snap := snaptest.MockSnap(c, packageKernel, si)
-
-	cmd := testutil.MockCommand(c, "cp", "")
-	err := boot.ExtractKernelAssets(snap)
-	c.Assert(err, IsNil)
-	c.Assert(cmd.Calls(), HasLen, 2)
-	dst := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_42.snap")
-	c.Assert(cmd.Calls(), DeepEquals, [][]string{
-		{"cp", "-aLv", filepath.Join(dirs.SnapSnapsDir, "ubuntu-kernel", "42", "kernel.img"), dst},
-		{"cp", "-aLv", filepath.Join(dirs.SnapSnapsDir, "ubuntu-kernel", "42", "initrd.img"), dst},
-	})
 }

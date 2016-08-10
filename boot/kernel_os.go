@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -60,7 +59,7 @@ func copyAll(src, dst string) error {
 // ExtractKernelAssets extracts kernel/initrd/dtb data from the given
 // kernel snap, if required, to a versioned bootloader directory so
 // that the bootloader can use it.
-func ExtractKernelAssets(s *snap.Info) error {
+func ExtractKernelAssets(s *snap.Info, snapf snap.Container) error {
 	if s.Type != snap.TypeKernel {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
 	}
@@ -86,23 +85,16 @@ func ExtractKernelAssets(s *snap.Info) error {
 	}
 	defer dir.Close()
 
-	for _, src := range []string{
-		filepath.Join(s.MountDir(), "kernel.img"),
-		filepath.Join(s.MountDir(), "initrd.img"),
-	} {
-		if err := copyAll(src, dstDir); err != nil {
+	for _, src := range []string{"kernel.img", "initrd.img"} {
+		if err := snapf.Unpack(src, dstDir); err != nil {
 			return err
 		}
 		if err := dir.Sync(); err != nil {
 			return err
 		}
 	}
-
-	srcDir := filepath.Join(s.MountDir(), "dtbs")
-	if osutil.IsDirectory(srcDir) {
-		if err := copyAll(srcDir, dstDir); err != nil {
-			return err
-		}
+	if err := snapf.Unpack("dtbs/*", dstDir); err != nil {
+		return err
 	}
 
 	return dir.Sync()
