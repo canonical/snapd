@@ -178,7 +178,9 @@ func bootstrapToRootDir(opts *Options) error {
 			File:        filepath.Base(fn),
 		})
 	}
-	if err := seedYaml.Write(); err != nil {
+
+	seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
+	if err := seedYaml.Write(seedFn); err != nil {
 		return fmt.Errorf("cannot write seed.yaml: %s", err)
 	}
 
@@ -195,32 +197,29 @@ func bootstrapToRootDir(opts *Options) error {
 }
 
 func setBootvars() error {
-	// set the bootvars for kernel/os snaps so that the system
-	// actually boots and can do the `firstboot` import of the snaps.
-	//
-	// there is also no mounted os/kernel snap, all we have are the
-	// blobs
-
+	// Set bootvars for kernel/core snaps so the system boots and
+	// does the first-time initialization. There is also no
+	// mounted kernel/core snap, but just the blobs.
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
-		return fmt.Errorf("can not set kernel/os bootvars: %s", err)
+		return fmt.Errorf("cannot set kernel/core boot variables: %s", err)
 	}
 
-	snaps, _ := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
-	if len(snaps) == 0 {
-		return fmt.Errorf("internal error: cannot find os/kernel snap")
+	snaps, err := filepath.Glob(filepath.Join(dirs.SnapBlobDir, "*.snap"))
+	if len(snaps) == 0 || err != nil {
+		return fmt.Errorf("internal error: cannot find core/kernel snap")
 	}
-	for _, fullname := range snaps {
+	for _, fn := range snaps {
 		bootvar := ""
 
 		// detect type
-		snapFile, err := snap.Open(fullname)
+		snapFile, err := snap.Open(fn)
 		if err != nil {
-			return fmt.Errorf("can not read %v", fullname)
+			return fmt.Errorf("cannot read snap %s: %s", fn, err)
 		}
 		// read .sideinfo
 		var si snap.SideInfo
-		siFn := fullname + ".sideinfo"
+		siFn := fn + ".sideinfo"
 		if osutil.FileExists(siFn) {
 			j, err := ioutil.ReadFile(siFn)
 			if err != nil {
@@ -232,7 +231,7 @@ func setBootvars() error {
 		}
 		info, err := snap.ReadInfoFromSnapFile(snapFile, &si)
 		if err != nil {
-			return fmt.Errorf("can not get info for %v", fullname)
+			return fmt.Errorf("cannot get info for %s: %s", fn, err)
 		}
 		// local install
 		if info.Revision.Unset() {
@@ -244,13 +243,13 @@ func setBootvars() error {
 			bootvar = "snap_core"
 		case snap.TypeKernel:
 			bootvar = "snap_kernel"
-			if err := extractKernelAssets(fullname, info); err != nil {
+			if err := extractKernelAssets(fn, info); err != nil {
 				return err
 			}
 		}
 
-		name := filepath.Base(fullname)
 		if bootvar != "" {
+			name := filepath.Base(fn)
 			if err := bootloader.SetBootVar(bootvar, name); err != nil {
 				return err
 			}
