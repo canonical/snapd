@@ -92,7 +92,7 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 		if system != interfaces.SecuritySecComp {
 			snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
 			c.Assert(err, IsNil)
-			c.Assert(snippet, IsNil)
+			c.Assert(snippet, Not(IsNil))
 		}
 	}
 }
