@@ -50,9 +50,9 @@ func init() {
 
 func (x *cmdPrepareImage) Execute(args []string) error {
 	opts := &image.Options{
-		ModelAssertionFn: x.Positional.ModelAssertionFn,
+		ModelFile: x.Positional.ModelAssertionFn,
 
-		Rootdir:         filepath.Join(x.Positional.Rootdir, "image"),
+		RootDir:         filepath.Join(x.Positional.Rootdir, "image"),
 		GadgetUnpackDir: filepath.Join(x.Positional.Rootdir, "gadget"),
 		Channel:         x.Channel,
 		Snaps:           x.ExtraSnaps,
