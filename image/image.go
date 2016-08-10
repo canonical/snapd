@@ -288,12 +288,12 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 	return nil
 }
 
-func copyLocalSnapFile(snapName, targetDir string) (string, *snap.Info, error) {
+func copyLocalSnapFile(snapName, targetDir string) (copyiedSnapFn string, info *snap.Info, err error) {
 	snapFile, err := snap.Open(snapName)
 	if err != nil {
 		return "", nil, err
 	}
-	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+	info, err = snap.ReadInfoFromSnapFile(snapFile, nil)
 	if err != nil {
 		return "", nil, err
 	}
@@ -324,17 +324,19 @@ type Store interface {
 	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
 }
 
-func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, *snap.Info, error) {
+func downloadSnapWithSideInfo(name string, opts *downloadOptions) (targetPath string, info *snap.Info, err error) {
 	if opts == nil {
 		opts = &downloadOptions{}
 	}
 
+	// FIXME: avoid global mutation
 	if opts.Series != "" {
 		oldSeries := release.Series
 		defer func() { release.Series = oldSeries }()
 
 		release.Series = opts.Series
 	}
+	// FIXME: avoid global mutation
 	if opts.Architecture != "" {
 		oldArchitecture := arch.UbuntuArchitecture()
 		defer func() { arch.SetArchitecture(arch.ArchitectureType(oldArchitecture)) }()
@@ -342,29 +344,24 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, *snap
 		arch.SetArchitecture(arch.ArchitectureType(opts.Architecture))
 	}
 
-	// FIXME: this really should be done on the server side
-	//
-	// *sigh* we need to adjust the storeID if its set to "canonical"
-	//        because there is no "canonical" store in the store server
-	//        it is just ""
 	storeID := opts.StoreID
 	if storeID == "canonical" {
 		storeID = ""
 	}
 
-	pwd, err := os.Getwd()
-	if err != nil {
-		return "", nil, err
-	}
 	targetDir := opts.TargetDir
 	if targetDir == "" {
+		pwd, err := os.Getwd()
+		if err != nil {
+			return "", nil, err
+		}
 		targetDir = pwd
 	}
 
 	m := storeNew(storeID)
 	snap, err := m.Snap(name, opts.Channel, false, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("failed to find snap: %s", err)
+		return "", nil, fmt.Errorf("cannot find snap: %q: %s", name, err)
 	}
 	pb := progress.NewTextProgress()
 	tmpName, err := m.Download(name, &snap.DownloadInfo, pb, nil)
@@ -374,8 +371,8 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, *snap
 	defer os.Remove(tmpName)
 
 	baseName := filepath.Base(snap.MountFile())
-	path := filepath.Join(targetDir, baseName)
-	if err := osutil.CopyFile(tmpName, path, 0); err != nil {
+	targetPath = filepath.Join(targetDir, baseName)
+	if err := osutil.CopyFile(tmpName, targetPath, 0); err != nil {
 		return "", nil, err
 	}
 
@@ -383,9 +380,9 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (string, *snap
 	if err != nil {
 		return "", nil, err
 	}
-	if err := ioutil.WriteFile(path+".sideinfo", []byte(out), 0644); err != nil {
+	if err := ioutil.WriteFile(targetPath+".sideinfo", []byte(out), 0644); err != nil {
 		return "", nil, err
 	}
 
-	return path, snap, nil
+	return targetPath, snap, nil
 }
