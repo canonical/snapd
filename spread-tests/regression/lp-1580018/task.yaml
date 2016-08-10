@@ -1,7 +1,7 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1580018
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
-prepare:
+prepare: |
     echo "Having installed the snapd-hacker-toolbelt snap"
     snap install snapd-hacker-toolbelt
 execute: |
