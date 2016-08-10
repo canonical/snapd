@@ -20,6 +20,7 @@
 package image_test
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -68,6 +69,8 @@ type imageSuite struct {
 	root       string
 	bootloader *boottest.MockBootloader
 
+	stdout *bytes.Buffer
+
 	downloadedSnaps map[string]string
 	storeSnapInfo   map[string]*snap.Info
 	storeRestorer   func()
@@ -80,6 +83,8 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.bootloader = boottest.NewMockBootloader("grub", c.MkDir())
 	partition.ForceBootloader(s.bootloader)
 
+	s.stdout = bytes.NewBuffer(nil)
+	image.Stdout = s.stdout
 	s.downloadedSnaps = make(map[string]string)
 	s.storeSnapInfo = make(map[string]*snap.Info)
 	s.storeRestorer = image.MockStoreNew(func(storeID string) image.Store {
@@ -90,6 +95,7 @@ func (s *imageSuite) SetUpTest(c *C) {
 func (s *imageSuite) TearDownTest(c *C) {
 	partition.ForceBootloader(nil)
 	s.storeRestorer()
+	image.Stdout = os.Stdout
 }
 
 // interface for the store
