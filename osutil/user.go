@@ -21,12 +21,12 @@ package osutil
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -60,28 +60,33 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
 
-	sudoersFile := filepath.Join(sudoersDotD, "create-user-"+name)
+	sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", ",", -1))
 	if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
-		return fmt.Errorf("creating sudoers fragment failed with %s", err)
+		return fmt.Errorf("cannot create file under sudoers.d: %s", err)
 	}
 
 	u, err := userLookup(name)
 	if err != nil {
 		return fmt.Errorf("cannot find user %q: %s", name, err)
 	}
+
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
+	}
+
 	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0700); err != nil {
+	if err := MkdirAllChown(sshDir, 0700, uid, gid); err != nil {
 		return fmt.Errorf("cannot create %s: %s", sshDir, err)
 	}
 	authKeys := filepath.Join(sshDir, "authorized_keys")
 	authKeysContent := strings.Join(sshKeys, "\n")
-	if err := ioutil.WriteFile(authKeys, []byte(authKeysContent), 0644); err != nil {
+	if err := AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, 0, uid, gid); err != nil {
 		return fmt.Errorf("cannot write %s: %s", authKeys, err)
-	}
-
-	cmd = exec.Command("chown", "-R", u.Uid+":"+u.Gid, sshDir)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("changing ownser of sshDir failed %s: %s", err, output)
 	}
 
 	return nil
