@@ -37,15 +37,15 @@ var _ = Suite(&MirInterfaceSuite{
 	iface: &builtin.MirInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
-			Name:      "mir",
+			Snap:      &snap.Info{SuggestedName: "mir-server", Type: snap.TypeOS},
+			Name:      "mir-server",
 			Interface: "mir",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "mir",
+			Name:      "mir-client",
 			Interface: "mir",
 		},
 	},
@@ -60,35 +60,40 @@ func (s *MirInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
 		interfaces.SecurityUDev}
 	for _, system := range systems {
-		snippet, err := s.iface.PermanentSlotSnippet(s.plug, system)
+		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-
+		if system != interfaces.SecurityAppArmor {
+			snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
+			c.Assert(err, IsNil)
+			c.Assert(snippet, IsNil)
+		}
+		if system != interfaces.SecurityAppArmor && system != interfaces.SecuritySecComp {
+			snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
+			c.Assert(err, IsNil)
+			c.Assert(snippet, IsNil)
+			snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+			c.Assert(err, IsNil)
+			c.Assert(snippet, IsNil)
+		}
 	}
-	snippet, err = s.iface.PermanentPlugSnippet(s.slot, interfaces.SecurityDBus)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentPlugSnippet(s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentPlugSnippet(s.slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
 }
 
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}
 	for _, system := range systems {
-		snippet, err = s.iface.PermanentPlugSnippet(s.slot, system)
+		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, Not(IsNil))
+		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, Not(IsNil))
+		if system != interfaces.SecuritySecComp {
+			snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
+			c.Assert(err, IsNil)
+			c.Assert(snippet, IsNil)
+		}
 	}
 }
 
