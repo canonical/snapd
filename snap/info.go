@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -192,9 +193,22 @@ func (s *Info) DataHomeGlob() string {
 	return filepath.Join(dirs.SnapDataHomeGlob, s.Name(), s.Revision.String())
 }
 
-// RootUserDataDir returns the user data dir for the root user
-func (s *Info) RootUserDataDir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/root/snap/", s.Name(), s.Revision.String())
+// homedir is a helper that returns the homedir of the given user
+func homedir(name string) (string, error) {
+	user, err := user.Lookup(name)
+	if err != nil {
+		return "", err
+	}
+	return user.HomeDir, nil
+}
+
+// UserDataDir returns the user data dir for the given user
+func (s *Info) UserDataDir(name string) (string, error) {
+	home, err := homedir(name)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dirs.GlobalRootDir, home, "/snap/", s.Name(), s.Revision.String()), nil
 }
 
 // CommonDataHomeGlob returns the per user data directory common across revisions of the snap.
@@ -203,8 +217,12 @@ func (s *Info) CommonDataHomeGlob() string {
 }
 
 // RootCommonUserDataDir returns the user data dir for the root user
-func (s *Info) RootCommonUserDataDir() string {
-	return filepath.Join(dirs.GlobalRootDir, "/root/snap/", s.Name(), "common")
+func (s *Info) CommonUserDataDir(name string) (string, error) {
+	home, err := homedir(name)
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dirs.GlobalRootDir, home, "/snap/", s.Name(), "common"), nil
 }
 
 // NeedsDevMode retursn whether the snap needs devmode.
