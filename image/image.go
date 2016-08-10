@@ -22,6 +22,7 @@ package image
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -39,6 +40,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
+)
+
+var (
+	Stdout io.Writer = os.Stdout
 )
 
 type Options struct {
@@ -99,15 +104,13 @@ func downloadUnpackGadget(opts *Options) error {
 	return snap.Unpack("*", opts.GadgetUnpackDir)
 }
 
-func acquireSnap(snapName string, dlOpts *downloadOptions) (string, *snap.Info, error) {
-	if osutil.FileExists(snapName) {
-		return copyLocalSnapFile(snapName, dlOpts.TargetDir)
-	}
-
+func acquireSnap(snapName string, dlOpts *downloadOptions) (downloadedSnap string, info *snap.Info, err error) {
+	// FIXME: add support for sideloading snaps here
 	return downloadSnapWithSideInfo(snapName, dlOpts)
 }
 
 func bootstrapToRootDir(opts *Options) error {
+	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
 		dirs.SetRootDir(opts.RootDir)
 		defer dirs.SetRootDir("/")
@@ -153,7 +156,7 @@ func bootstrapToRootDir(opts *Options) error {
 
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
-		fmt.Printf("Fetching %s\n", snapName)
+		fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
 		fn, info, err := acquireSnap(snapName, dlOpts)
 		if err != nil {
 			return err
