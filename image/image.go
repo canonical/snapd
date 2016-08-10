@@ -20,7 +20,6 @@
 package image
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -154,6 +153,7 @@ func bootstrapToRootDir(opts *Options) error {
 		}
 	}
 
+	downloadedSnapsInfo := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
 		fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
@@ -161,12 +161,18 @@ func bootstrapToRootDir(opts *Options) error {
 		if err != nil {
 			return err
 		}
+
 		// kernel/os are required for booting
 		if snapName == model.Kernel() || snapName == model.Core() {
-			if err := osutil.CopyFile(fn, filepath.Join(dirs.SnapBlobDir, filepath.Base(fn)), 0); err != nil {
+			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
+			if err := osutil.CopyFile(fn, dst, 0); err != nil {
 				return err
 			}
+			// store the snap.Info for kernel/os so
+			// that the bootload can DTRT
+			downloadedSnapsInfo[dst] = info
 		}
+
 		// set seed.yaml
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
 			Name:        info.Name(),
@@ -189,14 +195,14 @@ func bootstrapToRootDir(opts *Options) error {
 		return err
 	}
 
-	if err := setBootvars(); err != nil {
+	if err := setBootvars(downloadedSnapsInfo); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func setBootvars() error {
+func setBootvars(downloadedSnapsInfo map[string]*snap.Info) error {
 	// Set bootvars for kernel/core snaps so the system boots and
 	// does the first-time initialization. There is also no
 	// mounted kernel/core snap, but just the blobs.
@@ -212,32 +218,7 @@ func setBootvars() error {
 	for _, fn := range snaps {
 		bootvar := ""
 
-		// detect type
-		snapFile, err := snap.Open(fn)
-		if err != nil {
-			return fmt.Errorf("cannot read snap %s: %s", fn, err)
-		}
-		// read .sideinfo
-		var si snap.SideInfo
-		siFn := fn + ".sideinfo"
-		if osutil.FileExists(siFn) {
-			j, err := ioutil.ReadFile(siFn)
-			if err != nil {
-				return err
-			}
-			if err := json.Unmarshal(j, &si); err != nil {
-				return fmt.Errorf("cannot read metadata: %s %s\n", siFn, err)
-			}
-		}
-		info, err := snap.ReadInfoFromSnapFile(snapFile, &si)
-		if err != nil {
-			return fmt.Errorf("cannot get info for %s: %s", fn, err)
-		}
-		// local install
-		if info.Revision.Unset() {
-			info.Revision = snap.R(-1)
-		}
-
+		info := downloadedSnapsInfo[fn]
 		switch info.Type {
 		case snap.TypeOS:
 			bootvar = "snap_core"
@@ -373,14 +354,6 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (targetPath st
 	baseName := filepath.Base(snap.MountFile())
 	targetPath = filepath.Join(targetDir, baseName)
 	if err := osutil.CopyFile(tmpName, targetPath, 0); err != nil {
-		return "", nil, err
-	}
-
-	out, err := json.Marshal(snap)
-	if err != nil {
-		return "", nil, err
-	}
-	if err := ioutil.WriteFile(targetPath+".sideinfo", []byte(out), 0644); err != nil {
 		return "", nil, err
 	}
 
