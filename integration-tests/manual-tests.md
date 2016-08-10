@@ -159,7 +159,9 @@
 2. Stitch together a new image
 3. Build both the mir-server and the mir-client snaps from lp:~mir-team/+junk/mir-server-snap and lp:~mir-team/+junk/snapcraft-mir-client
 4. Copy over the snaps and sideload install the mir-server snap, which should result in a mir-server launching black blank screen with a mouse available.
-5. Now install the mir-client snap with --devmode, which should result in the Qt clock example app being displayed.
+5. Now install the mir-client snap.
+6. Manually connect mir-client:mir to mir-server:mir due to bug 1577897, then start the mir-client service manually.
+7. This should result in the Qt clock example app being displayed.
 
 # Test serial-port interface using miniterm app
 
