@@ -28,14 +28,13 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
 // RemoveKernelAssets removes the unpacked kernel/initrd for the given
 // kernel snap.
-func RemoveKernelAssets(s snap.PlaceInfo, inter progress.Meter) error {
+func RemoveKernelAssets(s snap.PlaceInfo) error {
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
 		return fmt.Errorf("no not remove kernel assets: %s", err)
@@ -61,7 +60,7 @@ func copyAll(src, dst string) error {
 // ExtractKernelAssets extracts kernel/initrd/dtb data from the given
 // kernel snap, if required, to a versioned bootloader directory so
 // that the bootloader can use it.
-func ExtractKernelAssets(s *snap.Info, inter progress.Meter) error {
+func ExtractKernelAssets(s *snap.Info) error {
 	if s.Type != snap.TypeKernel {
 		return fmt.Errorf("cannot extract kernel assets from snap type %q", s.Type)
 	}

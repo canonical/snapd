@@ -262,7 +262,7 @@ func setBootvars() error {
 func runCommand(cmdStr ...string) error {
 	cmd := exec.Command(cmdStr[0], cmdStr[1:]...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("cannot run %v: %s (%s)", cmdStr, err, output)
+		return fmt.Errorf("cannot run %v: %s", cmdStr, osutil.OutputErr(output, err))
 	}
 	return nil
 }
@@ -282,8 +282,7 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 	}
 	defer runCommand("umount", info.MountDir())
 
-	pb := progress.NewTextProgress()
-	if err := boot.ExtractKernelAssets(info, pb); err != nil {
+	if err := boot.ExtractKernelAssets(info); err != nil {
 		return err
 	}
 	return nil
