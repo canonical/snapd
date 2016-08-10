@@ -154,34 +154,6 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
-func (s *daemonSuite) TestGroupAccess(c *check.C) {
-	oldf := isUIDInAny
-	isSudo := false
-	isUIDInAny = func(uint32, ...string) bool {
-		return isSudo
-	}
-	defer func() {
-		isUIDInAny = oldf
-	}()
-
-	get := &http.Request{Method: "GET", RemoteAddr: "uid=42;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "uid=42;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, false)
-	c.Check(cmd.canAccess(put, nil), check.Equals, false)
-
-	isSudo = false
-	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, false)
-	c.Check(cmd.canAccess(put, nil), check.Equals, false)
-
-	isSudo = true
-	cmd = &Command{d: newTestDaemon(c), SudoerOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, true)
-	c.Check(cmd.canAccess(put, nil), check.Equals, true)
-}
-
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	get := &http.Request{Method: "GET", RemoteAddr: "uid=0;"}
 	put := &http.Request{Method: "PUT", RemoteAddr: "uid=0;"}
@@ -218,45 +190,6 @@ func (s *daemonSuite) TestAddRoutes(c *check.C) {
 	// XXX: still waiting to know how to check d.router.NotFoundHandler has been set to NotFound
 	//      the old test relied on undefined behaviour:
 	//      c.Check(fmt.Sprintf("%p", d.router.NotFoundHandler), check.Equals, fmt.Sprintf("%p", NotFound))
-}
-
-func (s *daemonSuite) TestAutherNoAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.Equals, auth.ErrInvalidAuth)
-	c.Check(user, check.IsNil)
-}
-
-func (s *daemonSuite) TestAutherInvalidAuth(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
-
-	d := newTestDaemon(c)
-	user, err := d.auther(req)
-
-	c.Check(err, check.ErrorMatches, "invalid authorization header")
-	c.Check(user, check.IsNil)
-}
-
-func (s *daemonSuite) TestAutherValidUser(c *check.C) {
-	d := newTestDaemon(c)
-
-	state := d.overlord.State()
-	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
-
-	user, err := d.auther(req)
-
-	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, expectedUser.Authenticator())
 }
 
 type witnessAcceptListener struct {

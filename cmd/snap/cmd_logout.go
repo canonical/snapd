@@ -41,5 +41,9 @@ func init() {
 }
 
 func (cmd *cmdLogout) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	return Client().Logout()
 }

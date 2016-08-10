@@ -29,12 +29,11 @@ const (
 	// Set to value of either bootloaderBootmodeTry (when attempting
 	// to boot a new rootfs) or bootloaderBootmodeSuccess (to denote
 	// that the boot of the new rootfs was successful).
-	bootmodeVar  = "snappy_mode"
-	trialBootVar = "snappy_trial_boot"
+	bootmodeVar = "snap_mode"
 
 	// Initial and final values
 	modeTry     = "try"
-	modeSuccess = "regular"
+	modeSuccess = ""
 )
 
 var (
@@ -90,6 +89,16 @@ func ForceBootloader(booloader Bootloader) {
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback
 func MarkBootSuccessful(bootloader Bootloader) error {
+	// check if we need to do anything
+	v, err := bootloader.GetBootVar("snap_mode")
+	if err != nil {
+		return err
+	}
+	// snap_mode goes from "" -> "try" -> "trying" -> ""
+	if v != "trying" {
+		return nil
+	}
+
 	// FIXME: we should have something better here, i.e. one write
 	//        to the bootloader environment only (instead of three)
 	//        We need to figure out if that is possible with grub/uboot
@@ -97,23 +106,22 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 	// be even better. The complication here is that the grub
 	// environment is handled via grub-editenv and uboot is done
 	// via the special uboot.env file on a vfat partition.
-	for _, k := range []string{"snappy_os", "snappy_kernel"} {
+	for _, k := range []string{"snap_try_core", "snap_try_kernel"} {
 		value, err := bootloader.GetBootVar(k)
 		if err != nil {
 			return err
 		}
 
 		// FIXME: ugly string replace
-		newKey := strings.Replace(k, "snappy_", "snappy_good_", -1)
+		newKey := strings.Replace(k, "_try_", "_", -1)
 		if err := bootloader.SetBootVar(newKey, value); err != nil {
 			return err
 		}
-
-		if err := bootloader.SetBootVar("snappy_mode", modeSuccess); err != nil {
+		if err := bootloader.SetBootVar("snap_mode", modeSuccess); err != nil {
 			return err
 		}
-
-		if err := bootloader.SetBootVar("snappy_trial_boot", "0"); err != nil {
+		// clear "snap_try_{core,kernel}"
+		if err := bootloader.SetBootVar(k, ""); err != nil {
 			return err
 		}
 	}

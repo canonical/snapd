@@ -115,7 +115,7 @@ func splitFormatAndBase64Decode(formatAndBase64 []byte) (string, []byte, error) 
 	buf := make([]byte, base64.StdEncoding.DecodedLen(len(parts[1])))
 	n, err := base64.StdEncoding.Decode(buf, parts[1])
 	if err != nil {
-		return "", nil, fmt.Errorf("could not decode base64 data: %v", err)
+		return "", nil, fmt.Errorf("cannot decode base64 data: %v", err)
 	}
 	return string(parts[0]), buf[:n], nil
 }
@@ -133,7 +133,7 @@ func decodeOpenpgp(formatAndBase64 []byte, kind string) (packet.Packet, error) {
 	}
 	pkt, err := packet.Read(bytes.NewReader(data))
 	if err != nil {
-		return nil, fmt.Errorf("could not decode %s data: %v", kind, err)
+		return nil, fmt.Errorf("cannot decode %s data: %v", kind, err)
 	}
 	return pkt, nil
 }

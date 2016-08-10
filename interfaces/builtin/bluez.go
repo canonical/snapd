@@ -225,7 +225,7 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return bluezPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
 		return bluezPermanentSlotDBus, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
