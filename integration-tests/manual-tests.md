@@ -177,3 +177,8 @@
 
 2. Ensure the 'serial-port' interface is connected to miniterm
 3. Use sudo miniterm.open /dev/tty<DEV> to open a serial port
+
+# Test tpm interface with tpm-tools
+
+1. Install tpm snap from store.
+2. Use tpm.version to read some basic information from tpm device.
