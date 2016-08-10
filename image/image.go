@@ -42,11 +42,11 @@ import (
 )
 
 type Options struct {
-	Snaps            []string
-	Rootdir          string
-	Channel          string
-	ModelAssertionFn string
-	GadgetUnpackDir  string
+	Snaps           []string
+	RootDir         string
+	Channel         string
+	ModelFile       string
+	GadgetUnpackDir string
 }
 
 func Prepare(opts *Options) error {
@@ -54,7 +54,7 @@ func Prepare(opts *Options) error {
 		return err
 	}
 
-	return bootstrapToRootdir(opts)
+	return bootstrapToRootDir(opts)
 }
 
 func decodeModelAssertion(fn string) (*asserts.Model, error) {
@@ -71,7 +71,7 @@ func decodeModelAssertion(fn string) (*asserts.Model, error) {
 }
 
 func downloadUnpackGadget(opts *Options) error {
-	model, err := decodeModelAssertion(opts.ModelAssertionFn)
+	model, err := decodeModelAssertion(opts.ModelFile)
 	if err != nil {
 		return err
 	}
@@ -103,9 +103,9 @@ func acquireSnap(snapName string, dlOpts *downloadOptions) (string, *snap.Info, 
 	return downloadSnapWithSideInfo(snapName, dlOpts)
 }
 
-func bootstrapToRootdir(opts *Options) error {
-	if opts.Rootdir != "" {
-		dirs.SetRootDir(opts.Rootdir)
+func bootstrapToRootDir(opts *Options) error {
+	if opts.RootDir != "" {
+		dirs.SetRootDir(opts.RootDir)
 		defer dirs.SetRootDir("/")
 	}
 
@@ -114,7 +114,7 @@ func bootstrapToRootdir(opts *Options) error {
 		return fmt.Errorf("cannot bootstrap over existing system")
 	}
 
-	model, err := decodeModelAssertion(opts.ModelAssertionFn)
+	model, err := decodeModelAssertion(opts.ModelFile)
 	if err != nil {
 		return err
 	}
