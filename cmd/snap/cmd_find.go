@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -117,8 +116,6 @@ func findSnaps(opts *client.FindOptions) error {
 	if len(snaps) == 0 {
 		return fmt.Errorf("no snaps found for %q", opts.Query)
 	}
-
-	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
 	defer w.Flush()
