@@ -60,7 +60,8 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
 	}
 
-	sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", ",", -1))
+	// Must escape "." as files containing it are ignored in sudoers.d.
+	sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", "%2E", -1))
 	if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
 		return fmt.Errorf("cannot create file under sudoers.d: %s", err)
 	}
