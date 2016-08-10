@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -81,7 +80,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	snap := snaptest.MockSnap(c, packageKernel, si)
 	snaptest.PopulateDir(snap.MountDir(), files)
 
-	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	err := boot.ExtractKernelAssets(snap)
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -101,7 +100,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	}
 
 	// remove
-	err = boot.RemoveKernelAssets(snap, &progress.NullProgress{})
+	err = boot.RemoveKernelAssets(snap)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
@@ -124,7 +123,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 	snap := snaptest.MockSnap(c, packageKernel, si)
 	snaptest.PopulateDir(snap.MountDir(), files)
 
-	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	err := boot.ExtractKernelAssets(snap)
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -136,7 +135,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsError(c *C) {
 	info := &snap.Info{}
 	info.Type = snap.TypeApp
 
-	err := boot.ExtractKernelAssets(info, nil)
+	err := boot.ExtractKernelAssets(info)
 	c.Assert(err, ErrorMatches, `cannot extract kernel assets from snap type "app"`)
 }
 
@@ -207,7 +206,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsUsesRightCp(c *C) {
 	snap := snaptest.MockSnap(c, packageKernel, si)
 
 	cmd := testutil.MockCommand(c, "cp", "")
-	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	err := boot.ExtractKernelAssets(snap)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), HasLen, 2)
 	dst := filepath.Join(s.bootloader.Dir(), "ubuntu-kernel_42.snap")
