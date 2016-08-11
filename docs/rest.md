@@ -216,12 +216,6 @@ Alter the collection searched:
   public snaps). Can't be used with `name`, only `q` (for now at
   least).
 
-#### `private`
-
-A boolean flag that, if `true` (or `t` or `yes` or...), makes the search look
-in the user's private snaps. Requires that the user be authenticated. Only
-works with broad (`text`-prefix) search; defaults the prefix to `text`.
-
 #### Sample result:
 
 [//]: # (keep the fields sorted, both in the sample and its description below. Makes scanning easier)
@@ -372,7 +366,7 @@ furthermore, `download-size` and `price` cannot occur in the output of `/v2/snap
 #### Input
 
 The snap to install must be provided as part of the body of a
-`mutlipart/form-data` request. The form should have one file
+`multipart/form-data` request. The form should have one file
 named "snap".
 
 ## /v2/snaps/[name]
@@ -385,7 +379,7 @@ named "snap".
 
 ### POST
 
-* Description: Install, refresh, revert or remove
+* Description: Install, refresh, remove, revert, enable or disable
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -403,28 +397,7 @@ named "snap".
 field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `refresh`, `remove`, `revert`, `enable`, or `disable`.
-`channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
-
-#### A note on licenses
-
-When requesting to install a snap that requires agreeing to a license before
-install succeeds, or when requesting an update to a snap with such an
-agreement that has an updated license version, the initial request will fail
-with an error, and the error object will contain the intro and license texts to
-present to the user for their approval. An example of the command's `output`
-field would be
-
-```javascript
-"output": {
-    "value": {
-        "agreed": false,
-        "intro": "licensed requires that you accept the following license before continuing",
-        "license": "In order to use this software you must agree with us."
-    },
-    "kind": "license-required",
-    "message": "License agreement required."
-}
-```
+`channel`  | `install` `refresh` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 
 ## /v2/icons/[name]/icon
 
@@ -522,8 +495,8 @@ Sample input:
 ```javascript
 {
     "action": "connect",
-    "slots": {{"snap": "canonical-pi2",   "slot": "pin-13"}},
-    "plugs": {{"snap": "keyboard-lights", "plug": "capslock-led"}}
+    "slots": [{"snap": "canonical-pi2",   "slot": "pin-13"}],
+    "plugs": [{"snap": "keyboard-lights", "plug": "capslock-led"}]
 }
 ```
 

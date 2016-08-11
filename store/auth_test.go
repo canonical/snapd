@@ -59,19 +59,15 @@ const mockStore2faFailedResponse = `
 }
 `
 
-const mockStoreReturnMacaroon = `
-{
-    "macaroon": "the-root-macaroon-serialized-data"
-}
-`
+const mockStoreReturnMacaroon = `{"macaroon": "the-root-macaroon-serialized-data"}`
 
-const mockStoreReturnDischarge = `
-{
-    "discharge_macaroon": "the-discharge-macaroon-serialized-data"
-}
-`
+const mockStoreReturnDischarge = `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 
 const mockStoreReturnNoMacaroon = `{}`
+
+const mockStoreReturnNonce = `{"nonce": "the-nonce"}`
+
+const mockStoreReturnNoNonce = `{}`
 
 func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -294,4 +290,40 @@ func (s *authTestSuite) TestLoginCaveatIDMacaroonMissingCaveat(c *C) {
 	caveat, err := LoginCaveatID(m)
 	c.Check(err, NotNil)
 	c.Check(caveat, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNonce)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := RequestStoreDeviceNonce()
+	c.Assert(err, IsNil)
+	c.Assert(nonce, Equals, "the-nonce")
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNoNonce)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := RequestStoreDeviceNonce()
+	c.Assert(err, ErrorMatches, "cannot get nonce from store: empty nonce returned")
+	c.Assert(nonce, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := RequestStoreDeviceNonce()
+	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
+	c.Assert(nonce, Equals, "")
 }
