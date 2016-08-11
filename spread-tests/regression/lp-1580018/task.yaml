@@ -1,11 +1,11 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1580018
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
+prepare: |
+    echo "Having installed the snapd-hacker-toolbelt snap"
+    snap install snapd-hacker-toolbelt
 execute: |
     cd /
-    echo "Having installed the snapd-hacker-toolbelt snap"
-    snap list | grep -q snapd-hacker-toolbelt || snap install snapd-hacker-toolbelt
-
     echo "We can check the inode number of /etc/alternatives" 
     host_inode="$(stat -c '%i' /etc/alternatives)"
     core_inode="$(stat -c '%i' /snap/ubuntu-core/current/etc/alternatives)"
@@ -13,3 +13,5 @@ execute: |
     echo "The inode number as seen from a confined snap should be that of the /etc/alternatives from the core snap"
     [ "$host_inode" != "$core_inode" ]
     [ "$effective_inode" = "$core_inode" ]
+restore: |
+    snap remove snapd-hacker-toolbelt

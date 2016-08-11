@@ -17,7 +17,9 @@ snap_confine_SOURCES = \
 	cleanup-funcs.c \
 	cleanup-funcs.h \
 	udev-support.c \
-	udev-support.h
+	udev-support.h \
+	user-support.c \
+	user-support.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
