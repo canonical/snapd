@@ -34,7 +34,6 @@ execute: |
     ls -lR $IMAGE
     for f in pi2 pi2-kernel ubuntu-core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
-        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap.sideinfo
     done
     grep snap_core=ubuntu-core $IMAGE/boot/uboot/uboot.env
     grep snap_kernel=pi2-kernel $IMAGE/boot/uboot/uboot.env
