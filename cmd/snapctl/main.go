@@ -31,7 +31,7 @@ var clientConfig client.Config
 func main() {
 	stdout, stderr, err := run()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "%s\n", err)
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
 		os.Exit(1)
 	}
 
