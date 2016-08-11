@@ -181,7 +181,8 @@ func (dbs *databaseSuite) TestPublicKey(c *C) {
 	c.Assert(ok, Equals, true)
 	c.Check(pubKey.PubKeyAlgo, Equals, packet.PubKeyAlgoRSA)
 	c.Check(pubKey.IsSubkey, Equals, false)
-	c.Check(pubKey.CreationTime.Equal(time.Unix(1, 0)), Equals, true)
+	fixedTimestamp := time.Date(2016, time.January, 1, 0, 0, 0, 0, time.UTC)
+	c.Check(pubKey.CreationTime.Equal(fixedTimestamp), Equals, true)
 	// hash of blob content == hash of key
 	h384 := sha3.Sum384(data)
 	encHash := base64.RawURLEncoding.EncodeToString(h384[:])

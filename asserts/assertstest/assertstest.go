@@ -79,63 +79,63 @@ const (
 	DevKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 Version: GnuPG v1
 
-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
-=vsmN
+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
+=5Myf
 -----END PGP PRIVATE KEY BLOCK-----
 `
 
-	DevKeyID = "ukBXMs6SJYkeChOBhuZr4jw3Go2zJUqPitYeYJRoEH_y2p4tueu6XHnaC3GaJs9m"
+	DevKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
 
-	DevKeyPGPFingerprint = "6eb134408271d1393b235bc7b8c918d236415515"
+	DevKeyPGPFingerprint = "966e70f4b9f257a2772f8f354a423d28aaea4b4f"
 )
 
 // GPGImportKey imports the given PGP armored key into the GnuPG setup at homedir. It panics on error.
@@ -187,13 +187,6 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]i
 	otherHeaders["public-key-sha3-384"] = pubKey.ID()
 	if otherHeaders["since"] == nil {
 		otherHeaders["since"] = time.Now().Format(time.RFC3339)
-	}
-	if otherHeaders["until"] == nil {
-		since, err := time.Parse(time.RFC3339, otherHeaders["since"].(string))
-		if err != nil {
-			panic(err)
-		}
-		otherHeaders["until"] = since.AddDate(5, 0, 0).Format(time.RFC3339)
 	}
 	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
 	if err != nil {
@@ -267,11 +260,15 @@ type StoreStack struct {
 // NewStoreStack creates a new store assertion stack. It panics on error.
 func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreStack {
 	rootSigning := NewSigningDB(authorityID, rootPrivKey)
+	ts := time.Now().Format(time.RFC3339)
 	trustedAcct := NewAccount(rootSigning, authorityID, map[string]interface{}{
 		"account-id": authorityID,
 		"validation": "certified",
+		"timestamp":  ts,
 	}, "")
-	trustedKey := NewAccountKey(rootSigning, trustedAcct, nil, rootPrivKey.PublicKey(), "")
+	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
+		"since": ts,
+	}, rootPrivKey.PublicKey(), "")
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -301,7 +298,7 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 
 		SigningDB: &SigningDB{
 			AuthorityID: authorityID,
-			KeyID:       storeKey.PublicKeySHA3_384(),
+			KeyID:       storeKey.PublicKeyID(),
 			Database:    db,
 		},
 	}
