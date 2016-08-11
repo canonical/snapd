@@ -368,7 +368,7 @@ Can manage timeservers directly separate from ``config core``.
 
 ### tpm
 
-Can access the first tpm device.
+Can access the tpm device /dev/tpm0.
 
 Usage: reserved
 Auto-Connect: no
