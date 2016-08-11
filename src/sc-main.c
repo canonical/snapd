@@ -35,6 +35,7 @@
 #endif				// ifdef HAVE_SECCOMP
 #include "udev-support.h"
 #include "cleanup-funcs.h"
+#include "user-support.h"
 
 int sc_main(int argc, char **argv)
 {
@@ -134,8 +135,10 @@ int sc_main(int argc, char **argv)
 		if (real_uid != 0 && getegid() == 0)
 			die("dropping privs did not work");
 	}
-	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
+	// Ensure that the user data path exists.
+	setup_user_data();
 
+	// https://wiki.ubuntu.com/SecurityTeam/Specifications/SnappyConfinement
 #ifdef HAVE_APPARMOR
 	int rc = 0;
 	// set apparmor rules

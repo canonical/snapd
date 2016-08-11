@@ -155,6 +155,6 @@
     owner @{HOME}/.Private/ r,
     owner @{HOME}/.Private/** mrixwlk,
     # new-style encrypted $HOME
-    owner @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
-    owner @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
+    @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
+    @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
 }
