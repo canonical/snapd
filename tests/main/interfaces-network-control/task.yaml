@@ -32,7 +32,7 @@ restore: |
     systemctl stop $SERVICE_NAME
     rm -f network-control-consumer_1.0_all.snap net-query.output net-command.output $SERVICE_FILE
     . $TESTSLIB/network.sh
-    arp -d $ARP_ENTRY_ADDR -i $(get_default_iface)
+    arp -d $ARP_ENTRY_ADDR -i $(get_default_iface) || true
 
 execute: |
     CONNECTED_PATTERN=":network-control +network-control-consumer"
