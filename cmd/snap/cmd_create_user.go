@@ -22,6 +22,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -40,7 +41,7 @@ type cmdCreateUser struct {
 	Yaml       bool `long:"yaml" description:"output results in YAML format"`
 	Sudoer     bool `long:"sudoer" description:"make the created user a sudoer"`
 	Positional struct {
-		EMail string `positional-arg-name:"email"`
+		Email string `positional-arg-name:"email"`
 	} `positional-args:"yes"`
 }
 
@@ -54,7 +55,13 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	}
 
 	cli := Client()
-	rsp, err := cli.CreateUser(x.Positional.EMail, x.Sudoer)
+
+	request := client.CreateUserRequest{
+		Email:  x.Positional.Email,
+		Sudoer: x.Sudoer,
+	}
+
+	rsp, err := cli.CreateUser(&request)
 	if err != nil {
 		return err
 	}
