@@ -283,7 +283,7 @@ func (cs *clientSuite) TestClientCreateUser(c *check.C) {
 		"type": "sync",
 		"result": {
                         "username": "karl",
-                        "ssh_key_count": 1
+                        "ssh-key-count": 1
 		}
 	}`
 	rsp, err := cs.cli.CreateUser(&client.CreateUserRequest{Email: "popper@lse.ac.uk", Sudoer: true})
@@ -292,7 +292,7 @@ func (cs *clientSuite) TestClientCreateUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rsp, check.DeepEquals, &client.CreateUserResult{
 		Username:    "karl",
-		SshKeyCount: 1,
+		SSHKeyCount: 1,
 	})
 }
 

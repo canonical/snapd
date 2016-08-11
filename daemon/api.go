@@ -1428,7 +1428,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	var createData struct {
-		EMail  string `json:"email"`
+		Email  string `json:"email"`
 		Sudoer bool   `json:"sudoer"`
 	}
 
@@ -1437,29 +1437,29 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
-	if createData.EMail == "" {
+	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
-	v, err := storeUserInfo(createData.EMail)
+	v, err := storeUserInfo(createData.Email)
 	if err != nil {
-		return BadRequest("cannot create user %q: %s", createData.EMail, err)
+		return BadRequest("cannot create user %q: %s", createData.Email, err)
 	}
 	if len(v.SSHKeys) == 0 {
-		return BadRequest("cannot create user for %s: no ssh keys found", createData.EMail)
+		return BadRequest("cannot create user for %s: no ssh keys found", createData.Email)
 	}
 
-	gecos := fmt.Sprintf("%s,%s", createData.EMail, v.OpenIDIdentifier)
+	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
 	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos, createData.Sudoer); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
 	var createResponseData struct {
 		Username    string `json:"username"`
-		SshKeyCount int    `json:"ssh_key_count"`
+		SSHKeyCount int    `json:"ssh-key-count"`
 	}
 	createResponseData.Username = v.Username
-	createResponseData.SshKeyCount = len(v.SSHKeys)
+	createResponseData.SSHKeyCount = len(v.SSHKeys)
 
 	return SyncResponse(createResponseData, nil)
 }

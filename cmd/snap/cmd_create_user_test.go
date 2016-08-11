@@ -46,7 +46,7 @@ func (s *SnapSuite) TestCreateUser(c *check.C) {
 				"email":  "popper@lse.ac.uk",
 				"sudoer": false,
 			})
-			fmt.Fprintln(w, `{"type": "sync", "result": {"username": "karl", "ssh_key_count": 1}}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"username": "karl", "ssh-key-count": 1}}`)
 		default:
 			c.Fatalf("expected to get 2 requests, now on %d", n+1)
 		}
@@ -65,7 +65,7 @@ func (s *SnapSuite) TestCreateUser(c *check.C) {
 
 	expectedResponse := &client.CreateUserResult{
 		Username:    "karl",
-		SshKeyCount: 1,
+		SSHKeyCount: 1,
 	}
 	actualResponse := &client.CreateUserResult{}
 
