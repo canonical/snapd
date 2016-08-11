@@ -31,7 +31,7 @@ var mirPermanentSlotAppArmor = []byte(`
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
 /dev/shm/\#* rw,
-/dev/tty* wr,
+/dev/tty[0-9] rw,
 network netlink raw,
 /run/mir_socket rw,
 #NOTE: this allows reading and inserting all input events
@@ -39,7 +39,7 @@ network netlink raw,
 `)
 
 var mirPermanentSlotSecComp = []byte(`
-# Description: Allow operating as the mir service. Reserved because this
+# Description: Allow operating as the mir server. Reserved because this
 # gives privileged access to the system.
 # Needed for server launch
 bind
