@@ -333,7 +333,7 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (targetPath st
 	m := storeNew(storeID)
 	snap, err := m.Snap(name, opts.Channel, false, nil)
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot find snap: %q: %s", name, err)
+		return "", nil, fmt.Errorf("cannot find snap %q: %s", name, err)
 	}
 	pb := progress.NewTextProgress()
 	tmpName, err := m.Download(name, &snap.DownloadInfo, pb, nil)
