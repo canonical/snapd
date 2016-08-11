@@ -51,9 +51,8 @@ func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter p
 		return err
 	}
 
-	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := boot.ExtractKernelAssets(s, meter); err != nil {
+		if err := boot.ExtractKernelAssets(s, snapf); err != nil {
 			return fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
@@ -80,7 +79,7 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
 		if typ == snap.TypeKernel {
-			if err := boot.RemoveKernelAssets(s, meter); err != nil {
+			if err := boot.RemoveKernelAssets(s); err != nil {
 				return err
 			}
 		}
