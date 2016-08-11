@@ -49,8 +49,8 @@ func run() (stdout string, stderr string, err error) {
 
 	context := os.Getenv("SNAP_CONTEXT")
 	if context == "" {
-		return "", "", fmt.Errorf("snaptool requires SNAP_CONTEXT environment variable")
+		return "", "", fmt.Errorf("snapctl requires SNAP_CONTEXT environment variable")
 	}
 
-	return cli.RunSnaptool(context, os.Args[1:])
+	return cli.RunSnapctl(context, os.Args[1:])
 }
