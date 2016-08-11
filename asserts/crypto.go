@@ -133,7 +133,7 @@ func decodeV1(b []byte, kind string) (packet.Packet, error) {
 		return nil, fmt.Errorf("cannot decode %s data: %v", kind, err)
 	}
 	if rd.Len() != 0 {
-		return nil, fmt.Errorf("%s has spurious trailer data", kind)
+		return nil, fmt.Errorf("%s has spurious trailing data", kind)
 	}
 	return pkt, nil
 }
