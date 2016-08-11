@@ -28,16 +28,10 @@ const tpmConnectedPlugAppArmor = `
 /dev/tpm0 rw,
 `
 
-const tpmConnectedPlugSecComp = `
-# Description: for those who need to talk to the system TPM chip over /dev/tpm0
-# Usage: reserved
-`
-
 func NewTpmInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "tpm",
 		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
-		connectedPlugSecComp:  tpmConnectedPlugSecComp,
 		reservedForOS:         true,
 		autoConnect:           false,
 	}
