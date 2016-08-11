@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -3251,50 +3250,4 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
 	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
-}
-
-// Tests for POST /v2/snapctl
-
-func (s *apiSuite) TestRunSnapctl(c *check.C) {
-	d := s.daemon(c)
-	s.mockSnap(c, simpleYaml)
-
-	hookManager := d.overlord.HookManager()
-	oldRunTool := hookManager.RunTool
-	defer func() { hookManager.RunTool = oldRunTool }()
-
-	// Mock the tool runner
-	var toolRequest hookstate.ToolRequest
-	hookManager.RunTool = func(request hookstate.ToolRequest) (stdout string, stderr string) {
-		toolRequest = request
-		return "test stdout", "test stderr"
-	}
-
-	d.overlord.Loop()
-	defer d.overlord.Stop()
-
-	payload, err := json.Marshal(map[string]interface{}{
-		"context": "foo",
-		"args":    []string{"arg1", "--arg2"},
-	})
-	c.Assert(err, check.IsNil)
-
-	buffer := bytes.NewBuffer(payload)
-	req, err := http.NewRequest("POST", "/v2/snapctl", buffer)
-	c.Assert(err, check.IsNil)
-
-	rec := httptest.NewRecorder()
-	snapctlCmd.POST(snapctlCmd, req, nil).ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-
-	var body map[string]interface{}
-	err = json.Unmarshal(rec.Body.Bytes(), &body)
-	c.Check(err, check.IsNil)
-	result := body["result"].(map[string]interface{})
-	c.Assert(result, check.NotNil)
-	c.Check(result["stdout"], check.DeepEquals, "test stdout")
-	c.Check(result["stderr"], check.DeepEquals, "test stderr")
-
-	c.Check(toolRequest.Context, check.Equals, "foo")
-	c.Check(toolRequest.Args, check.DeepEquals, []string{"arg1", "--arg2"})
 }

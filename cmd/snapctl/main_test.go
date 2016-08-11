@@ -52,11 +52,11 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 			c.Assert(r.Method, Equals, "POST")
 			c.Assert(r.URL.Path, Equals, "/v2/snapctl")
 
-			var toolRequest hookstate.ToolRequest
+			var snapctlRequest hookstate.SnapCtlRequest
 			decoder := json.NewDecoder(r.Body)
-			c.Assert(decoder.Decode(&toolRequest), IsNil)
-			c.Assert(toolRequest.Context, Equals, s.expectedContext)
-			c.Assert(toolRequest.Args, DeepEquals, s.expectedArgs)
+			c.Assert(decoder.Decode(&snapctlRequest), IsNil)
+			c.Assert(snapctlRequest.Context, Equals, s.expectedContext)
+			c.Assert(snapctlRequest.Args, DeepEquals, s.expectedArgs)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": {"stdout": "test stdout", "stderr": "test stderr"}}`)
 		default:

@@ -1512,25 +1512,28 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 }
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
-	fmt.Println("HEEEEEEEEEEEEEEEEEEEEEEEERE")
-	var toolRequest hookstate.ToolRequest
+	var snapctlRequest hookstate.SnapCtlRequest
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&toolRequest); err != nil {
-		return BadRequest("cannot decode snapctl request: %v", err)
+	if err := decoder.Decode(&snapctlRequest); err != nil {
+		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if toolRequest.Context == "" {
+	if snapctlRequest.Context == "" {
 		return BadRequest("snapctl cannot run without context")
 	}
 
-	if len(toolRequest.Args) == 0 {
+	if len(snapctlRequest.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	stdout, stderr := c.d.overlord.HookManager().RunTool(toolRequest)
+	stdout, stderr, err := c.d.overlord.HookManager().SnapCtl(snapctlRequest)
+	if err != nil {
+		return BadRequest("error running snapctl: %s", err)
+	}
+
 	result := map[string]string{
-		"stdout": stdout,
-		"stderr": stderr,
+		"stdout": string(stdout),
+		"stderr": string(stderr),
 	}
 
 	return SyncResponse(result, nil)
