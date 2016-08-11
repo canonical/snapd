@@ -34,7 +34,6 @@ execute: |
     ls -lR $IMAGE
     for f in pc pc-kernel ubuntu-core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
-        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap.sideinfo
     done
     grep snap_core=ubuntu-core $IMAGE/boot/grub/grubenv
     grep snap_kernel=pc-kernel $IMAGE/boot/grub/grubenv
