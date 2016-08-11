@@ -42,7 +42,7 @@ func (s *helperSuite) TestReadPrivKeyArmored(c *C) {
 	c.Check(pk, NotNil)
 	c.Check(rsaPrivKey, NotNil)
 	c.Check(pk.PublicKey().ID(), Equals, assertstest.DevKeyID)
-	pkt := packet.NewRSAPrivateKey(time.Unix(1, 0), rsaPrivKey)
+	pkt := packet.NewRSAPrivateKey(time.Date(2016, time.January, 1, 0, 0, 0, 0, time.UTC), rsaPrivKey)
 	c.Check(hex.EncodeToString(pkt.Fingerprint[:]), Equals, assertstest.DevKeyPGPFingerprint)
 }
 

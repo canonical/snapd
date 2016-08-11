@@ -21,11 +21,11 @@ package asserts_test
 
 import (
 	"encoding/base64"
-	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
 	"golang.org/x/crypto/sha3"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
@@ -43,7 +43,7 @@ var (
 )
 
 func init() {
-	pkt := packet.NewRSAPrivateKey(time.Unix(1, 0), testPrivKey1RSA)
+	pkt := packet.NewRSAPrivateKey(asserts.V1FixedTimestamp, testPrivKey1RSA)
 	h := sha3.New384()
 	h.Write([]byte{0x1})
 	err := pkt.PublicKey.Serialize(h)

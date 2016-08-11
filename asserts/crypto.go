@@ -42,7 +42,7 @@ const (
 
 var (
 	v1Header         = []byte{v1}
-	v1FixedTimestamp = time.Unix(1, 0)
+	v1FixedTimestamp = time.Date(2016, time.January, 1, 0, 0, 0, 0, time.UTC)
 )
 
 func encodeV1(data []byte) []byte {

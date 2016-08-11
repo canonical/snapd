@@ -26,6 +26,9 @@ import (
 
 // expose test-only things here
 
+// v1FixedTimestamp exposed for tests
+var V1FixedTimestamp = v1FixedTimestamp
+
 // assembleAndSign exposed for tests
 var AssembleAndSignInTest = assembleAndSign
 

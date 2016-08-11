@@ -28,7 +28,7 @@ override_dh_auto_test:
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-key is included
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
-	strings _build/bin/snapd|grep -c "^public-key-sha3-384: meokUyTBYzujY2PRL1LQnLZD4VFJuv023xqqZGvSHvZBuTOvJ82jiDZUI4WdsiKZ$$"
+	strings _build/bin/snapd|grep -c "^public-key-sha3-384: X6havsrdOOwrut1RRbAJ8r0r28dbv-voCBat3kUTgY0Qs3eOsaNUVGugUfNYCzqn$$"
 endif
 
 override_dh_systemd_enable:
