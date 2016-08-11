@@ -138,25 +138,7 @@ func decodeV1(b []byte, kind string) (packet.Packet, error) {
 	return pkt, nil
 }
 
-// Signature is a cryptographic signature.
-type Signature interface{}
-
-type openpgpSignature struct {
-	sig *packet.Signature
-}
-
-func verifyContentSignature(content []byte, sig Signature, pubKey *packet.PublicKey) error {
-	opgSig, ok := sig.(openpgpSignature)
-	if !ok {
-		panic(fmt.Errorf("not an internally supported Signature: %T", sig))
-	}
-
-	h := opgSig.sig.Hash.New()
-	h.Write(content)
-	return pubKey.VerifySignature(h, opgSig.sig)
-}
-
-func decodeSignature(signature []byte) (Signature, error) {
+func decodeSignature(signature []byte) (*packet.Signature, error) {
 	pkt, err := decodeV1(signature, "signature")
 	if err != nil {
 		return nil, err
@@ -165,7 +147,7 @@ func decodeSignature(signature []byte) (Signature, error) {
 	if !ok {
 		return nil, fmt.Errorf("expected signature, got instead: %T", pkt)
 	}
-	return openpgpSignature{sig}, nil
+	return sig, nil
 }
 
 // PublicKey is the public part of a cryptographic private/public key pair.
@@ -174,7 +156,7 @@ type PublicKey interface {
 	ID() string
 
 	// verify verifies signature is valid for content using the key.
-	verify(content []byte, sig Signature) error
+	verify(content []byte, sig *packet.Signature) error
 
 	keyEncoder
 }
@@ -188,8 +170,10 @@ func (opgPubKey *openpgpPubKey) ID() string {
 	return opgPubKey.sha3_384
 }
 
-func (opgPubKey *openpgpPubKey) verify(content []byte, sig Signature) error {
-	return verifyContentSignature(content, sig, opgPubKey.pubKey)
+func (opgPubKey *openpgpPubKey) verify(content []byte, sig *packet.Signature) error {
+	h := sig.Hash.New()
+	h.Write(content)
+	return opgPubKey.pubKey.VerifySignature(h, sig)
 }
 
 func (opgPubKey openpgpPubKey) keyEncode(w io.Writer) error {
@@ -400,13 +384,11 @@ func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
 		return nil, fmt.Errorf(badSig+"got %T", sigpkt)
 	}
 
-	opgSig := openpgpSignature{sig}
-
 	if sig.Hash != crypto.SHA512 {
 		return nil, fmt.Errorf(badSig + "expected SHA512 digest")
 	}
 
-	err = expk.pubKey.verify(content, opgSig)
+	err = expk.pubKey.verify(content, sig)
 	if err != nil {
 		return nil, fmt.Errorf(badSig+"it does not verify: %v", err)
 	}
