@@ -175,7 +175,7 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 		{"stuff", "public key: cannot decode base64 data: .*"},
 		{"AnNpZw==", "unsupported public key format version: 2"},
 		{"AUJST0tFTg==", "cannot decode public key data: .*"},
-		{spurious, "public key has spurious trailer data"},
+		{spurious, "public key has spurious trailing data"},
 	}
 
 	for _, test := range invalidPublicKeyTests {
