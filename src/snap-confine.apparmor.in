@@ -1,7 +1,7 @@
 # Author: Jamie Strandboge <jamie@canonical.com>
 #include <tunables/global>
 
-/usr/lib/snapd/snap-confine (attach_disconnected) {
+@LIBEXECDIR@/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
     # any abstractions
     /etc/ld.so.cache r,
@@ -17,7 +17,7 @@
     /usr/lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libseccomp.so* mr,
 
-    /usr/lib/snapd/snap-confine r,
+    @LIBEXECDIR@/snap-confine r,
 
     /dev/null rw,
     /dev/full rw,
