@@ -1,4 +1,5 @@
 /usr/bin/snap
+/usr/bin/snapctl
 /usr/bin/snapd usr/lib/snapd
 /usr/bin/snap-exec usr/lib/snapd
 data/completion/snap /usr/share/bash-completion/completions/
@@ -19,4 +20,3 @@ debian/*.socket /lib/systemd/system/
 debian/snapd.service /lib/systemd/system/
 # targets
 debian/*.target /lib/systemd/system/
-
