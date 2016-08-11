@@ -20,12 +20,15 @@
 package partition
 
 import (
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -50,7 +53,7 @@ func (b *mockBootloader) Name() string {
 	return "mocky"
 }
 func (b *mockBootloader) Dir() string {
-	return "/foo"
+	return "/boot/mocky"
 }
 func (b *mockBootloader) GetBootVar(name string) (string, error) {
 	return b.bootVars[name], nil
@@ -58,6 +61,9 @@ func (b *mockBootloader) GetBootVar(name string) (string, error) {
 func (b *mockBootloader) SetBootVar(name, value string) error {
 	b.bootVars[name] = value
 	return nil
+}
+func (b *mockBootloader) ConfigFile() string {
+	return "/boot/mocky/mocky.env"
 }
 
 func (s *PartitionTestSuite) SetUpTest(c *C) {
@@ -101,4 +107,23 @@ func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	err = MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
 	c.Assert(b.bootVars, DeepEquals, expected)
+}
+
+func (s *PartitionTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {
+	err := InstallBootConfig(c.MkDir())
+	c.Assert(err, ErrorMatches, `cannot find boot config in.*`)
+}
+
+func (s *PartitionTestSuite) TestInstallBootloaderConfig(c *C) {
+	for _, t := range []struct{ gadgetFile, systemFile string }{
+		{"grub.conf", "/boot/grub/grub.cfg"},
+		{"uboot.conf", "/boot/uboot/uboot.env"},
+	} {
+		mockGadgetDir := c.MkDir()
+		err := ioutil.WriteFile(filepath.Join(mockGadgetDir, t.gadgetFile), nil, 0644)
+		err = InstallBootConfig(mockGadgetDir)
+		c.Assert(err, IsNil)
+		fn := filepath.Join(dirs.GlobalRootDir, t.systemFile)
+		c.Assert(osutil.FileExists(fn), Equals, true)
+	}
 }
