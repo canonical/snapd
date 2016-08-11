@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -47,8 +48,8 @@ func StampFirstBoot() error {
 }
 
 var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
-var ethdir = "/etc/network/interfaces.d"
-var ifup = "/sbin/ifup"
+var nplandir = "/etc/netplan"
+var enableConfig = []string{"netplan", "apply"}
 
 func EnableFirstEther() error {
 	// ensure that udev is ready and we have the net stuff
@@ -64,20 +65,21 @@ func EnableFirstEther() error {
 		}
 	}
 	if len(eths) == 0 {
+		logger.Noticef("no network interfaces found")
 		return nil
 	}
 	eth := filepath.Base(eths[0])
-	ethfile := filepath.Join(ethdir, eth)
-	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
+	ethfile := filepath.Join(nplandir, "00firstboot-"+eth+".yaml")
+	data := fmt.Sprintf("network:\n version: 2\n ethernets:\n  %s:\n   dhcp4: true\n", eth)
 
 	if err := osutil.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
 		return err
 	}
 
-	ifup := exec.Command(ifup, eth)
-	ifup.Stdout = os.Stdout
-	ifup.Stderr = os.Stderr
-	if err := ifup.Run(); err != nil {
+	enable := exec.Command(enableConfig[0], enableConfig[1:]...)
+	enable.Stdout = os.Stdout
+	enable.Stderr = os.Stderr
+	if err := enable.Run(); err != nil {
 		return err
 	}
 
