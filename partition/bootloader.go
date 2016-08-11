@@ -70,7 +70,7 @@ type Bootloader interface {
 func InstallBootConfig(gadgetDir string) error {
 	for _, bl := range []Bootloader{&grub{}, &uboot{}} {
 		// the bootloader config file has to be root of the gadget snap
-		gadgetFile := filepath.Join(gadgetDir, filepath.Base(bl.ConfigFile()))
+		gadgetFile := filepath.Join(gadgetDir, bl.Name()+".conf")
 		if !osutil.FileExists(gadgetFile) {
 			continue
 		}
