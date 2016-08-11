@@ -20,13 +20,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
-	"gopkg.in/yaml.v2"
 )
 
 var shortCreateUserHelp = i18n.G("Creates a local system user")
@@ -38,7 +38,7 @@ An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {
-	Yaml       bool `long:"yaml" description:"output results in YAML format"`
+	JSON       bool `long:"json" description:"output results in JSON format"`
 	Sudoer     bool `long:"sudoer" description:"grant sudo access to the created user"`
 	Positional struct {
 		Email string `positional-arg-name:"email"`
@@ -65,8 +65,8 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if x.Yaml {
-		y, err := yaml.Marshal(rsp)
+	if x.JSON {
+		y, err := json.Marshal(rsp)
 		if err != nil {
 			return nil
 		}

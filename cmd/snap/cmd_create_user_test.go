@@ -25,7 +25,6 @@ import (
 	"net/http"
 
 	"gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/client"
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -69,11 +68,11 @@ func (s *SnapSuite) TestCreateUser(c *check.C) {
 	}
 	actualResponse := &client.CreateUserResult{}
 
-	rest, err = snap.Parser().ParseArgs([]string{"create-user", "--yaml", "popper@lse.ac.uk"})
+	rest, err = snap.Parser().ParseArgs([]string{"create-user", "--json", "popper@lse.ac.uk"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 2)
-	yaml.Unmarshal(s.stdout.Bytes(), actualResponse)
+	json.Unmarshal(s.stdout.Bytes(), actualResponse)
 	c.Assert(actualResponse, check.DeepEquals, expectedResponse)
 	c.Assert(s.Stderr(), check.Equals, "")
 }
