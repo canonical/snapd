@@ -350,7 +350,7 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 // CreateUserResult holds the result of a user creation
 type CreateUserResult struct {
 	Username    string `json:"username" yaml:"username"`
-	SshKeyCount int    `json:"ssh_key_count" yaml:"ssh_key_count"`
+	SSHKeyCount int    `json:"ssh-key-count" yaml:"ssh-key-count"`
 }
 
 // createUserRequest holds the user creation request
