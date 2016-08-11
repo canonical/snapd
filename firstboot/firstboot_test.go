@@ -34,10 +34,10 @@ import (
 func TestStore(t *testing.T) { TestingT(t) }
 
 type FirstBootTestSuite struct {
-	globs  []string
-	ethdir string
-	ifup   string
-	e      error
+	globs        []string
+	nplandir     string
+	enableConfig []string
+	e            error
 
 	udevadm *testutil.MockCmd
 }
@@ -50,10 +50,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	s.globs = globs
 	globs = nil
-	s.ethdir = ethdir
-	ethdir = c.MkDir()
-	s.ifup = ifup
-	ifup = "/bin/true"
+	s.nplandir = nplandir
+	nplandir = c.MkDir()
+	s.enableConfig = enableConfig
+	enableConfig = []string{"/bin/true"}
 
 	s.e = nil
 	s.udevadm = testutil.MockCommand(c, "udevadm", "")
@@ -61,14 +61,14 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	globs = s.globs
-	ethdir = s.ethdir
-	ifup = s.ifup
+	nplandir = s.nplandir
+	enableConfig = s.enableConfig
 	s.udevadm.Restore()
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEther(c *C) {
 	c.Check(EnableFirstEther(), IsNil)
-	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
+	fs, _ := filepath.Glob(filepath.Join(nplandir, "*"))
 	c.Assert(fs, HasLen, 0)
 }
 
@@ -79,20 +79,19 @@ func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
 
 	globs = []string{filepath.Join(dir, "eth*")}
 	c.Check(EnableFirstEther(), IsNil)
-	fs, _ := filepath.Glob(filepath.Join(ethdir, "*"))
+	fs, _ := filepath.Glob(filepath.Join(nplandir, "*"))
 	c.Assert(fs, HasLen, 1)
 	bs, err := ioutil.ReadFile(fs[0])
 	c.Assert(err, IsNil)
-	c.Check(string(bs), Equals, "allow-hotplug eth42\niface eth42 inet dhcp\n")
-
+	c.Check(string(bs), Equals, "network:\n version: 2\n ethernets:\n  eth42:\n   dhcp4: true\n")
 }
 
-func (s *FirstBootTestSuite) TestEnableFirstEtherBadEthDir(c *C) {
+func (s *FirstBootTestSuite) TestEnableFirstEtherBadNplandir(c *C) {
 	dir := c.MkDir()
 	_, err := os.Create(filepath.Join(dir, "eth42"))
 	c.Assert(err, IsNil)
 
-	ethdir = "/no/such/thing"
+	nplandir = "/no/such/thing"
 	globs = []string{filepath.Join(dir, "eth*")}
 	err = EnableFirstEther()
 	c.Check(err, NotNil)
