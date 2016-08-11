@@ -3253,9 +3253,9 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
 }
 
-// Tests for POST /v2/snaptool
+// Tests for POST /v2/snapctl
 
-func (s *apiSuite) TestRunSnaptool(c *check.C) {
+func (s *apiSuite) TestRunSnapctl(c *check.C) {
 	d := s.daemon(c)
 	s.mockSnap(c, simpleYaml)
 
@@ -3280,11 +3280,11 @@ func (s *apiSuite) TestRunSnaptool(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	buffer := bytes.NewBuffer(payload)
-	req, err := http.NewRequest("POST", "/v2/snaptool", buffer)
+	req, err := http.NewRequest("POST", "/v2/snapctl", buffer)
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
-	snaptoolCmd.POST(snaptoolCmd, req, nil).ServeHTTP(rec, req)
+	snapctlCmd.POST(snapctlCmd, req, nil).ServeHTTP(rec, req)
 	c.Check(rec.Code, check.Equals, 200)
 
 	var body map[string]interface{}

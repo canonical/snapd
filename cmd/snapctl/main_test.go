@@ -34,23 +34,23 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-type snaptoolSuite struct {
+type snapctlSuite struct {
 	server          *httptest.Server
 	oldArgs         []string
 	expectedContext string
 	expectedArgs    []string
 }
 
-var _ = Suite(&snaptoolSuite{})
+var _ = Suite(&snapctlSuite{})
 
-func (s *snaptoolSuite) SetUpTest(c *C) {
+func (s *snapctlSuite) SetUpTest(c *C) {
 	os.Setenv("SNAP_CONTEXT", "snap-context-test")
 	n := 0
 	s.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
 			c.Assert(r.Method, Equals, "POST")
-			c.Assert(r.URL.Path, Equals, "/v2/snaptool")
+			c.Assert(r.URL.Path, Equals, "/v2/snapctl")
 
 			var toolRequest hookstate.ToolRequest
 			decoder := json.NewDecoder(r.Body)
@@ -67,27 +67,27 @@ func (s *snaptoolSuite) SetUpTest(c *C) {
 	}))
 	clientConfig.BaseURL = s.server.URL
 	s.oldArgs = os.Args
-	os.Args = []string{"snaptool"}
+	os.Args = []string{"snapctl"}
 	s.expectedContext = "snap-context-test"
 	s.expectedArgs = []string{}
 }
 
-func (s *snaptoolSuite) TearDownTest(c *C) {
+func (s *snapctlSuite) TearDownTest(c *C) {
 	os.Unsetenv("SNAP_CONTEXT")
 	clientConfig.BaseURL = ""
 	s.server.Close()
 	os.Args = s.oldArgs
 }
 
-func (s *snaptoolSuite) TestSnaptool(c *C) {
+func (s *snapctlSuite) TestSnapctl(c *C) {
 	stdout, stderr, err := run()
 	c.Check(err, IsNil)
 	c.Check(stdout, Equals, "test stdout")
 	c.Check(stderr, Equals, "test stderr")
 }
 
-func (s *snaptoolSuite) TestSnaptoolWithArgs(c *C) {
-	os.Args = []string{"snaptool", "foo", "--bar"}
+func (s *snapctlSuite) TestSnapctlWithArgs(c *C) {
+	os.Args = []string{"snapctl", "foo", "--bar"}
 
 	s.expectedArgs = []string{"foo", "--bar"}
 	stdout, stderr, err := run()
@@ -96,7 +96,7 @@ func (s *snaptoolSuite) TestSnaptoolWithArgs(c *C) {
 	c.Check(stderr, Equals, "test stderr")
 }
 
-func (s *snaptoolSuite) TestSnaptoolWithoutContextShouldError(c *C) {
+func (s *snapctlSuite) TestSnapctlWithoutContextShouldError(c *C) {
 	os.Unsetenv("SNAP_CONTEXT")
 	_, _, err := run()
 	c.Check(err, ErrorMatches, ".*requires SNAP_CONTEXT.*")

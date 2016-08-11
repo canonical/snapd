@@ -25,13 +25,13 @@ import (
 	"gopkg.in/check.v1"
 )
 
-func (cs *clientSuite) TestClientRunSnaptoolCallsEndpoint(c *check.C) {
-	cs.cli.RunSnaptool("1234ABCD", []string{"foo", "bar"})
+func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
+	cs.cli.RunSnapctl("1234ABCD", []string{"foo", "bar"})
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaptool")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/snapctl")
 }
 
-func (cs *clientSuite) TestClientRunSnaptool(c *check.C) {
+func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
         "status-code": 200,
@@ -41,7 +41,7 @@ func (cs *clientSuite) TestClientRunSnaptool(c *check.C) {
 		}
 	}`
 
-	stdout, stderr, err := cs.cli.RunSnaptool("1234ABCD", []string{"foo", "bar"})
+	stdout, stderr, err := cs.cli.RunSnapctl("1234ABCD", []string{"foo", "bar"})
 	c.Assert(err, check.IsNil)
 	c.Check(stdout, check.Equals, "test stdout")
 	c.Check(stderr, check.Equals, "test stderr")

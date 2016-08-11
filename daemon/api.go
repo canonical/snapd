@@ -74,7 +74,7 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	paymentMethodsCmd,
-	snaptoolCmd,
+	snapctlCmd,
 }
 
 var (
@@ -190,10 +190,10 @@ var (
 		GET:    getPaymentMethods,
 	}
 
-	snaptoolCmd = &Command{
-		Path:   "/v2/snaptool",
+	snapctlCmd = &Command{
+		Path:   "/v2/snapctl",
 		UserOK: false,
-		POST:   runSnaptool,
+		POST:   runSnapctl,
 	}
 )
 
@@ -1511,19 +1511,19 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	return SyncResponse(paymentMethods, nil)
 }
 
-func runSnaptool(c *Command, r *http.Request, user *auth.UserState) Response {
+func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	var toolRequest hookstate.ToolRequest
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&toolRequest); err != nil {
-		return BadRequest("cannot decode snaptool request: %v", err)
+		return BadRequest("cannot decode snapctl request: %v", err)
 	}
 
 	if toolRequest.Context == "" {
-		return BadRequest("snaptool cannot run without context")
+		return BadRequest("snapctl cannot run without context")
 	}
 
 	if len(toolRequest.Args) == 0 {
-		return BadRequest("snaptool cannot run without args")
+		return BadRequest("snapctl cannot run without args")
 	}
 
 	stdout, stderr := c.d.overlord.HookManager().RunTool(toolRequest)

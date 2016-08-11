@@ -24,13 +24,13 @@ import (
 	"encoding/json"
 )
 
-type snaptoolOutput struct {
+type snapctlOutput struct {
 	Stdout string
 	Stderr string
 }
 
-// RunSnaptool requests a snaptool run for the given context and arguments.
-func (client *Client) RunSnaptool(context string, args []string) (stdout string, stderr string, err error) {
+// RunSnapctl requests a snapctl run for the given context and arguments.
+func (client *Client) RunSnapctl(context string, args []string) (stdout string, stderr string, err error) {
 	parameters := map[string]interface{}{
 		"context": context,
 		"args":    args,
@@ -41,8 +41,8 @@ func (client *Client) RunSnaptool(context string, args []string) (stdout string,
 		return "", "", err
 	}
 
-	var output snaptoolOutput
-	_, err = client.doSync("POST", "/v2/snaptool", nil, nil, bytes.NewReader(b), &output)
+	var output snapctlOutput
+	_, err = client.doSync("POST", "/v2/snapctl", nil, nil, bytes.NewReader(b), &output)
 	if err != nil {
 		return "", "", err
 	}
