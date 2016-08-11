@@ -10,45 +10,18 @@ backends:
         systems:
             - ubuntu-16.04-64-grub
             # - ubuntu-16.04-32-grub
-            - debian-8
 
 path: /remote/path/
 
 exclude:
     - .git
+    - debian
+    - autom4te.cache
 
 prepare: |
     echo "Spread is running as $(id)"
     [ "$REUSE_PROJECT" != 1 ] || exit 0
-    release_ID="$( . /etc/os-release && echo "${ID:-linux}" )"
-    case $release_ID in
-        ubuntu)
-            # apt update is hanging on security.ubuntu.com with IPv6.
-            sysctl -w net.ipv6.conf.all.disable_ipv6=1
-            trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
-            ;;
-        debian)
-            echo "deb http://ftp.de.debian.org/debian sid main" > /etc/apt/sources.list.d/snappy.list
-            ;;
-    esac
-    case $release_ID in
-        ubuntu|debian)
-            apt-get update
-            apt-get install --quiet -y fakeroot
-            # Build a local copy of snap-confine
-            apt-get install --quiet -y autoconf automake autotools-dev debhelper dh-apparmor dh-autoreconf indent libapparmor-dev libseccomp-dev libudev-dev pkg-config shellcheck udev python3-docutils libglib2.0-dev
-            test -d /home/test || adduser --quiet --disabled-password --gecos '' test
-            chown test.test -R ..
-            sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS=nocheck dpkg-buildpackage -tc -b -Zgzip"
-            dpkg -i ../snap-confine_*.deb || apt-get -f install -y
-            dpkg -i ../ubuntu-core-launcher_*.deb || apt-get -f install -y
-            rm -f ../snap-confine_*.deb ../ubuntu-core-launcher_*.deb
-            # Install snapd (testes require it)
-            apt-get install -y snapd
-            ;;
-    esac
-    # Install the core snap
-    snap list | grep -q ubuntu-core || snap install ubuntu-core
+    ./.spread-prepare.sh
 
 suites:
     spread-tests/:
