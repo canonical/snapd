@@ -22,6 +22,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/partition"
 
 	. "gopkg.in/check.v1"
@@ -30,27 +31,10 @@ import (
 // Hook up gocheck into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
-type mockBootloader struct {
-	dir string
-}
-
-func (b *mockBootloader) Name() string {
-	return "mocky"
-}
-func (b *mockBootloader) Dir() string {
-	return b.dir
-}
-func (b *mockBootloader) SetBootVar(key, value string) error {
-	return nil
-}
-func (b *mockBootloader) GetBootVar(key string) (string, error) {
-	return "", nil
-}
-
 type ProvisioningTestSuite struct {
 	mockYamlFile string
 
-	bootloader *mockBootloader
+	bootloader *boottest.MockBootloader
 }
 
 var _ = Suite(&ProvisioningTestSuite{})
@@ -93,8 +77,8 @@ options:
 var garbageData = `Fooled you!?`
 
 func (ts *ProvisioningTestSuite) SetUpTest(c *C) {
-	ts.bootloader = &mockBootloader{dir: c.MkDir()}
-	ts.mockYamlFile = filepath.Join(ts.bootloader.dir, "install.yaml")
+	ts.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
+	ts.mockYamlFile = filepath.Join(ts.bootloader.Dir(), "install.yaml")
 
 	findBootloader = func() (partition.Bootloader, error) {
 		return ts.bootloader, nil
@@ -139,11 +123,6 @@ func (ts *ProvisioningTestSuite) TestParseInstallYamlData(c *C) {
 
 	_, err = parseInstallYamlData([]byte(garbageData))
 	c.Check(err, Not(Equals), nil)
-}
-
-func (ts *ProvisioningTestSuite) TestInDeveloperModeEmpty(c *C) {
-	ts.bootloader.dir = ""
-	c.Assert(InDeveloperMode(), Equals, false)
 }
 
 func (ts *ProvisioningTestSuite) TestInDeveloperModeWithDevModeOn(c *C) {
