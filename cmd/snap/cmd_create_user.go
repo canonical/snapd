@@ -39,7 +39,7 @@ An account can be setup at https://login.ubuntu.com.
 
 type cmdCreateUser struct {
 	Yaml       bool `long:"yaml" description:"output results in YAML format"`
-	Sudoer     bool `long:"sudoer" description:"make the created user a sudoer"`
+	Sudoer     bool `long:"sudoer" description:"grant sudo access to the created user"`
 	Positional struct {
 		Email string `positional-arg-name:"email"`
 	} `positional-args:"yes"`
@@ -72,7 +72,7 @@ func (x *cmdCreateUser) Execute(args []string) error {
 		}
 		fmt.Fprintf(Stdout, "%s\n", y)
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Created user %q\n"), rsp.Username)
+		fmt.Fprintf(Stdout, i18n.G("Created user %q and imported SSH keys.\n"), rsp.Username)
 	}
 
 	return nil

@@ -58,7 +58,7 @@ func (s *SnapSuite) TestCreateUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
 	c.Check(n, check.Equals, 1)
-	c.Assert(s.Stdout(), check.Equals, `Created user "karl"`+"\n")
+	c.Assert(s.Stdout(), check.Equals, `Created user "karl" and imported SSH keys.`+"\n")
 	c.Assert(s.Stderr(), check.Equals, "")
 
 	s.stdout.Reset()
