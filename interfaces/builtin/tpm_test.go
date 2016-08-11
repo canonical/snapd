@@ -102,9 +102,10 @@ func (s *TpmInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityMount)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
+	// SecuritySecComp is not used in the interface, but it won't be nil because of commonInterface
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
+	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *TpmInterfaceSuite) TestUsedSecuritySystems(c *C) {
