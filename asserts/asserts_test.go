@@ -42,7 +42,7 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
-const exKeyHash = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+const exKeyID = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
 const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"primary-key: abc\n" +
@@ -61,7 +61,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.Header("header1"), IsNil)
 	c.Check(a.HeaderString("header1"), Equals, "")
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
-	c.Check(a.SigningKey(), Equals, exKeyHash)
+	c.Check(a.SigningKey(), Equals, exKeyID)
 }
 
 const exampleEmptyBody2NlNl = "type: test-only\n" +
@@ -99,7 +99,7 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
-	c.Check(a.SigningKey(), Equals, exKeyHash)
+	c.Check(a.SigningKey(), Equals, exKeyID)
 	c.Check(a.Header("primary-key"), Equals, "abc")
 	c.Check(a.Revision(), Equals, 5)
 	c.Check(a.Header("header1"), Equals, "value1")
@@ -124,7 +124,7 @@ func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
-	c.Check(a.SigningKey(), Equals, exKeyHash)
+	c.Check(a.SigningKey(), Equals, exKeyID)
 	cont, signature := a.Signature()
 	c.Check(signature, DeepEquals, []byte("AXNpZw=="))
 	c.Check(cont, DeepEquals, []byte(content))
@@ -154,13 +154,13 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 }
 
 func (as *assertsSuite) TestDecodeInvalid(c *C) {
-	keyHashHdr := "sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n"
+	keyIDHdr := "sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n"
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id\n" +
 		"primary-key: abc\n" +
 		"revision: 0\n" +
 		"body-length: 5\n" +
-		keyHashHdr +
+		keyIDHdr +
 		"\n" +
 		"abcde" +
 		"\n\n" +
@@ -171,10 +171,10 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", `assertion: "authority-id" header is mandatory`},
 		{"authority-id: auth-id\n", "authority-id: \n", `assertion: "authority-id" header should not be empty`},
-		{keyHashHdr, "", `assertion: "sign-key-sha3-384" header is mandatory`},
-		{keyHashHdr, "sign-key-sha3-384: \n", `assertion: "sign-key-sha3-384" header should not be empty`},
-		{keyHashHdr, "sign-key-sha3-384: $\n", `assertion: "sign-key-sha3-384" header cannot be decoded: .*`},
-		{keyHashHdr, "sign-key-sha3-384: eHl6\n", `assertion: "sign-key-sha3-384" header does not have the expected bit length: 24`},
+		{keyIDHdr, "", `assertion: "sign-key-sha3-384" header is mandatory`},
+		{keyIDHdr, "sign-key-sha3-384: \n", `assertion: "sign-key-sha3-384" header should not be empty`},
+		{keyIDHdr, "sign-key-sha3-384: $\n", `assertion: "sign-key-sha3-384" header cannot be decoded: .*`},
+		{keyIDHdr, "sign-key-sha3-384: eHl6\n", `assertion: "sign-key-sha3-384" header does not have the expected bit length: 24`},
 		{"AXNpZw==", "", "empty assertion signature"},
 		{"type: test-only\n", "", `assertion: "type" header is mandatory`},
 		{"type: test-only\n", "type: unknown\n", `unknown assertion type: "unknown"`},
@@ -492,7 +492,7 @@ func (as *assertsSuite) TestHeaders(c *C) {
 		"header1":           "value1",
 		"header2":           "value2",
 		"body-length":       "8",
-		"sign-key-sha3-384": exKeyHash,
+		"sign-key-sha3-384": exKeyID,
 	})
 }
 
@@ -551,9 +551,9 @@ func (as *assertsSuite) TestSigningKey(c *C) {
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
 
-	keyHash := a.SigningKey()
+	keyID := a.SigningKey()
 	c.Assert(err, IsNil)
-	c.Check(keyHash, Equals, testPrivKey1.PublicKey().SHA3_384())
+	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
 }
 
 func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {

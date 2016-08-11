@@ -62,12 +62,12 @@ func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(As
 type KeypairManager interface {
 	// Put stores the given private/public key pair for identity,
 	// making sure it can be later retrieved by authority-id and
-	// key hash with Get().
-	// Trying to store a key with an already present key hash should
+	// key id with Get().
+	// Trying to store a key with an already present key id should
 	// result in an error.
 	Put(authorityID string, privKey PrivateKey) error
-	// Get returns the private/public key pair with the given key hash.
-	Get(authorityID, keyHash string) (PrivateKey, error)
+	// Get returns the private/public key pair with the given key id.
+	Get(authorityID, keyID string) (PrivateKey, error)
 }
 
 // DatabaseConfig for an assertion database.
@@ -201,19 +201,19 @@ var (
 	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 )
 
-func (db *Database) safeGetPrivateKey(authorityID, keyHash string) (PrivateKey, error) {
-	if keyHash == "" {
-		return nil, fmt.Errorf("key hash is empty")
+func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, error) {
+	if keyID == "" {
+		return nil, fmt.Errorf("key id is empty")
 	}
-	if !base64HashLike.MatchString(keyHash) {
-		return nil, fmt.Errorf("key hash contains unexpected chars: %q", keyHash)
+	if !base64HashLike.MatchString(keyID) {
+		return nil, fmt.Errorf("key id contains unexpected chars: %q", keyID)
 	}
-	return db.keypairMgr.Get(authorityID, keyHash)
+	return db.keypairMgr.Get(authorityID, keyID)
 }
 
-// PublicKey returns the public key owned by authorityID that has the given key hash.
-func (db *Database) PublicKey(authorityID string, keyHash string) (PublicKey, error) {
-	privKey, err := db.safeGetPrivateKey(authorityID, keyHash)
+// PublicKey returns the public key owned by authorityID that has the given key id.
+func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, error) {
+	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
 	if err != nil {
 		return nil, err
 	}
@@ -221,29 +221,29 @@ func (db *Database) PublicKey(authorityID string, keyHash string) (PublicKey, er
 }
 
 // Sign assembles an assertion with the provided information and signs it
-// with the private key from `headers["authority-id"]` that has the provided key hash.
-func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyHash string) (Assertion, error) {
+// with the private key from `headers["authority-id"]` that has the provided key id.
+func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyID string) (Assertion, error) {
 	authorityID, err := checkNotEmptyString(headers, "authority-id")
 	if err != nil {
 		return nil, err
 	}
-	privKey, err := db.safeGetPrivateKey(authorityID, keyHash)
+	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
 	if err != nil {
 		return nil, err
 	}
 	return assembleAndSign(assertType, headers, body, privKey)
 }
 
-// findAccountKey finds an AccountKey exactly with account id and key hash.
-func (db *Database) findAccountKey(authorityID, keyHash string) (*AccountKey, error) {
-	key := []string{keyHash}
+// findAccountKey finds an AccountKey exactly with account id and key id.
+func (db *Database) findAccountKey(authorityID, keyID string) (*AccountKey, error) {
+	key := []string{keyID}
 	// consider trusted account keys then disk stored account keys
 	for _, bs := range db.backstores {
 		a, err := bs.Get(AccountKeyType, key)
 		if err == nil {
 			hit := a.(*AccountKey)
 			if hit.AccountID() != authorityID {
-				return nil, fmt.Errorf("found public key %q from %q but expected it from: %s", keyHash, hit.AccountID(), authorityID)
+				return nil, fmt.Errorf("found public key %q from %q but expected it from: %s", keyID, hit.AccountID(), authorityID)
 			}
 			return hit, nil
 		}

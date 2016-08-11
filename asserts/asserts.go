@@ -98,7 +98,7 @@ type Assertion interface {
 	// Signature returns the signed content and its unprocessed signature
 	Signature() (content, signature []byte)
 
-	// SigningKey returns the key hash for the key that signed this assertion.
+	// SigningKey returns the key id for the key that signed this assertion.
 	SigningKey() string
 
 	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
@@ -165,7 +165,7 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
 }
 
-// SigningKey returns the key hash for the key that signed this assertion.
+// SigningKey returns the key id for the key that signed this assertion.
 func (ab *assertionBase) SigningKey() string {
 	return ab.HeaderString("sign-key-sha3-384")
 }
@@ -528,7 +528,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	copy(finalBody, body)
 	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
-	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().SHA3_384()
+	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().ID()
 
 	if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
 		return nil, err
