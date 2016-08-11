@@ -85,15 +85,23 @@ fmt:
 	       indent -linux "$$f"; \
 	done;
 
-EXTRA_DIST = 80-snappy-assign.rules snappy-app-dev
+EXTRA_DIST = 80-snappy-assign.rules snappy-app-dev snap-confine.apparmor.in
+
+snap-confine.apparmor: snap-confine.apparmor.in Makefile
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' <$< >$@
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
 #
-# Install udev rules
-install-data-local:
+# Install udev rules and the apparmor profile
+#
+# NOTE: the funky make functions here just convert /foo/bar/froz into foo.bar.froz
+# The inner subst replaces slashes with dots and the outer patsubst strips the leading dot
+install-data-local: snap-confine.apparmor
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 	install -m 644 $(srcdir)/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
+	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
+	install -m 644 snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
 
 # Install support script for udev rules
 install-exec-local:
