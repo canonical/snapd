@@ -1512,6 +1512,7 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 }
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
+	fmt.Println("HEEEEEEEEEEEEEEEEEEEEEEEERE")
 	var toolRequest hookstate.ToolRequest
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&toolRequest); err != nil {

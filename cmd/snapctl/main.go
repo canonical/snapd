@@ -35,22 +35,25 @@ func main() {
 		os.Exit(1)
 	}
 
-	if stdout != "" {
-		fmt.Fprintf(os.Stdout, stdout)
+	if stdout != nil {
+		os.Stdout.Write(stdout)
 	}
 
-	if stderr != "" {
-		fmt.Fprintf(os.Stderr, stderr)
+	if stderr != nil {
+		os.Stderr.Write(stderr)
 	}
 }
 
-func run() (stdout string, stderr string, err error) {
+func run() (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
 	context := os.Getenv("SNAP_CONTEXT")
 	if context == "" {
-		return "", "", fmt.Errorf("snapctl requires SNAP_CONTEXT environment variable")
+		return nil, nil, fmt.Errorf("snapctl requires SNAP_CONTEXT environment variable")
 	}
 
-	return cli.RunSnapctl(context, os.Args[1:])
+	return cli.RunSnapctl(client.SnapCtlOptions{
+		Context: context,
+		Args:    os.Args[1:],
+	})
 }

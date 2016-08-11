@@ -22,30 +22,36 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 )
 
-type snapctlOutput struct {
-	Stdout string
-	Stderr string
+// SnapCtlOptions holds the various options with which snapctl is invoked.
+type SnapCtlOptions struct {
+	// Context is a string used by snapd to determine the context of this call.
+	// (e.g. which handler should be used, etc.)
+	Context string `json:"context"`
+
+	// Args contains a list of parameters to use for this invocation.
+	Args []string `json:"args"`
 }
 
-// RunSnapctl requests a snapctl run for the given context and arguments.
-func (client *Client) RunSnapctl(context string, args []string) (stdout string, stderr string, err error) {
-	parameters := map[string]interface{}{
-		"context": context,
-		"args":    args,
-	}
+type snapctlOutput struct {
+	Stdout string `json:"stdout"`
+	Stderr string `json:"stderr"`
+}
 
-	b, err := json.Marshal(parameters)
+// RunSnapctl requests a snapctl run for the given options.
+func (client *Client) RunSnapctl(options SnapCtlOptions) (stdout, stderr []byte, err error) {
+	b, err := json.Marshal(options)
 	if err != nil {
-		return "", "", err
+		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)
 	}
 
 	var output snapctlOutput
 	_, err = client.doSync("POST", "/v2/snapctl", nil, nil, bytes.NewReader(b), &output)
 	if err != nil {
-		return "", "", err
+		return nil, nil, fmt.Errorf("cannot run snapctl: %s", err)
 	}
 
-	return output.Stdout, output.Stderr, nil
+	return []byte(output.Stdout), []byte(output.Stderr), nil
 }

@@ -22,11 +22,17 @@ package client_test
 import (
 	"encoding/json"
 
+	"github.com/snapcore/snapd/client"
+
 	"gopkg.in/check.v1"
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
-	cs.cli.RunSnapctl("1234ABCD", []string{"foo", "bar"})
+	options := client.SnapCtlOptions{
+		Context: "1234ABCD",
+		Args:    []string{"foo", "bar"},
+	}
+	cs.cli.RunSnapctl(options)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snapctl")
 }
@@ -41,10 +47,15 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		}
 	}`
 
-	stdout, stderr, err := cs.cli.RunSnapctl("1234ABCD", []string{"foo", "bar"})
+	options := client.SnapCtlOptions{
+		Context: "1234ABCD",
+		Args:    []string{"foo", "bar"},
+	}
+
+	stdout, stderr, err := cs.cli.RunSnapctl(options)
 	c.Assert(err, check.IsNil)
-	c.Check(stdout, check.Equals, "test stdout")
-	c.Check(stderr, check.Equals, "test stderr")
+	c.Check(string(stdout), check.Equals, "test stdout")
+	c.Check(string(stderr), check.Equals, "test stderr")
 
 	var body map[string]interface{}
 	decoder := json.NewDecoder(cs.req.Body)
