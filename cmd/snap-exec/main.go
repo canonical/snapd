@@ -61,7 +61,7 @@ func parseArgs(args []string) (app string, appArgs []string, err error) {
 	if opts.Hook != "" && opts.Command != "" {
 		return "", nil, fmt.Errorf("cannot use --hook and --command together")
 	}
-	if opts.Hook != "" && len(rest) > 0 {
+	if opts.Hook != "" && len(rest) > 1 {
 		return "", nil, fmt.Errorf("too many arguments for hook %q: %s", opts.Hook, strings.Join(rest, " "))
 	}
 

@@ -26,7 +26,9 @@ import (
 var allInterfaces = []interfaces.Interface{
 	&BoolFileInterface{},
 	&BluezInterface{},
+	&BrowserSupportInterface{},
 	&ContentInterface{},
+	&GpioInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&ModemManagerInterface{},
@@ -34,6 +36,7 @@ var allInterfaces = []interfaces.Interface{
 	&NetworkManagerInterface{},
 	&PppInterface{},
 	&SerialPortInterface{},
+	&PulseAudioInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
 	NewHardwareObserveInterface(),
@@ -48,15 +51,16 @@ var allInterfaces = []interfaces.Interface{
 	NewProcessControlInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
+	NewSystemTraceInterface(),
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
 	NewUnity7Interface(),
 	NewX11Interface(),
 	NewOpenglInterface(),
-	NewPulseAudioInterface(),
 	NewCupsControlInterface(),
 	NewOpticalDriveInterface(),
 	NewCameraInterface(),
+	NewBluetoothControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
