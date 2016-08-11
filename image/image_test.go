@@ -217,7 +217,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
 	err := os.MkdirAll(gadgetUnpackDir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.cfg"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
 	c.Assert(err, IsNil)
 
 	s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, [][]string{{"grub.cfg", "I'm a grub.cfg"}})
