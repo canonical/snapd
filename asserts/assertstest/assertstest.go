@@ -133,7 +133,7 @@ ZJl+t4nfZaOz61G61fdR8NVLR+pzM0tLhzccnWPwedL0EO9H888MI+yak4d05frz
 -----END PGP PRIVATE KEY BLOCK-----
 `
 
-	DevKeyHash = "ukBXMs6SJYkeChOBhuZr4jw3Go2zJUqPitYeYJRoEH_y2p4tueu6XHnaC3GaJs9m"
+	DevKeyID = "ukBXMs6SJYkeChOBhuZr4jw3Go2zJUqPitYeYJRoEH_y2p4tueu6XHnaC3GaJs9m"
 
 	DevKeyPGPFingerprint = "6eb134408271d1393b235bc7b8c918d236415515"
 )
@@ -150,11 +150,11 @@ func GPGImportKey(homedir, armoredKey string) {
 
 // A SignerDB can sign assertions using its key pairs.
 type SignerDB interface {
-	Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyHash string) (asserts.Assertion, error)
+	Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error)
 }
 
 // NewAccount creates an account assertion for username, it fills in values for other missing headers as needed. It panics on error.
-func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{}, keyHash string) *asserts.Account {
+func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{}, keyID string) *asserts.Account {
 	if otherHeaders == nil {
 		otherHeaders = make(map[string]interface{})
 	}
@@ -171,7 +171,7 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 	if otherHeaders["timestamp"] == nil {
 		otherHeaders["timestamp"] = time.Now().Format(time.RFC3339)
 	}
-	a, err := db.Sign(asserts.AccountType, otherHeaders, nil, keyHash)
+	a, err := db.Sign(asserts.AccountType, otherHeaders, nil, keyID)
 	if err != nil {
 		panic(err)
 	}
@@ -179,12 +179,12 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 }
 
 // NewAccountKey creates an account-key assertion for the account, it fills in values for missing headers as needed. In panics on error.
-func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]interface{}, pubKey asserts.PublicKey, keyHash string) *asserts.AccountKey {
+func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]interface{}, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
 	if otherHeaders == nil {
 		otherHeaders = make(map[string]interface{})
 	}
 	otherHeaders["account-id"] = acct.AccountID()
-	otherHeaders["public-key-sha3-384"] = pubKey.SHA3_384()
+	otherHeaders["public-key-sha3-384"] = pubKey.ID()
 	if otherHeaders["since"] == nil {
 		otherHeaders["since"] = time.Now().Format(time.RFC3339)
 	}
@@ -199,7 +199,7 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]i
 	if err != nil {
 		panic(err)
 	}
-	a, err := db.Sign(asserts.AccountKeyType, otherHeaders, encodedPubKey, keyHash)
+	a, err := db.Sign(asserts.AccountKeyType, otherHeaders, encodedPubKey, keyID)
 	if err != nil {
 		panic(err)
 	}
@@ -208,10 +208,10 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]i
 
 // SigningDB embeds a signing assertion database with a default private key and assigned authority id.
 // Sign will use the assigned authority id.
-// "" can be passed for keyHash to Sign and PublicKey to use the default key.
+// "" can be passed for keyID to Sign and PublicKey to use the default key.
 type SigningDB struct {
 	AuthorityID string
-	KeyHash     string
+	KeyID       string
 
 	*asserts.Database
 }
@@ -230,24 +230,24 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 	}
 	return &SigningDB{
 		AuthorityID: authorityID,
-		KeyHash:     privKey.PublicKey().SHA3_384(),
+		KeyID:       privKey.PublicKey().ID(),
 		Database:    db,
 	}
 }
 
-func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyHash string) (asserts.Assertion, error) {
+func (db *SigningDB) Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error) {
 	headers["authority-id"] = db.AuthorityID
-	if keyHash == "" {
-		keyHash = db.KeyHash
+	if keyID == "" {
+		keyID = db.KeyID
 	}
-	return db.Database.Sign(assertType, headers, body, keyHash)
+	return db.Database.Sign(assertType, headers, body, keyID)
 }
 
-func (db *SigningDB) PublicKey(keyHash string) (asserts.PublicKey, error) {
-	if keyHash == "" {
-		keyHash = db.KeyHash
+func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
+	if keyID == "" {
+		keyID = db.KeyID
 	}
-	return db.Database.PublicKey(db.AuthorityID, keyHash)
+	return db.Database.PublicKey(db.AuthorityID, keyID)
 }
 
 // StoreStack realises a store-like set of founding trusted assertions and signing setup.
@@ -301,21 +301,21 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 
 		SigningDB: &SigningDB{
 			AuthorityID: authorityID,
-			KeyHash:     storeKey.PublicKeySHA3_384(),
+			KeyID:       storeKey.PublicKeySHA3_384(),
 			Database:    db,
 		},
 	}
 }
 
 // StoreAccountKey retrieves one of the account-key assertions for the signing keys of the simulated store signing database.
-// "" for keyHash means the default one. It panics on error.
-func (ss *StoreStack) StoreAccountKey(keyHash string) *asserts.AccountKey {
-	if keyHash == "" {
-		keyHash = ss.KeyHash
+// "" for keyID means the default one. It panics on error.
+func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
+	if keyID == "" {
+		keyID = ss.KeyID
 	}
 	key, err := ss.Find(asserts.AccountKeyType, map[string]string{
 		"account-id":          ss.AuthorityID,
-		"public-key-sha3-384": keyHash,
+		"public-key-sha3-384": keyID,
 	})
 	if err == asserts.ErrNotFound {
 		return nil

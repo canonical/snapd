@@ -61,10 +61,10 @@ func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
-	got, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyHash)
+	got, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
 	c.Assert(err, IsNil)
-	sha3_384 := got.PublicKey().SHA3_384()
-	c.Check(sha3_384, Equals, assertstest.DevKeyHash)
+	keyID := got.PublicKey().ID()
+	c.Check(keyID, Equals, assertstest.DevKeyID)
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
@@ -76,7 +76,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	store := assertstest.NewStoreStack("trusted", testPrivKey0, testPrivKey1)
 
-	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyHash)
+	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
 	devAcct := assertstest.NewAccount(store, "devel1", map[string]interface{}{
@@ -112,7 +112,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 		"snap-size":     "1025",
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
-	snapBuild, err := signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyHash)
+	snapBuild, err := signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
 	err = checkDB.Check(snapBuild)
@@ -142,7 +142,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
 	restore := asserts.MockRunGPG(mockGPG)
 	defer restore()
 
-	_, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyHash)
+	_, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
 	c.Check(err, ErrorMatches, `cannot load GPG public key with fingerprint "[A-F0-9]+": cannot select exported public key, found many`)
 }
 
@@ -210,7 +210,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 	for _, t := range tests {
 		breakSig = t.breakSig
 
-		_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyHash)
+		_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
 		c.Check(err, ErrorMatches, t.expectedErr)
 	}
 
@@ -242,7 +242,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
-	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyHash)
+	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
 	c.Check(err, ErrorMatches, "cannot sign assertion: cannot sign using GPG: boom")
 }
 
@@ -297,6 +297,6 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningKeyTooShort(c *C) {
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
-	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, privk.PublicKey().SHA3_384())
+	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, privk.PublicKey().ID())
 	c.Check(err, ErrorMatches, `cannot sign assertion: signing needs at least a 4096 bits key, got 2048`)
 }

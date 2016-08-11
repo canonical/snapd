@@ -170,8 +170,8 @@ func decodeSignature(signature []byte) (Signature, error) {
 
 // PublicKey is the public part of a cryptographic private/public key pair.
 type PublicKey interface {
-	// SHA3_384 returns the hash of the key used for lookup.
-	SHA3_384() string
+	// ID returns the id of the key used for lookup.
+	ID() string
 
 	// verify verifies signature is valid for content using the key.
 	verify(content []byte, sig Signature) error
@@ -184,7 +184,7 @@ type openpgpPubKey struct {
 	sha3_384 string
 }
 
-func (opgPubKey *openpgpPubKey) SHA3_384() string {
+func (opgPubKey *openpgpPubKey) ID() string {
 	return opgPubKey.sha3_384
 }
 

@@ -48,9 +48,14 @@ func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
-// PublicKeySHA3_384 returns the key SHAS3-384 hash used for lookup of the account key.
+// PublicKeyID returns the key id used for lookup of the account key.
+func (ak *AccountKey) PublicKeyID() string {
+	return ak.pubKey.ID()
+}
+
+// PublicKeySHA3_384 returns the sha3-384 hash used as id for lookup of the account key, same as PublicKeyID.
 func (ak *AccountKey) PublicKeySHA3_384() string {
-	return ak.pubKey.SHA3_384()
+	return ak.pubKey.ID()
 }
 
 // isKeyValidAt returns whether the account key is valid at 'when' time.
@@ -67,17 +72,17 @@ func (ak *AccountKey) publicKey() PublicKey {
 	return ak.pubKey
 }
 
-func checkPublicKey(ab *assertionBase, keyHashName string) (PublicKey, error) {
+func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
 	pubKey, err := decodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
 	}
-	keyHash, err := checkNotEmptyString(ab.headers, keyHashName)
+	keyID, err := checkNotEmptyString(ab.headers, keyIDName)
 	if err != nil {
 		return nil, err
 	}
-	if keyHash != pubKey.SHA3_384() {
-		return nil, fmt.Errorf("public key does not match provided key hash")
+	if keyID != pubKey.ID() {
+		return nil, fmt.Errorf("public key does not match provided key id")
 	}
 	return pubKey, nil
 }

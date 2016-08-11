@@ -41,7 +41,7 @@ func (s *helperSuite) TestReadPrivKeyArmored(c *C) {
 	pk, rsaPrivKey := assertstest.ReadPrivKey(assertstest.DevKey)
 	c.Check(pk, NotNil)
 	c.Check(rsaPrivKey, NotNil)
-	c.Check(pk.PublicKey().SHA3_384(), Equals, assertstest.DevKeyHash)
+	c.Check(pk.PublicKey().ID(), Equals, assertstest.DevKeyID)
 	pkt := packet.NewRSAPrivateKey(time.Unix(1, 0), rsaPrivKey)
 	c.Check(hex.EncodeToString(pkt.Fingerprint[:]), Equals, assertstest.DevKeyPGPFingerprint)
 }
@@ -97,7 +97,7 @@ func (s *helperSuite) TestStoreStack(c *C) {
 
 	c.Check(storeAccKey.AccountID(), Equals, "super")
 	c.Check(storeAccKey.AccountID(), Equals, store.AuthorityID)
-	c.Check(storeAccKey.PublicKeySHA3_384(), Equals, store.KeyHash)
+	c.Check(storeAccKey.PublicKeyID(), Equals, store.KeyID)
 
 	acct := assertstest.NewAccount(store, "devel1", nil, "")
 	c.Check(acct.Username(), Equals, "devel1")

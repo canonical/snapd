@@ -157,10 +157,10 @@ func (gkm *GPGKeypairManager) Put(authorityID string, privKey PrivateKey) error 
 	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-func (gkm *GPGKeypairManager) Get(authorityID, keyHash string) (PrivateKey, error) {
+func (gkm *GPGKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
 	var hit PrivateKey
 	match := func(privk PrivateKey, fpr string) (bool, error) {
-		if privk.PublicKey().SHA3_384() == keyHash {
+		if privk.PublicKey().ID() == keyID {
 			hit = privk
 			return true, nil
 		}
@@ -173,7 +173,7 @@ func (gkm *GPGKeypairManager) Get(authorityID, keyHash string) (PrivateKey, erro
 	if hit != nil {
 		return hit, nil
 	}
-	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyHash)
+	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
 }
 
 func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, error) {
