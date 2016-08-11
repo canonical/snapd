@@ -107,7 +107,7 @@ CHykZ6BJRgminY1FqOg7tvqTwzYM7lwaE3K8JpAyzie7v+OSLSxy1vlwUmT2lT+h1i28/w+r+R3Q
 C0QC8xuHSvOv3YRtzKna3smAfRlB
 `
 
-	TestRootKeyHash = "hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR"
+	TestRootKeyID = "hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR"
 
 	encodedTestRootAccountKey = `type: account-key
 authority-id: testrootorg
@@ -198,7 +198,7 @@ o7ZSZ/h/bUY1EjE2
 -----END PGP PRIVATE KEY BLOCK-----
 `
 
-	TestStoreKeyHash = "XCIC_Wvj9_hiAt0b10sDon74oGr3a6xGODkMZqrj63ZzNYUD5N87-ojjPoeN7f1Y"
+	TestStoreKeyID = "XCIC_Wvj9_hiAt0b10sDon74oGr3a6xGODkMZqrj63ZzNYUD5N87-ojjPoeN7f1Y"
 )
 
 var (

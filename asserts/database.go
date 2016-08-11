@@ -158,7 +158,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 			accKey := accepted
 			err := trustedBackstore.Put(AccountKeyType, accKey)
 			if err != nil {
-				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeySHA3_384(), accKey.AccountID(), err)
+				return nil, fmt.Errorf("error loading for use trusted account key %q for %q: %v", accKey.PublicKeyID(), accKey.AccountID(), err)
 			}
 
 		case *Account:

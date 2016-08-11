@@ -596,7 +596,7 @@ func (safs *signAddFindSuite) TestFindFindsTrustedAccountKeys(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(tKey.(*asserts.AccountKey).AccountID(), Equals, "canonical")
-	c.Assert(tKey.(*asserts.AccountKey).PublicKeySHA3_384(), Equals, safs.signingKeyID)
+	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
 
 	// find trusted and indirectly trusted
 	accKeys, err := safs.db.FindMany(asserts.AccountKeyType, nil)
@@ -634,7 +634,7 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(tKey.(*asserts.AccountKey).AccountID(), Equals, "canonical")
-	c.Assert(tKey.(*asserts.AccountKey).PublicKeySHA3_384(), Equals, safs.signingKeyID)
+	c.Assert(tKey.(*asserts.AccountKey).PublicKeyID(), Equals, safs.signingKeyID)
 
 	// doesn't find not trusted assertions
 	_, err = safs.db.FindTrusted(asserts.AccountType, map[string]string{
@@ -644,7 +644,7 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 
 	_, err = safs.db.FindTrusted(asserts.AccountKeyType, map[string]string{
 		"account-id":          acct1.AccountID(),
-		"public-key-sha3-384": acct1Key.PublicKeySHA3_384(),
+		"public-key-sha3-384": acct1Key.PublicKeyID(),
 	})
 	c.Check(err, Equals, asserts.ErrNotFound)
 }
