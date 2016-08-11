@@ -95,7 +95,7 @@ func (sdbs *sysDBSuite) TestOpenSysDatabase(c *C) {
 	// check trusted
 	_, err = db.Find(asserts.AccountKeyType, map[string]string{
 		"account-id":          "canonical",
-		"public-key-sha3-384": "meokUyTBYzujY2PRL1LQnLZD4VFJuv023xqqZGvSHvZBuTOvJ82jiDZUI4WdsiKZ",
+		"public-key-sha3-384": "X6havsrdOOwrut1RRbAJ8r0r28dbv-voCBat3kUTgY0Qs3eOsaNUVGugUfNYCzqn",
 	})
 	c.Assert(err, IsNil)
 
