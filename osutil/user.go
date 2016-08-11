@@ -83,6 +83,10 @@ func RealUser() (*user.User, error) {
 	}
 
 	real, err := user.Lookup(realName)
+	// can happen when sudo is used to enter a chroot (e.g. pbuilder)
+	if _, ok := err.(user.UnknownUserError); ok {
+		return cur, nil
+	}
 	if err != nil {
 		return nil, err
 	}
