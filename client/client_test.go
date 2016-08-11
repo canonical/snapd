@@ -286,7 +286,7 @@ func (cs *clientSuite) TestClientCreateUser(c *check.C) {
                         "ssh_key_count": 1
 		}
 	}`
-	rsp, err := cs.cli.CreateUser("popper@lse.ac.uk", true)
+	rsp, err := cs.cli.CreateUser(&client.CreateUserRequest{Email: "popper@lse.ac.uk", Sudoer: true})
 	c.Assert(cs.req.Method, check.Equals, "POST")
 	c.Assert(cs.req.URL.Path, check.Equals, "/v2/create-user")
 	c.Assert(err, check.IsNil)
