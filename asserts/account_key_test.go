@@ -81,7 +81,6 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	accKey := a.(*asserts.AccountKey)
 	c.Check(accKey.AccountID(), Equals, "acc-id1")
 	c.Check(accKey.PublicKeyID(), Equals, aks.keyID)
-	c.Check(accKey.PublicKeySHA3_384(), Equals, aks.keyID)
 	c.Check(accKey.Since(), Equals, aks.since)
 }
 
