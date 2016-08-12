@@ -2,9 +2,9 @@ project: snapd
 
 environment:
     REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PROJECT_PATH: /gopath/src/github.com/snapcore/snapd
-    GOPATH: /gopath
-    PATH: /gopath/bin:/snap/bin:$PATH
+    PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
+    GOPATH: /home/gopath
+    PATH: /home/gopath/bin:/snap/bin:$PATH
     TESTSLIB: $[PROJECT_PATH]/tests/lib
 
 backends:
@@ -73,10 +73,10 @@ suites:
             # Snapshot the state including core.
             if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
                 ! snap list | grep core || exit 1
-                snap install hello-world
+                snap install test-snapd-tools
                 snap list | grep core
-                snap remove hello-world
-                rmdir /snap/hello-world # Should be done by snapd.
+                snap remove test-snapd-tools
+                rmdir /snap/test-snapd-tools # Should be done by snapd.
 
                 systemctl stop snapd.service snapd.socket
                 systemctl daemon-reload

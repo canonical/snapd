@@ -20,23 +20,26 @@
 package auth
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
-	"net/http"
 	"sort"
 
-	"gopkg.in/macaroon.v1"
-
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/store"
 )
 
 // AuthState represents current authenticated users as tracked in state
 type AuthState struct {
-	LastID int         `json:"last-id"`
-	Users  []UserState `json:"users"`
+	LastID int          `json:"last-id"`
+	Users  []UserState  `json:"users"`
+	Device *DeviceState `json:"device,omitempty"`
+}
+
+// DeviceState represents the device's identity and store credentials
+type DeviceState struct {
+	Brand  string `json:"brand,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Serial string `json:"serial,omitempty"`
+
+	SessionMacaroon string `json:"session-macaroon,omitempty"`
 }
 
 // UserState represents an authenticated user
@@ -118,6 +121,61 @@ func User(st *state.State, id int) (*UserState, error) {
 	return nil, fmt.Errorf("invalid user")
 }
 
+// UpdateUser updates user in state
+func UpdateUser(st *state.State, user *UserState) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err != nil {
+		return err
+	}
+
+	for i := range authStateData.Users {
+		if authStateData.Users[i].ID == user.ID {
+			authStateData.Users[i] = *user
+			st.Set("auth", authStateData)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid user")
+}
+
+// Device returns the device details from the state.
+func Device(st *state.State) (*DeviceState, error) {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return &DeviceState{}, nil
+	} else if err != nil {
+		return nil, err
+	}
+
+	if authStateData.Device == nil {
+		return &DeviceState{}, nil
+	}
+
+	return authStateData.Device, nil
+}
+
+// SetDevice updates the device details in the state.
+func SetDevice(st *state.State, device *DeviceState) error {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		authStateData = AuthState{}
+	} else if err != nil {
+		return err
+	}
+
+	authStateData.Device = device
+	st.Set("auth", authStateData)
+
+	return nil
+}
+
 var ErrInvalidAuth = fmt.Errorf("invalid authentication")
 
 // CheckMacaroon returns the UserState for the given macaroon/discharges credentials
@@ -148,94 +206,43 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// Authenticator returns MacaroonAuthenticator for current authenticated user represented by UserState
-func (us *UserState) Authenticator() store.Authenticator {
-	if us == nil {
-		return nil
-	}
-	return newMacaroonAuthenticator(us.StoreMacaroon, us.StoreDischarges)
+// An AuthContext handles user updates.
+type AuthContext interface {
+	Device() (*DeviceState, error)
+	UpdateDevice(device *DeviceState) error
+	UpdateUser(user *UserState) error
 }
 
-// MacaroonAuthenticator is a store authenticator based on macaroons
-type MacaroonAuthenticator struct {
-	Macaroon   string
-	Discharges []string
+// authContext helps keeping track and updating users in the state.
+type authContext struct {
+	state *state.State
 }
 
-func newMacaroonAuthenticator(macaroon string, discharges []string) *MacaroonAuthenticator {
-	return &MacaroonAuthenticator{
-		Macaroon:   macaroon,
-		Discharges: discharges,
-	}
+// NewAuthContext returns an AuthContext for state.
+func NewAuthContext(st *state.State) AuthContext {
+	return &authContext{state: st}
 }
 
-// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
-func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
-	marshalled, err := m.MarshalBinary()
-	if err != nil {
-		return "", err
-	}
-	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
-	return encoded, nil
+// Device returns current device state.
+func (ac *authContext) Device() (*DeviceState, error) {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return Device(ac.state)
 }
 
-// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
-func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
-	var m macaroon.Macaroon
-	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
-	if err != nil {
-		return nil, err
-	}
-	err = m.UnmarshalBinary(decoded)
-	if err != nil {
-		return nil, err
-	}
-	return &m, nil
+// UpdateDevice updates device in state.
+func (ac *authContext) UpdateDevice(device *DeviceState) error {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return SetDevice(ac.state, device)
 }
 
-// LoginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
-func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
-	caveatID := ""
-	for _, caveat := range m.Caveats() {
-		if caveat.Location == store.UbuntuoneLocation {
-			caveatID = caveat.Id
-			break
-		}
-	}
-	if caveatID == "" {
-		return "", fmt.Errorf("missing login caveat")
-	}
-	return caveatID, nil
-}
+// UpdateUser updates user in state.
+func (ac *authContext) UpdateUser(user *UserState) error {
+	ac.state.Lock()
+	defer ac.state.Unlock()
 
-// Authenticate will add the store expected Authorization header for macaroons
-func (ma *MacaroonAuthenticator) Authenticate(r *http.Request) {
-	var buf bytes.Buffer
-	fmt.Fprintf(&buf, `Macaroon root="%s"`, ma.Macaroon)
-
-	// deserialize root macaroon (we need its signature to do the discharge binding)
-	root, err := MacaroonDeserialize(ma.Macaroon)
-	if err != nil {
-		logger.Debugf("cannot deserialize root macaroon: %v", err)
-		return
-	}
-
-	for _, d := range ma.Discharges {
-		// prepare discharge for request
-		discharge, err := MacaroonDeserialize(d)
-		if err != nil {
-			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
-			return
-		}
-		discharge.Bind(root.Signature())
-
-		serializedDischarge, err := MacaroonSerialize(discharge)
-		if err != nil {
-			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
-			return
-		}
-		fmt.Fprintf(&buf, `, discharge="%s"`, serializedDischarge)
-	}
-
-	r.Header.Set("Authorization", buf.String())
+	return UpdateUser(ac.state, user)
 }
