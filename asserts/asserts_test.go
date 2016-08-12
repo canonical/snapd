@@ -61,7 +61,7 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.Header("header1"), IsNil)
 	c.Check(a.HeaderString("header1"), Equals, "")
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
-	c.Check(a.SigningKey(), Equals, exKeyID)
+	c.Check(a.SignKeyID(), Equals, exKeyID)
 }
 
 const exampleEmptyBody2NlNl = "type: test-only\n" +
@@ -99,7 +99,7 @@ func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
-	c.Check(a.SigningKey(), Equals, exKeyID)
+	c.Check(a.SignKeyID(), Equals, exKeyID)
 	c.Check(a.Header("primary-key"), Equals, "abc")
 	c.Check(a.Revision(), Equals, 5)
 	c.Check(a.Header("header1"), Equals, "value1")
@@ -124,7 +124,7 @@ func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
-	c.Check(a.SigningKey(), Equals, exKeyID)
+	c.Check(a.SignKeyID(), Equals, exKeyID)
 	cont, signature := a.Signature()
 	c.Check(signature, DeepEquals, []byte("AXNpZw=="))
 	c.Check(cont, DeepEquals, []byte(content))
@@ -543,7 +543,7 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 	c.Check(reassembledEncoded, DeepEquals, encoded)
 }
 
-func (as *assertsSuite) TestSigningKey(c *C) {
+func (as *assertsSuite) TestSignKeyID(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -551,7 +551,7 @@ func (as *assertsSuite) TestSigningKey(c *C) {
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
 
-	keyID := a.SigningKey()
+	keyID := a.SignKeyID()
 	c.Assert(err, IsNil)
 	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
 }

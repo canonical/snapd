@@ -266,9 +266,9 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	// TODO: later may need to consider type of assert to find candidate keys
-	accKey, err := db.findAccountKey(assert.AuthorityID(), assert.SigningKey())
+	accKey, err := db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
 	if err == ErrNotFound {
-		return fmt.Errorf("no matching public key %q for signature by %q", assert.SigningKey(), assert.AuthorityID())
+		return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
 	}
 	if err != nil {
 		return fmt.Errorf("error finding matching public key for signature: %v", err)
@@ -402,7 +402,7 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 // CheckSigningKeyIsNotExpired checks that the signing key is not expired.
 func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
 	if !signingKey.isKeyValidAt(checkTime) {
-		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SigningKey(), assert.AuthorityID())
+		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
 	}
 	return nil
 }
