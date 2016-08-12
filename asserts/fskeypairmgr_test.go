@@ -46,7 +46,7 @@ func (fsbss *fsKeypairMgrSuite) TestOpenOK(c *C) {
 	c.Check(err, IsNil)
 	c.Check(bs, NotNil)
 
-	info, err := os.Stat(filepath.Join(topDir, "private-keys-v0"))
+	info, err := os.Stat(filepath.Join(topDir, "private-keys-v1"))
 	c.Assert(err, IsNil)
 	c.Assert(info.IsDir(), Equals, true)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0775))
@@ -56,7 +56,7 @@ func (fsbss *fsKeypairMgrSuite) TestOpenWorldWritableFail(c *C) {
 	topDir := filepath.Join(c.MkDir(), "asserts-db")
 	// make it world-writable
 	oldUmask := syscall.Umask(0)
-	os.MkdirAll(filepath.Join(topDir, "private-keys-v0"), 0777)
+	os.MkdirAll(filepath.Join(topDir, "private-keys-v1"), 0777)
 	syscall.Umask(oldUmask)
 
 	bs, err := asserts.OpenFSKeypairManager(topDir)

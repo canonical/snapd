@@ -22,6 +22,7 @@ package asserts
 import (
 	"bufio"
 	"bytes"
+	"crypto"
 	"fmt"
 	"io"
 	"sort"
@@ -42,7 +43,7 @@ type AssertionType struct {
 // Understood assertion types.
 var (
 	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount}
-	AccountKeyType      = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
+	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
@@ -97,8 +98,8 @@ type Assertion interface {
 	// Signature returns the signed content and its unprocessed signature
 	Signature() (content, signature []byte)
 
-	// SigningKey returns the signer identifier and key id for the key that signed this assertion.
-	SigningKey() (signerID, keyID string, err error)
+	// SignKeyID returns the key id for the key that signed this assertion.
+	SignKeyID() string
 
 	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
 	Prerequisites() []*Ref
@@ -164,13 +165,9 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
 }
 
-// SigningKey returns the signer identifier and key id for the key that signed this assertion.
-func (ab *assertionBase) SigningKey() (signerID, keyID string, err error) {
-	sig, err := decodeSignature(ab.signature)
-	if err != nil {
-		return "", "", err
-	}
-	return ab.AuthorityID(), sig.KeyID(), nil
+// SignKeyID returns the key id for the key that signed this assertion.
+func (ab *assertionBase) SignKeyID() string {
+	return ab.HeaderString("sign-key-sha3-384")
 }
 
 // Prerequisites returns references to the prerequisite assertions for the validity of this one.
@@ -469,6 +466,10 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
+	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
+		return nil, fmt.Errorf("assertion: %v", err)
+	}
+
 	typ, err := checkNotEmptyString(headers, "type")
 	if err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
@@ -527,6 +528,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	copy(finalBody, body)
 	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
+	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().ID()
 
 	if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
 		return nil, err
@@ -547,10 +549,11 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		delete(finalHeaders, "revision")
 	}
 	written := map[string]bool{
-		"type":         true,
-		"authority-id": true,
-		"revision":     true,
-		"body-length":  true,
+		"type":              true,
+		"authority-id":      true,
+		"revision":          true,
+		"body-length":       true,
+		"sign-key-sha3-384": true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
 		if _, err := checkPrimaryKey(finalHeaders, primKey); err != nil {
@@ -578,6 +581,10 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	} else {
 		delete(finalHeaders, "body-length")
 	}
+
+	// signing key reference
+	writeHeader(buf, finalHeaders, "sign-key-sha3-384")
+
 	if bodyLength > 0 {
 		buf.Grow(bodyLength + 2)
 		buf.Write(nlnl)
