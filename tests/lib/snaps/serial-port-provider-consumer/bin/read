@@ -1,15 +1,3 @@
-#!/usr/bin/env python
+#!/bin/sh
 
-import os
-import sys
-
-DEVICE='/dev/ttyZZZ999'
-
-def run():
-    tty = os.open(DEVICE, os.O_RDWR)
-    value = os.read(tty, 100)
-    os.close(tty)
-    return value
-
-if __name__ == '__main__':
-    print(run())
+cat /dev/ttyZZZ999
