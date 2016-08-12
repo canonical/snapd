@@ -29,3 +29,10 @@ func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 
 	return func() { userLookup = realUserLookup }
 }
+
+func MockSudoersDotD(mockDir string) func() {
+	realSudoersD := sudoersDotD
+	sudoersDotD = mockDir
+
+	return func() { sudoersDotD = realSudoersD }
+}

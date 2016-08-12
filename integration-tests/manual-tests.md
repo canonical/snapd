@@ -124,6 +124,16 @@
 
     * Check that the writable partition was resized to occupy all the empty space.
 
+# Test Mir interface by running Mir kiosk snap examples
+
+1. Install Virtual Machine Manager
+2. Stitch together a new image
+3. Build both the mir-server and the mir-client snaps from lp:~mir-team/+junk/mir-server-snap and lp:~mir-team/+junk/snapcraft-mir-client
+4. Copy over the snaps and sideload install the mir-server snap, which should result in a mir-server launching black blank screen with a mouse available.
+5. Now install the mir-client snap.
+6. Manually connect mir-client:mir to mir-server:mir due to bug 1577897, then start the mir-client service manually.
+7. This should result in the Qt clock example app being displayed.
+
 # Test serial-port interface using miniterm app
 
 1. Using Ubuntu classic build and install a simple snap containing the Python
@@ -185,3 +195,20 @@ $ snap remove bluez
    and verify it actually passes. If some of the tests fail
    there will be a problem with the particular kernel used on
    the device.
+
+# Test tpm interface with tpm-tools
+
+1. Install tpm snap from store.
+2. Connect plug tpm:tpm to slot ubuntu-core:tpm.
+3. Reboot the system so daemon in tpm snap can get proper permissions.
+4. Use tpm.version to read from tpm device and make sure it shows no error.
+
+        $ tpm.version
+        xKV  TPM 1.2 Version Info:
+          Chip Version:        1.2.5.81
+          Spec Level:          2
+          Errata Revision:     3
+          TPM Vendor ID:       WEC
+          Vendor Specific data: 0000
+          TPM Version:         01010000
+          Manufacturer Info:   57454300
