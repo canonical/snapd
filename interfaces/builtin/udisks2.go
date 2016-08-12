@@ -96,7 +96,9 @@ umount /{,run/}media/**,
 `
 
 var udisks2ConnectedSlotAppArmor = []byte(`
-# Allow connected clients to interact with the service
+# Allow connected clients to interact with the service. Reserved because this
+#  gives privileged access to the system.
+# Usage: reserved
 
 dbus (send)
     bus=system
