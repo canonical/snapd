@@ -214,3 +214,20 @@ $ snap remove bluez
    and verify it actually passes. If some of the tests fail
    there will be a problem with the particular kernel used on
    the device.
+
+# Test tpm interface with tpm-tools
+
+1. Install tpm snap from store.
+2. Connect plug tpm:tpm to slot ubuntu-core:tpm.
+3. Reboot the system so daemon in tpm snap can get proper permissions.
+4. Use tpm.version to read from tpm device and make sure it shows no error.
+
+        $ tpm.version
+        xKV  TPM 1.2 Version Info:
+          Chip Version:        1.2.5.81
+          Spec Level:          2
+          Errata Revision:     3
+          TPM Vendor ID:       WEC
+          Vendor Specific data: 0000
+          TPM Version:         01010000
+          Manufacturer Info:   57454300
