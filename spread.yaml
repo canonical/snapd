@@ -39,6 +39,10 @@ prepare: |
 
     apt build-dep -y ./
 
+    # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
+    #        hits xenial-updates
+    apt install -y snap-confine
+
     # and remove the image PPA again
     add-apt-repository --remove ppa:snappy-dev/image
 
