@@ -71,7 +71,7 @@ slots:
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
-	name, err := iface.GetName(slot.Attrs)
+	name, err := builtin.MprisGetName(iface, slot.Attrs)
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "foo")
 }
@@ -89,7 +89,7 @@ slots:
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
-	name, err := iface.GetName(slot.Attrs)
+	name, err := builtin.MprisGetName(iface, slot.Attrs)
 	c.Assert(err, IsNil)
 	c.Assert(name, Equals, "@{SNAP_NAME}")
 }
@@ -107,7 +107,7 @@ slots:
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
-	name, err := iface.GetName(slot.Attrs)
+	name, err := builtin.MprisGetName(iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "invalid name element: \"foo.bar\"")
 	c.Assert(name, Equals, "")
@@ -128,9 +128,9 @@ slots:
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
-	name, err := iface.GetName(slot.Attrs)
+	name, err := builtin.MprisGetName(iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "name element is not a string")
+	c.Assert(err, ErrorMatches, `name element \[foo\] is not a string`)
 	c.Assert(name, Equals, "")
 }
 
@@ -148,7 +148,7 @@ slots:
 
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
-	name, err := iface.GetName(slot.Attrs)
+	name, err := builtin.MprisGetName(iface, slot.Attrs)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "unknown attribute 'unknown'")
 	c.Assert(name, Equals, "")
