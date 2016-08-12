@@ -65,20 +65,25 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		return nil
 	}
 
+	if len(slot.Attrs) > 1 {
+		return fmt.Errorf("serial-port slot definition has unexpected number of attributes")
+	}
+
 	// Check slot has a path attribute identify serial device
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
-		return fmt.Errorf("serial-port slot must have a path attribute")
+		return fmt.Errorf(`serial-port slot does not have "path" attribute`)
 	}
 
 	// Clean the path before checking it matches the pattern
 	path = filepath.Clean(path)
 
 	// Check the path attribute is in the allowable pattern
-	if serialAllowedPathPattern.MatchString(path) {
-		return nil
+	if !serialAllowedPathPattern.MatchString(path) {
+		return fmt.Errorf("serial-port path attribute must be a valid device node")
 	}
-	return fmt.Errorf("serial-port path attribute must be a valid device node")
+
+	return nil
 }
 
 // SanitizePlug checks and possibly modifies a plug.
@@ -87,28 +92,41 @@ func (iface *SerialPortInterface) SanitizePlug(plug *interfaces.Plug) error {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
 
-	if len(plug.Attrs) == 0 {
-		return nil
-	}
+	switch len(plug.Attrs) {
+	case 1:
+		// In the case of one attribute it should be valid path attribute
+		// Check slot has a path attribute identify serial device
+		path, ok := plug.Attrs["path"].(string)
+		if !ok || path == "" {
+			return fmt.Errorf(`serial-port plug found one attribute but it was not "path"`)
+		}
 
-	if len(plug.Attrs) != 2 {
+		// Clean the path before checking it matches the pattern
+		path = filepath.Clean(path)
+
+		// Check the path attribute is in the allowable pattern
+		if !serialAllowedPathPattern.MatchString(path) {
+			return fmt.Errorf("serial-port path attribute must be a valid device node")
+		}
+	case 2:
+		// In the case of two attributes it should be valid vendor-id product-id pair
+		idVendor, vOk := plug.Attrs["vendor-id"].(string)
+		if !vOk {
+			return fmt.Errorf("serial-port plug failed to find vendor-id attribute")
+		}
+		if !udevVidPidFormat.MatchString(idVendor) {
+			return fmt.Errorf("serial-port vendor-id attribute not valid: %s", idVendor)
+		}
+
+		idProduct, pOk := plug.Attrs["product-id"].(string)
+		if !pOk {
+			return fmt.Errorf("serial-port plug failed to find product-id attribute")
+		}
+		if !udevVidPidFormat.MatchString(idProduct) {
+			return fmt.Errorf("serial-port product-id attribute not valid: %s", idProduct)
+		}
+	default:
 		return fmt.Errorf("serial-port plug definition has unexpected number of attributes")
-	}
-
-	idVendor, vOk := plug.Attrs["vendor-id"].(string)
-	if !vOk {
-		return fmt.Errorf("serial-port plug failed to find vendor-id attribute")
-	}
-	if !udevVidPidFormat.MatchString(idVendor) {
-		return fmt.Errorf("serial-port vendor-id attribute not valid: %s", idVendor)
-	}
-
-	idProduct, pOk := plug.Attrs["product-id"].(string)
-	if !pOk {
-		return fmt.Errorf("serial-port plug failed to find product-id attribute")
-	}
-	if !udevVidPidFormat.MatchString(idProduct) {
-		return fmt.Errorf("serial-port product-id attribute not valid: %s", idProduct)
 	}
 
 	return nil
@@ -147,8 +165,8 @@ func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 // ConnectedPlugSnippet returns security snippet specific to the plug
 func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 
-	path, ok := slot.Attrs["path"].(string)
-	if !ok || path == "" {
+	slotPath, slotOk := slot.Attrs["path"].(string)
+	if !slotOk || slotPath == "" {
 		// don't have path attribute so must be using Udev tagging
 
 		switch securitySystem {
@@ -177,8 +195,15 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	} else {
 		// use path attribute to generate specific device apparmor snippet
 		// no udev required for this
+		plugPath, plugOk := plug.Attrs["path"].(string)
+		if !plugOk || plugPath == "" {
+			return nil, fmt.Errorf("serial-port failed to get plug path attribute")
+		}
+		if plugPath != slotPath {
+			return nil, fmt.Errorf("serial-port slot and plug path attributes do not match")
+		}
 
-		cleanedPath := filepath.Clean(path)
+		cleanedPath := filepath.Clean(slotPath)
 
 		switch securitySystem {
 		case interfaces.SecurityAppArmor:
