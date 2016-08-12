@@ -69,8 +69,8 @@ capability sys_admin,
 
 # Allow scanning of devices
 network netlink raw,
-/run/udev/data/* r,
-/sys/devices/** r,
+/run/udev/data/b[0-9]*:[0-9]* r,
+/sys/devices/**/block/** r,
 
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /run/systemd/seats/* r,
