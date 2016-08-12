@@ -20,11 +20,11 @@
 package store
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"gopkg.in/macaroon.v1"
 )
@@ -33,6 +33,8 @@ var (
 	myappsAPIBase = myappsURL()
 	// MyAppsMacaroonACLAPI points to MyApps endpoint to get a ACL macaroon
 	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
+	// MyAppsDeviceNonceAPI points to MyApps endpoint to get a nonce
+	MyAppsDeviceNonceAPI = myappsAPIBase + "identity/api/v1/nonces"
 	ubuntuoneAPIBase     = authURL()
 	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
 	UbuntuoneLocation = authLocation()
@@ -43,8 +45,9 @@ var (
 )
 
 type ssoMsg struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
+	Code    string              `json:"code"`
+	Message string              `json:"message"`
+	Extra   map[string][]string `json:"extra"`
 }
 
 // returns true if the http status code is in the "success" range (2xx)
@@ -105,7 +108,7 @@ func RequestStoreMacaroon() (string, error) {
 	}
 	macaroonJSONData, err := json.Marshal(data)
 
-	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, strings.NewReader(string(macaroonJSONData)))
+	req, err := http.NewRequest("POST", MyAppsMacaroonACLAPI, bytes.NewReader(macaroonJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -113,8 +116,7 @@ func RequestStoreMacaroon() (string, error) {
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -140,14 +142,14 @@ func RequestStoreMacaroon() (string, error) {
 }
 
 func requestDischargeMacaroon(endpoint string, data map[string]string) (string, error) {
-	const errorPrefix = "cannot authenticate on snap store: "
+	const errorPrefix = "cannot authenticate to snap store: "
 
 	dischargeJSONData, err := json.Marshal(data)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
 
-	req, err := http.NewRequest("POST", endpoint, strings.NewReader(string(dischargeJSONData)))
+	req, err := http.NewRequest("POST", endpoint, bytes.NewReader(dischargeJSONData))
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -155,8 +157,7 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return "", fmt.Errorf(errorPrefix+"%v", err)
 	}
@@ -168,14 +169,17 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 		// get error details
 		var msg ssoMsg
 		dec := json.NewDecoder(resp.Body)
+
 		if err := dec.Decode(&msg); err != nil {
 			return "", fmt.Errorf(errorPrefix+"%v", err)
 		}
-		if msg.Code == "TWOFACTOR_REQUIRED" {
+		switch msg.Code {
+		case "TWOFACTOR_REQUIRED":
 			return "", ErrAuthenticationNeeds2fa
-		}
-		if msg.Code == "TWOFACTOR_FAILURE" {
+		case "TWOFACTOR_FAILURE":
 			return "", Err2faFailed
+		case "INVALID_DATA":
+			return "", ErrInvalidAuthData(msg.Extra)
 		}
 
 		if msg.Message != "" {
@@ -222,4 +226,40 @@ func RefreshDischargeMacaroon(discharge string) (string, error) {
 	}
 
 	return requestDischargeMacaroon(UbuntuoneRefreshDischargeAPI, data)
+}
+
+// RequestStoreDeviceNonce requests a nonce for device authentication against the store.
+func RequestStoreDeviceNonce() (string, error) {
+	const errorPrefix = "cannot get nonce from store: "
+
+	req, err := http.NewRequest("POST", MyAppsDeviceNonceAPI, nil)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+	defer resp.Body.Close()
+
+	// check return code, error on anything !200
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	var responseData struct {
+		Nonce string `json:"nonce"`
+	}
+	if err := dec.Decode(&responseData); err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+
+	if responseData.Nonce == "" {
+		return "", fmt.Errorf(errorPrefix + "empty nonce returned")
+	}
+	return responseData.Nonce, nil
 }

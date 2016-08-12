@@ -409,6 +409,19 @@ version: 1.0`
 	})
 }
 
+func (s *infoSuite) TestReadInfoInvalidImplicitHook(c *C) {
+	hookType := snap.NewHookType(regexp.MustCompile("foo"))
+	s.restore = snap.MockSupportedHookTypes([]*snap.HookType{hookType})
+
+	yaml := `name: foo
+version: 1.0`
+	s.checkInstalledSnapAndSnapFile(c, yaml, []string{"foo", "bar"}, func(c *C, info *snap.Info) {
+		// Verify that only foo has been loaded, not bar
+		c.Check(info.Hooks, HasLen, 1)
+		verifyImplicitHook(c, info, "foo")
+	})
+}
+
 func (s *infoSuite) TestReadInfoImplicitAndExplicitHooks(c *C) {
 	yaml := `name: foo
 version: 1.0

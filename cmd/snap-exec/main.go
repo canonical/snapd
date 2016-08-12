@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/jessevdk/go-flags"
@@ -36,6 +37,7 @@ var syscallExec = syscall.Exec
 // commandline args
 var opts struct {
 	Command string `long:"command" description:"use a different command like {stop,post-stop} from the app"`
+	Hook    string `long:"hook" description:"hook to run" hidden:"yes"`
 }
 
 func main() {
@@ -55,11 +57,19 @@ func parseArgs(args []string) (app string, appArgs []string, err error) {
 		return "", nil, fmt.Errorf("need the application to run as argument")
 	}
 
+	// Catch some invalid parameter combinations, provide helpful errors
+	if opts.Hook != "" && opts.Command != "" {
+		return "", nil, fmt.Errorf("cannot use --hook and --command together")
+	}
+	if opts.Hook != "" && len(rest) > 1 {
+		return "", nil, fmt.Errorf("too many arguments for hook %q: %s", opts.Hook, strings.Join(rest, " "))
+	}
+
 	return rest[0], rest[1:], nil
 }
 
 func run() error {
-	snapApp, args, err := parseArgs(os.Args[1:])
+	snapApp, extraArgs, err := parseArgs(os.Args[1:])
 	if err != nil {
 		return err
 	}
@@ -69,7 +79,12 @@ func run() error {
 	// confinement and (generally) can not talk to snapd
 	revision := os.Getenv("SNAP_REVISION")
 
-	return snapExec(snapApp, revision, opts.Command, args)
+	// Now actually handle the dispatching
+	if opts.Hook != "" {
+		return snapExecHook(snapApp, revision, opts.Hook)
+	}
+
+	return snapExecApp(snapApp, revision, opts.Command, extraArgs)
 }
 
 func findCommand(app *snap.AppInfo, command string) (string, error) {
@@ -93,7 +108,7 @@ func findCommand(app *snap.AppInfo, command string) (string, error) {
 	return cmd, nil
 }
 
-func snapExec(snapApp, revision, command string, args []string) error {
+func snapExecApp(snapApp, revision, command string, args []string) error {
 	rev, err := snap.ParseRevision(revision)
 	if err != nil {
 		return fmt.Errorf("cannot parse revision %q: %s", revision, err)
@@ -117,7 +132,7 @@ func snapExec(snapApp, revision, command string, args []string) error {
 		return err
 	}
 
-	// build the evnironment from the yamle
+	// build the environment from the yaml
 	env := append(os.Environ(), app.Env()...)
 
 	// run the command
@@ -129,4 +144,30 @@ func snapExec(snapApp, revision, command string, args []string) error {
 	}
 	// this is never reached except in tests
 	return nil
+}
+
+func snapExecHook(snapName, revision, hookName string) error {
+	rev, err := snap.ParseRevision(revision)
+	if err != nil {
+		return err
+	}
+
+	info, err := snap.ReadInfo(snapName, &snap.SideInfo{
+		Revision: rev,
+	})
+	if err != nil {
+		return err
+	}
+
+	hook := info.Hooks[hookName]
+	if hook == nil {
+		return fmt.Errorf("cannot find hook %q in %q", hookName, snapName)
+	}
+
+	// build the environment
+	env := append(os.Environ(), hook.Env()...)
+
+	// run the hook
+	hookPath := filepath.Join(hook.Snap.HooksDir(), hook.Name)
+	return syscallExec(hookPath, []string{hookPath}, env)
 }

@@ -14,8 +14,7 @@ restore: |
 
 execute: |
     echo "Sideloaded snap shows status"
-    expected="(?s)Name +Version +Rev +Developer +Notes\n\
-    basic +.*? *\n\
+    expected="(?s)basic 1.0 installed\n\
     .*"
     snap install ./basic_1.0_all.snap | grep -Pzq "$expected"
 
@@ -29,7 +28,7 @@ execute: |
     expected="\[Desktop Entry\]\n\
     Name=Echo\n\
     Comment=It echos stuff\n\
-    Exec=\/snap\/bin\/basic-desktop.echo\n"
+    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop /snap/bin/basic-desktop.echo\n"
     cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
 
     echo "Sideload devmode snap fails without flags"
@@ -37,12 +36,16 @@ execute: |
     ( snap install ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
-    expected="^basic-devmode +.* +devmode"
+    expected="basic-devmode 1.0 installed"
     snap install --devmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
+    expected="^basic-devmode +.* +devmode"
+    snap list | grep -Pq  "$expected"
 
     echo "Sideload devmode snap succeeds with --jailmode"
-    expected="^basic-devmode +.* +jailmode"
+    expected="basic-devmode 1.0 installed"
     snap install --jailmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
+    expected="^basic-devmode +.* +jailmode"
+    snap list | grep -Pq  "$expected"
 
     echo "Sideload devmode snap fails with both --devmode and --jailmode"
     expected="cannot use devmode and jailmode flags together"

@@ -204,7 +204,12 @@ WantedBy={{.ServiceTargetUnit}}
 	var templateOut bytes.Buffer
 	t := template.Must(template.New("wrapper").Parse(serviceTemplate))
 
-	restartCond := appInfo.RestartCond.String()
+	var restartCond string
+	if appInfo.RestartCond == systemd.RestartNever {
+		restartCond = "no"
+	} else {
+		restartCond = appInfo.RestartCond.String()
+	}
 	if restartCond == "" {
 		restartCond = systemd.RestartOnFailure.String()
 	}

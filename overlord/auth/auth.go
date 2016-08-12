@@ -38,6 +38,8 @@ type DeviceState struct {
 	Brand  string `json:"brand,omitempty"`
 	Model  string `json:"model,omitempty"`
 	Serial string `json:"serial,omitempty"`
+
+	SessionMacaroon string `json:"session-macaroon,omitempty"`
 }
 
 // UserState represents an authenticated user
@@ -206,6 +208,8 @@ NextUser:
 
 // An AuthContext handles user updates.
 type AuthContext interface {
+	Device() (*DeviceState, error)
+	UpdateDevice(device *DeviceState) error
 	UpdateUser(user *UserState) error
 }
 
@@ -217,6 +221,22 @@ type authContext struct {
 // NewAuthContext returns an AuthContext for state.
 func NewAuthContext(st *state.State) AuthContext {
 	return &authContext{state: st}
+}
+
+// Device returns current device state.
+func (ac *authContext) Device() (*DeviceState, error) {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return Device(ac.state)
+}
+
+// UpdateDevice updates device in state.
+func (ac *authContext) UpdateDevice(device *DeviceState) error {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return SetDevice(ac.state, device)
 }
 
 // UpdateUser updates user in state.

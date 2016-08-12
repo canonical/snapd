@@ -72,7 +72,6 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 		"public-key-id: " + aks.keyid + "\n" +
 		"public-key-fingerprint: " + aks.fp + "\n" +
 		aks.sinceLine +
-		aks.untilLine +
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
 		aks.pubKeyBody + "\n\n" +
 		"openpgp c2ln"
@@ -84,7 +83,38 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(accKey.PublicKeyFingerprint(), Equals, aks.fp)
 	c.Check(accKey.PublicKeyID(), Equals, aks.keyid)
 	c.Check(accKey.Since(), Equals, aks.since)
-	c.Check(accKey.Until(), Equals, aks.until)
+}
+
+func (aks *accountKeySuite) TestUntil(c *C) {
+
+	untilSinceLine := "until: " + aks.since.Format(time.RFC3339) + "\n"
+
+	tests := []struct {
+		untilLine string
+		until     time.Time
+	}{
+		{"", time.Time{}},           // zero time default
+		{aks.untilLine, aks.until},  // in the future
+		{untilSinceLine, aks.since}, // same as since
+	}
+
+	for _, test := range tests {
+		c.Log(test)
+		encoded := "type: account-key\n" +
+			"authority-id: canonical\n" +
+			"account-id: acc-id1\n" +
+			"public-key-id: " + aks.keyid + "\n" +
+			"public-key-fingerprint: " + aks.fp + "\n" +
+			aks.sinceLine +
+			test.untilLine +
+			fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+			aks.pubKeyBody + "\n\n" +
+			"openpgp c2ln"
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		accKey := a.(*asserts.AccountKey)
+		c.Check(accKey.Until(), Equals, test.until)
+	}
 }
 
 const (
@@ -92,6 +122,7 @@ const (
 )
 
 func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
+
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
@@ -102,6 +133,9 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
 		aks.pubKeyBody + "\n\n" +
 		"openpgp c2ln"
+
+	untilPast := aks.since.AddDate(-1, 0, 0)
+	untilPastLine := "until: " + untilPast.Format(time.RFC3339) + "\n"
 
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
@@ -114,10 +148,9 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
 		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
-		{aks.untilLine, "", `"until" header is mandatory`},
-		{aks.untilLine, "until: \n", `"until" header should not be empty`},
-		{aks.untilLine, "until: " + aks.since.Format(time.RFC3339) + "\n", `invalid 'since' and 'until' times \(no gap after 'since' till 'until'\)`},
-		{aks.untilLine, "until: \n", `"until" header should not be empty`},
+		{aks.untilLine, "until: \n", `"until" header is not a RFC3339 date: .*`},
+		{aks.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
+		{aks.untilLine, untilPastLine, `'until' time cannot be before 'since' time`},
 	}
 
 	for _, test := range invalidHeaderTests {
@@ -139,9 +172,9 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 	invalidPublicKeyTests := []struct{ body, expectedErr string }{
 		{"", "empty public key"},
 		{"stuff", "public key: expected format and base64 data separated by space"},
-		{"openpgp _", "public key: could not decode base64 data: .*"},
+		{"openpgp _", "public key: cannot decode base64 data: .*"},
 		{strings.Replace(aks.pubKeyBody, "openpgp", "mystery", 1), `unsupported public key format: "mystery"`},
-		{"openpgp anVuaw==", "could not decode public key data: .*"},
+		{"openpgp anVuaw==", "cannot decode public key data: .*"},
 	}
 
 	for _, test := range invalidPublicKeyTests {
@@ -209,7 +242,7 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id": "canonical",
 		"display-name": "Acct1",
 		"account-id":   "acc-id1",
@@ -227,7 +260,7 @@ func (aks *accountKeySuite) prereqAccount(c *C, db *asserts.Database) {
 func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -249,7 +282,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 func (aks *accountKeySuite) TestAccountKeyCheckNoAccount(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -273,7 +306,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 	storeDB := assertstest.NewSigningDB("canonical", trustedKey)
 	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
 		"public-key-fingerprint": aks.fp,
@@ -290,7 +323,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	trustedKey := testPrivKey0
 
-	headers := map[string]string{
+	headers := map[string]interface{}{
 		"authority-id":           "canonical",
 		"account-id":             "acc-id1",
 		"public-key-id":          aks.keyid,
@@ -318,6 +351,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 }
 
 func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
+	// With since and until, i.e. signing account-key expires.
 	encoded := "type: account-key\n" +
 		"authority-id: canonical\n" +
 		"account-id: acc-id1\n" +
@@ -340,4 +374,69 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until), Equals, false)
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, -1, 0)), Equals, true)
 	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, 1, 0)), Equals, false)
+
+	// With no until, i.e. signing account-key never expires.
+	encoded = "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
+		aks.sinceLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"openpgp c2ln"
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	accKey = a.(*asserts.AccountKey)
+
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since), Equals, true)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since.AddDate(0, 0, -1)), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since.AddDate(0, 0, 1)), Equals, true)
+
+	// With since == until, i.e. signing account-key has been revoked.
+	encoded = "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
+		aks.sinceLine +
+		"until: " + aks.since.Format(time.RFC3339) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"openpgp c2ln"
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	accKey = a.(*asserts.AccountKey)
+
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since.AddDate(0, 0, -1)), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.since.AddDate(0, 0, 1)), Equals, false)
+
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, -1, 0)), Equals, false)
+	c.Check(asserts.AccountKeyIsKeyValidAt(accKey, aks.until.AddDate(0, 1, 0)), Equals, false)
+}
+
+func (aks *accountKeySuite) TestPrerequisites(c *C) {
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"public-key-id: " + aks.keyid + "\n" +
+		"public-key-fingerprint: " + aks.fp + "\n" +
+		aks.sinceLine +
+		aks.untilLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"openpgp c2ln"
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 1)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"acc-id1"},
+	})
 }
