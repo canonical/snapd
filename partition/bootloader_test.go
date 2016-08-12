@@ -86,10 +86,9 @@ func (s *PartitionTestSuite) TestForceBootloader(c *C) {
 
 func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 	expected := map[string]string{
-		// cleared
 		"snap_mode":       "",
-		"snap_try_kernel": "",
-		"snap_try_core":   "",
+		"snap_try_kernel": "k1",
+		"snap_try_core":   "os1",
 		// updated
 		"snap_kernel": "k1",
 		"snap_core":   "os1",
