@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
@@ -71,4 +72,48 @@ func (s *helperSuite) TestReadPrivKeyUnarmored(c *C) {
 	c.Check(pkt, NotNil)
 	// extracted with base64 -d|gpg --list-packet
 	c.Check(opgpPK.PublicKey().ID(), Equals, "84c3cda52e420332")
+}
+
+func (s *helperSuite) TestStoreStack(c *C) {
+	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	storePrivKey, _ := assertstest.GenerateKey(752)
+
+	store := assertstest.NewStoreStack("super", rootPrivKey, storePrivKey)
+
+	c.Check(store.TrustedAccount.AccountID(), Equals, "super")
+	c.Check(store.TrustedAccount.IsCertified(), Equals, true)
+
+	c.Check(store.TrustedKey.AccountID(), Equals, "super")
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted:        store.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	storeAccKey := store.StoreAccountKey("")
+	c.Assert(storeAccKey, NotNil)
+
+	c.Check(storeAccKey.AccountID(), Equals, "super")
+	c.Check(storeAccKey.AccountID(), Equals, store.AuthorityID)
+	c.Check(storeAccKey.PublicKeyID(), Equals, store.KeyID)
+
+	acct := assertstest.NewAccount(store, "devel1", nil, "")
+	c.Check(acct.Username(), Equals, "devel1")
+	c.Check(acct.AccountID(), HasLen, 32)
+	c.Check(acct.IsCertified(), Equals, false)
+
+	err = db.Add(storeAccKey)
+	c.Assert(err, IsNil)
+
+	err = db.Add(acct)
+	c.Assert(err, IsNil)
+
+	devKey, _ := assertstest.GenerateKey(752)
+
+	acctKey := assertstest.NewAccountKey(store, acct, nil, devKey.PublicKey(), "")
+
+	err = db.Add(acctKey)
+	c.Assert(err, IsNil)
 }

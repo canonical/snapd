@@ -90,6 +90,10 @@ func requestLoginWith2faRetry(username, password string) error {
 }
 
 func (x *cmdLogin) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	username := x.Positional.UserName
 	fmt.Fprint(Stdout, i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)

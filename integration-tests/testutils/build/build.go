@@ -21,13 +21,11 @@
 package build
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
-	"regexp"
 	"runtime"
 	"strings"
 
@@ -36,7 +34,6 @@ import (
 )
 
 const (
-	listCmd         = "go list ./..."
 	buildTestCmdFmt = "go test%s -c ./integration-tests/tests"
 
 	snapbuildPkg = "./tests/lib/snapbuild"
@@ -45,7 +42,6 @@ const (
 	IntegrationTestName = "integration.test"
 	defaultGoArm        = "7"
 	testsBinDir         = "integration-tests/bin/"
-	baseBuildCmd        = "go test -c -tags integrationcoverage "
 	projectSrcPath      = "src/github.com/snapcore/snapd"
 )
 
@@ -78,13 +74,12 @@ func Assets(cfg *Config) error {
 	prepareTargetDir(testsBinDir)
 
 	if cfg.UseSnappyFromBranch {
-		coverpkg := getCoverPkg()
 		// FIXME We need to build an image that has the snappy from the branch
 		// installed. --elopio - 2015-06-25.
-		if err := buildSnapd(cfg.Arch, coverpkg); err != nil {
+		if err := buildSnapd(cfg.Arch); err != nil {
 			return err
 		}
-		if err := buildSnapCLI(cfg.Arch, coverpkg); err != nil {
+		if err := buildSnapCLI(cfg.Arch); err != nil {
 			return err
 		}
 	}
@@ -94,17 +89,17 @@ func Assets(cfg *Config) error {
 	return buildTests(cfg.Arch, cfg.TestBuildTags)
 }
 
-func buildSnapd(arch, coverpkg string) error {
+func buildSnapd(arch string) error {
 	fmt.Println("Building snapd...")
-	buildSnapdCmd := getBinaryBuildCmd("snapd", coverpkg)
+	buildSnapdCmd := getBinaryBuildCmd("snapd")
 
 	return goCall(arch, buildSnapdCmd)
 }
 
-func buildSnapCLI(arch, coverpkg string) error {
+func buildSnapCLI(arch string) error {
 	fmt.Println("Building snap...")
 
-	buildSnapCliCmd := getBinaryBuildCmd("snap", coverpkg)
+	buildSnapCliCmd := getBinaryBuildCmd("snap")
 	return goCall(arch, buildSnapCliCmd)
 }
 
@@ -159,44 +154,12 @@ func goCall(arch string, cmd string) error {
 	return nil
 }
 
-func getBinaryBuildCmd(binary, coverpkg string) string {
+func getBinaryBuildCmd(binary string) string {
 	// The output of the build commands for testing goes to the testsBinDir path,
 	// which is under the integration-tests directory. The
 	// integration-tests/test-wrapper script (Test-Command's entry point of
 	// adt-run) takes care of including testsBinDir at the beginning of $PATH, so
 	// that these binaries (if they exist) take precedence over the system ones
-	return baseBuildCmd + coverpkg +
-		" -o " + filepath.Join(testsBinDir, binary) + " ." +
+	return "go build -o " + filepath.Join(testsBinDir, binary) + " ." +
 		string(os.PathSeparator) + filepath.Join("cmd", binary)
-}
-
-func getCoverPkg() string {
-	cmdElems := strings.Fields(listCmd)
-
-	cmd := exec.Command(cmdElems[0], cmdElems[1:]...)
-	cmd.Dir = filepath.Join(os.Getenv("GOPATH"), projectSrcPath)
-
-	out, _ := execCommand(cmd)
-
-	filteredOut := filterPkgs(out)
-	return "-coverpkg " + filteredOut
-}
-
-func filterPkgs(list string) string {
-	var buffer bytes.Buffer
-	// without filtering the helper, osutil and progress packages the compilation of the tests gives these errors:
-	// /home/fgimenez/src/go/pkg/tool/linux_amd64/link: running gcc failed: exit status 1
-	// /tmp/go-link-492921396/000003.o: In function `_cgo_b95aca69b89e_Cfunc_isatty':
-	// /home/fgimenez/workspace/gocode/src/github.com/snapcore/snapd/progress/isatty.go:50: multiple definition of `_cgo_b95aca69b89e_Cfunc_isatty'
-	// /tmp/go-link-492921396/000002.o:/home/fgimenez/workspace/gocode/src/github/snapcore/snapd/progress/isatty.go:50: first defined here
-
-	filterPattern := `.*integration-tests|helper|osutil|progress`
-	r := regexp.MustCompile(filterPattern)
-
-	for _, item := range strings.Split(list, "\n") {
-		if !r.MatchString(item) {
-			buffer.WriteString(item + ",")
-		}
-	}
-	return strings.TrimRight(buffer.String(), ",")
 }
