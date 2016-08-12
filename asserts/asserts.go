@@ -98,8 +98,8 @@ type Assertion interface {
 	// Signature returns the signed content and its unprocessed signature
 	Signature() (content, signature []byte)
 
-	// SigningKey returns the key id for the key that signed this assertion.
-	SigningKey() string
+	// SignKeyID returns the key id for the key that signed this assertion.
+	SignKeyID() string
 
 	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
 	Prerequisites() []*Ref
@@ -165,8 +165,8 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
 }
 
-// SigningKey returns the key id for the key that signed this assertion.
-func (ab *assertionBase) SigningKey() string {
+// SignKeyID returns the key id for the key that signed this assertion.
+func (ab *assertionBase) SignKeyID() string {
 	return ab.HeaderString("sign-key-sha3-384")
 }
 
