@@ -1,0 +1,51 @@
+summary: Check that prepare-image works for grub-systems
+environment:
+    ROOT: /tmp/root
+    IMAGE: /tmp/root/image
+    GADGET: /tmp/root/gadget
+restore:
+    rm -rf $ROOT
+execute: |
+    echo Creating model assertion
+    cat > model.assertion <<EOF
+    type: model
+    series: 16
+    authority-id: my-brand
+    brand-id: my-brand
+    model: my-model
+    class: my-class
+    allowed-modes:  
+    required-snaps:  
+    architecture: amd64
+    store: canonical
+    gadget: pc
+    kernel: pc-kernel
+    core: ubuntu-core
+    timestamp: 2016-01-02T10:00:00-05:00
+    body-length: 0
+    
+    openpgpg 2cln
+    EOF
+
+    echo Running prepare-image
+    snap prepare-image --channel edge --extra-snaps snapweb model.assertion $ROOT
+
+    echo Verifying the result
+    ls -lR $IMAGE
+    for f in pc pc-kernel ubuntu-core snapweb; do
+        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
+    done
+    grep snap_core=ubuntu-core $IMAGE/boot/grub/grubenv
+    grep snap_kernel=pc-kernel $IMAGE/boot/grub/grubenv
+
+    echo Verify the unpacked gadget
+    ls -lR $GADGET
+    ls $GADGET/meta/snap.yaml
+
+    echo Verify that we have valid looking seed.yaml
+    cat $IMAGE/var/lib/snapd/seed/seed.yaml
+    # snap-id of ubuntu-core
+    grep -q "snap-id: b8X2psL1ryVrPt5WEmpYiqfr5emixTd7" $IMAGE/var/lib/snapd/seed/seed.yaml
+    for snap in pc pc-kernel ubuntu-core; do
+      grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+    done

@@ -100,17 +100,13 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 	return nil
 }
 
-func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, repo *interfaces.Repository) error {
+func setupSnapSecurity(task *state.Task, snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
 	st := task.State()
-	var snapState snapstate.SnapState
 	snapName := snapInfo.Name()
-	if err := snapstate.Get(st, snapName, &snapState); err != nil {
-		task.Errorf("cannot get state of snap %q: %s", snapName, err)
-		return err
-	}
+
 	for _, backend := range backends.All {
 		st.Unlock()
-		err := backend.Setup(snapInfo, snapState.DevMode(), repo)
+		err := backend.Setup(snapInfo, devMode, repo)
 		st.Lock()
 		if err != nil {
 			task.Errorf("cannot setup %s for snap %q: %s", backend.Name(), snapName, err)
