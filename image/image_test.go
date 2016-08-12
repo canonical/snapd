@@ -49,17 +49,15 @@ authority-id: my-brand
 brand-id: my-brand
 model: my-model
 class: my-class
-allowed-modes:  
-required-snaps:  
 architecture: amd64
 store: canonical
 gadget: pc
 kernel: pc-kernel
 core: core
 timestamp: 2016-01-02T10:00:00-05:00
-body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-openpgpg 2cln
+AXNpZw==
 `)
 
 	fn := filepath.Join(c.MkDir(), "model.assertion")
@@ -151,9 +149,9 @@ snap-id: snap-id-1
 snap-name: first
 publisher-id: dev-id1
 timestamp: 2016-01-02T10:00:00-05:00
-body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-openpgpg 2cln
+AXNpZw==
 `)
 
 	fn := filepath.Join(c.MkDir(), "different.assertion")

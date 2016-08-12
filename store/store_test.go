@@ -1483,10 +1483,10 @@ var testAssertion = `type: snap-declaration
 authority-id: super
 series: 16
 snap-id: snapidfoo
-gates: 
 publisher-id: devidbaz
 snap-name: mysnap
 timestamp: 2016-03-30T12:22:16Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 openpgp wsBcBAABCAAQBQJW+8VBCRDWhXkqAWcrfgAAQ9gIABZFgMPByJZeUE835FkX3/y2hORn
 AzE3R1ktDkQEVe/nfVDMACAuaw1fKmUS4zQ7LIrx/AZYw5i0vKVmJszL42LBWVsqR0+p9Cxebzv9
