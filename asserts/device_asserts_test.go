@@ -57,9 +57,10 @@ const modelExample = "type: model\n" +
 	"required-snaps: foo, bar\n" +
 	"class: fixed\n" +
 	"TSLINE" +
-	"body-length: 0" +
+	"body-length: 0\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 	"\n\n" +
-	"openpgp c2ln"
+	"AXNpZw=="
 
 func (mods *modelSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
@@ -181,10 +182,11 @@ const serialExample = "type: serial\n" +
 	"serial: 2700\n" +
 	"device-key:\n    DEVICEKEY\n" +
 	"TSLINE" +
-	"body-length: 2\n\n" +
+	"body-length: 2\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 	"HW" +
 	"\n\n" +
-	"openpgp c2ln"
+	"AXNpZw=="
 
 func (ss *serialSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
@@ -198,7 +200,7 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 	c.Check(serial.BrandID(), Equals, "brand-id1")
 	c.Check(serial.Model(), Equals, "baz-3000")
 	c.Check(serial.Serial(), Equals, "2700")
-	c.Check(serial.DeviceKey().Fingerprint(), Equals, ss.deviceKey.PublicKey().Fingerprint())
+	c.Check(serial.DeviceKey().ID(), Equals, ss.deviceKey.PublicKey().ID())
 }
 
 const (
@@ -220,7 +222,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		{ss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
-		{"device-key:\n    DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: cannot decode base64 data:.*`},
+		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `cannot decode public key: .*`},
 	}
 
 	for _, test := range invalidTests {

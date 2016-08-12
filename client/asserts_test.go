@@ -99,6 +99,7 @@ developer-id: dev-id1
 revision: 1
 timestamp: 2015-11-25T20:00:00Z
 body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 openpgp ...
 
@@ -112,6 +113,7 @@ developer-id: dev-id1
 revision: 1
 timestamp: 2015-11-30T20:00:00Z
 body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 openpgp ...
 `
