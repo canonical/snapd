@@ -39,6 +39,7 @@ var implicitSlots = []string{
 	"network-bind",
 	"network-control",
 	"network-observe",
+	"opengl",
 	"ppp",
 	"process-control",
 	"snapd-control",
@@ -46,6 +47,7 @@ var implicitSlots = []string{
 	"system-trace",
 	"timeserver-control",
 	"timezone-control",
+	"tpm",
 }
 
 var implicitClassicSlots = []string{
@@ -55,7 +57,6 @@ var implicitClassicSlots = []string{
 	"gsettings",
 	"modem-manager",
 	"network-manager",
-	"opengl",
 	"optical-drive",
 	"pulseaudio",
 	"unity7",
