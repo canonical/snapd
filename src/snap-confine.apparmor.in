@@ -84,6 +84,9 @@
     mount options=(rw bind) /{tmp/snap.rootfs_*/,}tmp/snap.*/tmp/ -> /{tmp/snap.rootfs_*/,}tmp/,
     mount fstype=devpts options=(rw) devpts -> /{tmp/snap.rootfs_*/,}dev/pts/,
     mount options=(rw bind) /{tmp/snap.rootfs_*/,}dev/pts/ptmx -> /{tmp/snap.rootfs_*/,}dev/ptmx,   # for bind mounting
+    # Workaround for LP: #1584456 on older kernels that mistakenly think
+    # /dev/pts/ptmx needs a trailing '/'
+    mount options=(rw bind) /{tmp/snap.rootfs_*/,}dev/pts/ptmx/ -> /{tmp/snap.rootfs_*/,}dev/ptmx/,
 
     # for running snaps on classic
     mount options=(rw rslave) -> /,
