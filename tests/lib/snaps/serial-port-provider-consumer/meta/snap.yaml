@@ -1,0 +1,16 @@
+name: serial-port-provider-consumer
+version: 1.0
+summary: Basic serial-port consumer and provider snap
+description: A basic snap declaring a slot and a plug on serial-port
+
+apps:
+    write:
+        bin: bin/write
+        plugs: [serial-port]
+    read:
+        bin: bin/read
+        plugs: [serial-port]
+
+slots:
+    serial-port:
+        path: /dev/ttyZZZ999
