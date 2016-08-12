@@ -22,16 +22,9 @@ package asserts
 import (
 	"io"
 	"time"
-
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 // expose test-only things here
-
-// access internal openpgp lib packet
-func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
-	return pk.(openpgpPrivateKey).privk
-}
 
 // assembleAndSign exposed for tests
 var AssembleAndSignInTest = assembleAndSign
@@ -73,10 +66,10 @@ func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYea
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]interface{}{
-				"type":          "account-key",
-				"authority-id":  authorityID,
-				"account-id":    authorityID,
-				"public-key-id": openPGPPubKey.ID(),
+				"type":                "account-key",
+				"authority-id":        authorityID,
+				"account-id":          authorityID,
+				"public-key-sha3-384": openPGPPubKey.SHA3_384(),
 			},
 		},
 		since:  time.Time{},

@@ -27,24 +27,29 @@ import (
 	_ "crypto/sha256" // be explicit about supporting SHA256
 	_ "crypto/sha512" // be explicit about needing SHA512
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/sha3"
 )
 
 const (
 	maxEncodeLineLength = 76
+	v1                  = 0x1
 )
 
-func encodeFormatAndData(format string, data []byte) []byte {
+var (
+	v1Header         = []byte{v1}
+	v1FixedTimestamp = time.Unix(1, 0)
+)
+
+func encodeV1(data []byte) []byte {
 	buf := new(bytes.Buffer)
-	buf.Grow(len(format) + 1 + base64.StdEncoding.EncodedLen(len(data)))
-	buf.WriteString(format)
-	buf.WriteByte(' ')
+	buf.Grow(base64.StdEncoding.EncodedLen(len(data) + 1))
 	enc := base64.NewEncoder(base64.StdEncoding, buf)
+	enc.Write(v1Header)
 	enc.Write(data)
 	enc.Close()
 	flat := buf.Bytes()
@@ -70,7 +75,6 @@ func encodeFormatAndData(format string, data []byte) []byte {
 }
 
 type keyEncoder interface {
-	keyFormat() string
 	keyEncode(w io.Writer) error
 }
 
@@ -80,7 +84,7 @@ func encodeKey(key keyEncoder, kind string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot encode %s: %v", kind, err)
 	}
-	return encodeFormatAndData(key.keyFormat(), buf.Bytes()), nil
+	return encodeV1(buf.Bytes()), nil
 }
 
 type openpgpSigner interface {
@@ -104,52 +108,41 @@ func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
 		return nil, err
 	}
 
-	return encodeFormatAndData("openpgp", buf.Bytes()), nil
+	return encodeV1(buf.Bytes()), nil
 }
 
-func splitFormatAndBase64Decode(formatAndBase64 []byte) (string, []byte, error) {
-	parts := bytes.SplitN(formatAndBase64, []byte(" "), 2)
-	if len(parts) != 2 {
-		return "", nil, fmt.Errorf("expected format and base64 data separated by space")
-	}
-	buf := make([]byte, base64.StdEncoding.DecodedLen(len(parts[1])))
-	n, err := base64.StdEncoding.Decode(buf, parts[1])
-	if err != nil {
-		return "", nil, fmt.Errorf("cannot decode base64 data: %v", err)
-	}
-	return string(parts[0]), buf[:n], nil
-}
-
-func decodeOpenpgp(formatAndBase64 []byte, kind string) (packet.Packet, error) {
-	if len(formatAndBase64) == 0 {
+func decodeV1(b []byte, kind string) (packet.Packet, error) {
+	if len(b) == 0 {
 		return nil, fmt.Errorf("empty %s", kind)
 	}
-	format, data, err := splitFormatAndBase64Decode(formatAndBase64)
+	buf := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
+	n, err := base64.StdEncoding.Decode(buf, b)
 	if err != nil {
-		return nil, fmt.Errorf("%s: %v", kind, err)
+		return nil, fmt.Errorf("%s: cannot decode base64 data: %v", kind, err)
 	}
-	if format != "openpgp" {
-		return nil, fmt.Errorf("unsupported %s format: %q", kind, format)
+	if n == 0 {
+		return nil, fmt.Errorf("empty decoded %s", kind)
 	}
-	pkt, err := packet.Read(bytes.NewReader(data))
+	buf = buf[:n]
+	if buf[0] != v1 {
+		return nil, fmt.Errorf("unsupported %s format version: %d", kind, buf[0])
+	}
+	rd := bytes.NewReader(buf[1:])
+	pkt, err := packet.Read(rd)
 	if err != nil {
 		return nil, fmt.Errorf("cannot decode %s data: %v", kind, err)
+	}
+	if rd.Len() != 0 {
+		return nil, fmt.Errorf("%s has spurious trailer data", kind)
 	}
 	return pkt, nil
 }
 
 // Signature is a cryptographic signature.
-type Signature interface {
-	// KeyID() returns a suffix of the signing key fingerprint
-	KeyID() string
-}
+type Signature interface{}
 
 type openpgpSignature struct {
 	sig *packet.Signature
-}
-
-func (opgSig openpgpSignature) KeyID() string {
-	return fmt.Sprintf("%016x", *opgSig.sig.IssuerKeyId)
 }
 
 func verifyContentSignature(content []byte, sig Signature, pubKey *packet.PublicKey) error {
@@ -164,7 +157,7 @@ func verifyContentSignature(content []byte, sig Signature, pubKey *packet.Public
 }
 
 func decodeSignature(signature []byte) (Signature, error) {
-	pkt, err := decodeOpenpgp(signature, "signature")
+	pkt, err := decodeV1(signature, "signature")
 	if err != nil {
 		return nil, err
 	}
@@ -172,18 +165,13 @@ func decodeSignature(signature []byte) (Signature, error) {
 	if !ok {
 		return nil, fmt.Errorf("expected signature, got instead: %T", pkt)
 	}
-	if sig.IssuerKeyId == nil {
-		return nil, fmt.Errorf("expected issuer key id in signature")
-	}
 	return openpgpSignature{sig}, nil
 }
 
 // PublicKey is the public part of a cryptographic private/public key pair.
 type PublicKey interface {
-	// Fingerprint returns the key fingerprint.
-	Fingerprint() string
-	// ID returns the id of the key as used to match signatures to their signing key.
-	ID() string
+	// SHA3_384 returns the hash of the key used for lookup.
+	SHA3_384() string
 
 	// verify verifies signature is valid for content using the key.
 	verify(content []byte, sig Signature) error
@@ -192,38 +180,44 @@ type PublicKey interface {
 }
 
 type openpgpPubKey struct {
-	pubKey *packet.PublicKey
-	fp     string
+	pubKey   *packet.PublicKey
+	sha3_384 string
 }
 
-func (opgPubKey *openpgpPubKey) Fingerprint() string {
-	return opgPubKey.fp
-}
-
-func (opgPubKey *openpgpPubKey) ID() string {
-	// the key id is defined as the 64 bits suffix of the 160 bits fingerprint
-	return opgPubKey.fp[24:40]
+func (opgPubKey *openpgpPubKey) SHA3_384() string {
+	return opgPubKey.sha3_384
 }
 
 func (opgPubKey *openpgpPubKey) verify(content []byte, sig Signature) error {
 	return verifyContentSignature(content, sig, opgPubKey.pubKey)
 }
 
-func (opgPubKey *openpgpPubKey) keyFormat() string {
-	return "openpgp"
-}
-
 func (opgPubKey openpgpPubKey) keyEncode(w io.Writer) error {
 	return opgPubKey.pubKey.Serialize(w)
 }
 
-// OpenPGPPublicKey returns a database useable public key out of a opengpg packet.PulicKey.
-func OpenPGPPublicKey(pubKey *packet.PublicKey) PublicKey {
-	return &openpgpPubKey{pubKey: pubKey, fp: hex.EncodeToString(pubKey.Fingerprint[:])}
+func newOpenPGPPubKey(intPubKey *packet.PublicKey) *openpgpPubKey {
+	h := sha3.New384()
+	h.Write(v1Header)
+	err := intPubKey.Serialize(h)
+	if err != nil {
+		panic("internal error: cannot compute public key sha3-384")
+	}
+	sha3_384, err := EncodeDigest(crypto.SHA3_384, h.Sum(nil))
+	if err != nil {
+		panic("internal error: cannot compute public key sha3-384")
+	}
+	return &openpgpPubKey{pubKey: intPubKey, sha3_384: sha3_384}
+}
+
+// RSAPublicKey returns a database useable public key out of rsa.PublicKey.
+func RSAPublicKey(pubKey *rsa.PublicKey) PublicKey {
+	intPubKey := packet.NewRSAPublicKey(v1FixedTimestamp, pubKey)
+	return newOpenPGPPubKey(intPubKey)
 }
 
 func decodePublicKey(pubKey []byte) (PublicKey, error) {
-	pkt, err := decodeOpenpgp(pubKey, "public key")
+	pkt, err := decodeV1(pubKey, "public key")
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +225,11 @@ func decodePublicKey(pubKey []byte) (PublicKey, error) {
 	if !ok {
 		return nil, fmt.Errorf("expected public key, got instead: %T", pkt)
 	}
-	return OpenPGPPublicKey(pubk), nil
+	rsaPubKey, ok := pubk.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("expected RSA public key, got instead: %T", pubk.PublicKey)
+	}
+	return RSAPublicKey(rsaPubKey), nil
 }
 
 // EncodePublicKey serializes a public key, typically for embedding in an assertion.
@@ -252,11 +250,7 @@ type openpgpPrivateKey struct {
 }
 
 func (opgPrivK openpgpPrivateKey) PublicKey() PublicKey {
-	return OpenPGPPublicKey(&opgPrivK.privk.PublicKey)
-}
-
-func (opgPrivK openpgpPrivateKey) keyFormat() string {
-	return "openpgp"
+	return newOpenPGPPubKey(&opgPrivK.privk.PublicKey)
 }
 
 func (opgPrivK openpgpPrivateKey) keyEncode(w io.Writer) error {
@@ -273,7 +267,6 @@ func (opgPrivK openpgpPrivateKey) sign(content []byte) (*packet.Signature, error
 	sig.PubKeyAlgo = privk.PubKeyAlgo
 	sig.Hash = openpgpConfig.Hash()
 	sig.CreationTime = time.Now()
-	sig.IssuerKeyId = &privk.KeyId
 
 	h := openpgpConfig.Hash().New()
 	h.Write(content)
@@ -287,7 +280,7 @@ func (opgPrivK openpgpPrivateKey) sign(content []byte) (*packet.Signature, error
 }
 
 func decodePrivateKey(privKey []byte) (PrivateKey, error) {
-	pkt, err := decodeOpenpgp(privKey, "private key")
+	pkt, err := decodeV1(privKey, "private key")
 	if err != nil {
 		return nil, err
 	}
@@ -295,12 +288,16 @@ func decodePrivateKey(privKey []byte) (PrivateKey, error) {
 	if !ok {
 		return nil, fmt.Errorf("expected private key, got instead: %T", pkt)
 	}
+	if _, ok := privk.PrivateKey.(*rsa.PrivateKey); !ok {
+		return nil, fmt.Errorf("expected RSA private key, got instead: %T", privk.PrivateKey)
+	}
 	return openpgpPrivateKey{privk}, nil
 }
 
-// OpenPGPPrivateKey returns a PrivateKey for database use out of a opengpg packet.PrivateKey.
-func OpenPGPPrivateKey(privk *packet.PrivateKey) PrivateKey {
-	return openpgpPrivateKey{privk}
+// RSAPrivateKey returns a PrivateKey for database use out of a rsa.PrivateKey.
+func RSAPrivateKey(privk *rsa.PrivateKey) PrivateKey {
+	intPrivk := packet.NewRSAPrivateKey(v1FixedTimestamp, privk)
+	return openpgpPrivateKey{intPrivk}
 }
 
 // GenerateKey generates a private/public key pair.
@@ -309,7 +306,7 @@ func GenerateKey() (PrivateKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	return OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Now(), priv)), nil
+	return RSAPrivateKey(priv), nil
 }
 
 func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
@@ -319,12 +316,14 @@ func encodePrivateKey(privKey PrivateKey) ([]byte, error) {
 // externally held key pairs
 
 type extPGPPrivateKey struct {
-	pubKey PublicKey
-	from   string
-	doSign func(fingerprint string, content []byte) ([]byte, error)
+	pubKey         PublicKey
+	from           string
+	pgpFingerprint string
+	bitLen         int
+	doSign         func(content []byte) ([]byte, error)
 }
 
-func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(fingerprint string, content []byte) ([]byte, error)) (PrivateKey, error) {
+func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(content []byte) ([]byte, error)) (*extPGPPrivateKey, error) {
 	var pubKey *packet.PublicKey
 
 	rd := packet.NewReader(exportedPubKeyStream)
@@ -358,16 +357,17 @@ func newExtPGPPrivateKey(exportedPubKeyStream io.Reader, from string, sign func(
 		return nil, fmt.Errorf("not a RSA key")
 	}
 
-	bitLen := rsaPubKey.N.BitLen()
-	if bitLen < 4096 {
-		return nil, fmt.Errorf("need at least 4096 bits key, got %d", bitLen)
-	}
-
 	return &extPGPPrivateKey{
-		pubKey: OpenPGPPublicKey(pubKey),
-		from:   from,
-		doSign: sign,
+		pubKey:         RSAPublicKey(rsaPubKey),
+		from:           from,
+		pgpFingerprint: fmt.Sprintf("%X", pubKey.Fingerprint),
+		bitLen:         rsaPubKey.N.BitLen(),
+		doSign:         sign,
 	}, nil
+}
+
+func (expk *extPGPPrivateKey) fingerprint() string {
+	return expk.pgpFingerprint
 }
 
 func (expk *extPGPPrivateKey) PublicKey() PublicKey {
@@ -378,12 +378,12 @@ func (expk *extPGPPrivateKey) keyEncode(w io.Writer) error {
 	return fmt.Errorf("cannot access external private key to encode it")
 }
 
-func (expk *extPGPPrivateKey) keyFormat() string {
-	return ""
-}
-
 func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
-	out, err := expk.doSign(expk.pubKey.Fingerprint(), content)
+	if expk.bitLen < 4096 {
+		return nil, fmt.Errorf("signing needs at least a 4096 bits key, got %d", expk.bitLen)
+	}
+
+	out, err := expk.doSign(content)
 	if err != nil {
 		return nil, err
 	}
@@ -401,16 +401,6 @@ func (expk *extPGPPrivateKey) sign(content []byte) (*packet.Signature, error) {
 	}
 
 	opgSig := openpgpSignature{sig}
-
-	if sig.IssuerKeyId == nil {
-		return nil, fmt.Errorf(badSig + "no key id in the signature")
-	}
-
-	sigKeyID := opgSig.KeyID()
-	wantedID := expk.pubKey.ID()
-	if sigKeyID != wantedID {
-		return nil, fmt.Errorf(badSig+"wrong key id (expected %q): %s", wantedID, sigKeyID)
-	}
 
 	if sig.Hash != crypto.SHA512 {
 		return nil, fmt.Errorf(badSig + "expected SHA512 digest")

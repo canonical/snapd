@@ -39,23 +39,23 @@ func (mkm *memoryKeypairManager) Put(authorityID string, privKey PrivateKey) err
 	mkm.mu.Lock()
 	defer mkm.mu.Unlock()
 
-	keyID := privKey.PublicKey().ID()
+	keyHash := privKey.PublicKey().SHA3_384()
 	perAuthID := mkm.pairs[authorityID]
 	if perAuthID == nil {
 		perAuthID = make(map[string]PrivateKey)
 		mkm.pairs[authorityID] = perAuthID
-	} else if perAuthID[keyID] != nil {
+	} else if perAuthID[keyHash] != nil {
 		return errKeypairAlreadyExists
 	}
-	perAuthID[keyID] = privKey
+	perAuthID[keyHash] = privKey
 	return nil
 }
 
-func (mkm *memoryKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+func (mkm *memoryKeypairManager) Get(authorityID, keyHash string) (PrivateKey, error) {
 	mkm.mu.RLock()
 	defer mkm.mu.RUnlock()
 
-	privKey := mkm.pairs[authorityID][keyID]
+	privKey := mkm.pairs[authorityID][keyHash]
 	if privKey == nil {
 		return nil, errKeypairNotFound
 	}
