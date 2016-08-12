@@ -5,10 +5,10 @@ description: A basic snap declaring a slot and a plug on serial-port
 
 apps:
     write:
-        bin: bin/write
+        command: bin/write
         plugs: [serial-port]
     read:
-        bin: bin/read
+        command: bin/read
         plugs: [serial-port]
 
 slots:
