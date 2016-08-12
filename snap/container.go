@@ -40,6 +40,9 @@ type Container interface {
 
 	// Install copies the snap file to targetPath (and possibly unpacks it to mountDir)
 	Install(targetPath, mountDir string) error
+
+	// Unpack unpacks the src parts to the dst directory
+	Unpack(src, dst string) error
 }
 
 // backend implements a specific snap format

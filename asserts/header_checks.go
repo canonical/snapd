@@ -20,6 +20,8 @@
 package asserts
 
 import (
+	"crypto"
+	"encoding/base64"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,27 +30,31 @@ import (
 
 // common checks used when decoding/assembling assertions
 
-func checkExists(headers map[string]string, name string) (string, error) {
+func checkExistsString(headers map[string]interface{}, name string) (string, error) {
 	value, ok := headers[name]
 	if !ok {
 		return "", fmt.Errorf("%q header is mandatory", name)
 	}
-	return value, nil
+	s, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%q header must be a string", name)
+	}
+	return s, nil
 }
 
-func checkNotEmpty(headers map[string]string, name string) (string, error) {
-	value, err := checkExists(headers, name)
+func checkNotEmptyString(headers map[string]interface{}, name string) (string, error) {
+	s, err := checkExistsString(headers, name)
 	if err != nil {
 		return "", err
 	}
-	if len(value) == 0 {
+	if len(s) == 0 {
 		return "", fmt.Errorf("%q header should not be empty", name)
 	}
-	return value, nil
+	return s, nil
 }
 
-func checkPrimaryKey(headers map[string]string, primKey string) (string, error) {
-	value, err := checkNotEmpty(headers, primKey)
+func checkPrimaryKey(headers map[string]interface{}, primKey string) (string, error) {
+	value, err := checkNotEmptyString(headers, primKey)
 	if err != nil {
 		return "", err
 	}
@@ -76,10 +82,26 @@ func checkAssertType(assertType *AssertionType) error {
 }
 
 // use 'defl' default if missing
-func checkInteger(headers map[string]string, name string, defl int) (int, error) {
-	valueStr, ok := headers[name]
+func checkIntWithDefault(headers map[string]interface{}, name string, defl int) (int, error) {
+	value, ok := headers[name]
 	if !ok {
 		return defl, nil
+	}
+	s, ok := value.(string)
+	if !ok {
+		return -1, fmt.Errorf("%q header is not an integer: %v", name, value)
+	}
+	m, err := strconv.Atoi(s)
+	if err != nil {
+		return -1, fmt.Errorf("%q header is not an integer: %v", name, s)
+	}
+	return m, nil
+}
+
+func checkInt(headers map[string]interface{}, name string) (int, error) {
+	valueStr, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return -1, err
 	}
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
@@ -88,8 +110,8 @@ func checkInteger(headers map[string]string, name string, defl int) (int, error)
 	return value, nil
 }
 
-func checkRFC3339Date(headers map[string]string, name string) (time.Time, error) {
-	dateStr, err := checkNotEmpty(headers, name)
+func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, error) {
+	dateStr, err := checkNotEmptyString(headers, name)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -100,8 +122,24 @@ func checkRFC3339Date(headers map[string]string, name string) (time.Time, error)
 	return date, nil
 }
 
-func checkUint(headers map[string]string, name string, bitSize int) (uint64, error) {
-	valueStr, err := checkNotEmpty(headers, name)
+func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, defl time.Time) (time.Time, error) {
+	value, ok := headers[name]
+	if !ok {
+		return defl, nil
+	}
+	dateStr, ok := value.(string)
+	if !ok {
+		return time.Time{}, fmt.Errorf("%q header must be a string", name)
+	}
+	date, err := time.Parse(time.RFC3339, dateStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%q header is not a RFC3339 date: %v", name, err)
+	}
+	return date, nil
+}
+
+func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64, error) {
+	valueStr, err := checkNotEmptyString(headers, name)
 	if err != nil {
 		return 0, err
 	}
@@ -113,29 +151,18 @@ func checkUint(headers map[string]string, name string, bitSize int) (uint64, err
 	return value, nil
 }
 
-func checkCommaSepList(headers map[string]string, name string) ([]string, error) {
-	listStr, ok := headers[name]
-	if !ok {
-		return nil, fmt.Errorf("%q header is mandatory", name)
+func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]byte, error) {
+	digestStr, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return nil, err
+	}
+	b, err := base64.RawURLEncoding.DecodeString(digestStr)
+	if err != nil {
+		return nil, fmt.Errorf("%q header cannot be decoded: %v", name, err)
+	}
+	if len(b) != h.Size() {
+		return nil, fmt.Errorf("%q header does not have the expected bit length: %d", name, len(b)*8)
 	}
 
-	// XXX: we likely don't need this much white-space flexibility,
-	// just supporting newline after , could be enough
-
-	// empty lists are allowed
-	listStr = strings.TrimSpace(listStr)
-	if listStr == "" {
-		return nil, nil
-	}
-
-	entries := strings.Split(listStr, ",")
-	for i, entry := range entries {
-		entry = strings.TrimSpace(entry)
-		if entry == "" {
-			return nil, fmt.Errorf("empty entry in comma separated %q header: %q", name, listStr)
-		}
-		entries[i] = entry
-	}
-
-	return entries, nil
+	return b, nil
 }
