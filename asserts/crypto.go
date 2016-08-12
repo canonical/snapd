@@ -113,15 +113,15 @@ func signContent(content []byte, privateKey PrivateKey) ([]byte, error) {
 
 func decodeV1(b []byte, kind string) (packet.Packet, error) {
 	if len(b) == 0 {
-		return nil, fmt.Errorf("empty %s", kind)
+		return nil, fmt.Errorf("cannot decode %s: no data", kind)
 	}
 	buf := make([]byte, base64.StdEncoding.DecodedLen(len(b)))
 	n, err := base64.StdEncoding.Decode(buf, b)
 	if err != nil {
-		return nil, fmt.Errorf("%s: cannot decode base64 data: %v", kind, err)
+		return nil, fmt.Errorf("cannot decode %s: %v", kind, err)
 	}
 	if n == 0 {
-		return nil, fmt.Errorf("empty decoded %s", kind)
+		return nil, fmt.Errorf("cannot decode %s: base64 without data", kind)
 	}
 	buf = buf[:n]
 	if buf[0] != v1 {
@@ -130,7 +130,7 @@ func decodeV1(b []byte, kind string) (packet.Packet, error) {
 	rd := bytes.NewReader(buf[1:])
 	pkt, err := packet.Read(rd)
 	if err != nil {
-		return nil, fmt.Errorf("cannot decode %s data: %v", kind, err)
+		return nil, fmt.Errorf("cannot decode %s: %v", kind, err)
 	}
 	if rd.Len() != 0 {
 		return nil, fmt.Errorf("%s has spurious trailing data", kind)

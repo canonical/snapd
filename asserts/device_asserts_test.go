@@ -222,7 +222,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		{ss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
-		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `public key: cannot decode base64 data:.*`},
+		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `cannot decode public key: .*`},
 	}
 
 	for _, test := range invalidTests {

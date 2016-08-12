@@ -171,11 +171,11 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 	spurious := base64.StdEncoding.EncodeToString(append(raw, "gorp"...))
 
 	invalidPublicKeyTests := []struct{ body, expectedErr string }{
-		{"", "empty public key"},
-		{"==", "public key: cannot decode base64 data: .*"},
-		{"stuff", "public key: cannot decode base64 data: .*"},
+		{"", "cannot decode public key: no data"},
+		{"==", "cannot decode public key: .*"},
+		{"stuff", "cannot decode public key: .*"},
 		{"AnNpZw==", "unsupported public key format version: 2"},
-		{"AUJST0tFTg==", "cannot decode public key data: .*"},
+		{"AUJST0tFTg==", "cannot decode public key: .*"},
 		{spurious, "public key has spurious trailing data"},
 	}
 
