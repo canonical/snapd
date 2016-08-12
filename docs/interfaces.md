@@ -357,11 +357,16 @@ Can use kernel tracing facilities. This is restricted because it gives
 privileged access to all processes on the system and should only be used with
 trusted apps.
 
-Usage: reserved
-Auto-Connect: no
+* Auto-Connect: no
 
 ### timeserver-control
 
 Can manage timeservers directly separate from ``config core``.
+
+* Auto-Connect: no
+
+### tpm
+
+Can access the tpm device /dev/tpm0.
 
 * Auto-Connect: no
