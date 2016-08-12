@@ -25,6 +25,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v2"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type SeedSnap struct {
@@ -65,4 +67,15 @@ func ReadSeedYaml(fn string) (*Seed, error) {
 	}
 
 	return &seed, nil
+}
+
+func (seed *Seed) Write(seedFn string) error {
+	data, err := yaml.Marshal(&seed)
+	if err != nil {
+		return err
+	}
+	if err := osutil.AtomicWriteFile(seedFn, data, 0644, 0); err != nil {
+		return err
+	}
+	return nil
 }
