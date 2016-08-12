@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestHookManager(t *testing.T) { TestingT(t) }
@@ -40,6 +41,7 @@ type hookManagerSuite struct {
 	mockHandler *mockHandler
 	task        *state.Task
 	change      *state.Change
+	command     *testutil.MockCmd
 }
 
 var _ = Suite(&hookManagerSuite{})
@@ -58,6 +60,8 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.change = s.state.NewChange("kind", "summary")
 	s.change.AddTask(s.task)
 	s.state.Unlock()
+
+	s.command = testutil.MockCommand(c, "snap", "")
 }
 
 func (s *hookManagerSuite) TearDownTest(c *C) {
@@ -92,6 +96,10 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
 	c.Check(calledContext.HookName(), Equals, "test-hook")
 
+	c.Check(s.command.Calls(), DeepEquals, [][]string{[]string{
+		"snap", "run", "test-snap", "--hook", "test-hook", "-r", "1",
+	}})
+
 	c.Check(mockHandler.beforeCalled, Equals, true)
 	c.Check(mockHandler.doneCalled, Equals, true)
 	c.Check(mockHandler.errorCalled, Equals, false)
@@ -101,13 +109,81 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
 }
 
+func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
+	// Register a handler generator for the "test-hook" hook
+	mockHandler := newMockHandler()
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return mockHandler
+	}
+
+	// Force the snap command to exit 1, and print something to stdout
+	s.command = testutil.MockCommand(
+		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(mockHandler.beforeCalled, Equals, true)
+	c.Check(mockHandler.doneCalled, Equals, false)
+	c.Check(mockHandler.errorCalled, Equals, true)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*failed at user request.*"))
+}
+
+func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
+	// Register a handler generator for the "test-hook" hook
+	mockHandler := newMockHandler()
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return mockHandler
+	}
+
+	// Force the snap command to hang
+	s.command = testutil.MockCommand(c, "snap", "while true; do sleep 1; done")
+
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
+	s.manager.Ensure()
+	completed := make(chan struct{})
+	go func() {
+		s.manager.Wait()
+		close(completed)
+	}()
+
+	// Abort the change, which should kill the hanging hook, and wait for the
+	// task to complete.
+	s.state.Lock()
+	s.change.Abort()
+	s.state.Unlock()
+	s.manager.Ensure()
+	<-completed
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(mockHandler.beforeCalled, Equals, true)
+	c.Check(mockHandler.doneCalled, Equals, false)
+	c.Check(mockHandler.errorCalled, Equals, true)
+	c.Check(mockHandler.err, ErrorMatches, ".*hook \"test-hook\" aborted.*")
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*hook \"test-hook\" aborted.*"))
+}
+
 func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 	// Register a handler generator for the "test-hook" hook
-	var calledContext *hookstate.Context
 	mockHandler := newMockHandler()
 	mockHandler.beforeError = true
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
-		calledContext = context
 		return mockHandler
 	}
 
@@ -118,11 +194,6 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	c.Assert(calledContext, NotNil, Commentf("Expected handler generator to be called with a valid context"))
-	c.Check(calledContext.SnapName(), Equals, "test-snap")
-	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
-	c.Check(calledContext.HookName(), Equals, "test-hook")
 
 	c.Check(mockHandler.beforeCalled, Equals, true)
 	c.Check(mockHandler.doneCalled, Equals, false)
@@ -136,11 +207,9 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	// Register a handler generator for the "test-hook" hook
-	var calledContext *hookstate.Context
 	mockHandler := newMockHandler()
 	mockHandler.doneError = true
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
-		calledContext = context
 		return mockHandler
 	}
 
@@ -152,11 +221,6 @@ func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(calledContext, NotNil, Commentf("Expected handler generator to be called with a valid context"))
-	c.Check(calledContext.SnapName(), Equals, "test-snap")
-	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
-	c.Check(calledContext.HookName(), Equals, "test-hook")
-
 	c.Check(mockHandler.beforeCalled, Equals, true)
 	c.Check(mockHandler.doneCalled, Equals, true)
 	c.Check(mockHandler.errorCalled, Equals, false)
@@ -165,6 +229,35 @@ func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
 	checkTaskLogContains(c, s.task, regexp.MustCompile(".*done failed at user request.*"))
+}
+
+func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
+	// Register a handler generator for the "test-hook" hook
+	mockHandler := newMockHandler()
+	mockHandler.errorError = true
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return mockHandler
+	}
+
+	// Force the snap command to simply exit 1, so the handler Error() runs
+	s.command = testutil.MockCommand(c, "snap", "exit 1")
+
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(mockHandler.beforeCalled, Equals, true)
+	c.Check(mockHandler.doneCalled, Equals, false)
+	c.Check(mockHandler.errorCalled, Equals, true)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*error failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {

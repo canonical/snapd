@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -77,10 +76,14 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 		RealName: "ubuntu-kernel",
 		Revision: snap.R(42),
 	}
-	snap := snaptest.MockSnap(c, packageKernel, si)
-	snaptest.PopulateDir(snap.MountDir(), files)
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
 
-	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = boot.ExtractKernelAssets(info, snapf)
 	c.Assert(err, IsNil)
 
 	// this is where the kernel/initrd is unpacked
@@ -100,7 +103,7 @@ func (s *kernelOSSuite) TestExtractKernelAssetsAndRemove(c *C) {
 	}
 
 	// remove
-	err = boot.RemoveKernelAssets(snap, &progress.NullProgress{})
+	err = boot.RemoveKernelAssets(info)
 	c.Assert(err, IsNil)
 
 	c.Check(osutil.FileExists(kernelAssetsDir), Equals, false)
@@ -120,10 +123,14 @@ func (s *kernelOSSuite) TestExtractKernelAssetsNoUnpacksKernelForGrub(c *C) {
 		RealName: "ubuntu-kernel",
 		Revision: snap.R(42),
 	}
-	snap := snaptest.MockSnap(c, packageKernel, si)
-	snaptest.PopulateDir(snap.MountDir(), files)
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snap.Open(fn)
+	c.Assert(err, IsNil)
 
-	err := boot.ExtractKernelAssets(snap, &progress.NullProgress{})
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	err = boot.ExtractKernelAssets(info, snapf)
 	c.Assert(err, IsNil)
 
 	// kernel is *not* here
@@ -165,8 +172,8 @@ func (s *kernelOSSuite) TestSetNextBootForCore(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_os":   "core_100.snap",
-		"snappy_mode": "try",
+		"snap_try_core": "core_100.snap",
+		"snap_mode":     "try",
 	})
 
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
@@ -185,15 +192,15 @@ func (s *kernelOSSuite) TestSetNextBootForKernel(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(s.bootloader.BootVars, DeepEquals, map[string]string{
-		"snappy_kernel": "krnl_42.snap",
-		"snappy_mode":   "try",
+		"snap_try_kernel": "krnl_42.snap",
+		"snap_mode":       "try",
 	})
 
-	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_40.snap"
-	s.bootloader.BootVars["snappy_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snap_kernel"] = "krnl_40.snap"
+	s.bootloader.BootVars["snap_try_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, true)
 
 	// simulate good boot
-	s.bootloader.BootVars["snappy_good_kernel"] = "krnl_42.snap"
+	s.bootloader.BootVars["snap_kernel"] = "krnl_42.snap"
 	c.Check(boot.KernelOrOsRebootRequired(info), Equals, false)
 }

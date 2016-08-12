@@ -85,6 +85,9 @@ network inet6 raw,
 
 # route
 /etc/networks r,
+
+# network devices
+/sys/devices/**/net/** r,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-observe
