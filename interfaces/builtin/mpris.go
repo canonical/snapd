@@ -187,7 +187,7 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		name, err := iface.GetName(slot.Attrs)
+		name, err := iface.getName(slot.Attrs)
 		if err != nil {
 			return nil, err
 		}
@@ -224,16 +224,20 @@ func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 	}
 }
 
-func (iface *MprisInterface) GetName(attribs map[string]interface{}) (string, error) {
+func (iface *MprisInterface) getName(attribs map[string]interface{}) (string, error) {
 	// default to snap name if 'name' attribute not set
 	mprisName := "@{SNAP_NAME}"
 	for attr := range attribs {
 		if attr != "name" {
 			return "", fmt.Errorf("unknown attribute '%s'", attr)
 		}
-		name, ok := attribs[attr].(string)
+		raw, ok := attribs[attr]
 		if !ok {
-			return "", fmt.Errorf("name element is not a string")
+			return "", fmt.Errorf("cannot find attribute %q", attr)
+		}
+		name, ok := raw.(string)
+		if !ok {
+			return "", fmt.Errorf("name element %v is not a string", raw)
 		}
 
 		validDBusElement := regexp.MustCompile("^[a-zA-Z0-9_-]*$")
@@ -254,7 +258,7 @@ func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
 	}
 
-	_, err := iface.GetName(slot.Attrs)
+	_, err := iface.getName(slot.Attrs)
 	return err
 }
 

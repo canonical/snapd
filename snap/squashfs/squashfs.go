@@ -52,7 +52,6 @@ func New(snapPath string) *Snap {
 	return &Snap{path: snapPath}
 }
 
-// Install just copies the blob into place (unless it is used in the tests)
 func (s *Snap) Install(targetPath, mountDir string) error {
 
 	// ensure mount-point and blob target dir.
@@ -67,13 +66,14 @@ func (s *Snap) Install(targetPath, mountDir string) error {
 	// We can not mount it for real in the tests, so we just unpack
 	// it to the location which is good enough for the tests.
 	if os.Getenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS") != "" {
-		if err := s.unpack("*", mountDir); err != nil {
+		if err := s.Unpack("*", mountDir); err != nil {
 			return err
 		}
 	}
 
-	// nothing to do, happens on e.g. first-boot
-	if s.path == targetPath {
+	// nothing to do, happens on e.g. first-boot when we already
+	// booted with the OS snap but its also in the seed.yaml
+	if s.path == targetPath || osutil.FilesAreEqual(s.path, targetPath) {
 		return nil
 	}
 
@@ -96,7 +96,7 @@ var runCommand = func(args ...string) error {
 	return err
 }
 
-func (s *Snap) unpack(src, dstDir string) error {
+func (s *Snap) Unpack(src, dstDir string) error {
 	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
 }
 

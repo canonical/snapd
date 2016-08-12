@@ -55,7 +55,8 @@ var statePatch2JSON = []byte(`
 			"bar": {
 				"candidate": {
 					"name": "",
-					"revision": "x1"
+					"revision": "x1",
+					"snapid": "mysnapid"
 				}
 			}
 		}
@@ -132,23 +133,26 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	st, err := state.ReadState(nil, r)
 	c.Assert(err, IsNil)
 
+	// go from patch level 1 -> 2
 	err = patch.Apply(st)
 	c.Assert(err, IsNil)
 
 	st.Lock()
 	defer st.Unlock()
 
+	// our mocks are correct
+	c.Assert(st.Changes(), HasLen, 2)
 	c.Assert(st.Tasks(), HasLen, 2)
-	t := st.Task("1")
 
+	var ss snapstate.SnapSetup
 	// transition of:
 	// - SnapSetup.{Name,Revision} -> SnapSetup.SideInfo.{RealName,Revision}
-	var ss snapstate.SnapSetup
+	t := st.Task("1")
 	err = t.Get("snap-setup", &ss)
 	c.Assert(err, IsNil)
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "foo",
-		Revision: snap.R(-3),
+		Revision: snap.R("x3"),
 	})
 
 	// transition of:
@@ -159,8 +163,17 @@ func (s *patch2Suite) TestPatch2(c *C) {
 	c.Check(snapst.Sequence[0].RealName, Equals, "foo")
 	c.Check(snapst.Sequence[1].RealName, Equals, "foo")
 
-	// "RealName" is also added for Candidates
+	// transition of:
+	// - Candidate for "bar" -> tasks SnapSetup.SideInfo
+	t = st.Task("2")
+	err = t.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
+		RealName: "bar",
+		Revision: snap.R("x1"),
+	})
+
+	// FIXME: bar is now empty and should no longer be there?
 	err = snapstate.Get(st, "bar", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(snapst.Candidate.RealName, Equals, "bar")
 }
