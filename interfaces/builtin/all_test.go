@@ -36,6 +36,7 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.BluezInterface{})
 	c.Check(all, Contains, &builtin.BrowserSupportInterface{})
 	c.Check(all, Contains, &builtin.GpioInterface{})
+	c.Check(all, Contains, &builtin.HidrawDeviceInterface{})
 	c.Check(all, Contains, &builtin.LocationControlInterface{})
 	c.Check(all, Contains, &builtin.LocationObserveInterface{})
 	c.Check(all, Contains, &builtin.MirInterface{})

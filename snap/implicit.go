@@ -33,6 +33,7 @@ var implicitSlots = []string{
 	"fuse-support",
 	"home",
 	"hardware-observe",
+	"hidraw-device",
 	"locale-control",
 	"log-observe",
 	"mount-observe",
