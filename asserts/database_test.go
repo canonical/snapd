@@ -465,15 +465,15 @@ func (safs *signAddFindSuite) TestAddSuperseding(c *C) {
 	c.Check(err, ErrorMatches, "revision 0 is older than current revision 1")
 }
 
-func (safs *signAddFindSuite) TestAddFreestandingNoPrimaryKey(c *C) {
+func (safs *signAddFindSuite) TestAddNoAuthorityNoPrimaryKey(c *C) {
 	headers := map[string]interface{}{
 		"hdr": "FOO",
 	}
-	a, err := asserts.FreestandingSign(asserts.TestOnlyFreestandingType, headers, nil, testPrivKey0)
+	a, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType, headers, nil, testPrivKey0)
 	c.Assert(err, IsNil)
 
 	err = safs.db.Add(a)
-	c.Assert(err, ErrorMatches, `cannot add "test-only-freestanding" assertion with zero-length primary key`)
+	c.Assert(err, ErrorMatches, `internal error: assertion type "test-only-no-authority" has no primary key`)
 }
 
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {

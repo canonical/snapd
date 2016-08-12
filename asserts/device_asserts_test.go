@@ -234,7 +234,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 }
 
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {
-	sreq, err := asserts.FreestandingSign(asserts.SerialRequestType,
+	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
 		map[string]interface{}{
 			"brand-id": "brand-id1",
 			"model":    "baz-3000",

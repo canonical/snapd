@@ -31,7 +31,7 @@ import (
 type typeFlags int
 
 const (
-	freestanding typeFlags = iota + 1
+	noAuthority typeFlags = iota + 1
 )
 
 // AssertionType describes a known assertion type with its name and metadata.
@@ -59,9 +59,9 @@ var (
 // ...
 )
 
-// Freestanding assertion types (on the wire and/or self-signed).
+// Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
-	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, freestanding}
+	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -72,7 +72,7 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
-	// freestanding
+	// no authority
 	SerialRequestType.Name: SerialRequestType,
 }
 
@@ -232,7 +232,7 @@ var _ Assertion = (*assertionBase)(nil)
 // In general the following headers are mandatory:
 //
 //   type
-//   authority-id (the authority id, must be left out of freestanding assertions though)
+//   authority-id (except for on the wire/self-signed assertions like serial-request)
 //
 // Further for a given assertion type all the primary key headers
 // must be non empty and must not contain '/'.
@@ -488,14 +488,14 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
 	}
 
-	if assertType.flags&freestanding == 0 {
+	if assertType.flags&noAuthority == 0 {
 		if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
 			return nil, fmt.Errorf("assertion: %v", err)
 		}
 	} else {
 		_, ok := headers["authority-id"]
 		if ok {
-			return nil, fmt.Errorf("freestanding %q assertion cannot have authority-id set", assertType.Name)
+			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
 		}
 	}
 
@@ -537,7 +537,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		return nil, err
 	}
 
-	withAuthority := assertType.flags&freestanding == 0
+	withAuthority := assertType.flags&noAuthority == 0
 
 	err = checkHeaders(headers)
 	if err != nil {
@@ -558,7 +558,7 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	} else {
 		_, ok := finalHeaders["authority-id"]
 		if ok {
-			return nil, fmt.Errorf("freestanding %q assertion cannot have authority-id set", assertType.Name)
+			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
 		}
 	}
 
@@ -640,10 +640,10 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	return assert, nil
 }
 
-// FreestandingSign assembles a freestanding assertion with the provided information and signs it with the given private key.
-func FreestandingSign(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
-	if assertType.flags&freestanding == 0 {
-		return nil, fmt.Errorf("cannot sign non-freestanding (i.e. with a definite authority) assertions with FreestandingSign")
+// SignWithoutAuthority assembles an assertion without a set authority with the provided information and signs it with the given private key.
+func SignWithoutAuthority(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
+	if assertType.flags&noAuthority == 0 {
+		return nil, fmt.Errorf("cannot sign assertions needing a definite authority with SignWithoutAuthority")
 	}
 	return assembleAndSign(assertType, headers, body, privKey)
 }
@@ -705,7 +705,7 @@ func (enc *Encoder) Encode(assert Assertion) error {
 	return enc.append(encoded)
 }
 
-// SignatureCheck checks the signature of the assertion against the given public key. Useful for freestanding assertions.
+// SignatureCheck checks the signature of the assertion against the given public key. Useful for assertions with no authority.
 func SignatureCheck(assert Assertion, pubKey PublicKey) error {
 	content, encodedSig := assert.Signature()
 	sig, err := decodeSignature(encodedSig)

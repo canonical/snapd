@@ -28,6 +28,8 @@ import (
 
 // expose test-only things here
 
+var NumAssertionType = len(typeRegistry)
+
 // access internal openpgp lib packet
 func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
 	return pk.(openpgpPrivateKey).privk
@@ -119,7 +121,7 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 
 var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2, 0}
 
-type TestOnlyFreestanding struct {
+type TestOnlyNoAuthority struct {
 	assertionBase
 }
 
@@ -127,15 +129,15 @@ func assembleTestOnlyFreeestanding(assert assertionBase) (Assertion, error) {
 	if _, err := checkNotEmptyString(assert.headers, "hdr"); err != nil {
 		return nil, err
 	}
-	return &TestOnlyFreestanding{assert}, nil
+	return &TestOnlyNoAuthority{assert}, nil
 }
 
-var TestOnlyFreestandingType = &AssertionType{"test-only-freestanding", nil, assembleTestOnlyFreeestanding, freestanding}
+var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, assembleTestOnlyFreeestanding, noAuthority}
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
-	typeRegistry[TestOnlyFreestandingType.Name] = TestOnlyFreestandingType
+	typeRegistry[TestOnlyNoAuthorityType.Name] = TestOnlyNoAuthorityType
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
