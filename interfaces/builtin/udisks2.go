@@ -72,12 +72,12 @@ network netlink raw,
 /run/udev/data/* r,
 /sys/devices/** r,
 
-# Mount points are in /run/media/<user>/* since /media is read-only
+# Mount points could be in /run/media/<user>/* or /media/<user>/*
 /run/systemd/seats/* r,
-/run/media/ rw,
-/run/media/** rw,
-mount -> /run/media/**,
-umount /run/media/**,
+/{,run/}media rw,
+/{,run/}media/** rw,
+mount -> /{,run/}media/**,
+umount /{,run/}media/**,
 
 # These should probably be patched to use $SNAP_DATA/run/...
 /run/udisks2/ rw,
