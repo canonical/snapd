@@ -1,0 +1,12 @@
+name: serial-port-provider
+version: 1.0
+summary: Basic serial-port provider snap
+description: A basic snap declaring a slot on serial-port
+
+apps:
+    cmd:
+        command: bin/cmd
+
+slots:
+    serial-port:
+        path: /dev/ttyZZZ999

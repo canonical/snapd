@@ -1,0 +1,12 @@
+name: serial-port-consumer
+version: 1.0
+summary: Basic serial-port consumer snap
+description: A basic snap declaring a plug on serial-port
+
+apps:
+    write:
+        command: bin/write
+        plugs: [serial-port]
+    read:
+        command: bin/read
+        plugs: [serial-port]
