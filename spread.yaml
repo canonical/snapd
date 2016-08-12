@@ -2,9 +2,9 @@ project: snapd
 
 environment:
     REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PROJECT_PATH: /gopath/src/github.com/snapcore/snapd
-    GOPATH: /gopath
-    PATH: /gopath/bin:/snap/bin:$PATH
+    PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
+    GOPATH: /home/gopath
+    PATH: /home/gopath/bin:/snap/bin:$PATH
     TESTSLIB: $[PROJECT_PATH]/tests/lib
 
 backends:

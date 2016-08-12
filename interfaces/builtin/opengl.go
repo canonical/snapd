@@ -30,6 +30,7 @@ const openglConnectedPlugAppArmor = `
   # specific gl libs
   /var/lib/snapd/lib/gl/** rm,
 
+  /dev/dri/card0 rw,
   # nvidia
   @{PROC}/driver/nvidia/params r,
   @{PROC}/modules r,

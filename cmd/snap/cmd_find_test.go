@@ -112,8 +112,8 @@ func (s *SnapSuite) TestFind(c *check.C) {
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
 hello +2.10 +canonical +- +GNU Hello, the "hello world" snap
-hello-huge +1.0 +noise +- +a really big snap
 hello-world +6.1 +canonical +- +Hello world example
+hello-huge +1.0 +noise +- +a really big snap
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
