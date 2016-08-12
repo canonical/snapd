@@ -294,7 +294,7 @@ func (db *Database) Add(assert Assertion) error {
 
 	keyLen := len(assertType.PrimaryKey)
 	if keyLen == 0 {
-		return fmt.Errorf("cannot add %q assertion with zero-length primary key", assertType.Name)
+		return fmt.Errorf("internal error: assertion type %q has no primary key", assertType.Name)
 	}
 
 	err := db.Check(assert)

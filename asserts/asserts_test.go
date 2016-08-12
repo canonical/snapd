@@ -179,15 +179,15 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (as *assertsSuite) TestDecodeFreestandingInvalid(c *C) {
-	invalid := "type: test-only-freestanding\n" +
+func (as *assertsSuite) TestDecodeNoAuthorityInvalid(c *C) {
+	invalid := "type: test-only-no-authority\n" +
 		"authority-id: auth-id1\n" +
 		"hdr: FOO" +
 		"\n\n" +
 		"openpgp c2ln"
 
 	_, err := asserts.Decode([]byte(invalid))
-	c.Check(err, ErrorMatches, `freestanding "test-only-freestanding" assertion cannot have authority-id set`)
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
 }
 
 func checkContent(c *C, a asserts.Assertion, encoded string) {
@@ -571,20 +571,20 @@ func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
 	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
 }
 
-func (as *assertsSuite) TestFreestandingSignMisuse(c *C) {
-	_, err := asserts.FreestandingSign(asserts.TestOnlyType, nil, nil, testPrivKey1)
-	c.Check(err, ErrorMatches, `cannot sign non-freestanding \(i\.e\. with a definite authority\) assertions with FreestandingSign`)
+func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
+	_, err := asserts.SignWithoutAuthority(asserts.TestOnlyType, nil, nil, testPrivKey1)
+	c.Check(err, ErrorMatches, `cannot sign assertions needing a definite authority with SignWithoutAuthority`)
 
-	_, err = asserts.FreestandingSign(asserts.TestOnlyFreestandingType,
+	_, err = asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
 		map[string]interface{}{
 			"authority-id": "auth-id1",
 			"hdr":          "FOO",
 		}, nil, testPrivKey1)
-	c.Check(err, ErrorMatches, `freestanding "test-only-freestanding" assertion cannot have authority-id set`)
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
 }
 
 func (ss *serialSuite) TestSignatureCheckError(c *C) {
-	sreq, err := asserts.FreestandingSign(asserts.TestOnlyFreestandingType,
+	sreq, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
 		map[string]interface{}{
 			"hdr": "FOO",
 		}, nil, testPrivKey1)
@@ -592,4 +592,22 @@ func (ss *serialSuite) TestSignatureCheckError(c *C) {
 
 	err = asserts.SignatureCheck(sreq, testPrivKey2.PublicKey())
 	c.Check(err, ErrorMatches, `failed signature verification:.*`)
+}
+
+func (as *assertsSuite) TestWithAuthority(c *C) {
+	withAuthority := []string{
+		"account",
+		"account-key",
+		"snap-declaration",
+		"snap-build",
+		"snap-revision",
+		"model",
+		"serial",
+	}
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-1) // excluding serial-request
+	for _, name := range withAuthority {
+		typ := asserts.Type(name)
+		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
+		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
+	}
 }
