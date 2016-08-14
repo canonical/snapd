@@ -1,5 +1,7 @@
 libexec_PROGRAMS = snap-confine
+if WITH_UNIT_TESTS
 noinst_PROGRAMS = snap-confine-unit-tests
+endif
 snap_confine_SOURCES = \
 	main.c \
 	sc-main.c \
@@ -45,6 +47,7 @@ snap_confine_CFLAGS += $(APPARMOR_CFLAGS)
 snap_confine_LDADD += $(APPARMOR_LIBS)
 endif
 
+if WITH_UNIT_TESTS
 snap_confine_unit_tests_SOURCES = \
 	unit-tests-main.c \
 	unit-tests.c \
@@ -56,6 +59,7 @@ snap_confine_unit_tests_SOURCES = \
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
+endif
 
 # Force particular coding style on all source and header files.
 .PHONY: check-syntax
@@ -71,7 +75,9 @@ check-syntax:
 
 .PHONY: check-unit-tests
 check-unit-tests: snap-confine-unit-tests
+if WITH_UNIT_TESTS
 	./snap-confine-unit-tests
+endif
 
 
 # Run check-syntax when checking
