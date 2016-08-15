@@ -57,9 +57,10 @@ const modelExample = "type: model\n" +
 	"required-snaps: foo, bar\n" +
 	"class: fixed\n" +
 	"TSLINE" +
-	"body-length: 0" +
+	"body-length: 0\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 	"\n\n" +
-	"openpgp c2ln"
+	"AXNpZw=="
 
 func (mods *modelSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
@@ -181,10 +182,11 @@ const serialExample = "type: serial\n" +
 	"serial: 2700\n" +
 	"device-key:\n    DEVICEKEY\n" +
 	"TSLINE" +
-	"body-length: 2\n\n" +
+	"body-length: 2\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 	"HW" +
 	"\n\n" +
-	"openpgp c2ln"
+	"AXNpZw=="
 
 func (ss *serialSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
@@ -198,11 +200,12 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 	c.Check(serial.BrandID(), Equals, "brand-id1")
 	c.Check(serial.Model(), Equals, "baz-3000")
 	c.Check(serial.Serial(), Equals, "2700")
-	c.Check(serial.DeviceKey().Fingerprint(), Equals, ss.deviceKey.PublicKey().Fingerprint())
+	c.Check(serial.DeviceKey().ID(), Equals, ss.deviceKey.PublicKey().ID())
 }
 
 const (
-	serialErrPrefix = "assertion serial: "
+	serialErrPrefix    = "assertion serial: "
+	serialReqErrPrefix = "assertion serial-request: "
 )
 
 func (ss *serialSuite) TestDecodeInvalid(c *C) {
@@ -220,7 +223,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		{ss.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
 		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
-		{"device-key:\n    DEVICEKEY\n", "device-key: openpgp ZZZ\n", `public key: cannot decode base64 data:.*`},
+		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `cannot decode public key: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -230,4 +233,80 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)
 	}
+}
+
+func (ss *serialSuite) TestSerialRequestHappy(c *C) {
+	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
+		map[string]interface{}{
+			"brand-id": "brand-id1",
+			"model":    "baz-3000",
+			// TODO add key hash header
+			"device-key": ss.encodedDevKey,
+			"request-id": "REQID",
+		}, []byte("HW-DETAILS"), ss.deviceKey)
+	c.Assert(err, IsNil)
+
+	// roundtrip
+	a, err := asserts.Decode(asserts.Encode(sreq))
+	c.Assert(err, IsNil)
+
+	sreq2, ok := a.(*asserts.SerialRequest)
+	c.Assert(ok, Equals, true)
+
+	// standalone signature check
+	err = asserts.SignatureCheck(sreq2, sreq2.DeviceKey())
+	c.Check(err, IsNil)
+
+	c.Check(sreq2.BrandID(), Equals, "brand-id1")
+	c.Check(sreq2.Model(), Equals, "baz-3000")
+	c.Check(sreq2.RequestID(), Equals, "REQID")
+}
+
+func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
+	encoded := "type: serial-request\n" +
+		"brand-id: brand-id1\n" +
+		"model: baz-3000\n" +
+		"device-key:\n    DEVICEKEY\n" +
+		"request-id: REQID\n" +
+		"body-length: 2\n" +
+		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
+		"HW" +
+		"\n\n" +
+		"AXNpZw=="
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"model: baz-3000\n", "", `"model" header is mandatory`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"request-id: REQID\n", "", `"request-id" header is mandatory`},
+		{"request-id: REQID\n", "request-id: \n", `"request-id" header should not be empty`},
+		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
+		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
+		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `cannot decode public key: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
+
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, serialReqErrPrefix+test.expectedErr)
+	}
+}
+
+func (ss *serialSuite) TestSerialRequestDecodeKeyIDMismatch(c *C) {
+	invalid := "type: serial-request\n" +
+		"brand-id: brand-id1\n" +
+		"model: baz-3000\n" +
+		"device-key:\n    " + strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1) + "\n" +
+		"request-id: REQID\n" +
+		"body-length: 2\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
+		"HW" +
+		"\n\n" +
+		"AXNpZw=="
+
+	_, err := asserts.Decode([]byte(invalid))
+	c.Check(err, ErrorMatches, "assertion serial-request: device key does not match included signing key id")
 }

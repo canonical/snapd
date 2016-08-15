@@ -57,7 +57,18 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 	mockAddUser := testutil.MockCommand(c, "adduser", "true")
 	defer mockAddUser.Restore()
 
-	err := osutil.AddExtraSudoUser("karl.sagan", []string{"ssh-key1", "ssh-key2"}, "my gecos")
+	err := osutil.AddExtraUser("karl.sagan", []string{"ssh-key1", "ssh-key2"}, "my gecos", false)
+	c.Assert(err, check.IsNil)
+
+	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
+		{"adduser", "--force-badname", "--gecos", "my gecos", "--extrausers", "--disabled-password", "karl.sagan"},
+	})
+	fs, _ := filepath.Glob(filepath.Join(mockSudoers, "*"))
+	c.Assert(fs, check.HasLen, 0)
+
+	mockAddUser.ForgetCalls()
+
+	err = osutil.AddExtraUser("karl.sagan", []string{"ssh-key1", "ssh-key2"}, "my gecos", true)
 	c.Assert(err, check.IsNil)
 
 	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
@@ -68,7 +79,7 @@ func (s *createUserSuite) TestAddExtraSudoUser(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
 
-	fs, _ := filepath.Glob(filepath.Join(mockSudoers, "*"))
+	fs, _ = filepath.Glob(filepath.Join(mockSudoers, "*"))
 	c.Assert(fs, check.HasLen, 1)
 	c.Assert(filepath.Base(fs[0]), check.Equals, "create-user-karl%2Esagan")
 	bs, err := ioutil.ReadFile(fs[0])
@@ -82,6 +93,6 @@ karl.sagan ALL=(ALL) NOPASSWD:ALL
 }
 
 func (s *createUserSuite) TestAddExtraSudoUserInvalid(c *check.C) {
-	err := osutil.AddExtraSudoUser("k!", nil, "my gecos")
+	err := osutil.AddExtraUser("k!", nil, "my gecos", false)
 	c.Assert(err, check.ErrorMatches, `cannot add user "k!": name contains invalid characters`)
 }

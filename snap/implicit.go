@@ -48,6 +48,7 @@ var implicitSlots = []string{
 	"timeserver-control",
 	"timezone-control",
 	"tpm",
+	"kernel-module-control",
 }
 
 var implicitClassicSlots = []string{
