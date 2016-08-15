@@ -68,6 +68,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		fakeCurrentProgress: 75,
 		fakeTotalProgress:   100,
 		fakeBackend:         s.fakeBackend,
+		state:               s.state,
 	}
 
 	var err error

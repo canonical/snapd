@@ -1,3 +1,85 @@
+snapd (2.12) xenial; urgency=medium
+
+  * New upstream release: LP: #1612362
+    - many: do not require root for `snap prepare-image`
+    - tests: prevent restore error on test failure
+    - osutil: change escaping for create-user's sudoers
+    - docs: private flag doesn't exist on /v2/find (it's select)
+    - snap: do not sort the result of `snap find`
+    - interfaces/builtin: add gpio interface
+    - partition: fix cleaning of the boot variables on the second good
+      boot
+    - tests: add udev rules spread test
+    - docs: fix references to refresh action
+    - interfaces/udev,osutil: avoid doubled rules and put all in a per
+      snap file
+    - store: minor store improvements from previous reviews
+    - many: support interactive payments in snapd, filter from command
+      line
+    - docs/interfaces.md: improve interfaces documentation
+    - overlord,store: set store device authorization header
+    - store: add device nonce API support
+    - many: various fixes around the `create-user` command
+    - client, osutil: chown the auth file
+    - interfaces/builtin: add transitional browser-support interface
+    - snap: don't load unsupported implicit hooks.
+    - cmd/snap,cmd/snap-exec: support hooks again.
+    - interfaces/builtin: improve pulseaudio interface
+    - asserts: make account-key's `until` optional to represent a never-
+      expiring key
+    - store: refactor newRequest/doRequest to take requestOptions
+    - tests: allow-downgrades on upgrade test to prevent version errors
+    - daemon: stop using group membership as succedaneous of running
+      things with sudo
+    - interfaces: add bluetooth-control interfaces
+    - many: remove integration-test coverage metrics
+    - daemon,docs: drop license docs and error kind
+    - tests: add network-control interface spread test
+    - tests: add hardware-observe spread test
+    - interfaces: add system-trace interface LP: #1600085
+    - boot: use `cp -aLv` instead of `cp -a` (no symlinks on vfat)
+    - store: soft-refresh discharge macaroon from store when required
+    - partition: clear snap_try_{kernel,core} on success
+    - tests: add snapd-control interface spread test
+    - tests: add locale-control write spread test
+    - store: fix buy method after some refactoring broke it
+    - interfaces/builtin: read perms for network devices in network-
+      observe
+    - interfaces: also allow rfkill in network_control
+    - snapstate: remove artifacts from a snap try dir that vanished
+    - client, cmd/snap: better errors for empty snap list result
+    - wrappers: set BAMF_DESKTOP_FILE_HINT for unity
+    - many: cleanup/update rest.md; improve auth errors
+    - interfaces: miscelleneous policy updates for default, log-observe,
+      mount-observe, opengl, pulseaudio, system-observe and unity7
+    - interfaces: add process-control interface (LP: #1598225)
+    - osutil: support both "nobody" and "nogroup" for grpnam tests
+    - cmd: support defaulting to the user's preferred payment method
+    - overlord: actually run hooks.
+    - overlord/state,overlord/ifacestate: define basic infrastructure
+      for and then setting up serialising of interface mgr tasks
+    - asserts: add Assertion.Prerequisites and SigningKey, Ref and
+      FindTrusted
+    - overlord/snapstate: ensure calls to store are done without the
+      state lock held
+    - asserts,client: switch snap-build and snap-revision to be indexed
+      by snap-sha3-384
+    - many: make seed.yaml on firstboot mandatory and include sideInfo
+    - asserts,many: start supporting structured headers using the new
+      parseHeaders
+    - many: update code for the new snap_mode
+    - tests: added spread find private test
+    - store: deal with 404 froms the SSO store properly
+    - snap: remove meta/kernel.yaml again
+    - daemon: always mock release info in tests
+    - snapstate: drop revisions after "current" on refresh
+    - asserts: introduce new parseHeadersThis introduces the new
+      parseHeaders returning map[string]interface{} and capable of
+      accepting:
+    - asserts: remove/disable comma separated lists and their uses
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Aug 2016 19:30:36 +0200
+
 snapd (2.11) xenial; urgency=medium
 
   * New upstream release: LP: #1605303

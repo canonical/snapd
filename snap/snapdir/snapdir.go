@@ -20,6 +20,7 @@
 package snapdir
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -60,4 +61,8 @@ func (s *SnapDir) ListDir(path string) ([]string, error) {
 	}
 
 	return fileNames, nil
+}
+
+func (s *SnapDir) Unpack(src, dstDir string) error {
+	return fmt.Errorf("unpack is not supported with snaps of type snapdir")
 }
