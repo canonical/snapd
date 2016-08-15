@@ -1,3 +1,0 @@
-etc/apparmor.d/*.snap-confine
-lib/*
-usr/lib/snapd/*

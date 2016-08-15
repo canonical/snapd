@@ -1,3 +1,0 @@
-version=3
-opts=filenamemangle=s/.+\/snap-confine-(\d\S*)\.tar\.gz/snap-confine-$1\.tar\.gz/ \
-  https://github.com/snapcore/snap-confine/releases/ .*/snap-confine-(\d\S*)\.tar\.gz
