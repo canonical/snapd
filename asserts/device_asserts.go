@@ -194,3 +194,65 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 		pubKey:        pubKey,
 	}, nil
 }
+
+// SerialRequest holds a serial-request assertion, which is a self-signed request to obtain a full device identity bound to the device public key.
+type SerialRequest struct {
+	assertionBase
+	pubKey PublicKey
+}
+
+// BrandID returns the brand identifier of the device making the request.
+func (sreq *SerialRequest) BrandID() string {
+	return sreq.HeaderString("brand-id")
+}
+
+// Model returns the model name identifier of the device making the request.
+func (sreq *SerialRequest) Model() string {
+	return sreq.HeaderString("model")
+}
+
+// RequestID returns the id for the request, obtained from and to be presented to the serial signing service.
+func (sreq *SerialRequest) RequestID() string {
+	return sreq.HeaderString("request-id")
+}
+
+// DeviceKey returns the public key of the device making the request.
+func (sreq *SerialRequest) DeviceKey() PublicKey {
+	return sreq.pubKey
+}
+
+func assembleSerialRequest(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "brand-id")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "model")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "request-id")
+	if err != nil {
+		return nil, err
+	}
+
+	encodedKey, err := checkNotEmptyString(assert.headers, "device-key")
+	if err != nil {
+		return nil, err
+	}
+	pubKey, err := decodePublicKey([]byte(encodedKey))
+	if err != nil {
+		return nil, err
+	}
+
+	if pubKey.ID() != assert.SignKeyID() {
+		return nil, fmt.Errorf("device key does not match included signing key id")
+	}
+
+	// ignore extra headers and non-empty body for future compatibility
+	return &SerialRequest{
+		assertionBase: assert,
+		pubKey:        pubKey,
+	}, nil
+}
