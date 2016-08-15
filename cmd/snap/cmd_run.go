@@ -119,7 +119,7 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 func snapExecEnv(info *snap.Info) []string {
 	env := snapenv.Basic(info)
 	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
-	env = append(env, "PATH=${PATH}:/usr/lib/snapd/util")
+	env = append(env, "PATH=${PATH}:/usr/lib/snapd")
 	return env
 }
 
