@@ -68,14 +68,19 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(dirs.SnapSnapsDir, name, revision.String())
 }
 
+// SecurityTag returns the snap-specific security tag.
+func SecurityTag(snapName string) string {
+	return fmt.Sprintf("snap.%s", snapName)
+}
+
 // AppSecurityTag returns the application-specific security tag.
 func AppSecurityTag(snapName, appName string) string {
-	return fmt.Sprintf("snap.%s.%s", snapName, appName)
+	return fmt.Sprintf("%s.%s", SecurityTag(snapName), appName)
 }
 
 // HookSecurityTag returns the hook-specific security tag.
 func HookSecurityTag(snapName, hookName string) string {
-	return fmt.Sprintf("snap.%s.hook.%s", snapName, hookName)
+	return fmt.Sprintf("%s.hook.%s", SecurityTag(snapName), hookName)
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of

@@ -1,0 +1,88 @@
+summary: Ensure that the network-control interface works.
+
+details: |
+    The network-control interface allows a snap to configure networking.
+
+    A snap which defines the network-control plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to modify the network configuration
+    and ask for its status, the test sets up a network service, gets information about it (read
+    capability) and creates an arp entry (write capability).
+
+environment:
+    PORT: 8081
+    SERVICE_FILE: "./service.sh"
+    SERVICE_NAME: "test-service"
+    ARP_ENTRY_ADDR: "30.30.30.30"
+
+prepare: |
+    echo "Given a snap declaring a plug on the network-control interface is installed"
+    snapbuild $TESTSLIB/snaps/network-control-consumer .
+    snap install network-control-consumer_1.0_all.snap
+
+    echo "And a network service is up"
+    printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
+    chmod a+x $SERVICE_FILE
+    systemd-run --unit $SERVICE_NAME $SERVICE_FILE
+    while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
+
+restore: |
+    systemctl stop $SERVICE_NAME
+    rm -f network-control-consumer_1.0_all.snap net-query.output net-command.output $SERVICE_FILE
+    . $TESTSLIB/network.sh
+    arp -d $ARP_ENTRY_ADDR -i $(get_default_iface) || true
+
+execute: |
+    CONNECTED_PATTERN=":network-control +network-control-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +network-control-consumer:network-control"
+    . $TESTSLIB/network.sh
+    INTERFACE=$(get_default_iface)
+
+    echo "Then the plug disconnected by default"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "===================================="
+
+    echo "When the plug is connected"
+    snap connect network-control-consumer:network-control ubuntu-core:network-control
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap command can query network status information"
+    network-control-consumer.query | grep -P "0.0.0.0:$PORT.*?LISTEN"
+
+    echo "===================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect network-control-consumer:network-control ubuntu-core:network-control
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap command can not query network status information"
+    if network-control-consumer.query 2>net-query.output; then
+        echo "Expected error caling command with disconnected plug"
+    fi
+    cat net-query.output | grep -Pq "Permission denied"
+
+    echo "===================================="
+
+    echo "When the plug is connected"
+    snap connect network-control-consumer:network-control ubuntu-core:network-control
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap command can modify the network configuration"
+    network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR $INTERFACE
+    expected="(?s)br0.*?state UP.*?bridge.*?foo@bar.*?veth.*?bar@foo.*?veth"
+    arp | grep -Pq "$ARP_ENTRY_ADDR.*?ether.*?CM"
+
+    echo "===================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect network-control-consumer:network-control ubuntu-core:network-control
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap command can not modify the network configuration"
+    if network-control-consumer.add-arp-entry $ARP_ENTRY_ADDR $INTERFACE 2>net-command.output; then
+        echo "Expected error caling command with disconnected plug"
+    fi
+    cat net-command.output | grep -Pq "Permission denied"

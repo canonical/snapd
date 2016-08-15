@@ -28,7 +28,7 @@ execute: |
     expected="\[Desktop Entry\]\n\
     Name=Echo\n\
     Comment=It echos stuff\n\
-    Exec=\/snap\/bin\/basic-desktop.echo\n"
+    Exec=env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/basic-desktop_echo.desktop /snap/bin/basic-desktop.echo\n"
     cat /var/lib/snapd/desktop/applications/basic-desktop_echo.desktop | grep -Pzq "$expected"
 
     echo "Sideload devmode snap fails without flags"
