@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-var dockerPermanentSlotAppArmor = []byte(`
+const dockerPermanentSlotAppArmor = `
 # Description: Allow operating as the Docker daemon. Reserved because this
 #  gives privileged access to the system.
 # Usage: reserved
@@ -93,9 +93,9 @@ ptrace (read, trace) peer=docker-default,
 
 #cf bug 1502785
 / r,
-`)
+`
 
-var dockerConnectedPlugAppArmor = []byte(`
+const dockerConnectedPlugAppArmor = `
 # Description: Allow using Docker. Reserved because this gives
 #  privileged access to the service/host.
 # Usage: reserved
@@ -104,17 +104,17 @@ var dockerConnectedPlugAppArmor = []byte(`
 /{,var/}run/docker.sock rw,
 
 @{PROC}/sys/net/core/somaxconn r,
-`)
+`
 
-var dockerPermanentSlotSecComp = []byte(`
+const dockerPermanentSlotSecComp = `
 # The Docker daemon needs to be able to launch arbitrary processes within containers (whose syscall needs are unknown beforehand)
 @unrestricted
-`)
+`
 
-var dockerConnectedPlugSecComp = []byte(`
+const dockerConnectedPlugSecComp = `
 setsockopt
 bind
-`)
+`
 
 type DockerInterface struct{}
 
@@ -134,9 +134,9 @@ func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return dockerConnectedPlugAppArmor, nil
+		return []byte(dockerConnectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return dockerConnectedPlugSecComp, nil
+		return []byte(dockerConnectedPlugSecComp), nil
 	case interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityUDev:
 		return nil, nil
 	default:
@@ -147,9 +147,9 @@ func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return dockerPermanentSlotAppArmor, nil
+		return []byte(dockerPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
-		return dockerPermanentSlotSecComp, nil
+		return []byte(dockerPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityUDev:
 		return nil, nil
 	default:
