@@ -651,13 +651,15 @@ type snapInstruction struct {
 	userID int
 }
 
-var snapstateInstall = snapstate.Install
-var snapstateUpdate = snapstate.Update
-var snapstateInstallPath = snapstate.InstallPath
-var snapstateTryPath = snapstate.TryPath
-var snapstateGet = snapstate.Get
-var snapstateUpdateMany = snapstate.UpdateMany
-var snapstateRefreshCandidates = snapstate.RefreshCandidates
+var (
+	snapstateGet               = snapstate.Get
+	snapstateInstall           = snapstate.Install
+	snapstateInstallPath       = snapstate.InstallPath
+	snapstateRefreshCandidates = snapstate.RefreshCandidates
+	snapstateTryPath           = snapstate.TryPath
+	snapstateUpdate            = snapstate.Update
+	snapstateUpdateMany        = snapstate.UpdateMany
+)
 
 func ensureStateSoonImpl(st *state.State) {
 	st.EnsureBefore(0)
@@ -730,7 +732,7 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
 	// TODO: check inst flags and bail if any are given (-many
 	// doesn't take options)
-	updated, tts, err := snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -750,7 +752,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), strings.Join(quoted, ", "))
 	}
 
-	return msg, updated, tts, nil
+	return msg, updated, tasksets, nil
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
