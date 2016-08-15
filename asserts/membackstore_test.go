@@ -37,9 +37,10 @@ func (mbss *memBackstoreSuite) SetUpTest(c *C) {
 
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
-		"primary-key: foo" +
+		"primary-key: foo\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	mbss.a = a
@@ -80,18 +81,20 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"primary-key: one\n" +
-		"other: other1" +
+		"other: other1\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a1, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 
 	encoded = "type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"primary-key: two\n" +
-		"other: other2" +
+		"other: other2\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a2, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 
@@ -102,7 +105,7 @@ func (mbss *memBackstoreSuite) TestSearch(c *C) {
 
 	found := map[string]asserts.Assertion{}
 	cb := func(a asserts.Assertion) {
-		found[a.Header("primary-key")] = a
+		found[a.HeaderString("primary-key")] = a
 	}
 	err = mbss.bs.Search(asserts.TestOnlyType, nil, cb)
 	c.Assert(err, IsNil)
@@ -139,18 +142,20 @@ func (mbss *memBackstoreSuite) TestSearch2Levels(c *C) {
 	encoded := "type: test-only-2\n" +
 		"authority-id: auth-id1\n" +
 		"pk1: a\n" +
-		"pk2: x" +
+		"pk2: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	aAX, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 
 	encoded = "type: test-only-2\n" +
 		"authority-id: auth-id1\n" +
 		"pk1: b\n" +
-		"pk2: x" +
+		"pk2: x\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	aBX, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 
@@ -161,7 +166,7 @@ func (mbss *memBackstoreSuite) TestSearch2Levels(c *C) {
 
 	found := map[string]asserts.Assertion{}
 	cb := func(a asserts.Assertion) {
-		found[a.Header("pk1")+":"+a.Header("pk2")] = a
+		found[a.HeaderString("pk1")+":"+a.HeaderString("pk2")] = a
 	}
 	err = mbss.bs.Search(asserts.TestOnly2Type, map[string]string{
 		"pk2": "x",
@@ -177,15 +182,17 @@ func (mbss *memBackstoreSuite) TestPutOldRevision(c *C) {
 	a0, err := asserts.Decode([]byte("type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"primary-key: foo\n" +
-		"\n" +
-		"openpgp c2ln"))
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
 	c.Assert(err, IsNil)
 	a1, err := asserts.Decode([]byte("type: test-only\n" +
 		"authority-id: auth-id1\n" +
 		"primary-key: foo\n" +
 		"revision: 1\n" +
-		"\n" +
-		"openpgp c2ln"))
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="))
 	c.Assert(err, IsNil)
 
 	// Put newer revision, follwed by old revision.
