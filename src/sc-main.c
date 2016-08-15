@@ -121,7 +121,14 @@ int sc_main(int argc, char **argv)
 		// Try to re-locate back to vanilla working directory. This can fail
 		// because that directory is no longer present.
 		if (chdir(vanilla_cwd) != 0) {
-			die("cannot remain in %s, please run this snap from another location", vanilla_cwd);
+			debug
+			    ("cannot remain in %s, moving to the void directory",
+			     vanilla_cwd);
+			if (chdir(SC_VOID_DIR) != 0) {
+				die("cannot change directory to %s",
+				    SC_VOID_DIR);
+			}
+			debug("successfully moved to %s", SC_VOID_DIR);
 		}
 		// the rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)

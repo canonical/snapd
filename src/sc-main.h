@@ -18,6 +18,12 @@
 #ifndef SNAP_CONFINE_MAIN
 #define SNAP_CONFINE_MAIN
 
+/*! The void directory.
+ *  Snap confine moves to that directory in case it cannot retain
+ *  the current working directory across the pivot_root call.
+ **/
+#define SC_VOID_DIR "/var/lib/snapd/void"
+
 int sc_main(int argc, char **argv);
 
 #endif				// SNAP_CONFINE_MAIN
