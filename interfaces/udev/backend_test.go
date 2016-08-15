@@ -20,6 +20,7 @@
 package udev_test
 
 import (
+	"bytes"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,6 +42,14 @@ type backendSuite struct {
 }
 
 var _ = Suite(&backendSuite{})
+
+func createSnippetForApps(apps map[string]*snap.AppInfo) []byte {
+	var buffer bytes.Buffer
+	for appName := range apps {
+		buffer.WriteString(appName)
+	}
+	return buffer.Bytes()
+}
 
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &udev.Backend{}
@@ -73,8 +83,8 @@ func (s *backendSuite) TestInstallingSnapWritesAndLoadsRules(c *C) {
 	for _, devMode := range []bool{true, false} {
 		s.udevadmCmd.ForgetCalls()
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
-		// file called "70-snap.sambda.smbd.rules" was created
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was created
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 		// udevadm was used to reload rules and re-run triggers
@@ -97,9 +107,9 @@ func (s *backendSuite) TestInstallingSnapWithHookWritesAndLoadsRules(c *C) {
 	for _, devMode := range []bool{true, false} {
 		s.udevadmCmd.ForgetCalls()
 		snapInfo := s.InstallSnap(c, devMode, backendtest.HookYaml, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.hook.apply-config.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.foo.rules")
 
-		// Verify that "70-snap.foo.hook.apply-config.rules" was created.
+		// Verify that "70-snap.foo.rules" was created.
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 
@@ -137,8 +147,8 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
-		// file called "70-snap.sambda.smbd.rules" was removed
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was removed
 		_, err := os.Stat(fname)
 		c.Check(os.IsNotExist(err), Equals, true)
 		// udevadm was used to reload rules and re-run triggers
@@ -152,15 +162,14 @@ func (s *backendSuite) TestRemovingSnapRemovesAndReloadsRules(c *C) {
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+		return createSnippetForApps(slot.Apps), nil
 	}
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbd, 0)
-		// NOTE the application is "nmbd", not "smbd"
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
-		// file called "70-snap.sambda.nmbd.rules" was created
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was created
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 		// udevadm was used to reload rules and re-run triggers
@@ -175,7 +184,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreApps(c *C) {
 func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+		return createSnippetForApps(slot.Apps), nil
 	}
 	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
@@ -184,9 +193,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlWithHook, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.apply-config.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 
-		// Verify that "70-snap.samba.hook.apply-config.rules" was created
+		// Verify that "70-snap.samba.rules" was created
 		_, err := os.Stat(fname)
 		c.Check(err, IsNil)
 
@@ -202,17 +211,16 @@ func (s *backendSuite) TestUpdatingSnapToOneWithMoreHooks(c *C) {
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+		return createSnippetForApps(slot.Apps), nil
 	}
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1WithNmbd, 0)
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
-		// NOTE the application is "nmbd", not "smbd"
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.nmbd.rules")
-		// file called "70-snap.sambda.nmbd.rules" was removed
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" still exists
 		_, err := os.Stat(fname)
-		c.Check(os.IsNotExist(err), Equals, true)
+		c.Check(err, IsNil)
 		// udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
@@ -225,7 +233,7 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerApps(c *C) {
 func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-		return []byte("dummy"), nil
+		return createSnippetForApps(slot.Apps), nil
 	}
 	s.Iface.PermanentPlugSnippetCallback = func(slot *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
@@ -234,12 +242,10 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlWithHook, 0)
 		s.udevadmCmd.ForgetCalls()
 		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.hook.apply-config.rules")
-
-		// Verify that  "70-snap.samba.hook.apply-config.rules" was removed
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" still exists
 		_, err := os.Stat(fname)
-		c.Check(os.IsNotExist(err), Equals, true)
-
+		c.Check(err, IsNil)
 		// Verify that udevadm was used to reload rules and re-run triggers
 		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
 			{"udevadm", "control", "--reload-rules"},
@@ -256,7 +262,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 	}
 	for _, devMode := range []bool{false, true} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		data, err := ioutil.ReadFile(fname)
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, "# This file is automatically generated.\ndummy\n")
@@ -269,10 +275,55 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 func (s *backendSuite) TestCombineSnippetsWithoutAnySnippets(c *C) {
 	for _, devMode := range []bool{false, true} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
-		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.smbd.rules")
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
 		_, err := os.Stat(fname)
 		// Without any snippets, there the .rules file is not created.
 		c.Check(os.IsNotExist(err), Equals, true)
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapToOneWithoutSlots(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		s.udevadmCmd.ForgetCalls()
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1NoSlot, 0)
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		// file called "70-snap.sambda.rules" was removed
+		_, err := os.Stat(fname)
+		c.Check(os.IsNotExist(err), Equals, true)
+		// Verify that udevadm was used to reload rules and re-run triggers
+		c.Check(s.udevadmCmd.Calls(), DeepEquals, [][]string{
+			{"udevadm", "control", "--reload-rules"},
+			{"udevadm", "trigger"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestUpdatingSnapWithoutSlotsToOneWithoutSlots(c *C) {
+	// NOTE: Hand out a permanent snippet so that .rules file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		return []byte("dummy"), nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1NoSlot, 0)
+		// file called "70-snap.sambda.rules" does not exist
+		fname := filepath.Join(dirs.SnapUdevRulesDir, "70-snap.samba.rules")
+		_, err := os.Stat(fname)
+		c.Check(os.IsNotExist(err), Equals, true)
+		s.udevadmCmd.ForgetCalls()
+
+		snapInfo = s.UpdateSnap(c, snapInfo, devMode, backendtest.SambaYamlV1WithNmbdNoSlot, 0)
+		// file called "70-snap.sambda.rules" still does not exist
+		_, err = os.Stat(fname)
+		c.Check(os.IsNotExist(err), Equals, true)
+		// Verify that udevadm was used to reload rules and re-run triggers
+		c.Check(len(s.udevadmCmd.Calls()), Equals, 0)
 		s.RemoveSnap(c, snapInfo)
 	}
 }

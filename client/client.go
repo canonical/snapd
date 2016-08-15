@@ -349,20 +349,20 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 
 // CreateUserResult holds the result of a user creation
 type CreateUserResult struct {
-	Username string `json:"username"`
+	Username    string `json:"username"`
+	SSHKeyCount int    `json:"ssh-key-count"`
 }
 
 // createUserRequest holds the user creation request
-type createUserRequest struct {
-	EMail string `json:"email"`
+type CreateUserRequest struct {
+	Email  string `json:"email"`
+	Sudoer bool   `json:"sudoer"`
 }
 
 // CreateUser creates a user from the given mail address
-func (client *Client) CreateUser(mail string) (*CreateUserResult, error) {
+func (client *Client) CreateUser(request *CreateUserRequest) (*CreateUserResult, error) {
 	var createResult CreateUserResult
-	b, err := json.Marshal(createUserRequest{
-		EMail: mail,
-	})
+	b, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}

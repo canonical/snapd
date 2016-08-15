@@ -22,16 +22,12 @@ package asserts
 import (
 	"io"
 	"time"
-
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 // expose test-only things here
 
-// access internal openpgp lib packet
-func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
-	return pk.(openpgpPrivateKey).privk
-}
+// v1FixedTimestamp exposed for tests
+var V1FixedTimestamp = v1FixedTimestamp
 
 // assembleAndSign exposed for tests
 var AssembleAndSignInTest = assembleAndSign
@@ -58,7 +54,7 @@ func EncoderAppend(enc *Encoder, encoded []byte) error {
 func BootstrapAccountForTest(authorityID string) *Account {
 	return &Account{
 		assertionBase: assertionBase{
-			headers: map[string]string{
+			headers: map[string]interface{}{
 				"type":         "account",
 				"authority-id": authorityID,
 				"account-id":   authorityID,
@@ -72,11 +68,11 @@ func BootstrapAccountForTest(authorityID string) *Account {
 func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
-			headers: map[string]string{
-				"type":          "account-key",
-				"authority-id":  authorityID,
-				"account-id":    authorityID,
-				"public-key-id": openPGPPubKey.ID(),
+			headers: map[string]interface{}{
+				"type":                "account-key",
+				"authority-id":        authorityID,
+				"account-id":          authorityID,
+				"public-key-sha3-384": openPGPPubKey.ID(),
 			},
 		},
 		since:  time.Time{},
@@ -101,7 +97,7 @@ type TestOnly struct {
 
 func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	// for testing error cases
-	if _, err := checkInteger(assert.headers, "count", 0); err != nil {
+	if _, err := checkIntWithDefault(assert.headers, "count", 0); err != nil {
 		return nil, err
 	}
 	return &TestOnly{assert}, nil
@@ -140,3 +136,9 @@ func MockRunGPG(mock func(prev GPGRunner, homedir string, input []byte, args ...
 		runGPG = prevRunGPG
 	}
 }
+
+// Headers helpers to test
+var (
+	ParseHeaders = parseHeaders
+	AppendEntry  = appendEntry
+)

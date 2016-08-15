@@ -34,13 +34,23 @@ type createUserSuite struct {
 }
 
 func (s *createUserSuite) TestCreateUserCreatesUser(c *check.C) {
-	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "mvo@ubuntu.com")
+	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "--sudoer", "mvo@ubuntu.com")
 
-	expected := `Created user "mvo"\n`
+	expected := `Created user "mvo" and imported SSH keys.\n`
 	c.Assert(createOutput, check.Matches, expected)
 
 	// file exists and has a size greater than zero
 	cli.ExecCommand(c, "sudo", "test", "-s", "/home/mvo/.ssh/authorized_keys")
 	// content looks sane
 	cli.ExecCommand(c, "sudo", "grep", "ssh-rsa", "/home/mvo/.ssh/authorized_keys")
+	// new user is a sudoer
+	cli.ExecCommand(c, "/usr/bin/sudo", "-u", "mvo", "sudo", "true")
+}
+
+func (s *createUserSuite) TestCreateUserFails(c *check.C) {
+	createOutput, err := cli.ExecCommandErr("sudo", "snap", "create-user", "nosuchuser@example.com")
+	c.Check(err, check.NotNil)
+
+	expected := `(?s)error: bad user result: cannot create user "nosuchuser@example.com".*`
+	c.Assert(createOutput, check.Matches, expected)
 }
