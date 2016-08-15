@@ -376,13 +376,19 @@ func (s *SnapOpSuite) TestRefreshOneChanErr(c *check.C) {
 func (s *SnapOpSuite) TestRefreshAllChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta"})
-	c.Assert(err, check.ErrorMatches, `a snap name is needed to specify mode or channel flags`)
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
+}
+
+func (s *SnapOpSuite) TestRefreshManyChannel(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
 func (s *SnapOpSuite) TestRefreshAllModeFlags(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--devmode"})
-	c.Assert(err, check.ErrorMatches, `a snap name is needed to specify mode or channel flags`)
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
 }
 
 func (s *SnapOpSuite) runTryTest(c *check.C, devmode bool) {

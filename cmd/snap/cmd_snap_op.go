@@ -107,7 +107,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 				return chg, errors.New(chg.Err)
 			}
 
-			return nil, fmt.Errorf("change finished in status %q with no error message", chg.Status)
+			return nil, fmt.Errorf(i18n.G("change finished in status %q with no error message"), chg.Status)
 		}
 
 		// note this very purposely is not a ticker; we want
@@ -254,7 +254,7 @@ type modeMixin struct {
 	JailMode bool `long:"jailmode" description:"Override a snap's request for non-enforcing security"`
 }
 
-var errModeConflict = errors.New("cannot use devmode and jailmode flags together")
+var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
 
 func (mx modeMixin) validateMode() error {
 	if mx.DevMode && mx.JailMode {
@@ -350,6 +350,8 @@ func refreshMany(snaps []string) error {
 		return showDone(upgraded, "upgrade")
 	}
 
+	fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+
 	return nil
 }
 
@@ -407,7 +409,7 @@ func (x *cmdRefresh) Execute([]string) error {
 
 	if x.List {
 		if x.asksForMode() || x.asksForChannel() {
-			return errors.New("--list does not take mode nor channel flags")
+			return errors.New(i18n.G("--list does not take mode nor channel flags"))
 		}
 
 		return listRefresh()
@@ -421,7 +423,7 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
-		return errors.New("a snap name is needed to specify mode or channel flags")
+		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
 	}
 
 	return refreshMany(x.Positional.Snaps)
