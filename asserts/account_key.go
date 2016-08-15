@@ -68,7 +68,7 @@ func (ak *AccountKey) publicKey() PublicKey {
 }
 
 func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
-	pubKey, err := decodePublicKey(ab.Body())
+	pubKey, err := DecodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
 	}
