@@ -210,7 +210,7 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return bluezConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus:
+	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
