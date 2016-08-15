@@ -289,12 +289,18 @@ func (db *Database) Check(assert Assertion) error {
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
 	assertType := assert.Type()
+
+	keyLen := len(assertType.PrimaryKey)
+	if keyLen == 0 {
+		return fmt.Errorf("internal error: assertion type %q has no primary key", assertType.Name)
+	}
+
 	err := db.Check(assert)
 	if err != nil {
 		return err
 	}
 
-	keyValues := make([]string, len(assertType.PrimaryKey))
+	keyValues := make([]string, keyLen)
 	for i, k := range assertType.PrimaryKey {
 		keyVal := assert.HeaderString(k)
 		if keyVal == "" {
