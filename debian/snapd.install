@@ -8,6 +8,9 @@ data/completion/snap /usr/share/bash-completion/completions/
 etc/profile.d
 # etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
 etc/X11
+# etc/sudoders.d includes /snap/bin into the secure_path
+etc/sudoers.d
+
 
 # systemd stuff
 

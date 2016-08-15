@@ -1,0 +1,2 @@
+# it is ok if /snap/bin is in the PATH for sudo
+Defaults        secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/snap/bin"
