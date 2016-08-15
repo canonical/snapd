@@ -1,5 +1,5 @@
 /usr/bin/snap
-/usr/bin/snapctl
+/usr/bin/snapctl usr/lib/snapd/util
 /usr/bin/snapd usr/lib/snapd
 /usr/bin/snap-exec usr/lib/snapd
 data/completion/snap /usr/share/bash-completion/completions/
