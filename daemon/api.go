@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -73,6 +74,7 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	paymentMethodsCmd,
+	snapctlCmd,
 }
 
 var (
@@ -186,6 +188,12 @@ var (
 		Path:   "/v2/buy/methods",
 		UserOK: false,
 		GET:    getPaymentMethods,
+	}
+
+	snapctlCmd = &Command{
+		Path:   "/v2/snapctl",
+		UserOK: false,
+		POST:   runSnapctl,
 	}
 )
 
@@ -1504,4 +1512,32 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	return SyncResponse(paymentMethods, nil)
+}
+
+func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
+	var snapctlRequest hookstate.SnapCtlRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&snapctlRequest); err != nil {
+		return BadRequest("cannot decode snapctl request: %s", err)
+	}
+
+	if snapctlRequest.Context == "" {
+		return BadRequest("snapctl cannot run without context")
+	}
+
+	if len(snapctlRequest.Args) == 0 {
+		return BadRequest("snapctl cannot run without args")
+	}
+
+	stdout, stderr, err := c.d.overlord.HookManager().SnapCtl(snapctlRequest)
+	if err != nil {
+		return BadRequest("error running snapctl: %s", err)
+	}
+
+	result := map[string]string{
+		"stdout": string(stdout),
+		"stderr": string(stderr),
+	}
+
+	return SyncResponse(result, nil)
 }
