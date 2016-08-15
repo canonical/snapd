@@ -26,17 +26,27 @@ if [ "$1" = "purge" ]; then
         # if it is a mount unit, we can find the snap name in the mount
         # unit (we just ignore unit files)
         snap="$(grep 'Where=/snap/' /etc/systemd/system/$unit|cut -f3 -d/)"
+        rev="$(grep 'Where=/snap/' /etc/systemd/system/$unit|cut -f4 -d/)"
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
             # generated binaries
             rm -f "/snap/bin/$snap"
-            rm -f "/snap/bin/$snap.*"
+            rm -f "/snap/bin/$snap".*
             # snap mount dir
-            rm -rf "/snap/$snap"
+            rm -rf "/snap/$snap/$rev"
+            rm -f "/snap/$snap/current"
             # snap data dir
-            rm -rf "/var/snap/$snap"
+            rm -rf "/var/snap/$snap/$rev"
+            rm -rf "/var/snap/$snap/common"
+            rm -f "/var/snap/$snap/current"
+            # opportunistic remove (may fail if there are still revisions left
+            for d in "/snap/bin" "/snap/$snap" "/var/snap/$snap" "/snap" "/var/snap"; do
+                if [ -d "$d" ]; then
+                    rmdir --ignore-fail-on-non-empty $d
+                fi
+            done
         fi
-
+        
         echo "Removing $unit"
         rm -f /etc/systemd/system/$unit
         rm -f /etc/systemd/system/multi-user.target.wants/$unit
