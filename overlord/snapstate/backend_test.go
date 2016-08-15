@@ -54,9 +54,19 @@ type fakeStore struct {
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
+	state               *state.State
+}
+
+func (f *fakeStore) pokeStateLock() {
+	// the store should be called without the state lock held. Try
+	// to acquire it.
+	f.state.Lock()
+	f.state.Unlock()
 }
 
 func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+	f.pokeStateLock()
+
 	revno := snap.R(11)
 	if channel == "channel-for-7" {
 		revno.N = 7
@@ -84,6 +94,8 @@ func (f *fakeStore) Find(search *store.Search, user *auth.UserState) ([]*snap.In
 }
 
 func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserState) ([]*snap.Info, error) {
+	f.pokeStateLock()
+
 	if len(cands) == 0 {
 		return nil, nil
 	}
@@ -144,10 +156,14 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 }
 
 func (f *fakeStore) SuggestedCurrency() string {
+	f.pokeStateLock()
+
 	return "XTS"
 }
 
 func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progress.Meter, user *auth.UserState) (string, error) {
+	f.pokeStateLock()
+
 	var macaroon string
 	if user != nil {
 		macaroon = user.StoreMacaroon
@@ -164,7 +180,7 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	return "downloaded-snap-path", nil
 }
 
-func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
 	panic("Never expected fakeStore.Buy to be called")
 }
 

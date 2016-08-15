@@ -42,7 +42,7 @@ func mockGrubFile(c *C, newPath string, mode os.FileMode) {
 func (s *PartitionTestSuite) makeFakeGrubEnv(c *C) {
 	// these files just needs to exist
 	g := &grub{}
-	mockGrubFile(c, g.configFile(), 0644)
+	mockGrubFile(c, g.ConfigFile(), 0644)
 	mockGrubFile(c, g.envFile(), 0644)
 }
 

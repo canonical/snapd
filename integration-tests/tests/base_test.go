@@ -26,7 +26,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"gopkg.in/check.v1"
@@ -89,7 +88,7 @@ func setUpSnapd(c *check.C, fromBranch bool, extraEnv string) {
 	cli.ExecCommand(c, "sudo", "mkdir", "-p", cfgDir)
 
 	if fromBranch {
-		err := writeCoverageConfig()
+		err := writeDaemonConfig()
 		c.Assert(err, check.IsNil)
 	}
 
@@ -113,26 +112,24 @@ func tearDownSnapd(c *check.C) {
 }
 
 // this function writes a config file for snapd.service which clears and overrides the default
-// ExecStart setting adding the required flags for recording coverage info
-func writeCoverageConfig() error {
-	cfgFileName := "coverage.conf"
+// ExecStart setting
+func writeDaemonConfig() error {
+	cfgFileName := "daemon.conf"
 	cfgFile := filepath.Join(cfgDir, cfgFileName)
 
 	binPath, err := filepath.Abs("integration-tests/bin/snapd")
 	if err != nil {
 		return err
 	}
-	cmd, err := cli.AddOptionsToCommand([]string{filepath.Base(binPath)})
-	cmd[0] = binPath
 
 	// the first ExecStart= is needed to reset the setting value according to
 	// https://www.freedesktop.org/software/systemd/man/systemd.service.html
 	cfgContent := []byte(fmt.Sprintf(`[Service]
 ExecStart=
 ExecStart=%s
-`, strings.Join(cmd, " ")))
+`, binPath))
 
-	fmt.Println("snapd coverage.conf:\n", string(cfgContent))
+	fmt.Printf("snapd %s:\n%s", cfgFileName, string(cfgContent))
 
 	tmpFile := "/tmp/snapd." + cfgFileName
 	if err = ioutil.WriteFile(tmpFile, cfgContent, os.ModeExclusive); err != nil {

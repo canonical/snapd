@@ -22,16 +22,12 @@ package asserts
 import (
 	"io"
 	"time"
-
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 // expose test-only things here
 
-// access internal openpgp lib packet
-func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
-	return pk.(openpgpPrivateKey).privk
-}
+// v1FixedTimestamp exposed for tests
+var V1FixedTimestamp = v1FixedTimestamp
 
 // assembleAndSign exposed for tests
 var AssembleAndSignInTest = assembleAndSign
@@ -73,10 +69,10 @@ func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYea
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]interface{}{
-				"type":          "account-key",
-				"authority-id":  authorityID,
-				"account-id":    authorityID,
-				"public-key-id": openPGPPubKey.ID(),
+				"type":                "account-key",
+				"authority-id":        authorityID,
+				"account-id":          authorityID,
+				"public-key-sha3-384": openPGPPubKey.ID(),
 			},
 		},
 		since:  time.Time{},
@@ -101,7 +97,7 @@ type TestOnly struct {
 
 func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	// for testing error cases
-	if _, err := checkInteger(assert.headers, "count", 0); err != nil {
+	if _, err := checkIntWithDefault(assert.headers, "count", 0); err != nil {
 		return nil, err
 	}
 	return &TestOnly{assert}, nil
