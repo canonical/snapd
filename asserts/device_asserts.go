@@ -241,7 +241,7 @@ func assembleSerialRequest(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	pubKey, err := decodePublicKey([]byte(encodedKey))
+	pubKey, err := DecodePublicKey([]byte(encodedKey))
 	if err != nil {
 		return nil, err
 	}
