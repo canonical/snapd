@@ -103,11 +103,14 @@ snap-confine.apparmor: snap-confine.apparmor.in Makefile
 #
 # NOTE: the funky make functions here just convert /foo/bar/froz into foo.bar.froz
 # The inner subst replaces slashes with dots and the outer patsubst strips the leading dot
+#
+# NOTE: The 'void' directory *has to* be chmod 000
 install-data-local: snap-confine.apparmor
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 	install -m 644 $(srcdir)/80-snappy-assign.rules $(DESTDIR)$(shell pkg-config udev --variable=udevdir)/rules.d
 	install -d -m 755 $(DESTDIR)/etc/apparmor.d/
 	install -m 644 snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	install -d -m 000 $(DESTDIR)/var/lib/snapd/void
 
 # Install support script for udev rules
 install-exec-local:
