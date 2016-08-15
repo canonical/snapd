@@ -1,0 +1,35 @@
+summary: Ensure that the security rules for private tmp are in place.
+
+prepare: |
+    echo "Given a basic snap is installed"
+    snapbuild $TESTSLIB/snaps/test-snapd-tools .
+    snap install test-snapd-tools_1.0_all.snap
+
+    echo "And another basic snap is installed"
+    SNAP_INSTALL_DIR=$(mktemp -d)
+    cp -ra $TESTSLIB/snaps/test-snapd-tools/* $SNAP_INSTALL_DIR
+    sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $SNAP_INSTALL_DIR/meta/snap.yaml
+    snapbuild $SNAP_INSTALL_DIR .
+    snap install not-test-snapd-tools_1.0_all.snap
+
+restore: |
+    rm -f test-snapd-tools_1.0_all.snap not-test-snapd-tools_1.0_all.snap \
+          $SNAP_INSTALL_DIR /tmp/foo *stat.error
+
+execute: |
+    echo "When a temporary file is created by one snap"
+    expect -f tmp-create.exp
+
+    echo "Then that file is not accessible from other calls of commands from the same snap"
+    if test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
+        echo "Expected error not present"
+        exit 1
+    fi
+    grep -q "stat: cannot stat '/tmp/foo': No such file or directory" same-stat.error
+
+    echo "And that file is not accessible by other snaps"
+    if not-test-snapd-tools.cmd stat /tmp/foo 2>other-stat.error; then
+        echo "Expected error not present"
+        exit 1
+    fi
+    grep -q "stat: cannot stat '/tmp/foo': No such file or directory" other-stat.error

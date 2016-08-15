@@ -107,8 +107,9 @@ func (s *apiSuite) Download(string, *snap.DownloadInfo, progress.Meter, *auth.Us
 	panic("Download not expected to be called")
 }
 
-func (s *apiSuite) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
 	s.buyOptions = options
+	s.user = user
 	return s.buyResult, s.err
 }
 
@@ -373,6 +374,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 	})
 
 	exceptions := []string{ // keep sorted, for scanning ease
+		"isEmailish",
 		"api",
 		"maxReadBuflen",
 		"muxVars",
@@ -387,7 +389,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"readSnapInfo",
-		"osutilAddExtraUser",
+		"osutilAddExtraSudoUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
@@ -512,7 +514,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	mockSSOServer := s.makeSSOServer(200, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -529,7 +531,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	expectedUser := auth.UserState{
 		ID:         1,
-		Username:   "username",
+		Username:   "email@.com",
 		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
@@ -582,7 +584,7 @@ func (s *apiSuite) TestLoginUserMyAppsError(c *check.C) {
 	mockMyAppsServer := s.makeMyAppsServer(200, "{}")
 	defer mockMyAppsServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -605,7 +607,7 @@ func (s *apiSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
 	mockSSOServer := s.makeSSOServer(401, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -628,7 +630,7 @@ func (s *apiSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
 	mockSSOServer := s.makeSSOServer(403, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -651,7 +653,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	mockSSOServer := s.makeSSOServer(401, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
@@ -659,7 +661,7 @@ func (s *apiSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, http.StatusUnauthorized)
-	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate on snap store")
+	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "cannot authenticate to snap store")
 }
 
 func (s *apiSuite) TestUserFromRequestNoHeader(c *check.C) {
@@ -3075,17 +3077,44 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 	})
 }
 
+func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
+	storeUserInfo = func(user string) (*store.User, error) {
+		c.Check(user, check.Equals, "popper@lse.ac.uk")
+		return &store.User{
+			Username:         "karl",
+			OpenIDIdentifier: "xxyyzz",
+		}, nil
+	}
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot create user for popper@lse.ac.uk: no ssh keys found")
+}
+
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
-			Username: "karl",
-			SSHKeys:  []string{"ssh1", "ssh2"},
+			Username:         "karl",
+			SSHKeys:          []string{"ssh1", "ssh2"},
+			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
-	osutilAddExtraUser = func(username string, sshKeys []string) error {
+	osutilAddExtraSudoUser = func(username string, sshKeys []string, gecos string) error {
 		c.Check(username, check.Equals, "karl")
 		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		c.Check(gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
 		return nil
 	}
 
@@ -3093,7 +3122,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return 0, nil
 	}
 	defer func() {
-		osutilAddExtraUser = osutil.AddExtraUser
+		osutilAddExtraSudoUser = osutil.AddExtraSudoUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
 
@@ -3127,7 +3156,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 
 	rsp := postBuy(buyCmd, req, user).(*resp)
 
-	expected := buyResponseData{
+	expected := &store.BuyResult{
 		State: "Complete",
 	}
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
@@ -3140,8 +3169,8 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 		SnapName: "the snap name",
 		Price:    1.23,
 		Currency: "EUR",
-		User:     user,
 	})
+	c.Check(s.user, check.Equals, user)
 }
 
 func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
@@ -3173,8 +3202,8 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 		SnapID:   "the-snap-id-1234abcd",
 		Price:    1.23,
 		Currency: "EUR",
-		User:     user,
 	})
+	c.Check(s.user, check.Equals, user)
 }
 
 func (s *apiSuite) TestIsTrue(c *check.C) {

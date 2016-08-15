@@ -108,16 +108,6 @@ if [ "$STATIC" = 1 ]; then
         echo "$lint"
         # don't exit 1
     fi
-
-    # cmd/* test sources are tagged so they are not included in
-    # special integration test builds
-    echo Checking 'cmd/*/*_test.go' build tagging
-    nottagged=$(grep -r --include '*_test.go' --exclude integration_coverage_test.go -L '!integrationcoverage' cmd/*/)
-    if [ -n "${nottagged}" ] ; then
-        echo these test files miss the '!integrationcoverage' tag: ${nottagged}
-        exit 1
-    fi
-
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -151,7 +141,7 @@ if [ "$UNIT" = 1 ]; then
     done
 fi
 
-if [ "$SPREAD" = 1 ]; then 
+if [ "$SPREAD" = 1 ]; then
     TMP_SPREAD="$(mktemp -d)"
     addtrap "rm -rf \"$TMP_SPREAD\""
 

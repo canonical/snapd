@@ -128,28 +128,40 @@
 
 1. Using ubuntu classic build and install a simple snap with lpr inside.
 
-	name: lpr
-	version: 2.1.3-4
-	summary: submit files for printing
-	description: |
-	   lpr submits files for printing.  Files named on the command line are sent to
-	   the named printer or the default destination if no destination is specified.
-	   If no files are listed on the command-line, lpr reads the print file from
-	   the standard input.
-	apps:
-		lpr:
-			command: lpr
-			plugs: [cups]
-	parts:
-		lpr:
-			plugin: nil
-			stage-packages: [cups-bsd]
+```yaml
+    name: lpr
+    version: 2.1.3-4
+    summary: submit files for printing
+    description: |
+       lpr submits files for printing.  Files named on the command line are sent to
+       the named printer or the default destination if no destination is specified.
+       If no files are listed on the command-line, lpr reads the print file from
+       the standard input.
+    apps:
+        lpr:
+            command: lpr
+            plugs: [cups]
+    parts:
+        lpr:
+            plugin: nil
+            stage-packages: [cups-bsd]
+```
 2. Ensure that the 'cups' interface is connected to lpr
 3. Use /snap/bin/lpr to print a short text file (e.g. the snapcraft file)
 4. Ensure that it was added to the queue of the default CUPS printer.  This can
    be checked in the ubuntu-control-center under the printers applet. Right
    click on the default printer and look at the queue. Ensure it contains the
    new item.
+
+# Test Mir interface by running Mir kiosk snap examples
+
+1. Install Virtual Machine Manager
+2. Stitch together a new image
+3. Build both the mir-server and the mir-client snaps from lp:~mir-team/+junk/mir-server-snap and lp:~mir-team/+junk/snapcraft-mir-client
+4. Copy over the snaps and sideload install the mir-server snap, which should result in a mir-server launching black blank screen with a mouse available.
+5. Now install the mir-client snap.
+6. Manually connect mir-client:mir to mir-server:mir due to bug 1577897, then start the mir-client service manually.
+7. This should result in the Qt clock example app being displayed.
 
 # Test serial-port interface using miniterm app
 
@@ -161,19 +173,71 @@
   version: 1
   summary: pySerial miniterm in a snap
   description: |
-    Simple snap that contains the modules necessary to run
-    pySerial. Useful for testing serial ports.
+      Simple snap that contains the modules necessary to run
+      pySerial. Useful for testing serial ports.
   confinement: strict
   apps:
-    open:
-      command: python3 -m serial.tools.miniterm
-      plugs: [serial-port]
+      open:
+        command: python3 -m serial.tools.miniterm
+        plugs: [serial-port]
   parts:
-    my-part:
-      plugin: nil
-      stage-packages:
-        - python3-serial
+      my-part:
+        plugin: nil
+        stage-packages:
+          - python3-serial
 ```
 
 2. Ensure the 'serial-port' interface is connected to miniterm
 3. Use sudo miniterm.open /dev/tty<DEV> to open a serial port
+
+# Test pulseaudio interface using paplay, pactl
+
+1. Using a Snappy core image on a device like an RPi2/3, install the
+   build and install the simple-pulseaudio snap from the following
+   git repo:
+   git://git.launchpad.net/~snappy-hwe-team/snappy-hwe-snaps/+git/examples
+2. $ cd examples/simple-pulseaudio
+3. Ensure that the 'pulseaudio' interface is connected to paplay
+   $ sudo snap interfaces
+4. Use /snap/bin/simple-pulseaudio.pactl stat and verify that you see
+   valid output status from pulseaudio
+5. Use /snap/bin/simple-pulseaudio.paplay $SNAP/usr/share/sounds/alsa/Noise.wav and verify
+   that you can hear the sound playing
+
+# Test bluetooth-control interface
+
+1. Using Ubuntu classic build and install the bluetooth-tests snap
+   from the store.
+
+2. Stop system BlueZ service
+
+$ sudo systemctl stop bluetooth
+
+or if you have the bluez snap installed
+
+$ snap remove bluez
+
+3. Run one of the tests provided by the bluetooth-tests snap
+
+ $ sudo /snap/bin/bluetooth-tests.hci-tester
+
+   and verify it actually passes. If some of the tests fail
+   there will be a problem with the particular kernel used on
+   the device.
+
+# Test tpm interface with tpm-tools
+
+1. Install tpm snap from store.
+2. Connect plug tpm:tpm to slot ubuntu-core:tpm.
+3. Reboot the system so daemon in tpm snap can get proper permissions.
+4. Use tpm.version to read from tpm device and make sure it shows no error.
+
+        $ tpm.version
+        xKV  TPM 1.2 Version Info:
+          Chip Version:        1.2.5.81
+          Spec Level:          2
+          Errata Revision:     3
+          TPM Vendor ID:       WEC
+          Vendor Specific data: 0000
+          TPM Version:         01010000
+          Manufacturer Info:   57454300

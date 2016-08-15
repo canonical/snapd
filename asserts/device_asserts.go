@@ -211,9 +211,9 @@ func (sreq *SerialRequest) Model() string {
 	return sreq.HeaderString("model")
 }
 
-// NonceTicket returns the nonce/ticket for the request.
-func (sreq *SerialRequest) NonceTicket() string {
-	return sreq.HeaderString("nonce-ticket")
+// RequestID returns the id for the request, obtained from and to be presented to the serial signing service.
+func (sreq *SerialRequest) RequestID() string {
+	return sreq.HeaderString("request-id")
 }
 
 // DeviceKey returns the public key of the device making the request.
@@ -232,7 +232,7 @@ func assembleSerialRequest(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkNotEmptyString(assert.headers, "nonce-ticket")
+	_, err = checkNotEmptyString(assert.headers, "request-id")
 	if err != nil {
 		return nil, err
 	}
@@ -244,6 +244,10 @@ func assembleSerialRequest(assert assertionBase) (Assertion, error) {
 	pubKey, err := decodePublicKey([]byte(encodedKey))
 	if err != nil {
 		return nil, err
+	}
+
+	if pubKey.ID() != assert.SignKeyID() {
+		return nil, fmt.Errorf("device key does not match included signing key id")
 	}
 
 	// ignore extra headers and non-empty body for future compatibility
