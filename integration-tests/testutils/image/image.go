@@ -22,6 +22,7 @@ package image
 
 import (
 	"fmt"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -47,7 +48,12 @@ func (img Image) UdfCreate() (string, error) {
 
 	testutils.PrepareTargetDir(imageDir)
 
-	udfCommand := []string{"sudo", "ubuntu-device-flash", "--verbose"}
+	udf, err := exec.LookPath("ubuntu-device-flash")
+	if err != nil {
+		return "", err
+	}
+
+	udfCommand := []string{"sudo", udf, "--verbose"}
 
 	if img.Revision != "" {
 		panic("img.revision not supported")
@@ -65,7 +71,7 @@ func (img Image) UdfCreate() (string, error) {
 		"--developer-mode",
 	}
 
-	err := testutils.ExecCommand(append(udfCommand, coreOptions...)...)
+	err = testutils.ExecCommand(append(udfCommand, coreOptions...)...)
 
 	return imagePath, err
 }
