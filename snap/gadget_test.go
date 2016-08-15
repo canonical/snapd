@@ -41,15 +41,28 @@ type: gadget
 `
 
 var mockGadgetYaml = []byte(`
-bootloader: uboot
+bootloader: u-boot
 volumes:
- volumename:
-  - name: uboot
-    label: system-boot
-    type: raw
-    data: u-boot.img
-    offset: 22082007
-    content: [uboot.env]
+  volumename:
+    schema: mbr
+    id:     id,guid
+    structure:
+      - label: system-boot
+        offset: 12345
+        offset-write: 777
+        size: 88888
+        type: id,guid
+        id:   id,guid
+        filesystem: vfat
+        content:
+          - source: subdir/
+            target: /
+            unpack: false
+          - image: foo.img
+            offset: 4321
+            offset-write: 8888
+            size: 88888
+            unpack: false
 `)
 
 func (s *gadgetYamlTestSuite) SetUpTest(c *C) {
@@ -74,34 +87,63 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	ginfo, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
-		Bootloader: "uboot",
-		Volumes: map[string][]snap.Volume{
-			"volumename": []snap.Volume{
-				{
-					Name:    "uboot",
-					Label:   "system-boot",
-					Type:    "raw",
-					Data:    "u-boot.img",
-					Offset:  22082007,
-					Content: []string{"uboot.env"},
+		Bootloader: "u-boot",
+		Volumes: map[string]snap.Volume{
+			"volumename": snap.Volume{
+				Schema: "mbr",
+				ID:     "id,guid",
+				Structure: []snap.Structure{
+					{
+						Label:       "system-boot",
+						Offset:      12345,
+						OffsetWrite: 777,
+						Size:        88888,
+						Type:        "id,guid",
+						ID:          "id,guid",
+						Filesystem:  "vfat",
+						Content: []snap.Content{
+							{
+								Source: "subdir/",
+								Target: "/",
+								Unpack: false,
+							},
+							{
+								Image:       "foo.img",
+								Offset:      4321,
+								OffsetWrite: 8888,
+								Size:        88888,
+								Unpack:      false,
+							},
+						},
+					},
 				},
 			},
 		},
 	})
 }
 
-func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidVolume(c *C) {
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
-bootloader: uboot
-volumes:
- volumename:
-  - name: ""
+bootloader: 
 `)
 
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
 	c.Assert(err, IsNil)
 
 	_, err = snap.ReadGadgetInfo(info)
-	c.Assert(err, ErrorMatches, "volume name cannot be empty")
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader cannot be empty")
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+	mockGadgetYamlBroken := []byte(`
+bootloader: silo
+`)
+
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info)
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader must be either grub or u-boot")
 }
