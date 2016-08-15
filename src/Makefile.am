@@ -88,7 +88,7 @@ check: check-syntax check-unit-tests
 
 .PHONY: fmt
 fmt:
-	for f in $(wildcard *.c) $(wildcard *.h); do \
+	for f in $(wildcard $(srcdir)/*.c) $(wildcard $(srcdir)/*.h); do \
 	       echo "Formatting $$f ... "; \
 	       indent -linux "$$f"; \
 	done;
