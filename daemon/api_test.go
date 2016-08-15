@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -116,6 +117,10 @@ func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.
 func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
 	s.user = user
 	return s.paymentMethods, s.err
+}
+
+func (s *apiSuite) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
+	panic("Assertion not expected to be called")
 }
 
 func (s *apiSuite) muxVars(*http.Request) map[string]string {
@@ -2566,14 +2571,23 @@ func (s *apiSuite) TestUnsupportedInterfaceAction(c *check.C) {
 	})
 }
 
+func assertAdd(st *state.State, a asserts.Assertion) {
+	st.Lock()
+	defer st.Unlock()
+	err := assertstate.Add(st, a)
+	if err != nil {
+		panic(err)
+	}
+}
+
 func (s *apiSuite) TestAssertOK(c *check.C) {
 	// Setup
 	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
+	st := d.overlord.State()
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, check.IsNil)
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
@@ -2585,10 +2599,41 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, http.StatusOK)
 	// Verify (internal)
-	_, err = d.overlord.AssertManager().DB().Find(asserts.AccountType, map[string]string{
+	st.Lock()
+	defer st.Unlock()
+	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
 		"account-id": acct.AccountID(),
 	})
 	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestAssertConflict(c *check.C) {
+	// Setup
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+	d := s.daemon(c)
+	st := d.overlord.State()
+	// add store key
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+
+	acctRev0 := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acctRev1 := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
+		"account-id": acctRev0.AccountID(),
+		"revision":   "1",
+		"validation": "certified",
+	}, "")
+	assertAdd(st, acctRev1)
+
+	buf := bytes.NewBuffer(asserts.Encode(acctRev0))
+	// Execute
+	req, err := http.NewRequest("POST", "/v2/assertions", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	// Execute
+	assertsCmd.POST(assertsCmd, req, nil).ServeHTTP(rec, req)
+	// Verify (external)
+	c.Check(rec.Code, check.Equals, 409)
+	c.Check(rec.Body.String(), testutil.Contains, "assert failed: revision 0 is older than current revision 1")
 }
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
@@ -2626,13 +2671,13 @@ func (s *apiSuite) TestAssertsFindManyAll(c *check.C) {
 	defer restore()
 	d := s.daemon(c)
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, check.IsNil)
+	st := d.overlord.State()
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
 		"account-id": "developer1-id",
 	}, "")
-	err = d.overlord.AssertManager().DB().Add(acct)
-	c.Assert(err, check.IsNil)
+	assertAdd(st, acct)
+
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account", nil)
 	c.Assert(err, check.IsNil)
@@ -2668,12 +2713,11 @@ func (s *apiSuite) TestAssertsFindManyFilter(c *check.C) {
 	defer restore()
 	d := s.daemon(c)
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, check.IsNil)
-
+	st := d.overlord.State()
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	err = d.overlord.AssertManager().DB().Add(acct)
-	c.Assert(err, check.IsNil)
+	assertAdd(st, acct)
+
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account?username=developer1", nil)
 	c.Assert(err, check.IsNil)
@@ -2699,12 +2743,11 @@ func (s *apiSuite) TestAssertsFindManyNoResults(c *check.C) {
 	defer restore()
 	d := s.daemon(c)
 	// add store key
-	err := d.overlord.AssertManager().DB().Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, check.IsNil)
-
+	st := d.overlord.State()
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	err = d.overlord.AssertManager().DB().Add(acct)
-	c.Assert(err, check.IsNil)
+	assertAdd(st, acct)
+
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions/account?username=xyzzyx", nil)
 	c.Assert(err, check.IsNil)
