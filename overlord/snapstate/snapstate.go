@@ -250,7 +250,9 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 	return doInstall(s, &snapst, ss)
 }
 
-// like strings.Contains but assumes the list is sorted
+// contains determines whether the given string is contained in the
+// given list of strings, which must have been previously sorted using
+// sort.Strings.
 func contains(ns []string, n string) bool {
 	i := sort.SearchStrings(ns, n)
 	if i >= len(ns) {
@@ -260,7 +262,7 @@ func contains(ns []string, n string) bool {
 }
 
 // RefreshCandidates gets a list of candidates for update
-// (call it with the state lock held)
+// Note that the state must be locked by the caller.
 func RefreshCandidates(st *state.State, user *auth.UserState) ([]*snap.Info, error) {
 	updates, _, err := refreshCandidates(st, nil, user)
 	return updates, err
@@ -327,7 +329,7 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
-// (state must be locked)
+// Note that the state must be locked by the caller.
 func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
@@ -340,7 +342,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	}
 
 	updated := make([]string, 0, len(updates))
-	tts := make([]*state.TaskSet, 0, len(updates))
+	tasksets := make([]*state.TaskSet, 0, len(updates))
 	for _, update := range updates {
 		snapst := stateByID[update.SnapID]
 		// XXX: this check goes away when update-to-local is done
@@ -362,10 +364,10 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 			continue
 		}
 		updated = append(updated, update.Name())
-		tts = append(tts, ts)
+		tasksets = append(tasksets, ts)
 	}
 
-	return updated, tts, nil
+	return updated, tasksets, nil
 }
 
 // Update initiates a change updating a snap.
