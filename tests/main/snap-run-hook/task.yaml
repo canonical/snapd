@@ -15,18 +15,26 @@ prepare: |
     mkdir "$overlay" "$work"
     to_overlay="$(realpath /snap/ubuntu-core/current)"
     mount -t overlayfs -o lowerdir=$to_overlay,upperdir=$overlay,workdir=$work overlayfs $to_overlay
+
     cp /usr/lib/snapd/snap-exec $to_overlay/usr/lib/snapd/
+    if [ $? -ne 0 ]; then
+        echo "Failed to copy in-tree snap-exec"
+        exit 1
+    fi
+
+    cmp /usr/lib/snapd/snap-exec $to_overlay/usr/lib/snapd/snap-exec
+    if [ $? -ne 0 ]; then
+        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
+        exit 1
+    fi
 
 restore: |
     rm basic-hooks_1.0_all.snap
     umount "$(realpath /snap/ubuntu-core/current)"
 
 execute: |
-    # snap-confine can't run from /gopath
-    cd /home/test
-
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
-    # check stdout instead.
+    # check the output instead.
 
     echo "Test that snap run can call valid hooks"
 
