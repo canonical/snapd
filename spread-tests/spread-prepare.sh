@@ -13,36 +13,6 @@ release_ID="$( . /etc/os-release && echo "${ID:-linux}" )"
 release_VERSION_ID="$( . /etc/os-release && echo "${VERSION_ID:-}" )"
 
 
-# Create source distribution tarball and place it in the top-level directory.
-create_dist_tarball() {
-    # Load the version number from a dedicated file
-    local pkg_version=
-    pkg_version="$(cat "$top_dir/VERSION")"
-
-    # Ensure that build system is up-to-date and ready
-    autoreconf -i
-    # XXX: This fixes somewhat odd error when configure below (in an empty directory) fails with:
-    # configure: error: source directory already configured; run "make distclean" there first
-    test -f Makefile && make distclean
-
-    # Create a scratch space to run configure
-    scratch_dir="$(mktemp -d)"
-    trap 'rm -rf "$scratch_dir"' EXIT
-
-    # Configure the project in a scratch directory
-    cd "$scratch_dir"
-    "$top_dir/configure" --prefix=/usr
-
-    # Create the distribution tarball
-    make dist
-
-    # Ensure we got the tarball we were expecting to see
-    test -f "snap-confine-$pkg_version.tar.gz"
-
-    # Move it to the top-level directory
-    mv "snap-confine-$pkg_version.tar.gz" "$top_dir/"
-}
-
 build_debian_or_ubuntu_package() {
     local pkg_version
     local sbuild_args=""
@@ -68,7 +38,7 @@ build_debian_or_ubuntu_package() {
     apt build-dep -y ./distro-packaging/
 
     # Generate a new upstream tarball from the current state of the tree
-    ( cd "$top_dir" && create_dist_tarball )
+    ( cd "$top_dir" && spread-tests/release.sh )
 
     # Prepare the .orig tarball and unpackaged source tree
     cp "$top_dir/snap-confine-$pkg_version.tar.gz" "snap-confine_$pkg_version.orig.tar.gz"
