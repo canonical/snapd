@@ -682,6 +682,41 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 	c.Check(err, ErrorMatches, `cannot add "account-key" assertion with primary key clashing with a trusted assertion: .*`)
 }
 
+func (safs *signAddFindSuite) TestFindAndRefResolve(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"pk1":          "ka",
+		"pk2":          "kb",
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnly2Type, headers, nil, safs.signingKeyID)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a1)
+	c.Assert(err, IsNil)
+
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"ka", "kb"},
+	}
+
+	resolved, err := ref.Resolve(safs.db.Find)
+	c.Assert(err, IsNil)
+	c.Check(resolved.Headers(), DeepEquals, map[string]interface{}{
+		"type":              "test-only-2",
+		"authority-id":      "canonical",
+		"pk1":               "ka",
+		"pk2":               "kb",
+		"sign-key-sha3-384": resolved.SignKeyID(),
+	})
+
+	ref = &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"kb", "ka"},
+	}
+	_, err = ref.Resolve(safs.db.Find)
+	c.Assert(err, Equals, asserts.ErrNotFound)
+}
+
 type revisionErrorSuite struct{}
 
 func (res *revisionErrorSuite) TestErrorText(c *C) {

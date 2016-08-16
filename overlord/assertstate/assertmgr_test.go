@@ -20,7 +20,13 @@
 package assertstate_test
 
 import (
+	"crypto"
+	"encoding/hex"
+	"fmt"
 	"testing"
+	"time"
+
+	"golang.org/x/crypto/sha3"
 
 	. "gopkg.in/check.v1"
 
@@ -29,7 +35,12 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 func TestAssertManager(t *testing.T) { TestingT(t) }
@@ -45,6 +56,47 @@ type assertMgrSuite struct {
 
 var _ = Suite(&assertMgrSuite{})
 
+type fakeStore struct {
+	db asserts.RODatabase
+}
+
+func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	ref := &asserts.Ref{assertType, key}
+	a, err := ref.Resolve(sto.db.Find)
+	if err != nil {
+		return nil, fmt.Errorf("simulated remote assertion retrieve: %s", err)
+	}
+	return a, nil
+}
+
+func (sto *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+	panic("fakeStore.Snap not expected")
+}
+
+func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
+	panic("fakeStore.Find not expected")
+}
+
+func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
+	panic("fakeStore.ListRefresh not expected")
+}
+
+func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+	panic("fakeStore.Download not expected")
+}
+
+func (sto *fakeStore) SuggestedCurrency() string {
+	panic("fakeStore.SuggestedCurrency not expected")
+}
+
+func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
+	panic("fakeStore.Buy not expected")
+}
+
+func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
+	panic("fakeStore.PaymentMethods not expected")
+}
+
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
@@ -57,6 +109,10 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	mgr, err := assertstate.Manager(s.state)
 	c.Assert(err, IsNil)
 	s.mgr = mgr
+
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &fakeStore{s.storeSigning})
+	s.state.Unlock()
 }
 
 func (s *assertMgrSuite) TearDownTest(c *C) {
@@ -90,4 +146,146 @@ func (s *assertMgrSuite) TestAdd(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func fakeHash(rev int) []byte {
+	fake := fmt.Sprintf("snap%d", rev)
+	h := sha3.Sum384([]byte(fake))
+	return h[:]
+}
+
+func makeDigest(rev int) string {
+	d, err := asserts.EncodeDigest(crypto.SHA3_384, fakeHash(rev))
+	if err != nil {
+		panic(err)
+	}
+	return string(d)
+}
+
+func makeHexDigest(rev int) string {
+	return hex.EncodeToString(fakeHash(rev))
+}
+
+func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
+	dev1Acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	err := s.storeSigning.Add(dev1Acct)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": dev1Acct.AccountID(),
+		"gates":        "",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	for _, rev := range revisions {
+		headers = map[string]interface{}{
+			"series":        "16",
+			"snap-id":       "snap-id-1",
+			"snap-sha3-384": makeDigest(rev),
+			"snap-size":     "1000",
+			"snap-revision": fmt.Sprintf("%d", rev),
+			"developer-id":  dev1Acct.AccountID(),
+			"timestamp":     time.Now().Format(time.RFC3339),
+		}
+		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+		c.Assert(err, IsNil)
+		err = s.storeSigning.Add(snapRev)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *assertMgrSuite) TestFetch(c *C) {
+	s.prereqSnapAssertions(c, 10)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{makeDigest(10)},
+	}
+
+	err := assertstate.Fetch(s.state, ref, 0)
+	c.Assert(err, IsNil)
+
+	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
+	c.Assert(err, IsNil)
+	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
+}
+
+func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
+	s.prereqSnapAssertions(c, 10, 11)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{makeDigest(10)},
+	}
+
+	err := assertstate.Fetch(s.state, ref, 0)
+	c.Assert(err, IsNil)
+
+	ref = &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{makeDigest(11)},
+	}
+
+	err = assertstate.Fetch(s.state, ref, 0)
+	c.Assert(err, IsNil)
+
+	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
+	c.Assert(err, IsNil)
+	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 11)
+}
+
+func (s *assertMgrSuite) settle() {
+	// XXX: would like to use Overlord.Settle but not enough control there
+	for i := 0; i < 50; i++ {
+		s.mgr.Ensure()
+		s.mgr.Wait()
+	}
+}
+
+func (s *assertMgrSuite) TestPrefetchAssertions(c *C) {
+	c.Skip("WIP")
+	s.prereqSnapAssertions(c, 10)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("prefetch-assertions", "Prefetch")
+	ss := snapstate.SnapSetup{
+		UserID: 0,
+		SideInfo: &snap.SideInfo{
+			SnapID: "snap-id-1",
+			Sha512: makeHexDigest(10),
+		},
+	}
+	t.Set("snap-setup", ss)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.mgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	snapRev, err := assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
+		"series":      "16",
+		"snap-id":     "snap-id-1",
+		"snap-digest": makeDigest(10),
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 }

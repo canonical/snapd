@@ -27,6 +27,7 @@ import (
 	"io"
 	"sort"
 	"strconv"
+	"strings"
 )
 
 type typeFlags int
@@ -86,6 +87,28 @@ func Type(name string) *AssertionType {
 type Ref struct {
 	Type       *AssertionType
 	PrimaryKey []string
+}
+
+// Unique returns a unique string representing the reference that can be used as a key in maps.
+func (ref *Ref) Unique() string {
+	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ref.PrimaryKey, "/"))
+}
+
+func (ref *Ref) String() string {
+	// XXX: make it YAML-like!
+	return fmt.Sprintf("{%s}", ref.Unique())
+}
+
+// Resolve resolves the reference using the given find function.
+func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
+	if len(ref.PrimaryKey) != len(ref.Type.PrimaryKey) {
+		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", ref.Type.Name, ref.Type.PrimaryKey, ref.PrimaryKey)
+	}
+	headers := make(map[string]string, len(ref.PrimaryKey))
+	for i, name := range ref.Type.PrimaryKey {
+		headers[name] = ref.PrimaryKey[i]
+	}
+	return find(ref.Type, headers)
 }
 
 // Assertion represents an assertion through its general elements.
