@@ -45,70 +45,13 @@ create_dist_tarball() {
     mv "snap-confine-$pkg_version.tar.gz" "$top_dir/"
 }
 
+build_debian_or_ubuntu_package() { 
+    # FIXME: error handling and friendly message about how to
+    #        add new distro specific bits etc
+    # source the distro specific vars
+    . $top_dir/spread-tests/distros/$release_ID.common
+    . $top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID
 
-# build Ubuntu binary package and place it in $top_dir
-# $1 = /etc/os-release ID field
-# $2 = /etc/os-release VERSION_ID field (possibly empty!)
-build_debian_or_ubuntu_package() {
-    local pkg_version=
-    local distro_codename=
-    local distro_archive=
-    local distro_packaging_git=
-    local distro_packaging_git_branch=
-    local sbuild_args=
-    
-    pkg_version="$(cat "$top_dir/VERSION")"
-
-    case "$1" in
-        ubuntu)
-            distro_archive=http://archive.ubuntu.com/ubuntu
-            distro_packaging_git=https://git.launchpad.net/snap-confine
-            case "$2" in
-                14.04)
-                    distro_codename=trusty
-                    distro_packaging_git_branch=14.04
-                    ;;
-                16.04)
-                    distro_codename=xenial
-                    distro_packaging_git_branch=16.04
-                    ;;
-                16.10)
-                    distro_codename=yakkety
-                    distro_packaging_git_branch=16.10
-                    ;;
-                *)
-                    echo "unsupported Ubuntu VERSION_ID: $2"
-                    exit 1
-                    ;;
-            esac
-            # NOTE: universe has to be enabled as it is not enabled by default
-            sbuild_args="--extra-repository=deb http://archive.ubuntu.com/ubuntu/ ${distro_codename} universe"
-            ;;
-        debian)
-            distro_archive=http://ftp.debian.org/debian
-            # NOTE: Debian packaging needs to be updated. I sent a mail to the
-            # debian maintainer with instructions on what needs to happen and
-            # how it fits into the CI system.
-            #
-            # For now all builds on debian will fail as they still contains
-            # debian/patches that are now applied upstream.
-            distro_packaging_git=git://anonscm.debian.org/collab-maint/snap-confine.git
-            case "$2" in
-                '')  # sid
-                    distro_codename=sid
-                    distro_packaging_git_branch=debian
-                    ;;
-                *)
-                    echo "unsupported Debian VERSION_ID: $2"
-                    exit 1
-                    ;;
-            esac
-            ;;
-        *)
-            echo "unsupported distribution ID: $1"
-            exit 1
-            ;;
-    esac
 
     # Ensure that we have a sbuild chroot ready
     if ! schroot -l | grep "chroot:${distro_codename}-.*-sbuild"; then
@@ -196,7 +139,7 @@ case "$release_ID" in
         # kicks in. Instead we just copy pre-made, insecure keys from the
         # source repository.
         mkdir -p /var/lib/sbuild/apt-keys/
-        cp -a .spread-data/apt-keys/* /var/lib/sbuild/apt-keys/
+        cp -a $top_level/spread-tests/data/apt-keys/* /var/lib/sbuild/apt-keys/
         sbuild-adduser "$LOGNAME"
         ;;
     *)
