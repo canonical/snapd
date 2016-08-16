@@ -24,7 +24,7 @@ prepare: |
     ./spread-tests/spread-prepare.sh
 
 suites:
-    spread-tests/:
+    spread-tests/main/:
         summary: Full-system tests for snap-confine
     spread-tests/regression/:
         summary: Regression tests for past bug-fixes
