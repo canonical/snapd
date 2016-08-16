@@ -1,0 +1,2 @@
+distro_archive=http://archive.ubuntu.com/ubuntu
+distro_packaging_git=https://git.launchpad.net/snap-confine
