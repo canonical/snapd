@@ -34,11 +34,11 @@ endif
 override_dh_systemd_enable:
 	# enable boot-ok
 	dh_systemd_enable \
-		-pubuntu-core-snapd-units \
+		-psnapd \
 		snapd.boot-ok.service
 	# enable the first boot service
 	dh_systemd_enable \
-		-pubuntu-core-snapd-units \
+		-psnapd \
 		snapd.firstboot.service
 	# we want the auto-update timer enabled by default
 	dh_systemd_enable \
@@ -60,7 +60,7 @@ override_dh_systemd_enable:
 override_dh_systemd_start:
 	# start boot-ok
 	dh_systemd_start \
-		-pubuntu-core-snapd-units \
+		-psnapd \
 		snapd.boot-ok.service
 	# we want to start the auto-update timer
 	dh_systemd_start \

@@ -58,19 +58,6 @@ Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.
 
-Package: ubuntu-core-snapd-units
-Architecture: any
-Depends: snapd, ${misc:Depends}
-Replaces: ubuntu-snappy (<< 1.9)
-Breaks: ubuntu-snappy (<< 1.9)
-Conflicts: snap (<< 2013-11-29-1ubuntu1)
-Built-Using: ${misc:Built-Using}
-Description: Scripts for snapd that should only run on ubuntu core systems.
- This package contains systemd services that need to run on ubuntu core
- systems.
- .
- This package should not be installed on a Desktop system.
-
 Package: ubuntu-snappy
 Architecture: all
 Depends: snapd, ${misc:Depends}
