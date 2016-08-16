@@ -7,22 +7,28 @@ prepare: |
     snapbuild $TESTSLIB/snaps/basic-hooks .
     snap install basic-hooks_1.0_all.snap
 
-    # Use the in-tree snap-exec, not the one in the core snap. We'll do that via
-    # overlayfs and a copy.
-    tmp=$(mktemp -d)
-    overlay="$tmp/overlay"
-    work="$tmp/work"
-    mkdir "$overlay" "$work"
-    to_overlay="$(realpath /snap/ubuntu-core/current)"
-    mount -t overlayfs -o lowerdir=$to_overlay,upperdir=$overlay,workdir=$work overlayfs $to_overlay
+    # We want to use the in-tree snap-exec, not the one in the core snap. To
+    # accomplish that, we'll just unpack the core we just grabbed, shove the new
+    # snap-exec in there, and repack it.
 
-    cp /usr/lib/snapd/snap-exec $to_overlay/usr/lib/snapd/
-    if [ $? -ne 0 ]; then
-        echo "Failed to copy in-tree snap-exec"
-        exit 1
-    fi
+    # First of all, unmount the core
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep "$core" | awk '{print $1}')"
+    umount "$core"
 
-    cmp /usr/lib/snapd/snap-exec $to_overlay/usr/lib/snapd/snap-exec
+    # Now unpack the core, inject the new snap-exec into it, and repack it.
+    unsquashfs "$snap"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    mv "$snap" "${snap}.orig"
+    mksquashfs squashfs-root "$snap" -comp xz
+
+    # Now mount the new core snap
+    mount "$snap" "$core"
+    systemctl start snapd.service
+
+    # Make sure we're running with the correct snap-exec
+    cmp /usr/lib/snapd/snap-exec /snap/ubuntu-core/current/usr/lib/snapd/snap-exec
     if [ $? -ne 0 ]; then
         echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
         exit 1
@@ -30,7 +36,15 @@ prepare: |
 
 restore: |
     rm basic-hooks_1.0_all.snap
-    umount "$(realpath /snap/ubuntu-core/current)"
+
+    # Unmount the modified core snap, and put the old one back in place
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep "$core" | awk '{print $1}')"
+    umount "$core"
+    mv "${snap}.orig" "$snap"
+    mount "$snap" "$core"
+    systemctl start snapd.service
 
 execute: |
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
@@ -38,8 +52,7 @@ execute: |
 
     echo "Test that snap run can call valid hooks"
 
-    output="$(snap run --hook=apply-config basic-hooks)"
-    if [ $? -ne 0 ]; then
+    if ! output="$(snap run --hook=apply-config basic-hooks)"; then
         echo "Failed to run apply-config hook"
         exit 1
     fi
@@ -50,8 +63,7 @@ execute: |
         exit 1
     fi
 
-    output="$(snap run --hook=check-config basic-hooks)"
-    if [ $? -ne 0 ]; then
+    if ! output="$(snap run --hook=check-config basic-hooks)"; then
         echo "Failed to run check-config hook"
         exit 1
     fi
@@ -64,8 +76,7 @@ execute: |
 
     echo "Test that snap run cannot call invalid hooks"
 
-    output="$(snap run --hook=invalid-hook basic-hooks)"
-    if [ $? -ne 0 ]; then
+    if ! output="$(snap run --hook=invalid-hook basic-hooks)"; then
         echo "Expected snap run to exit successfully upon missing hook"
         exit 1
     fi
