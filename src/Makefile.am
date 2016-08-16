@@ -21,7 +21,9 @@ snap_confine_SOURCES = \
 	udev-support.c \
 	udev-support.h \
 	user-support.c \
-	user-support.h
+	user-support.h \
+	quirks.c \
+	quirks.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
