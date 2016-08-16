@@ -1,0 +1,8 @@
+distro_archive=http://ftp.debian.org/debian
+# NOTE: Debian packaging needs to be updated. I sent a mail to the
+# debian maintainer with instructions on what needs to happen and
+# how it fits into the CI system.
+#
+# For now all builds on debian will fail as they still contains
+# debian/patches that are now applied upstream.
+distro_packaging_git=git://anonscm.debian.org/collab-maint/snap-confine.git
