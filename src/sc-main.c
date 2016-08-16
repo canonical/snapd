@@ -36,6 +36,7 @@
 #include "udev-support.h"
 #include "cleanup-funcs.h"
 #include "user-support.h"
+#include "quirks.h"
 
 int sc_main(int argc, char **argv)
 {
@@ -108,6 +109,9 @@ int sc_main(int argc, char **argv)
 
 		// set up private /dev/pts
 		setup_private_pts();
+
+		// setup quirks for specific snaps
+		sc_setup_quirks();
 
 		// this needs to happen as root
 		struct snappy_udev udev_s;

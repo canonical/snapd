@@ -160,4 +160,21 @@
     # new-style encrypted $HOME
     @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
     @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
+
+    # Support for the quirk system
+    /var/ r,
+    /var/lib/ r,
+    /var/lib/** rw,
+    /tmp/ r,
+    /tmp/snapd.quirks_*/ rw,
+    mount options=(move) /var/lib/snapd/ -> /tmp/snapd.quirks_*/,
+    mount fstype=tmpfs options=(rw nodev nosuid) none -> /var/lib/,
+    mount options=(ro rbind) /snap/ubuntu-core/*/var/lib/** -> /var/lib/**,
+    umount /var/lib/snapd/,
+    mount options=(move) /tmp/snapd.quirks_*/ -> /var/lib/snapd/,
+
+    # support for the LXD quirk
+    mount options=(rw rbind nodev nosuid noexec) /var/lib/snapd/hostfs/var/lib/lxd/ -> /var/lib/lxd/,
+    /var/lib/lxd/ w,
+    /var/lib/snapd/hostfs/var/lib/lxd r,
 }
