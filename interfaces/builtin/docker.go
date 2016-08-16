@@ -57,8 +57,8 @@ capability,
 # Docker does all kinds of mounts all over the filesystem
 /dev/mapper/control rw,
 /dev/mapper/docker* rw,
-/dev/loop* r,
-/dev/loop[0-9]* w,
+/dev/loop-control r,
+/dev/loop[0-9]* rw,
 mount,
 umount,
 
