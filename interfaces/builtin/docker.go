@@ -98,11 +98,11 @@ ptrace (read, trace) peer=docker-default,
 `
 
 const dockerConnectedPlugAppArmor = `
-# Description: Allow using Docker. Reserved because this gives
-#  privileged access to the service/host.
+# Description: allow access to the Docker daemon socket. This gives
+#  privileged access to the system via Docker's socket API.
 # Usage: reserved
 
-# Obviously need to be able to talk to the daemon
+# Allow talking to the docker daemon
 /{,var/}run/docker.sock rw,
 
 @{PROC}/sys/net/core/somaxconn r,
@@ -481,6 +481,9 @@ writev
 `
 
 const dockerConnectedPlugSecComp = `
+# Description: allow access to the Docker daemon socket. This gives
+#  privileged access to the system via Docker's socket API.
+
 setsockopt
 bind
 `
