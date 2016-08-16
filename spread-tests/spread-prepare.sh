@@ -45,22 +45,16 @@ create_dist_tarball() {
     mv "snap-confine-$pkg_version.tar.gz" "$top_dir/"
 }
 
-build_debian_or_ubuntu_package() { 
+build_debian_or_ubuntu_package() {
+    local pkg_version
+    local sbuild_args=""
+    pkg_version="$(cat "$top_dir/VERSION")"
+    
     # FIXME: error handling and friendly message about how to
     #        add new distro specific bits etc
     # source the distro specific vars
-    . $top_dir/spread-tests/distros/$release_ID.common
-    . $top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID
-
-
-    # Ensure that we have a sbuild chroot ready
-    if ! schroot -l | grep "chroot:${distro_codename}-.*-sbuild"; then
-        sbuild-createchroot \
-            --include=eatmydata \
-            "--make-sbuild-tarball=/var/lib/sbuild/${distro_codename}-amd64.tar.gz" \
-            "$distro_codename" "$(mktemp -d)" \
-            "$distro_archive"
-    fi
+    . "$top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID"
+    . "$top_dir/spread-tests/distros/$release_ID.common"
 
     # Create a scratch space 
     scratch_dir="$(mktemp -d)"
@@ -96,6 +90,15 @@ build_debian_or_ubuntu_package() {
     # Copy source package files to the top-level directory (this helps for
     # interactive debugging since the package is available right there)
     cp ./*.dsc ./*.debian.tar.* ./*.orig.tar.gz "$top_dir/"
+
+    # Ensure that we have a sbuild chroot ready
+    if ! schroot -l | grep "chroot:${distro_codename}-.*-sbuild"; then
+        sbuild-createchroot \
+            --include=eatmydata \
+            "--make-sbuild-tarball=/var/lib/sbuild/${distro_codename}-amd64.tar.gz" \
+            "$distro_codename" "$(mktemp -d)" \
+            "$distro_archive"
+    fi
 
     # Build a binary package in a clean chroot.
     # NOTE: nocheck is because the package still includes old unit tests that
@@ -139,7 +142,7 @@ case "$release_ID" in
         # kicks in. Instead we just copy pre-made, insecure keys from the
         # source repository.
         mkdir -p /var/lib/sbuild/apt-keys/
-        cp -a $top_level/spread-tests/data/apt-keys/* /var/lib/sbuild/apt-keys/
+        cp -a "$top_dir/spread-tests/data/apt-keys/"* /var/lib/sbuild/apt-keys/
         sbuild-adduser "$LOGNAME"
         ;;
     *)
