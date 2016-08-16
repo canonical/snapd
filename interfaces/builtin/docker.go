@@ -42,7 +42,6 @@ const dockerPermanentSlotAppArmor = `
 @{PROC}/ r,
 @{PROC}/** r,
 @{PROC}/[0-9]*/attr/exec w,
-@{PROC}/sys/net/** w,
 @{PROC}/[0-9]*/oom_score_adj w,
 
 # Limited read access to specific bits of /sys
