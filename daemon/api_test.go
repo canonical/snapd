@@ -3143,10 +3143,11 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
-	osutilAddExtraSudoUser = func(username string, sshKeys []string, gecos string) error {
+	osutilAddExtraUser = func(username string, sshKeys []string, gecos string, sudoer bool) error {
 		c.Check(username, check.Equals, "karl")
 		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
 		c.Check(gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
+		c.Check(sudoer, check.Equals, false)
 		return nil
 	}
 
@@ -3154,7 +3155,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return 0, nil
 	}
 	defer func() {
-		osutilAddExtraSudoUser = osutil.AddExtraSudoUser
+		osutilAddExtraUser = osutil.AddExtraUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
 	restore := release.MockOnClassic(false)

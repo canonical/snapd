@@ -147,6 +147,9 @@ Consuming snaps can access media players implementing mpris via the providing
 snap's well-known DBus name.
 
 * Auto-Connect: no
+* Attributes:
+    * name (slot): optional, media player name to use for DBus well-known name
+      (ie, `org.mpris.MediaPlayer2.$name`). If omitted, use the snap's name.
 
 ### network
 
@@ -255,6 +258,12 @@ Can query hardware information from the system.
 
 * Auto-Connect: no
 
+### kernel-module-control
+
+Can insert kernel modules. This interface gives privileged access to the device.
+
+* Auto-Connect: no
+
 ### locale-control
 
 Can manage locales directly separate from ``config core``.
@@ -357,11 +366,16 @@ Can use kernel tracing facilities. This is restricted because it gives
 privileged access to all processes on the system and should only be used with
 trusted apps.
 
-Usage: reserved
-Auto-Connect: no
+* Auto-Connect: no
 
 ### timeserver-control
 
 Can manage timeservers directly separate from ``config core``.
+
+* Auto-Connect: no
+
+### tpm
+
+Can access the tpm device /dev/tpm0.
 
 * Auto-Connect: no

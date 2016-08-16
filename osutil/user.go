@@ -21,18 +21,27 @@ package osutil
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
 var userLookup = user.Lookup
 
-func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
+var sudoersDotD = "/etc/sudoers.d"
+
+var sudoersTemplate = `
+# Created by snap create-user
+
+# User rules for %[1]s
+%[1]s ALL=(ALL) NOPASSWD:ALL
+`
+
+func AddExtraUser(name string, sshKeys []string, gecos string, sudoer bool) error {
 	// we check the (user)name ourselves, adduser is a bit too
 	// strict (i.e. no `.`) - this regexp is in sync with that SSO
 	// allows as valid usernames
@@ -46,23 +55,40 @@ func AddExtraSudoUser(name string, sshKeys []string, gecos string) error {
 		"--gecos", gecos,
 		"--extrausers",
 		"--disabled-password",
-		"--add_extra_groups", "sudo",
 		name)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("adduser failed with %s: %s", err, output)
+	}
+
+	if sudoer {
+		// Must escape "." as files containing it are ignored in sudoers.d.
+		sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", "%2E", -1))
+		if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
+			return fmt.Errorf("cannot create file under sudoers.d: %s", err)
+		}
 	}
 
 	u, err := userLookup(name)
 	if err != nil {
 		return fmt.Errorf("cannot find user %q: %s", name, err)
 	}
+
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return fmt.Errorf("cannot parse user id %s: %s", u.Uid, err)
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return fmt.Errorf("cannot parse group id %s: %s", u.Gid, err)
+	}
+
 	sshDir := filepath.Join(u.HomeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0700); err != nil {
+	if err := MkdirAllChown(sshDir, 0700, uid, gid); err != nil {
 		return fmt.Errorf("cannot create %s: %s", sshDir, err)
 	}
 	authKeys := filepath.Join(sshDir, "authorized_keys")
 	authKeysContent := strings.Join(sshKeys, "\n")
-	if err := ioutil.WriteFile(authKeys, []byte(authKeysContent), 0644); err != nil {
+	if err := AtomicWriteFileChown(authKeys, []byte(authKeysContent), 0600, 0, uid, gid); err != nil {
 		return fmt.Errorf("cannot write %s: %s", authKeys, err)
 	}
 
@@ -83,6 +109,10 @@ func RealUser() (*user.User, error) {
 	}
 
 	real, err := user.Lookup(realName)
+	// can happen when sudo is used to enter a chroot (e.g. pbuilder)
+	if _, ok := err.(user.UnknownUserError); ok {
+		return cur, nil
+	}
 	if err != nil {
 		return nil, err
 	}

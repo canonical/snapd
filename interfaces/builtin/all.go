@@ -31,6 +31,7 @@ var allInterfaces = []interfaces.Interface{
 	&GpioInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
+	&MirInterface{},
 	&ModemManagerInterface{},
 	&MprisInterface{},
 	&NetworkManagerInterface{},
@@ -54,6 +55,7 @@ var allInterfaces = []interfaces.Interface{
 	NewSystemTraceInterface(),
 	NewTimeserverControlInterface(),
 	NewTimezoneControlInterface(),
+	NewTpmInterface(),
 	NewUnity7Interface(),
 	NewX11Interface(),
 	NewOpenglInterface(),
@@ -61,6 +63,7 @@ var allInterfaces = []interfaces.Interface{
 	NewOpticalDriveInterface(),
 	NewCameraInterface(),
 	NewBluetoothControlInterface(),
+	NewKernelModuleControlInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

@@ -25,7 +25,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
-	"regexp"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -64,8 +63,8 @@ func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
 	got, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
 	c.Assert(err, IsNil)
-	fp := got.PublicKey().Fingerprint()
-	c.Check(fp, Equals, assertstest.DevKeyFingerprint)
+	keyID := got.PublicKey().ID()
+	c.Check(keyID, Equals, assertstest.DevKeyID)
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
@@ -120,46 +119,11 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	c.Check(err, IsNil)
 }
 
-const (
-	dsaKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
-Version: GnuPG v1
-
-lQNTBFdLWt0RCAC3sBvyl2j13gKxvnRF7DpBfN1cxba8n/qvCu2uGvlaekCFCVol
-jJt594gL0QRzWPaV+KWQQroZ4u0knYA15QCbFqJ/ziX7zRI+5xcOGJ8ZBJJnDiGM
-Eu7v2NGpxJHxgz1n+fjUqDPC/fHMfnQ1bkYNbXDXht2Uw9j8LP3FPueYRH46ZYQs
-G91s6x+row7RCIGJcg0gVJhVvqoojk+Z+7pQ2kiNIeBeVztjybZGLlqL6fnKfeXq
-TsBjnsqUIxdu286UU/xkn6sHa4APqr5wywNjvWoRyWIXxQVTWQp81PlvPfJFyCJJ
-diOb6z2+sfbQ+jdB/MUXYAT2HaOhRMaP/9UPAQCr/nhHyDBb5iq1F/YdftulV9wx
-cOGdWxM2AD9LnLLHGQf+Oct7QLco7SK43NzIDNvp1J/ESK6smfsIgMz6ICyj1Z21
-8Rch0do/0fAiKQpAimxvMQnSE4JtT92xPPV0PdHde/Xs8QxoaKnF2XECoIqMFmjP
-VLerqhyWOv3CE+MHLbj0b0WMl5DSYAcizgF6768R8To9Oow/YdEy7GFCutPoFlNE
-EHW+FA0EZVwGi3BelWMEAjJS+EtJ8knP9d7Im+GHBZ41f0yWU06CWgncfQvxxrOw
-9f/uO2eoTpSb4QLqyasnp4e93iul1r1sJuGYFscQUo1gXJWvGJyh+iYj/K+bk53Y
-fbbc4efJOLNJ6blBLFRY1cwFWKKEmn+GtsN7TA88lAf+MOnzlSpEDMMNHSPcU/RI
-KJe2VDuf3z7nP6Isy9PbPLtuXothU0iLtR76SZuVkUMtRDf+s2B79Lb5c4LQhg8H
-DAiuJqUtCUmyAwwHj2cv5rZT3YuOOb80D16rHXM4Ut05oYeGNEulHG2Qsqe6pxUp
-gEL7Ar2ZempjeVpN8jNqbOW8WHsYJ49CHA6pF30hGIHk2zMvBKBORa5kGEpgSDex
-kZWB66bOXveUpharOwsvnaa/9SLL+DLcdaVUydrGZMPNVTmoXQmJpvNZj+7uU8IU
-RYDEoe9lalEwXUv7Z2eAbMbo23AYKN4omxuaW9cp/hldiXoHgh70KGuwlBtSd+ml
-bAAA/jFnXDTFL0rDbz9ykVftBS/QooNR2xZLam/0G824RpQKDyO0BiAoZHNhKYh6
-BBMRCAAiBQJXS1rdAhsjBgsJCAcDAgYVCAIJCgsEFgIDAQIeAQIXgAAKCRBWv9KR
-5/7U5VSKAQCSrbnVtHaGN9ZUk/PtnJMhbBTtk2R2Y4huxCdFUYQc0QD+IxU66SP+
-Iri22tgdp1HhmTuG2ZyaxUs0cDgkzRTrsAg=
-=Pbfn
------END PGP PRIVATE KEY BLOCK-----
-`
-
-	dsaKeyID = "56bfd291e7fed4e5"
-)
-
-func (gkms *gpgKeypairMgrSuite) TestGetWrongKeyType(c *C) {
-	gkms.importKey(dsaKey)
-	_, err := gkms.keypairMgr.Get("auth-id1", dsaKeyID)
-	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot use GPG key %q: not a RSA key`, dsaKeyID))
-}
-
 func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
 	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
+		if args[1] == "--list-secret-keys" {
+			return prev(homedir, input, args...)
+		}
 		c.Assert(args[1], Equals, "--export")
 
 		pk1, err := rsa.GenerateKey(rand.Reader, 512)
@@ -179,35 +143,17 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
 	defer restore()
 
 	_, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot use GPG key %q: cannot select exported public key, found many", assertstest.DevKeyID))
-}
-
-func (gkms *gpgKeypairMgrSuite) TestGetWrongKeyLength(c *C) {
-	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
-		c.Assert(args[1], Equals, "--export")
-
-		pk, err := rsa.GenerateKey(rand.Reader, 512)
-		c.Assert(err, IsNil)
-		pubPkt := packet.NewRSAPublicKey(time.Now(), &pk.PublicKey)
-		buf := new(bytes.Buffer)
-		err = pubPkt.Serialize(buf)
-		c.Assert(err, IsNil)
-		return buf.Bytes(), nil
-	}
-	restore := asserts.MockRunGPG(mockGPG)
-	defer restore()
-
-	_, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
-	c.Check(err, ErrorMatches, fmt.Sprintf("cannot use GPG key %q: need at least 4096 bits key, got 512", assertstest.DevKeyID))
+	c.Check(err, ErrorMatches, `cannot load GPG public key with fingerprint "[A-F0-9]+": cannot select exported public key, found many`)
 }
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
-	_, privk := assertstest.ReadPrivKey(assertstest.DevKey)
+	_, rsaPrivKey := assertstest.ReadPrivKey(assertstest.DevKey)
+	pgpPrivKey := packet.NewRSAPrivateKey(time.Unix(1, 0), rsaPrivKey)
 
 	var breakSig func(sig *packet.Signature, cont []byte) []byte
 
 	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
-		if args[1] == "--export" {
+		if args[1] == "--list-secret-keys" || args[1] == "--export" {
 			return prev(homedir, input, args...)
 		}
 		n := len(args)
@@ -217,7 +163,6 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 		sig.PubKeyAlgo = packet.PubKeyAlgoRSA
 		sig.Hash = crypto.SHA512
 		sig.CreationTime = time.Now()
-		sig.IssuerKeyId = &privk.KeyId
 
 		// poking to break the signature
 		cont := breakSig(sig, input)
@@ -225,7 +170,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 		h := sig.Hash.New()
 		h.Write([]byte(cont))
 
-		err := sig.Sign(h, privk, nil)
+		err := sig.Sign(h, pgpPrivKey, nil)
 		c.Assert(err, IsNil)
 
 		buf := new(bytes.Buffer)
@@ -258,15 +203,6 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 			return cont
 		}, "cannot sign assertion: bad GPG produced signature: expected SHA512 digest"},
 		{func(sig *packet.Signature, cont []byte) []byte {
-			sig.IssuerKeyId = nil
-			return cont
-		}, "cannot sign assertion: bad GPG produced signature: no key id in the signature"},
-		{func(sig *packet.Signature, cont []byte) []byte {
-			sig.IssuerKeyId = new(uint64)
-			*sig.IssuerKeyId = 0xffffffffffffffff
-			return cont
-		}, regexp.QuoteMeta(fmt.Sprintf("cannot sign assertion: bad GPG produced signature: wrong key id (expected %q): ffffffffffffffff", assertstest.DevKeyID))},
-		{func(sig *packet.Signature, cont []byte) []byte {
 			return cont[:5]
 		}, "cannot sign assertion: bad GPG produced signature: it does not verify:.*"},
 	}
@@ -282,7 +218,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
-		if args[1] == "--export" {
+		if args[1] == "--list-secret-keys" || args[1] == "--export" {
 			return prev(homedir, input, args...)
 		}
 		n := len(args)
@@ -308,4 +244,59 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
 
 	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, assertstest.DevKeyID)
 	c.Check(err, ErrorMatches, "cannot sign assertion: cannot sign using GPG: boom")
+}
+
+const shortPrivKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
+Version: GnuPG v1
+
+lQOYBFdGO7MBCADltsXglnDQdfBw0yOVpKZdkuvSnJKKn1H72PapgAr7ucLqNBCA
+js0kltDTa2LQP4vljiTyoMzOMnex4kXwRPlF+poZIEBHDLT0i/6sJ6mDukss1HBR
+GgNpU3y49WTXc8qxFY4clhbuqgQmy6bUmaVoo3Z4z7cqbsCepWfx5y+vJwMYqlo3
+Nb4q2+hTKS/o3yLiYB7/hkEhMZrFrOPR5SM7Tz5y7cpF6ObY+JZIp/MK+LsLWLji
+fEX/pcOtSjFdQqbcnhJJscXRERlFQDbc+gNmZYZ2RqdH5o46OliHkGhVDVTiW25A
+SqhGfnodypbZ9QAPSRvhLrN64AqEsvRb3I13ABEBAAEAB/9cQKg8Nz6sQUkkDm9C
+iCK1/qyNYwro9+3VXj9FOCJxEJuqMemUr4TMVnMcDQrchkC5GnpVJGXLw3HVcwFS
+amjPhUKAp7aYsg40DcrjuXP27oiFQvWuZGuNT5WNtCNg8WQr9POjIFWqWIYdTHk9
+9Ux79vW7s/Oj62GY9OWHPSilxpq1MjDKo9CSMbLeWxW+gbDxaD7cK7H/ONcz8bZ7
+pRfEhNIx3mEbWaZpWRrf+dSUx2OJbPGRkeFFMbCNapqftse173BZCwUKsW7RTp2S
+w8Vpo2Ky63Jlpz1DpoMDBz2vSH7pzaqAdnziI2r0IKiidajXFfpXJpJ3ICo/QhWj
+x1eRBADrI4I99zHeyy+12QMpkDrOu+ahF6/emdsm1FIy88TqeBmLkeXCXKZIpU3c
+USnxzm0nPNbOl7Nvf2VdAyeAftyag7t38Cud5MXldv/iY0e6oTKzxgha37yr6oRv
+PZ6VGwbkBvWti1HL4yx1QnkHFS6ailR9WiiHr3HaWAklZAsC0QQA+hgOi0V9fMZZ
+Y4/iFVRI9k1NK3pl0mP7pVTzbcjVYspLdIPQxPDsHJW0z48g23KOt0vL3yZvxdBx
+cfYGqIonAX19aMD5D4bNLx616pZs78DKGlOz6iXDcaib+n/uCNWxd5R/0m/zugrB
+qklpyIC/uxx+SmkJqqq378ytfvBMzccD/3Y6m3PM0ZnrIkr4Q7cKi9ao9rvM+J7o
+ziMgfnKWedNDxNa4tIVYYGPiXsjxY/ASUyxVjUPbkyCy3ubZrew0zQ9+kQbO/6vB
+WAg9ffT9M92QbSDjuxgUiC5GfvlCoDgJtuLRHd0YLDgUCS5nwb+teEsOpiNWEGXc
+Tr+5HZO+g6wxT6W0BiAoeHh4KYkBOAQTAQIAIgUCV0Y7swIbLwYLCQgHAwIGFQgC
+CQoLBBYCAwECHgECF4AACgkQEYacUJMr9p/i5wf/XbEiAe1+Y/ZNMO8PYnq1Nktk
+CbZEfQo+QH/9gJpt4p78YseWeUp14gsULLks3xRojlKNzYkqBpJcP7Ex+hQ3LEp7
+9IVbept5md4uuZcU0GFF42WAYXExd2cuxPv3lmWHOPuN63a/xpp0M2vYDfpt63qi
+Tly5/P4+NgpD6vAh8zwRHuBV/0mno/QX6cUCLVxq2v1aOqC9zq9B5sdYKQKjsQBP
+NOXCt1wPaINkqiW/8w2KhUl6mL6vhO0Onqu/F7M/YNXitv6Z2NFdFUVBh58UZW3C
+2jrc8JeRQ4Qlr1oeHh2loYOdZfxFPxRjhsRTnNKY8UHWLfbeI6lMqxR5G3DS+g==
+=kQRo
+-----END PGP PRIVATE KEY BLOCK-----
+`
+
+func (gkms *gpgKeypairMgrSuite) TestUseInSigningKeyTooShort(c *C) {
+	gkms.importKey(shortPrivKey)
+	privk, _ := assertstest.ReadPrivKey(shortPrivKey)
+
+	signDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: gkms.keypairMgr,
+	})
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id":  "dev1-id",
+		"snap-sha3-384": blobSHA3_384,
+		"snap-id":       "snap-id-1",
+		"grade":         "devel",
+		"snap-size":     "1025",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+
+	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, privk.PublicKey().ID())
+	c.Check(err, ErrorMatches, `cannot sign assertion: signing needs at least a 4096 bits key, got 2048`)
 }
