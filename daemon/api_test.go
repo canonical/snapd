@@ -878,6 +878,43 @@ func (s *apiSuite) TestFindRefreshes(c *check.C) {
 	c.Check(s.refreshCandidates, check.HasLen, 1)
 }
 
+func (s *apiSuite) TestFindRefreshSideloaded(c *check.C) {
+	s.daemon(c)
+
+	s.rsnaps = []*snap.Info{{
+		SideInfo: snap.SideInfo{
+			RealName:  "store",
+			Developer: "foo",
+		},
+	}}
+
+	s.mockSnap(c, "name: store\nversion: 1.0")
+
+	var snapst snapstate.SnapState
+	st := s.d.overlord.State()
+	st.Lock()
+	err := snapstate.Get(st, "store", &snapst)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Assert(snapst.Sequence, check.HasLen, 1)
+
+	// clear the snapid
+	snapst.Sequence[0].SnapID = ""
+	st.Lock()
+	snapstate.Set(st, "store", &snapst)
+	st.Unlock()
+
+	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := searchStore(findCmd, req, nil).(*resp)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+	c.Assert(snaps[0]["name"], check.Equals, "store")
+	c.Check(s.refreshCandidates, check.HasLen, 0)
+}
+
 func (s *apiSuite) TestFindPrivate(c *check.C) {
 	s.daemon(c)
 
