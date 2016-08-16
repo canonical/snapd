@@ -24,8 +24,11 @@ import (
 )
 
 const dockerPermanentSlotAppArmor = `
-# Description: Allow operating as the Docker daemon. Reserved because this
-#  gives privileged access to the system.
+# Description: allow operating as the Docker daemon. This policy is intentionally
+#  not restrictive and is here to help guard against programming errors and not
+#  for security confinement. The Docker daemon by design requires extensive
+#  access to the system and cannot be effectively confined against malicious
+#  activity.
 # Usage: reserved
 
 # Allow sockets
@@ -106,6 +109,12 @@ const dockerConnectedPlugAppArmor = `
 `
 
 const dockerPermanentSlotSecComp = `
+# Description: allow operating as the Docker daemon. This policy is intentionally
+#  not restrictive and is here to help guard against programming errors and not
+#  for security confinement. The Docker daemon by design requires extensive
+#  access to the system and cannot be effectively confined against malicious
+#  activity.
+
 # The Docker daemon needs to be able to launch arbitrary processes within
 # containers (whose syscall needs are unknown beforehand)
 
