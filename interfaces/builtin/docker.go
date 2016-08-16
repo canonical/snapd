@@ -505,7 +505,11 @@ func (iface *DockerInterface) Name() string {
 
 func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityAppArmor,
+		interfaces.SecurityDBus,
+		interfaces.SecurityMount,
+		interfaces.SecuritySecComp,
+		interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -518,7 +522,9 @@ func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		return []byte(dockerConnectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dockerConnectedPlugSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus,
+		interfaces.SecurityMount,
+		interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -531,7 +537,9 @@ func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 		return []byte(dockerPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dockerPermanentSlotSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus,
+		interfaces.SecurityMount,
+		interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -541,7 +549,11 @@ func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// The docker socket is a named socket and therefore mediated by AppArmor file rules and we can't currently limit connecting clients by their security label
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityAppArmor,
+		interfaces.SecurityDBus,
+		interfaces.SecurityMount,
+		interfaces.SecuritySecComp,
+		interfaces.SecurityUDev:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
