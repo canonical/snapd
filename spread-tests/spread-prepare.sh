@@ -1,8 +1,6 @@
 #!/bin/sh
 # This script is started by spread to prepare the execution environment
-set -x
-set -u
-set -e
+set -xue
 
 # Sanity check, are we in the top-level directory of the tree?
 test -f configure.ac || ( echo 'this script must be executed from the top-level of the tree' && exit 1)
