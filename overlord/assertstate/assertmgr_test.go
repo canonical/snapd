@@ -90,8 +90,4 @@ func (s *assertMgrSuite) TestAdd(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
-
-	// same revision => nop
-	err = assertstate.Add(s.state, dev1Acct)
-	c.Assert(err, IsNil)
 }
