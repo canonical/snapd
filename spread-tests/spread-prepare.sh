@@ -139,7 +139,7 @@ case "$release_ID" in
         # kicks in. Instead we just copy pre-made, insecure keys from the
         # source repository.
         mkdir -p /var/lib/sbuild/apt-keys/
-        cp -a .spread-data/apt-keys/* /var/lib/sbuild/apt-keys/
+        cp -a $top_level/spread-tests/data/apt-keys/* /var/lib/sbuild/apt-keys/
         sbuild-adduser "$LOGNAME"
         ;;
     *)
