@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -127,4 +128,30 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Assert(info.SideInfo.SnapID, Equals, "snapidsnapid")
 	c.Assert(info.SideInfo.DeveloperID, Equals, "developerid")
+}
+
+func (s *FirstBootTestSuite) TestFirstBootOnClassicNoEnableEther(c *C) {
+	release.MockOnClassic(true)
+	firstBootEnableFirstEtherRun := false
+	restore := boot.MockFirstbootEnableFirstEther(func() error {
+		firstBootEnableFirstEtherRun = true
+		return nil
+	})
+	defer restore()
+
+	c.Assert(boot.FirstBoot(), IsNil)
+	c.Assert(firstBootEnableFirstEtherRun, Equals, false)
+}
+
+func (s *FirstBootTestSuite) TestFirstBootnableEther(c *C) {
+	release.MockOnClassic(false)
+	firstBootEnableFirstEtherRun := false
+	restore := boot.MockFirstbootEnableFirstEther(func() error {
+		firstBootEnableFirstEtherRun = true
+		return nil
+	})
+	defer restore()
+
+	c.Assert(boot.FirstBoot(), IsNil)
+	c.Assert(firstBootEnableFirstEtherRun, Equals, true)
 }

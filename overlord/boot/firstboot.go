@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -122,14 +123,20 @@ func populateStateFromInstalled() error {
 	return ovld.Stop()
 }
 
+// replaced in the tests
+var firstbootEnableFirstEther = firstboot.EnableFirstEther
+
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
 	if firstboot.HasRun() {
 		return ErrNotFirstBoot
 	}
-	if err := firstboot.EnableFirstEther(); err != nil {
-		logger.Noticef("Failed to bring up ethernet: %s", err)
+
+	if !release.OnClassic {
+		if err := firstbootEnableFirstEther(); err != nil {
+			logger.Noticef("Failed to bring up ethernet: %s", err)
+		}
 	}
 
 	// snappy will be in a very unhappy state if this happens,
