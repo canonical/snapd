@@ -106,8 +106,6 @@ const dockerConnectedPlugAppArmor = `
 
 # Allow talking to the docker daemon
 /{,var/}run/docker.sock rw,
-
-@{PROC}/sys/net/core/somaxconn r,
 `
 
 const dockerPermanentSlotSecComp = `
