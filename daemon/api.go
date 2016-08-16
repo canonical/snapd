@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -1195,10 +1196,15 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest("cannot decode request body into an assertion: %v", err)
 	}
-	// TODO/XXX: turn this into a Change/Task combination
-	amgr := c.d.overlord.AssertManager()
-	if err := amgr.DB().Add(a); err != nil {
-		// TODO: have a specific error to be able to return  409 for not newer revision?
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	if err := assertstate.Add(state, a); err != nil {
+		if _, ok := err.(*asserts.RevisionError); ok {
+			return Conflict("assert failed: %v", err)
+		}
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?
@@ -1219,8 +1225,13 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	for k := range q {
 		headers[k] = q.Get(k)
 	}
-	amgr := c.d.overlord.AssertManager()
-	assertions, err := amgr.DB().FindMany(assertType, headers)
+
+	state := c.d.overlord.State()
+	state.Lock()
+	db := assertstate.DB(state)
+	state.Unlock()
+
+	assertions, err := db.FindMany(assertType, headers)
 	if err == asserts.ErrNotFound {
 		return AssertResponse(nil, true)
 	} else if err != nil {

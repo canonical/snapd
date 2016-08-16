@@ -121,6 +121,8 @@ type RODatabase interface {
 	// FindMany finds assertions based on arbitrary headers.
 	// It returns ErrNotFound if no assertion can be found.
 	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
+	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
+	Check(assert Assertion) error
 }
 
 // A Checker defines a check on an assertion considering aspects such as
