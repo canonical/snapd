@@ -83,12 +83,6 @@ func DB(s *state.State) asserts.RODatabase {
 
 // Add the given assertion to the system assertiond database. Readding the current revision is a no-op.
 func Add(s *state.State, a asserts.Assertion) error {
-	// TODO: deal together with asserts itself with cascading side effects of possible assertion updates
-	err := cachedDB(s).Add(a)
-	if revErr, ok := err.(*asserts.RevisionError); ok {
-		if revErr.Current == a.Revision() {
-			return nil
-		}
-	}
-	return err
+	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
+	return cachedDB(s).Add(a)
 }
