@@ -257,4 +257,5 @@ var (
 	InternalError  = makeErrorResponder(http.StatusInternalServerError)
 	NotImplemented = makeErrorResponder(http.StatusNotImplemented)
 	Forbidden      = makeErrorResponder(http.StatusForbidden)
+	Conflict       = makeErrorResponder(http.StatusConflict)
 )
