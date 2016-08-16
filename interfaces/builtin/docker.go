@@ -115,8 +115,23 @@ const dockerPermanentSlotSecComp = `
 #  access to the system and cannot be effectively confined against malicious
 #  activity.
 
-# The Docker daemon needs to be able to launch arbitrary processes within
-# containers (whose syscall needs are unknown beforehand)
+# Because seccomp may only go more strict, we must allow all
+# all syscalls to Docker that it expects to give to containers
+# in addition to what it needs to run and trust that docker daemon
+# only gives out reasonable syscalls to containers.
+
+# Docker includes these in the default container whitelist, but they're
+# potentially dangerous.
+#finit_module
+#init_module
+#query_module
+#delete_module
+
+# These have a history of vulnerabilities, are not widely used, and
+# open_by_handle_at has been used to break out of Docker containers by brute
+# forcing the handle value: http://stealth.openwall.net/xSports/shocker.c
+#name_to_handle_at
+#open_by_handle_at
 
 # Calls the Docker daemon itself requires
 #   /snap/docker/VERSION/bin/docker-runc
@@ -126,14 +141,15 @@ keyctl
 #   /snap/docker/VERSION/bin/docker-runc
 pivot_root
 
+# ptrace can be abused to break out of the seccomp sandbox
+# but is required by the Docker daemon.
+ptrace
+
 # This list comes from Docker's default seccomp whitelist (which is applied to
 #   all containers launched unless a custom profile is specified or
 #   "--privileged" is used)
 # https://github.com/docker/docker/blob/v1.12.0/profiles/seccomp/seccomp_default.go#L39-L1879
-# $ grep -C1 'ActAllow' -- profiles/seccomp/seccomp_default.go \
-#     | grep 'Name:' \
-#     | cut -d'"' -f2 \
-#     | sort -u
+# It has been further filtered to exclude certain known-troublesome syscalls.
 accept
 accept4
 access
@@ -161,7 +177,6 @@ close
 connect
 copy_file_range
 creat
-delete_module
 dup
 dup2
 dup3
@@ -194,7 +209,6 @@ fcntl
 fcntl64
 fdatasync
 fgetxattr
-finit_module
 flistxattr
 flock
 fork
@@ -246,7 +260,6 @@ gettimeofday
 getuid
 getuid32
 getxattr
-init_module
 inotify_add_watch
 inotify_init
 inotify_init1
@@ -309,13 +322,11 @@ msync
 munlock
 munlockall
 munmap
-name_to_handle_at
 nanosleep
 newfstatat
 _newselect
 open
 openat
-open_by_handle_at
 pause
 perf_event_open
 personality
@@ -330,10 +341,8 @@ prlimit64
 process_vm_readv
 process_vm_writev
 pselect6
-ptrace
 pwrite64
 pwritev
-query_module
 read
 readahead
 readlink
