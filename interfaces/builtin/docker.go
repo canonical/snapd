@@ -69,8 +69,8 @@ pivot_root,
 /.pivot_root[0-9]*/ rw,
 
 # file descriptors (/proc/NNN/fd/X)
-/[0-9]* rw,
 # file descriptors in the container show up here due to attach_disconnected
+/[0-9]* rw,
 
 # Docker needs to be able to create and load the profile it applies to containers ("docker-default")
 # XXX We might be able to get rid of this if we generate and load docker-default ourselves and make docker not do it.
