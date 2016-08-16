@@ -21,7 +21,6 @@ package asserts_test
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"strings"
 
@@ -49,8 +48,6 @@ func (as *assertsSuite) TestRef(c *C) {
 		PrimaryKey: []string{"abc", "xyz"},
 	}
 	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
-
-	c.Check(fmt.Sprintf("%s", ref), Equals, "{test-only-2/abc/xyz}")
 }
 
 func (as *assertsSuite) TestRefResolveError(c *C) {

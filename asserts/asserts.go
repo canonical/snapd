@@ -94,11 +94,6 @@ func (ref *Ref) Unique() string {
 	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ref.PrimaryKey, "/"))
 }
 
-func (ref *Ref) String() string {
-	// XXX: make it YAML-like!
-	return fmt.Sprintf("{%s}", ref.Unique())
-}
-
 // Resolve resolves the reference using the given find function.
 func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
 	if len(ref.PrimaryKey) != len(ref.Type.PrimaryKey) {

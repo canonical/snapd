@@ -20,15 +20,12 @@
 package snap_test
 
 import (
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -77,19 +74,6 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 	c.Check(info.DeveloperID, Equals, "deviddeviddeviddeviddeviddevidde")
-}
-
-func (s *infoSuite) TestSideInfoSnapDigest(c *C) {
-	si := &snap.SideInfo{
-		Sha512: "717cb58bd9c55e421a9a02cab6cb836c26d59673598c76068a428a1b91c7215531ebd983da0e2fe708f867bc13b2986af1d6f71e00b7c9ba399ba7e333a59723",
-	}
-	digest, err := si.SnapDigest()
-	c.Assert(err, IsNil)
-
-	c.Check(strings.HasPrefix(digest, "sha512-"), Equals, true)
-	b, err := base64.RawURLEncoding.DecodeString(digest[7:])
-	c.Assert(err, IsNil)
-	c.Check(hex.EncodeToString(b), Equals, si.Sha512)
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {

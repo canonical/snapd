@@ -20,8 +20,6 @@
 package snap
 
 import (
-	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -109,16 +107,6 @@ type SideInfo struct {
 	Size              int64    `yaml:"size,omitempty" json:"size,omitempty"`
 	Sha512            string   `yaml:"sha512,omitempty" json:"sha512,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
-}
-
-// SnapDigest returns the digest of the snap in the "algo-base64" format.
-func (si *SideInfo) SnapDigest() (string, error) {
-	b, err := hex.DecodeString(si.Sha512)
-	if err != nil {
-		return "", fmt.Errorf("cannot decode snap sha512: %v", err)
-	}
-	b64 := base64.RawURLEncoding.EncodeToString(b)
-	return "sha512-" + b64, nil
 }
 
 // Info provides information about snaps.

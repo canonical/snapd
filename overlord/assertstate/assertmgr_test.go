@@ -23,6 +23,9 @@ import (
 	"crypto"
 	"encoding/hex"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -148,9 +151,13 @@ func (s *assertMgrSuite) TestAdd(c *C) {
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
+func fakeSnap(rev int) []byte {
+	fake := fmt.Sprintf("hsqs________________%d", rev)
+	return []byte(fake)
+}
+
 func fakeHash(rev int) []byte {
-	fake := fmt.Sprintf("snap%d", rev)
-	h := sha3.Sum384([]byte(fake))
+	h := sha3.Sum384(fakeSnap(rev))
 	return h[:]
 }
 
@@ -255,20 +262,26 @@ func (s *assertMgrSuite) settle() {
 	}
 }
 
-func (s *assertMgrSuite) TestPrefetchAssertions(c *C) {
-	c.Skip("WIP")
+func (s *assertMgrSuite) TestFetchSnapAssertions(c *C) {
 	s.prereqSnapAssertions(c, 10)
+
+	snapPath := snap.MinimalPlaceInfo("foo", snap.R(10)).MountFile()
+	err := os.MkdirAll(filepath.Dir(snapPath), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
+	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("prefetch-assertions", "Prefetch")
+	t := s.state.NewTask("fetch-snap-assertions", "Fetch snap assertions")
 	ss := snapstate.SnapSetup{
 		UserID: 0,
 		SideInfo: &snap.SideInfo{
-			SnapID: "snap-id-1",
-			Sha512: makeHexDigest(10),
+			RealName: "foo",
+			SnapID:   "snap-id-1",
+			Revision: snap.R(10),
 		},
 	}
 	t.Set("snap-setup", ss)
@@ -282,9 +295,8 @@ func (s *assertMgrSuite) TestPrefetchAssertions(c *C) {
 	c.Assert(chg.Err(), IsNil)
 
 	snapRev, err := assertstate.DB(s.state).Find(asserts.SnapRevisionType, map[string]string{
-		"series":      "16",
-		"snap-id":     "snap-id-1",
-		"snap-digest": makeDigest(10),
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": makeDigest(10),
 	})
 	c.Assert(err, IsNil)
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
