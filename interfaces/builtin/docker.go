@@ -45,9 +45,12 @@ const dockerPermanentSlotAppArmor = `
 @{PROC}/sys/net/** w,
 @{PROC}/[0-9]*/oom_score_adj w,
 
-# Wide read access to /sys
-/sys/** r,
-# Limit cgroup writes a bit
+# Limited read access to specific bits of /sys
+/sys/kernel/mm/hugepages/ r,
+/sys/fs/cgroup/cpuset/cpuset.cpus r,
+/sys/fs/cgroup/cpuset/cpuset.mems r,
+/sys/module/apparmor/parameters/enabled r,
+# Limit cgroup writes a bit (Docker uses a "docker" sub-group)
 /sys/fs/cgroup/*/docker/   rw,
 /sys/fs/cgroup/*/docker/** rw,
 
