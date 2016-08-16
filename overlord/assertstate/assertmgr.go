@@ -210,7 +210,7 @@ func (f *fetcher) doFetch(ref *asserts.Ref) error {
 	case fetchSaved:
 		return nil // nothing to do
 	case fetchRetrieved:
-		return fmt.Errorf("internal error: circular assertions are not expected: %s %v", ref.Type, ref.PrimaryKey)
+		return fmt.Errorf("internal error: circular assertions are not expected: %s %v", ref.Type.Name, ref.PrimaryKey)
 	}
 	a, err := f.retrieve(ref)
 	if err != nil {
