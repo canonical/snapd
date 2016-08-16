@@ -27,7 +27,8 @@
 
 #include "utils.h"
 
-static void mkpath(const char *const path)
+// TODO: rename and move to utils.h
+void mkpath(const char *const path)
 {
 	// If asked to create an empty path, return immediately.
 	if (strlen(path) == 0) {

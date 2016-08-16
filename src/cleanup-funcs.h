@@ -27,6 +27,8 @@
 #ifdef HAVE_SECCOMP
 #include <seccomp.h>
 #endif				// HAVE_SECCOMP
+#include <sys/types.h>
+#include <dirent.h>
 
 /**
  * Free a dynamically allocated string.
@@ -61,5 +63,13 @@ void sc_cleanup_endmntent(FILE ** ptr);
  **/
 void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr);
 #endif				// HAVE_SECCOMP
+
+/**
+ * Close an open directory with closedir(3)
+ *
+ * This function is designed to be used with
+ * __attribute__((cleanup(sc_cleanup_closedir))).
+ **/
+void sc_cleanup_closedir(DIR ** ptr);
 
 #endif
