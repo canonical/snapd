@@ -15,14 +15,29 @@ release_VERSION_ID="$( . /etc/os-release && echo "${VERSION_ID:-}" )"
 
 build_debian_or_ubuntu_package() {
     local pkg_version
+    local distro_packaging_git_branch
+    local distro_packaging_git
+    local distro_archive
+    local distro_codename
     local sbuild_args=""
     pkg_version="$(cat "$top_dir/VERSION")"
     
-    # FIXME: error handling and friendly message about how to
-    #        add new distro specific bits etc
+    if [ ! -f "$top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID" ] || \
+       [ ! -f "$top_dir/spread-tests/distros/$release_ID.common" ]; then
+        echo "Distribution: $release_ID (release $release_VERSION_ID) is not supported"
+        echo "please read this script and create new files in spread-test/distros"
+        exit 1
+    fi
+
     # source the distro specific vars
     . "$top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID"
     . "$top_dir/spread-tests/distros/$release_ID.common"
+
+    # sanity check, ensure that essential variables were defined
+    test -n "$distro_packaging_git_branch"
+    test -n "$distro_packaging_git"
+    test -n "$distro_archive"
+    test -n "$distro_codename"
 
     # Create a scratch space 
     scratch_dir="$(mktemp -d)"
