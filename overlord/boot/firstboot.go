@@ -40,7 +40,7 @@ var (
 	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
-func populateStateFromInstalled() error {
+func populateStateFromSeed() error {
 	if osutil.FileExists(dirs.SnapStateFile) {
 		return fmt.Errorf("cannot create state: state %q already exists", dirs.SnapStateFile)
 	}
@@ -60,8 +60,12 @@ func populateStateFromInstalled() error {
 	for i, sn := range seed.Snaps {
 		st.Lock()
 
+		flags := snapstate.Flags(0)
+		if sn.DevMode {
+			flags |= snapstate.DevMode
+		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, 0)
+		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, flags)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
@@ -133,9 +137,9 @@ func FirstBoot() error {
 	}
 
 	// snappy will be in a very unhappy state if this happens,
-	// because populateStateFromInstalled will error if there
+	// because populateStateFromSeed will error if there
 	// is a state file already
-	if err := populateStateFromInstalled(); err != nil {
+	if err := populateStateFromSeed(); err != nil {
 		return err
 	}
 
