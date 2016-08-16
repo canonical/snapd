@@ -189,11 +189,22 @@ static void sc_map_init()
 	sc_map_add(SOCK_PACKET);
 
 	// man 2 prctl
-	sc_map_add(PR_CAP_AMBIENT);
-	sc_map_add(PR_CAP_AMBIENT_RAISE);
+#if defined(PR_CAP_AMBIENT_RAISE)
+        sc_map_add(PR_CAP_AMBIENT_RAISE);
+#endif // PR_CAP_AMBIENT_RAISE
+
+#if defined(PR_CAP_AMBIENT_LOWER)
 	sc_map_add(PR_CAP_AMBIENT_LOWER);
+#endif // PR_CAP_AMBIENT_LOWER
+
+#if defined(PR_CAP_AMBIENT_IS_SET)
 	sc_map_add(PR_CAP_AMBIENT_IS_SET);
+#endif // PR_CAP_AMBIENT_IS_SET
+
+#if defined(PR_CAP_AMBIENT_CLEAR_ALL)
 	sc_map_add(PR_CAP_AMBIENT_CLEAR_ALL);
+#endif // PR_CAP_AMBIENT_CLEAR_ALL
+        
 	sc_map_add(PR_CAPBSET_READ);
 	sc_map_add(PR_CAPBSET_DROP);
 	sc_map_add(PR_SET_CHILD_SUBREAPER);
@@ -224,8 +235,12 @@ static void sc_map_init()
 	sc_map_add(PR_SET_MM_ENV_END);
 	sc_map_add(PR_SET_MM_AUXV);
 	sc_map_add(PR_SET_MM_EXE_FILE);
+#if defined(PR_MPX_ENABLE_MANAGEMENT)
 	sc_map_add(PR_MPX_ENABLE_MANAGEMENT);
+#endif // PR_MPX_ENABLE_MANAGEMENT
+#if defined(PR_MPX_DISABLE_MANAGEMENT)        
 	sc_map_add(PR_MPX_DISABLE_MANAGEMENT);
+#endif // PR_MPX_DISABLE_MANAGEMENT
 	sc_map_add(PR_SET_NAME);
 	sc_map_add(PR_GET_NAME);
 	sc_map_add(PR_SET_NO_NEW_PRIVS);
@@ -237,10 +252,14 @@ static void sc_map_init()
 	sc_map_add(PR_GET_SECCOMP);
 	sc_map_add(PR_SET_SECUREBITS);
 	sc_map_add(PR_GET_SECUREBITS);
-	sc_map_add(PR_SET_THP_DISABLE);
+#if defined(PR_SET_THP_DISABLE)
+        sc_map_add(PR_SET_THP_DISABLE);
+#endif // PR_SET_THP_DISABLE
 	sc_map_add(PR_TASK_PERF_EVENTS_DISABLE);
 	sc_map_add(PR_TASK_PERF_EVENTS_ENABLE);
+#if defined(PR_GET_THP_DISABLE)
 	sc_map_add(PR_GET_THP_DISABLE);
+#endif // PR_GET_THP_DISABLE
 	sc_map_add(PR_GET_TID_ADDRESS);
 	sc_map_add(PR_SET_TIMERSLACK);
 	sc_map_add(PR_GET_TIMERSLACK);
