@@ -94,13 +94,8 @@ func (s *deviceMgrSuite) settle() {
 	}
 }
 
-func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
-	r1 := release.MockOnClassic(true)
-	defer r1()
-	r2 := devicestate.MockKeyLength(752)
-	defer r2()
-
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
 			w.WriteHeader(http.StatusOK)
@@ -130,6 +125,15 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
 			w.Write(asserts.Encode(serial))
 		}
 	}))
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
+	r1 := release.MockOnClassic(true)
+	defer r1()
+	r2 := devicestate.MockKeyLength(752)
+	defer r2()
+
+	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
 	r3 := devicestate.MockSerialRequestURL(mockServer.URL)
@@ -159,12 +163,64 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
 	c.Check(devId.Model, Equals, "pc")
 	c.Check(devId.Serial, Equals, "9999")
 
-	_, err = s.db.Find(asserts.SerialType, map[string]string{
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
 		"serial":   "9999",
 	})
 	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
 
-	// TODO: check we now have a device key
+	privKey, err := s.mgr.KeypairManager().Get("device", serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	var keyID string
+	err = s.state.Get("device-key-id", &keyID)
+	c.Assert(err, IsNil)
+	c.Check(keyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
+	privKey, _ := assertstest.GenerateKey(1024)
+
+	mockServer := s.mockServer(c)
+	defer mockServer.Close()
+
+	restore := devicestate.MockSerialRequestURL(mockServer.URL)
+	defer restore()
+
+	s.state.Lock()
+
+	// setup state as done by Ensure/doGenerateDeviceKey
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	s.mgr.KeypairManager().Put("device", privKey)
+	s.state.Set("device-key-id", privKey.PublicKey().ID())
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+
+	s.state.Lock()
+
+	// run again
+	t.SetStatus(state.DoStatus)
+
+	s.state.Unlock()
+
+	s.mgr.Ensure()
+	s.mgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
 }

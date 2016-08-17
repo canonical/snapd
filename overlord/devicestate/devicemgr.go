@@ -174,7 +174,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 
 	privKey := asserts.RSAPrivateKey(keyPair)
 
-	// TODO: simplify key mgmt signatures? "device" here is a dummy authorityID
+	// TODO: simplify key mgmt API? "device" here is a dummy authorityID
 	err = m.keypairMgr.Put("device", privKey)
 	if err != nil {
 		return fmt.Errorf("cannot store device key pair: %v", err)
@@ -287,8 +287,24 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// TODO: make this idempotent, look if we have already a serial assertion
+	// make this idempotent, look if we have already a serial assertion
 	// for privKey
+	serials, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
+		"brand-id":      device.Brand,
+		"model":         device.Model,
+		"device-key-id": privKey.PublicKey().ID(),
+	})
+
+	if len(serials) == 1 {
+		// means we saved the assertion but didn't get to the end of the task
+		device.Serial = serials[0].(*asserts.Serial).Serial()
+		auth.SetDevice(st, device)
+		t.SetStatus(state.DoneStatus)
+		return nil
+	}
+	if len(serials) > 1 {
+		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
+	}
 
 	client := &http.Client{Timeout: 30 * time.Second}
 

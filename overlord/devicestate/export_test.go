@@ -19,6 +19,10 @@
 
 package devicestate
 
+import (
+	"github.com/snapcore/snapd/asserts"
+)
+
 func MockKeyLength(n int) (restore func()) {
 	oldKeyLength := keyLength
 	keyLength = n
@@ -33,4 +37,8 @@ func MockSerialRequestURL(url string) (restore func()) {
 	return func() {
 		serialRequestURL = oldURL
 	}
+}
+
+func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
+	return m.keypairMgr
 }
