@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,25 +17,22 @@
  *
  */
 
-package osutil
+package builtin
 
-import (
-	"os"
-	"os/user"
-)
+import "github.com/snapcore/snapd/interfaces"
 
-// CurrentHomeDir returns the homedir of the current user. It looks at
-// $HOME first and then at passwd
-func CurrentHomeDir() (string, error) {
-	home := os.Getenv("HOME")
-	if home != "" {
-		return home, nil
+const tpmConnectedPlugAppArmor = `
+# Description: for those who need to talk to the system TPM chip over /dev/tpm0
+# Usage: reserved
+
+/dev/tpm0 rw,
+`
+
+func NewTpmInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "tpm",
+		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
+		reservedForOS:         true,
+		autoConnect:           false,
 	}
-
-	user, err := user.Current()
-	if err != nil {
-		return "", err
-	}
-
-	return user.HomeDir, nil
 }

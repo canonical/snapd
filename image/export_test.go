@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !linux,!darwin,!freebsd
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,12 +17,15 @@
  *
  */
 
-package group
+package image
 
-import (
-	"errors"
+var (
+	DownloadUnpackGadget = downloadUnpackGadget
+	BootstrapToRootDir   = bootstrapToRootDir
 )
 
-func getgrnam(name string) (Group, error) {
-	return errors.New("getgrnam not implemented on your system")
+func MockStoreNew(f func(storeID string) Store) (restorer func()) {
+	old := storeNew
+	storeNew = f
+	return func() { storeNew = old }
 }
