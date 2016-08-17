@@ -73,6 +73,11 @@ func (client *Client) Revert(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("revert", name, options)
 }
 
+// Download downloads the given snap file
+func (client *Client) Download(name string, options *SnapOptions) (changeID string, err error) {
+	return client.doSnapAction("download", name, options)
+}
+
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
 	action := actionData{
 		Action:      actionName,
