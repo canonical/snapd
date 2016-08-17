@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -114,7 +115,7 @@ func (m *DeviceManager) ensureOperational() error {
 	// need to be careful
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
-	requestSerial := m.state.NewTask("request-serial", i18n.G("Deliver device serial request"))
+	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
 	requestSerial.WaitFor(genKey)
 
 	chg := m.state.NewChange("become-operational", i18n.G("Setting up device identity"))
@@ -183,9 +184,9 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *DeviceManager) keyPair(st *state.State) (asserts.PrivateKey, error) {
+func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	var keyID string
-	err := st.Get("device-key-id", &keyID)
+	err := m.state.Get("device-key-id", &keyID)
 	if err == state.ErrNoState {
 		return nil, fmt.Errorf("internal error: cannot find device key pair")
 	}
@@ -281,6 +282,14 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	privKey, err := m.keyPair()
+	if err != nil {
+		return err
+	}
+
+	// TODO: make this idempotent, look if we have already a serial assertion
+	// for privKey
+
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	var serialSup serialSetup
@@ -294,13 +303,8 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		pk, err := m.keyPair(st)
-		if err != nil {
-			return err
-		}
-
 		st.Unlock()
-		serialRequest, err := prepareSerialRequest(pk, device, client)
+		serialRequest, err := prepareSerialRequest(privKey, device, client)
 		st.Lock()
 		if err != nil { // errors & retries
 			return err
@@ -315,15 +319,20 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
-		return nil
+		return &state.Retry{After: 60 * time.Second}
 	}
 	if err != nil { // errors & retries
 		return err
 	}
 
-	// TODO: (possibly refetch brand key and) verify serial assertion!
+	// TODO: (possibly refetch brand key and)
 	// TODO: double check brand, model and key hash
-	// TODO: add serial assertion (need to be careful because atomicity of that is distinct from the one of state)
+
+	// add the serial assertion to the system assertion db
+	err = assertstate.Add(st, serial)
+	if err != nil {
+		return err
+	}
 
 	device.Serial = serial.Serial()
 	auth.SetDevice(st, device)
