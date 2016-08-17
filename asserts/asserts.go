@@ -63,6 +63,7 @@ var (
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
+	SerialProofType   = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
 	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
 )
 
@@ -75,6 +76,7 @@ var typeRegistry = map[string]*AssertionType{
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
 	// no authority
+	SerialProofType.Name:   SerialProofType,
 	SerialRequestType.Name: SerialRequestType,
 }
 
