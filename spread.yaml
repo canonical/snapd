@@ -116,14 +116,17 @@ suites:
         summary: Tests run inside the all-snap image
         prepare: |
             apt install -y kpartx snapd
-            wget https://people.canonical.com/~mvo/all-snaps/16/ubuntu-device-flash
-            chmod +x ubuntu-device-flash
+            snap install --edge --devmode ubuntu-device-flash
 
-            # FIXME: download/modify the core snap
+            # download
+            snap download ubuntu-core
+
+            # FIXME: modify the core snap
             # FIXME2: add "root:$(current_pw)" to core snap
 
+            # create image
             mkdir /image
-            ./ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os ubuntu-core --install snapweb  -o /image/all-snap-amd64.img
+            /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os ubuntu-core --install snapweb  -o /image/all-snap-amd64.img
 
             cat > /image/reflash.sh << EOF
             #!/bin/sh
