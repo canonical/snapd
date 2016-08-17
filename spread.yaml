@@ -115,29 +115,38 @@ suites:
     tests/image/:
         summary: Tests run inside the all-snap image
         prepare: |
+            apt install -y ${SPREAD_PATH}/../snapd_*.deb
             apt install -y kpartx snapd
+
             snap install --edge --devmode ubuntu-device-flash
+
+            mkdir -p /home/image
 
             # download
             snap download ubuntu-core
 
-            # FIXME: modify the core snap
-            # FIXME2: add "root:$(current_pw)" to core snap
+            # modify the core snap and add "root:$(current_pw)" to core snap
+            unsquashfs -d /tmp/ubuntu-core-snap /var/lib/snapd/download/ubuntu-core_*.snap
+            want_pw="$(grep ^root /etc/shadow)"
+            echo "$want_pw" > /tmp/new-shadow
+            tail -n +2 /etc/shadow >> /tmp/new-shadow
+            cat /tmp/new-shadow
+            cp -v /tmp/new-shadow /tmp/ubuntu-core-snap/etc/shadow
+            snapbuild /tmp/ubuntu-core-snap /home/image
 
-            # create image
-            mkdir /image
-            /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os ubuntu-core --install snapweb  -o /image/all-snap-amd64.img
+            # create new image with the modified root-pw
+            /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os /home/image/ubuntu-core_*.snap --install snapweb  --output /home/image/all-snap-amd64.img
 
-            cat > /image/reflash.sh << EOF
+            cat > /home/image/reflash.sh << EOF
             #!/bin/sh
-            dd if=/image/all-snap-amd64.img of=/dev/sda bs=4M
+            dd if=/home/image/all-snap-amd64.img of=/dev/sda bs=4M
             echo b > /proc/sysreq-trigger
             EOF
-            chmod +x /image/reflash.sh
+            chmod +x /home/image/reflash.sh
 
             cat >> /boot/grub.cfg <<EOF
             menuentry 'all-snaps' {
-            linux /vmlinuz root=/dev/sda1 ro init=/image/reflash.sh
+            linux /vmlinuz root=/dev/sda1 ro init=/home/image/reflash.sh
             initrd /initrd.img
             }
             EOF
