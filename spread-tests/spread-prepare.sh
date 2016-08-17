@@ -19,7 +19,7 @@ build_debian_or_ubuntu_package() {
     local distro_packaging_git
     local distro_archive
     local distro_codename
-    local sbuild_args=""
+    local sbuild_createchroot_extra=""
     pkg_version="$(cat "$top_dir/VERSION")"
     
     if [ ! -f "$top_dir/spread-tests/distros/$release_ID.$release_VERSION_ID" ] || \
@@ -50,7 +50,8 @@ build_debian_or_ubuntu_package() {
     git clone -b "$distro_packaging_git_branch" "$distro_packaging_git" distro-packaging
 
     # Install all the build dependencies declared by the package.
-    apt build-dep -y ./distro-packaging/
+    apt-get install --quiet -y gdebi-core
+    apt-get install --quiet -y $(gdebi --quiet --apt-line ./distro-packaging/debian/control)
 
     # Generate a new upstream tarball from the current state of the tree
     ( cd "$top_dir" && spread-tests/release.sh )
@@ -79,6 +80,7 @@ build_debian_or_ubuntu_package() {
         sbuild-createchroot \
             --include=eatmydata \
             "--make-sbuild-tarball=/var/lib/sbuild/${distro_codename}-amd64.tar.gz" \
+            "$sbuild_createchroot_extra" \
             "$distro_codename" "$(mktemp -d)" \
             "$distro_archive"
     fi
@@ -91,7 +93,6 @@ build_debian_or_ubuntu_package() {
         --arch-all \
         --dist="$distro_codename" \
         --batch \
-        "$sbuild_args" \
         "snap-confine_${pkg_version}-1.dsc"
 
     # Copy all binary packages to the top-level directory
