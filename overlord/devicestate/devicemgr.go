@@ -209,9 +209,21 @@ type requestIDResp struct {
 	RequestID string `json:"request-id"`
 }
 
-func prepareSerialRequest(privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
+func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
+	st := t.State()
+	st.Unlock()
+	defer st.Lock()
 	resp, err := client.Get(serialRequestURL)
-	if err != nil || resp.StatusCode != 200 {
+	if err != nil {
+		st.Lock()
+		t.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
+		st.Unlock()
+		return "", &state.Retry{After: 60 * time.Second}
+	}
+	if resp.StatusCode != 200 {
+		st.Lock()
+		t.Errorf("cannot retrieve request-id for making a request for a serial: unexpected status %d", resp.StatusCode)
+		st.Unlock()
 		return "", &state.Retry{After: 60 * time.Second}
 	}
 
@@ -219,6 +231,9 @@ func prepareSerialRequest(privKey asserts.PrivateKey, device *auth.DeviceState, 
 	var requestID requestIDResp
 	err = dec.Decode(&requestID)
 	if err != nil { // assume broken i/o
+		st.Lock()
+		t.Errorf("cannot read response with request-id for making a request for a serial: %v", err)
+		st.Unlock()
 		return "", &state.Retry{After: 60 * time.Second}
 	}
 
@@ -243,9 +258,15 @@ func prepareSerialRequest(privKey asserts.PrivateKey, device *auth.DeviceState, 
 
 var errPoll = errors.New("serial-request accepted, poll later")
 
-func submitSerialRequest(serialRequest string, client *http.Client) (*asserts.Serial, error) {
+func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client) (*asserts.Serial, error) {
+	st := t.State()
+	st.Unlock()
+	defer st.Lock()
 	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBufferString(serialRequest))
 	if err != nil {
+		st.Lock()
+		t.Errorf("cannot POST request for a serial: %v", err)
+		st.Unlock()
 		return nil, &state.Retry{After: 60 * time.Second}
 	}
 
@@ -254,6 +275,9 @@ func submitSerialRequest(serialRequest string, client *http.Client) (*asserts.Se
 	case 202:
 		return nil, errPoll
 	default:
+		st.Lock()
+		t.Errorf("cannot POST request for a serial: unexpected status %d", resp.StatusCode)
+		st.Unlock()
 		return nil, &state.Retry{After: 60 * time.Second}
 	}
 
@@ -261,12 +285,15 @@ func submitSerialRequest(serialRequest string, client *http.Client) (*asserts.Se
 	dec := asserts.NewDecoder(resp.Body)
 	got, err := dec.Decode()
 	if err != nil { // assume broken i/o
+		st.Lock()
+		t.Errorf("cannot read response to request for a serial: %v", err)
+		st.Unlock()
 		return nil, &state.Retry{After: 60 * time.Second}
 	}
 
 	serial, ok := got.(*asserts.Serial)
 	if !ok {
-		return nil, fmt.Errorf("serial-request response did not return a serial assertion")
+		return nil, fmt.Errorf("request for a serial response did not return a serial assertion")
 	}
 
 	return serial, nil
@@ -319,9 +346,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		st.Unlock()
-		serialRequest, err := prepareSerialRequest(privKey, device, client)
-		st.Lock()
+		serialRequest, err := prepareSerialRequest(t, privKey, device, client)
 		if err != nil { // errors & retries
 			return err
 		}
@@ -329,12 +354,11 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		serialSup.SerialRequest = serialRequest
 	}
 
-	st.Unlock()
-	serial, err := submitSerialRequest(serialSup.SerialRequest, client)
-	st.Lock()
+	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client)
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
+		t.Logf("polling for a serial in 60 seconds")
 		return &state.Retry{After: 60 * time.Second}
 	}
 	if err != nil { // errors & retries
