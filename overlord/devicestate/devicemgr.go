@@ -55,7 +55,6 @@ func Manager(s *state.State) (*DeviceManager, error) {
 
 	runner.AddHandler("generate-device-key", doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", doRequestSerial, nil)
-	runner.AddHandler("download-serial", doDownloadSerial, nil)
 
 	return &DeviceManager{state: s, runner: runner}, nil
 }
@@ -107,14 +106,11 @@ func (m *DeviceManager) ensureOperational() error {
 	// need to be careful
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
-	serialReq := m.state.NewTask("request-serial", i18n.G("Deliver device serial request"))
-	serialReq.WaitFor(genKey)
-	retrieveSerial := m.state.NewTask("download-serial", i18n.G("Retrieve and install device serial"))
-	retrieveSerial.WaitFor(serialReq)
-	serialReq.Set("serial-setup-task", retrieveSerial.ID())
+	requestSerial := m.state.NewTask("request-serial", i18n.G("Deliver device serial request"))
+	requestSerial.WaitFor(genKey)
 
 	chg := m.state.NewChange("become-operational", i18n.G("Setting up device identity"))
-	chg.AddAll(state.NewTaskSet(genKey, serialReq, retrieveSerial))
+	chg.AddAll(state.NewTaskSet(genKey, requestSerial))
 
 	return nil
 }
@@ -191,7 +187,6 @@ func keyPair(st *state.State) (*rsa.PrivateKey, error) {
 }
 
 type serialSetup struct {
-	Serial        string `json:"serial"`
 	SerialRequest string `json:"serial-request"`
 }
 
@@ -199,15 +194,45 @@ type requestIDResp struct {
 	RequestID string `json:"request-id"`
 }
 
+func prepareSerialRequest(pk *rsa.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
+	resp, err := client.Get(serialRequestURL)
+	if err != nil || resp.StatusCode != 200 {
+		return "", &state.Retry{After: 60 * time.Second}
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	var requestID requestIDResp
+	err = dec.Decode(&requestID)
+	if err != nil { // assume broken i/o
+		return "", &state.Retry{After: 60 * time.Second}
+	}
+
+	privKey := asserts.RSAPrivateKey(pk)
+	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
+	if err != nil {
+		return "", fmt.Errorf("internal error: cannot encode device public key: %v", err)
+
+	}
+
+	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, map[string]interface{}{
+		"brand-id":   device.Brand,
+		"model":      device.Model,
+		"request-id": requestID.RequestID,
+		"device-key": string(encodedPubKey),
+	}, nil, privKey) // XXX: fill body with some agreed hardware details
+	if err != nil {
+		return "", err
+	}
+
+	return string(asserts.Encode(serialReq)), nil
+}
+
 var errPoll = errors.New("serial-request accepted, poll later")
 
-func submitSerialRequest(client *http.Client, encodedSerialRequest []byte) (*asserts.Serial, error) {
-	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBuffer(encodedSerialRequest))
+func submitSerialRequest(serialRequest string, client *http.Client) (*asserts.Serial, error) {
+	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBufferString(serialRequest))
 	if err != nil {
 		return nil, &state.Retry{After: 60 * time.Second}
-	}
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		return nil, fmt.Errorf("unexpected status code %d trying to post serial request to %s)", resp.StatusCode, serialRequestURL)
 	}
 
 	switch resp.StatusCode {
@@ -243,136 +268,49 @@ func doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	var retrieveSerialID string
-	err = t.Get("serial-setup-task", &retrieveSerialID)
-	if err != nil {
-		return err
-	}
-	retrieveSerial := st.Task(retrieveSerialID)
-	if retrieveSerial == nil {
-		return fmt.Errorf("internal error: cannot find retrieve serial task")
-	}
-
-	pk, err := keyPair(st)
-	if err != nil {
-		return err
-	}
-
 	client := &http.Client{Timeout: 30 * time.Second}
-
-	st.Unlock()
-	resp, err := client.Get(serialRequestURL)
-	st.Lock()
-	if err != nil {
-		return &state.Retry{After: 60 * time.Second}
-	}
-	if resp.StatusCode >= 400 && resp.StatusCode < 500 {
-		return fmt.Errorf("unexpected status code %d trying to get serial request nonce/ticket (from %s)", resp.StatusCode, serialRequestURL)
-	}
-	if resp.StatusCode != 200 {
-		return &state.Retry{After: 60 * time.Second}
-	}
-
-	dec := json.NewDecoder(resp.Body)
-	var requestID requestIDResp
-	err = dec.Decode(&requestID)
-	if err != nil { // assume broken i/o
-		return &state.Retry{After: 60 * time.Second}
-	}
-
-	privKey := asserts.RSAPrivateKey(pk)
-	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
-	if err != nil {
-		return fmt.Errorf("internal error: cannot encode device public key: %v", err)
-
-	}
-
-	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, map[string]interface{}{
-		"brand-id":   device.Brand,
-		"model":      device.Model,
-		"request-id": requestID.RequestID,
-		"device-key": string(encodedPubKey),
-	}, nil, privKey) // XXX: fill body with some agreed hardware details
-	if err != nil {
-		return err
-	}
-
-	encodedSerialReq := asserts.Encode(serialReq)
-
-	// NB: until we get at least an Accepted (202) we need to
-	// retry from scratch creating a new nonce because the
-	// previous one used could have expired
-
-	st.Unlock()
-	serial, err := submitSerialRequest(client, encodedSerialReq)
-	st.Lock()
-	if err == errPoll {
-		retrieveSerial.Set("serial-setup", serialSetup{
-			SerialRequest: string(encodedSerialReq),
-		})
-		t.SetStatus(state.DoneStatus)
-		return nil
-	}
-	if err != nil { // errors and retries
-		return err
-	}
-
-	retrieveSerial.Set("serial-setup", serialSetup{
-		Serial: string(asserts.Encode(serial)),
-	})
-	t.SetStatus(state.DoneStatus)
-	return nil
-}
-
-func doDownloadSerial(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	device, err := auth.Device(st)
-	if err != nil {
-		return err
-	}
 
 	var serialSup serialSetup
 	err = t.Get("serial-setup", &serialSup)
-	if err != nil {
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
 
-	var serial *asserts.Serial
+	// NB: until we get at least an Accepted (202) we need to
+	// retry from scratch creating a new request-id because the
+	// previous one used could have expired
 
-	if serialSup.SerialRequest != "" {
-		// delivery of serial-request was asked to poll
-		client := &http.Client{Timeout: 30 * time.Second}
-		var err error
-		st.Unlock()
-		serial, err = submitSerialRequest(client, []byte(serialSup.SerialRequest))
-		st.Lock()
-		if err == errPoll {
-			// TODO: what poll interval?
-			return &state.Retry{After: 60 * time.Second}
-
-		}
-		if err != nil { // errors and retries
+	if serialSup.SerialRequest == "" {
+		pk, err := keyPair(st)
+		if err != nil {
 			return err
 		}
 
-	} else {
-		// delivery of serial-request got directly a result
-		a, err := asserts.Decode([]byte(serialSup.Serial))
-		if err != nil {
-			return fmt.Errorf("internal error: cannot decode retrieved serial assertion: %v", err)
+		st.Unlock()
+		serialRequest, err := prepareSerialRequest(pk, device, client)
+		st.Lock()
+		if err != nil { // errors & retries
+			return err
 		}
-		var ok bool
-		serial, ok = a.(*asserts.Serial)
-		if !ok {
-			return fmt.Errorf("internal error: retrieved serial assertion has wrong type")
-		}
+
+		serialSup.SerialRequest = serialRequest
+	}
+
+	st.Unlock()
+	serial, err := submitSerialRequest(serialSup.SerialRequest, client)
+	st.Lock()
+	if err == errPoll {
+		// we can/should reuse the serial-request
+		t.Set("serial-setup", serialSup)
+		return nil
+	}
+	if err != nil { // errors & retries
+		return err
 	}
 
 	// TODO: (possibly refetch brand key and) verify serial assertion!
 	// TODO: double check brand, model and key hash
+	// TODO: add serial assertion (need to be careful because atomicity of that is distinct from the one of state)
 
 	device.Serial = serial.Serial()
 	auth.SetDevice(st, device)
