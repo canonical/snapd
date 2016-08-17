@@ -1,6 +1,9 @@
 summary: Regression check for https://bugs.launchpad.net/snap-confine/+bug/1595444
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
+details: |
+    This task checks the behavior of snap-confine when it is started from
+    a directory that doesn't exist in the execution environment (chroot).
 prepare: |
     echo "Having installed the snapd-hacker-toolbelt snap"
     snap install snapd-hacker-toolbelt
@@ -10,14 +13,10 @@ execute: |
     echo "We can run the 'cwd' tool from busybox and it reports /tmp" 
     [ "$(cd /tmp && /snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "/tmp" ]
     echo "But if we go to a location that is not available to snaps (e.g. /foo)"
-    echo "Then the same 'cwd' tool refuses to run the snap"
-    cd "/foo" || exit 1
-    # pwd doesn't run
-    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "" ]
-    # there's an accurate error message
-    [ "$(/snap/bin/snapd-hacker-toolbelt.busybox pwd 2>&1)" = "cannot remain in /foo, please run this snap from another location. errmsg: No such file or directory" ]
-    # snap-confine returns an error code on exit
-    ! /snap/bin/snapd-hacker-toolbelt.busybox pwd
+    echo "Then snap-confine moves us to /var/lib/snapd/void"
+    [ "$(cd /foo && /snap/bin/snapd-hacker-toolbelt.busybox pwd)" = "/var/lib/snapd/void" ]
+    echo "And that directory is not readable or writable"
+    [ "$(cd /foo && /snap/bin/snapd-hacker-toolbelt.busybox ls 2>&1)" = "ls: can't open '.': Permission denied" ];
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt
