@@ -201,8 +201,8 @@ type requestIDResp struct {
 
 var errPoll = errors.New("serial-request accepted, poll later")
 
-func submitSerialRequest(cli *http.Client, encodedSerialRequest []byte) (*asserts.Serial, error) {
-	resp, err := cli.Post(serialRequestURL, asserts.MediaType, bytes.NewBuffer(encodedSerialRequest))
+func submitSerialRequest(client *http.Client, encodedSerialRequest []byte) (*asserts.Serial, error) {
+	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBuffer(encodedSerialRequest))
 	if err != nil {
 		return nil, &state.Retry{After: 60 * time.Second}
 	}
@@ -258,10 +258,10 @@ func doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	cli := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 30 * time.Second}
 
 	st.Unlock()
-	resp, err := cli.Get(serialRequestURL)
+	resp, err := client.Get(serialRequestURL)
 	st.Lock()
 	if err != nil {
 		return &state.Retry{After: 60 * time.Second}
@@ -304,13 +304,12 @@ func doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	// previous one used could have expired
 
 	st.Unlock()
-	serial, err := submitSerialRequest(cli, encodedSerialReq)
+	serial, err := submitSerialRequest(client, encodedSerialReq)
 	st.Lock()
 	if err == errPoll {
 		retrieveSerial.Set("serial-setup", serialSetup{
 			SerialRequest: string(encodedSerialReq),
 		})
-		// TODO: delay next task?
 		t.SetStatus(state.DoneStatus)
 		return nil
 	}
@@ -345,10 +344,10 @@ func doDownloadSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	if serialSup.SerialRequest != "" {
 		// delivery of serial-request was asked to poll
-		cli := &http.Client{Timeout: 30 * time.Second}
+		client := &http.Client{Timeout: 30 * time.Second}
 		var err error
 		st.Unlock()
-		serial, err = submitSerialRequest(cli, []byte(serialSup.SerialRequest))
+		serial, err = submitSerialRequest(client, []byte(serialSup.SerialRequest))
 		st.Lock()
 		if err == errPoll {
 			// TODO: what poll interval?
