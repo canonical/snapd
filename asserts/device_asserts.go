@@ -181,6 +181,13 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+	keyID, err := checkNotEmptyString(assert.headers, "device-key-id")
+	if err != nil {
+		return nil, err
+	}
+	if keyID != pubKey.ID() {
+		return nil, fmt.Errorf("device key does not match provided key id")
+	}
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {

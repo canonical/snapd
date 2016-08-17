@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -43,6 +44,7 @@ func TestDeviceManager(t *testing.T) { TestingT(t) }
 type deviceMgrSuite struct {
 	state *state.State
 	mgr   *devicestate.DeviceManager
+	db    *asserts.Database
 
 	storeSigning *assertstest.StoreStack
 }
@@ -55,15 +57,33 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
-
 	s.state = state.New(nil)
+
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted:        s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	assertstate.ReplaceDB(s.state, db)
+	s.state.Unlock()
+
+	err = db.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
 	mgr, err := devicestate.Manager(s.state)
 	c.Assert(err, IsNil)
 
+	s.db = db
 	s.mgr = mgr
 }
 
 func (s *deviceMgrSuite) TearDownTest(c *C) {
+	s.state.Lock()
+	assertstate.ReplaceDB(s.state, nil)
+	s.state.Unlock()
 	dirs.SetRootDir("")
 }
 
@@ -97,11 +117,12 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
 			c.Check(serialReq.BrandID(), Equals, "canonical")
 			c.Check(serialReq.Model(), Equals, "pc")
 			serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
-				"brand-id":   "canonical",
-				"model":      "pc",
-				"serial":     "9999",
-				"device-key": serialReq.HeaderString("device-key"),
-				"timestamp":  time.Now().Format(time.RFC3339),
+				"brand-id":      "canonical",
+				"model":         "pc",
+				"serial":        "9999",
+				"device-key":    serialReq.HeaderString("device-key"),
+				"device-key-id": serialReq.SignKeyID(),
+				"timestamp":     time.Now().Format(time.RFC3339),
 			}, nil, "")
 			c.Assert(err, IsNil)
 			w.Header().Set("Content-Type", asserts.MediaType)
@@ -138,5 +159,12 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
 	c.Check(devId.Model, Equals, "pc")
 	c.Check(devId.Serial, Equals, "9999")
 
-	// TODO: check we now have a device key and serial assertion
+	_, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+
+	// TODO: check we now have a device key
 }
