@@ -684,6 +684,7 @@ var snapstateUpdate = snapstate.Update
 var snapstateInstallPath = snapstate.InstallPath
 var snapstateTryPath = snapstate.TryPath
 var snapstateGet = snapstate.Get
+var snapstateDownload = snapstate.Download
 
 func ensureStateSoonImpl(st *state.State) {
 	st.EnsureBefore(0)
@@ -834,15 +835,34 @@ func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 	return msg, []*state.TaskSet{ts}, nil
 }
 
+func snapDownload(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
+	}
+
+	tset, err := snapstateDownload(st, inst.snap, inst.Channel, inst.userID, flags)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Download %q snap"), inst.snap)
+	if inst.Channel != "stable" && inst.Channel != "" {
+		msg = fmt.Sprintf(i18n.G("Download %q snap from %q channel"), inst.snap, inst.Channel)
+	}
+	return msg, []*state.TaskSet{tset}, nil
+}
+
 type snapActionFunc func(*snapInstruction, *state.State) (string, []*state.TaskSet, error)
 
 var snapInstructionDispTable = map[string]snapActionFunc{
-	"install": snapInstall,
-	"refresh": snapUpdate,
-	"remove":  snapRemove,
-	"revert":  snapRevert,
-	"enable":  snapEnable,
-	"disable": snapDisable,
+	"install":  snapInstall,
+	"refresh":  snapUpdate,
+	"remove":   snapRemove,
+	"revert":   snapRevert,
+	"enable":   snapEnable,
+	"disable":  snapDisable,
+	"download": snapDownload,
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {

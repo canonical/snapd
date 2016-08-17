@@ -29,6 +29,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
@@ -509,7 +510,17 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	ss.SnapPath = downloadedSnapFile
+	// used by snapstate.Downlaod()
+	if ss.SnapPath != "" {
+		if err := osutil.CopyFile(downloadedSnapFile, ss.SnapPath, 0); err != nil {
+			return err
+		}
+		if err := os.Remove(downloadedSnapFile); err != nil {
+			return err
+		}
+	} else {
+		ss.SnapPath = downloadedSnapFile
+	}
 	// update the snap setup for the follow up tasks
 	st.Lock()
 	t.Set("snap-setup", ss)
