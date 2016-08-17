@@ -76,7 +76,7 @@ network netlink raw,
 /run/systemd/seats/* r,
 /{,run/}media rw,
 /{,run/}media/** rw,
-mount -> /{,run/}media/**,
+mount /dev/{sd*,mmcblk*} -> /{,run/}media/**,
 umount /{,run/}media/**,
 
 # These should probably be patched to use $SNAP_DATA/run/...
