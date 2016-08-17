@@ -21,7 +21,12 @@ package partition
 
 import (
 	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -55,6 +60,29 @@ type Bootloader interface {
 
 	// Name returns the bootloader name
 	Name() string
+
+	// ConfigFile returns the name of the config file
+	ConfigFile() string
+}
+
+// InstallBootConfig installs the bootloader config from the gadget
+// snap dir into the right place.
+func InstallBootConfig(gadgetDir string) error {
+	for _, bl := range []Bootloader{&grub{}, &uboot{}} {
+		// the bootloader config file has to be root of the gadget snap
+		gadgetFile := filepath.Join(gadgetDir, bl.Name()+".conf")
+		if !osutil.FileExists(gadgetFile) {
+			continue
+		}
+
+		systemFile := bl.ConfigFile()
+		if err := os.MkdirAll(filepath.Dir(systemFile), 0755); err != nil {
+			return err
+		}
+		return osutil.CopyFile(gadgetFile, systemFile, osutil.CopyFlagOverwrite)
+	}
+
+	return fmt.Errorf("cannot find boot config in %q", gadgetDir)
 }
 
 var forcedBootloader Bootloader
@@ -89,6 +117,16 @@ func ForceBootloader(booloader Bootloader) {
 // that snappy will consider this combination of kernel/os a valid
 // target for rollback
 func MarkBootSuccessful(bootloader Bootloader) error {
+	// check if we need to do anything
+	v, err := bootloader.GetBootVar("snap_mode")
+	if err != nil {
+		return err
+	}
+	// snap_mode goes from "" -> "try" -> "trying" -> ""
+	if v != "trying" {
+		return nil
+	}
+
 	// FIXME: we should have something better here, i.e. one write
 	//        to the bootloader environment only (instead of three)
 	//        We need to figure out if that is possible with grub/uboot
@@ -107,8 +145,11 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 		if err := bootloader.SetBootVar(newKey, value); err != nil {
 			return err
 		}
-
 		if err := bootloader.SetBootVar("snap_mode", modeSuccess); err != nil {
+			return err
+		}
+		// clear "snap_try_{core,kernel}"
+		if err := bootloader.SetBootVar(k, ""); err != nil {
 			return err
 		}
 	}

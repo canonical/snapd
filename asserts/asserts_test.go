@@ -42,11 +42,13 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
+const exKeyID = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
 const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
-	"primary-key: abc" +
+	"primary-key: abc\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 	"\n\n" +
-	"openpgp c2ln"
+	"AXNpZw=="
 
 func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
@@ -59,16 +61,18 @@ func (as *assertsSuite) TestDecodeEmptyBodyAllDefaults(c *C) {
 	c.Check(a.Header("header1"), IsNil)
 	c.Check(a.HeaderString("header1"), Equals, "")
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
 }
 
 const exampleEmptyBody2NlNl = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"primary-key: xyz\n" +
 	"revision: 0\n" +
-	"body-length: 0" +
+	"body-length: 0\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 	"\n\n" +
 	"\n\n" +
-	"openpgp c2ln\n"
+	"AXNpZw==\n"
 
 func (as *assertsSuite) TestDecodeEmptyBodyNormalize2NlNl(c *C) {
 	a, err := asserts.Decode([]byte(exampleEmptyBody2NlNl))
@@ -84,16 +88,18 @@ const exampleBodyAndExtraHeaders = "type: test-only\n" +
 	"revision: 5\n" +
 	"header1: value1\n" +
 	"header2: value2\n" +
-	"body-length: 8\n\n" +
+	"body-length: 8\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 	"THE-BODY" +
 	"\n\n" +
-	"openpgp c2ln\n"
+	"AXNpZw==\n"
 
 func (as *assertsSuite) TestDecodeWithABodyAndExtraHeaders(c *C) {
 	a, err := asserts.Decode([]byte(exampleBodyAndExtraHeaders))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id2")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
 	c.Check(a.Header("primary-key"), Equals, "abc")
 	c.Check(a.Revision(), Equals, 5)
 	c.Check(a.Header("header1"), Equals, "value1")
@@ -108,17 +114,19 @@ func (as *assertsSuite) TestDecodeGetSignatureBits(c *C) {
 		"primary-key: xyz\n" +
 		"revision: 5\n" +
 		"header1: value1\n" +
-		"body-length: 8\n\n" +
+		"body-length: 8\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 		"THE-BODY"
 	encoded := content +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.TestOnlyType)
 	c.Check(a.AuthorityID(), Equals, "auth-id1")
+	c.Check(a.SignKeyID(), Equals, exKeyID)
 	cont, signature := a.Signature()
-	c.Check(signature, DeepEquals, []byte("openpgp c2ln"))
+	c.Check(signature, DeepEquals, []byte("AXNpZw=="))
 	c.Check(cont, DeepEquals, []byte(content))
 }
 
@@ -146,22 +154,28 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 }
 
 func (as *assertsSuite) TestDecodeInvalid(c *C) {
+	keyIDHdr := "sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n"
 	encoded := "type: test-only\n" +
 		"authority-id: auth-id\n" +
 		"primary-key: abc\n" +
 		"revision: 0\n" +
-		"body-length: 5" +
-		"\n\n" +
+		"body-length: 5\n" +
+		keyIDHdr +
+		"\n" +
 		"abcde" +
 		"\n\n" +
-		"openpgp c2ln"
+		"AXNpZw=="
 
 	invalidAssertTests := []struct{ original, invalid, expectedErr string }{
 		{"body-length: 5", "body-length: z", `assertion: "body-length" header is not an integer: z`},
 		{"body-length: 5", "body-length: 3", "assertion body length and declared body-length don't match: 5 != 3"},
 		{"authority-id: auth-id\n", "", `assertion: "authority-id" header is mandatory`},
 		{"authority-id: auth-id\n", "authority-id: \n", `assertion: "authority-id" header should not be empty`},
-		{"openpgp c2ln", "", "empty assertion signature"},
+		{keyIDHdr, "", `assertion: "sign-key-sha3-384" header is mandatory`},
+		{keyIDHdr, "sign-key-sha3-384: \n", `assertion: "sign-key-sha3-384" header should not be empty`},
+		{keyIDHdr, "sign-key-sha3-384: $\n", `assertion: "sign-key-sha3-384" header cannot be decoded: .*`},
+		{keyIDHdr, "sign-key-sha3-384: eHl6\n", `assertion: "sign-key-sha3-384" header does not have the expected bit length: 24`},
+		{"AXNpZw==", "", "empty assertion signature"},
 		{"type: test-only\n", "", `assertion: "type" header is mandatory`},
 		{"type: test-only\n", "type: unknown\n", `unknown assertion type: "unknown"`},
 		{"revision: 0\n", "revision: Z\n", `assertion: "revision" header is not an integer: Z`},
@@ -179,15 +193,16 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 	}
 }
 
-func (as *assertsSuite) TestDecodeFreestandingInvalid(c *C) {
-	invalid := "type: test-only-freestanding\n" +
+func (as *assertsSuite) TestDecodeNoAuthorityInvalid(c *C) {
+	invalid := "type: test-only-no-authority\n" +
 		"authority-id: auth-id1\n" +
-		"hdr: FOO" +
+		"hdr: FOO\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
 		"openpgp c2ln"
 
 	_, err := asserts.Decode([]byte(invalid))
-	c.Check(err, ErrorMatches, `freestanding "test-only-freestanding" assertion cannot have authority-id set`)
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
 }
 
 func checkContent(c *C, a asserts.Assertion, encoded string) {
@@ -339,10 +354,11 @@ func (as *assertsSuite) TestEncode(c *C) {
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
-		"body-length: 8\n\n" +
+		"body-length: 8\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 	encodeRes := asserts.Encode(a)
@@ -356,10 +372,11 @@ func (as *assertsSuite) TestEncoderOK(c *C) {
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
-		"body-length: 8\n\n" +
+		"body-length: 8\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a0, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 	cont0, _ := a0.Signature()
@@ -385,10 +402,11 @@ func (as *assertsSuite) TestEncoderSingleDecodeOK(c *C) {
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
-		"body-length: 8\n\n" +
+		"body-length: 8\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a0, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 	cont0, _ := a0.Signature()
@@ -469,22 +487,24 @@ func (as *assertsSuite) TestHeaders(c *C) {
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
-		"body-length: 8\n\n" +
+		"body-length: 8\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 
 	hs := a.Headers()
 	c.Check(hs, DeepEquals, map[string]interface{}{
-		"type":         "test-only",
-		"authority-id": "auth-id2",
-		"primary-key":  "abc",
-		"revision":     "5",
-		"header1":      "value1",
-		"header2":      "value2",
-		"body-length":  "8",
+		"type":              "test-only",
+		"authority-id":      "auth-id2",
+		"primary-key":       "abc",
+		"revision":          "5",
+		"header1":           "value1",
+		"header2":           "value2",
+		"body-length":       "8",
+		"sign-key-sha3-384": exKeyID,
 	})
 }
 
@@ -495,10 +515,11 @@ func (as *assertsSuite) TestHeadersReturnsCopy(c *C) {
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
-		"body-length: 8\n\n" +
+		"body-length: 8\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 
@@ -515,10 +536,11 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 		"revision: 5\n" +
 		"header1: value1\n" +
 		"header2: value2\n" +
-		"body-length: 8\n\n" +
+		"body-length: 8\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
 		"THE-BODY" +
 		"\n\n" +
-		"openpgp c2ln")
+		"AXNpZw==")
 	a, err := asserts.Decode(encoded)
 	c.Assert(err, IsNil)
 
@@ -533,7 +555,7 @@ func (as *assertsSuite) TestAssembleRoundtrip(c *C) {
 	c.Check(reassembledEncoded, DeepEquals, encoded)
 }
 
-func (as *assertsSuite) TestSigningKey(c *C) {
+func (as *assertsSuite) TestSignKeyID(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "auth-id1",
 		"primary-key":  "0",
@@ -541,18 +563,9 @@ func (as *assertsSuite) TestSigningKey(c *C) {
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
 	c.Assert(err, IsNil)
 
-	signerID, keyID, err := a.SigningKey()
+	keyID := a.SignKeyID()
 	c.Assert(err, IsNil)
-	c.Check(signerID, Equals, "auth-id1")
 	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
-}
-
-func (as *assertsSuite) TestSigningKeyError(c *C) {
-	a, err := asserts.Decode([]byte(exampleEmptyBodyAllDefaults))
-	c.Assert(err, IsNil)
-
-	_, _, err = a.SigningKey()
-	c.Check(err, ErrorMatches, `cannot decode signature data:.*`)
 }
 
 func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
@@ -571,20 +584,20 @@ func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
 	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
 }
 
-func (as *assertsSuite) TestFreestandingSignMisuse(c *C) {
-	_, err := asserts.FreestandingSign(asserts.TestOnlyType, nil, nil, testPrivKey1)
-	c.Check(err, ErrorMatches, `cannot sign non-freestanding \(i\.e\. with a definite authority\) assertions with FreestandingSign`)
+func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
+	_, err := asserts.SignWithoutAuthority(asserts.TestOnlyType, nil, nil, testPrivKey1)
+	c.Check(err, ErrorMatches, `cannot sign assertions needing a definite authority with SignWithoutAuthority`)
 
-	_, err = asserts.FreestandingSign(asserts.TestOnlyFreestandingType,
+	_, err = asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
 		map[string]interface{}{
 			"authority-id": "auth-id1",
 			"hdr":          "FOO",
 		}, nil, testPrivKey1)
-	c.Check(err, ErrorMatches, `freestanding "test-only-freestanding" assertion cannot have authority-id set`)
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
 }
 
 func (ss *serialSuite) TestSignatureCheckError(c *C) {
-	sreq, err := asserts.FreestandingSign(asserts.TestOnlyFreestandingType,
+	sreq, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
 		map[string]interface{}{
 			"hdr": "FOO",
 		}, nil, testPrivKey1)
@@ -592,4 +605,22 @@ func (ss *serialSuite) TestSignatureCheckError(c *C) {
 
 	err = asserts.SignatureCheck(sreq, testPrivKey2.PublicKey())
 	c.Check(err, ErrorMatches, `failed signature verification:.*`)
+}
+
+func (as *assertsSuite) TestWithAuthority(c *C) {
+	withAuthority := []string{
+		"account",
+		"account-key",
+		"snap-declaration",
+		"snap-build",
+		"snap-revision",
+		"model",
+		"serial",
+	}
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-1) // excluding serial-request
+	for _, name := range withAuthority {
+		typ := asserts.Type(name)
+		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
+		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
+	}
 }

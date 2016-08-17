@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -180,12 +181,16 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	return "downloaded-snap-path", nil
 }
 
-func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
 	panic("Never expected fakeStore.Buy to be called")
 }
 
 func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
 	panic("Never expected fakeStore.PaymentMethods to be called")
+}
+
+func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
+	panic("Never expected fakeStore.Assertion to be called")
 }
 
 type fakeSnappyBackend struct {

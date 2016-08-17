@@ -99,7 +99,15 @@ func buySnap(opts *store.BuyOptions) error {
 		return err
 	}
 
-	if len(paymentInfo.Methods) == 0 {
+	// TODO Remove this payment method filter once interactive payment methods are supported on the CLI
+	methods := make([]*store.PaymentMethod, 0)
+	for _, method := range paymentInfo.Methods {
+		if !method.RequiresInteraction {
+			methods = append(methods, method)
+		}
+	}
+
+	if len(methods) == 0 {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: no payment methods registered"), opts.SnapName)
 	}
 
@@ -110,30 +118,47 @@ func buySnap(opts *store.BuyOptions) error {
 	if !paymentInfo.AllowsAutomaticPayment {
 		w := tabwriter.NewWriter(Stdout, 0, 3, 2, ' ', 0)
 
+		index := -1
+
 		fmt.Fprintln(w, i18n.G("\tSelection\tDescription"))
-		for i, method := range paymentInfo.Methods {
-			fmt.Fprintf(w, "\t%d\t%s\n", i+1, method.Description)
+		for i, method := range methods {
+			preferred := ""
+			if method.Preferred {
+				preferred = "*"
+				index = i + 1
+			}
+			fmt.Fprintf(w, "%s\t%d\t%s\n", preferred, i+1, method.Description)
 		}
 		w.Flush()
 
-		fmt.Fprintf(Stdout, i18n.G("Select payment method: "))
+		if index > 0 {
+			// If the user has a preferred payment method
+			fmt.Fprintf(Stdout, i18n.G("Press <enter> to use your default[*], or type a number to select payment method: "))
+		} else {
+			fmt.Fprintf(Stdout, i18n.G("Type a number to select payment method: "))
+		}
 
 		response, _, err := reader.ReadLine()
 		if err != nil {
 			return err
 		}
 
-		index, err := strconv.Atoi(string(response))
-		if err != nil {
-			return fmt.Errorf(i18n.G("cannot buy snap %q: invalid payment method selection %q"), snap.Name, response)
-		}
+		stringResponse := string(response)
 
-		if index <= 0 || index > len(paymentInfo.Methods) {
-			return fmt.Errorf(i18n.G("cannot buy snap %q: unknown payment method selection %d"), snap.Name, index)
+		if !(stringResponse == "" && index > 0) {
+			// If the user answered and also has no preferred method, we need to parse the response.
+			index, err = strconv.Atoi(stringResponse)
+			if err != nil {
+				return fmt.Errorf(i18n.G("cannot buy snap %q: invalid payment method selection %q"), snap.Name, stringResponse)
+			}
+
+			if index <= 0 || index > len(methods) {
+				return fmt.Errorf(i18n.G("cannot buy snap %q: unknown payment method selection %d"), snap.Name, index)
+			}
 		}
 
 		// Convert the payment selection to a zero-index
-		paymentMethod := paymentInfo.Methods[index-1]
+		paymentMethod := methods[index-1]
 		opts.BackendID = paymentMethod.BackendID
 		opts.MethodID = paymentMethod.ID
 	}
@@ -150,10 +175,14 @@ func buySnap(opts *store.BuyOptions) error {
 		return fmt.Errorf(i18n.G("aborting"))
 	}
 
-	// TODO Handle pay backends that require user interaction
-	_, err = cli.Buy(opts)
+	result, err := cli.Buy(opts)
 	if err != nil {
 		return err
+	}
+
+	if result.State == "InProgress" {
+		// TODO Support interactive purchases on the CLI
+		return fmt.Errorf(i18n.G("cannot buy snap %q: the command line tools do not support interactive purchases"), snap.Name)
 	}
 
 	fmt.Fprintf(Stdout, "%s bought\n", opts.SnapName)

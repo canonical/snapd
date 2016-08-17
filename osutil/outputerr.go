@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !linux,!darwin,!freebsd
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -18,12 +17,23 @@
  *
  */
 
-package group
+package osutil
 
 import (
-	"errors"
+	"bytes"
+	"fmt"
 )
 
-func getgrnam(name string) (Group, error) {
-	return errors.New("getgrnam not implemented on your system")
+// OutputErr formats an error based on output if its length is not zero,
+// or returns err otherwise.
+func OutputErr(output []byte, err error) error {
+	output = bytes.TrimSpace(output)
+	if len(output) > 0 {
+		if bytes.Contains(output, []byte{'\n'}) {
+			err = fmt.Errorf("\n-----\n%s\n-----", output)
+		} else {
+			err = fmt.Errorf("%s", output)
+		}
+	}
+	return err
 }

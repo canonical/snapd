@@ -31,7 +31,7 @@ import (
 // the default simple filesystem based keypair manager/backstore
 
 const (
-	privateKeysLayoutVersion = "v0"
+	privateKeysLayoutVersion = "v1"
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
 )
 
