@@ -84,7 +84,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
 		switch r.Method {
 		case "GET":
 			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, `{"nonce-ticket": "NONCE-TICKET-1"}`)
+			io.WriteString(w, `{"request-id": "REQID-1"}`)
 		case "POST":
 			b, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)

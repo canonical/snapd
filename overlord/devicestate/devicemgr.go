@@ -33,7 +33,6 @@ import (
 	"net/http"
 	"time"
 
-	"golang.org/x/crypto/openpgp/packet"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -55,8 +54,8 @@ func Manager(s *state.State) (*DeviceManager, error) {
 	runner := state.NewTaskRunner(s)
 
 	runner.AddHandler("generate-device-key", doGenerateDeviceKey, nil)
-	runner.AddHandler("deliver-serial-request", doDeliverSerialRequest, nil)
-	runner.AddHandler("retrieve-n-install-serial", doRetrieveAndInstallSerial, nil)
+	runner.AddHandler("request-serial", doRequestSerial, nil)
+	runner.AddHandler("download-serial", doDownloadSerial, nil)
 
 	return &DeviceManager{state: s, runner: runner}, nil
 }
@@ -67,23 +66,23 @@ func (m *DeviceManager) ensureOperational() error {
 	// XXX: auth.Device/SetDevice should probably move to devicestate
 	// they are not quite just about auth and also we risk circular imports
 	// (auth will need to mediate bits from devicestate soon)
-	devIdentity, err := auth.Device(m.state)
+	device, err := auth.Device(m.state)
 	if err != nil {
 		return err
 	}
 
-	if devIdentity.Serial != "" {
+	if device.Serial != "" {
 		// serial is set, we are all set
 		return nil
 	}
 
-	if devIdentity.Brand == "" || devIdentity.Model == "" {
+	if device.Brand == "" || device.Model == "" {
 		// need first-boot, loading of model assertion info
 		if release.OnClassic {
 			// XXX: cheat for now to get us started somewhere
-			devIdentity.Brand = "canonical"
-			devIdentity.Model = "pc"
-			err := auth.SetDevice(m.state, devIdentity)
+			device.Brand = "canonical"
+			device.Model = "pc"
+			err := auth.SetDevice(m.state, device)
 			if err != nil {
 				return err
 			}
@@ -108,9 +107,9 @@ func (m *DeviceManager) ensureOperational() error {
 	// need to be careful
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
-	serialReq := m.state.NewTask("deliver-serial-request", i18n.G("Deliver device serial request"))
+	serialReq := m.state.NewTask("request-serial", i18n.G("Deliver device serial request"))
 	serialReq.WaitFor(genKey)
-	retrieveSerial := m.state.NewTask("retrieve-n-install-serial", i18n.G("Retrieve and install device serial"))
+	retrieveSerial := m.state.NewTask("download-serial", i18n.G("Retrieve and install device serial"))
 	retrieveSerial.WaitFor(serialReq)
 	serialReq.Set("serial-setup-task", retrieveSerial.ID())
 
@@ -196,8 +195,8 @@ type serialSetup struct {
 	SerialRequest string `json:"serial-request"`
 }
 
-type nonceTicketResp struct {
-	NonceTicket string `json:"nonce-ticket"`
+type requestIDResp struct {
+	RequestID string `json:"request-id"`
 }
 
 var errPoll = errors.New("serial-request accepted, poll later")
@@ -234,12 +233,12 @@ func submitSerialRequest(cli *http.Client, encodedSerialRequest []byte) (*assert
 	return serial, nil
 }
 
-func doDeliverSerialRequest(t *state.Task, _ *tomb.Tomb) error {
+func doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
-	devIdentity, err := auth.Device(st)
+	device, err := auth.Device(st)
 	if err != nil {
 		return err
 	}
@@ -275,25 +274,24 @@ func doDeliverSerialRequest(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	dec := json.NewDecoder(resp.Body)
-	var nonceTicket nonceTicketResp
-	err = dec.Decode(&nonceTicket)
+	var requestID requestIDResp
+	err = dec.Decode(&requestID)
 	if err != nil { // assume broken i/o
 		return &state.Retry{After: 60 * time.Second}
 	}
 
-	// XXX: do it the hard way for now (should be much simpler soon)
-	privKey := asserts.OpenPGPPrivateKey(packet.NewRSAPrivateKey(time.Unix(1, 0), pk))
+	privKey := asserts.RSAPrivateKey(pk)
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
 	if err != nil {
 		return fmt.Errorf("internal error: cannot encode device public key: %v", err)
 
 	}
 
-	serialReq, err := asserts.FreestandingSign(asserts.SerialRequestType, map[string]interface{}{
-		"brand-id":     devIdentity.Brand,
-		"model":        devIdentity.Model,
-		"nonce-ticket": nonceTicket.NonceTicket,
-		"device-key":   string(encodedPubKey),
+	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, map[string]interface{}{
+		"brand-id":   device.Brand,
+		"model":      device.Model,
+		"request-id": requestID.RequestID,
+		"device-key": string(encodedPubKey),
 	}, nil, privKey) // XXX: fill body with some agreed hardware details
 	if err != nil {
 		return err
@@ -327,12 +325,12 @@ func doDeliverSerialRequest(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func doRetrieveAndInstallSerial(t *state.Task, _ *tomb.Tomb) error {
+func doDownloadSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
 
-	devIdentity, err := auth.Device(st)
+	device, err := auth.Device(st)
 	if err != nil {
 		return err
 	}
@@ -377,8 +375,8 @@ func doRetrieveAndInstallSerial(t *state.Task, _ *tomb.Tomb) error {
 	// TODO: (possibly refetch brand key and) verify serial assertion!
 	// TODO: double check brand, model and key hash
 
-	devIdentity.Serial = serial.Serial()
-	auth.SetDevice(st, devIdentity)
+	device.Serial = serial.Serial()
+	auth.SetDevice(st, device)
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
