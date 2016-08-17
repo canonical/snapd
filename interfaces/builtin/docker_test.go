@@ -56,8 +56,6 @@ func (s *DockerInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "docker")
 }
 
-// TODO more tests regarding the contents of Docker's security profiles (especially AppArmor)?
-
 func (s *DockerInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	for _, system := range [...]interfaces.SecuritySystem{
 		interfaces.SecurityAppArmor,
