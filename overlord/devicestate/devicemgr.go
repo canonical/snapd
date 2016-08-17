@@ -25,8 +25,6 @@ import (
 	"bytes"
 	"crypto/rand"
 	"crypto/rsa"
-	"crypto/x509"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,6 +34,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -45,18 +44,27 @@ import (
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	state  *state.State
-	runner *state.TaskRunner
+	state      *state.State
+	keypairMgr asserts.KeypairManager
+	runner     *state.TaskRunner
 }
 
 // Manager returns a new device manager.
 func Manager(s *state.State) (*DeviceManager, error) {
 	runner := state.NewTaskRunner(s)
 
-	runner.AddHandler("generate-device-key", doGenerateDeviceKey, nil)
-	runner.AddHandler("request-serial", doRequestSerial, nil)
+	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
+	if err != nil {
+		return nil, err
 
-	return &DeviceManager{state: s, runner: runner}, nil
+	}
+
+	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
+
+	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
+	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+
+	return m, nil
 }
 
 func (m *DeviceManager) ensureOperational() error {
@@ -142,13 +150,14 @@ var (
 	serialRequestURL = "https://serial.request" // XXX dummy value!
 )
 
-func doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
-	// XXX: where to store device private key ultimately? use asserts support?
-	var encoded string
-	err := st.Get("device-keypair", &encoded)
+
+	var keyID string
+	// XXX: make this a field of DeviceState?
+	err := st.Get("device-key-id", &keyID)
 	if err == nil {
 		// nothing to do
 		return nil
@@ -156,34 +165,39 @@ func doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	if err != state.ErrNoState {
 		return err
 	}
+
 	keyPair, err := rsa.GenerateKey(rand.Reader, keyLength)
 	if err != nil {
 		return fmt.Errorf("cannot generate device key pair: %v", err)
 	}
 
-	encoded = base64.StdEncoding.EncodeToString(x509.MarshalPKCS1PrivateKey(keyPair))
-	st.Set("device-keypair", encoded)
+	privKey := asserts.RSAPrivateKey(keyPair)
+
+	// TODO: simplify key mgmt signatures? "device" here is a dummy authorityID
+	err = m.keypairMgr.Put("device", privKey)
+	if err != nil {
+		return fmt.Errorf("cannot store device key pair: %v", err)
+	}
+
+	st.Set("device-key-id", privKey.PublicKey().ID())
 	return nil
 }
 
-func keyPair(st *state.State) (*rsa.PrivateKey, error) {
-	var encoded string
-	err := st.Get("device-keypair", &encoded)
+func (m *DeviceManager) keyPair(st *state.State) (asserts.PrivateKey, error) {
+	var keyID string
+	err := st.Get("device-key-id", &keyID)
 	if err == state.ErrNoState {
 		return nil, fmt.Errorf("internal error: cannot find device key pair")
 	}
 	if err != nil {
 		return nil, err
 	}
-	b, err := base64.StdEncoding.DecodeString(encoded)
+
+	privKey, err := m.keypairMgr.Get("device", keyID)
 	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot decode device key pair: %v", err)
+		return nil, fmt.Errorf("cannot read device key pair: %v", err)
 	}
-	pk, err := x509.ParsePKCS1PrivateKey(b)
-	if err != nil {
-		return nil, fmt.Errorf("internal error: cannot decode device key pair: %v", err)
-	}
-	return pk, nil
+	return privKey, nil
 }
 
 type serialSetup struct {
@@ -194,7 +208,7 @@ type requestIDResp struct {
 	RequestID string `json:"request-id"`
 }
 
-func prepareSerialRequest(pk *rsa.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
+func prepareSerialRequest(privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
 	resp, err := client.Get(serialRequestURL)
 	if err != nil || resp.StatusCode != 200 {
 		return "", &state.Retry{After: 60 * time.Second}
@@ -207,7 +221,6 @@ func prepareSerialRequest(pk *rsa.PrivateKey, device *auth.DeviceState, client *
 		return "", &state.Retry{After: 60 * time.Second}
 	}
 
-	privKey := asserts.RSAPrivateKey(pk)
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
 	if err != nil {
 		return "", fmt.Errorf("internal error: cannot encode device public key: %v", err)
@@ -258,7 +271,7 @@ func submitSerialRequest(serialRequest string, client *http.Client) (*asserts.Se
 	return serial, nil
 }
 
-func doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -281,7 +294,7 @@ func doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		pk, err := keyPair(st)
+		pk, err := m.keyPair(st)
 		if err != nil {
 			return err
 		}
