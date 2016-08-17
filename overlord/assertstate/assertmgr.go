@@ -32,9 +32,7 @@ import (
 // system states. It manipulates the observed system state to ensure
 // nothing in it violates existing assertions, or misses required
 // ones.
-type AssertManager struct {
-	db *asserts.Database
-}
+type AssertManager struct{}
 
 // Manager returns a new assertion manager.
 func Manager(s *state.State) (*AssertManager, error) {
@@ -42,7 +40,12 @@ func Manager(s *state.State) (*AssertManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &AssertManager{db: db}, nil
+
+	s.Lock()
+	ReplaceDB(s, db)
+	s.Unlock()
+
+	return &AssertManager{}, nil
 }
 
 // Ensure implements StateManager.Ensure.
@@ -50,15 +53,36 @@ func (m *AssertManager) Ensure() error {
 	return nil
 }
 
-// Stop implements StateManager.Stop.
-func (m *AssertManager) Stop() {
-}
-
 // Wait implements StateManager.Wait.
 func (m *AssertManager) Wait() {
 }
 
-// DB returns the assertion database under the manager.
-func (m *AssertManager) DB() *asserts.Database {
-	return m.db
+// Stop implements StateManager.Stop.
+func (m *AssertManager) Stop() {
+}
+
+type cachedDBKey struct{}
+
+// ReplaceDB replaces the assertion database used by the manager.
+func ReplaceDB(state *state.State, db *asserts.Database) {
+	state.Cache(cachedDBKey{}, db)
+}
+
+func cachedDB(s *state.State) *asserts.Database {
+	db := s.Cached(cachedDBKey{})
+	if db == nil {
+		panic("internal error: needing an assertion database before the assertion manager is initialized")
+	}
+	return db.(*asserts.Database)
+}
+
+// DB returns a read-only view of system assertion database.
+func DB(s *state.State) asserts.RODatabase {
+	return cachedDB(s)
+}
+
+// Add the given assertion to the system assertiond database. Readding the current revision is a no-op.
+func Add(s *state.State, a asserts.Assertion) error {
+	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
+	return cachedDB(s).Add(a)
 }

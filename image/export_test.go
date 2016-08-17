@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -18,15 +17,15 @@
  *
  */
 
-package main
+package image
 
-import (
-	"testing"
-
-	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
+var (
+	DownloadUnpackGadget = downloadUnpackGadget
+	BootstrapToRootDir   = bootstrapToRootDir
 )
 
-func TestRunMain(t *testing.T) {
-	testutils.RemoveTestFlags()
-	main()
+func MockStoreNew(f func(storeID string) Store) (restorer func()) {
+	old := storeNew
+	storeNew = f
+	return func() { storeNew = old }
 }

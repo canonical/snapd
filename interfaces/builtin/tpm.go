@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -18,15 +17,22 @@
  *
  */
 
-package main
+package builtin
 
-import (
-	"testing"
+import "github.com/snapcore/snapd/interfaces"
 
-	"github.com/snapcore/snapd/integration-tests/testutils/testutils"
-)
+const tpmConnectedPlugAppArmor = `
+# Description: for those who need to talk to the system TPM chip over /dev/tpm0
+# Usage: reserved
 
-func TestRunMain(t *testing.T) {
-	testutils.RemoveTestFlags()
-	main()
+/dev/tpm0 rw,
+`
+
+func NewTpmInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "tpm",
+		connectedPlugAppArmor: tpmConnectedPlugAppArmor,
+		reservedForOS:         true,
+		autoConnect:           false,
+	}
 }

@@ -17,25 +17,43 @@
  *
  */
 
-package osutil
+package main
 
 import (
+	"fmt"
 	"os"
-	"os/user"
+
+	"github.com/snapcore/snapd/client"
 )
 
-// CurrentHomeDir returns the homedir of the current user. It looks at
-// $HOME first and then at passwd
-func CurrentHomeDir() (string, error) {
-	home := os.Getenv("HOME")
-	if home != "" {
-		return home, nil
-	}
+var clientConfig client.Config
 
-	user, err := user.Current()
+func main() {
+	stdout, stderr, err := run()
 	if err != nil {
-		return "", err
+		fmt.Fprintf(os.Stderr, "error: %s\n", err)
+		os.Exit(1)
 	}
 
-	return user.HomeDir, nil
+	if stdout != nil {
+		os.Stdout.Write(stdout)
+	}
+
+	if stderr != nil {
+		os.Stderr.Write(stderr)
+	}
+}
+
+func run() (stdout, stderr []byte, err error) {
+	cli := client.New(&clientConfig)
+
+	context := os.Getenv("SNAP_CONTEXT")
+	if context == "" {
+		return nil, nil, fmt.Errorf("snapctl requires SNAP_CONTEXT environment variable")
+	}
+
+	return cli.RunSnapctl(client.SnapCtlOptions{
+		Context: context,
+		Args:    os.Args[1:],
+	})
 }

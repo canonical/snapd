@@ -43,7 +43,7 @@ var (
 type cmdRun struct {
 	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
 	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
-	Revision string `short:"r" description:"use a specific snap revision when running hook" hidden:"yes"`
+	Revision string `short:"r" description:"use a specific snap revision when running hook" default:"unset" hidden:"yes"`
 	Shell    bool   `long:"shell" description:"run a shell instead of the command (useful for debugging)"`
 }
 
@@ -67,7 +67,7 @@ func (x *cmdRun) Execute(args []string) error {
 	if x.Hook != "" && x.Command != "" {
 		return fmt.Errorf("cannot use --hook and --command together")
 	}
-	if x.Revision != "" && x.Hook == "" {
+	if x.Revision != "unset" && x.Revision != "" && x.Hook == "" {
 		return fmt.Errorf("-r can only be used with --hook")
 	}
 	if x.Hook != "" && len(args) > 0 {
@@ -76,7 +76,7 @@ func (x *cmdRun) Execute(args []string) error {
 
 	// Now actually handle the dispatching
 	if x.Hook != "" {
-		return snapRunHook(snapApp, x.Hook, x.Revision)
+		return snapRunHook(snapApp, x.Revision, x.Hook)
 	}
 
 	// pass shell as a special command to snap-exec
@@ -87,16 +87,8 @@ func (x *cmdRun) Execute(args []string) error {
 	return snapRunApp(snapApp, x.Command, args)
 }
 
-func getSnapInfo(snapName string, snapRevision string) (*snap.Info, error) {
-	var revision snap.Revision
-	if snapRevision != "" {
-		// User supplied a revision.
-		var err error
-		revision, err = snap.ParseRevision(snapRevision)
-		if err != nil {
-			return nil, err
-		}
-	} else {
+func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
+	if revision.Unset() {
 		// User didn't supply a revision, so we need to get it via the snapd API
 		// here because once we're inside the confinement it may be unavailable.
 		snaps, err := Client().List([]string{snapName})
@@ -127,6 +119,7 @@ func getSnapInfo(snapName string, snapRevision string) (*snap.Info, error) {
 func snapExecEnv(info *snap.Info) []string {
 	env := snapenv.Basic(info)
 	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
+	env = append(env, "PATH=${PATH}:/usr/lib/snapd")
 	return env
 }
 
@@ -149,7 +142,7 @@ func createUserDataDirs(info *snap.Info) error {
 
 func snapRunApp(snapApp, command string, args []string) error {
 	snapName, appName := snap.SplitSnapApp(snapApp)
-	info, err := getSnapInfo(snapName, "")
+	info, err := getSnapInfo(snapName, snap.R(0))
 	if err != nil {
 		return err
 	}
@@ -162,7 +155,12 @@ func snapRunApp(snapApp, command string, args []string) error {
 	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", args)
 }
 
-func snapRunHook(snapName, hookName, revision string) error {
+func snapRunHook(snapName, snapRevision, hookName string) error {
+	revision, err := snap.ParseRevision(snapRevision)
+	if err != nil {
+		return err
+	}
+
 	info, err := getSnapInfo(snapName, revision)
 	if err != nil {
 		return err
@@ -189,7 +187,6 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		securityTag,
 		securityTag,
 		"/usr/lib/snapd/snap-exec",
-		snapApp,
 	}
 
 	if command != "" {
@@ -200,6 +197,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 		cmd = append(cmd, "--hook="+hook)
 	}
 
+	// snap-exec is POSIXly-- options must come before positionals.
+	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
 	env := append(os.Environ(), snapExecEnv(info)...)
