@@ -23,7 +23,10 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
@@ -489,6 +492,38 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 		SideInfo: snapst.Sequence[i],
 	}
 	return doInstall(s, &snapst, ss)
+}
+
+// Download returns a set of tasks for downloading snap.
+// Note that the state must be locked by the caller.
+func Download(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
+	snapInfo, err := snapInfo(s, name, channel, userID, flags)
+	if err != nil {
+		return nil, err
+	}
+
+	ss := &SnapSetup{
+		Channel:      channel,
+		UserID:       userID,
+		Flags:        SnapSetupFlags(flags),
+		DownloadInfo: &snapInfo.DownloadInfo,
+		SideInfo:     &snapInfo.SideInfo,
+	}
+	if ss.Channel == "" {
+		ss.Channel = "stable"
+	}
+
+	if err := os.MkdirAll(dirs.SnapDownloadDir, 0755); err != nil {
+		return nil, fmt.Errorf("cannot create download directory: %s", err)
+	}
+	dstFile := filepath.Join(dirs.SnapDownloadDir, fmt.Sprintf("%s_%s.snap", ss.Name(), ss.Revision()))
+	ss.SnapPath = dstFile
+
+	revisionStr := fmt.Sprintf(" (%s)", ss.Revision())
+	download := s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), ss.Name(), revisionStr, ss.Channel))
+	download.Set("snap-setup", ss)
+
+	return state.NewTaskSet(download), nil
 }
 
 // Info returns the information about the snap with given name and revision.

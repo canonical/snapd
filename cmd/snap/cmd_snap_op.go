@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/progress"
 
@@ -118,12 +119,13 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 }
 
 var (
-	shortInstallHelp = i18n.G("Installs a snap to the system")
-	shortRemoveHelp  = i18n.G("Removes a snap from the system")
-	shortRefreshHelp = i18n.G("Refreshes a snap in the system")
-	shortTryHelp     = i18n.G("Tests a snap in the system")
-	shortEnableHelp  = i18n.G("Enables a snap in the system")
-	shortDisableHelp = i18n.G("Disables a snap in the system")
+	shortInstallHelp  = i18n.G("Installs a snap to the system")
+	shortRemoveHelp   = i18n.G("Removes a snap from the system")
+	shortRefreshHelp  = i18n.G("Refreshes a snap in the system")
+	shortTryHelp      = i18n.G("Tests a snap in the system")
+	shortEnableHelp   = i18n.G("Enables a snap in the system")
+	shortDisableHelp  = i18n.G("Disables a snap in the system")
+	shortDownloadHelp = i18n.G("Download a snap in the system")
 )
 
 var longInstallHelp = i18n.G(`
@@ -156,6 +158,10 @@ var longDisableHelp = i18n.G(`
 The disable command disables a snap. The binaries and services of the
 snap will no longer be available. But all the data is still available
 and the snap can easily be enabled again.
+`)
+
+var longDownloadHelp = i18n.G(`
+The download command downloads the given snap.
 `)
 
 type cmdRemove struct {
@@ -577,6 +583,43 @@ func (x *cmdRevert) Execute(args []string) error {
 	return nil
 }
 
+type cmdDownload struct {
+	channelMixin
+	modeMixin
+	Positional struct {
+		Snap string `positional-arg-name:"<snap>"`
+	} `positional-args:"yes" required:"yes"`
+}
+
+func (x *cmdDownload) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+	if err := x.validateMode(); err != nil {
+		return err
+	}
+
+	cli := Client()
+	name := x.Positional.Snap
+	opts := &client.SnapOptions{
+		Channel:  x.Channel,
+		DevMode:  x.DevMode,
+		JailMode: x.JailMode,
+	}
+
+	changeID, err := cli.Download(name, opts)
+	if err != nil {
+		return err
+	}
+
+	if _, err := wait(cli, changeID); err != nil {
+		return err
+	}
+	fmt.Fprintf(Stdout, "Snap downloaded into %s\n", dirs.SnapDownloadDir)
+
+	return nil
+}
+
 func init() {
 	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
@@ -584,6 +627,7 @@ func init() {
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} })
 	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} })
+	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander { return &cmdDownload{} })
 	// FIXME: make visible once everything has landed for revert
 	cmd := addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
 	cmd.hidden = true
