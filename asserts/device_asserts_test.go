@@ -330,16 +330,14 @@ func (ss *serialSuite) TestSerialProofHappy(c *C) {
 	err = asserts.SignatureCheck(sproof2, ss.deviceKey.PublicKey())
 	c.Check(err, IsNil)
 
-	c.Check(sproof2.HeaderString("nonce"), Equals, "NONCE")
+	c.Check(sproof2.Nonce(), Equals, "NONCE")
 }
 
 func (ss *serialSuite) TestSerialProofDecodeInvalid(c *C) {
 	encoded := "type: serial-proof\n" +
 		"nonce: NONCE\n" +
-		"body-length: 2\n" +
+		"body-length: 0\n" +
 		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
-		"HW" +
-		"\n\n" +
 		"AXNpZw=="
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
