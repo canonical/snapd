@@ -393,6 +393,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateInstallPath",
 		"snapstateTryPath",
 		"snapstateGet",
+		"snapstateDownload",
 		"readSnapInfo",
 		"osutilAddExtraSudoUser",
 		"storeUserInfo",

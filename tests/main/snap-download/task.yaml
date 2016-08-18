@@ -1,0 +1,18 @@
+summary: Check that that snap download works
+
+execute: |
+    echo When running `snap download`
+    snap download test-snapd-tools
+    echo A single snap is downloaded into /var/lib/snapd/download
+    ls /var/lib/snapd/download/test-snapd-tools_[0-9]*.snap
+    output=$(ls /var/lib/snapd/download/|wc -l)
+    if [ "$output" != "1" ]; then
+        echo "Multiple files in /var/lib/snapd/download"
+        ls /var/lib/snapd/download
+        exit 1
+    fi
+    echo And the snap looks valid
+    if ! file /var/lib/snapd/download/test-snapd-tools_[0-9]*.snap|grep Squashfs; then
+        echo "Downloaded snap not a squashfs file"
+        exit 1
+    fi
