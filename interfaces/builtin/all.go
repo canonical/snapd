@@ -64,6 +64,7 @@ var allInterfaces = []interfaces.Interface{
 	NewCameraInterface(),
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
+	NewFuseSupportInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
