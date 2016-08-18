@@ -26,8 +26,9 @@ import (
 const pluggableStorageConnectedPlugAppArmor = `
 # Description: Can access removable storage filesystems
 
-# Filesystems are mounted to /run/media/<user>/foo since /media is read-only
-/run/media/** rw,
+# Mount points could be in /run/media/<user>/* or /media/<user>/*
+/{,run/}media/*/ r,
+/{,run/}media/*/** rw,
 `
 
 // NewPluggableStorageInterface returns a new "pluggable-storage" interface.
