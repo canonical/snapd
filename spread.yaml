@@ -118,8 +118,8 @@ suites:
     tests/image/:
         summary: Tests run inside the all-snap image
         prepare: |
+            apt install -y kpartx
             apt install -y ${SPREAD_PATH}/../snapd_*.deb
-            apt install -y kpartx snapd
 
             snap install --edge --devmode ubuntu-device-flash
 
@@ -138,6 +138,8 @@ suites:
             tail -n +2 /etc/shadow >> /tmp/new-shadow
             cat /tmp/new-shadow
             cp -v /tmp/new-shadow /tmp/ubuntu-core-snap/etc/shadow
+            # ensure we can connect as root
+            sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /tmp/ubuntu-core-snap/etc/ssh/sshd_config
             # create new core snap for this boot
             snapbuild /tmp/ubuntu-core-snap /home/image
 
@@ -168,7 +170,10 @@ suites:
             }
             EOF
 
-            # FIXME: make spread reboot the system instead of the wait
-            #        (to allow manual inspection for now)
-            #reboot
-            sleep 600
+            # REBOOT
+
+            echo "Ensure we are in an all-snap system now"
+            if [ -e /var/lib/dpkg/status ]; then
+                echo "Booting did not boot into an all-snap system"
+                exit 1
+            fi
