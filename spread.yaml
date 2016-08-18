@@ -133,20 +133,39 @@ suites:
             # modify the core snap so that the current root-pw works there
             # for spread to do the first login
             unsquashfs -d /tmp/ubuntu-core-snap /var/lib/snapd/download/ubuntu-core_*.snap
+
+            # set root pw
             want_pw="$(grep ^root /etc/shadow)"
             echo "$want_pw" > /tmp/new-shadow
             tail -n +2 /etc/shadow >> /tmp/new-shadow
             cat /tmp/new-shadow
             cp -v /tmp/new-shadow /tmp/ubuntu-core-snap/etc/shadow
+
             # ensure we can connect as root
             sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /tmp/ubuntu-core-snap/etc/ssh/sshd_config
-            # create new core snap for this boot
+
+            # FIXME: install would be better but we don't have dpkg on
+            #        the image
+            # unpack our snapd into the new core snap
+            dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb /tmp/ubuntu-core-snap
+            
+            # build new core snap for this boot
             snapbuild /tmp/ubuntu-core-snap /home/image
 
             # create new image with the modified ubuntu-core snap
             # FIXME: how to test store updated of ubuntu-core with that?
             /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os /home/image/ubuntu-core_*.snap --install snapweb  --output /home/image/all-snap-amd64.img
 
+            # mount image and add all our PROJECT data
+            kpartx -avs /home/image/all-snap-amd64.img
+            # FIXME: hardcoded
+            mount /dev/mapper/loop0p3 /mnt
+            mkdir -p /mnt/user-data/
+            cp -ar /home/gopath /mnt/user-data/
+            sync
+            umount /mnt
+            kpartx -d all-snap-amd64.img
+            
             # the reflash magic
             # FIXME: ideally in initrd, but this is good enough for now
             cat > /home/image/reflash.sh << EOF
