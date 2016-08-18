@@ -175,6 +175,7 @@ suites:
             # blow away everything
             /tmp/busybox dd if=/home/image/all-snap-amd64.img of=/dev/sda bs=4M
             # and reboot
+            /tmp/busybox sync
             /tmp/busybox echo b > /proc/sysrq-trigger
             EOF
             chmod +x /home/image/reflash.sh
@@ -191,9 +192,8 @@ suites:
 
             # REBOOT
 
-            # FIXME: ideally we would check that we are now in an all-snap
-            #        system, but this does not work for some reason,
-            #
-            #        trying to do anyhint here in this script with the
-            #        filesystem will fail (issue in the spread reboot
-            #        handling?)
+            echo "We are now in an all-snap world"
+            if [ -e /var/lib/dpkg/status ]; then
+                echo "Rebooting into all-snap system did not work"
+                exit 1
+            fi
