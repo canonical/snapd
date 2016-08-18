@@ -20,7 +20,6 @@
 package hookstate_test
 
 import (
-	"fmt"
 	"regexp"
 	"testing"
 
@@ -28,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -38,7 +38,7 @@ func TestHookManager(t *testing.T) { TestingT(t) }
 type hookManagerSuite struct {
 	state       *state.State
 	manager     *hookstate.HookManager
-	mockHandler *mockHandler
+	mockHandler *hooktest.MockHandler
 	task        *state.Task
 	change      *state.Change
 	command     *testutil.MockCmd
@@ -77,7 +77,7 @@ func (s *hookManagerSuite) TestSmoke(c *C) {
 func (s *hookManagerSuite) TestHookTask(c *C) {
 	// Register a handler generator for the "test-hook" hook
 	var calledContext *hookstate.Context
-	mockHandler := newMockHandler()
+	mockHandler := hooktest.NewMockHandler()
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		calledContext = context
 		return mockHandler
@@ -100,9 +100,9 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 		"snap", "run", "test-snap", "--hook", "test-hook", "-r", "1",
 	}})
 
-	c.Check(mockHandler.beforeCalled, Equals, true)
-	c.Check(mockHandler.doneCalled, Equals, true)
-	c.Check(mockHandler.errorCalled, Equals, false)
+	c.Check(mockHandler.BeforeCalled, Equals, true)
+	c.Check(mockHandler.DoneCalled, Equals, true)
+	c.Check(mockHandler.ErrorCalled, Equals, false)
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
@@ -111,12 +111,12 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 	// Register a handler generator for the "test-hook" hook
-	mockHandler := newMockHandler()
+	mockHandler := hooktest.NewMockHandler()
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		return mockHandler
 	}
 
-	// Force the snap command to exit 1, and print something to stdout
+	// Force the snap command to exit 1, and print something to stderr
 	s.command = testutil.MockCommand(
 		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
 
@@ -128,9 +128,9 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(mockHandler.beforeCalled, Equals, true)
-	c.Check(mockHandler.doneCalled, Equals, false)
-	c.Check(mockHandler.errorCalled, Equals, true)
+	c.Check(mockHandler.BeforeCalled, Equals, true)
+	c.Check(mockHandler.DoneCalled, Equals, false)
+	c.Check(mockHandler.ErrorCalled, Equals, true)
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
@@ -140,7 +140,7 @@ func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	// Register a handler generator for the "test-hook" hook
-	mockHandler := newMockHandler()
+	mockHandler := hooktest.NewMockHandler()
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		return mockHandler
 	}
@@ -168,10 +168,10 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(mockHandler.beforeCalled, Equals, true)
-	c.Check(mockHandler.doneCalled, Equals, false)
-	c.Check(mockHandler.errorCalled, Equals, true)
-	c.Check(mockHandler.err, ErrorMatches, ".*hook \"test-hook\" aborted.*")
+	c.Check(mockHandler.BeforeCalled, Equals, true)
+	c.Check(mockHandler.DoneCalled, Equals, false)
+	c.Check(mockHandler.ErrorCalled, Equals, true)
+	c.Check(mockHandler.Err, ErrorMatches, ".*hook \"test-hook\" aborted.*")
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
@@ -179,10 +179,40 @@ func (s *hookManagerSuite) TestHookTaskCanKillHook(c *C) {
 	checkTaskLogContains(c, s.task, regexp.MustCompile(".*hook \"test-hook\" aborted.*"))
 }
 
+func (s *hookManagerSuite) TestHookTaskCorrectlyIncludesContext(c *C) {
+	// Register a handler generator for the "test-hook" hook
+	mockHandler := hooktest.NewMockHandler()
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+		return mockHandler
+	}
+
+	// Force the snap command to exit with a failure and print to stderr so we
+	// can catch and verify it.
+	s.command = testutil.MockCommand(
+		c, "snap", ">&2 echo \"SNAP_CONTEXT=$SNAP_CONTEXT\"; exit 1")
+
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(mockHandler.BeforeCalled, Equals, true)
+	c.Check(mockHandler.DoneCalled, Equals, false)
+	c.Check(mockHandler.ErrorCalled, Equals, true)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.ErrorStatus)
+	c.Check(s.change.Status(), Equals, state.ErrorStatus)
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*SNAP_CONTEXT=\\S+"))
+}
+
 func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 	// Register a handler generator for the "test-hook" hook
-	mockHandler := newMockHandler()
-	mockHandler.beforeError = true
+	mockHandler := hooktest.NewMockHandler()
+	mockHandler.BeforeError = true
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		return mockHandler
 	}
@@ -195,9 +225,9 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(mockHandler.beforeCalled, Equals, true)
-	c.Check(mockHandler.doneCalled, Equals, false)
-	c.Check(mockHandler.errorCalled, Equals, false)
+	c.Check(mockHandler.BeforeCalled, Equals, true)
+	c.Check(mockHandler.DoneCalled, Equals, false)
+	c.Check(mockHandler.ErrorCalled, Equals, false)
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
@@ -207,8 +237,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	// Register a handler generator for the "test-hook" hook
-	mockHandler := newMockHandler()
-	mockHandler.doneError = true
+	mockHandler := hooktest.NewMockHandler()
+	mockHandler.DoneError = true
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		return mockHandler
 	}
@@ -221,9 +251,9 @@ func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(mockHandler.beforeCalled, Equals, true)
-	c.Check(mockHandler.doneCalled, Equals, true)
-	c.Check(mockHandler.errorCalled, Equals, false)
+	c.Check(mockHandler.BeforeCalled, Equals, true)
+	c.Check(mockHandler.DoneCalled, Equals, true)
+	c.Check(mockHandler.ErrorCalled, Equals, false)
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
@@ -233,8 +263,8 @@ func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 
 func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 	// Register a handler generator for the "test-hook" hook
-	mockHandler := newMockHandler()
-	mockHandler.errorError = true
+	mockHandler := hooktest.NewMockHandler()
+	mockHandler.ErrorError = true
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
 		return mockHandler
 	}
@@ -250,9 +280,9 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(mockHandler.beforeCalled, Equals, true)
-	c.Check(mockHandler.doneCalled, Equals, false)
-	c.Check(mockHandler.errorCalled, Equals, true)
+	c.Check(mockHandler.BeforeCalled, Equals, true)
+	c.Check(mockHandler.DoneCalled, Equals, false)
+	c.Check(mockHandler.ErrorCalled, Equals, true)
 
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
@@ -277,7 +307,7 @@ func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {
 
 func (s *hookManagerSuite) TestHookWithMultipleHandlersIsError(c *C) {
 	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
-		return newMockHandler()
+		return hooktest.NewMockHandler()
 	}
 
 	// Register multiple times for this hook
@@ -306,55 +336,4 @@ func checkTaskLogContains(c *C, task *state.Task, pattern *regexp.Regexp) {
 	}
 
 	c.Check(found, Equals, true, Commentf("Expected to find regex %q in task log: %v", pattern, task.Log()))
-}
-
-type mockHandler struct {
-	beforeCalled bool
-	beforeError  bool
-
-	doneCalled bool
-	doneError  bool
-
-	errorCalled bool
-	errorError  bool
-	err         error
-}
-
-func newMockHandler() *mockHandler {
-	return &mockHandler{
-		beforeCalled: false,
-		beforeError:  false,
-
-		doneCalled: false,
-		doneError:  false,
-
-		errorCalled: false,
-		errorError:  false,
-		err:         nil,
-	}
-}
-
-func (h *mockHandler) Before() error {
-	h.beforeCalled = true
-	if h.beforeError {
-		return fmt.Errorf("before failed at user request")
-	}
-	return nil
-}
-
-func (h *mockHandler) Done() error {
-	h.doneCalled = true
-	if h.doneError {
-		return fmt.Errorf("done failed at user request")
-	}
-	return nil
-}
-
-func (h *mockHandler) Error(err error) error {
-	h.err = err
-	h.errorCalled = true
-	if h.errorError {
-		return fmt.Errorf("error failed at user request")
-	}
-	return nil
 }

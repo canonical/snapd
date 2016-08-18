@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/tools"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1590,7 +1591,14 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	stdout, stderr, err := c.d.overlord.HookManager().SnapCtl(snapctlRequest)
+	// Right now snapctl is only used for hooks. If at some point it grows
+	// beyond that, this probably shouldn't go straight to the HookManager.
+	handler, err := c.d.overlord.HookManager().GetHandler(snapctlRequest.Context)
+	if err != nil {
+		return BadRequest("cannot run snapctl: %s", err)
+	}
+
+	stdout, stderr, err := tools.RunCommand(handler, snapctlRequest.Args)
 	if err != nil {
 		return BadRequest("error running snapctl: %s", err)
 	}
