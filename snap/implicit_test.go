@@ -56,7 +56,7 @@ func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOnClassic(c *C) {
 	c.Assert(info.Slots["unity7"].Interface, Equals, "unity7")
 	c.Assert(info.Slots["unity7"].Name, Equals, "unity7")
 	c.Assert(info.Slots["unity7"].Snap, Equals, info)
-	c.Assert(info.Slots, HasLen, 32)
+	c.Assert(info.Slots, HasLen, 33)
 }
 
 func (s *InfoSnapYamlTestSuite) TestImplicitSlotsAreRealInterfaces(c *C) {
