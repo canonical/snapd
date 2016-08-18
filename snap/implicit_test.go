@@ -42,7 +42,7 @@ func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOutsideClassic(c *C) {
 	c.Assert(info.Slots["network"].Interface, Equals, "network")
 	c.Assert(info.Slots["network"].Name, Equals, "network")
 	c.Assert(info.Slots["network"].Snap, Equals, info)
-	c.Assert(info.Slots, HasLen, 21)
+	c.Assert(info.Slots, HasLen, 22)
 }
 
 func (s *InfoSnapYamlTestSuite) TestAddImplicitSlotsOnClassic(c *C) {

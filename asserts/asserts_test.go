@@ -42,7 +42,25 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
+func (as *assertsSuite) TestRef(c *C) {
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+}
+
+func (as *assertsSuite) TestRefResolveError(c *C) {
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc"},
+	}
+	_, err := ref.Resolve(nil)
+	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
+}
+
 const exKeyID = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+
 const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"primary-key: abc\n" +
