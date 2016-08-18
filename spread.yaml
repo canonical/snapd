@@ -5,7 +5,7 @@ environment:
     PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
     GOPATH: /home/gopath
     PATH: /home/gopath/bin:/snap/bin:$PATH
-    TESTSLIB: $[PROJECT_PATH]/tests/lib
+    TESTSLIB: $(PROJECT_PATH)/tests/lib
     SNAP_REEXEC: 0
 
 backends:
@@ -14,8 +14,13 @@ backends:
         systems:
             - ubuntu-16.04-64-grub
             - ubuntu-16.04-32-grub
+    qemu:
+        systems:
+            - ubuntu-16.04:
+                username: ubuntu
+                password: ubuntu
 
-path: $[PROJECT_PATH]
+path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
