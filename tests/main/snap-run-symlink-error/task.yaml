@@ -9,8 +9,6 @@ restore: |
     rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
     systemctl start snapd
 execute: |
-    # FIXME: remove "SNAP_REEXEC" once we have `snap run` inside the os snap
-    export SNAP_REEXEC=0
     echo Setting up incorrect symlink for snap run
     mkdir -p /snap/bin
     ln -s /usr/bin/snap /snap/bin/xxx
