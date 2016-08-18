@@ -36,7 +36,7 @@ var implicitSlots = []string{
 	"locale-control",
 	"log-observe",
 	"mount-observe",
-        "network",
+	"network",
 	"network-bind",
 	"network-control",
 	"network-observe",
