@@ -189,6 +189,14 @@ static void sc_map_init()
 	sc_map_add(SOCK_PACKET);
 
 	// man 2 prctl
+#ifndef PR_CAP_AMBIENT
+#define PR_CAP_AMBIENT 47
+#define PR_CAP_AMBIENT_IS_SET    1
+#define PR_CAP_AMBIENT_RAISE     2
+#define PR_CAP_AMBIENT_LOWER     3
+#define PR_CAP_AMBIENT_CLEAR_ALL 4
+#endif				// PR_CAP_AMBIENT
+
 	sc_map_add(PR_CAP_AMBIENT);
 	sc_map_add(PR_CAP_AMBIENT_RAISE);
 	sc_map_add(PR_CAP_AMBIENT_LOWER);
@@ -224,7 +232,13 @@ static void sc_map_init()
 	sc_map_add(PR_SET_MM_ENV_END);
 	sc_map_add(PR_SET_MM_AUXV);
 	sc_map_add(PR_SET_MM_EXE_FILE);
+#ifndef PR_MPX_ENABLE_MANAGEMENT
+#define PR_MPX_ENABLE_MANAGEMENT 43
+#endif				// PR_MPX_ENABLE_MANAGEMENT
 	sc_map_add(PR_MPX_ENABLE_MANAGEMENT);
+#ifndef PR_MPX_DISABLE_MANAGEMENT
+#define PR_MPX_DISABLE_MANAGEMENT 44
+#endif				// PR_MPX_DISABLE_MANAGEMENT
 	sc_map_add(PR_MPX_DISABLE_MANAGEMENT);
 	sc_map_add(PR_SET_NAME);
 	sc_map_add(PR_GET_NAME);
@@ -237,9 +251,15 @@ static void sc_map_init()
 	sc_map_add(PR_GET_SECCOMP);
 	sc_map_add(PR_SET_SECUREBITS);
 	sc_map_add(PR_GET_SECUREBITS);
+#ifndef PR_SET_THP_DISABLE
+#define PR_SET_THP_DISABLE 41
+#endif				// PR_SET_THP_DISABLE
 	sc_map_add(PR_SET_THP_DISABLE);
 	sc_map_add(PR_TASK_PERF_EVENTS_DISABLE);
 	sc_map_add(PR_TASK_PERF_EVENTS_ENABLE);
+#ifndef PR_GET_THP_DISABLE
+#define PR_GET_THP_DISABLE 42
+#endif				// PR_GET_THP_DISABLE
 	sc_map_add(PR_GET_THP_DISABLE);
 	sc_map_add(PR_GET_TID_ADDRESS);
 	sc_map_add(PR_SET_TIMERSLACK);
