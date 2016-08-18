@@ -151,8 +151,12 @@ dbus (receive, send)
 
 const udisks2PermanentSlotSecComp = `
 bind
+chown32
 fchown
 fchown32
+fchownat
+lchown
+lchown32
 getsockname
 setsockopt
 mount
