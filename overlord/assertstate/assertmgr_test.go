@@ -60,10 +60,19 @@ type assertMgrSuite struct {
 var _ = Suite(&assertMgrSuite{})
 
 type fakeStore struct {
-	db asserts.RODatabase
+	state *state.State
+	db    asserts.RODatabase
+}
+
+func (sto *fakeStore) pokeStateLock() {
+	// the store should be called without the state lock held. Try
+	// to acquire it.
+	sto.state.Lock()
+	sto.state.Unlock()
 }
 
 func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	sto.pokeStateLock()
 	ref := &asserts.Ref{assertType, key}
 	a, err := ref.Resolve(sto.db.Find)
 	if err != nil {
@@ -114,7 +123,10 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.mgr = mgr
 
 	s.state.Lock()
-	snapstate.ReplaceStore(s.state, &fakeStore{s.storeSigning})
+	snapstate.ReplaceStore(s.state, &fakeStore{
+		state: s.state,
+		db:    s.storeSigning,
+	})
 	s.state.Unlock()
 }
 
