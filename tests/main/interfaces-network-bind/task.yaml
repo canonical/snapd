@@ -11,7 +11,7 @@ details: |
 
 environment:
     SNAP_NAME: network-bind-consumer
-    SNAP_FILE: ./$[SNAP_NAME]_1.0_all.snap
+    SNAP_FILE: network-bind-consumer_1.0_all.snap
     PORT: 8081
     REQUEST_FILE: ./request.txt
 

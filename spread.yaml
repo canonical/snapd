@@ -7,6 +7,9 @@ environment:
     PATH: /home/gopath/bin:/snap/bin:$PATH
     TESTSLIB: /home/gopath/src/github.com/snapcore/snapd/tests/lib
     SNAP_REEXEC: 0
+    SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
+    SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
+    LANG: "$(echo $LANG)"
 
 backends:
     linode:
