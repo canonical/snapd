@@ -36,7 +36,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -127,17 +126,23 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 	}))
 }
 
-func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyOnClassic(c *C) {
-	r1 := release.MockOnClassic(true)
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
+	r1 := devicestate.MockKeyLength(752)
 	defer r1()
-	r2 := devicestate.MockKeyLength(752)
-	defer r2()
 
 	mockServer := s.mockServer(c)
 	defer mockServer.Close()
 
-	r3 := devicestate.MockSerialRequestURL(mockServer.URL)
-	defer r3()
+	r2 := devicestate.MockSerialRequestURL(mockServer.URL)
+	defer r2()
+
+	s.state.Lock()
+	// setup state as will be done by first-boot
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	s.state.Unlock()
 
 	// runs the whole device registration process
 	s.settle()
@@ -192,7 +197,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 
 	s.state.Lock()
 
-	// setup state as done by Ensure/doGenerateDeviceKey
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",

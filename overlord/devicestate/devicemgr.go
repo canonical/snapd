@@ -87,20 +87,12 @@ func (m *DeviceManager) ensureOperational() error {
 	if device.Brand == "" || device.Model == "" {
 		// need first-boot, loading of model assertion info
 		if release.OnClassic {
-			// XXX: cheat for now to get us started somewhere
-			device.Brand = "canonical"
-			device.Model = "pc"
-			err := auth.SetDevice(m.state, device)
-			if err != nil {
-				return err
-			}
-			m.state.Unlock()
-			m.state.Lock()
-		} else {
-			// full first-boot stuff!
-			// TODO: move first boot setup/invocation here!
-			panic("need full first-boot to initialize brand and model of device")
+			// TODO: are we going to have model assertions on classic or need will need to cheat here?
+			return nil
 		}
+		// cannot proceed yet, once first boot is done these will be set
+		// and we can pick up from there
+		return nil
 	}
 
 	for _, chg := range m.state.Changes() {
