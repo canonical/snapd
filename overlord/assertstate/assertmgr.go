@@ -129,7 +129,7 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	s.Unlock()
 	defer s.Lock()
 
-	got := ([]asserts.Assertion)(nil)
+	got := []asserts.Assertion{}
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?
@@ -147,8 +147,7 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	}
 	f.init(db)
 
-	err = f.doFetch(ref)
-	if err != nil {
+	if err := f.doFetch(ref); err != nil {
 		return err
 	}
 
@@ -218,8 +217,7 @@ func (f *fetcher) doFetch(ref *asserts.Ref) error {
 	}
 	f.fetched[u] = fetchRetrieved
 	for _, preref := range a.Prerequisites() {
-		err := f.doFetch(preref)
-		if err != nil {
+		if err := f.doFetch(preref); err != nil {
 			return err
 		}
 	}
@@ -227,8 +225,7 @@ func (f *fetcher) doFetch(ref *asserts.Ref) error {
 		Type:       asserts.AccountKeyType,
 		PrimaryKey: []string{a.SignKeyID()},
 	}
-	err = f.doFetch(keyRef)
-	if err != nil {
+	if err := f.doFetch(keyRef); err != nil {
 		return err
 	}
 	if err := f.save(a); err != nil {
@@ -248,6 +245,9 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
+	// TODO: when we actually use this, snapPath might come from ss
+	// and switch likely to osutil.FileDigest and decide where/when
+	// to actually compute the hash
 	snapPath := snap.MinimalPlaceInfo(ss.Name(), ss.Revision()).MountFile()
 
 	snapf, err := snap.Open(snapPath)
