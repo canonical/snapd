@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -38,7 +39,7 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	var calledContext *Context
 	mockHandlerGenerator := func(context *Context) Handler {
 		calledContext = context
-		return newMockHandler()
+		return hooktest.NewMockHandler()
 	}
 
 	// Verify that a handler generator can be added to the repository
@@ -65,36 +66,4 @@ func (s *repositorySuite) TestAddHandlerGenerator(c *C) {
 	handlers = repository.generateHandlers(context)
 	c.Check(handlers, HasLen, 2)
 	c.Check(calledContext, DeepEquals, context)
-}
-
-type mockHandler struct {
-	beforeCalled bool
-	doneCalled   bool
-	errorCalled  bool
-	err          error
-}
-
-func newMockHandler() *mockHandler {
-	return &mockHandler{
-		beforeCalled: false,
-		doneCalled:   false,
-		errorCalled:  false,
-		err:          nil,
-	}
-}
-
-func (h *mockHandler) Before() error {
-	h.beforeCalled = true
-	return nil
-}
-
-func (h *mockHandler) Done() error {
-	h.doneCalled = true
-	return nil
-}
-
-func (h *mockHandler) Error(err error) error {
-	h.err = err
-	h.errorCalled = true
-	return nil
 }
