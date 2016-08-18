@@ -73,7 +73,7 @@ func (sto *fakeStore) pokeStateLock() {
 
 func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
 	sto.pokeStateLock()
-	ref := &asserts.Ref{assertType, key}
+	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	a, err := ref.Resolve(sto.db.Find)
 	if err != nil {
 		return nil, fmt.Errorf("simulated remote assertion retrieve: %s", err)
