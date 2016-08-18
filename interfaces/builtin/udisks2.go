@@ -51,10 +51,11 @@ dbus (bind)
     bus=system
     name="org.freedesktop.UDisks2",
 
+# Allow unconfined to talk to us
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2{,/**}
-    interface=org.freedesktop.DBus**
+    interface=org.freedesktop.DBus*
     peer=(label=unconfined),
 
 # Needed for mount/unmount operations
@@ -74,8 +75,7 @@ network netlink raw,
 
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
 /run/systemd/seats/* r,
-/{,run/}media rw,
-/{,run/}media/** rw,
+/{,run/}media/{,**} rw,
 mount /dev/{sd*,mmcblk*} -> /{,run/}media/**,
 umount /{,run/}media/**,
 
