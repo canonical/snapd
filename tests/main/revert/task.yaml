@@ -4,7 +4,7 @@ environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/staging: staging
     STORE_TYPE/production: production
-    BLOB_DIR: $(mktemp -d)
+    BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
     if [ "$STORE_TYPE" = "fake" ]; then

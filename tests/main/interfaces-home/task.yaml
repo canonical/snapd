@@ -102,7 +102,7 @@ execute: |
 
     echo "Then the snap is able to create home files"
     home-consumer.writer "$CREATABLE_FILE"
-    cat "$CREATABLE_FILE" | grep -Pqz "$OK"
+    cat "$CREATABLE_FILE" | grep -Pqz "ok"
 
     echo "============================================"
 

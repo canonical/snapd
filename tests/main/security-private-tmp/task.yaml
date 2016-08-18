@@ -1,19 +1,22 @@
 summary: Ensure that the security rules for private tmp are in place.
 
+environment:
+    SNAP_INSTALL_DIR: $(pwd)/snap-install-dir
+
 prepare: |
     echo "Given a basic snap is installed"
     snapbuild $TESTSLIB/snaps/test-snapd-tools .
     snap install test-snapd-tools_1.0_all.snap
 
     echo "And another basic snap is installed"
-    SNAP_INSTALL_DIR=$(mktemp -d)
+    mkdir -p $SNAP_INSTALL_DIR
     cp -ra $TESTSLIB/snaps/test-snapd-tools/* $SNAP_INSTALL_DIR
     sed -i 's/test-snapd-tools/not-test-snapd-tools/g' $SNAP_INSTALL_DIR/meta/snap.yaml
     snapbuild $SNAP_INSTALL_DIR .
     snap install not-test-snapd-tools_1.0_all.snap
 
 restore: |
-    rm -f test-snapd-tools_1.0_all.snap not-test-snapd-tools_1.0_all.snap \
+    rm -rf test-snapd-tools_1.0_all.snap not-test-snapd-tools_1.0_all.snap \
           $SNAP_INSTALL_DIR /tmp/foo *stat.error
 
 execute: |
