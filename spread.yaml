@@ -144,6 +144,9 @@ suites:
             tail -n +2 /etc/shadow >> /tmp/new-shadow
             cp -v /tmp/new-shadow $UNPACKD/etc/shadow
 
+            # we need the test user in the image
+            chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
+
             # modify sshd so that we can connect as root
             sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
 
@@ -151,7 +154,7 @@ suites:
             #        the image
             # unpack our freshly build snapd into the new core snap
             dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
-            
+
             # build new core snap for the image
             snapbuild $UNPACKD $IMAGE_HOME
 
@@ -167,6 +170,11 @@ suites:
             mount /dev/mapper/loop2p3 /mnt
             mkdir -p /mnt/user-data/
             cp -avr /home/gopath /mnt/user-data/
+
+            # create test user home dir
+            mkdir -p /mnt/user-data/test
+            chown 1001:1001 /mnt/user-data/test
+
             umount /mnt
             kpartx -d  $IMAGE_HOME/$IMAGE
             
@@ -202,3 +210,16 @@ suites:
                 echo "Rebooting into all-snap system did not work"
                 exit 1
             fi
+
+            # Snapshot the state.json
+            if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+                systemctl stop snapd.socket
+                tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+                systemctl start snapd.socket
+            fi
+        restore-each: |
+            systemctl stop snapd.socket
+            rm -rf /var/lib/snapd/*
+            rm -rf /snap/bin/*
+            $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
+            systemctl start snapd.socket
