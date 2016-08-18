@@ -28,8 +28,7 @@ prepare: |
     systemctl start snapd.service
 
     # Make sure we're running with the correct snap-exec
-    cmp /usr/lib/snapd/snap-exec /snap/ubuntu-core/current/usr/lib/snapd/snap-exec
-    if [ $? -ne 0 ]; then
+    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
         echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
         exit 1
     fi
