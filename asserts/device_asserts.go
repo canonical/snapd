@@ -181,7 +181,7 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	keyID, err := checkNotEmptyString(assert.headers, "device-key-id")
+	keyID, err := checkNotEmptyString(assert.headers, "device-key-sha3-384")
 	if err != nil {
 		return nil, err
 	}
