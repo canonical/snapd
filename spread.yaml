@@ -110,7 +110,7 @@ suites:
             fi
         restore: |
             $TESTSLIB/reset.sh
-            if [ "$SNAPPY_SYSTEM" != "ubuntu-core-16" ]; then
+            if [ "$SPREAD_SYSTEM" != "ubuntu-core-16" ]; then
                 apt purge -y snapd || true
             fi
         restore-each: |
