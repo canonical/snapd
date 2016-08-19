@@ -1,7 +1,7 @@
 summary: Check that all tasks of a failed installtion are undone
 
 restore: |
-    rm -rf /snap/test-snapd-tools/current/foo
+    rm -rf /snap/test-snapd-tools
 
 execute: |
     check_empty_glob(){

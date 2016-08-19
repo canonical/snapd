@@ -6,6 +6,7 @@ environment:
     GOPATH: /home/gopath
     PATH: /home/gopath/bin:/snap/bin:$PATH
     TESTSLIB: $[PROJECT_PATH]/tests/lib
+    SNAP_REEXEC: 0
 
 backends:
     linode:
@@ -59,7 +60,7 @@ prepare: |
     [Unit]
     StartLimitInterval=0
     [Service]
-    Environment=SNAPD_DEBUG_HTTP=7
+    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
     EOF
 
     # Build snapbuild.
@@ -80,7 +81,6 @@ suites:
                 snap install test-snapd-tools
                 snap list | grep core
                 snap remove test-snapd-tools
-                rmdir /snap/test-snapd-tools # Should be done by snapd.
 
                 systemctl stop snapd.service snapd.socket
                 systemctl daemon-reload
