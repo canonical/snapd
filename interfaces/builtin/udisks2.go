@@ -61,10 +61,6 @@ dbus (receive, send)
 # Needed for mount/unmount operations
 capability sys_admin,
 
-# Allow reading existing mount points
-@{PROC}/@{pid}/mountinfo r,
-@{PROC}/swaps r,
-
 # Allow scanning of devices
 network netlink raw,
 /run/udev/data/b[0-9]*:[0-9]* r,
