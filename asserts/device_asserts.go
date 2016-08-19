@@ -195,6 +195,27 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
+// SerialProof holds a serial-proof assertion, which is a self-signed request to prove device owns device key.
+type SerialProof struct {
+	assertionBase
+}
+
+// Nonce returns the nonce obtained from store and to be presented when requesting a device session.
+func (sproof *SerialProof) Nonce() string {
+	return sproof.HeaderString("nonce")
+}
+
+func assembleSerialProof(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "nonce")
+	if err != nil {
+		return nil, err
+	}
+
+	return &SerialProof{
+		assertionBase: assert,
+	}, nil
+}
+
 // SerialRequest holds a serial-request assertion, which is a self-signed request to obtain a full device identity bound to the device public key.
 type SerialRequest struct {
 	assertionBase
