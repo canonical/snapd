@@ -42,7 +42,25 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
+func (as *assertsSuite) TestRef(c *C) {
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+}
+
+func (as *assertsSuite) TestRefResolveError(c *C) {
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc"},
+	}
+	_, err := ref.Resolve(nil)
+	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
+}
+
 const exKeyID = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+
 const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"primary-key: abc\n" +
@@ -564,8 +582,34 @@ func (as *assertsSuite) TestSignKeyID(c *C) {
 	c.Assert(err, IsNil)
 
 	keyID := a.SignKeyID()
-	c.Assert(err, IsNil)
 	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
+}
+
+func (as *assertsSuite) TestSelfRef(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+	}
+	a1, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	c.Check(a1.Ref(), DeepEquals, &asserts.Ref{
+		Type:       asserts.TestOnlyType,
+		PrimaryKey: []string{"0"},
+	})
+
+	headers = map[string]interface{}{
+		"authority-id": "auth-id1",
+		"pk1":          "a",
+		"pk2":          "b",
+	}
+	a2, err := asserts.AssembleAndSignInTest(asserts.TestOnly2Type, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	c.Check(a2.Ref(), DeepEquals, &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"a", "b"},
+	})
 }
 
 func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {

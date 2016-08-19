@@ -55,14 +55,14 @@ interface upon install:
     :log-observe         -
     -                    foo:log-observe
 
-You may manually connect using ``snappy connect``:
+You may manually connect using ``snap connect``:
 
     $ sudo snap connect foo:log-observe core:log-observe
     $ snap interfaces
     Slot                 Plug
     :log-observe         foo:log-observe
 
-and disconnect using ``snappy disconnect``:
+and disconnect using ``snap disconnect``:
 
     $ sudo snap disconnect foo:log-observe core:log-observe
     $ snap interfaces # shows they are disconnected
@@ -249,6 +249,12 @@ printing.
 ### firewall-control
 
 Can configure network firewalling giving privileged access to networking.
+
+* Auto-Connect: no
+
+### fuse-support
+
+Can mount fuse filesystems (as root only).
 
 * Auto-Connect: no
 

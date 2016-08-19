@@ -1,0 +1,17 @@
+name: test-snapd-fuse-consumer
+version: 1.0
+summary: Basic fuse consumer snap
+description: A basic snap declaring a plug on fuse
+
+apps:
+    create:
+        command: bin/create
+        plugs: [fuse-support]
+
+parts:
+    create:
+        plugin: python2
+        stage-packages: [python-fuse]
+    make:
+        plugin: make
+        source: .

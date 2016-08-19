@@ -17,10 +17,7 @@
  *
  */
 
-package image
+package assertstate
 
-var (
-	DecodeModelAssertion = decodeModelAssertion
-	DownloadUnpackGadget = downloadUnpackGadget
-	BootstrapToRootDir   = bootstrapToRootDir
-)
+// expose Fetch for testing
+var Fetch = fetch

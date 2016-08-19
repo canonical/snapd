@@ -106,7 +106,11 @@ type Config struct {
 	AssertionsURI     *url.URL
 	PurchasesURI      *url.URL
 	PaymentMethodsURI *url.URL
-	DetailFields      []string
+
+	Architecture string
+	Series       string
+
+	DetailFields []string
 }
 
 // Store represents the ubuntu snap store
@@ -118,6 +122,9 @@ type Store struct {
 	assertionsURI     *url.URL
 	purchasesURI      *url.URL
 	paymentMethodsURI *url.URL
+
+	architecture string
+	series       string
 
 	detailFields []string
 	// reused http client
@@ -204,6 +211,12 @@ func myappsURL() string {
 
 var defaultConfig = Config{}
 
+// DefaultConfig returns a copy of the default configuration ready to be adapted.
+func DefaultConfig() *Config {
+	cfg := defaultConfig
+	return &cfg
+}
+
 func init() {
 	storeBaseURI, err := url.Parse(cpiURL())
 	if err != nil {
@@ -288,6 +301,16 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		detailsURI = &uri
 	}
 
+	architecture := arch.UbuntuArchitecture()
+	if cfg.Architecture != "" {
+		architecture = cfg.Architecture
+	}
+
+	series := release.Series
+	if cfg.Series != "" {
+		series = cfg.Series
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
 		storeID:           storeID,
@@ -297,6 +320,8 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		assertionsURI:     cfg.AssertionsURI,
 		purchasesURI:      cfg.PurchasesURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
+		series:            series,
+		architecture:      architecture,
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
@@ -429,8 +454,8 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", reqOptions.Accept)
-	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
-	req.Header.Set("X-Ubuntu-Series", release.Series)
+	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
+	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if reqOptions.ContentType != "" {

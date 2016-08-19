@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "invalid hook-- it shouldn't be possible to call me"

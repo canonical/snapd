@@ -19,8 +19,7 @@ execute: |
     rm /snap/bin/$APP
     ln -s /usr/bin/snap /snap/bin/$APP
 
-    # FIXME: remove "SNAP_REEXEC" once we have `snap run` inside the os snap
-    SNAP_REEXEC=0 $APP $SNAP/bin/cat
-    SNAP_REEXEC=0 $APP $SNAP/bin/cat > new.txt 2>&1 
+    $APP $SNAP/bin/cat
+    $APP $SNAP/bin/cat > new.txt 2>&1 
 
     diff -u orig.txt new.txt
