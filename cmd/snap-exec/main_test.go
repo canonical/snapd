@@ -282,3 +282,27 @@ func actuallyExec(argv0 string, argv []string, env []string) error {
 	}
 	return err
 }
+
+func (s *snapExecSuite) TestSnapExecShellIntegration(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	execArgv0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	syscallExec = func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		execEnv = env
+		return nil
+	}
+
+	// launch and verify its run the right way
+	err := snapExecApp("snapname.app", "42", "shell", []string{"-c", "echo foo"})
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, "/bin/bash")
+	c.Check(execArgs, DeepEquals, []string{execArgv0, "-c", "echo foo"})
+	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
+}

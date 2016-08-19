@@ -45,6 +45,9 @@ restore: |
     mount "$snap" "$core"
     systemctl start snapd.service
 
+    # do not leave a mess around
+    rm -rf squashfs-root
+
 execute: |
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
     # check the output instead.
