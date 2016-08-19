@@ -176,6 +176,12 @@ playback.
 
 * Auto-Connect: yes
 
+### pluggable-storage
+
+Can access filesystems mounted on USB drives or SD cards
+
+* Auto-Connect: no
+
 ### pulseaudio
 
 Can access the PulseAudio sound server which allows for sound playback in games
@@ -383,5 +389,11 @@ Can manage timeservers directly separate from ``config core``.
 ### tpm
 
 Can access the tpm device /dev/tpm0.
+
+* Auto-Connect: no
+
+### udisks2
+
+Can detect, mount, and unmount USB storage devices and SD cards.
 
 * Auto-Connect: no
