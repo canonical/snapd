@@ -30,6 +30,7 @@ import (
 var implicitSlots = []string{
 	"bluetooth-control",
 	"firewall-control",
+	"fuse-support",
 	"home",
 	"hardware-observe",
 	"locale-control",
@@ -48,6 +49,7 @@ var implicitSlots = []string{
 	"timeserver-control",
 	"timezone-control",
 	"tpm",
+	"kernel-module-control",
 }
 
 var implicitClassicSlots = []string{
