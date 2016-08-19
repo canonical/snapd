@@ -226,3 +226,5 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 }
+
+// TODO: test poll logic
