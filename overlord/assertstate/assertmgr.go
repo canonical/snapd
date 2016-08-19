@@ -141,13 +141,9 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 		return nil
 	}
 
-	f := &fetcher{
-		retrieve: retrieve,
-		save:     save,
-	}
-	f.init(db)
+	f := asserts.NewFetcher(db, retrieve, save)
 
-	if err := f.doFetch(ref); err != nil {
+	if err := f.Fetch(ref); err != nil {
 		return err
 	}
 
@@ -170,68 +166,6 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 		}
 	}
 
-	return nil
-}
-
-type fetchProgress int
-
-const (
-	fetchNotSeen fetchProgress = iota
-	fetchRetrieved
-	fetchSaved
-)
-
-// TODO: expose this for snap download etc, need those extra use cases to clarify the final interface
-type fetcher struct {
-	db asserts.RODatabase
-
-	retrieve func(*asserts.Ref) (asserts.Assertion, error) // can ignore errors as needed
-	save     func(asserts.Assertion) error
-
-	fetched map[string]fetchProgress
-}
-
-func (f *fetcher) init(db asserts.RODatabase) {
-	f.db = db
-	f.fetched = make(map[string]fetchProgress)
-}
-
-func (f *fetcher) doFetch(ref *asserts.Ref) error {
-	_, err := ref.Resolve(f.db.FindTrusted)
-	if err == nil {
-		return nil
-	}
-	if err != asserts.ErrNotFound {
-		return err
-	}
-	u := ref.Unique()
-	switch f.fetched[u] {
-	case fetchSaved:
-		return nil // nothing to do
-	case fetchRetrieved:
-		return fmt.Errorf("internal error: circular assertions are not expected: %s %v", ref.Type.Name, ref.PrimaryKey)
-	}
-	a, err := f.retrieve(ref)
-	if err != nil {
-		return err
-	}
-	f.fetched[u] = fetchRetrieved
-	for _, preref := range a.Prerequisites() {
-		if err := f.doFetch(preref); err != nil {
-			return err
-		}
-	}
-	keyRef := &asserts.Ref{
-		Type:       asserts.AccountKeyType,
-		PrimaryKey: []string{a.SignKeyID()},
-	}
-	if err := f.doFetch(keyRef); err != nil {
-		return err
-	}
-	if err := f.save(a); err != nil {
-		return err
-	}
-	f.fetched[u] = fetchSaved
 	return nil
 }
 

@@ -29,6 +29,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
@@ -42,7 +43,7 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-func makeFakeModelAssertion(c *C) string {
+func makeFakeModelAssertion() *asserts.Model {
 	var modelAssertion = []byte(`type: model
 series: 16
 authority-id: my-brand
@@ -60,10 +61,11 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw==
 `)
 
-	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, modelAssertion, 0644)
-	c.Assert(err, IsNil)
-	return fn
+	a, err := asserts.Decode(modelAssertion)
+	if err != nil {
+		panic(err)
+	}
+	return a.(*asserts.Model)
 }
 
 type imageSuite struct {
@@ -74,7 +76,6 @@ type imageSuite struct {
 
 	downloadedSnaps map[string]string
 	storeSnapInfo   map[string]*snap.Info
-	storeRestorer   func()
 }
 
 var _ = Suite(&imageSuite{})
@@ -88,14 +89,10 @@ func (s *imageSuite) SetUpTest(c *C) {
 	image.Stdout = s.stdout
 	s.downloadedSnaps = make(map[string]string)
 	s.storeSnapInfo = make(map[string]*snap.Info)
-	s.storeRestorer = image.MockStoreNew(func(storeID string) image.Store {
-		return s
-	})
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
 	partition.ForceBootloader(nil)
-	s.storeRestorer()
 	image.Stdout = os.Stdout
 }
 
@@ -127,7 +124,7 @@ type: os
 `
 
 func (s *imageSuite) TestMissingModelAssertions(c *C) {
-	err := image.DownloadUnpackGadget(&image.Options{})
+	_, err := image.DecodeModelAssertion(&image.Options{})
 	c.Assert(err, ErrorMatches, "cannot read model assertion: open : no such file or directory")
 }
 
@@ -135,7 +132,7 @@ func (s *imageSuite) TestIncorrectModelAssertions(c *C) {
 	fn := filepath.Join(c.MkDir(), "broken-model.assertion")
 	err := ioutil.WriteFile(fn, nil, 0644)
 	c.Assert(err, IsNil)
-	err = image.DownloadUnpackGadget(&image.Options{
+	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot decode model assertion "%s": assertion content/signature separator not found`, fn))
@@ -158,17 +155,29 @@ AXNpZw==
 	err := ioutil.WriteFile(fn, differentAssertion, 0644)
 	c.Assert(err, IsNil)
 
-	err = image.DownloadUnpackGadget(&image.Options{
+	_, err = image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion in "%s" is not a model assertion`, fn))
 }
 
-func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
-	fn := makeFakeModelAssertion(c)
-	err := image.DownloadUnpackGadget(&image.Options{
+func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
+	mod := makeFakeModelAssertion()
+
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(mod), 0644)
+	c.Assert(err, IsNil)
+
+	a, err := image.DecodeModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ModelType)
+}
+
+func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
+	mod := makeFakeModelAssertion()
+	err := image.DownloadUnpackGadget(s, mod, &image.Options{})
 	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
 }
 
@@ -181,7 +190,7 @@ func infoFromSnapYaml(c *C, snapYaml string, rev snap.Revision) *snap.Info {
 }
 
 func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
-	fn := makeFakeModelAssertion(c)
+	mod := makeFakeModelAssertion()
 	files := [][]string{
 		{"subdir/canary.txt", "I'm a canary"},
 	}
@@ -189,8 +198,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(99))
 
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
-	err := image.DownloadUnpackGadget(&image.Options{
-		ModelFile:       fn,
+	err := image.DownloadUnpackGadget(s, mod, &image.Options{
 		GadgetUnpackDir: gadgetUnpackDir,
 	})
 	c.Assert(err, IsNil)
@@ -200,7 +208,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 		{"meta/snap.yaml", packageGadget},
 		{files[0][0], files[0][1]},
 	} {
-		fn = filepath.Join(gadgetUnpackDir, t.file)
+		fn := filepath.Join(gadgetUnpackDir, t.file)
 		content, err := ioutil.ReadFile(fn)
 		c.Assert(err, IsNil)
 		c.Check(content, DeepEquals, []byte(t.content))
@@ -208,7 +216,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 }
 
 func (s *imageSuite) TestBootstrapToRootDir(c *C) {
-	fn := makeFakeModelAssertion(c)
+	mod := makeFakeModelAssertion()
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
@@ -231,8 +239,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	defer c2.Restore()
 
-	err = image.BootstrapToRootDir(&image.Options{
-		ModelFile:       fn,
+	err = image.BootstrapToRootDir(s, mod, &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	})
