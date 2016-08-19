@@ -380,6 +380,35 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
+// A sneakyStore changes the state when called
+type sneakyStore struct {
+	*fakeStore
+	state *state.State
+}
+
+func (s sneakyStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+	s.state.Lock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+	})
+	s.state.Unlock()
+	return s.fakeStore.Snap(name, channel, devmode, user)
+}
+
+func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
+	c.Assert(err, ErrorMatches, `snap "some-snap" state changed during install preparations`)
+}
+
 func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

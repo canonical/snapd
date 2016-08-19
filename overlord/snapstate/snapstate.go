@@ -23,6 +23,7 @@ package snapstate
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -61,7 +62,7 @@ func (f Flags) JailMode() bool {
 }
 
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
-	if err := checkChangeConflict(s, ss.Name()); err != nil {
+	if err := checkChangeConflict(s, ss.Name(), snapst); err != nil {
 		return nil, err
 	}
 
@@ -153,7 +154,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	return state.NewTaskSet(tasks...), nil
 }
 
-func checkChangeConflict(s *state.State, snapName string) error {
+func checkChangeConflict(s *state.State, snapName string, snapst *SnapState) error {
 	for _, task := range s.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
@@ -167,6 +168,25 @@ func checkChangeConflict(s *state.State, snapName string) error {
 			}
 		}
 	}
+
+	if snapst != nil {
+		// caller wants us to also make sure the SnapState in state
+		// matches the one they provided. Necessary because we need to
+		// unlock while talking to the store, during which a change can
+		// sneak in (if it's before the taskset is created) (e.g. for
+		// install, while getting the snap info; for refresh, when
+		// getting what needs refreshing).
+		var cursnapst SnapState
+		if err := Get(s, snapName, &cursnapst); err != nil && err != state.ErrNoState {
+			return err
+		}
+
+		// TODO: implement the rather-boring-but-more-performant SnapState.Equals
+		if !reflect.DeepEqual(snapst, &cursnapst) {
+			return fmt.Errorf("snap %q state changed during install preparations", snapName)
+		}
+	}
+
 	return nil
 }
 
@@ -283,7 +303,7 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
-	if err := checkChangeConflict(s, name); err != nil {
+	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -318,7 +338,7 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already disabled", name)
 	}
 
-	if err := checkChangeConflict(s, name); err != nil {
+	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -384,7 +404,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	if err := checkChangeConflict(s, name); err != nil {
+	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
 
