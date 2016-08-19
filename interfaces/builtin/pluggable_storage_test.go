@@ -81,7 +81,7 @@ func (s *PluggableStorageInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 func (s *PluggableStorageInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
-		interfaces.SecurityUDev}
+		interfaces.SecurityUDev, interfaces.SecurityMount}
 	for _, system := range systems {
 		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
 		c.Assert(err, IsNil)
@@ -97,6 +97,9 @@ func (s *PluggableStorageInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityMount)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 }
