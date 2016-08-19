@@ -43,9 +43,10 @@ func init() {
 	cmd.hidden = true
 }
 
+// Key represents a key that can be used for signing assertions.
 type Key struct {
 	Name     string `json:"name"`
-	SHA3_384 string `json:"sha3-384"`
+	Sha3_384 string `json:"sha3-384"`
 }
 
 func (x *cmdKeys) Execute(args []string) error {
@@ -64,12 +65,12 @@ func (x *cmdKeys) Execute(args []string) error {
 	display := func(privk asserts.PrivateKey, fpr string, uid string) error {
 		key := Key{
 			Name:     uid,
-			SHA3_384: privk.PublicKey().ID(),
+			Sha3_384: privk.PublicKey().ID(),
 		}
 		if x.JSON {
 			keys = append(keys, key)
 		} else {
-			fmt.Fprintf(w, "%s\t%s\n", key.Name, key.SHA3_384)
+			fmt.Fprintf(w, "%s\t%s\n", key.Name, key.Sha3_384)
 		}
 		return nil
 	}
