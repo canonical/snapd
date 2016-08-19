@@ -1,0 +1,29 @@
+summary: Ensure that a ubuntu-core refresh works
+
+systems: [ubuntu-core-16]
+
+execute: |
+    # FIXME: make this more flexible so that on reuse we don't hardcode "x1"
+    echo "Ensure we are with the right sideloaded core"
+    snap list |grep "ubuntu-core.*x1"
+    grep 'snap_core=ubuntu-core_x1.snap' /proc/cmdline
+    
+    echo "Install a new ubuntu-core"
+    snap install /var/lib/snapd/snaps/ubuntu-core_x1.snap
+    echo "Ensure we have x2 installed now"
+    snap list |grep "ubuntu-core.*x2"
+
+    echo "Ensure the bootloader is correct before reboot"
+    grub-editenv list | grep 'snap_core=ubuntu-core_x1.snap'
+    grub-editenv list | grep 'snap_try_core=ubuntu-core_x2.snap'
+    grub-editenv list | grep 'snap_mode=try'
+
+    # REBOOT
+
+    echo "Ensure we booted from the newly installed core snap"
+    grep 'snap_core=ubuntu-core_x2.snap' /proc/cmdline
+    echo "Ensure the bootloader is correct after reboot"
+    grub-editenv list | grep 'snap_core=ubuntu-core_x2.snap'
+    grub-editenv list | grep '^snap_try_core=$'
+    grub-editenv list | grep '^snap_mode=$'
+    
