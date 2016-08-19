@@ -26,4 +26,6 @@ execute: |
     grub-editenv list | grep 'snap_core=ubuntu-core_x2.snap'
     grub-editenv list | grep '^snap_try_core=$'
     grub-editenv list | grep '^snap_mode=$'
-    
+
+    echo "Ensure the snap list contains our new ubuntu-core snap"
+    snap list |grep "ubuntu-core.*x2"
