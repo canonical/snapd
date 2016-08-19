@@ -111,12 +111,12 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			c.Check(serialReq.BrandID(), Equals, "canonical")
 			c.Check(serialReq.Model(), Equals, "pc")
 			serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
-				"brand-id":      "canonical",
-				"model":         "pc",
-				"serial":        "9999",
-				"device-key":    serialReq.HeaderString("device-key"),
-				"device-key-id": serialReq.SignKeyID(),
-				"timestamp":     time.Now().Format(time.RFC3339),
+				"brand-id":            "canonical",
+				"model":               "pc",
+				"serial":              "9999",
+				"device-key":          serialReq.HeaderString("device-key"),
+				"device-key-sha3-384": serialReq.SignKeyID(),
+				"timestamp":           time.Now().Format(time.RFC3339),
 			}, nil, "")
 			c.Assert(err, IsNil)
 			w.Header().Set("Content-Type", asserts.MediaType)
@@ -162,11 +162,11 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(becomeOperational.Status().Ready(), Equals, true)
 	c.Check(becomeOperational.Err(), IsNil)
 
-	devId, err := auth.Device(s.state)
+	device, err := auth.Device(s.state)
 	c.Assert(err, IsNil)
-	c.Check(devId.Brand, Equals, "canonical")
-	c.Check(devId.Model, Equals, "pc")
-	c.Check(devId.Serial, Equals, "9999")
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Serial, Equals, "9999")
 
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
@@ -180,10 +180,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
-	var keyID string
-	err = s.state.Get("device-key-id", &keyID)
-	c.Assert(err, IsNil)
-	c.Check(keyID, Equals, privKey.PublicKey().ID())
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 }
 
 func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
@@ -201,9 +198,9 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
 	})
 	s.mgr.KeypairManager().Put("device", privKey)
-	s.state.Set("device-key-id", privKey.PublicKey().ID())
 
 	t := s.state.NewTask("request-serial", "test")
 	chg := s.state.NewChange("become-operational", "...")

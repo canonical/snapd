@@ -181,7 +181,7 @@ const serialExample = "type: serial\n" +
 	"model: baz-3000\n" +
 	"serial: 2700\n" +
 	"device-key:\n    DEVICEKEY\n" +
-	"device-key-id: KEYID\n" +
+	"device-key-sha3-384: KEYID\n" +
 	"TSLINE" +
 	"body-length: 2\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +

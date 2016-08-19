@@ -110,7 +110,7 @@ func (m *DeviceManager) ensureOperational() error {
 	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
 	requestSerial.WaitFor(genKey)
 
-	chg := m.state.NewChange("become-operational", i18n.G("Setting up device identity"))
+	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
 	chg.AddAll(state.NewTaskSet(genKey, requestSerial))
 
 	return nil
@@ -148,15 +148,14 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	var keyID string
-	// XXX: make this a field of DeviceState?
-	err := st.Get("device-key-id", &keyID)
-	if err == nil {
+	device, err := auth.Device(st)
+	if err != nil {
+		return err
+	}
+
+	if device.KeyID != "" {
 		// nothing to do
 		return nil
-	}
-	if err != state.ErrNoState {
-		return err
 	}
 
 	keyPair, err := rsa.GenerateKey(rand.Reader, keyLength)
@@ -172,21 +171,23 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot store device key pair: %v", err)
 	}
 
-	st.Set("device-key-id", privKey.PublicKey().ID())
+	device.KeyID = privKey.PublicKey().ID()
+	auth.SetDevice(st, device)
+	t.SetStatus(state.DoneStatus)
 	return nil
 }
 
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
-	var keyID string
-	err := m.state.Get("device-key-id", &keyID)
-	if err == state.ErrNoState {
-		return nil, fmt.Errorf("internal error: cannot find device key pair")
-	}
+	device, err := auth.Device(m.state)
 	if err != nil {
 		return nil, err
 	}
 
-	privKey, err := m.keypairMgr.Get("device", keyID)
+	if device.KeyID == "" {
+		return nil, fmt.Errorf("internal error: cannot find device key pair")
+	}
+
+	privKey, err := m.keypairMgr.Get("device", device.KeyID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read device key pair: %v", err)
 	}
@@ -257,7 +258,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBufferString(serialRequest))
 	if err != nil {
 		st.Lock()
-		t.Errorf("cannot POST request for a serial: %v", err)
+		t.Errorf("cannot deliver device serial request: %v", err)
 		st.Unlock()
 		return nil, &state.Retry{After: 60 * time.Second}
 	}
@@ -268,7 +269,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 		return nil, errPoll
 	default:
 		st.Lock()
-		t.Errorf("cannot POST request for a serial: unexpected status %d", resp.StatusCode)
+		t.Errorf("cannot deliver device serial request: unexpected status %d", resp.StatusCode)
 		st.Unlock()
 		return nil, &state.Retry{After: 60 * time.Second}
 	}
@@ -285,7 +286,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 
 	serial, ok := got.(*asserts.Serial)
 	if !ok {
-		return nil, fmt.Errorf("request for a serial response did not return a serial assertion")
+		return nil, fmt.Errorf("cannot use device serial assertion of type %q", got.Type().Name)
 	}
 
 	return serial, nil
@@ -309,9 +310,9 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	// make this idempotent, look if we have already a serial assertion
 	// for privKey
 	serials, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
-		"brand-id":      device.Brand,
-		"model":         device.Model,
-		"device-key-id": privKey.PublicKey().ID(),
+		"brand-id":            device.Brand,
+		"model":               device.Model,
+		"device-key-sha3-384": privKey.PublicKey().ID(),
 	})
 
 	if len(serials) == 1 {
@@ -350,7 +351,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
-		t.Logf("polling for a serial in 60 seconds")
+		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: 60 * time.Second}
 	}
 	if err != nil { // errors & retries
