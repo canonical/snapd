@@ -51,7 +51,8 @@ dbus (bind)
     bus=system
     name="org.freedesktop.UDisks2",
 
-# Allow unconfined to talk to us
+# Allow unconfined to talk to us. The API for unconfined will be limited
+# with DBus policy, below.
 dbus (receive, send)
     bus=system
     path=/org/freedesktop/UDisks2{,/**}
@@ -177,13 +178,14 @@ sendto
 const udisks2PermanentSlotDBus = `
 <policy user="root">
     <allow own="org.freedesktop.UDisks2"/>
+    <allow send_destination="org.freedesktop.UDisks2"/>
 </policy>
 `
 
 const udisks2ConnectedPlugDBus = `
 <policy context="default">
     <deny own="org.freedesktop.UDisks2"/>
-    <allow send_destination="org.freedesktop.UDisks2"/>
+    <deny send_destination="org.freedesktop.UDisks2"/>
 </policy>
 `
 
