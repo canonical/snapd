@@ -1,5 +1,7 @@
 summary: Check that more than one snap is refreshed.
 
+systems: [-ubuntu-core-16]
+
 details: |
     We use only the fake store for this test because we currently
     have only one controlled snap in the remote stores, when we will

@@ -1,5 +1,5 @@
 summary: Check that try command works
-
+systems: [-ubuntu-core-16]
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"
