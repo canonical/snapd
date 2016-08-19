@@ -178,7 +178,7 @@ playback.
 
 ### pluggable-storage
 
-Can access filesystems mounted on USB drives or SD cards
+Can access files from pluggable storage in /media and /run/media
 
 * Auto-Connect: no
 
@@ -394,6 +394,6 @@ Can access the tpm device /dev/tpm0.
 
 ### udisks2
 
-Can detect, mount, and unmount USB storage devices and SD cards.
+Can access snaps providing the udisks2 interface which gives privileged access to storage on the device
 
 * Auto-Connect: no
