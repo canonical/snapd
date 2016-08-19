@@ -203,6 +203,7 @@ type requestIDResp struct {
 }
 
 func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
+	// TODO: see to simplify locking here
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
@@ -213,6 +214,7 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 		st.Unlock()
 		return "", &state.Retry{After: 60 * time.Second}
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		st.Lock()
 		t.Errorf("cannot retrieve request-id for making a request for a serial: unexpected status %d", resp.StatusCode)
@@ -252,6 +254,7 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 var errPoll = errors.New("serial-request accepted, poll later")
 
 func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client) (*asserts.Serial, error) {
+	// TODO: see to simplify locking here
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
@@ -262,6 +265,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 		st.Unlock()
 		return nil, &state.Retry{After: 60 * time.Second}
 	}
+	defer resp.Body.Close()
 
 	switch resp.StatusCode {
 	case 200, 201:
