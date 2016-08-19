@@ -290,11 +290,10 @@ func (db *Database) Check(assert Assertion) error {
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
-	assertType := assert.Type()
+	ref := assert.Ref()
 
-	keyLen := len(assertType.PrimaryKey)
-	if keyLen == 0 {
-		return fmt.Errorf("internal error: assertion type %q has no primary key", assertType.Name)
+	if len(ref.PrimaryKey) == 0 {
+		return fmt.Errorf("internal error: assertion type %q has no primary key", ref.Type.Name)
 	}
 
 	err := db.Check(assert)
@@ -302,24 +301,21 @@ func (db *Database) Add(assert Assertion) error {
 		return err
 	}
 
-	keyValues := make([]string, keyLen)
-	for i, k := range assertType.PrimaryKey {
-		keyVal := assert.HeaderString(k)
+	for i, keyVal := range ref.PrimaryKey {
 		if keyVal == "" {
-			return fmt.Errorf("missing or non-string primary key header: %v", k)
+			return fmt.Errorf("missing or non-string primary key header: %v", ref.Type.PrimaryKey[i])
 		}
-		keyValues[i] = keyVal
 	}
 
 	// assuming trusted account keys/assertions will be managed
 	// through the os snap this seems the safest policy until we
 	// know more/better
-	_, err = db.trusted.Get(assertType, keyValues)
+	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey)
 	if err != ErrNotFound {
-		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", assertType.Name, keyValues)
+		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
 
-	return db.bs.Put(assertType, assert)
+	return db.bs.Put(ref.Type, assert)
 }
 
 func searchMatch(assert Assertion, expectedHeaders map[string]string) bool {

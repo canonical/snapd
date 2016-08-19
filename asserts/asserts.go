@@ -135,6 +135,9 @@ type Assertion interface {
 
 	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
 	Prerequisites() []*Ref
+
+	// Ref returns a reference representing this assertion.
+	Ref() *Ref
 }
 
 // MediaType is the media type for encoded assertions on the wire.
@@ -205,6 +208,19 @@ func (ab *assertionBase) SignKeyID() string {
 // Prerequisites returns references to the prerequisite assertions for the validity of this one.
 func (ab *assertionBase) Prerequisites() []*Ref {
 	return nil
+}
+
+// Ref returns a reference representing this assertion.
+func (ab *assertionBase) Ref() *Ref {
+	assertType := ab.Type()
+	primKey := make([]string, len(assertType.PrimaryKey))
+	for i, name := range assertType.PrimaryKey {
+		primKey[i] = ab.HeaderString(name)
+	}
+	return &Ref{
+		Type:       assertType,
+		PrimaryKey: primKey,
+	}
 }
 
 // sanity check
