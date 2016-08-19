@@ -34,9 +34,9 @@ type createUserSuite struct {
 }
 
 func (s *createUserSuite) TestCreateUserCreatesUser(c *check.C) {
-	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "mvo@ubuntu.com")
+	createOutput := cli.ExecCommand(c, "sudo", "snap", "create-user", "--sudoer", "mvo@ubuntu.com")
 
-	expected := `Created user "mvo"\n`
+	expected := `Created user "mvo" and imported SSH keys.\n`
 	c.Assert(createOutput, check.Matches, expected)
 
 	// file exists and has a size greater than zero
