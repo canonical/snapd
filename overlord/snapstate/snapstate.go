@@ -170,6 +170,12 @@ func checkChangeConflict(s *state.State, snapName string, snapst *SnapState) err
 	}
 
 	if snapst != nil {
+		// caller wants us to also make sure the SnapState in state
+		// matches the one they provided. Necessary because we need to
+		// unlock while talking to the store, during which a change can
+		// sneak in (if it's before the taskset is created) (e.g. for
+		// install, while getting the snap info; for refresh, when
+		// getting what needs refreshing).
 		var cursnapst SnapState
 		if err := Get(s, snapName, &cursnapst); err != nil && err != state.ErrNoState {
 			return err
