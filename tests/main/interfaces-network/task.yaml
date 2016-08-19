@@ -1,5 +1,7 @@
 summary: Ensure network interface works.
 
+systems: [-ubuntu-core-16]
+
 details: |
     The network interface allows a snap to access the network as a client.
 

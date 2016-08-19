@@ -1,4 +1,5 @@
 summary: Check that upgrade works
+systems: [-ubuntu-core-16]
 restore: |
     rm -f /var/tmp/myevil.txt
 execute: |

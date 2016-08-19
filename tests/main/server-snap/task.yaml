@@ -1,4 +1,5 @@
 summary: Check snap web servers
+systems: [-ubuntu-core-16]
 environment:
     SNAP_NAME/pythonServer: xkcd-webserver
     IP_VERSION/pythonServer: 4
