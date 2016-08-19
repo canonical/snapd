@@ -27,6 +27,9 @@ execute: |
     echo "And fstab files are created"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
 
+    echo "And we can use the shared content"
+    content-plug | grep "Some shared content"
+
     echo "============================================"
 
     echo "When the plug is disconnected"
