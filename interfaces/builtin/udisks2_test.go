@@ -177,29 +177,34 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
-		interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount}
-	for _, system := range systems {
+	ppSystems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
+		interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount,
+		interfaces.SecurityAppArmor}
+	for _, system := range ppSystems {
 		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
+	}
+
+	csSystems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
+		interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount}
+	for _, system := range csSystems {
+		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
 	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
 
+	cpSystems := [...]interfaces.SecuritySystem{interfaces.SecurityUDev,
+		interfaces.SecurityMount}
+	for _, system := range cpSystems {
+		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
+		c.Assert(err, IsNil)
+		c.Assert(snippet, IsNil)
+	}
+
+	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
 }
 
 func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
