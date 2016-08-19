@@ -62,7 +62,7 @@ func (f Flags) JailMode() bool {
 }
 
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
-	if err := checkChangeConflict(s, snapst, ss.Name()); err != nil {
+	if err := checkChangeConflict(s, ss.Name(), snapst); err != nil {
 		return nil, err
 	}
 
@@ -154,7 +154,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	return state.NewTaskSet(tasks...), nil
 }
 
-func checkChangeConflict(s *state.State, snapst *SnapState, snapName string) error {
+func checkChangeConflict(s *state.State, snapName string, snapst *SnapState) error {
 	for _, task := range s.Tasks() {
 		k := task.Kind()
 		chg := task.Change()
@@ -297,7 +297,7 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already enabled", name)
 	}
 
-	if err := checkChangeConflict(s, nil, name); err != nil {
+	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -332,7 +332,7 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("snap %q already disabled", name)
 	}
 
-	if err := checkChangeConflict(s, nil, name); err != nil {
+	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
 
@@ -398,7 +398,7 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	if err := checkChangeConflict(s, nil, name); err != nil {
+	if err := checkChangeConflict(s, name, nil); err != nil {
 		return nil, err
 	}
 
