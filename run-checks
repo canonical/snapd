@@ -119,6 +119,7 @@ if [ "$UNIT" = 1 ]; then
     echo "mode: set" > .coverage/coverage.out
 
     echo Building
+    go generate -tags=excludeintegration -x github.com/snapcore/snapd/cmd/snap
     go build -tags=excludeintegration -v github.com/snapcore/snapd/...
 
     # tests
