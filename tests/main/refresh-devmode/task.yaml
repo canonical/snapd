@@ -13,7 +13,7 @@ environment:
     SNAP_NAME: test-snapd-tools
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
     CONFIG_DIR: /etc/systemd/system/snapd.service.d
-    STORE_CONFIG: /etc/systemd/system/snapd.service.d/fakestore.conf
+    STORE_CONFIG: $CONFIG_DIR/fakestore.conf
     BLOB_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
     STORE_TYPE/fake: fake
