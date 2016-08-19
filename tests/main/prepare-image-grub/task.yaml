@@ -1,4 +1,5 @@
 summary: Check that prepare-image works for grub-systems
+systems: [-ubuntu-core-16]
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image

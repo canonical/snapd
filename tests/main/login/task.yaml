@@ -1,5 +1,7 @@
 summary: Checks for snap login
 
+systems: [-ubuntu-core-16]
+
 restore: |
     snap logout || true
 

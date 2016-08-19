@@ -1,5 +1,7 @@
 summary: Ensure bluez interface works.
 
+systems: [-ubuntu-core-16]
+
 details: |
     The bluez interface allows the bluez service to run and clients to
     communicate with it.
