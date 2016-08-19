@@ -65,9 +65,6 @@ capability sys_admin,
 @{PROC}/@{pid}/mountinfo r,
 @{PROC}/swaps r,
 
-# Udisks checks for existing configured mount locations here
-/etc/fstab r,
-
 # Allow scanning of devices
 network netlink raw,
 /run/udev/data/b[0-9]*:[0-9]* r,
