@@ -365,8 +365,12 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 
 		ts, err := doInstall(st, snapst, ss)
 		if err != nil {
-			// log?
-			continue
+			if len(names) == 0 {
+				// doing "refresh all", just skip this snap
+				logger.Noticef("cannot refresh snap %q: %v", update.Name(), err)
+				continue
+			}
+			return nil, nil, err
 		}
 		updated = append(updated, update.Name())
 		tasksets = append(tasksets, ts)
