@@ -41,10 +41,10 @@ type: gadget
 `
 
 var mockGadgetYaml = []byte(`
-bootloader: u-boot
 volumes:
   volumename:
     schema: mbr
+    bootloader: u-boot
     id:     id,guid
     structure:
       - label: system-boot
@@ -87,11 +87,11 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 	ginfo, err := snap.ReadGadgetInfo(info)
 	c.Assert(err, IsNil)
 	c.Assert(ginfo, DeepEquals, &snap.GadgetInfo{
-		Bootloader: "u-boot",
 		Volumes: map[string]snap.Volume{
 			"volumename": snap.Volume{
-				Schema: "mbr",
-				ID:     "id,guid",
+				Schema:     "mbr",
+				Bootloader: "u-boot",
+				ID:         "id,guid",
 				Structure: []snap.Structure{
 					{
 						Label:       "system-boot",
@@ -125,7 +125,9 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlEmptydBootloader(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
-bootloader: 
+volumes:
+ name:
+  bootloader: 
 `)
 
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
@@ -138,7 +140,9 @@ bootloader:
 func (s *gadgetYamlTestSuite) TestReadGadgetYamlInvalidBootloader(c *C) {
 	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
 	mockGadgetYamlBroken := []byte(`
-bootloader: silo
+volumes:
+ name:
+  bootloader: silo
 `)
 
 	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), mockGadgetYamlBroken, 0644)
@@ -146,4 +150,14 @@ bootloader: silo
 
 	_, err = snap.ReadGadgetInfo(info)
 	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader must be either grub or u-boot")
+}
+
+func (s *gadgetYamlTestSuite) TestReadGadgetYamlMissingBootloader(c *C) {
+	info := snaptest.MockSnap(c, mockGadgetSnapYaml, &snap.SideInfo{Revision: snap.R(42)})
+
+	err := ioutil.WriteFile(filepath.Join(info.MountDir(), "meta", "gadget.yaml"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snap.ReadGadgetInfo(info)
+	c.Assert(err, ErrorMatches, "cannot read gadget snap details: bootloader not declared in any volume")
 }

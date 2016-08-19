@@ -28,14 +28,14 @@ import (
 )
 
 type gadgetYaml struct {
-	Bootloader string            `yaml:"bootloader"`
-	Volumes    map[string]volume `yaml:"volumes,omitempty"`
+	Volumes map[string]volume `yaml:"volumes,omitempty"`
 }
 
 type volume struct {
-	Schema    string      `yaml:"schema"`
-	ID        string      `yaml:"id"`
-	Structure []structure `yaml:"structure"`
+	Schema     string      `yaml:"schema"`
+	Bootloader string      `yaml:"bootloader"`
+	ID         string      `yaml:"id"`
+	Structure  []structure `yaml:"structure"`
 }
 
 type structure struct {
@@ -62,14 +62,14 @@ type content struct {
 }
 
 type GadgetInfo struct {
-	Bootloader string
-	Volumes    map[string]Volume
+	Volumes map[string]Volume
 }
 
 type Volume struct {
-	Schema    string
-	ID        string
-	Structure []Structure
+	Schema     string
+	Bootloader string
+	ID         string
+	Structure  []Structure
 }
 
 type Structure struct {
@@ -109,24 +109,33 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 	}
 
 	// basic validation
-	switch gy.Bootloader {
-	case "":
-		return nil, fmt.Errorf(errorFormat, "bootloader cannot be empty")
-	case "grub", "u-boot":
-		// all good
-	default:
-		return nil, fmt.Errorf(errorFormat, "bootloader must be either grub or u-boot")
+	foundBootloader := false
+	for _, v := range gy.Volumes {
+		if foundBootloader {
+			return nil, fmt.Errorf(errorFormat, "bootloader already declared")
+		}
+		switch v.Bootloader {
+		case "":
+			return nil, fmt.Errorf(errorFormat, "bootloader cannot be empty")
+		case "grub", "u-boot":
+			foundBootloader = true
+		default:
+			return nil, fmt.Errorf(errorFormat, "bootloader must be either grub or u-boot")
+		}
+	}
+	if !foundBootloader {
+		return nil, fmt.Errorf(errorFormat, "bootloader not declared in any volume")
 	}
 
 	gi := &GadgetInfo{
-		Bootloader: gy.Bootloader,
-		Volumes:    make(map[string]Volume),
+		Volumes: make(map[string]Volume),
 	}
 	for k, v := range gy.Volumes {
 		gi.Volumes[k] = Volume{
-			Schema:    v.Schema,
-			ID:        v.ID,
-			Structure: make([]Structure, len(v.Structure)),
+			Schema:     v.Schema,
+			Bootloader: v.Bootloader,
+			ID:         v.ID,
+			Structure:  make([]Structure, len(v.Structure)),
 		}
 		for si, sv := range v.Structure {
 			gi.Volumes[k].Structure[si] = Structure{
