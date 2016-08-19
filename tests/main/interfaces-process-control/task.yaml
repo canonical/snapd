@@ -8,7 +8,9 @@ summary: |
     The plug must not be autoconnected on install and, as usual, must be able to be
     reconnected.
 
-    A snap declaring a plug on this interface must be able to kill other processes.
+    A snap declaring a plug on this interface must be able to kill other processes. Currently
+    this test does not check the priority change capability of the interface, will be
+    extended later.
 
 prepare: |
     echo "Given a snap declaring a plug on the process-control interface is installed"
