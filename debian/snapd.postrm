@@ -11,8 +11,8 @@ systemctl_stop() {
 }
 
 if [ "$1" = "purge" ]; then
-    mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-    services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
+    mounts=$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')
+    services=$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')
     for unit in $services $mounts; do
         # ensure its really a snapp mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
@@ -21,12 +21,12 @@ if [ "$1" = "purge" ]; then
         fi
 
         echo "Stopping $unit"
-        systemctl_stop $unit
+        systemctl_stop "$unit"
 
         # if it is a mount unit, we can find the snap name in the mount
         # unit (we just ignore unit files)
-        snap="$(grep 'Where=/snap/' /etc/systemd/system/$unit|cut -f3 -d/)"
-        rev="$(grep 'Where=/snap/' /etc/systemd/system/$unit|cut -f4 -d/)"
+        snap=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f3 -d/)
+        rev=$(grep 'Where=/snap/' "/etc/systemd/system/$unit"|cut -f4 -d/)
         if [ -n "$snap" ]; then
             echo "Removing snap $snap"
             # generated binaries
@@ -48,8 +48,8 @@ if [ "$1" = "purge" ]; then
         fi
         
         echo "Removing $unit"
-        rm -f /etc/systemd/system/$unit
-        rm -f /etc/systemd/system/multi-user.target.wants/$unit
+        rm -f "/etc/systemd/system/$unit"
+        rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
     echo "Removing snapd state"
