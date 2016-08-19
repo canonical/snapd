@@ -224,17 +224,17 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, 
 	return out, nil
 }
 
-type GPGKeypairInfo struct {
+type gpgKeypairInfo struct {
 	pubKey      PublicKey
 	fingerprint string
 }
 
-func (gkm *GPGKeypairManager) findByName(name string) (*GPGKeypairInfo, error) {
+func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	stop := errors.New("stop marker")
-	var hit GPGKeypairInfo
+	var hit gpgKeypairInfo
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if uid == name {
-			hit = GPGKeypairInfo{
+			hit = gpgKeypairInfo{
 				pubKey:      privk.PublicKey(),
 				fingerprint: fpr,
 			}
@@ -261,6 +261,7 @@ Name-Real: %s
 Preferences: SHA512
 `
 
+// Generate creates a new key with the given passphrase and name.
 func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
 	_, err := gkm.findByName(name)
 	if err == nil {
@@ -277,6 +278,7 @@ func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
 	return nil
 }
 
+// Export returns the encoded text of the named public key.
 func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	keyInfo, err := gkm.findByName(name)
 	if err != nil {
@@ -289,6 +291,7 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	return encoded, nil
 }
 
+// Delete removes the named key pair from GnuPG's storage.
 func (gkm *GPGKeypairManager) Delete(name string) error {
 	keyInfo, err := gkm.findByName(name)
 	if err != nil {

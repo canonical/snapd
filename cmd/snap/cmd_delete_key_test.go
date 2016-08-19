@@ -53,7 +53,7 @@ func (s *SnapKeysSuite) TestDeleteKey(c *C) {
 	expectedResponse := []snap.Key{
 		snap.Key{
 			Name:     "default",
-			SHA3_384: "2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs",
+			Sha3_384: "2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs",
 		},
 	}
 	var obtainedResponse []snap.Key

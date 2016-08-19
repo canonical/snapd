@@ -74,11 +74,11 @@ func (s *SnapKeysSuite) TestKeysJSON(c *C) {
 	expectedResponse := []snap.Key{
 		snap.Key{
 			Name:     "default",
-			SHA3_384: "2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs",
+			Sha3_384: "2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs",
 		},
 		snap.Key{
 			Name:     "another",
-			SHA3_384: "zAEl4AL2RpKJv2mBMp8SeyHu8GeI9o6GvQr6EGbiOFsZAAaRixqy4XGydK-h2FgW",
+			Sha3_384: "zAEl4AL2RpKJv2mBMp8SeyHu8GeI9o6GvQr6EGbiOFsZAAaRixqy4XGydK-h2FgW",
 		},
 	}
 	var obtainedResponse []snap.Key
