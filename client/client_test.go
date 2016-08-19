@@ -54,6 +54,7 @@ type clientSuite struct {
 var _ = check.Suite(&clientSuite{})
 
 func (cs *clientSuite) SetUpTest(c *check.C) {
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "auth.json"))
 	cs.cli = client.New(nil)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
@@ -64,6 +65,10 @@ func (cs *clientSuite) SetUpTest(c *check.C) {
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (cs *clientSuite) TearDownTest(c *check.C) {
+	os.Unsetenv(client.TestAuthFileEnvKey)
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
@@ -109,22 +114,19 @@ func (cs *clientSuite) TestClientWorks(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "json"))
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	var v string
 	_ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	c.Assert(cs.req, check.NotNil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, check.Equals, "")
 }
 
 func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "json"))
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	mockUserData := client.User{
 		Macaroon:   "macaroon",
@@ -280,15 +282,17 @@ func (cs *clientSuite) TestClientCreateUser(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-                        "username": "karl"
+                        "username": "karl",
+                        "ssh-key-count": 1
 		}
 	}`
-	rsp, err := cs.cli.CreateUser("popper@lse.ac.uk")
+	rsp, err := cs.cli.CreateUser(&client.CreateUserRequest{Email: "popper@lse.ac.uk", Sudoer: true})
 	c.Assert(cs.req.Method, check.Equals, "POST")
 	c.Assert(cs.req.URL.Path, check.Equals, "/v2/create-user")
 	c.Assert(err, check.IsNil)
 	c.Assert(rsp, check.DeepEquals, &client.CreateUserResult{
-		Username: "karl",
+		Username:    "karl",
+		SSHKeyCount: 1,
 	})
 }
 

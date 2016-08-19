@@ -20,8 +20,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -36,8 +38,10 @@ An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {
+	JSON       bool `long:"json" description:"output results in JSON format"`
+	Sudoer     bool `long:"sudoer" description:"grant sudo access to the created user"`
 	Positional struct {
-		EMail string `positional-arg-name:"email"`
+		Email string `positional-arg-name:"email"`
 	} `positional-args:"yes"`
 }
 
@@ -51,11 +55,25 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	}
 
 	cli := Client()
-	rsp, err := cli.CreateUser(x.Positional.EMail)
+
+	request := client.CreateUserRequest{
+		Email:  x.Positional.Email,
+		Sudoer: x.Sudoer,
+	}
+
+	rsp, err := cli.CreateUser(&request)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, i18n.G("Created user %q\n"), rsp.Username)
+	if x.JSON {
+		y, err := json.Marshal(rsp)
+		if err != nil {
+			return nil
+		}
+		fmt.Fprintf(Stdout, "%s\n", y)
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("Created user %q and imported SSH keys.\n"), rsp.Username)
+	}
 
 	return nil
 }

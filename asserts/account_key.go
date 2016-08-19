@@ -43,24 +43,23 @@ func (ak *AccountKey) Since() time.Time {
 	return ak.since
 }
 
-// Until returns the time when the account key stops being valid.
+// Until returns the time when the account key stops being valid. A zero time means the key is valid forever.
 func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
-// PublicKeyID returns the key id (as used to match signatures to signing keys) for the account key.
+// PublicKeyID returns the key id used for lookup of the account key.
 func (ak *AccountKey) PublicKeyID() string {
 	return ak.pubKey.ID()
 }
 
-// PublicKeyFingerprint returns the fingerprint of the account key.
-func (ak *AccountKey) PublicKeyFingerprint() string {
-	return ak.pubKey.Fingerprint()
-}
-
 // isKeyValidAt returns whether the account key is valid at 'when' time.
 func (ak *AccountKey) isKeyValidAt(when time.Time) bool {
-	return (when.After(ak.since) || when.Equal(ak.since)) && when.Before(ak.until)
+	valid := when.After(ak.since) || when.Equal(ak.since)
+	if valid && !ak.until.IsZero() {
+		valid = when.Before(ak.until)
+	}
+	return valid
 }
 
 // publicKey returns the underlying public key of the account key.
@@ -68,17 +67,10 @@ func (ak *AccountKey) publicKey() PublicKey {
 	return ak.pubKey
 }
 
-func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (PublicKey, error) {
-	pubKey, err := decodePublicKey(ab.Body())
+func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
+	pubKey, err := DecodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
-	}
-	fp, err := checkNotEmptyString(ab.headers, fingerprintName)
-	if err != nil {
-		return nil, err
-	}
-	if fp != pubKey.Fingerprint() {
-		return nil, fmt.Errorf("public key does not match provided fingerprint")
 	}
 	keyID, err := checkNotEmptyString(ab.headers, keyIDName)
 	if err != nil {
@@ -118,21 +110,29 @@ func (ak *AccountKey) Prerequisites() []*Ref {
 }
 
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "account-id")
+	if err != nil {
+		return nil, err
+	}
+
 	since, err := checkRFC3339Date(assert.headers, "since")
 	if err != nil {
 		return nil, err
 	}
-	until, err := checkRFC3339Date(assert.headers, "until")
+
+	until, err := checkRFC3339DateWithDefault(assert.headers, "until", time.Time{})
 	if err != nil {
 		return nil, err
 	}
-	if !until.After(since) {
-		return nil, fmt.Errorf("invalid 'since' and 'until' times (no gap after 'since' till 'until')")
+	if !until.IsZero() && until.Before(since) {
+		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
-	pubk, err := checkPublicKey(&assert, "public-key-fingerprint", "public-key-id")
+
+	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
 	if err != nil {
 		return nil, err
 	}
+
 	// ignore extra headers for future compatibility
 	return &AccountKey{
 		assertionBase: assert,

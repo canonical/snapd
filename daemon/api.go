@@ -43,7 +43,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -73,6 +75,7 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	paymentMethodsCmd,
+	snapctlCmd,
 }
 
 var (
@@ -186,6 +189,12 @@ var (
 		Path:   "/v2/buy/methods",
 		UserOK: false,
 		GET:    getPaymentMethods,
+	}
+
+	snapctlCmd = &Command{
+		Path:   "/v2/snapctl",
+		UserOK: false,
+		POST:   runSnapctl,
 	}
 )
 
@@ -1187,10 +1196,15 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest("cannot decode request body into an assertion: %v", err)
 	}
-	// TODO/XXX: turn this into a Change/Task combination
-	amgr := c.d.overlord.AssertManager()
-	if err := amgr.DB().Add(a); err != nil {
-		// TODO: have a specific error to be able to return  409 for not newer revision?
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	if err := assertstate.Add(state, a); err != nil {
+		if _, ok := err.(*asserts.RevisionError); ok {
+			return Conflict("assert failed: %v", err)
+		}
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?
@@ -1211,8 +1225,13 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	for k := range q {
 		headers[k] = q.Get(k)
 	}
-	amgr := c.d.overlord.AssertManager()
-	assertions, err := amgr.DB().FindMany(assertType, headers)
+
+	state := c.d.overlord.State()
+	state.Lock()
+	db := assertstate.DB(state)
+	state.Unlock()
+
+	assertions, err := db.FindMany(assertType, headers)
 	if err == asserts.ErrNotFound {
 		return AssertResponse(nil, true)
 	} else if err != nil {
@@ -1428,7 +1447,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	var createData struct {
-		EMail string `json:"email"`
+		Email  string `json:"email"`
+		Sudoer bool   `json:"sudoer"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -1436,29 +1456,31 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
-	if createData.EMail == "" {
+	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
-	v, err := storeUserInfo(createData.EMail)
+	v, err := storeUserInfo(createData.Email)
 	if err != nil {
-		return BadRequest("cannot create user %q: %s", createData.EMail, err)
+		return BadRequest("cannot create user %q: %s", createData.Email, err)
+	}
+	if len(v.SSHKeys) == 0 {
+		return BadRequest("cannot create user for %s: no ssh keys found", createData.Email)
 	}
 
-	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos, createData.Sudoer); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
 	var createResponseData struct {
-		Username string `json:"username"`
+		Username    string `json:"username"`
+		SSHKeyCount int    `json:"ssh-key-count"`
 	}
 	createResponseData.Username = v.Username
+	createResponseData.SSHKeyCount = len(v.SSHKeys)
 
 	return SyncResponse(createResponseData, nil)
-}
-
-type buyResponseData struct {
-	State string `json:"state,omitempty"`
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1470,10 +1492,9 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	opts.User = user
 	s := getStore(c)
 
-	buyResult, err := s.Buy(&opts)
+	buyResult, err := s.Buy(&opts, user)
 
 	switch err {
 	default:
@@ -1484,12 +1505,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		// continue
 	}
 
-	// TODO: Support purchasing redirects
-	if buyResult.State == "InProgress" {
-		return InternalError("payment backend %q is not yet supported", opts.BackendID)
-	}
-
-	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
+	return SyncResponse(buyResult, nil)
 }
 
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1507,4 +1523,32 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	return SyncResponse(paymentMethods, nil)
+}
+
+func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
+	var snapctlRequest hookstate.SnapCtlRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&snapctlRequest); err != nil {
+		return BadRequest("cannot decode snapctl request: %s", err)
+	}
+
+	if snapctlRequest.Context == "" {
+		return BadRequest("snapctl cannot run without context")
+	}
+
+	if len(snapctlRequest.Args) == 0 {
+		return BadRequest("snapctl cannot run without args")
+	}
+
+	stdout, stderr, err := c.d.overlord.HookManager().SnapCtl(snapctlRequest)
+	if err != nil {
+		return BadRequest("error running snapctl: %s", err)
+	}
+
+	result := map[string]string{
+		"stdout": string(stdout),
+		"stderr": string(stderr),
+	}
+
+	return SyncResponse(result, nil)
 }

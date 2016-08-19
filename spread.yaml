@@ -2,10 +2,11 @@ project: snapd
 
 environment:
     REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PROJECT_PATH: /gopath/src/github.com/snapcore/snapd
-    GOPATH: /gopath
-    PATH: /gopath/bin:/snap/bin:$PATH
+    PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
+    GOPATH: /home/gopath
+    PATH: /home/gopath/bin:/snap/bin:$PATH
     TESTSLIB: $[PROJECT_PATH]/tests/lib
+    SNAP_REEXEC: 0
 
 backends:
     linode:
@@ -39,6 +40,10 @@ prepare: |
 
     apt build-dep -y ./
 
+    # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
+    #        hits xenial-updates
+    apt install -y snap-confine
+
     # and remove the image PPA again
     add-apt-repository --remove ppa:snappy-dev/image
 
@@ -55,7 +60,7 @@ prepare: |
     [Unit]
     StartLimitInterval=0
     [Service]
-    Environment=SNAPD_DEBUG_HTTP=7
+    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
     EOF
 
     # Build snapbuild.

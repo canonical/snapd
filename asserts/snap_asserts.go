@@ -29,8 +29,6 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-// TODO: adjust to new designs!
-
 // SnapDeclaration holds a snap-declaration assertion, declaring a
 // snap binding its identifying snap-id to a name, asserting its
 // publisher and its other properties.
