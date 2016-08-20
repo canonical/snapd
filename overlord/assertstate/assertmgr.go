@@ -30,11 +30,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -184,18 +184,7 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 	// to actually compute the hash
 	snapPath := snap.MinimalPlaceInfo(ss.Name(), ss.Revision()).MountFile()
 
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return err
-	}
-
-	squashSnap, ok := snapf.(*squashfs.Snap)
-
-	if !ok {
-		return fmt.Errorf("internal error: cannot compute digest of non squashfs snap")
-	}
-
-	_, sha3_384Digest, err := squashSnap.HashDigest(crypto.SHA3_384)
+	_, sha3_384Digest, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
 	if err != nil {
 		return fmt.Errorf("cannot compute snap %q digest: %v", ss.Name(), err)
 	}

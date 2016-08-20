@@ -20,8 +20,6 @@
 package squashfs
 
 import (
-	"crypto"
-	_ "crypto/sha256"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -108,16 +106,6 @@ func (s *SquashfsTestSuite) TestPath(c *C) {
 	p := "/path/to/foo.snap"
 	snap := New("/path/to/foo.snap")
 	c.Assert(snap.Path(), Equals, p)
-}
-
-func (s *SquashfsTestSuite) TestHashFile(c *C) {
-	snap := makeSnap(c, "name: test", "")
-	size, digest, err := snap.HashDigest(crypto.SHA256)
-	c.Assert(err, IsNil)
-	fileInfo, err := os.Stat(snap.Path())
-	c.Assert(err, IsNil)
-	c.Check(int64(size), Equals, fileInfo.Size())
-	c.Check(digest, HasLen, crypto.SHA256.Size())
 }
 
 func (s *SquashfsTestSuite) TestReadFile(c *C) {
