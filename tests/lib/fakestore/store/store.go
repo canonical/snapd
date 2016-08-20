@@ -392,7 +392,9 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	a, err := bs.Get(typ, comps[1:])
 	if err == asserts.ErrNotFound {
-		http.NotFound(w, req)
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(404)
+		w.Write([]byte(`{"status": 404}`))
 		return
 	}
 	if err != nil {
