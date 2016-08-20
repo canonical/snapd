@@ -19,7 +19,7 @@ setup_fake_store(){
     # debugging
     systemctl status fakestore || true
     echo "Given a controlled store service is up"
-    systemd-run --unit fakestore $(which fakestore) -start -blobdir $top_dir -addr localhost:11028
+    systemd-run --unit fakestore $(which fakestore) -start -dir $top_dir -addr localhost:11028
 
     echo "And snapd is configured to use the controlled store"
     configure_store_backend localhost:11028

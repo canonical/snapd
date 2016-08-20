@@ -32,9 +32,8 @@ import (
 )
 
 var (
-	start = flag.Bool("start", false, "Start the store service")
-	// XXX: rename to -dir
-	topDir          = flag.String("blobdir", "", "Directory to be used by the store to keep and serve snaps, <dir>/asserts is used to find assertions")
+	start           = flag.Bool("start", false, "Start the store service")
+	topDir          = flag.String("dir", "", "Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions")
 	makeRefreshable = flag.String("make-refreshable", "", "List of snaps with new versions separated by commas")
 	addr            = flag.String("addr", "locahost:11028", "Store address")
 )
