@@ -22,6 +22,8 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
+	"crypto"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -30,13 +32,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -54,6 +61,9 @@ type mgrsSuite struct {
 	aa         *testutil.MockCmd
 	udev       *testutil.MockCmd
 	prevctlCmd func(...string) ([]byte, error)
+
+	storeSigning *assertstest.StoreStack
+	restore      func()
 
 	o *overlord.Overlord
 }
@@ -78,6 +88,11 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 
+	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	storePrivKey, _ := assertstest.GenerateKey(752)
+	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	ms.restore = sysdb.InjectTrusted(ms.storeSigning.Trusted)
+
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	ms.o = o
@@ -85,6 +100,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	ms.restore()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
@@ -183,7 +199,8 @@ apps:
 	c.Assert(osutil.FileExists(mup), Equals, false)
 }
 
-const fooSearchHit = `{
+const (
+	fooSearchHit = `{
 	"anon_download_url": "@URL@",
 	"architecture": [
 	    "all"
@@ -202,10 +219,59 @@ const fooSearchHit = `{
 	"version": "@VERSION@"
 }`
 
+	fooSnapID = "idididididididididididididididid"
+)
+
+func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
+	devAcct := assertstest.NewAccount(ms.storeSigning, "devdevev", map[string]interface{}{
+		"account-id": "devdevdev",
+	}, "")
+	err := ms.storeSigning.Add(devAcct)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      fooSnapID,
+		"snap-name":    "foo",
+		"publisher-id": "devdevdev",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = ms.storeSigning.Add(snapDecl)
+	c.Assert(err, IsNil)
+}
+
+func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
+	snapPath := makeTestSnap(c, snapYaml)
+
+	size, dgstHash, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
+	c.Assert(err, IsNil)
+	encDigest, err := asserts.EncodeDigest(crypto.SHA3_384, dgstHash)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"snap-id":       fooSnapID,
+		"snap-sha3-384": encDigest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": revno,
+		"developer-id":  "devdevdev",
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := ms.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = ms.storeSigning.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	return snapPath, encDigest
+}
+
 func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeSvc(c *C) {
 	// test install through store and update, plus some mechanics
 	// of update
 	// TODO: ok to split if it gets too messy to maintain
+
+	ms.prereqSnapAssertions(c)
 
 	snapYamlContent := `name: foo
 version: @VERSION@
@@ -220,7 +286,7 @@ apps:
 	ver := "1.0"
 	revno := "42"
 
-	snapPath := makeTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1))
+	snapPath, digest := ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	snapR, err := os.Open(snapPath)
 	c.Assert(err, IsNil)
 
@@ -234,6 +300,28 @@ apps:
 	}
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/assertions/") {
+			comps := strings.Split(r.URL.Path, "/")
+			ref := &asserts.Ref{
+				Type:       asserts.Type(comps[2]),
+				PrimaryKey: comps[3:],
+			}
+			a, err := ref.Resolve(ms.storeSigning.Find)
+			if err == asserts.ErrNotFound {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(404)
+				w.Write([]byte(`{"status": 404}`))
+				return
+			}
+			if err != nil {
+				panic(err)
+			}
+			w.Header().Set("Content-Type", asserts.MediaType)
+			w.WriteHeader(200)
+			w.Write(asserts.Encode(a))
+			return
+		}
+
 		switch r.URL.Path {
 		case "/details/foo":
 			w.WriteHeader(http.StatusOK)
@@ -262,9 +350,12 @@ apps:
 	c.Assert(err, IsNil)
 	bulkURL, err := url.Parse(baseURL + "/metadata")
 	c.Assert(err, IsNil)
+	assertionsURL, err := url.Parse(baseURL + "/assertions/")
+	c.Assert(err, IsNil)
 	storeCfg := store.Config{
-		DetailsURI: detailsURL,
-		BulkURI:    bulkURL,
+		DetailsURI:    detailsURL,
+		BulkURI:       bulkURL,
+		AssertionsURI: assertionsURL,
 	}
 
 	mStore := store.New(&storeCfg, "", nil)
@@ -290,12 +381,19 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Check(info.Revision, Equals, snap.R(42))
-	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.SnapID, Equals, fooSnapID)
 	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "1.0")
 	c.Check(info.Summary(), Equals, "Foo")
 	c.Check(info.Description(), Equals, "this is a description")
 	c.Check(info.Developer, Equals, "bar")
+
+	snapRev42, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapRev42.(*asserts.SnapRevision).SnapID(), Equals, fooSnapID)
+	c.Check(snapRev42.(*asserts.SnapRevision).SnapRevision(), Equals, 42)
 
 	// check service was setup properly
 	svcFile := filepath.Join(dirs.SnapServicesDir, "snap.foo.svc.service")
@@ -309,7 +407,7 @@ apps:
 
 	ver = "2.0"
 	revno = "50"
-	snapPath = makeTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1))
+	snapPath, digest = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	snapR, err = os.Open(snapPath)
 	c.Assert(err, IsNil)
 
@@ -330,9 +428,16 @@ apps:
 	c.Assert(err, IsNil)
 
 	c.Check(info.Revision, Equals, snap.R(50))
-	c.Check(info.SnapID, Equals, "idididididididididididididididid")
+	c.Check(info.SnapID, Equals, fooSnapID)
 	c.Check(info.DeveloperID, Equals, "devdevdev")
 	c.Check(info.Version, Equals, "2.0")
+
+	snapRev50, err := assertstate.DB(st).Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": digest,
+	})
+	c.Assert(err, IsNil)
+	c.Check(snapRev50.(*asserts.SnapRevision).SnapID(), Equals, fooSnapID)
+	c.Check(snapRev50.(*asserts.SnapRevision).SnapRevision(), Equals, 50)
 
 	// check udpated wrapper
 	content, err := ioutil.ReadFile(info.Apps["bar"].WrapperPath())
