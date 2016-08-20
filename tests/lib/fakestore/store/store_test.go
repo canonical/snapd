@@ -22,6 +22,7 @@ package store
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -207,7 +208,7 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 AXNpZw=`
 )
 
-func (s *storeTestSuite) TestAssertionsEndpoint(c *C) {
+func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
 	// something preloaded
 	resp, err := s.StoreGet(`/assertions/account/testrootorg`)
 	c.Assert(err, IsNil)
@@ -219,7 +220,9 @@ func (s *storeTestSuite) TestAssertionsEndpoint(c *C) {
 	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, string(asserts.Encode(systestkeys.TestRootAccount)))
+}
 
+func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	// something put in the assertion directory
 	a, err := asserts.Decode([]byte(exampleSnapRev))
 	c.Assert(err, IsNil)
@@ -228,13 +231,27 @@ func (s *storeTestSuite) TestAssertionsEndpoint(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
 	c.Assert(err, IsNil)
 
-	resp, err = s.StoreGet(`/assertions/snap-revision/` + rev.SnapSHA3_384())
+	resp, err := s.StoreGet(`/assertions/snap-revision/` + rev.SnapSHA3_384())
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
-	body, err = ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	c.Assert(err, IsNil)
 	c.Check(string(body), Equals, exampleSnapRev)
+}
 
+func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
+	// something preloaded
+	resp, err := s.StoreGet(`/assertions/account/not-an-account-id`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 404)
+
+	dec := json.NewDecoder(resp.Body)
+	var respObj map[string]interface{}
+	err = dec.Decode(&respObj)
+	c.Assert(err, IsNil)
+	c.Check(respObj["status"], Equals, float64(404))
 }
