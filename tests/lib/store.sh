@@ -14,11 +14,12 @@ EOF
 }
 
 setup_fake_store(){
-    local blob_dir=$1
+    local top_dir=$1
+    mkdir -p $top_dir/asserts
     # debugging
     systemctl status fakestore || true
     echo "Given a controlled store service is up"
-    systemd-run --unit fakestore $(which fakestore) -start -blobdir $blob_dir -addr localhost:11028
+    systemd-run --unit fakestore $(which fakestore) -start -blobdir $top_dir -addr localhost:11028
 
     echo "And snapd is configured to use the controlled store"
     configure_store_backend localhost:11028
@@ -36,22 +37,22 @@ setup_staging_store(){
 
 teardown_store(){
     local store_type=$1
-    local blob_dir=$2
+    local top_dir=$2
     if [ "$store_type" = "fake" ]; then
         systemctl stop fakestore
     fi
 
     systemctl stop snapd.socket
-    rm -rf $STORE_CONFIG $blob_dir
+    rm -rf $STORE_CONFIG $top_dir
     systemctl daemon-reload
     systemctl start snapd.socket
 }
 
 setup_store(){
     local store_type=$1
-    local blob_dir=$2
+    local top_dir=$2
     if [ "$store_type" = "fake" ]; then
-        setup_fake_store $blob_dir
+        setup_fake_store $top_dir
     else
         if [ "$store_type" = "staging" ]; then
             setup_staging_store

@@ -50,14 +50,10 @@ var _ = Suite(&storeTestSuite{})
 var defaultAddr = "localhost:23321"
 
 func (s *storeTestSuite) SetUpTest(c *C) {
-	tempdir := c.MkDir()
-	blobs := filepath.Join(tempdir, "snaps")
-	err := os.Mkdir(blobs, 0755)
+	topdir := c.MkDir()
+	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
 	c.Assert(err, IsNil)
-	assertions := filepath.Join(tempdir, "asserts")
-	err = os.Mkdir(assertions, 0755)
-	c.Assert(err, IsNil)
-	s.store = NewStore(blobs, assertions, defaultAddr)
+	s.store = NewStore(topdir, defaultAddr)
 	err = s.store.Start()
 	c.Assert(err, IsNil)
 

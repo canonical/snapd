@@ -59,12 +59,12 @@ type Store struct {
 	srv *graceful.Server
 }
 
-// NewStore creates a new store server
-func NewStore(blobDir, assertDir, addr string) *Store {
+// NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts.
+func NewStore(topDir, addr string) *Store {
 	mux := http.NewServeMux()
 	store := &Store{
-		blobDir:   blobDir,
-		assertDir: assertDir,
+		blobDir:   topDir,
+		assertDir: filepath.Join(topDir, "asserts"),
 
 		url: fmt.Sprintf("http://%s", addr),
 		srv: &graceful.Server{
@@ -81,7 +81,7 @@ func NewStore(blobDir, assertDir, addr string) *Store {
 	mux.HandleFunc("/search", store.searchEndpoint)
 	mux.HandleFunc("/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/snaps/metadata", store.bulkEndpoint)
-	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
+	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
 	mux.HandleFunc("/assertions/", store.assertionsEndpoint)
 
 	return store
