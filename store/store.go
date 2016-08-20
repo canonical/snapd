@@ -1018,7 +1018,8 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		if resp.Header.Get("Content-Type") == "application/json" {
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "application/json" || contentType == "application/problem+json" {
 			var svcErr assertionSvcError
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&svcErr); err != nil {
