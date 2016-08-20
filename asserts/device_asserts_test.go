@@ -181,6 +181,7 @@ const serialExample = "type: serial\n" +
 	"model: baz-3000\n" +
 	"serial: 2700\n" +
 	"device-key:\n    DEVICEKEY\n" +
+	"device-key-sha3-384: KEYID\n" +
 	"TSLINE" +
 	"body-length: 2\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
@@ -191,6 +192,7 @@ const serialExample = "type: serial\n" +
 func (ss *serialSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
 	encoded = strings.Replace(encoded, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
+	encoded = strings.Replace(encoded, "KEYID", ss.deviceKey.PublicKey().ID(), 1)
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SerialType)
@@ -230,10 +232,19 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 	for _, test := range invalidTests {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
-
+		invalid = strings.Replace(invalid, "KEYID", ss.deviceKey.PublicKey().ID(), 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, serialErrPrefix+test.expectedErr)
 	}
+}
+
+func (ss *serialSuite) TestDecodeKeyIDMismatch(c *C) {
+	invalid := strings.Replace(serialExample, "TSLINE", ss.tsLine, 1)
+	invalid = strings.Replace(invalid, "DEVICEKEY", strings.Replace(ss.encodedDevKey, "\n", "\n    ", -1), 1)
+	invalid = strings.Replace(invalid, "KEYID", "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij", 1)
+
+	_, err := asserts.Decode([]byte(invalid))
+	c.Check(err, ErrorMatches, serialErrPrefix+"device key does not match provided key id")
 }
 
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {
