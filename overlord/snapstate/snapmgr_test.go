@@ -20,6 +20,8 @@
 package snapstate_test
 
 import (
+	//"fmt"
+
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -112,11 +114,13 @@ func (s *snapmgrTestSuite) TestStore(c *C) {
 
 func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state.State) int {
 	i := 0
-	n := 5
+	n := 6
 	if curActive {
 		n++
 	}
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "fetch-check-snap-assertions")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
 	i++
@@ -620,6 +624,11 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "fetch-check-snap-assertions:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:  "current",
 			old: "<no-current>",
 		},
@@ -746,6 +755,11 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op:   "storesvc-download",
 			name: "some-snap",
+		},
+		{
+			op:    "fetch-check-snap-assertions:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 		{
 			op:  "current",
@@ -891,6 +905,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "fetch-check-snap-assertions:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:  "current",
 			old: "/snap/some-snap/7",
 		},
@@ -952,6 +971,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			op:    "undo-setup-snap",
 			name:  "/snap/some-snap/11",
 			stype: "app",
+		},
+		{
+			op:    "fetch-check-snap-assertions:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 	}
 
@@ -1028,6 +1052,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "fetch-check-snap-assertions:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:  "current",
 			old: "/snap/some-snap/7",
 		},
@@ -1090,6 +1119,11 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			op:    "undo-setup-snap",
 			name:  "/snap/some-snap/11",
 			stype: "app",
+		},
+		{
+			op:    "fetch-check-snap-assertions:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 	}
 
@@ -2294,6 +2328,11 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 			name: "some-snap",
 		},
 		{
+			op:    "fetch-check-snap-assertions:Doing",
+			name:  "some-snap",
+			revno: snap.R(11),
+		},
+		{
 			op:  "current",
 			old: "<no-current>",
 		},
@@ -2315,6 +2354,11 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 			op:    "undo-setup-snap",
 			name:  "/snap/some-snap/11",
 			stype: "app",
+		},
+		{
+			op:    "fetch-check-snap-assertions:Undoing",
+			name:  "some-snap",
+			revno: snap.R(11),
 		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)

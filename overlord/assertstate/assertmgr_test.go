@@ -24,7 +24,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -195,7 +194,6 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": dev1Acct.AccountID(),
-		"gates":        "",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
@@ -205,10 +203,9 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
 
 	for _, rev := range revisions {
 		headers = map[string]interface{}{
-			"series":        "16",
 			"snap-id":       "snap-id-1",
 			"snap-sha3-384": makeDigest(rev),
-			"snap-size":     "1000",
+			"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
 			"snap-revision": fmt.Sprintf("%d", rev),
 			"developer-id":  dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
@@ -277,19 +274,19 @@ func (s *assertMgrSuite) settle() {
 func (s *assertMgrSuite) TestFetchSnapAssertions(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
-	snapPath := snap.MinimalPlaceInfo("foo", snap.R(10)).MountFile()
-	err := os.MkdirAll(filepath.Dir(snapPath), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "foo.snap")
+	err := ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("fetch-snap-assertions", "Fetch snap assertions")
+	t := s.state.NewTask("fetch-check-snap-assertions", "Fetch and check snap assertions")
 	ss := snapstate.SnapSetup{
-		UserID: 0,
+		SnapPath: snapPath,
+		UserID:   0,
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "snap-id-1",
@@ -313,3 +310,7 @@ func (s *assertMgrSuite) TestFetchSnapAssertions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 }
+
+// TODO: test assertion(s) not found
+// TODO: split out & cover crossCheckSnap(state,sha3-384,size,sideInfo) error
+// TODO: test one crossCheckSnap case
