@@ -20,8 +20,6 @@
 package snapstate_test
 
 import (
-	//"fmt"
-
 	"io/ioutil"
 	"os"
 	"path/filepath"
