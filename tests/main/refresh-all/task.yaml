@@ -6,7 +6,7 @@ details: |
     have more we can update the test to use them
 
 environment:
-    BLOB_DIR: $(mktemp -d)
+    BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
     . $TESTSLIB/store.sh

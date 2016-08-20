@@ -2,13 +2,14 @@ summary: Check that snaps vanishing are handled gracefully
 environment:
     SNAP_NAME/test_snapd_tools: test-snapd-tools
     SNAP_NAME/network_bind_consumer: network-bind-consumer
+    TRYDIR: $(pwd)/trydir
 
 restore: |
     rm -rf $TRYDIR
 
 execute: |
-    TRYDIR="$(mktemp -d)"
-    export TRYDIR
+    mkdir -p $TRYDIR
+
     cp -ar  $TESTSLIB/snaps/$SNAP_NAME/* $TRYDIR
 
     echo Trying a snap
@@ -38,4 +39,3 @@ execute: |
        echo "Some services are not cleaned"
        exit 1
     fi
-
