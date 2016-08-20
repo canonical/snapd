@@ -25,9 +25,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/snaptest"
 
@@ -47,8 +50,15 @@ var _ = Suite(&storeTestSuite{})
 var defaultAddr = "localhost:23321"
 
 func (s *storeTestSuite) SetUpTest(c *C) {
-	s.store = NewStore(c.MkDir(), defaultAddr)
-	err := s.store.Start()
+	tempdir := c.MkDir()
+	blobs := filepath.Join(tempdir, "snaps")
+	err := os.Mkdir(blobs, 0755)
+	c.Assert(err, IsNil)
+	assertions := filepath.Join(tempdir, "asserts")
+	err = os.Mkdir(assertions, 0755)
+	c.Assert(err, IsNil)
+	s.store = NewStore(blobs, assertions, defaultAddr)
+	err = s.store.Start()
 	c.Assert(err, IsNil)
 
 	transport := &http.Transport{}
@@ -167,11 +177,12 @@ func (s *storeTestSuite) TestMakeTestSnap(c *C) {
 	c.Assert(snapFn, Equals, filepath.Join(s.store.blobDir, "foo_1_all.snap"))
 }
 
-func (s *storeTestSuite) TestRefreshSnaps(c *C) {
+func (s *storeTestSuite) TestCollectSnaps(c *C) {
 	s.makeTestSnap(c, "name: foo\nversion: 1")
 
-	s.store.refreshSnaps()
-	c.Assert(s.store.snaps, DeepEquals, map[string]string{
+	snaps, err := s.store.collectSnaps()
+	c.Assert(err, IsNil)
+	c.Assert(snaps, DeepEquals, map[string]string{
 		"foo": filepath.Join(s.store.blobDir, "foo_1_all.snap"),
 	})
 }
@@ -184,4 +195,50 @@ func (s *storeTestSuite) TestSnapDownloadByFullname(c *C) {
 	defer resp.Body.Close()
 
 	c.Assert(resp.StatusCode, Equals, 200)
+}
+
+const (
+	exampleSnapRev = `type: snap-revision
+authority-id: canonical
+snap-sha3-384: QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL
+snap-id: snap-id-1
+snap-size: 999
+snap-revision: 36
+developer-id: developer1
+timestamp: 2016-08-19T19:19:19Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw=`
+)
+
+func (s *storeTestSuite) TestAssertionsEndpoint(c *C) {
+	// something preloaded
+	resp, err := s.StoreGet(`/assertions/account/testrootorg`)
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	c.Check(resp.Header.Get("Content-Type"), Equals, "application/x.ubuntu.assertion")
+
+	body, err := ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, string(asserts.Encode(systestkeys.TestRootAccount)))
+
+	// something put in the assertion directory
+	a, err := asserts.Decode([]byte(exampleSnapRev))
+	c.Assert(err, IsNil)
+	rev := a.(*asserts.SnapRevision)
+
+	err = ioutil.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
+	c.Assert(err, IsNil)
+
+	resp, err = s.StoreGet(`/assertions/snap-revision/` + rev.SnapSHA3_384())
+	c.Assert(err, IsNil)
+	defer resp.Body.Close()
+
+	c.Assert(resp.StatusCode, Equals, 200)
+	body, err = ioutil.ReadAll(resp.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(body), Equals, exampleSnapRev)
+
 }

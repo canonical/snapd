@@ -22,6 +22,7 @@ package store
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -30,6 +31,9 @@ import (
 
 	"gopkg.in/tylerb/graceful.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -48,20 +52,19 @@ func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 
 // Store is our snappy software store implementation
 type Store struct {
-	url     string
-	blobDir string
+	url       string
+	blobDir   string
+	assertDir string
 
 	srv *graceful.Server
-
-	snaps map[string]string
 }
 
 // NewStore creates a new store server
-func NewStore(blobDir, addr string) *Store {
+func NewStore(blobDir, assertDir, addr string) *Store {
 	mux := http.NewServeMux()
 	store := &Store{
-		blobDir: blobDir,
-		snaps:   make(map[string]string),
+		blobDir:   blobDir,
+		assertDir: assertDir,
 
 		url: fmt.Sprintf("http://%s", addr),
 		srv: &graceful.Server{
@@ -79,6 +82,7 @@ func NewStore(blobDir, addr string) *Store {
 	mux.HandleFunc("/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
+	mux.HandleFunc("/assertions/", store.assertionsEndpoint)
 
 	return store
 }
@@ -164,9 +168,13 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		panic("how?")
 	}
 
-	s.refreshSnaps()
+	snaps, err := s.collectSnaps()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-	fn, ok := s.snaps[pkg]
+	fn, ok := snaps[pkg]
 	if !ok {
 		http.NotFound(w, req)
 		return
@@ -204,27 +212,27 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Write(out)
 }
 
-func (s *Store) refreshSnaps() error {
-	s.snaps = map[string]string{}
-
-	snaps, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
+func (s *Store) collectSnaps() (map[string]string, error) {
+	snapFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for _, fn := range snaps {
+	snaps := map[string]string{}
+
+	for _, fn := range snapFns {
 		snapFile, err := snap.Open(fn)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		s.snaps[info.Name()] = fn
+		snaps[info.Name()] = fn
 	}
 
-	return nil
+	return snaps, err
 }
 
 type candidateSnap struct {
@@ -265,7 +273,11 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	s.refreshSnaps()
+	snaps, err := s.collectSnaps()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	// check if we have downloadable snap of the given SnapID
 	for _, pkg := range pkgs.CandidateSnaps {
@@ -276,7 +288,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if fn, ok := s.snaps[name]; ok {
+		if fn, ok := snaps[name]; ok {
 			snapFile, err := snap.Open(fn)
 			if err != nil {
 				http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
@@ -312,4 +324,83 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Write(out)
 
+}
+
+func (s *Store) collectAssertions() (asserts.Backstore, error) {
+	bs := asserts.NewMemoryBackstore()
+
+	add := func(a asserts.Assertion) {
+		bs.Put(a.Type(), a)
+	}
+
+	for _, t := range sysdb.Trusted() {
+		add(t)
+	}
+	add(systestkeys.TestRootAccount)
+	add(systestkeys.TestRootAccountKey)
+	add(systestkeys.TestStoreAccountKey)
+
+	aFiles, err := filepath.Glob(filepath.Join(s.assertDir, "*"))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, fn := range aFiles {
+		b, err := ioutil.ReadFile(fn)
+		if err != nil {
+			return nil, err
+		}
+
+		a, err := asserts.Decode(b)
+		if err != nil {
+			return nil, err
+		}
+
+		add(a)
+	}
+
+	return bs, nil
+}
+
+func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
+	assertPath := strings.TrimPrefix(req.URL.Path, "/assertions/")
+
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	comps := strings.Split(assertPath, "/")
+
+	if len(comps) == 0 {
+		http.Error(w, "missing assertion type", http.StatusBadRequest)
+		return
+
+	}
+
+	typ := asserts.Type(comps[0])
+	if typ == nil {
+		http.Error(w, fmt.Sprintf("unknown assertion type: %s", comps[0]), http.StatusBadRequest)
+		return
+	}
+
+	if len(typ.PrimaryKey) != len(comps)-1 {
+		http.Error(w, fmt.Sprintf("wrong primary key length: %v", comps), http.StatusBadRequest)
+		return
+	}
+
+	a, err := bs.Get(typ, comps[1:])
+	if err == asserts.ErrNotFound {
+		http.NotFound(w, req)
+		return
+	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("cannot retrieve assertion %v: %v", comps, err), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", asserts.MediaType)
+	w.WriteHeader(http.StatusOK)
+	w.Write(asserts.Encode(a))
 }
