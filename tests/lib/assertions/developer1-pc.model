@@ -1,0 +1,24 @@
+type: model
+authority-id: developer1
+series: 16
+brand-id: developer1
+model: my-model
+architecture: amd64
+class: general
+core: ubuntu-core
+gadget: pc
+kernel: pc-kernel
+store: canonical
+timestamp: 2016-08-19T15:58:42+02:00
+sign-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+
+AcLBUgQAAQoABgUCV7cQkgAAGSkQABlLXT3tYpJ2ZvvAtrBGs5aafyb25+DocsnRM5AEO8sns9F8
+H7qRyqOUoM/ZUKtWMahg70/YFyd4N2LqzF00GvZ9bam/1IqaTxgH6ITf1LsIScGAWDEwQ1iDdGXU
+k5+ZGdAfW+mODJOIYfkobQlEg0YNPQWky0LaPXPJDce8P5eKoiBz6DqljP3kaC809Lcc7cRVM0UP
+f9fRTibAoXr/sbOLlQztRtZ9OQGggq3qMwJDX8kkVdZfvnOHyvhKXsrbHlGHKXJGB/9gx67VXtO4
+v2YJ4U7Ev3BY2B2iEePEzfroCF2/E05lWVahHD+Ulj6KUOx+mbDxT/xpFqaoZXyd5X5npRbM1z8R
+ut5/0hZLm7/URqT8faoRhL93QdR+/JjHxLDWDhW1auRxSOhUwTa6+AWRA0ERflLW1l6K9uvlz/yK
+mfwDsSG7MJo5bAN+6OCXoa/U/7AogSMyIhQfOwBssKpD8jNbp57+t0YJoeSVcfxbCb6JVHUFcTKz
+C0sFNOYQ7lI48KvIvxpze+noJP2fcJu8iQuZ5WETyPbINe9TZk/u48S6S0DSpz8PAY1C/T8tu3OT
+su5e2jP4yCCyk3qY8l1UHPHjY0J9pw2NCSpg+jm6/TRkzUB3WpsU2sNjyZkJqp4BUrH1iQapFH2E
+9FtHGtvFxVUgExY+LljgeWGKYCDc
