@@ -3,7 +3,7 @@ summary: Check that a unity snap can start and its window is shown
 environment:
     DISPLAY: ":99.0"
 
-systems: [ubuntu-16.04-64-grub]
+systems: [ubuntu-16.04-64-grub,ubuntu-16.04]
 
 prepare: |
     apt install -y x11-utils xvfb unity
