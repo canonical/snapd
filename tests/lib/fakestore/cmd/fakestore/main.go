@@ -34,6 +34,7 @@ import (
 var (
 	start           = flag.Bool("start", false, "Start the store service")
 	blobDir         = flag.String("blobdir", "", "Directory to be used by the store to keep snaps")
+	assertDir       = flag.String("assertdir", "", "Directory to be used by the store for assertions")
 	makeRefreshable = flag.String("make-refreshable", "", "List of snaps with new versions separated by commas")
 	addr            = flag.String("addr", "locahost:11028", "Store address")
 )
@@ -49,7 +50,7 @@ func run() error {
 	flag.Parse()
 
 	if *start {
-		return runServer(*blobDir, *addr)
+		return runServer(*blobDir, *assertDir, *addr)
 	}
 
 	if *makeRefreshable != "" {
@@ -59,8 +60,8 @@ func run() error {
 	return fmt.Errorf("please specify either start or make-refreshable")
 }
 
-func runServer(blobDir, addr string) error {
-	st := store.NewStore(blobDir, addr)
+func runServer(blobDir, assertDir, addr string) error {
+	st := store.NewStore(blobDir, assertDir, addr)
 
 	if err := st.Start(); err != nil {
 		return err
