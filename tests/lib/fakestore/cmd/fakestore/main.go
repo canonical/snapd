@@ -74,7 +74,7 @@ func runServer(topDir, addr string) error {
 }
 
 func runManage(topDir, snaps string) error {
-	// setup snaps
+	// setup fake new revisions of snaps for refresh
 	snapList := strings.Split(snaps, ",")
-	return refresh.CallFakeSnap(snapList, topDir)
+	return refresh.MakeFakeRefreshForSnaps(snapList, topDir)
 }
