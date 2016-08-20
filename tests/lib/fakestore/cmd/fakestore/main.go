@@ -32,9 +32,9 @@ import (
 )
 
 var (
-	start           = flag.Bool("start", false, "Start the store service")
-	blobDir         = flag.String("blobdir", "", "Directory to be used by the store to keep snaps")
-	assertDir       = flag.String("assertdir", "", "Directory to be used by the store for assertions")
+	start = flag.Bool("start", false, "Start the store service")
+	// XXX: rename to -dir
+	topDir          = flag.String("blobdir", "", "Directory to be used by the store to keep and serve snaps, <dir>/asserts is used to find assertions")
 	makeRefreshable = flag.String("make-refreshable", "", "List of snaps with new versions separated by commas")
 	addr            = flag.String("addr", "locahost:11028", "Store address")
 )
@@ -50,18 +50,18 @@ func run() error {
 	flag.Parse()
 
 	if *start {
-		return runServer(*blobDir, *assertDir, *addr)
+		return runServer(*topDir, *addr)
 	}
 
 	if *makeRefreshable != "" {
-		return runManage(*blobDir, *makeRefreshable)
+		return runManage(*topDir, *makeRefreshable)
 	}
 
 	return fmt.Errorf("please specify either start or make-refreshable")
 }
 
-func runServer(blobDir, assertDir, addr string) error {
-	st := store.NewStore(blobDir, assertDir, addr)
+func runServer(topDir, addr string) error {
+	st := store.NewStore(topDir, addr)
 
 	if err := st.Start(); err != nil {
 		return err
@@ -74,8 +74,8 @@ func runServer(blobDir, assertDir, addr string) error {
 	return st.Stop()
 }
 
-func runManage(blobDir, snaps string) error {
+func runManage(topDir, snaps string) error {
 	// setup snaps
 	snapList := strings.Split(snaps, ",")
-	return refresh.CallFakeSnap(snapList, blobDir)
+	return refresh.CallFakeSnap(snapList, topDir)
 }
