@@ -17,10 +17,28 @@
  *
  */
 
-package image
+package devicestate
 
-var (
-	DecodeModelAssertion = decodeModelAssertion
-	DownloadUnpackGadget = downloadUnpackGadget
-	BootstrapToRootDir   = bootstrapToRootDir
+import (
+	"github.com/snapcore/snapd/asserts"
 )
+
+func MockKeyLength(n int) (restore func()) {
+	oldKeyLength := keyLength
+	keyLength = n
+	return func() {
+		keyLength = oldKeyLength
+	}
+}
+
+func MockSerialRequestURL(url string) (restore func()) {
+	oldURL := serialRequestURL
+	serialRequestURL = url
+	return func() {
+		serialRequestURL = oldURL
+	}
+}
+
+func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
+	return m.keypairMgr
+}

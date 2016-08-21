@@ -1,11 +1,11 @@
 project: snapd
 
 environment:
-    REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
-    PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
     GOPATH: /home/gopath
-    PATH: /home/gopath/bin:/snap/bin:$PATH
-    TESTSLIB: /home/gopath/src/github.com/snapcore/snapd/tests/lib
+    REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
+    PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
+    PATH: $GOPATH/bin:/snap/bin:$PATH
+    TESTSLIB: $PROJECT_PATH/tests/lib
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"

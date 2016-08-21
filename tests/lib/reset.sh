@@ -8,11 +8,14 @@ reset_classic() {
     # purge all state
     sh ${SPREAD_PATH}/debian/snapd.postrm purge
     mkdir -p /snap /var/snap /var/lib/snapd
+    if [ -d /snap/* ] || [ -d /var/snap/* ]; then
+        echo "postinst purge failed"
+        exit 1
+    fi
     
     rm -f /tmp/ubuntu-core*
     
     if [ "$1" = "--reuse-core" ]; then
-	$(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
 	mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
 	services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
         systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/

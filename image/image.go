@@ -27,7 +27,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -35,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
@@ -54,14 +52,23 @@ type Options struct {
 }
 
 func Prepare(opts *Options) error {
-	if err := downloadUnpackGadget(opts); err != nil {
+	model, err := decodeModelAssertion(opts)
+	if err != nil {
 		return err
 	}
 
-	return bootstrapToRootDir(opts)
+	sto := makeStore(model)
+
+	if err := downloadUnpackGadget(sto, model, opts); err != nil {
+		return err
+	}
+
+	return bootstrapToRootDir(sto, model, opts)
 }
 
-func decodeModelAssertion(fn string) (*asserts.Model, error) {
+func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
+	fn := opts.ModelFile
+
 	rawAssert, err := ioutil.ReadFile(fn)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read model assertion: %s", err)
@@ -78,22 +85,16 @@ func decodeModelAssertion(fn string) (*asserts.Model, error) {
 	return modela, nil
 }
 
-func downloadUnpackGadget(opts *Options) error {
-	model, err := decodeModelAssertion(opts.ModelFile)
-	if err != nil {
-		return err
-	}
+func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options) error {
 	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
 		return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
 	}
 
 	dlOpts := &downloadOptions{
-		TargetDir:    opts.GadgetUnpackDir,
-		Channel:      opts.Channel,
-		StoreID:      model.Store(),
-		Architecture: model.Architecture(),
+		TargetDir: opts.GadgetUnpackDir,
+		Channel:   opts.Channel,
 	}
-	snapFn, _, err := acquireSnap(model.Gadget(), dlOpts)
+	snapFn, _, err := acquireSnap(sto, model.Gadget(), dlOpts)
 	if err != nil {
 		return err
 	}
@@ -103,12 +104,12 @@ func downloadUnpackGadget(opts *Options) error {
 	return snap.Unpack("*", opts.GadgetUnpackDir)
 }
 
-func acquireSnap(snapName string, dlOpts *downloadOptions) (downloadedSnap string, info *snap.Info, err error) {
+func acquireSnap(sto Store, snapName string, dlOpts *downloadOptions) (downloadedSnap string, info *snap.Info, err error) {
 	// FIXME: add support for sideloading snaps here
-	return downloadSnapWithSideInfo(snapName, dlOpts)
+	return downloadSnapWithSideInfo(sto, snapName, dlOpts)
 }
 
-func bootstrapToRootDir(opts *Options) error {
+func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
 		dirs.SetRootDir(opts.RootDir)
@@ -120,11 +121,6 @@ func bootstrapToRootDir(opts *Options) error {
 		return fmt.Errorf("cannot bootstrap over existing system")
 	}
 
-	model, err := decodeModelAssertion(opts.ModelFile)
-	if err != nil {
-		return err
-	}
-
 	// put snaps in place
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
@@ -132,10 +128,8 @@ func bootstrapToRootDir(opts *Options) error {
 
 	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
 	dlOpts := &downloadOptions{
-		TargetDir:    snapSeedDir,
-		Channel:      opts.Channel,
-		StoreID:      model.Store(),
-		Architecture: model.Architecture(),
+		TargetDir: snapSeedDir,
+		Channel:   opts.Channel,
 	}
 
 	// FIXME: support sideloading snaps by copying the boostrap.snaps
@@ -147,7 +141,7 @@ func bootstrapToRootDir(opts *Options) error {
 	snaps = append(snaps, model.Kernel())
 	snaps = append(snaps, model.RequiredSnaps()...)
 
-	for _, d := range []string{dirs.SnapBlobDir, snapSeedDir} {
+	for _, d := range []string{snapSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
@@ -157,7 +151,7 @@ func bootstrapToRootDir(opts *Options) error {
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
 		fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
-		fn, info, err := acquireSnap(snapName, dlOpts)
+		fn, info, err := acquireSnap(sto, snapName, dlOpts)
 		if err != nil {
 			return err
 		}
@@ -279,16 +273,19 @@ func copyLocalSnapFile(snapName, targetDir string) (copyiedSnapFn string, info *
 }
 
 type downloadOptions struct {
-	Series       string
-	TargetDir    string
-	StoreID      string
-	Channel      string
-	Architecture string
+	TargetDir string
+	Channel   string
 }
 
-// replaced in the tests
-var storeNew = func(storeID string) Store {
-	return store.New(nil, storeID, nil)
+func makeStore(model *asserts.Model) Store {
+	cfg := store.DefaultConfig()
+	cfg.Architecture = model.Architecture()
+	cfg.Series = model.Series()
+	storeID := model.Store()
+	if storeID == "canonical" {
+		storeID = ""
+	}
+	return store.New(cfg, storeID, nil)
 }
 
 type Store interface {
@@ -296,29 +293,9 @@ type Store interface {
 	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
 }
 
-func downloadSnapWithSideInfo(name string, opts *downloadOptions) (targetPath string, info *snap.Info, err error) {
+func downloadSnapWithSideInfo(sto Store, name string, opts *downloadOptions) (targetPath string, info *snap.Info, err error) {
 	if opts == nil {
 		opts = &downloadOptions{}
-	}
-
-	// FIXME: avoid global mutation
-	if opts.Series != "" {
-		oldSeries := release.Series
-		defer func() { release.Series = oldSeries }()
-
-		release.Series = opts.Series
-	}
-	// FIXME: avoid global mutation
-	if opts.Architecture != "" {
-		oldArchitecture := arch.UbuntuArchitecture()
-		defer func() { arch.SetArchitecture(arch.ArchitectureType(oldArchitecture)) }()
-
-		arch.SetArchitecture(arch.ArchitectureType(opts.Architecture))
-	}
-
-	storeID := opts.StoreID
-	if storeID == "canonical" {
-		storeID = ""
 	}
 
 	targetDir := opts.TargetDir
@@ -330,13 +307,12 @@ func downloadSnapWithSideInfo(name string, opts *downloadOptions) (targetPath st
 		targetDir = pwd
 	}
 
-	m := storeNew(storeID)
-	snap, err := m.Snap(name, opts.Channel, false, nil)
+	snap, err := sto.Snap(name, opts.Channel, false, nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %s", name, err)
 	}
 	pb := progress.NewTextProgress()
-	tmpName, err := m.Download(name, &snap.DownloadInfo, pb, nil)
+	tmpName, err := sto.Download(name, &snap.DownloadInfo, pb, nil)
 	if err != nil {
 		return "", nil, err
 	}
