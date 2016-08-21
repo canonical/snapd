@@ -301,9 +301,8 @@ func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts
 
 	store := assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      asserts.NewMemoryBackstore(),
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        store.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   store.Trusted,
 	}
 	checkDB, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
