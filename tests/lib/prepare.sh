@@ -10,7 +10,6 @@ prepare_classic() {
         snap install test-snapd-tools
         snap list | grep core
         snap remove test-snapd-tools
-        rmdir /snap/test-snapd-tools # Should be done by snapd.
         
         systemctl stop snapd.service snapd.socket
         systemctl daemon-reload
