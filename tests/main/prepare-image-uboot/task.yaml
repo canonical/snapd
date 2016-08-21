@@ -25,6 +25,9 @@ execute: |
     AXNpZw==
     EOF
 
+    echo The unverified model assertion will not be copied into the image
+    export UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL=1
+
     echo Running prepare-image
     snap prepare-image --channel edge --extra-snaps snapweb model.assertion $ROOT
 
