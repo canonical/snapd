@@ -4,22 +4,20 @@ environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
     GADGET: /tmp/root/gadget
-    TEMP_DIR: $(echo -n `mktemp -d`)
-    BLOB_DIR: $[TEMP_DIR]/snaps
-    ASSERT_DIR: $[TEMP_DIR]/asserts
+    STORE_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
 prepare: |
     . $TESTSLIB/store.sh
-    setup_store fake $BLOB_DIR $ASSERT_DIR
+    setup_store fake $STORE_DIR
 restore: |
     . $TESTSLIB/store.sh
-    teardown_store fake $BLOB_DIR $ASSERT_DIR
+    teardown_store fake $STORE_DIR
     rm -rf $ROOT
 execute: |
     echo Expose the needed assertions through the fakestore
     mkdir -p $ASSERT_DIR
-    cp $TESTSLIB/assertions/developer1.account $ASSERT_DIR
-    cp $TESTSLIB/assertions/developer1.account-key $ASSERT_DIR
+    cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
+    cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
     # have snap use the fakestore for assertions
     export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
