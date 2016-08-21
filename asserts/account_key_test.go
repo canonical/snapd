@@ -46,11 +46,11 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
 	pk := testPrivKey1
-	err = accDb.ImportKey("acc-id1", pk)
+	err = accDb.ImportKey(pk)
 	c.Assert(err, IsNil)
 	aks.keyID = pk.PublicKey().ID()
 
-	pubKey, err := accDb.PublicKey("acc-id1", aks.keyID)
+	pubKey, err := accDb.PublicKey(aks.keyID)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)

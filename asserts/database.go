@@ -192,8 +192,8 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	}, nil
 }
 
-// ImportKey stores the given private/public key pair for identity.
-func (db *Database) ImportKey(authorityID string, privKey PrivateKey) error {
+// ImportKey stores the given private/public key pair.
+func (db *Database) ImportKey(privKey PrivateKey) error {
 	return db.keypairMgr.Put(privKey)
 }
 
@@ -202,7 +202,7 @@ var (
 	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 )
 
-func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, error) {
+func (db *Database) safeGetPrivateKey(keyID string) (PrivateKey, error) {
 	if keyID == "" {
 		return nil, fmt.Errorf("key id is empty")
 	}
@@ -212,9 +212,9 @@ func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, er
 	return db.keypairMgr.Get(keyID)
 }
 
-// PublicKey returns the public key owned by authorityID that has the given key id.
-func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, error) {
-	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
+// PublicKey returns the public key part of the key pair that has the given key id.
+func (db *Database) PublicKey(keyID string) (PublicKey, error) {
+	privKey, err := db.safeGetPrivateKey(keyID)
 	if err != nil {
 		return nil, err
 	}
@@ -224,11 +224,7 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
 func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyID string) (Assertion, error) {
-	authorityID, err := checkNotEmptyString(headers, "authority-id")
-	if err != nil {
-		return nil, err
-	}
-	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
+	privKey, err := db.safeGetPrivateKey(keyID)
 	if err != nil {
 		return nil, err
 	}
