@@ -192,6 +192,7 @@ func doFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 
 	err = fetch(t.State(), ref, ss.UserID)
 	if err == store.ErrAssertionNotFound {
+		// TODO: include which assertion we didn't find
 		return fmt.Errorf("cannot find assertions to verify snap %q and its hash", ss.Name())
 	}
 	if err != nil {
