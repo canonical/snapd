@@ -15,6 +15,8 @@ EOF
 
 setup_fake_store(){
     local blob_dir=$1
+    # debugging
+    systemctl status fakestore || true
     echo "Given a controlled store service is up"
     systemd-run --unit fakestore $(which fakestore) -start -blobdir $blob_dir -addr localhost:11028
 
