@@ -60,14 +60,13 @@ func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(As
 
 // A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
-	// Put stores the given private/public key pair for identity,
-	// making sure it can be later retrieved by authority-id and
-	// key id with Get().
+	// Put stores the given private/public key pair,
+	// making sure it can be later retrieved by its unique key id with Get.
 	// Trying to store a key with an already present key id should
 	// result in an error.
-	Put(authorityID string, privKey PrivateKey) error
+	Put(privKey PrivateKey) error
 	// Get returns the private/public key pair with the given key id.
-	Get(authorityID, keyID string) (PrivateKey, error)
+	Get(keyID string) (PrivateKey, error)
 }
 
 // DatabaseConfig for an assertion database.
@@ -195,7 +194,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 
 // ImportKey stores the given private/public key pair for identity.
 func (db *Database) ImportKey(authorityID string, privKey PrivateKey) error {
-	return db.keypairMgr.Put(authorityID, privKey)
+	return db.keypairMgr.Put(privKey)
 }
 
 var (
@@ -210,7 +209,7 @@ func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, er
 	if !base64HashLike.MatchString(keyID) {
 		return nil, fmt.Errorf("key id contains unexpected chars: %q", keyID)
 	}
-	return db.keypairMgr.Get(authorityID, keyID)
+	return db.keypairMgr.Get(keyID)
 }
 
 // PublicKey returns the public key owned by authorityID that has the given key id.

@@ -125,7 +125,7 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 	err := dbs.db.ImportKey("account0", testPrivKey1)
 	c.Assert(err, IsNil)
 
-	keyPath := filepath.Join(dbs.topDir, "private-keys-v1/account0", testPrivKey1SHA3_384)
+	keyPath := filepath.Join(dbs.topDir, "private-keys-v1", testPrivKey1SHA3_384)
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
