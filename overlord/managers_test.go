@@ -22,7 +22,6 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
-	"crypto"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -245,14 +244,12 @@ func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
 func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
 	snapPath := makeTestSnap(c, snapYaml)
 
-	size, dgstHash, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-	encDigest, err := asserts.EncodeDigest(crypto.SHA3_384, dgstHash)
+	snapDigest, size, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{
 		"snap-id":       fooSnapID,
-		"snap-sha3-384": encDigest,
+		"snap-sha3-384": snapDigest,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-revision": revno,
 		"developer-id":  "devdevdev",
@@ -263,7 +260,7 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 	err = ms.storeSigning.Add(snapRev)
 	c.Assert(err, IsNil)
 
-	return snapPath, encDigest
+	return snapPath, snapDigest
 }
 
 func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeSvc(c *C) {
