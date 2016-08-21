@@ -236,6 +236,32 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
 }
 
+func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(2)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(3)},
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current: snap.R(1),
+	})
+
+	updates, tts, err := snapstate.UpdateMany(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 1)
+	c.Check(updates, DeepEquals, []string{"some-snap"})
+
+	ts := tts[0]
+	i := verifyInstallUpdateTasks(c, true, ts, s.state)
+	c.Assert(ts.Tasks(), HasLen, i+6)
+	c.Assert(s.state.NumTask(), Equals, i+6)
+}
+
 func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -378,6 +404,35 @@ func (s *snapmgrTestSuite) TestInstallConflict(c *C) {
 
 	_, err = snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+// A sneakyStore changes the state when called
+type sneakyStore struct {
+	*fakeStore
+	state *state.State
+}
+
+func (s sneakyStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+	s.state.Lock()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: []*snap.SideInfo{{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}},
+		Current:  snap.R(1),
+	})
+	s.state.Unlock()
+	return s.fakeStore.Snap(name, channel, devmode, user)
+}
+
+func (s *snapmgrTestSuite) TestInstallStateConflict(c *C) {
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.ReplaceStore(s.state, sneakyStore{fakeStore: s.fakeStore, state: s.state})
+
+	_, err := snapstate.Install(s.state, "some-snap", "some-channel", 0, 0)
+	c.Assert(err, ErrorMatches, `snap "some-snap" state changed during install preparations`)
 }
 
 func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
@@ -1536,7 +1591,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 
 	// verify snapSetup info
 	tasks := ts.Tasks()
-	revnos := []snap.Revision{{7}, {3}, {5}}
+	revnos := []snap.Revision{{N: 7}, {N: 3}, {N: 5}}
 	whichRevno := 0
 	for _, t := range tasks {
 		ss, err := snapstate.TaskSnapSetup(t)

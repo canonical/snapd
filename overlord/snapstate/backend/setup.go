@@ -22,6 +22,7 @@ package backend
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/progress"
@@ -73,9 +74,12 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 		return err
 	}
 
-	snapPath := s.MountFile()
+	// try to remove parent dir, failure is ok, means some other
+	// revisions are still in there
+	os.Remove(filepath.Dir(mountDir))
 
 	// snapPath may either be a file or a (broken) symlink to a dir
+	snapPath := s.MountFile()
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
 		if typ == snap.TypeKernel {
