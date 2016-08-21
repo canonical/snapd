@@ -15,7 +15,6 @@ restore: |
     rm -rf $ROOT
 execute: |
     echo Expose the needed assertions through the fakestore
-    mkdir -p $ASSERT_DIR
     cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
     cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
     # have snap use the fakestore for assertions
