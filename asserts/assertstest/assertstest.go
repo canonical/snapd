@@ -215,7 +215,7 @@ func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, privKey)
+	err = db.ImportKey(privKey)
 	if err != nil {
 		panic(err)
 	}
@@ -238,7 +238,7 @@ func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
 	if keyID == "" {
 		keyID = db.KeyID
 	}
-	return db.Database.PublicKey(db.AuthorityID, keyID)
+	return db.Database.PublicKey(keyID)
 }
 
 // StoreStack realises a store-like set of founding trusted assertions and signing setup.
@@ -276,7 +276,7 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, storePrivKey)
+	err = db.ImportKey(storePrivKey)
 	if err != nil {
 		panic(err)
 	}
