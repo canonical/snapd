@@ -1,13 +1,12 @@
 #!/bin/sh
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
-configure_store_backend(){
-    local store_url=$1
+_configure_store_backends(){
     systemctl stop snapd.service snapd.socket
     mkdir -p $(dirname $STORE_CONFIG)
     cat > $STORE_CONFIG <<EOF
 [Service]
-Environment="SNAPPY_FORCE_CPI_URL=http://$store_url"
+Environment=$*
 EOF
     systemctl daemon-reload
     systemctl start snapd.socket
@@ -22,7 +21,7 @@ setup_fake_store(){
     systemd-run --unit fakestore $(which fakestore) -start -dir $top_dir -addr localhost:11028
 
     echo "And snapd is configured to use the controlled store"
-    configure_store_backend localhost:11028
+    _configure_store_backends "SNAPPY_FORCE_CPI_URL=http://localhost:11028" "SNAPPY_FORCE_SAS_URL=http://localhost:11028"
 }
 
 setup_staging_store(){
@@ -32,7 +31,7 @@ setup_staging_store(){
     fi
 
     echo "And snapd is configured to use the staging store"
-    configure_store_backend search.apps.staging.ubuntu.com/api/v1/
+    _configure_store_backends "SNAPPY_USE_STAGING_CPI=1" "SNAPPY_USE_STAGING_SAS=1"
 }
 
 teardown_store(){
