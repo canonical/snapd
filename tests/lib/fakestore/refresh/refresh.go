@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 
-	// XXX: testing hack
 	"github.com/snapcore/snapd/store"
 )
 
@@ -52,7 +51,9 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 	// for signing
 	db.ImportKey("testrootorg", storePrivKey)
 
-	// XXX: hack, really talk to local snapd
+	// XXX: ideally for consistency we should talk to the local snapd
+	// but this allows us to go working until snapd itself
+	// start being fully assertion using
 	sto := store.New(nil, "", nil)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
