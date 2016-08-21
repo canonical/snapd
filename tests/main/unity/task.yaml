@@ -5,15 +5,19 @@ environment:
 
 systems: [ubuntu-16.04-64-grub]
 
-prepare: |
+execute:
+    # FIXME Test is broken. Downloads HUNDREDS and HUNDREDS of packages,
+    # and asks for input on configuration file diffs.
+
+disabled_prepare: |
     apt install -y x11-utils xvfb unity
 
-restore: |
+disabled_restore: |
     systemctl stop unity-app
     apt remove -y x11-utils xvfb unity
     apt autoremove -y
 
-execute: |
+disabled_execute: |
     echo "Given a unity snap is installed"
     snap install ubuntu-clock-app
 
