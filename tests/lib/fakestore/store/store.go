@@ -105,8 +105,8 @@ func (s *Store) Start() error {
 
 // Stop stops the server
 func (s *Store) Stop() error {
-	s.srv.Stop(0)
 	timeoutTime := 2000 * time.Millisecond
+	s.srv.Stop(timeoutTime / 2)
 
 	select {
 	case <-s.srv.StopChan():
