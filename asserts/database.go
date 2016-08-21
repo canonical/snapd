@@ -76,7 +76,7 @@ type DatabaseConfig struct {
 	Trusted []Assertion
 	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
-	// manager/backstore for keypairs, mandatory
+	// manager/backstore for keypairs, defaults to in-memory implementation
 	KeypairManager KeypairManager
 	// assertion checkers used by Database.Check, left unset DefaultCheckers will be used which is recommended
 	Checkers []Checker
@@ -149,7 +149,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		bs = nullBackstore{}
 	}
 	if keypairMgr == nil {
-		panic("database cannot be used without setting a keypair manager")
+		keypairMgr = NewMemoryKeypairManager()
 	}
 
 	trustedBackstore := NewMemoryBackstore()

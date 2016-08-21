@@ -211,9 +211,7 @@ type SigningDB struct {
 
 // NewSigningDB creates a test signing assertion db with the given defaults. It panics on error.
 func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-	})
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	if err != nil {
 		panic(err)
 	}
@@ -272,9 +270,8 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
 	})
 	if err != nil {
 		panic(err)

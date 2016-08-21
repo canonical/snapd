@@ -59,9 +59,8 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        s.storeSigning.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
 

@@ -42,9 +42,7 @@ type accountKeySuite struct {
 var _ = Suite(&accountKeySuite{})
 
 func (aks *accountKeySuite) SetUpSuite(c *C) {
-	cfg1 := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-	}
+	cfg1 := &asserts.DatabaseConfig{}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
 	pk := testPrivKey1
@@ -213,8 +211,7 @@ func (aks *accountKeySuite) openDB(c *C) *asserts.Database {
 	bs, err := asserts.OpenFSBackstore(topDir)
 	c.Assert(err, IsNil)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      bs,
-		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore: bs,
 		Trusted: []asserts.Assertion{
 			asserts.BootstrapAccountForTest("canonical"),
 			asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey()),
