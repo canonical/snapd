@@ -42,7 +42,7 @@ func (ts *FileDigestSuite) TestFileDigest(c *C) {
 	err := ioutil.WriteFile(fn, exData, 0644)
 	c.Assert(err, IsNil)
 
-	size, digest, err := osutil.FileDigest(fn, crypto.SHA512)
+	digest, size, err := osutil.FileDigest(fn, crypto.SHA512)
 	c.Assert(err, IsNil)
 	c.Check(size, Equals, uint64(len(exData)))
 	h512 := sha512.Sum512(exData)

@@ -20,7 +20,6 @@
 package store
 
 import (
-	"crypto"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -36,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -165,13 +163,11 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 		return nil, errInfo
 	}
 
-	// XXX: helper
-	size, dgstHash, err := osutil.FileDigest(fn, crypto.SHA3_384)
+	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("can get digest for: %v: %v", fn, err), http.StatusBadRequest)
 		return nil, errInfo
 	}
-	snapDigest, _ := asserts.EncodeDigest(crypto.SHA3_384, dgstHash)
 
 	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
 	if err != nil && err != asserts.ErrNotFound {

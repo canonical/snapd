@@ -31,16 +31,16 @@ const (
 
 // FileDigest computes a hash digest of the file using the given hash.
 // It also returns the file size.
-func FileDigest(filename string, hash crypto.Hash) (uint64, []byte, error) {
+func FileDigest(filename string, hash crypto.Hash) ([]byte, uint64, error) {
 	f, err := os.Open(filename)
 	if err != nil {
-		return 0, nil, err
+		return nil, 0, err
 	}
 	defer f.Close()
 	h := hash.New()
 	size, err := io.CopyBuffer(h, f, make([]byte, hashDigestBufSize))
 	if err != nil {
-		return 0, nil, err
+		return nil, 0, err
 	}
-	return uint64(size), h.Sum(nil), nil
+	return h.Sum(nil), uint64(size), nil
 }

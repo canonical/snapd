@@ -20,7 +20,6 @@
 package refresh
 
 import (
-	"crypto"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,14 +28,11 @@ import (
 	"strings"
 	"time"
 
-	_ "golang.org/x/crypto/sha3"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 
 	// XXX: testing hack
@@ -135,18 +131,6 @@ func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f *ass
 	return nil
 }
 
-func digest(fn string) (uint64, string, error) {
-	size, dgst, err := osutil.FileDigest(fn, crypto.SHA3_384)
-	if err != nil {
-		return 0, "", err
-	}
-	encDgst, err := asserts.EncodeDigest(crypto.SHA3_384, dgst)
-	if err != nil {
-		return 0, "", err
-	}
-	return size, encDgst, nil
-}
-
 type info struct {
 	revision string
 	digest   string
@@ -183,7 +167,7 @@ func copySnap(snapName, targetDir string) (*info, error) {
 	}
 
 	place := snap.MinimalPlaceInfo(snapName, rev)
-	origSize, origDigest, err := digest(place.MountFile())
+	origDigest, origSize, err := asserts.SnapFileSHA3_384(place.MountFile())
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +189,7 @@ func buildSnap(snapDir, targetDir string) (*info, error) {
 	}
 	fn := out[len("built: "):]
 
-	size, newDigest, err := digest(fn)
+	newDigest, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
 		return nil, err
 	}

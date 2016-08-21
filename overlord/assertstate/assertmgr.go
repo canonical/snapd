@@ -23,14 +23,10 @@
 package assertstate
 
 import (
-	"crypto"
-	"fmt"
-
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -180,18 +176,11 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// TODO: when we actually use this, snapPath might come from ss
-	// and switch likely to osutil.FileDigest and decide where/when
-	// to actually compute the hash
 	snapPath := snap.MinimalPlaceInfo(ss.Name(), ss.Revision()).MountFile()
 
-	_, sha3_384Digest, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
+	sha3_384, _, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
-		return fmt.Errorf("cannot compute snap %q digest: %v", ss.Name(), err)
-	}
-
-	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384Digest)
-	if err != nil {
-		return fmt.Errorf("cannot encode snap %q digest: %v", ss.Name(), err)
+		return err
 	}
 
 	// for now starting from the snap-revision will get us all other relevant assertions
