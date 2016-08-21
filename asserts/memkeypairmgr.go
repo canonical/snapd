@@ -24,38 +24,34 @@ import (
 )
 
 type memoryKeypairManager struct {
-	pairs map[string]map[string]PrivateKey
+	pairs map[string]PrivateKey
 	mu    sync.RWMutex
 }
 
 // NewMemoryKeypairManager creates a new key pair manager with a memory backstore.
 func NewMemoryKeypairManager() KeypairManager {
 	return &memoryKeypairManager{
-		pairs: make(map[string]map[string]PrivateKey),
+		pairs: make(map[string]PrivateKey),
 	}
 }
 
-func (mkm *memoryKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+func (mkm *memoryKeypairManager) Put(privKey PrivateKey) error {
 	mkm.mu.Lock()
 	defer mkm.mu.Unlock()
 
 	keyID := privKey.PublicKey().ID()
-	perAuthID := mkm.pairs[authorityID]
-	if perAuthID == nil {
-		perAuthID = make(map[string]PrivateKey)
-		mkm.pairs[authorityID] = perAuthID
-	} else if perAuthID[keyID] != nil {
+	if mkm.pairs[keyID] != nil {
 		return errKeypairAlreadyExists
 	}
-	perAuthID[keyID] = privKey
+	mkm.pairs[keyID] = privKey
 	return nil
 }
 
-func (mkm *memoryKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+func (mkm *memoryKeypairManager) Get(keyID string) (PrivateKey, error) {
 	mkm.mu.RLock()
 	defer mkm.mu.RUnlock()
 
-	privKey := mkm.pairs[authorityID][keyID]
+	privKey := mkm.pairs[keyID]
 	if privKey == nil {
 		return nil, errKeypairNotFound
 	}

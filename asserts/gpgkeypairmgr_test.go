@@ -61,14 +61,14 @@ func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
-	got, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
+	got, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 	keyID := got.PublicKey().ID()
 	c.Check(keyID, Equals, assertstest.DevKeyID)
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
-	got, err := gkms.keypairMgr.Get("auth-id1", "ffffffffffffffff")
+	got, err := gkms.keypairMgr.Get("ffffffffffffffff")
 	c.Check(err, ErrorMatches, `cannot find key "ffffffffffffffff" in GPG keyring`)
 	c.Check(got, IsNil)
 }
@@ -76,7 +76,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	store := assertstest.NewStoreStack("trusted", testPrivKey0, testPrivKey1)
 
-	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyID)
+	devKey, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
 	devAcct := assertstest.NewAccount(store, "devel1", map[string]interface{}{
@@ -141,7 +141,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
 	restore := asserts.MockRunGPG(mockGPG)
 	defer restore()
 
-	_, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
+	_, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Check(err, ErrorMatches, `cannot load GPG public key with fingerprint "[A-F0-9]+": cannot select exported public key, found many`)
 }
 
