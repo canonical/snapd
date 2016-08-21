@@ -22,7 +22,6 @@ package store
 
 import (
 	"bytes"
-	"crypto"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -262,9 +261,7 @@ AXNpZw=
 )
 
 func (s *storeTestSuite) makeAssertions(c *C, snapFn, name, snapID, develName, develID string, revision int) {
-	size, dgst, err := osutil.FileDigest(snapFn, crypto.SHA3_384)
-	c.Assert(err, IsNil)
-	encDigest, err := asserts.EncodeDigest(crypto.SHA3_384, dgst)
+	dgst, size, err := asserts.SnapFileSHA3_384(snapFn)
 	c.Assert(err, IsNil)
 
 	info := essentialInfo{
@@ -274,7 +271,7 @@ func (s *storeTestSuite) makeAssertions(c *C, snapFn, name, snapID, develName, d
 		DevelName:   develName,
 		Revision:    revision,
 		Size:        size,
-		Digest:      encDigest,
+		Digest:      dgst,
 	}
 
 	f, err := os.OpenFile(filepath.Join(s.store.assertDir, snapID+".fake.snap-declaration"), os.O_CREATE|os.O_WRONLY, 0644)
@@ -282,7 +279,7 @@ func (s *storeTestSuite) makeAssertions(c *C, snapFn, name, snapID, develName, d
 	err = tSnapDecl.Execute(f, info)
 	c.Assert(err, IsNil)
 
-	f, err = os.OpenFile(filepath.Join(s.store.assertDir, encDigest+".fake.snap-revision"), os.O_CREATE|os.O_WRONLY, 0644)
+	f, err = os.OpenFile(filepath.Join(s.store.assertDir, dgst+".fake.snap-revision"), os.O_CREATE|os.O_WRONLY, 0644)
 	c.Assert(err, IsNil)
 	err = tSnapRev.Execute(f, info)
 	c.Assert(err, IsNil)
