@@ -16,7 +16,7 @@ execute: |
     cp $TESTSLIB/assertions/developer1-pc.model $SEED_DIR/assertions
     cp $TESTSLIB/assertions/testrootorg-store.account-key $SEED_DIR/assertions
 
-    echo Running prepare-image
+    echo Running firstboot
     snap firstboot
 
     echo Verifying the result
