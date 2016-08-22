@@ -6,6 +6,7 @@ environment:
 restore:
     rm -rf $ROOT
 execute: |
+    # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently
     echo Creating model assertion
     cat > model.assertion <<EOF
     type: model
