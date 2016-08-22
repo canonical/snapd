@@ -7,9 +7,9 @@ internal tool for confining snappy applications
 -----------------------------------------------
 
 :Author: zygmunt.krynicki@canonical.com
-:Date:   2016-07-15
+:Date:   2016-08-22
 :Copyright: Canonical Ltd.
-:Version: 1.0.39
+:Version: 1.0.40
 :Manual section: 5
 :Manual group: snappy
 
@@ -73,6 +73,18 @@ option (e.g. `rw` can cause the mount point to be writable).
 
 As a security precaution only `bind` mounts are supported at this time.
 
+Quirks
+------
+
+`snap-confine` contains a quirk system that emulates some or the behavior of
+the older versions of snap-confine that certain snaps (still in devmode but
+useful and important) have grown to rely on. This section documents the list of
+quirks:
+
+- The /var/lib/lxd directory, if it exists on the host, is made available in
+  the execution environment. This allows various snaps, while running in
+  devmode, to access the LXD socket. LP: #1613845
+
 ENVIRONMENT
 ===========
 
@@ -93,6 +105,13 @@ This is only applicable when testing the program itself.
 
 `SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR`:
 	Internal variable that should not be relied upon.
+
+`SNAP_USER_DATA`:
+    Full path to the directory like /home/$LOGNAME/snap/$SNAP_NAME/$SNAP_REVISION.
+
+    This directory is created by snap-confine on startup. This is a temporary
+    feature that will be merged into snapd's snap-run command. The set of directories
+    that can be created is confined with apparmor.
 
 FILES
 =====
