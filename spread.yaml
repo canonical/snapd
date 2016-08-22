@@ -17,8 +17,8 @@ backends:
         systems:
             - ubuntu-16.04-64-grub
             - ubuntu-16.04-32-grub
-            - ubuntu-core-16-64
-              image: ubuntu-16.04-64-grub
+            - ubuntu-core-16-64:
+                image: ubuntu-16.04-64-grub
     qemu:
         systems:
             - ubuntu-16.04:
