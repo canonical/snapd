@@ -9,6 +9,7 @@ reset_classic() {
     sh ${SPREAD_PATH}/debian/snapd.postrm purge
     if [ -d /snap/* ] || [ -d /var/snap/* ]; then
         echo "postinst purge failed"
+        ls -lR /snap/* /var/snap/*
         exit 1
     fi
     mkdir -p /snap /var/snap /var/lib/snapd
