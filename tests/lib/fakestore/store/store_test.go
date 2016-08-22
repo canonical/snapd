@@ -364,7 +364,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 }
 
 func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
-	// something preloaded
+	// something not found
 	resp, err := s.StoreGet(`/assertions/account/not-an-account-id`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
