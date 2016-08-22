@@ -161,12 +161,12 @@ snaps:
 	c.Assert(snapst.DevMode(), Equals, true)
 }
 
-func (s *FirstBootTestSuite) makeModelAssertion(c *C) *asserts.Model {
+func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.Model {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
-		"model":        "my-model",
+		"model":        modelStr,
 		"class":        "my-class",
 		"architecture": "amd64",
 		"store":        "canonical",
@@ -194,7 +194,7 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
 	s.storeSigning.Add(brandAccKey)
 	assertChain = append(assertChain, brandAccKey)
 
-	model := s.makeModelAssertion(c)
+	model := s.makeModelAssertion(c, "my-model")
 	assertChain = append(assertChain, model)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
@@ -257,8 +257,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	err = boot.ImportAssertionsFromSeed(st)
-	// FIXME: once the code is less naive, improve error message
-	c.Assert(err, ErrorMatches, "cannot add assertions, 1 left")
+	c.Assert(err, ErrorMatches, "cannot find account-key/.*: assertion not found")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
@@ -267,12 +266,14 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	st := ovld.State()
 
 	// write out two model assertions
-	model := s.makeModelAssertion(c)
+	model := s.makeModelAssertion(c, "my-model")
 	fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
 	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
+
+	model2 := s.makeModelAssertion(c, "my-second-model")
 	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "model2")
-	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err = ioutil.WriteFile(fn, asserts.Encode(model2), 0644)
 	c.Assert(err, IsNil)
 
 	// try import and verify that its rejects because other assertions are
