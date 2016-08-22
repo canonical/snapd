@@ -145,6 +145,7 @@ func importAssertionsFromSeed(state *state.State) error {
 	}
 
 	// collect
+	var modelAssertion asserts.Assertion
 	assertsToAdd := map[asserts.Assertion]bool{}
 	for _, fi := range dc {
 		content, err := ioutil.ReadFile(filepath.Join(assertSeedDir, fi.Name()))
@@ -156,9 +157,13 @@ func importAssertionsFromSeed(state *state.State) error {
 			return fmt.Errorf("cannot decode assertion: %s", err)
 		}
 		assertsToAdd[as] = true
+		if as.Type() == asserts.ModelType {
+			if modelAssertion != nil {
+				return fmt.Errorf("cannot add more than one model assertion")
+			}
+			modelAssertion = as
+		}
 	}
-
-	// FIXME: verify that we have exactly one model assertion
 
 	// add
 	// FIXME: very naive, use asserts.Fetcher() and asserts.MemoryBackstore

@@ -48,6 +48,9 @@ type FirstBootTestSuite struct {
 
 	storeSigning *assertstest.StoreStack
 	restore      func()
+
+	brandPrivKey asserts.PrivateKey
+	brandSigning *assertstest.SigningDB
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -74,6 +77,9 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
+
+	s.brandPrivKey, _ = assertstest.GenerateKey(752)
+	s.brandSigning = assertstest.NewSigningDB("my-brand", s.brandPrivKey)
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -154,23 +160,7 @@ snaps:
 	c.Assert(snapst.DevMode(), Equals, true)
 }
 
-func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
-	assertChain := []asserts.Assertion{}
-
-	brandPrivKey, _ := assertstest.GenerateKey(752)
-	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
-
-	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
-		"account-id":   "my-brand",
-		"verification": "certified",
-	}, "")
-	s.storeSigning.Add(brandAcct)
-	assertChain = append(assertChain, brandAcct)
-
-	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
-	s.storeSigning.Add(brandAccKey)
-	assertChain = append(assertChain, brandAccKey)
-
+func (s *FirstBootTestSuite) makeModelAssertion(c *C) *asserts.Model {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"authority-id": "my-brand",
@@ -184,8 +174,26 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
 		"core":         "core",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
-	model, err := brandSigning.Sign(asserts.ModelType, headers, nil, "")
+	model, err := s.brandSigning.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
+	return model.(*asserts.Model)
+}
+
+func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
+	assertChain := []asserts.Assertion{}
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+	assertChain = append(assertChain, brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, s.brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+	assertChain = append(assertChain, brandAccKey)
+
+	model := s.makeModelAssertion(c)
 	assertChain = append(assertChain, model)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
@@ -243,5 +251,26 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	err = boot.ImportAssertionsFromSeed(st)
+	// FIXME: once the code is less naive, improve error message
 	c.Assert(err, ErrorMatches, "cannot add assertions, 1 left")
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// write out two model assertions
+	model := s.makeModelAssertion(c)
+	fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
+	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "model2")
+	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	// try import and verify that its rejects because other assertions are
+	// missing
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "cannot add more than one model assertion")
 }
