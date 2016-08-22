@@ -22,6 +22,18 @@ prepare: |
     echo "Spread is running as $(id)"
     [ "$REUSE_PROJECT" != 1 ] || exit 0
     ./spread-tests/spread-prepare.sh
+    # trusty support is under development right now
+    # we special-case the release until we have officially landed
+    if ["$(lsb_release -sc)" == "trusty"]
+    then
+        add-apt-repository ppa:thomas-voss/trusty
+        apt update && apt upgrade
+        apt install systemd snapd
+        # he following two lines are temporary and meant to go away
+        # once we have finalized trusty support.
+        service systemd start
+        apparmor_parser -R /etc/apparmor.d/usr.lib.snapd.snap-confine
+    fi
 
 suites:
     spread-tests/main/:
