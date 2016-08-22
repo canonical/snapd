@@ -296,6 +296,14 @@ Can read system logs and set kernel log rate-limiting.
 
 * Auto-Connect: no
 
+### lxd-support
+Can access all resources and syscalls on the device for LXD to mediate access
+for its containers. This interface currently may only be used by the lxd snap
+from Canonical.
+
+* Auto-Connect: yes
+* Transitional: yes
+
 ### modem-manager
 
 Can access snaps providing the modem-manager interface which gives privileged
