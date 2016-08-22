@@ -3,17 +3,21 @@ summary: Check that a unity snap can start and its window is shown
 environment:
     DISPLAY: ":99.0"
 
-systems: [ubuntu-16.04-64-grub]
+systems: [ubuntu-16.04-64-grub,ubuntu-16.04]
 
-prepare: |
+execute:
+    # FIXME Test is broken. Downloads HUNDREDS and HUNDREDS of packages,
+    # and asks for input on configuration file diffs.
+
+disabled_prepare: |
     apt install -y x11-utils xvfb unity
 
-restore: |
+disabled_restore: |
     systemctl stop unity-app
     apt remove -y x11-utils xvfb unity
     apt autoremove -y
 
-execute: |
+disabled_execute: |
     echo "Given a unity snap is installed"
     snap install ubuntu-clock-app
 

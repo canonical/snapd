@@ -1,21 +1,29 @@
 project: snapd
 
 environment:
-    REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PROJECT_PATH: /home/gopath/src/github.com/snapcore/snapd
     GOPATH: /home/gopath
-    PATH: /home/gopath/bin:/snap/bin:$PATH
-    TESTSLIB: $[PROJECT_PATH]/tests/lib
+    REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
+    PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
+    PATH: $GOPATH/bin:/snap/bin:$PATH
+    TESTSLIB: $PROJECT_PATH/tests/lib
     SNAP_REEXEC: 0
+    SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
+    SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
+    LANG: "$(echo $LANG)"
 
 backends:
     linode:
-        key: $(echo $SPREAD_LINODE_KEY)
+        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         systems:
             - ubuntu-16.04-64-grub
             - ubuntu-16.04-32-grub
+    qemu:
+        systems:
+            - ubuntu-16.04:
+                username: ubuntu
+                password: ubuntu
 
-path: $[PROJECT_PATH]
+path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
