@@ -20,9 +20,7 @@
 package squashfs
 
 import (
-	"crypto"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -138,26 +136,6 @@ func (s *Snap) ListDir(dirPath string) ([]string, error) {
 	}
 
 	return directoryContents, nil
-}
-
-const (
-	hashDigestBufSize = 2 * 1024 * 1024
-)
-
-// HashDigest computes a hash digest of the snap file using the given hash.
-// It also returns its size.
-func (s *Snap) HashDigest(hash crypto.Hash) (uint64, []byte, error) {
-	f, err := os.Open(s.path)
-	if err != nil {
-		return 0, nil, err
-	}
-	defer f.Close()
-	h := hash.New()
-	size, err := io.CopyBuffer(h, f, make([]byte, hashDigestBufSize))
-	if err != nil {
-		return 0, nil, err
-	}
-	return uint64(size), h.Sum(nil), nil
 }
 
 // Build builds the snap.
