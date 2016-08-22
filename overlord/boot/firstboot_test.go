@@ -78,16 +78,16 @@ func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *FirstBootTestSuite) TestPopulateFromInstalledErrorsOnState(c *C) {
+func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	err = ioutil.WriteFile(dirs.SnapStateFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = boot.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromSeed()
 	c.Assert(err, ErrorMatches, "cannot create state: state .* already exists")
 }
 
-func (s *FirstBootTestSuite) TestPopulateFromInstalledSimpleNoSideInfo(c *C) {
+func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
 	// put a firstboot snap into the SnapBlobDir
 	snapYaml := `name: foo
 version: 1.0`
@@ -104,12 +104,13 @@ snaps:
    snap-id: snapidsnapid
    developer-id: developerid
    file: %s
+   devmode: true
 `, filepath.Base(targetSnapFile)))
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	err = boot.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromSeed()
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
@@ -127,4 +128,9 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Assert(info.SideInfo.SnapID, Equals, "snapidsnapid")
 	c.Assert(info.SideInfo.DeveloperID, Equals, "developerid")
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(state, "foo", &snapst)
+	c.Assert(err, IsNil)
+	c.Assert(snapst.DevMode(), Equals, true)
 }
