@@ -10,7 +10,7 @@ reset_classic() {
     mkdir -p /snap /var/snap /var/lib/snapd
     if [ -d /snap/* ] || [ -d /var/snap/* ]; then
         echo "postinst purge failed"
-        ls /snap/* /var/snap/*
+        ls -lR /snap/* /var/snap/*
         exit 1
     fi
     
