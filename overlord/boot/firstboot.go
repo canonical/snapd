@@ -140,23 +140,42 @@ func importAssertionsFromSeed(state *state.State) error {
 		return fmt.Errorf("cannot read assert seed dir: %s", err)
 	}
 
+	// collect
+	assertsToAdd := map[asserts.Assertion]bool{}
 	for _, fi := range dc {
-		// FIXME: ordering!
 		content, err := ioutil.ReadFile(filepath.Join(assertSeedDir, fi.Name()))
 		if err != nil {
 			return fmt.Errorf("cannot read assertion: %s", err)
 		}
-		a, err := asserts.Decode(content)
+		as, err := asserts.Decode(content)
 		if err != nil {
 			return fmt.Errorf("cannot decode assertion: %s", err)
 		}
-		if err := assertstate.Add(state, a); err != nil {
-			// no checks for asserts.RevisionError because
-			// we are firstboot and there really should be
-			// anything
-			return fmt.Errorf("cannot add assertion: %s", err)
+		assertsToAdd[as] = true
+	}
+
+	// FIXME: verify that we have exactly one model assertion
+
+	// add
+	// FIXME: very naive, use asserts.Fetcher() and asserts.MemoryBackstore
+	//        instead
+	for {
+		leftToAdd := len(assertsToAdd)
+		for as, _ := range assertsToAdd {
+			if err := assertstate.Add(state, as); err != nil {
+				continue
+			}
+			delete(assertsToAdd, as)
+		}
+		if len(assertsToAdd) == 0 {
+			break
+		}
+		if len(assertsToAdd) == leftToAdd {
+			return fmt.Errorf("cannot add all assertion %d left", len(assertsToAdd))
 		}
 	}
+
+	// FIMXE: set device,model from the model assertion
 
 	return nil
 }

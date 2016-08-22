@@ -24,11 +24,17 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -38,6 +44,9 @@ import (
 
 type FirstBootTestSuite struct {
 	systemctl *testutil.MockCmd
+
+	storeSigning *assertstest.StoreStack
+	restore      func()
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -59,12 +68,18 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
+
+	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	storePrivKey, _ := assertstest.GenerateKey(752)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	s.systemctl.Restore()
+	s.restore()
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
@@ -130,4 +145,77 @@ snaps:
 	c.Assert(err, IsNil)
 	c.Assert(info.SideInfo.SnapID, Equals, "snapidsnapid")
 	c.Assert(info.SideInfo.DeveloperID, Equals, "developerid")
+}
+
+func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) {
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+
+	fn := filepath.Join(dirs.SnapSeedDir, "assertions", "brand-acct")
+	err := ioutil.WriteFile(fn, asserts.Encode(brandAcct), 0644)
+	c.Assert(err, IsNil)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+
+	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "acc-key")
+	err = ioutil.WriteFile(fn, asserts.Encode(brandAccKey), 0644)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"class":        "my-class",
+		"architecture": "amd64",
+		"store":        "canonical",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"core":         "core",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	model, err := brandSigning.Sign(asserts.ModelType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "model")
+	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	storeAccountKey := s.storeSigning.StoreAccountKey("")
+	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "store-account")
+	err = ioutil.WriteFile(fn, asserts.Encode(storeAccountKey), 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeed(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	s.makeModelAssertionChain(c)
+
+	// import them
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, IsNil)
+
+	// verify that the model was added
+	st.Lock()
+	defer st.Unlock()
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "my-brand",
+		"model":    "my-model",
+	})
+	c.Assert(err, IsNil)
+	_, ok := as.(*asserts.Model)
+	c.Check(ok, Equals, true)
 }
