@@ -22,13 +22,16 @@ package boot
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -40,7 +43,7 @@ var (
 	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
-func populateStateFromInstalled() error {
+func populateStateFromSeed() error {
 	if osutil.FileExists(dirs.SnapStateFile) {
 		return fmt.Errorf("cannot create state: state %q already exists", dirs.SnapStateFile)
 	}
@@ -50,6 +53,11 @@ func populateStateFromInstalled() error {
 		return err
 	}
 	st := ovld.State()
+
+	// ack all initial assertions
+	if err := importAssertionsFromSeed(st); err != nil {
+		return err
+	}
 
 	seed, err := snap.ReadSeedYaml(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
 	if err != nil {
@@ -122,6 +130,37 @@ func populateStateFromInstalled() error {
 	return ovld.Stop()
 }
 
+func importAssertionsFromSeed(state *state.State) error {
+	state.Lock()
+	defer state.Unlock()
+
+	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
+	dc, err := ioutil.ReadDir(assertSeedDir)
+	if err != nil {
+		return fmt.Errorf("cannot read assert seed dir: %s", err)
+	}
+
+	for _, fi := range dc {
+		// FIXME: ordering!
+		content, err := ioutil.ReadFile(filepath.Join(assertSeedDir, fi.Name()))
+		if err != nil {
+			return fmt.Errorf("cannot read assertion: %s", err)
+		}
+		a, err := asserts.Decode(content)
+		if err != nil {
+			return fmt.Errorf("cannot decode assertion: %s", err)
+		}
+		if err := assertstate.Add(state, a); err != nil {
+			// no checks for asserts.RevisionError because
+			// we are firstboot and there really should be
+			// anything
+			return fmt.Errorf("cannot add assertion: %s", err)
+		}
+	}
+
+	return nil
+}
+
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
@@ -135,7 +174,7 @@ func FirstBoot() error {
 	// snappy will be in a very unhappy state if this happens,
 	// because populateStateFromInstalled will error if there
 	// is a state file already
-	if err := populateStateFromInstalled(); err != nil {
+	if err := populateStateFromSeed(); err != nil {
 		return err
 	}
 

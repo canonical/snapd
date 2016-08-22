@@ -49,6 +49,9 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	// mock the world!
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
+	c.Assert(err, IsNil)
+
 	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
@@ -78,16 +81,16 @@ func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *FirstBootTestSuite) TestPopulateFromInstalledErrorsOnState(c *C) {
+func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
 	err = ioutil.WriteFile(dirs.SnapStateFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = boot.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromSeed()
 	c.Assert(err, ErrorMatches, "cannot create state: state .* already exists")
 }
 
-func (s *FirstBootTestSuite) TestPopulateFromInstalledSimpleNoSideInfo(c *C) {
+func (s *FirstBootTestSuite) TestPopulateFromSeedSimpleNoSideInfo(c *C) {
 	// put a firstboot snap into the SnapBlobDir
 	snapYaml := `name: foo
 version: 1.0`
@@ -109,7 +112,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	err = boot.PopulateStateFromInstalled()
+	err = boot.PopulateStateFromSeed()
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
