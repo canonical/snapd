@@ -27,7 +27,9 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -71,12 +73,22 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
-	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
+	summary := fmt.Sprintf(i18n.G("Collect attributes of plug %s:%s"), plugSnap, plugName)
+	collectPlugAttr := hookstate.HookTask(s, summary, plugSnap, snap.Revision{0}, "collect-plug-attr-"+plugName)
+
+	summary = fmt.Sprintf(i18n.G("Collect attributes of slot %s:%s"), slotSnap, slotName)
+	collectSlotAttr := hookstate.HookTask(s, summary, slotSnap, snap.Revision{0}, "collect-slot-attr-"+slotName)
+
+	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
-	task := s.NewTask("connect", summary)
-	task.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-	task.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	return state.NewTaskSet(task), nil
+	connectInterface := s.NewTask("connect", summary)
+	connectInterface.Set("slot", interfaces.SlotRef{Snap: slotSnap, Name: slotName})
+	connectInterface.Set("plug", interfaces.PlugRef{Snap: plugSnap, Name: plugName})
+	connectInterface.WaitFor(collectPlugAttr)
+	connectInterface.WaitFor(collectSlotAttr)
+
+	tasks := []*state.Task{collectPlugAttr, collectSlotAttr, connectInterface}
+	return state.NewTaskSet(tasks...), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
