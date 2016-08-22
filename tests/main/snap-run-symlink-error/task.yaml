@@ -1,4 +1,7 @@
 summary: Check error handling in symlinks to /usr/bin/snap
+restore: |
+    rm -f /snap/bin/xxx
+    rmdir /snap/bin
 execute: |
     echo Setting up incorrect symlink for snap run
     mkdir -p /snap/bin
