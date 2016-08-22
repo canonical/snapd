@@ -79,7 +79,7 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlugNotLxdFromCanonical(c *C) {
 		Name:      "lxd-support",
 		Interface: "lxd-support",
 	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved for lxd snap from canonical")
+	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(snap name 'notlxd' != 'lxd'\\)")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdNotFromCanonical(c *C) {
@@ -91,7 +91,7 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdNotFromCanonical(c *C) {
 		Name:      "lxd-support",
 		Interface: "lxd-support",
 	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved for lxd snap from canonical")
+	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(developer name 'foo' != 'canonical'\\)")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizePlugNotLxdNotFromCanonical(c *C) {
@@ -103,7 +103,7 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlugNotLxdNotFromCanonical(c *C) 
 		Name:      "lxd-support",
 		Interface: "lxd-support",
 	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved for lxd snap from canonical")
+	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(snap name 'notlxd' != 'lxd'\\)")
 }
 
 func (s *LxdSupportInterfaceSuite) TestUnusedSecuritySystems(c *C) {

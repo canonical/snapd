@@ -93,8 +93,12 @@ func (iface *LxdSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, sl
 }
 
 func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
-	if plug.Snap.Name() != "lxd" || plug.Snap.Developer != "canonical" {
-		return fmt.Errorf("lxd-support plug reserved for lxd snap from canonical")
+	snapName := plug.Snap.Name()
+	devName := plug.Snap.Developer
+	if snapName != "lxd" {
+		return fmt.Errorf("lxd-support plug reserved (snap name '%s' != 'lxd')", snapName)
+	} else if devName != "canonical" {
+		return fmt.Errorf("lxd-support plug reserved (developer name '%s' != 'canonical')", devName)
 	}
 	return nil
 }
