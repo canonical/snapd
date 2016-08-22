@@ -154,6 +154,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/sort ixr,
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
+  /{,usr/}bin/stty ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
