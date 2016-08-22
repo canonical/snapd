@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -230,6 +231,11 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	c.Assert(err, IsNil)
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
+
+	ds, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(ds.Brand, Equals, "my-brand")
+	c.Check(ds.Model, Equals, "my-model")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {

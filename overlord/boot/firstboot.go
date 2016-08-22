@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -134,9 +135,9 @@ func populateStateFromSeed() error {
 	return ovld.Stop()
 }
 
-func importAssertionsFromSeed(state *state.State) error {
-	state.Lock()
-	defer state.Unlock()
+func importAssertionsFromSeed(st *state.State) error {
+	st.Lock()
+	defer st.Unlock()
 
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
@@ -150,7 +151,7 @@ func importAssertionsFromSeed(state *state.State) error {
 	}
 
 	// collect
-	var modelAssertion asserts.Assertion
+	var modelAssertion *asserts.Model
 	assertsToAdd := map[asserts.Assertion]bool{}
 	for _, fi := range dc {
 		content, err := ioutil.ReadFile(filepath.Join(assertSeedDir, fi.Name()))
@@ -166,7 +167,7 @@ func importAssertionsFromSeed(state *state.State) error {
 			if modelAssertion != nil {
 				return fmt.Errorf("cannot add more than one model assertion")
 			}
-			modelAssertion = as
+			modelAssertion = as.(*asserts.Model)
 		}
 	}
 	// verify we have one model assertion
@@ -180,7 +181,7 @@ func importAssertionsFromSeed(state *state.State) error {
 	for {
 		leftToAdd := len(assertsToAdd)
 		for as, _ := range assertsToAdd {
-			if err := assertstate.Add(state, as); err != nil {
+			if err := assertstate.Add(st, as); err != nil {
 				continue
 			}
 			delete(assertsToAdd, as)
@@ -193,7 +194,11 @@ func importAssertionsFromSeed(state *state.State) error {
 		}
 	}
 
-	// FIMXE: set device,model from the model assertion
+	// set device,model from the model assertion
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand: modelAssertion.BrandID(),
+		Model: modelAssertion.Model(),
+	})
 
 	return nil
 }
