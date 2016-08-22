@@ -132,7 +132,7 @@ case "$release_ID" in
         if ["$release_VERSION_ID" == "14.04"]
         then
             add-apt-repository ppa:thomas-voss/trusty
-            apt-get update && apt upgrade
+            apt-get update && apt-get upgrade
             apt-get install systemd
             # starting systemd manually is working around
             # systemd not running as PID 1 on trusty systems.
