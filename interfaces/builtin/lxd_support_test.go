@@ -106,6 +106,18 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlugNotLxdNotFromCanonical(c *C) 
 	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(snap name 'notlxd' != 'lxd'\\)")
 }
 
+func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdSideload(c *C) {
+	err := s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{
+		Snap: &snap.Info{
+			SuggestedName: "lxd",
+			SideInfo:      snap.SideInfo{Developer: ""},
+		},
+		Name:      "lxd-support",
+		Interface: "lxd-support",
+	}})
+	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(developer name 'foo' != 'canonical'\\)")
+}
+
 func (s *LxdSupportInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
