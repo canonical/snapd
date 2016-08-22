@@ -1,5 +1,5 @@
 summary: Check that prepare-image works for grub-systems
-# TODO: use the real stores fully as well once possible
+# TODO: use the real stores with proper assertions fully as well once possible
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
