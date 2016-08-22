@@ -296,6 +296,12 @@ Can read system logs and set kernel log rate-limiting.
 
 * Auto-Connect: no
 
+### lxd
+
+Can aa-exec in unconfined mode with no seccomp restrictions.
+
+* Auto-Connect: no
+
 ### modem-manager
 
 Can access snaps providing the modem-manager interface which gives privileged
