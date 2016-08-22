@@ -109,7 +109,6 @@ case "$release_ID" in
         ;;
 esac
 
-
 # Install all the build dependencies
 case "$release_ID" in
     ubuntu|debian)
@@ -128,6 +127,17 @@ case "$release_ID" in
         mkdir -p /var/lib/sbuild/apt-keys/
         cp -a "$top_dir/spread-tests/data/apt-keys/"* /var/lib/sbuild/apt-keys/
         sbuild-adduser "$LOGNAME"
+        # trusty support is under development right now
+        # we special-case the release until we have officially landed
+        if ["$release_VERSION_ID" == "14.04"]
+        then
+            add-apt-repository ppa:thomas-voss/trusty
+            apt-get update && apt upgrade
+            apt-get install systemd
+            # starting systemd manually is working around
+            # systemd not running as PID 1 on trusty systems.
+           service systemd start
+        fi
         ;;
     *)
         echo "unsupported distribution: $release_ID"
