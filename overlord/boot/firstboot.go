@@ -175,7 +175,7 @@ func importAssertionsFromSeed(state *state.State) error {
 			break
 		}
 		if len(assertsToAdd) == leftToAdd {
-			return fmt.Errorf("cannot add all assertion %d left", len(assertsToAdd))
+			return fmt.Errorf("cannot add assertions, %d left", len(assertsToAdd))
 		}
 	}
 
