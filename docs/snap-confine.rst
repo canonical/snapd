@@ -94,6 +94,13 @@ This is only applicable when testing the program itself.
 `SNAPPY_LAUNCHER_SECCOMP_PROFILE_DIR`:
 	Internal variable that should not be relied upon.
 
+`SNAP_USER_DATA`:
+    Full path to the directory like /home/$LOGNAME/snap/$SNAP_NAME/$SNAP_REVISION.
+
+    This directory is created by snap-confine on startup. This is a temporary
+    feature that will be merged into snapd's snap-run command. The set of directories
+    that can be created is confined with apparmor.
+
 FILES
 =====
 
