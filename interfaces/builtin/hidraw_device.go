@@ -48,9 +48,10 @@ var hidrawAllowedPathPattern = regexp.MustCompile(`^/dev/hidraw[0-9]{1,3}$`)
 // attribute of the udev rule is used to indicate that devices with these
 // parameters should be added to the apps device cgroup
 var udevVidPidFormat = regexp.MustCompile(`^[\da-fA-F]{4}$`)
-var udevHeader = `IMPORT{builtin}="usb_id"`
-var udevEntryPattern = `SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s"`
-var udevEntryTagPattern = `, TAG+="%s"`
+
+const udevHeader string = `IMPORT{builtin}="usb_id"`
+const udevEntryPattern string = `SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%s", ATTRS{idProduct}=="%s"`
+const udevEntryTagPattern string = `, TAG+="%s"`
 
 // SanitizeSlot checks validity of the defined slot
 func (iface *HidrawDeviceInterface) SanitizeSlot(slot *interfaces.Slot) error {
@@ -95,7 +96,7 @@ func (iface *HidrawDeviceInterface) SanitizePlug(plug *interfaces.Plug) error {
 	switch len(plug.Attrs) {
 	case 1:
 		// In the case of one attribute it should be valid path attribute
-		// Check slot has a path attribute identify hidraw device
+		// Check the plug has a path attribute to identify the hidraw device
 		path, ok := plug.Attrs["path"].(string)
 		if !ok || path == "" {
 			return fmt.Errorf(`hidraw-device plug found one attribute but it was not "path"`)
