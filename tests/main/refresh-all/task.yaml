@@ -6,7 +6,7 @@ details: |
     have more we can update the test to use them
 
 environment:
-    BLOB_DIR: $(mktemp -d)
+    BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
     . $TESTSLIB/store.sh
@@ -25,7 +25,7 @@ restore: |
 
 execute: |
     echo "When the store is configured to make them refreshable"
-    fakestore -make-refreshable test-snapd-tools,xkcd-webserver -blobdir $BLOB_DIR
+    fakestore -make-refreshable test-snapd-tools,xkcd-webserver -dir $BLOB_DIR
 
     echo "And a refresh is performed"
     snap refresh
