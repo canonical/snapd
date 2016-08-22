@@ -10,7 +10,7 @@ details: |
 
 environment:
     SNAP_NAME: log-observe-consumer
-    SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
+    SNAP_FILE: "${SNAP_NAME}_1.0_all.snap"
     PLUG: log-observe
 
 prepare: |

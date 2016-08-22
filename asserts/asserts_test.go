@@ -582,8 +582,34 @@ func (as *assertsSuite) TestSignKeyID(c *C) {
 	c.Assert(err, IsNil)
 
 	keyID := a.SignKeyID()
-	c.Assert(err, IsNil)
 	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
+}
+
+func (as *assertsSuite) TestSelfRef(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+	}
+	a1, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	c.Check(a1.Ref(), DeepEquals, &asserts.Ref{
+		Type:       asserts.TestOnlyType,
+		PrimaryKey: []string{"0"},
+	})
+
+	headers = map[string]interface{}{
+		"authority-id": "auth-id1",
+		"pk1":          "a",
+		"pk2":          "b",
+	}
+	a2, err := asserts.AssembleAndSignInTest(asserts.TestOnly2Type, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	c.Check(a2.Ref(), DeepEquals, &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"a", "b"},
+	})
 }
 
 func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
@@ -635,7 +661,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"model",
 		"serial",
 	}
-	c.Check(withAuthority, HasLen, asserts.NumAssertionType-1) // excluding serial-request
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-2) // excluding serial-request, serial-proof
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
 		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
