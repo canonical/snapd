@@ -144,6 +144,11 @@ func importAssertionsFromSeed(state *state.State) error {
 		return fmt.Errorf("cannot read assert seed dir: %s", err)
 	}
 
+	// FIXME: remove this check once asserts are mandatory
+	if len(dc) == 0 {
+		return nil
+	}
+
 	// collect
 	var modelAssertion asserts.Assertion
 	assertsToAdd := map[asserts.Assertion]bool{}
@@ -164,8 +169,12 @@ func importAssertionsFromSeed(state *state.State) error {
 			modelAssertion = as
 		}
 	}
+	// verify we have one model assertion
+	if modelAssertion == nil {
+		return fmt.Errorf("need a model assertion")
+	}
 
-	// add
+	// add all assertions to the database
 	// FIXME: very naive, use asserts.Fetcher() and asserts.MemoryBackstore
 	//        instead
 	for {

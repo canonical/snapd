@@ -274,3 +274,24 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	err = boot.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot add more than one model assertion")
 }
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	assertsChain := s.makeModelAssertionChain(c)
+	for _, as := range assertsChain {
+		if as.Type() != asserts.ModelType {
+			fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
+			err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+			c.Assert(err, IsNil)
+			break
+		}
+	}
+
+	// try import and verify that its rejects because other assertions are
+	// missing
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "need a model assertion")
+}
