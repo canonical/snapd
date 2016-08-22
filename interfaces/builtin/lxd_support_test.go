@@ -115,7 +115,7 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdSideload(c *C) {
 		Name:      "lxd-support",
 		Interface: "lxd-support",
 	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(developer name 'foo' != 'canonical'\\)")
+	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(developer name '' != 'canonical'\\)")
 }
 
 func (s *LxdSupportInterfaceSuite) TestUnusedSecuritySystems(c *C) {
