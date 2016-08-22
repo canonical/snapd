@@ -35,15 +35,17 @@ const homeConnectedPlugAppArmor = `
 # Allow read access to toplevel $HOME for the user
 owner @{HOME}/ r,
 
-# Allow read/write access to all non-hidden files that aren't in ~/snap/
+# Allow read/write access to all files in @{HOME}, except snap application
+# data in @{HOME}/snaps and toplevel hidden directories in @{HOME}.
 owner @{HOME}/[^s.]**             rwk,
 owner @{HOME}/s[^n]**             rwk,
 owner @{HOME}/sn[^a]**            rwk,
 owner @{HOME}/sna[^p]**           rwk,
-# allow creating a few files not caught above
+# Allow creating a few files not caught above
 owner @{HOME}/{s,sn,sna}{,/} rwk,
 
-# allow access to gvfs mounts (only allow writes to files, not mount point)
+# Allow access to gvfs mounts for files owned by the user (including hidden
+# files; only allow writes to files, not the mount point).
 owner /run/user/[0-9]*/gvfs/**   r,
 owner /run/user/[0-9]*/gvfs/*/** w,
 `
