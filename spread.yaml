@@ -6,7 +6,7 @@ environment:
 
 backends:
     linode:
-        key: $(echo $SPREAD_LINODE_KEY)
+        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         systems:
             - ubuntu-16.04-64-grub
             # - ubuntu-16.04-32-grub
