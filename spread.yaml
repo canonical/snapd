@@ -86,27 +86,11 @@ suites:
     tests/main/:
         summary: Full-system tests for snapd
         prepare: |
-            # the preare script will look at SPREAD_SYSTEM DTRT
-            $TESTSLIB/prepare.sh
-            # we reboot classic here uselessly - but we can not
-            # move the reboot marker inside the "if" because
-            # spread uses string.split() to divide the snippet,
-            # so if it is inside the "if" there is an "fi" missing
-            # in the snippet executed (and the next snippet contains
-            # an extra "fi")
-            # REBOOT
+            . $TESTSLIB/prepare.sh
             if [ "$SPREAD_SYSTEM" = "ubuntu-core-16" ]; then
-                echo "Ensure we are now in an all-snap world"
-                if [ -e /var/lib/dpkg/status ]; then
-                    echo "Rebooting into all-snap system did not work"
-                    exit 1
-                fi
-                # Snapshot the state.json
-                if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-                    systemctl stop snapd.socket
-                    tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
-                    systemctl start snapd.socket
-                fi
+                prepare_all_snap
+            else
+                prepare_classic
             fi
         restore: |
             $TESTSLIB/reset.sh
