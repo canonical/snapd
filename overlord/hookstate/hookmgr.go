@@ -24,6 +24,7 @@ package hookstate
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 
@@ -41,18 +42,8 @@ type HookManager struct {
 	state      *state.State
 	runner     *state.TaskRunner
 	repository *repository
-}
 
-// Handler is the interface a client must satify to handle hooks.
-type Handler interface {
-	// Before is called right before the hook is to be run.
-	Before() error
-
-	// Done is called right after the hook has finished successfully.
-	Done() error
-
-	// Error is called if the hook encounters an error while running.
-	Error(err error) error
+	activeHandlers *handlerCollection
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
@@ -75,9 +66,10 @@ type hookSetup struct {
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
 	manager := &HookManager{
-		state:      s,
-		runner:     runner,
-		repository: newRepository(),
+		state:          s,
+		runner:         runner,
+		repository:     newRepository(),
+		activeHandlers: newHandlerCollection(),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -119,10 +111,15 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-// SnapCtl is used to conduct the action required by the snapctl request.
-func (m *HookManager) SnapCtl(request SnapCtlRequest) (stdout, stderr []byte, err error) {
-	// TODO: Make this do something useful
-	return nil, nil, nil
+// GetHandler obtains the handler for the given context.
+func (m *HookManager) GetHandler(context string) (Handler, error) {
+	// Extract the appropriate handler for this request
+	handler, err := m.activeHandlers.getHandler(context)
+	if err != nil {
+		return nil, err
+	}
+
+	return handler, nil
 }
 
 // doRunHook actually runs the hook that was requested.
@@ -153,13 +150,19 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 
 	handler := handlers[0]
 
+	context, err := m.activeHandlers.addHandler(handler)
+	if err != nil {
+		return err
+	}
+	defer m.activeHandlers.removeHandler(context)
+
 	// About to run the hook-- notify the handler
-	if err := handler.Before(); err != nil {
+	if err = handler.Before(); err != nil {
 		return err
 	}
 
 	// Actually run the hook
-	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, context, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
@@ -178,8 +181,12 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
+func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {
 	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+
+	// Make sure the hook has its context defined so it can communicate via the
+	// REST API.
+	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
