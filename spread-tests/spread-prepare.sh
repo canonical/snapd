@@ -129,7 +129,7 @@ case "$release_ID" in
         sbuild-adduser "$LOGNAME"
         # trusty support is under development right now
         # we special-case the release until we have officially landed
-        if ["$release_VERSION_ID" == "14.04"]
+        if [ "$release_VERSION_ID" = "14.04" ]
         then
             add-apt-repository ppa:thomas-voss/trusty
             apt-get update && apt-get upgrade
