@@ -224,6 +224,7 @@ var defaultTemplate = []byte(`
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
+  owner @{PROC}/@{pid}/limits r,
   @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
