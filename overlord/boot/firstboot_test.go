@@ -24,6 +24,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -153,7 +154,9 @@ snaps:
 	c.Assert(snapst.DevMode(), Equals, true)
 }
 
-func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) {
+func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
+	assertChain := []asserts.Assertion{}
+
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
 
@@ -162,17 +165,11 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) {
 		"verification": "certified",
 	}, "")
 	s.storeSigning.Add(brandAcct)
-
-	fn := filepath.Join(dirs.SnapSeedDir, "assertions", "brand-acct")
-	err := ioutil.WriteFile(fn, asserts.Encode(brandAcct), 0644)
-	c.Assert(err, IsNil)
+	assertChain = append(assertChain, brandAcct)
 
 	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
 	s.storeSigning.Add(brandAccKey)
-
-	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "acc-key")
-	err = ioutil.WriteFile(fn, asserts.Encode(brandAccKey), 0644)
-	c.Assert(err, IsNil)
+	assertChain = append(assertChain, brandAccKey)
 
 	headers := map[string]interface{}{
 		"series":       "16",
@@ -189,24 +186,25 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) {
 	}
 	model, err := brandSigning.Sign(asserts.ModelType, headers, nil, "")
 	c.Assert(err, IsNil)
-
-	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "model")
-	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
-	c.Assert(err, IsNil)
+	assertChain = append(assertChain, model)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
-	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "store-account")
-	err = ioutil.WriteFile(fn, asserts.Encode(storeAccountKey), 0644)
-	c.Assert(err, IsNil)
+	assertChain = append(assertChain, storeAccountKey)
+	return assertChain
 }
 
-func (s *FirstBootTestSuite) TestImportAssertionsFromSeed(c *C) {
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
 	st := ovld.State()
 
 	// add a bunch of assert files
-	s.makeModelAssertionChain(c)
+	assertsChain := s.makeModelAssertionChain(c)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
 
 	// import them
 	err = boot.ImportAssertionsFromSeed(st)
@@ -224,4 +222,26 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeed(c *C) {
 	c.Assert(err, IsNil)
 	_, ok := as.(*asserts.Model)
 	c.Check(ok, Equals, true)
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// write out only the model assertion
+	assertsChain := s.makeModelAssertionChain(c)
+	for _, as := range assertsChain {
+		if as.Type() == asserts.ModelType {
+			fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
+			err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+			c.Assert(err, IsNil)
+			break
+		}
+	}
+
+	// try import and verify that its rejects because other assertions are
+	// missing
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "cannot add assertions, 1 left")
 }
