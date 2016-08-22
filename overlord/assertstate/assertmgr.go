@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
-	//"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -113,6 +113,14 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
+type assertionNotFoundError struct {
+	ref *asserts.Ref
+}
+
+func (e *assertionNotFoundError) Error() string {
+	return fmt.Sprintf("%s %v not found", e.ref.Type.Name, e.ref.PrimaryKey)
+}
+
 // fetch fetches or updates the referenced assertion and all its prerequisites from the store and adds them to the system assertion database. It does not fail if required assertions were already present.
 func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
@@ -123,7 +131,7 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	}
 
 	db := cachedDB(s)
-	store := snapstate.Store(s)
+	sto := snapstate.Store(s)
 
 	s.Unlock()
 	defer s.Lock()
@@ -132,7 +140,11 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?
-		return store.Assertion(ref.Type, ref.PrimaryKey, user)
+		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, user)
+		if err == store.ErrAssertionNotFound {
+			return nil, &assertionNotFoundError{ref}
+		}
+		return a, err
 	}
 
 	save := func(a asserts.Assertion) error {
@@ -191,31 +203,47 @@ func doFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	err = fetch(t.State(), ref, ss.UserID)
-	if err == store.ErrAssertionNotFound {
-		// TODO: include which assertion we didn't find
-		return fmt.Errorf("cannot find assertions to verify snap %q and its hash", ss.Name())
+	if notFound, ok := err.(*assertionNotFoundError); ok {
+		return fmt.Errorf("cannot find assertions to verify snap %q and its hash (%v)", ss.Name(), notFound)
 	}
 	if err != nil {
 		return err
 	}
 
-	// get relevant assertions and and do cross checks
-	db := DB(t.State())
-
-	a, err := ref.Resolve(db.Find)
+	err = crossCheckSnap(t.State(), ss.Name(), sha3_384, snapSize, ss.SideInfo)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find just fetched snap-revision assertion: %v", ref.PrimaryKey)
+		return err
+	}
+
+	// TODO: set DeveloperID from assertions
+	return nil
+}
+
+func undoFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
+	// nothing to do, the assertions that were *actually* added are still true
+	return nil
+}
+
+func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo) error {
+	// get relevant assertions and and do cross checks
+	db := DB(st)
+
+	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": snapSHA3_384,
+	})
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find just fetched snap-revision assertion for %q: %s", name, snapSHA3_384)
 	}
 	snapRev := a.(*asserts.SnapRevision)
 
 	if snapRev.SnapSize() != snapSize {
-		return fmt.Errorf("snap %q file does not have expected size according to assertions: %d != %d", ss.Name(), snapSize, snapRev.SnapSize())
+		return fmt.Errorf("snap %q file does not have expected size according to assertions: %d != %d", name, snapSize, snapRev.SnapSize())
 	}
 
-	snapID := ss.SideInfo.SnapID
+	snapID := si.SnapID
 
-	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != ss.Revision().N {
-		return fmt.Errorf("snap %q file hash %s implied snap id %q and revision %d are not the one expected for installing: %q and %s", ss.Name(), sha3_384, snapRev.SnapID(), snapRev.SnapRevision(), snapID, ss.Revision())
+	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
+		return fmt.Errorf("snap %q file hash %q implied by assertions snap id %q and revision %d are not the ones expected for installing: %q and %s", name, snapSHA3_384, snapRev.SnapID(), snapRev.SnapRevision(), snapID, si.Revision)
 	}
 
 	a, err = db.Find(asserts.SnapDeclarationType, map[string]string{
@@ -230,20 +258,14 @@ func doFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 	if snapDecl.SnapName() == "" {
 		// TODO: trigger a global sanity check
 		// that will generate the changes to deal with this
-		return fmt.Errorf("cannot install snap %q with a revoked snap declaration", ss.Name())
+		return fmt.Errorf("cannot install snap %q with a revoked snap declaration", name)
 	}
 
-	if snapDecl.SnapName() != ss.Name() {
+	if snapDecl.SnapName() != name {
 		// TODO: trigger a global sanity check
 		// that will generate the changes to deal with this
-		return fmt.Errorf("cannot install snap %q that is undergoing a rename to %s", ss.Name(), snapDecl.SnapName())
+		return fmt.Errorf("cannot install snap %q that is undergoing a rename to %q", name, snapDecl.SnapName())
 	}
 
-	// TODO: set DeveloperID from assertions
-	return nil
-}
-
-func undoFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
-	// nothing to do, the assertions that were *actually* added are still true
 	return nil
 }
