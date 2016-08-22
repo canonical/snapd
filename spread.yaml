@@ -20,7 +20,7 @@ backends:
             - ubuntu-core-16-64
     qemu:
         systems:
-            - ubuntu-16.04-64-grub:
+            - ubuntu-16.04:
                 username: ubuntu
                 password: ubuntu
             - ubuntu-core-16:
