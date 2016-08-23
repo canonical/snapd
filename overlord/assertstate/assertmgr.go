@@ -243,7 +243,17 @@ func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64,
 	snapID := si.SnapID
 
 	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
-		return fmt.Errorf("snap %q file hash %q implied by assertions snap id %q and revision %d are not the ones expected for installing: %q and %s", name, snapSHA3_384, snapRev.SnapID(), snapRev.SnapRevision(), snapID, si.Revision)
+		// we have at least 3 cases here, what's the best message?
+		// - an unsuccesufl MITM
+		// - broken store metadata resulting into broken assertions
+		//   (more likely if it is snap-revision not matching)
+		//   people would need to report this
+		// - some race with a snap name swapping in the store
+		//   (more likely if it is snap-id not matching)
+		//   (should be quite rare)
+		//   a user retry might work, though the expectations
+		//   of what is going to be installed might be off
+		return fmt.Errorf("snap %q file hash %q corresponding assertions implied snap id %q and revision %d are not the ones expected for installing: %q and %s", name, snapSHA3_384, snapRev.SnapID(), snapRev.SnapRevision(), snapID, si.Revision)
 	}
 
 	a, err = db.Find(asserts.SnapDeclarationType, map[string]string{
@@ -251,7 +261,7 @@ func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64,
 		"snap-id": snapID,
 	})
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find just fetched snap declaration: %s", snapID)
+		return fmt.Errorf("internal error: cannot find just fetched snap declaration for %q: %s", name, snapID)
 	}
 	snapDecl := a.(*asserts.SnapDeclaration)
 
