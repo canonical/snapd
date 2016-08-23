@@ -1,6 +1,6 @@
 summary: Ensure that a ubuntu-core refresh works
 
-systems: [ubuntu-core-16]
+systems: [ubuntu-core-16-64]
 
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
