@@ -81,6 +81,6 @@ func (x *cmdCreateKey) Execute(args []string) error {
 		return err
 	}
 
-	manager := asserts.NewGPGKeypairManager("")
+	manager := asserts.NewGPGKeypairManager()
 	return manager.Generate(string(passphrase), keyName)
 }

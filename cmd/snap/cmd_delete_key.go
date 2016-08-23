@@ -47,6 +47,6 @@ func (x *cmdDeleteKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	manager := asserts.NewGPGKeypairManager("")
+	manager := asserts.NewGPGKeypairManager()
 	return manager.Delete(x.Positional.KeyName)
 }

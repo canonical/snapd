@@ -61,7 +61,7 @@ func (x *cmdKeys) Execute(args []string) error {
 	}
 	var keys []Key
 
-	manager := asserts.NewGPGKeypairManager("")
+	manager := asserts.NewGPGKeypairManager()
 	display := func(privk asserts.PrivateKey, fpr string, uid string) error {
 		key := Key{
 			Name:     uid,
