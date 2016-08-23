@@ -6,7 +6,7 @@ reset_classic() {
     systemctl stop snapd.service snapd.socket
 
     # purge all state
-    sh ${SPREAD_PATH}/debian/snapd.postrm purge
+    sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
     if [ -d /snap/* ] || [ -d /var/snap/* ]; then
         echo "postinst purge failed"
         ls -lR /snap/* /var/snap/*
@@ -39,7 +39,7 @@ reset_all_snap() {
     systemctl start snapd.socket
 }
 
-if [ "$SPREAD_SYSTEM" = "ubuntu-core-16" ]; then
+if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"

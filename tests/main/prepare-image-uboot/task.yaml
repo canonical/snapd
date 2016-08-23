@@ -1,5 +1,5 @@
 summary: Check that prepare-image works for uboot-systems
-systems: [-ubuntu-core-16]
+systems: [-ubuntu-core-16-64]
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
