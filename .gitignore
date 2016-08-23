@@ -3,7 +3,6 @@ integration-tests/data/output/
 share
 tags
 .coverage
-cmd/snap/cmd_keys_data_test.go
 cmd/version_generated.go
 *~
 *.swp
