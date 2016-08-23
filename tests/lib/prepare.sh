@@ -91,6 +91,12 @@ StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
 EOF
+        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+EOF
     
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
