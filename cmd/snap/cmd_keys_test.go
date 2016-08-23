@@ -19,8 +19,6 @@
 
 package main_test
 
-//go:generate go-bindata -pkg main_test -nocompress -o ./cmd_keys_data_test.go test-data/
-
 import (
 	"encoding/json"
 	"io/ioutil"
@@ -42,10 +40,10 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
 	tempdir := c.MkDir()
-	for _, assetName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
-		data, err := Asset(filepath.Join("test-data", assetName))
+	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
+		data, err := ioutil.ReadFile(filepath.Join("test-data", fileName))
 		c.Assert(err, IsNil)
-		err = ioutil.WriteFile(filepath.Join(tempdir, assetName), data, 0644)
+		err = ioutil.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
 	}
 	os.Setenv("SNAP_GNUPGHOME", tempdir)
