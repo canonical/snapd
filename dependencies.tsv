@@ -15,5 +15,5 @@ golang.org/x/net	git	3b90a77d2885fb0429e8a21ab72fc73ca6f8b401	2016-01-05T05:09:1
 gopkg.in/check.v1	git	64131543e7896d5bcc6bd5a76287eb75ea96c673	2014-10-24T13:38:53Z
 gopkg.in/macaroon.v1	git	ab3940c6c16510a850e1c2dd628b919f0f3f1464	2015-01-21T11:42:31Z
 gopkg.in/tomb.v2	git	14b3d72120e8d10ea6e6b7f87f7175734b1faab8	2014-06-26T14:46:23Z
-gopkg.in/tylerb/graceful.v1	git	48afeb21e2fcbcff0f30bd5ad6b97747b0fae38e	2015-10-12T18:13:41Z
+gopkg.in/tylerb/graceful.v1	git	842f31108f8d3512ce3176d00bf1a32db1d5e3af	2015-10-12T18:13:41Z
 gopkg.in/yaml.v2	git	49c95bdc21843256fb6c4e0d370a05f24a0bf213	2015-02-24T22:57:58Z
