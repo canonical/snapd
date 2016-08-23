@@ -6,4 +6,4 @@ check: check-syntax
 
 .PHONY: check-syntax
 check-syntax:
-	shellcheck --format=gcc .spread-prepare.sh
+	shellcheck --format=gcc spread-tests/spread-prepare.sh
