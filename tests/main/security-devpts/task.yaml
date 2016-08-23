@@ -1,6 +1,6 @@
 summary: Ensure that the basic devpts security rules are in place.
 
-systems: [-ubuntu-core-16]
+systems: [-ubuntu-core-16-64]
 
 prepare: |
     echo "Given a basic snap is installed"

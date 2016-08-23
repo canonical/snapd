@@ -28,7 +28,7 @@ prepare_classic() {
 }
 
 prepare_all_snap() {
-    if [ $SPREAD_REBOOT = 0 ]; then
+    if [ $SPREAD_REBOOT = 0 ] || [ -e /var/lib/dpkg/status ]; then
         # install the stuff we need
         apt install -y kpartx busybox-static
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
@@ -91,6 +91,13 @@ StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
 EOF
+        mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
+        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
+[Unit]
+StartLimitInterval=0
+[Service]
+Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+EOF
     
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
@@ -101,20 +108,22 @@ EOF
 #!/bin/sh -ex
 mount -t tmpfs none /tmp
 cp /bin/busybox /tmp
+cp $IMAGE_HOME/$IMAGE /tmp
 # blow away everything
-/tmp/busybox dd if=$IMAGE_HOME/$IMAGE of=/dev/sda bs=4M
+/tmp/busybox dd if=/tmp/$IMAGE of=/dev/sda bs=4M
 # and reboot
 /tmp/busybox sync
 /tmp/busybox echo b > /proc/sysrq-trigger
 EOF
         chmod +x $IMAGE_HOME/reflash.sh
 
-        # FIXME: hardcoded sda1
+        # extract ROOT from /proc/cmdline
+        ROOT=$(cat /proc/cmdline | sed -e 's/^.*root=//' -e 's/ .*$//')
         cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux /vmlinuz root=/dev/sda1 ro init=$IMAGE_HOME/reflash.sh console=ttyS0
+linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
@@ -130,12 +139,13 @@ REBOOT
             echo "Rebooting into all-snap system did not work"
             exit 1
         fi
-        # Snapshot the state.json
-        if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-            systemctl stop snapd.socket
-            tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
-            systemctl start snapd.socket
-        fi
+    fi
+
+    # Snapshot the system
+    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        systemctl stop snapd.socket
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        systemctl start snapd.socket
     fi
 }
 

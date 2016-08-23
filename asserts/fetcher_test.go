@@ -105,9 +105,8 @@ func (s *fetcherSuite) TestFetch(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        s.storeSigning.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
 
@@ -141,9 +140,8 @@ func (s *fetcherSuite) TestSave(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        s.storeSigning.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
 

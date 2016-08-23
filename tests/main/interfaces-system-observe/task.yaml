@@ -1,6 +1,6 @@
 summary: Ensures that the system-observe interface works.
 
-systems: [-ubuntu-core-16]
+systems: [-ubuntu-core-16-64]
 
 details: |
     A snap declaring the system-observe plug is defined, its command
