@@ -33,6 +33,7 @@ import (
 )
 
 type accountKeySuite struct {
+	privKey              asserts.PrivateKey
 	pubKeyBody           string
 	keyID                string
 	since, until         time.Time
@@ -45,10 +46,10 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	cfg1 := &asserts.DatabaseConfig{}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	pk := testPrivKey1
-	err = accDb.ImportKey(pk)
+	aks.privKey = testPrivKey1
+	err = accDb.ImportKey(aks.privKey)
 	c.Assert(err, IsNil)
-	aks.keyID = pk.PublicKey().ID()
+	aks.keyID = aks.privKey.PublicKey().ID()
 
 	pubKey, err := accDb.PublicKey(aks.keyID)
 	c.Assert(err, IsNil)
@@ -115,7 +116,8 @@ func (aks *accountKeySuite) TestUntil(c *C) {
 }
 
 const (
-	accKeyErrPrefix = "assertion account-key: "
+	accKeyErrPrefix    = "assertion account-key: "
+	accKeyReqErrPrefix = "assertion account-key-request: "
 )
 
 func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
@@ -418,4 +420,141 @@ func (aks *accountKeySuite) TestPrerequisites(c *C) {
 		Type:       asserts.AccountType,
 		PrimaryKey: []string{"acc-id1"},
 	})
+}
+
+func (aks *accountKeySuite) TestAccountKeyRequestHappy(c *C) {
+	akr, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType,
+		map[string]interface{}{
+			"account-id":          "acc-id1",
+			"public-key-sha3-384": aks.keyID,
+			"since":               aks.since.Format(time.RFC3339),
+		}, []byte(aks.pubKeyBody), aks.privKey)
+	c.Assert(err, IsNil)
+
+	// roundtrip
+	a, err := asserts.Decode(asserts.Encode(akr))
+	c.Assert(err, IsNil)
+
+	akr2, ok := a.(*asserts.AccountKeyRequest)
+	c.Assert(ok, Equals, true)
+
+	// standalone signature check
+	err = asserts.SignatureCheck(akr2, aks.privKey.PublicKey())
+	c.Check(err, IsNil)
+
+	c.Check(akr2.AccountID(), Equals, "acc-id1")
+	c.Check(akr2.PublicKey().ID(), Equals, aks.keyID)
+	c.Check(akr2.Since(), Equals, aks.since)
+}
+
+func (aks *accountKeySuite) TestAccountKeyRequestUntil(c *C) {
+	untilSinceLine := "until: " + aks.since.Format(time.RFC3339) + "\n"
+
+	tests := []struct {
+		untilLine string
+		until     time.Time
+	}{
+		{"", time.Time{}},           // zero time default
+		{aks.untilLine, aks.until},  // in the future
+		{untilSinceLine, aks.since}, // same as since
+	}
+
+	for _, test := range tests {
+		c.Log(test)
+		encoded := "type: account-key-request\n" +
+			"account-id: acc-id1\n" +
+			"public-key-sha3-384: " + aks.keyID + "\n" +
+			aks.sinceLine +
+			test.untilLine +
+			fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+			"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+			aks.pubKeyBody + "\n\n" +
+			"AXNpZw=="
+		a, err := asserts.Decode([]byte(encoded))
+		c.Assert(err, IsNil)
+		accKeyReq := a.(*asserts.AccountKeyRequest)
+		c.Check(accKeyReq.Until(), Equals, test.until)
+	}
+}
+
+func (aks *accountKeySuite) TestAccountKeyRequestDecodeInvalid(c *C) {
+	encoded := "type: account-key-request\n" +
+		"account-id: acc-id1\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		aks.untilLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: " + aks.privKey.PublicKey().ID() + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+
+	untilPast := aks.since.AddDate(-1, 0, 0)
+	untilPastLine := "until: " + untilPast.Format(time.RFC3339) + "\n"
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
+		{"account-id: acc-id1\n", "account-id: \n", `"account-id" header should not be empty`},
+		{"public-key-sha3-384: " + aks.keyID + "\n", "", `"public-key-sha3-384" header is mandatory`},
+		{"public-key-sha3-384: " + aks.keyID + "\n", "public-key-sha3-384: \n", `"public-key-sha3-384" header should not be empty`},
+		{aks.sinceLine, "", `"since" header is mandatory`},
+		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
+		{aks.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
+		{aks.sinceLine, "since: \n", `"since" header should not be empty`},
+		{aks.untilLine, "until: \n", `"until" header is not a RFC3339 date: .*`},
+		{aks.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
+		{aks.untilLine, untilPastLine, `'until' time cannot be before 'since' time`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, accKeyReqErrPrefix+test.expectedErr)
+	}
+}
+
+func (aks *accountKeySuite) TestAccountKeyRequestDecodeInvalidPublicKey(c *C) {
+	headers := "type: account-key-request\n" +
+		"account-id: acc-id1\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		aks.untilLine
+
+	raw, err := base64.StdEncoding.DecodeString(aks.pubKeyBody)
+	c.Assert(err, IsNil)
+	spurious := base64.StdEncoding.EncodeToString(append(raw, "gorp"...))
+
+	invalidPublicKeyTests := []struct{ body, expectedErr string }{
+		{"", "cannot decode public key: no data"},
+		{"==", "cannot decode public key: .*"},
+		{"stuff", "cannot decode public key: .*"},
+		{"AnNpZw==", "unsupported public key format version: 2"},
+		{"AUJST0tFTg==", "cannot decode public key: .*"},
+		{spurious, "public key has spurious trailing data"},
+	}
+
+	for _, test := range invalidPublicKeyTests {
+		invalid := headers +
+			fmt.Sprintf("body-length: %v", len(test.body)) + "\n" +
+			"sign-key-sha3-384: " + aks.privKey.PublicKey().ID() + "\n\n" +
+			test.body + "\n\n" +
+			"AXNpZw=="
+
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, accKeyReqErrPrefix+test.expectedErr)
+	}
+}
+
+func (aks *accountKeySuite) TestAccountKeyRequestDecodeKeyIDMismatch(c *C) {
+	invalid := "type: account-key-request\n" +
+		"account-id: acc-id1\n" +
+		"public-key-sha3-384: aa\n" +
+		aks.sinceLine +
+		aks.untilLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: " + aks.privKey.PublicKey().ID() + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+
+	_, err := asserts.Decode([]byte(invalid))
+	c.Check(err, ErrorMatches, "assertion account-key-request: public key does not match provided key id")
 }
