@@ -204,7 +204,11 @@ func doFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 
 	err = fetch(t.State(), ref, ss.UserID)
 	if notFound, ok := err.(*assertionNotFoundError); ok {
-		return fmt.Errorf("cannot find assertions to verify snap %q and its hash (%v)", ss.Name(), notFound)
+		if notFound.ref.Type == asserts.SnapRevisionType {
+			return fmt.Errorf("cannot verify snap %q and its hash, no matching assertions found", ss.Name())
+		} else {
+			return fmt.Errorf("cannot find assertions to verify snap %q and its hash (%v)", ss.Name(), notFound)
+		}
 	}
 	if err != nil {
 		return err
@@ -237,23 +241,18 @@ func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64,
 	snapRev := a.(*asserts.SnapRevision)
 
 	if snapRev.SnapSize() != snapSize {
-		return fmt.Errorf("snap %q file does not have expected size according to assertions: %d != %d", name, snapSize, snapRev.SnapSize())
+		return fmt.Errorf("snap %q file does not have expected size according to assertions (download is broken or tampered): %d != %d", name, snapSize, snapRev.SnapSize())
 	}
 
 	snapID := si.SnapID
 
 	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
-		// we have at least 3 cases here, what's the best message?
+		// we have at least 2 cases here, what's the best message?
 		// - an unsuccesufl MITM
 		// - broken store metadata resulting into broken assertions
 		//   (more likely if it is snap-revision not matching)
 		//   people would need to report this
-		// - some race with a snap name swapping in the store
-		//   (more likely if it is snap-id not matching)
-		//   (should be quite rare)
-		//   a user retry might work, though the expectations
-		//   of what is going to be installed might be off
-		return fmt.Errorf("snap %q file hash %q corresponding assertions implied snap id %q and revision %d are not the ones expected for installing: %q and %s", name, snapSHA3_384, snapRev.SnapID(), snapRev.SnapRevision(), snapID, si.Revision)
+		return fmt.Errorf("snap %q file hash %q corresponding assertions implied snap id %q and revision %d are not the ones expected for installing (store metadata is broken or communication tampered): %q and %s", name, snapSHA3_384, snapRev.SnapID(), snapRev.SnapRevision(), snapID, si.Revision)
 	}
 
 	a, err = db.Find(asserts.SnapDeclarationType, map[string]string{
