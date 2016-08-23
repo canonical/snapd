@@ -39,10 +39,15 @@ execute: |
     ls -lR $GADGET
     ls $GADGET/meta/snap.yaml
 
-    echo Verify that we have valid looking seed.yaml
+    echo "Verify that we have valid looking seed.yaml"
     cat $IMAGE/var/lib/snapd/seed/seed.yaml
     # snap-id of ubuntu-core
     grep -q "snap-id: b8X2psL1ryVrPt5WEmpYiqfr5emixTd7" $IMAGE/var/lib/snapd/seed/seed.yaml
     for snap in pc pc-kernel ubuntu-core; do
       grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+    done
+
+    echo "Verify that we got some snap assertions"
+    for name in ubuntu-core pc pc-kernel; do
+        grep "snap-name: $name" /var/lib/snapd/seed/assertions/*
     done

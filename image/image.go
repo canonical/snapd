@@ -202,6 +202,18 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
+		// fetch the snap assertions too
+		sha3_384, _, err := asserts.SnapFileSHA3_384(fn)
+		ref := &asserts.Ref{
+			Type:       asserts.SnapRevisionType,
+			PrimaryKey: []string{sha3_384},
+		}
+		if err := f.Fetch(ref); err != nil {
+			logger.Noticef("cannot fetch assertion %q: %s", ref.Unique(), err)
+		} else {
+			assertRefs = append(assertRefs, ref)
+		}
+
 		// kernel/os are required for booting
 		if snapName == model.Kernel() || snapName == model.Core() {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
