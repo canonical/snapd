@@ -76,7 +76,7 @@ func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {
 	sort.Strings(env)
 	c.Check(env, check.DeepEquals, []string{
 		"PATH=${PATH}:/usr/lib/snapd",
-		"SNAP=/snap/snapname/42",
+		fmt.Sprintf("SNAP=%s/snapname/42", dirs.SnapSnapsDir),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_COMMON=/var/snap/snapname/common",
 		"SNAP_DATA=/var/snap/snapname/42",
@@ -179,8 +179,8 @@ func (s *SnapSuite) TestSnapRunCreateDataDirs(c *check.C) {
 
 	err = snaprun.CreateUserDataDirs(info)
 	c.Assert(err, check.IsNil)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/42")), check.Equals, true)
-	c.Check(osutil.FileExists(filepath.Join(fakeHome, "/snap/snapname/common")), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, fmt.Sprintf("%s/snapname/42", dirs.SnapSnapsDir))), check.Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(fakeHome, fmt.Sprintf("%s/snapname/common", dirs.SnapSnapsDir))), check.Equals, true)
 }
 
 func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
