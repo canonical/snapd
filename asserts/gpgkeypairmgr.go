@@ -250,6 +250,7 @@ Key-Length: 4096
 Subkey-Type: RSA
 Subkey-Length: 4096
 Name-Real: %s
+Creation-Date: %s
 Preferences: SHA512
 `
 
@@ -259,7 +260,8 @@ func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
 	if err == nil {
 		return fmt.Errorf("key named %q already exists in GPG keyring", name)
 	}
-	generateParams := fmt.Sprintf(generateTemplate, name)
+	fixedCreationTime := v1FixedTimestamp.Format("20060102T030405")
+	generateParams := fmt.Sprintf(generateTemplate, name, fixedCreationTime)
 	if passphrase != "" {
 		generateParams += "Passphrase: " + passphrase + "\n"
 	}
