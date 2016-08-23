@@ -106,8 +106,10 @@ apps:
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
 
-	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar /snap/foo/42/bar-bin -x")
-	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo /snap/foo/42/foo-bin")
+	c.Check(info.Apps["bar"].LauncherCommand(), Equals,
+		fmt.Sprintf("/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar %s/foo/42/bar-bin -x", dirs.SnapSnapsDir))
+	c.Check(info.Apps["foo"].LauncherCommand(), Equals,
+		fmt.Sprintf("/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo %s/foo/42/foo-bin", dirs.SnapSnapsDir))
 }
 
 const sampleYaml = `
