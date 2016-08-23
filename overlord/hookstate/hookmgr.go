@@ -179,7 +179,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+	command := exec.Command("snap", "run", "--hook", hookName, "-r", revision.String(), snapName)
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
