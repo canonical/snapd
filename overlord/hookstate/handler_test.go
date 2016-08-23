@@ -34,7 +34,7 @@ func (s *handlerSuite) SetUpTest(c *C) {
 	s.collection = newHandlerCollection()
 }
 
-func (s *handlerSuite) TestAddActiveHandler(c *C) {
+func (s *handlerSuite) TestAddHandler(c *C) {
 	mockHandler1 := hooktest.NewMockHandler()
 	mockHandler2 := hooktest.NewMockHandler()
 
@@ -45,7 +45,7 @@ func (s *handlerSuite) TestAddActiveHandler(c *C) {
 	c.Check(s.collection.handlerCount(), Equals, 2)
 }
 
-func (s *handlerSuite) TestRemoveActiveHandler(c *C) {
+func (s *handlerSuite) TestRemoveHandler(c *C) {
 	mockHandler1 := hooktest.NewMockHandler()
 	mockHandler2 := hooktest.NewMockHandler()
 
@@ -57,4 +57,28 @@ func (s *handlerSuite) TestRemoveActiveHandler(c *C) {
 	s.collection.removeHandler(handlerID1)
 	s.collection.removeHandler(handlerID2)
 	c.Check(s.collection.handlerCount(), Equals, 0)
+}
+
+func (s *handlerSuite) TestGetHandler(c *C) {
+	mockHandler1 := hooktest.NewMockHandler()
+	mockHandler2 := hooktest.NewMockHandler()
+
+	handlerID1, err := s.collection.addHandler(mockHandler1)
+	c.Check(err, IsNil)
+	handlerID2, err := s.collection.addHandler(mockHandler2)
+	c.Check(err, IsNil)
+
+	handler, err := s.collection.getHandler(handlerID1)
+	c.Check(err, IsNil)
+	c.Check(handler, Equals, mockHandler1)
+
+	handler, err = s.collection.getHandler(handlerID2)
+	c.Check(err, IsNil)
+	c.Check(handler, Equals, mockHandler2)
+}
+
+func (s *handlerSuite) TestGetMissingHandler(c *C) {
+	handler, err := s.collection.getHandler("foo")
+	c.Check(err, NotNil)
+	c.Check(handler, IsNil)
 }
