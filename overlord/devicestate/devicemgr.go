@@ -71,9 +71,7 @@ func Manager(s *state.State) (*DeviceManager, error) {
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
-	// XXX: auth.Device/SetDevice should probably move to devicestate
-	// they are not quite just about auth and also we risk circular imports
-	// (auth will need to mediate bits from devicestate soon)
+
 	device, err := auth.Device(m.state)
 	if err != nil {
 		return err
@@ -373,4 +371,96 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	auth.SetDevice(st, device)
 	t.SetStatus(state.DoneStatus)
 	return nil
+}
+
+// implementing auth.DeviceAssertions
+// sanity check
+var _ auth.DeviceAssertions = (*DeviceManager)(nil)
+
+// Model returns the device model assertion.
+func (m *DeviceManager) Model() (*asserts.Model, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return nil, err
+	}
+
+	if device.Brand == "" || device.Model == "" {
+		return nil, state.ErrNoState
+	}
+
+	a, err := assertstate.DB(m.state).Find(asserts.ModelType, map[string]string{
+		"series":   release.Series,
+		"brand-id": device.Brand,
+		"model":    device.Model,
+	})
+	if err == asserts.ErrNotFound {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.Model), nil
+}
+
+// Serial returns the device serial assertion.
+func (m *DeviceManager) Serial() (*asserts.Serial, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return nil, err
+	}
+
+	if device.Serial == "" {
+		return nil, state.ErrNoState
+	}
+
+	a, err := assertstate.DB(m.state).Find(asserts.SerialType, map[string]string{
+		"brand-id": device.Brand,
+		"model":    device.Model,
+		"serial":   device.Serial,
+	})
+	if err == asserts.ErrNotFound {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.Serial), nil
+}
+
+// SerialProof produces a serial-proof with the given nonce.
+func (m *DeviceManager) SerialProof(nonce string) (*asserts.SerialProof, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	device, err := auth.Device(m.state)
+	if err != nil {
+		return nil, err
+	}
+
+	if device.KeyID == "" {
+		return nil, state.ErrNoState
+
+	}
+
+	privKey, err := m.keyPair()
+	if err != nil {
+		return nil, err
+	}
+
+	a, err := asserts.SignWithoutAuthority(asserts.SerialProofType, map[string]interface{}{
+		"nonce": nonce,
+	}, nil, privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.SerialProof), err
 }
