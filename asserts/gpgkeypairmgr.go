@@ -223,10 +223,10 @@ type gpgKeypairInfo struct {
 
 func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	stop := errors.New("stop marker")
-	var hit gpgKeypairInfo
+	var hit *gpgKeypairInfo
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if uid == name {
-			hit = gpgKeypairInfo{
+			hit = &gpgKeypairInfo{
 				pubKey:      privk.PublicKey(),
 				fingerprint: fpr,
 			}
@@ -236,7 +236,7 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	}
 	err := gkm.Walk(match)
 	if err == stop {
-		return &hit, nil
+		return hit, nil
 	}
 	if err != nil {
 		return nil, err
