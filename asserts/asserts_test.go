@@ -660,6 +660,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"snap-revision",
 		"model",
 		"serial",
+		"validation",
 	}
 	c.Check(withAuthority, HasLen, asserts.NumAssertionType-2) // excluding serial-request, serial-proof
 	for _, name := range withAuthority {
