@@ -109,12 +109,13 @@ cp /bin/busybox /tmp
 EOF
         chmod +x $IMAGE_HOME/reflash.sh
 
-        # FIXME: hardcoded sda1
+        # extract ROOT from /proc/cmdline
+        ROOT=$(cat /proc/cmdline | sed -e 's/^.*root=//' -e 's/ .*$//')
         cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux /vmlinuz root=/dev/sda1 ro init=$IMAGE_HOME/reflash.sh console=ttyS0
+linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
