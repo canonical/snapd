@@ -46,8 +46,3 @@ execute: |
     for snap in pc pc-kernel ubuntu-core; do
       grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
     done
-
-    echo "Verify that we got some snap assertions"
-    for name in ubuntu-core pc pc-kernel; do
-        grep "snap-name: $name" /var/lib/snapd/seed/assertions/*
-    done

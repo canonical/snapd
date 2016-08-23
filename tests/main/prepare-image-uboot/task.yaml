@@ -56,3 +56,8 @@ execute: |
     for snap in pi2 pi2-kernel ubuntu-core; do
       grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
     done
+
+    echo "Verify that we got some snap assertions"
+    for name in ubuntu-core pi2 pi2-kernel; do
+        grep "snap-name: $name" $IMAGE/var/lib/snapd/seed/assertions/*
+    done
