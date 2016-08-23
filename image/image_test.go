@@ -26,10 +26,13 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
@@ -43,31 +46,6 @@ import (
 
 func Test(t *testing.T) { TestingT(t) }
 
-func makeFakeModelAssertion() *asserts.Model {
-	var modelAssertion = []byte(`type: model
-series: 16
-authority-id: my-brand
-brand-id: my-brand
-model: my-model
-class: my-class
-architecture: amd64
-store: canonical
-gadget: pc
-kernel: pc-kernel
-core: core
-timestamp: 2016-01-02T10:00:00-05:00
-sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-
-AXNpZw==
-`)
-
-	a, err := asserts.Decode(modelAssertion)
-	if err != nil {
-		panic(err)
-	}
-	return a.(*asserts.Model)
-}
-
 type imageSuite struct {
 	root       string
 	bootloader *boottest.MockBootloader
@@ -76,6 +54,11 @@ type imageSuite struct {
 
 	downloadedSnaps map[string]string
 	storeSnapInfo   map[string]*snap.Info
+
+	storeSigning *assertstest.StoreStack
+	brandSigning *assertstest.SigningDB
+
+	model *asserts.Model
 }
 
 var _ = Suite(&imageSuite{})
@@ -89,6 +72,38 @@ func (s *imageSuite) SetUpTest(c *C) {
 	image.Stdout = s.stdout
 	s.downloadedSnaps = make(map[string]string)
 	s.storeSnapInfo = make(map[string]*snap.Info)
+
+	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	storePrivKey, _ := assertstest.GenerateKey(752)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"class":        "my-class",
+		"architecture": "amd64",
+		"store":        "canonical",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"core":         "core",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.model = model.(*asserts.Model)
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
@@ -103,6 +118,11 @@ func (s *imageSuite) Snap(name, channel string, devmode bool, user *auth.UserSta
 
 func (s *imageSuite) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
 	return s.downloadedSnaps[name], nil
+}
+
+func (s *imageSuite) Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error) {
+	ref := &asserts.Ref{Type: assertType, PrimaryKey: primaryKey}
+	return ref.Resolve(s.storeSigning.Find)
 }
 
 const packageGadget = `
@@ -162,10 +182,8 @@ AXNpZw==
 }
 
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
-	mod := makeFakeModelAssertion()
-
 	fn := filepath.Join(c.MkDir(), "model.assertion")
-	err := ioutil.WriteFile(fn, asserts.Encode(mod), 0644)
+	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
 	a, err := image.DecodeModelAssertion(&image.Options{
@@ -176,8 +194,7 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 }
 
 func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
-	mod := makeFakeModelAssertion()
-	err := image.DownloadUnpackGadget(s, mod, &image.Options{})
+	err := image.DownloadUnpackGadget(s, s.model, &image.Options{})
 	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
 }
 
@@ -190,7 +207,6 @@ func infoFromSnapYaml(c *C, snapYaml string, rev snap.Revision) *snap.Info {
 }
 
 func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
-	mod := makeFakeModelAssertion()
 	files := [][]string{
 		{"subdir/canary.txt", "I'm a canary"},
 	}
@@ -198,7 +214,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(99))
 
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
-	err := image.DownloadUnpackGadget(s, mod, &image.Options{
+	err := image.DownloadUnpackGadget(s, s.model, &image.Options{
 		GadgetUnpackDir: gadgetUnpackDir,
 	})
 	c.Assert(err, IsNil)
@@ -216,7 +232,9 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 }
 
 func (s *imageSuite) TestBootstrapToRootDir(c *C) {
-	mod := makeFakeModelAssertion()
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
@@ -239,7 +257,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	defer c2.Restore()
 
-	err = image.BootstrapToRootDir(s, mod, &image.Options{
+	err = image.BootstrapToRootDir(s, s.model, &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	})
@@ -250,6 +268,27 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 	}
+
+	storeAccountKey := s.storeSigning.StoreAccountKey("")
+	brandPubKey, err := s.brandSigning.PublicKey("")
+	c.Assert(err, IsNil)
+
+	// check the assertions are in place
+	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
+		p := filepath.Join(rootdir, "var/lib/snapd/seed/assertions", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+	}
+
+	b, err := ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "model"))
+	c.Assert(err, IsNil)
+	c.Check(b, DeepEquals, asserts.Encode(s.model))
+
+	b, err = ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "my-brand.account"))
+	c.Assert(err, IsNil)
+	a, err := asserts.Decode(b)
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.AccountType)
+	c.Check(a.HeaderString("account-id"), Equals, "my-brand")
 
 	// check the bootloader config
 	cv, err := s.bootloader.GetBootVar("snap_kernel")

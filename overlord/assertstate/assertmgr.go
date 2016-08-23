@@ -23,9 +23,6 @@
 package assertstate
 
 import (
-	"crypto"
-	"fmt"
-
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -34,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -180,29 +176,11 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// TODO: when we actually use this, snapPath might come from ss
-	// and switch likely to osutil.FileDigest and decide where/when
-	// to actually compute the hash
 	snapPath := snap.MinimalPlaceInfo(ss.Name(), ss.Revision()).MountFile()
 
-	snapf, err := snap.Open(snapPath)
+	sha3_384, _, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return err
-	}
-
-	squashSnap, ok := snapf.(*squashfs.Snap)
-
-	if !ok {
-		return fmt.Errorf("internal error: cannot compute digest of non squashfs snap")
-	}
-
-	_, sha3_384Digest, err := squashSnap.HashDigest(crypto.SHA3_384)
-	if err != nil {
-		return fmt.Errorf("cannot compute snap %q digest: %v", ss.Name(), err)
-	}
-
-	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384Digest)
-	if err != nil {
-		return fmt.Errorf("cannot encode snap %q digest: %v", ss.Name(), err)
 	}
 
 	// for now starting from the snap-revision will get us all other relevant assertions

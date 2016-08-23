@@ -26,10 +26,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/partition"
@@ -121,12 +124,55 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 		return fmt.Errorf("cannot bootstrap over existing system")
 	}
 
+	// TODO: developer database in home or use snapd (but need
+	// a bit more API there, potential issues when crossing stores/series)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted:        sysdb.Trusted(),
+	})
+	if err != nil {
+		return err
+	}
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+
+	assertRefs := []*asserts.Ref{}
+
+	save := func(a asserts.Assertion) error {
+		// for checking
+		err := db.Add(a)
+		if err != nil {
+			if _, ok := err.(*asserts.RevisionError); ok {
+				return nil
+			}
+			return fmt.Errorf("cannot add %s %v: %v", a.Type().Name, a.Ref().PrimaryKey, err)
+		}
+		// new one
+		assertRefs = append(assertRefs, a.Ref())
+		return nil
+	}
+
+	f := asserts.NewFetcher(db, retrieve, save)
+
+	if err := f.Save(model); err != nil {
+		if os.Getenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") == "" {
+			return fmt.Errorf("cannot fetch and check prerequisites for the model assertion: %v", err)
+		} else {
+			logger.Noticef("Cannot fetch and check prerequisites for the model assertion, it will not be copied into the image: %v", err)
+			assertRefs = nil
+		}
+	}
+
 	// put snaps in place
 	if err := os.MkdirAll(dirs.SnapBlobDir, 0755); err != nil {
 		return err
 	}
 
 	snapSeedDir := filepath.Join(dirs.SnapSeedDir, "snaps")
+	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dlOpts := &downloadOptions{
 		TargetDir: snapSeedDir,
 		Channel:   opts.Channel,
@@ -141,7 +187,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 	snaps = append(snaps, model.Kernel())
 	snaps = append(snaps, model.RequiredSnaps()...)
 
-	for _, d := range []string{snapSeedDir} {
+	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
@@ -178,6 +224,26 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 			File:        filepath.Base(fn),
 		})
 	}
+
+	for _, aRef := range assertRefs {
+		var afn string
+		// the names don't matter in practice as long as they don't conflict
+		if aRef.Type == asserts.ModelType {
+			afn = "model"
+		} else {
+			afn = fmt.Sprintf("%s.%s", strings.Join(aRef.PrimaryKey, ","), aRef.Type.Name)
+		}
+		a, err := aRef.Resolve(db.Find)
+		if err != nil {
+			return fmt.Errorf("internal error: lost saved assertion")
+		}
+		err = ioutil.WriteFile(filepath.Join(assertSeedDir, afn), asserts.Encode(a), 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	// TODO: add the refs as an assertions list of maps section to seed.yaml
 
 	seedFn := filepath.Join(dirs.SnapSeedDir, "seed.yaml")
 	if err := seedYaml.Write(seedFn); err != nil {
@@ -291,6 +357,8 @@ func makeStore(model *asserts.Model) Store {
 type Store interface {
 	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
 	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
+
+	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 }
 
 func downloadSnapWithSideInfo(sto Store, name string, opts *downloadOptions) (targetPath string, info *snap.Info, err error) {
