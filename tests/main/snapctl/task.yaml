@@ -1,0 +1,78 @@
+summary: Check that `snapctl` can be run from within hooks
+
+prepare: |
+    echo "Ensure we have a core snap with snap run"
+    $SPREAD_PATH/tests/lib/reset.sh
+    snap install --channel=candidate ubuntu-core
+    snapbuild $TESTSLIB/snaps/snapctl-hooks .
+    snap install snapctl-hooks_1.0_all.snap
+
+    # We want to use the in-tree snap-exec and snapctl, not the ones in the core
+    # snap. To accomplish that, we'll just unpack the core we just grabbed,
+    # shove the new snap-exec and snapctl in there, and repack it.
+
+    # First of all, unmount the core
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep "$core" | awk '{print $1}')"
+    umount "$core"
+
+    # Now unpack the core, inject the new snap-exec and snapctl into it, and
+    # repack it.
+    unsquashfs "$snap"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    mv "$snap" "${snap}.orig"
+    mksquashfs squashfs-root "$snap" -comp xz
+    rm -rf squashfs-root
+
+    # Now mount the new core snap
+    mount "$snap" "$core"
+    systemctl start snapd.service
+
+    # Make sure we're running with the correct snap-exec
+    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
+        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
+restore: |
+    rm snapctl-hooks_1.0_all.snap
+
+    # Unmount the modified core snap, and put the old one back in place
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep "$core" | awk '{print $1}')"
+    umount "$core"
+    mv "${snap}.orig" "$snap"
+    mount "$snap" "$core"
+    systemctl start snapd.service
+
+execute: |
+    echo "Run the hook that calls snapctl"
+    export SNAP_CONTEXT="foo" # Just enough to hit the API
+    if ! snap run --hook=apply-config snapctl-hooks; then
+        echo "Failed to run hook"
+        exit 1
+    fi
+
+
+    echo "Verify that the private API is only available via the private socket"
+
+    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snaps | grep status-code\":\s*200; then
+        echo "Private API was unexpectedly unavailable on the private socket"
+        exit 1
+    fi
+
+    if ! curl -s --unix-socket /run/snapd-public.socket http:/v2/snaps | grep status-code\":\s*404; then
+        echo "Expected private API to result in 404s on the public socket"
+        exit 1
+    fi
+
+
+    echo "Verify that the public API is only available via the public socket"
+
+    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snapctl | grep status-code\":\s*404; then
+        echo "Expected public API to result in 404s on the private socket"
+        exit 1
+    fi

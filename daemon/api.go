@@ -55,7 +55,7 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-var api = []*Command{
+var privateAPI = []*Command{
 	rootCmd,
 	sysInfoCmd,
 	loginCmd,
@@ -75,6 +75,9 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	paymentMethodsCmd,
+}
+
+var publicAPI = []*Command{
 	snapctlCmd,
 }
 
@@ -379,7 +382,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	route := c.d.router.Get(c.Path)
+	route := c.d.privateRouter.Get(c.Path)
 	if route == nil {
 		return InternalError("cannot find route for snap %s", name)
 	}
@@ -403,7 +406,7 @@ func webify(result map[string]interface{}, resource string) map[string]interface
 	}
 	result["icon"] = ""
 
-	route := appIconCmd.d.router.Get(appIconCmd.Path)
+	route := appIconCmd.d.privateRouter.Get(appIconCmd.Path)
 	if route != nil {
 		name, _ := result["name"].(string)
 		url, err := route.URL("name", name)
@@ -424,7 +427,7 @@ func getStore(c *Command) snapstate.StoreService {
 }
 
 func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
+	route := c.d.privateRouter.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
 	}
@@ -535,7 +538,7 @@ func shouldSearchStore(r *http.Request) bool {
 }
 
 func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(snapCmd.Path)
+	route := c.d.privateRouter.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
 	}
@@ -579,7 +582,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return searchStore(c, r, user)
 	}
 
-	route := c.d.router.Get(snapCmd.Path)
+	route := c.d.privateRouter.Get(snapCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for snaps")
 	}
@@ -855,7 +858,7 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 }
 
 func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(stateChangeCmd.Path)
+	route := c.d.privateRouter.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
 	}
@@ -952,7 +955,7 @@ func isTrue(form *multipart.Form, key string) bool {
 }
 
 func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
-	route := c.d.router.Get(stateChangeCmd.Path)
+	route := c.d.privateRouter.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
 	}
@@ -1004,7 +1007,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unknown content type: %s", contentType)
 	}
 
-	route := c.d.router.Get(stateChangeCmd.Path)
+	route := c.d.privateRouter.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
 	}

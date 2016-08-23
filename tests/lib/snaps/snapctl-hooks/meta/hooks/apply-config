@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "Running snapctl. It should be in my PATH and not cause denials."
+snapctl foo --bar

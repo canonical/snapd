@@ -35,8 +35,12 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-func unixDialer(_, _ string) (net.Conn, error) {
+func privateUnixDialer(_, _ string) (net.Conn, error) {
 	return net.Dial("unix", dirs.SnapdSocket)
+}
+
+func publicUnixDialer(_, _ string) (net.Conn, error) {
+	return net.Dial("unix", dirs.SnapdPublicSocket)
 }
 
 type doer interface {
@@ -48,6 +52,10 @@ type Config struct {
 	// BaseURL contains the base URL where snappy daemon is expected to be.
 	// It can be empty for a default behavior of talking over a unix socket.
 	BaseURL string
+
+	// Public determines whether or not this client will talk to the private or
+	// public snapd socket (private by default).
+	Public bool
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -60,13 +68,18 @@ type Client struct {
 func New(config *Config) *Client {
 	// By default talk over an UNIX socket.
 	if config == nil || config.BaseURL == "" {
+		dialer := privateUnixDialer
+		if config != nil && config.Public {
+			dialer = publicUnixDialer
+		}
+
 		return &Client{
 			baseURL: url.URL{
 				Scheme: "http",
 				Host:   "localhost",
 			},
 			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer},
+				Transport: &http.Transport{Dial: dialer},
 			},
 		}
 	}

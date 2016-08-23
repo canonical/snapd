@@ -38,12 +38,15 @@ import (
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	Version  string
-	overlord *overlord.Overlord
-	listener net.Listener
-	tomb     tomb.Tomb
-	router   *mux.Router
-	hub      *notifications.Hub
+	Version         string
+	overlord        *overlord.Overlord
+	privateListener net.Listener
+	publicListener  net.Listener
+	privateTomb     tomb.Tomb
+	publicTomb      tomb.Tomb
+	privateRouter   *mux.Router
+	publicRouter    *mux.Router
+	hub             *notifications.Hub
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -171,11 +174,16 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	if len(listeners) != 1 {
-		return fmt.Errorf("daemon does not handle %d listeners right now, just one", len(listeners))
+	if len(listeners) != 2 {
+		return fmt.Errorf("daemon does not handle %d listeners right now, only two", len(listeners))
 	}
 
-	d.listener = &ucrednetListener{listeners[0]}
+	// systemd provides the sockets in the order they were specified in the
+	// .socket file. This needs to be kept in sync with debian/snapd.socket.
+	// Currently the first socket is snapd.socket, and the second is
+	// snapd-public.socket.
+	d.privateListener = &ucrednetListener{listeners[0]}
+	d.publicListener = &ucrednetListener{listeners[1]}
 
 	d.addRoutes()
 
@@ -185,30 +193,49 @@ func (d *Daemon) Init() error {
 }
 
 func (d *Daemon) addRoutes() {
-	d.router = mux.NewRouter()
+	d.privateRouter = mux.NewRouter()
 
-	for _, c := range api {
+	for _, c := range privateAPI {
 		c.d = d
-		logger.Debugf("adding %s", c.Path)
-		d.router.Handle(c.Path, c).Name(c.Path)
+		logger.Debugf("adding %s to private API", c.Path)
+		d.privateRouter.Handle(c.Path, c).Name(c.Path)
+	}
+
+	d.publicRouter = mux.NewRouter()
+
+	for _, c := range publicAPI {
+		c.d = d
+		logger.Debugf("adding %s to public API", c.Path)
+		d.publicRouter.Handle(c.Path, c).Name(c.Path)
 	}
 
 	// also maybe add a /favicon.ico handler...
 
-	d.router.NotFoundHandler = NotFound("not found")
+	d.privateRouter.NotFoundHandler = NotFound("not found")
+	d.publicRouter.NotFoundHandler = NotFound("not found")
 }
 
 // Start the Daemon
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
 	d.overlord.SetRestartHandler(func() {
-		d.tomb.Kill(nil)
+		d.privateTomb.Kill(nil)
+		d.publicTomb.Kill(nil)
 	})
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
-	d.tomb.Go(func() error {
-		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+
+	d.privateTomb.Go(func() error {
+		if err := http.Serve(d.privateListener, logit(d.privateRouter)); err != nil && d.privateTomb.Err() == tomb.ErrStillAlive {
+			return err
+		}
+
+		return nil
+	})
+
+	d.publicTomb.Go(func() error {
+		if err := http.Serve(d.publicListener, logit(d.publicRouter)); err != nil && d.publicTomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -218,15 +245,31 @@ func (d *Daemon) Start() {
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
-	d.tomb.Kill(nil)
-	d.listener.Close()
+	d.privateTomb.Kill(nil)
+	d.publicTomb.Kill(nil)
+	d.privateListener.Close()
+	d.publicListener.Close()
 	d.overlord.Stop()
-	return d.tomb.Wait()
+
+	if err := d.privateTomb.Wait(); err != nil {
+		return err
+	}
+
+	if err := d.publicTomb.Wait(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-// Dying is a tomb-ish thing
-func (d *Daemon) Dying() <-chan struct{} {
-	return d.tomb.Dying()
+// PrivateDying is a tomb-ish thing for the private API
+func (d *Daemon) PrivateDying() <-chan struct{} {
+	return d.privateTomb.Dying()
+}
+
+// PublicDying is a tomb-ish thing for the public API
+func (d *Daemon) PublicDying() <-chan struct{} {
+	return d.publicTomb.Dying()
 }
 
 // New Daemon

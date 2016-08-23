@@ -192,6 +192,11 @@ var defaultTemplate = []byte(`
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
 
+  # snapctl and its requirements
+  /usr/bin/snapctl ixr,
+  @{PROC}/sys/net/core/somaxconn r,
+  /run/snapd-public.socket rw,
+
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
   # information leak.

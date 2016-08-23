@@ -24,6 +24,7 @@ prepare: |
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     mv "$snap" "${snap}.orig"
     mksquashfs squashfs-root "$snap" -comp xz
+    rm -rf squashfs-root
 
     # Now mount the new core snap
     mount "$snap" "$core"
@@ -46,9 +47,6 @@ restore: |
     mv "${snap}.orig" "$snap"
     mount "$snap" "$core"
     systemctl start snapd.service
-
-    # do not leave a mess around
-    rm -rf squashfs-root
 
 execute: |
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we

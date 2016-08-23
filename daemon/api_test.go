@@ -380,7 +380,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 
 	exceptions := []string{ // keep sorted, for scanning ease
 		"isEmailish",
-		"api",
+		"privateAPI",
+		"publicAPI",
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
@@ -401,7 +402,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
 	}
-	c.Check(found, check.Equals, len(api)+len(exceptions),
+	c.Check(found, check.Equals, len(privateAPI)+len(publicAPI)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
 }
 
