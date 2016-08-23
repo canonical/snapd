@@ -393,14 +393,14 @@ func (s *assertMgrSuite) TestCrossCheckSnapErrors(c *C) {
 		SnapID:   "snap-id-1",
 		Revision: snap.R(21),
 	})
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q implied by assertions snap id "snap-id-1" and revision 12 are not the ones expected for installing: "snap-id-1" and 21`, digest))
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing: "snap-id-1" and 21`, digest))
 
 	// mismatched snap id vs what we got from store original info
 	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, &snap.SideInfo{
 		SnapID:   "snap-id-other",
 		Revision: snap.R(12),
 	})
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q implied by assertions snap id "snap-id-1" and revision 12 are not the ones expected for installing: "snap-id-other" and 12`, digest))
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing: "snap-id-other" and 12`, digest))
 
 	// changed name
 	err = assertstate.CrossCheckSnap(s.state, "baz", digest, size, si)
