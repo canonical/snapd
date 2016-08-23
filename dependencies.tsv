@@ -5,15 +5,12 @@ github.com/gorilla/mux	git	ee1815431e497d3850809578c93ab6705f1a19f7	2015-08-20T0
 github.com/gorilla/websocket	git	234959944d9cf05229b02e8b386e5cffe1e4e04a	2016-01-28T16:48:56Z
 github.com/gosexy/gettext	git	98b7b91596d20b96909e6b60d57411547dd9959c	2013-02-21T11:21:43Z
 github.com/jessevdk/go-flags	git	6b9493b3cb60367edd942144879646604089e3f7	2016-02-27T09:34:38Z
-github.com/kr/pty	git	05017fcccf23c823bfdea560dcc958a136e54fb7	2014-12-17T21:19:37Z
 github.com/mvo5/goconfigparser	git	26426272dda20cc76aa1fa44286dc743d2972fe8	2015-02-12T09:37:50Z
 github.com/mvo5/uboot-go	git	361f6ebcbb54f389d15dc9faefa000e996ba3e37	2015-07-22T06:53:46Z
-github.com/peterh/liner	git	1bb0d1c1a25ed393d8feb09bab039b2b1b1fbced	2015-04-02T04:04:07Z
 github.com/testing-cabal/subunit-go	git	00b258565a5cf3adaa24b68d31c9e6ec3d2cdbe7	2015-11-09T18:16:47Z
-golang.org/x/crypto	git	60052bd85f2d91293457e8811b0cf26b773de469	2015-06-22T23:34:07Z
-golang.org/x/net	git	3b90a77d2885fb0429e8a21ab72fc73ca6f8b401	2016-01-05T05:09:10Z
+golang.org/x/crypto	git	611beeb3d5df450a45f4b67f9e25235f54beda72	2016-08-03T21:26:26Z
 gopkg.in/check.v1	git	64131543e7896d5bcc6bd5a76287eb75ea96c673	2014-10-24T13:38:53Z
 gopkg.in/macaroon.v1	git	ab3940c6c16510a850e1c2dd628b919f0f3f1464	2015-01-21T11:42:31Z
 gopkg.in/tomb.v2	git	14b3d72120e8d10ea6e6b7f87f7175734b1faab8	2014-06-26T14:46:23Z
-gopkg.in/tylerb/graceful.v1	git	48afeb21e2fcbcff0f30bd5ad6b97747b0fae38e	2015-10-12T18:13:41Z
+gopkg.in/tylerb/graceful.v1	git	842f31108f8d3512ce3176d00bf1a32db1d5e3af	2016-08-15T06:12:21Z
 gopkg.in/yaml.v2	git	49c95bdc21843256fb6c4e0d370a05f24a0bf213	2015-02-24T22:57:58Z
