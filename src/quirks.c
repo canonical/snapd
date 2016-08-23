@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <errno.h>
 
 #include "utils.h"
 #include "cleanup-funcs.h"
@@ -89,11 +90,16 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 	if (dirp == NULL) {
 		die("cannot open reference directory %s", ref_dir);
 	}
-	struct dirent entry, *entryp = NULL;
+	struct dirent *entryp = NULL;
 	do {
 		char src_name[PATH_MAX * 2];
 		char dest_name[PATH_MAX * 2];
-		if (readdir_r(dirp, &entry, &entryp) != 0) {
+		// Set errno to zero, if readdir fails it will not only return null but
+		// set errno to a non-zero value. This is how we can differentiate
+		// end-of-directory from an actual error.
+		errno = 0;
+		entryp = readdir(dirp);
+		if (entryp == NULL && errno != 0) {
 			die("cannot read another directory entry");
 		}
 		if (entryp == NULL) {
