@@ -22,7 +22,6 @@ package wrappers_test
 import (
 	"fmt"
 	"io/ioutil"
-	"path/filepath"
 	"regexp"
 	"testing"
 
@@ -72,14 +71,14 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 	err := wrappers.AddSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	wrapper := filepath.Join(s.tempdir, "/snap/bin/hello-snap.hello")
+	wrapper := fmt.Sprintf("%s/bin/hello-snap.hello", dirs.SnapSnapsDir)
 
 	content, err := ioutil.ReadFile(wrapper)
 	c.Assert(err, IsNil)
 
 	needle := fmt.Sprintf(`
-exec /usr/bin/ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello %s/snap/hello-snap/11/bin/hello "$@"
-`, s.tempdir)
+exec /usr/bin/ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello %s/hello-snap/11/bin/hello "$@"
+`, dirs.SnapSnapsDir)
 
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 
