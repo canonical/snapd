@@ -139,12 +139,13 @@ REBOOT
             echo "Rebooting into all-snap system did not work"
             exit 1
         fi
-        # Snapshot the system
-        if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-            systemctl stop snapd.socket
-            tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
-            systemctl start snapd.socket
-        fi
+    fi
+
+    # Snapshot the system
+    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        systemctl stop snapd.socket
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        systemctl start snapd.socket
     fi
 }
 
