@@ -191,6 +191,7 @@ Requires=snapd.frameworks.target{{ if .App.Socket }} {{.SocketFileName}}{{end}}
 X-Snappy=yes
 
 [Service]
+ExecPreStart=/bin/mkdir -p {{.App.Snap.UserDataDir "root"}} {{.App.Snap.CommonUserDataDir "root"}}
 ExecStart={{.App.LauncherCommand}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}

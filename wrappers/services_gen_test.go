@@ -42,6 +42,7 @@ Description=Service for snap application snap.app
 X-Snappy=yes
 
 [Service]
+ExecPreStart=/bin/mkdir -p /root/snap/snap/44 /root/snap/snap/common
 ExecStart=/usr/bin/ubuntu-core-launcher snap.snap.app snap.snap.app /snap/snap/44/bin/start
 Restart=on-failure
 WorkingDirectory=/var/snap/snap/44
@@ -68,6 +69,7 @@ Description=Service for snap application xkcd-webserver.xkcd-webserver
 X-Snappy=yes
 
 [Service]
+ExecPreStart=/bin/mkdir -p /root/snap/xkcd-webserver/44 /root/snap/xkcd-webserver/common
 ExecStart=/usr/bin/ubuntu-core-launcher snap.xkcd-webserver.xkcd-webserver snap.xkcd-webserver.xkcd-webserver /snap/xkcd-webserver/44/bin/foo start
 Restart=on-failure
 WorkingDirectory=/var/snap/xkcd-webserver/44
