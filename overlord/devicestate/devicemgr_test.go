@@ -227,3 +227,108 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 }
 
 // TODO: test poll logic
+
+func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
+	// nothing in the state
+	_, err := s.mgr.Model()
+	c.Check(err, Equals, state.ErrNoState)
+	_, err = s.mgr.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// just brand and model
+	s.state.Lock()
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	s.state.Unlock()
+	_, err = s.mgr.Model()
+	c.Check(err, Equals, state.ErrNoState)
+	_, err = s.mgr.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a model assertion
+	model, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"core":         "core",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"store":        "canonical",
+		"class":        "general",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	err = assertstate.Add(s.state, model)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	mod, err := s.mgr.Model()
+	c.Assert(err, IsNil)
+	c.Assert(mod.Store(), Equals, "canonical")
+
+	_, err = s.mgr.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a serial as well
+	s.state.Lock()
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.state.Unlock()
+	_, err = s.mgr.Model()
+	c.Assert(err, IsNil)
+	_, err = s.mgr.Serial()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// have a serial assertion
+	devKey, _ := assertstest.GenerateKey(752)
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            "canonical",
+		"model":               "pc",
+		"serial":              "8989",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": devKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	err = assertstate.Add(s.state, serial)
+	s.state.Unlock()
+	c.Assert(err, IsNil)
+
+	_, err = s.mgr.Model()
+	c.Assert(err, IsNil)
+	ser, err := s.mgr.Serial()
+	c.Assert(err, IsNil)
+	c.Check(ser.Serial(), Equals, "8989")
+}
+
+func (s *deviceMgrSuite) TestDeviceAssertionsSerialProof(c *C) {
+	// nothing there
+	_, err := s.mgr.SerialProof("NONCE-1")
+	c.Check(err, Equals, state.ErrNoState)
+
+	s.state.Lock()
+	privKey, _ := assertstest.GenerateKey(1024)
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	auth.SetDevice(s.state, &auth.DeviceState{
+		KeyID: privKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(privKey)
+	s.state.Unlock()
+
+	serialProof, err := s.mgr.SerialProof("NONCE-1")
+	c.Assert(err, IsNil)
+
+	// correctly signed with device key
+	err = asserts.SignatureCheck(serialProof, privKey.PublicKey())
+	c.Check(err, IsNil)
+}

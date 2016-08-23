@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -208,14 +209,26 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// An AuthContext handles user updates.
+// DeviceAssertions helps exposing the assertions about device indentity.
+// All methods should return state.ErrNoState if the underlying needed
+// information is not (yet) available.
+type DeviceAssertions interface {
+	// Model returns the device model assertion.
+	Model() (*asserts.Model, error)
+	// Serial returns the device serial assertion.
+	Serial() (*asserts.Serial, error)
+	// SerialProof produces a serial-proof with the given nonce.
+	SerialProof(nonce string) (*asserts.SerialProof, error)
+}
+
+// An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
 	Device() (*DeviceState, error)
 	UpdateDevice(device *DeviceState) error
 	UpdateUser(user *UserState) error
 }
 
-// authContext helps keeping track and updating users in the state.
+// authContext helps keeping track auth data in the state and exposing it.
 type authContext struct {
 	state *state.State
 }
