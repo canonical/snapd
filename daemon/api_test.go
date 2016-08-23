@@ -2303,7 +2303,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
-	s.command = testutil.MockCommand(c, "snap", "echo 1")
+	s.command = testutil.MockCommand(c, "snap", "")
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "different"})
