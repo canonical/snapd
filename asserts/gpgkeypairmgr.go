@@ -32,7 +32,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-func ensureGPGHomeDirectory(homedir string) (string, error) {
+func ensureGPGHomeDirectory() (string, error) {
 	real, err := osutil.RealUser()
 	if err != nil {
 		return "", err
@@ -48,9 +48,7 @@ func ensureGPGHomeDirectory(homedir string) (string, error) {
 		return "", err
 	}
 
-	if homedir == "" {
-		homedir = os.Getenv("SNAP_GNUPG_HOME")
-	}
+	homedir := os.Getenv("SNAP_GNUPG_HOME")
 	if homedir == "" {
 		homedir = filepath.Join(real.HomeDir, ".snap", "gnupg")
 	}
@@ -61,8 +59,8 @@ func ensureGPGHomeDirectory(homedir string) (string, error) {
 	return homedir, nil
 }
 
-func runGPGImpl(homedir string, input []byte, args ...string) ([]byte, error) {
-	homedir, err := ensureGPGHomeDirectory(homedir)
+func runGPGImpl(input []byte, args ...string) ([]byte, error) {
+	homedir, err := ensureGPGHomeDirectory()
 	if err != nil {
 		return nil, err
 	}
@@ -91,24 +89,18 @@ func runGPGImpl(homedir string, input []byte, args ...string) ([]byte, error) {
 var runGPG = runGPGImpl
 
 // A key pair manager backed by a local GnuPG setup.
-type GPGKeypairManager struct {
-	homedir string
-}
+type GPGKeypairManager struct{}
 
 func (gkm *GPGKeypairManager) gpg(input []byte, args ...string) ([]byte, error) {
-	return runGPG(gkm.homedir, input, args...)
+	return runGPG(input, args...)
 }
 
-// NewGPGKeypairManager creates a new key pair manager backed by a local GnuPG setup
-// using the given GPG homedir, and asking GPG to fallback "~/.gnupg"
-// to default if empty.
+// NewGPGKeypairManager creates a new key pair manager backed by a local GnuPG setup.
 // Importing keys through the keypair manager interface is not
 // suppored.
 // Main purpose is allowing signing using keys from a GPG setup.
-func NewGPGKeypairManager(homedir string) *GPGKeypairManager {
-	return &GPGKeypairManager{
-		homedir: homedir,
-	}
+func NewGPGKeypairManager() *GPGKeypairManager {
+	return &GPGKeypairManager{}
 }
 
 func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {

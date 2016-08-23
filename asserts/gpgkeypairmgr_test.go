@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -55,9 +56,14 @@ func (gkms *gpgKeypairMgrSuite) importKey(key string) {
 
 func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 	gkms.homedir = c.MkDir()
-	gkms.keypairMgr = asserts.NewGPGKeypairManager(gkms.homedir)
+	os.Setenv("SNAP_GNUPG_HOME", gkms.homedir)
+	gkms.keypairMgr = asserts.NewGPGKeypairManager()
 	// import test key
 	gkms.importKey(assertstest.DevKey)
+}
+
+func (gkms *gpgKeypairMgrSuite) TearDowntest(c *C) {
+	os.Unsetenv("SNAP_GNUPG_HOME")
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
@@ -119,9 +125,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
-	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
+	mockGPG := func(prev asserts.GPGRunner, input []byte, args ...string) ([]byte, error) {
 		if args[1] == "--list-secret-keys" {
-			return prev(homedir, input, args...)
+			return prev(input, args...)
 		}
 		c.Assert(args[1], Equals, "--export")
 
@@ -151,9 +157,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 
 	var breakSig func(sig *packet.Signature, cont []byte) []byte
 
-	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
+	mockGPG := func(prev asserts.GPGRunner, input []byte, args ...string) ([]byte, error) {
 		if args[1] == "--list-secret-keys" || args[1] == "--export" {
-			return prev(homedir, input, args...)
+			return prev(input, args...)
 		}
 		n := len(args)
 		c.Assert(args[n-1], Equals, "--detach-sign")
@@ -216,9 +222,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
-	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
+	mockGPG := func(prev asserts.GPGRunner, input []byte, args ...string) ([]byte, error) {
 		if args[1] == "--list-secret-keys" || args[1] == "--export" {
-			return prev(homedir, input, args...)
+			return prev(input, args...)
 		}
 		n := len(args)
 		c.Assert(args[n-1], Equals, "--detach-sign")

@@ -49,7 +49,7 @@ func (x *cmdExportKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	manager := asserts.NewGPGKeypairManager("")
+	manager := asserts.NewGPGKeypairManager()
 	encoded, err := manager.Export(x.Positional.KeyName)
 	if err != nil {
 		return err
