@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -120,11 +121,11 @@ Icon=${SNAP}/meep
 # the empty line above is fine`)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(string(e), Equals, `[Desktop Entry]
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Icon=/snap/foo/12/meep
+Icon=%s/foo/12/meep
 
-# the empty line above is fine`)
+# the empty line above is fine`, dirs.SnapSnapsDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExec(c *C) {
@@ -180,9 +181,9 @@ Exec=snap.app %U
 `)
 
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
-	c.Assert(string(e), Equals, `[Desktop Entry]
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop /snap/bin/snap.app %U`)
+Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U`, dirs.SnapSnapsDir))
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -253,7 +254,7 @@ apps:
 
 	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(newl, Equals, "Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop /snap/bin/snap.app")
+	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapSnapsDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestTrimLang(c *C) {
