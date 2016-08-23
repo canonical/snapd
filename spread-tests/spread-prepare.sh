@@ -112,6 +112,18 @@ esac
 # Install all the build dependencies
 case "$release_ID" in
     ubuntu|debian)
+        # trusty support is under development right now
+        # we special-case the release until we have officially landed
+        if [ "$release_ID" = "ubuntu" ] && [ "$release_VERSION_ID" = "14.04" ]; then
+            add-apt-repository ppa:thomas-voss/trusty
+        fi
+        apt-get update
+        if [ "$release_ID" = "ubuntu" ] && [ "$release_VERSION_ID" = "14.04" ]; then
+            apt-get install -y systemd
+            # starting systemd manually is working around
+            # systemd not running as PID 1 on trusty systems.
+            service systemd start
+        fi
         apt-get update
         # On Debian and derivatives we need the following things:
         # - sbuild -- to build the binary package with extra hygiene
@@ -127,17 +139,6 @@ case "$release_ID" in
         mkdir -p /var/lib/sbuild/apt-keys/
         cp -a "$top_dir/spread-tests/data/apt-keys/"* /var/lib/sbuild/apt-keys/
         sbuild-adduser "$LOGNAME"
-        # trusty support is under development right now
-        # we special-case the release until we have officially landed
-        if [ "$release_VERSION_ID" = "14.04" ]
-        then
-            add-apt-repository ppa:thomas-voss/trusty
-            apt-get update && apt-get upgrade
-            apt-get install systemd
-            # starting systemd manually is working around
-            # systemd not running as PID 1 on trusty systems.
-           service systemd start
-        fi
         ;;
     *)
         echo "unsupported distribution: $release_ID"
