@@ -164,8 +164,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func useStaging() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+}
+
 func cpiURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -177,7 +181,7 @@ func cpiURL() string {
 }
 
 func authLocation() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "login.staging.ubuntu.com"
 	}
 	return "login.ubuntu.com"
@@ -191,7 +195,7 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_SAS") != "" {
+	if useStaging() {
 		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
@@ -203,7 +207,7 @@ func assertsURL() string {
 }
 
 func myappsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
+	if useStaging() {
 		return "https://myapps.developer.staging.ubuntu.com/"
 	}
 	return "https://myapps.developer.ubuntu.com/"
