@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -49,7 +50,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	sort.Strings(env)
 
 	c.Assert(env, DeepEquals, []string{
-		"SNAP=/snap/foo/17",
+		fmt.Sprintf("SNAP=%s/foo/17", dirs.SnapSnapsDir),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_COMMON=/var/snap/foo/common",
 		"SNAP_DATA=/var/snap/foo/17",
