@@ -6,7 +6,7 @@ reset_classic() {
     systemctl stop snapd.service snapd.socket
 
     # purge all state
-    sh ${SPREAD_PATH}/debian/snapd.postrm purge
+    sh -x ${SPREAD_PATH}/debian/snapd.postrm purge
     mkdir -p /snap /var/snap /var/lib/snapd
     if [ -d /snap/* ] || [ -d /var/snap/* ]; then
         echo "postinst purge failed"
