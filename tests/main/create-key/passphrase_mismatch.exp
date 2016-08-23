@@ -1,0 +1,15 @@
+spawn snap create-key
+
+expect "Passphrase: "
+send "one\n"
+
+expect "Confirm passphrase: "
+send "two\n"
+
+expect {
+    "error: passphrases do not match" {
+        exit 0
+    } default {
+        exit 1
+    }
+}

@@ -1,0 +1,26 @@
+spawn snap create-key
+
+expect "Passphrase: "
+send "pass\n"
+
+expect "Confirm passphrase: "
+send "pass\n"
+
+set status [wait]
+if {[lindex $status 3] != 0} {
+    exit 1
+}
+
+set timeout 60
+
+spawn snap keys
+
+expect {
+    "default " {
+        exit 0
+    } timeout {
+        exit 1
+    } eof {
+        exit 1
+    }
+}
