@@ -189,12 +189,12 @@ func (s *Info) DataDir() string {
 
 // UserDataDir returns the user-specific data directory of the snap.
 func (s *Info) UserDataDir(home string) string {
-	return filepath.Join(home, dirs.SnapDataHomeDir, s.Name(), s.Revision.String())
+	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
 }
 
 // UserCommonDataDir returns the user-specific data directory common across revision of the snap.
 func (s *Info) UserCommonDataDir(home string) string {
-	return filepath.Join(home, dirs.SnapDataHomeDir, s.Name(), "common")
+	return filepath.Join(home, "snap", s.Name(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
