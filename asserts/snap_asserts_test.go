@@ -20,9 +20,13 @@
 package asserts_test
 
 import (
+	"encoding/base64"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/sha3"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -31,6 +35,7 @@ import (
 
 var (
 	_ = Suite(&snapDeclSuite{})
+	_ = Suite(&snapFileDigestSuite{})
 	_ = Suite(&snapBuildSuite{})
 	_ = Suite(&snapRevSuite{})
 )
@@ -189,6 +194,25 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) 
 
 	err = db.Check(snapDecl)
 	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) does not have a matching account assertion for the publisher "dev-id1"`)
+}
+
+type snapFileDigestSuite struct{}
+
+func (s *snapFileDigestSuite) TestSnapFileSHA3_384(c *C) {
+	exData := []byte("hashmeplease")
+
+	tempdir := c.MkDir()
+	snapFn := filepath.Join(tempdir, "ex.snap")
+	err := ioutil.WriteFile(snapFn, exData, 0644)
+	c.Assert(err, IsNil)
+
+	encDgst, size, err := asserts.SnapFileSHA3_384(snapFn)
+	c.Assert(err, IsNil)
+	c.Check(size, Equals, uint64(len(exData)))
+
+	h3_384 := sha3.Sum384(exData)
+	expected := base64.RawURLEncoding.EncodeToString(h3_384[:])
+	c.Check(encDgst, DeepEquals, expected)
 }
 
 type snapBuildSuite struct {
