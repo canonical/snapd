@@ -46,11 +46,11 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 		err = ioutil.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
 		c.Assert(err, IsNil)
 	}
-	os.Setenv("SNAP_GNUPGHOME", tempdir)
+	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 }
 
 func (s *SnapKeysSuite) TearDownTest(c *C) {
-	os.Unsetenv("SNAP_GNUPGHOME")
+	os.Unsetenv("SNAP_GNUPG_HOME")
 	s.BaseSnapSuite.TearDownTest(c)
 }
 

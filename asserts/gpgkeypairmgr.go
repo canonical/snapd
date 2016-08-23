@@ -49,10 +49,10 @@ func ensureGPGHomeDirectory(homedir string) (string, error) {
 	}
 
 	if homedir == "" {
-		homedir = os.Getenv("SNAP_GNUPGHOME")
+		homedir = os.Getenv("SNAP_GNUPG_HOME")
 	}
 	if homedir == "" {
-		homedir = filepath.Join(real.HomeDir, ".snap")
+		homedir = filepath.Join(real.HomeDir, ".snap", "gnupg")
 	}
 
 	if err := osutil.MkdirAllChown(homedir, 0700, uid, gid); err != nil {
