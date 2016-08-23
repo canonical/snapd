@@ -339,7 +339,7 @@ func (s *assertMgrSuite) TestFetchCheckSnapAssertionsNotFound(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot find assertions to verify snap "foo" and its hash \(snap-revision \[.*\] not found\).*`)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot verify snap "foo" and its hash, no matching assertions found.*`)
 }
 
 func (s *assertMgrSuite) TestCrossCheckSnapErrors(c *C) {
@@ -386,21 +386,21 @@ func (s *assertMgrSuite) TestCrossCheckSnapErrors(c *C) {
 
 	// different size
 	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size+1, si)
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to assertions: %d != %d`, size+1, size))
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to assertions \(download is broken or tampered\): %d != %d`, size+1, size))
 
 	// mismatched revision vs what we got from store original info
 	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(21),
 	})
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing: "snap-id-1" and 21`, digest))
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing \(store metadata is broken or communication tampered\): "snap-id-1" and 21`, digest))
 
 	// mismatched snap id vs what we got from store original info
 	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, &snap.SideInfo{
 		SnapID:   "snap-id-other",
 		Revision: snap.R(12),
 	})
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing: "snap-id-other" and 12`, digest))
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing \(store metadata is broken or communication tampered\): "snap-id-other" and 12`, digest))
 
 	// changed name
 	err = assertstate.CrossCheckSnap(s.state, "baz", digest, size, si)
