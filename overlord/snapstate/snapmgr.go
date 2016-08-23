@@ -410,16 +410,7 @@ func Store(s *state.State) StoreService {
 	if cachedStore := cachedStore(s); cachedStore != nil {
 		return cachedStore
 	}
-
-	storeID := ""
-	// TODO: set the store-id here from the model information
-	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
-		storeID = cand
-	}
-
-	authContext := auth.NewAuthContext(s)
-	s.Cache(cachedStoreKey{}, store.New(nil, storeID, authContext))
-	return cachedStore(s)
+	panic("internal error: needing the store before managers have initialized it")
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {

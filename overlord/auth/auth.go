@@ -269,6 +269,8 @@ func (ac *authContext) UpdateUser(user *UserState) error {
 // StoreID returns the store id according to system state or
 // the fallback one if the state has none set (yet).
 func (ac *authContext) StoreID(fallback string) string {
+	ac.state.Lock()
+	defer ac.state.Unlock()
 	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
 		return storeID
 	}

@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -67,7 +68,10 @@ type mgrsSuite struct {
 	o *overlord.Overlord
 }
 
-var _ = Suite(&mgrsSuite{})
+var (
+	_ = Suite(&mgrsSuite{})
+	_ = Suite(&authContextSetupSuite{})
+)
 
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
@@ -355,7 +359,7 @@ apps:
 		AssertionsURI: assertionsURL,
 	}
 
-	mStore := store.New(&storeCfg, "", nil)
+	mStore := store.New(&storeCfg, nil)
 
 	st := ms.o.State()
 	st.Lock()
@@ -610,4 +614,40 @@ apps:
 		p := filepath.Join(dirs.SnapBlobDir, fn)
 		c.Assert(osutil.FileExists(p), Equals, true)
 	}
+}
+
+type authContextSetupSuite struct{
+	o  *overlord.Overlord
+	ac auth.AuthContext
+}
+
+func (s *authContextSetupSuite) SetUpTest(c *C) {
+	tempdir := c.MkDir()
+	dirs.SetRootDir(tempdir)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, IsNil)
+
+	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
+		s.ac = ac
+		return nil
+	}
+	r := overlord.MockStoreNew(captureAuthContext)
+	defer r()
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+	s.o = o
+}
+
+func (s *authContextSetupSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+}
+
+func (s *authContextSetupSuite) TestModelAndSerial(c *C) {
+}
+
+func (s *authContextSetupSuite) TestStoreID(c *C) {
+}
+
+func (s *authContextSetupSuite) TestSerialProof(c *C) {
 }

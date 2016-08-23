@@ -100,6 +100,11 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 	}
 
+	if serialRequestURL == "" {
+		// cannot do anything actually
+		return nil
+	}
+
 	// XXX: some of these will need to be split and use hooks
 	// retries might need to embrace more than one "task" then,
 	// need to be careful
@@ -136,9 +141,10 @@ func (m *DeviceManager) Stop() {
 
 var (
 	keyLength = 4096
-	// XXX: a 2nd different URL for nonce?
-	// TODO: this will come as config from the gadget snap
-	serialRequestURL = "https://serial.request" // XXX dummy value!
+	// TODO: a 2nd different URL for nonce?
+	// TODO: this will come optionally as config from the gadget snap
+	// TODO: set this once the server side is working!
+	serialRequestURL = ""
 )
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {

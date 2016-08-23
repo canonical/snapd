@@ -34,11 +34,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 var (
@@ -65,7 +68,10 @@ type Overlord struct {
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
 	hookMgr   *hookstate.HookManager
+	deviceMgr *devicestate.DeviceManager
 }
+
+var storeNew = store.New
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
@@ -112,6 +118,20 @@ func New() (*Overlord, error) {
 	}
 	o.hookMgr = hookMgr
 	o.stateEng.AddManager(o.hookMgr)
+
+	deviceMgr, err := devicestate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.deviceMgr = deviceMgr
+	o.stateEng.AddManager(o.deviceMgr)
+
+	// setting up the store
+	authContext := auth.NewAuthContext(s)
+	sto := storeNew(nil, authContext)
+	s.Lock()
+	snapstate.ReplaceStore(s, sto)
+	s.Unlock()
 
 	return o, nil
 }
@@ -294,4 +314,9 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 // overlord.
 func (o *Overlord) HookManager() *hookstate.HookManager {
 	return o.hookMgr
+}
+
+// DeviceManager returns the device manager responsible for the device identity and policies
+func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
+	return o.deviceMgr
 }
