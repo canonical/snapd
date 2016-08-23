@@ -141,3 +141,88 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		pubKey:        pubk,
 	}, nil
 }
+
+// AccountKeyRequest holds an account-key-request assertion, which is a self-signed request to prove that the requester holds the private key and wishes to create an account-key assertion for it.
+type AccountKeyRequest struct {
+	assertionBase
+	since  time.Time
+	until  time.Time
+	pubKey PublicKey
+}
+
+// AccountID returns the account-id of this account-key-request.
+func (akr *AccountKeyRequest) AccountID() string {
+	return akr.HeaderString("account-id")
+}
+
+// Since returns the time when the requested account key starts being valid.
+func (akr *AccountKeyRequest) Since() time.Time {
+	return akr.since
+}
+
+// Until returns the time when the requested account key stops being valid. A zero time means the key is valid forever.
+func (akr *AccountKeyRequest) Until() time.Time {
+	return akr.until
+}
+
+// PublicKey returns the underlying public key of the requested account key.
+func (akr *AccountKeyRequest) PublicKey() PublicKey {
+	return akr.pubKey
+}
+
+// Implement further consistency checks.
+func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) error {
+	_, err := db.Find(AccountType, map[string]string{
+		"account-id": akr.AccountID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("account-key-request assertion for %q does not have a matching account assertion", akr.AccountID())
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*AccountKeyRequest)(nil)
+
+// Prerequisites returns references to this account-key-request's prerequisite assertions.
+func (akr *AccountKeyRequest) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: AccountType, PrimaryKey: []string{akr.AccountID()}},
+	}
+}
+
+func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "account-id")
+	if err != nil {
+		return nil, err
+	}
+
+	since, err := checkRFC3339Date(assert.headers, "since")
+	if err != nil {
+		return nil, err
+	}
+
+	until, err := checkRFC3339DateWithDefault(assert.headers, "until", time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	if !until.IsZero() && until.Before(since) {
+		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
+	}
+
+	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
+	if err != nil {
+		return nil, err
+	}
+
+	// ignore extra headers for future compatibility
+	return &AccountKeyRequest{
+		assertionBase: assert,
+		since:         since,
+		until:         until,
+		pubKey:        pubk,
+	}, nil
+}
