@@ -211,13 +211,11 @@ type SigningDB struct {
 
 // NewSigningDB creates a test signing assertion db with the given defaults. It panics on error.
 func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-	})
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, privKey)
+	err = db.ImportKey(privKey)
 	if err != nil {
 		panic(err)
 	}
@@ -240,7 +238,7 @@ func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
 	if keyID == "" {
 		keyID = db.KeyID
 	}
-	return db.Database.PublicKey(db.AuthorityID, keyID)
+	return db.Database.PublicKey(keyID)
 }
 
 // StoreStack realises a store-like set of founding trusted assertions and signing setup.
@@ -272,14 +270,13 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
 	})
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, storePrivKey)
+	err = db.ImportKey(storePrivKey)
 	if err != nil {
 		panic(err)
 	}
