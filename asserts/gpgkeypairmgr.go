@@ -127,7 +127,6 @@ func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 }
 
 // Walk iterates over all the RSA private keys in the local GPG setup calling the provided callback until this returns an error
-// TODO: revisit exposing this
 func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string, uid string) error) error {
 	// see GPG source doc/DETAILS
 	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
