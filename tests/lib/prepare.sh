@@ -109,6 +109,7 @@ EOF
 mount -t tmpfs none /tmp
 cp /bin/busybox /tmp
 cp $IMAGE_HOME/$IMAGE /tmp
+sync
 # blow away everything
 /tmp/busybox dd if=/tmp/$IMAGE of=/dev/sda bs=4M
 # and reboot
