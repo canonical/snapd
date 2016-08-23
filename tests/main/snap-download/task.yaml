@@ -1,0 +1,15 @@
+summary: Check that snap download works
+restore: |
+    rm -f *.snap
+execute: |
+    echo "Snap download can download snaps"
+    snap download hello-world
+    ls hello-world_*.snap
+
+    echo "Snap download understand --edge"
+    snap download --edge test-snapd-tools
+    ls test-snapd-tools_*.snap
+
+    echo "Snap download understands --devmode"
+    snap download --devmode --beta classic
+    ls classic_*.snap
