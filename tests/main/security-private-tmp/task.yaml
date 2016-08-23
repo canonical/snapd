@@ -1,6 +1,6 @@
 summary: Ensure that the security rules for private tmp are in place.
 
-systems: [-ubuntu-core-16]
+systems: [-ubuntu-core-16-64]
 
 environment:
     SNAP_INSTALL_DIR: $(pwd)/snap-install-dir

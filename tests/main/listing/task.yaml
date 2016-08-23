@@ -1,6 +1,6 @@
 summary: Check snap listings
 
-systems: [-ubuntu-core-16]
+systems: [-ubuntu-core-16-64]
 
 prepare: |
     snap install test-snapd-tools
