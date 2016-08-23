@@ -151,12 +151,12 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 	return nil
 }
 
-func (gkm *GPGKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+func (gkm *GPGKeypairManager) Put(privKey PrivateKey) error {
 	// NOTE: we don't need this initially at least and this keypair mgr is not for general arbitrary usage
 	return fmt.Errorf("cannot import private key into GPG keyring")
 }
 
-func (gkm *GPGKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
 	stop := errors.New("stop marker")
 	var hit PrivateKey
 	match := func(privk PrivateKey, fpr string) error {

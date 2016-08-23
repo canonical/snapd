@@ -1,5 +1,7 @@
 summary: Checks that removing the base directory of a tried snap works.
 
+systems: [-ubuntu-core-16-64]
+
 execute: |
     echo "Given a tried snap"
     base_dir=$(mktemp -d)
