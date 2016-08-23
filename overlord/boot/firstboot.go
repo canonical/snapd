@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
@@ -153,13 +152,9 @@ func importAssertionsFromSeed(st *state.State) error {
 
 	// collect
 	var modelAssertion *asserts.Model
+	assertionsToAdd := make([]asserts.Assertion, len(dc))
 	bs := asserts.NewMemoryBackstore()
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      bs,
-		Trusted:        sysdb.Trusted(),
-	})
-	for _, fi := range dc {
+	for i, fi := range dc {
 		content, err := ioutil.ReadFile(filepath.Join(assertSeedDir, fi.Name()))
 		if err != nil {
 			return fmt.Errorf("cannot read assertion: %s", err)
@@ -171,6 +166,7 @@ func importAssertionsFromSeed(st *state.State) error {
 		if err := bs.Put(as.Type(), as); err != nil {
 			return err
 		}
+		assertionsToAdd[i] = as
 		if as.Type() == asserts.ModelType {
 			if modelAssertion != nil {
 				return fmt.Errorf("cannot add more than one model assertion")
@@ -183,9 +179,9 @@ func importAssertionsFromSeed(st *state.State) error {
 		return fmt.Errorf("need a model assertion")
 	}
 
-	// add all assertions to the database
+	// create a fetcher that stores valid assertions into the system
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		as, err := ref.Resolve(db.Find)
+		as, err := bs.Get(ref.Type, ref.PrimaryKey)
 		if err != nil {
 			return nil, fmt.Errorf("cannot find %s: %s", ref.Unique(), err)
 		}
@@ -194,9 +190,13 @@ func importAssertionsFromSeed(st *state.State) error {
 	save := func(as asserts.Assertion) error {
 		return assertstate.Add(st, as)
 	}
-	fetcher := asserts.NewFetcher(db, retrieve, save)
-	if err := fetcher.Fetch(modelAssertion.Ref()); err != nil {
-		return err
+	fetcher := asserts.NewFetcher(assertstate.DB(st), retrieve, save)
+
+	// using the fetcher ensures that prerequisites are available etc
+	for _, as := range assertionsToAdd {
+		if err := fetcher.Save(as); err != nil {
+			return err
+		}
 	}
 
 	// set device,model from the model assertion

@@ -187,11 +187,9 @@ func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
 		"account-id":   "my-brand",
 		"verification": "certified",
 	}, "")
-	s.storeSigning.Add(brandAcct)
 	assertChain = append(assertChain, brandAcct)
 
 	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, s.brandPrivKey.PublicKey(), "")
-	s.storeSigning.Add(brandAccKey)
 	assertChain = append(assertChain, brandAccKey)
 
 	model := s.makeModelAssertion(c, "my-model")
