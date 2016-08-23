@@ -316,3 +316,134 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		timestamp:     timestamp,
 	}, nil
 }
+
+// SnapValidation holds a validation assertion, describing that a combination of
+// (snap-id, snap-revision, approved-snap-id, approved-revision, series)
+// has been validated by testing.
+
+type Validation struct {
+	assertionBase
+	valid     bool
+	timestamp time.Time
+}
+
+// Series returns the series for which the validation holds.
+func (validation *Validation) Series() string {
+	return validation.HeaderString("series")
+}
+
+// SnapId returns the ID of the gating snap.
+func (validation *Validation) SnapID() string {
+	return validation.HeaderString("snap-id")
+}
+
+// ApprovedSnapId returns the ID of the gated snap.
+func (validation *Validation) ApprovedSnapID() string {
+	return validation.HeaderString("approved-snap-id")
+}
+
+// ApprovedSnapRevision returns the revision of the gated snap.
+func (validation *Validation) ApprovedSnapRevision() string {
+	return validation.HeaderString("approved-snap-revision")
+}
+
+// IsValid returns true if the validation is marked as valid
+func (validation *Validation) IsValid() bool {
+	return validation.valid
+}
+
+// Timestamp returns the timestamp of assertion creation
+func (validation *Validation) Timestamp() time.Time {
+	return validation.timestamp
+}
+
+// Implement further consistency checks.
+func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) error {
+	_, err := db.Find(AccountType, map[string]string{
+		"account-id": validation.AuthorityID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("validation assertion for snap id %q does not have a matching account assertion for the developer %q", validation.SnapID(), validation.AuthorityID())
+	}
+	if err != nil {
+		return err
+	}
+	_, err = db.Find(SnapDeclarationType, map[string]string{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		"series":  release.Series,
+		"snap-id": validation.SnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
+	}
+	if err != nil {
+		return err
+	}
+	_, err = db.Find(SnapDeclarationType, map[string]string{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		"series":  release.Series,
+		"snap-id": validation.ApprovedSnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("validation assertion for approved-snap-id %q does not have a matching snap-declaration assertion", validation.ApprovedSnapID())
+	}
+	if err != nil {
+		return err
+	}
+	// XXX find matching SnapRevision (series, snap-id, revision) ?
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*Validation)(nil)
+
+// Prerequisites returns references to this validation's prerequisite assertions.
+func (validation *Validation) Prerequisites() []*Ref {
+	return []*Ref{
+		// XXX: mediate getting current series through some context object? this gets the job done for now
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, validation.SnapID()}},
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, validation.ApprovedSnapID()}},
+	}
+}
+
+func assembleValidation(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "series")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "snap-id")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "approved-snap-id")
+	if err != nil {
+		return nil, err
+	}
+
+	approvedSnapRevision, err := checkInt(assert.headers, "approved-snap-revision")
+	if err != nil {
+		return nil, err
+	}
+	if approvedSnapRevision < 1 {
+		return nil, fmt.Errorf(`"approved-snap-revision" header must be >=1: %d`, approvedSnapRevision)
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "valid")
+	if err != nil {
+		return nil, err
+	}
+	valid := assert.headers["valid"] == "yes"
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &Validation{
+		assertionBase: assert,
+		valid:         valid,
+		timestamp:     timestamp,
+	}, nil
+}

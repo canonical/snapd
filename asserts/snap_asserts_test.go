@@ -38,6 +38,7 @@ var (
 	_ = Suite(&snapFileDigestSuite{})
 	_ = Suite(&snapBuildSuite{})
 	_ = Suite(&snapRevSuite{})
+	_ = Suite(&validationSuite{})
 )
 
 type snapDeclSuite struct {
@@ -598,4 +599,141 @@ func (srs *snapRevSuite) TestPrerequisites(c *C) {
 		Type:       asserts.AccountType,
 		PrimaryKey: []string{"dev-id1"},
 	})
+}
+
+type validationSuite struct {
+	ts     time.Time
+	tsLine string
+}
+
+func (vs *validationSuite) SetUpSuite(c *C) {
+	vs.ts = time.Now().Truncate(time.Second).UTC()
+	vs.tsLine = "timestamp: " + vs.ts.Format(time.RFC3339) + "\n"
+}
+
+func (vs *validationSuite) makeValidEncoded() string {
+	return "type: validation\n" +
+		"authority-id: dev-id1\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"approved-snap-id: snap-id-2\n" +
+		"approved-snap-revision: 42\n" +
+		"valid: yes\n" +
+		"revision: 1\n" +
+		vs.tsLine +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+}
+
+func (vs *validationSuite) makeHeaders(overrides map[string]interface{}) map[string]interface{} {
+	headers := map[string]interface{}{
+		"authority-id":           "dev-id1",
+		"series":                 "16",
+		"snap-id":                "snap-id-1",
+		"approved-snap-id":       "snap-id-2",
+		"approved-snap-revision": "42",
+		"valid":                  "yes",
+		"revision":               "1",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	for k, v := range overrides {
+		headers[k] = v
+	}
+	return headers
+}
+
+func (vs *validationSuite) TestDecodeOK(c *C) {
+	encoded := vs.makeValidEncoded()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.ValidationType)
+	validation := a.(*asserts.Validation)
+	c.Check(validation.AuthorityID(), Equals, "dev-id1")
+	c.Check(validation.Timestamp(), Equals, vs.ts)
+	c.Check(validation.Series(), Equals, "16")
+	c.Check(validation.SnapID(), Equals, "snap-id-1")
+	c.Check(validation.ApprovedSnapID(), Equals, "snap-id-2")
+	c.Check(validation.ApprovedSnapRevision(), Equals, "42")
+	c.Check(validation.IsValid(), Equals, true)
+	c.Check(validation.Revision(), Equals, 1)
+}
+
+const (
+	validationErrPrefix = "assertion validation: "
+)
+
+func (vs *validationSuite) TestDecodeInvalid(c *C) {
+	encoded := vs.makeValidEncoded()
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
+		{"series: 16\n", "series: \n", `"series" header should not be empty`},
+		{"snap-id: snap-id-1\n", "", `"snap-id" header is mandatory`},
+		{"snap-id: snap-id-1\n", "snap-id: \n", `"snap-id" header should not be empty`},
+		{"approved-snap-id: snap-id-2\n", "", `"approved-snap-id" header is mandatory`},
+		{"approved-snap-id: snap-id-2\n", "approved-snap-id: \n", `"approved-snap-id" header should not be empty`},
+		{"approved-snap-revision: 42\n", "", `"approved-snap-revision" header is mandatory`},
+		{"approved-snap-revision: 42\n", "approved-snap-revision: \n", `"approved-snap-revision" header should not be empty`},
+		{"approved-snap-revision: 42\n", "approved-snap-revision: 0\n", `"approved-snap-revision" header must be >=1: 0`},
+		{"approved-snap-revision: 42\n", "approved-snap-revision: -1\n", `"approved-snap-revision" header must be >=1: -1`},
+		{"valid: yes\n", "", `"valid" header is mandatory`},
+		{"valid: yes\n", "valid: \n", `"valid" header should not be empty`},
+		{vs.tsLine, "", `"timestamp" header is mandatory`},
+		{vs.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
+		{vs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, validationErrPrefix+test.expectedErr)
+	}
+}
+
+func prereqSnapDecl2(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
+	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-2",
+		"snap-name":    "bar",
+		"publisher-id": "dev-id1",
+		"gates":        "",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = db.Add(snapDecl)
+	c.Assert(err, IsNil)
+}
+
+func (vs *validationSuite) TestValidationCheck(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl(c, storeDB, db)
+	prereqSnapDecl2(c, storeDB, db)
+
+	headers := vs.makeHeaders(nil)
+	validation, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(validation)
+	c.Assert(err, IsNil)
+}
+
+func (vs *validationSuite) TestPrerequisites(c *C) {
+	encoded := vs.makeValidEncoded()
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+
+	prereqs := a.Prerequisites()
+	c.Assert(prereqs, HasLen, 2)
+	c.Check(prereqs[0], DeepEquals, &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "snap-id-1"},
+	})
+	c.Check(prereqs[1], DeepEquals, &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"16", "snap-id-2"},
+	})
+
 }
