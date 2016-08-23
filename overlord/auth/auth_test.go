@@ -20,6 +20,7 @@
 package auth_test
 
 import (
+	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -351,4 +352,20 @@ func (as *authSuite) TestAuthContextUpdateDevice(c *C) {
 	deviceFromState, err := authContext.Device()
 	c.Check(err, IsNil)
 	c.Check(deviceFromState, DeepEquals, device)
+}
+
+func (as *authSuite) TestAuthContextStoreIDFallback(c *C) {
+	authContext := auth.NewAuthContext(as.state)
+
+	storeID := authContext.StoreID("store-id")
+	c.Check(storeID, Equals, "store-id")
+}
+
+func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
+	authContext := auth.NewAuthContext(as.state)
+
+	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
+	defer os.Unsetenv("UBUNTU_STORE_ID")
+	storeID := authContext.StoreID("")
+	c.Check(storeID, Equals, "env-store-id")
 }
