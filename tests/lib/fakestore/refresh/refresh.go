@@ -49,7 +49,7 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 		return err
 	}
 	// for signing
-	db.ImportKey("testrootorg", storePrivKey)
+	db.ImportKey(storePrivKey)
 
 	// XXX: ideally for consistency we should talk to the local snapd
 	// but this allows us to go working until snapd itself
