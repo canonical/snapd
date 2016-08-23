@@ -59,9 +59,8 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        s.storeSigning.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
 	})
 	c.Assert(err, IsNil)
 
@@ -176,7 +175,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
 
-	privKey, err := s.mgr.KeypairManager().Get("device", serial.DeviceKey().ID())
+	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
 	c.Check(privKey, NotNil)
 
@@ -200,7 +199,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 		Model: "pc",
 		KeyID: privKey.PublicKey().ID(),
 	})
-	s.mgr.KeypairManager().Put("device", privKey)
+	s.mgr.KeypairManager().Put(privKey)
 
 	t := s.state.NewTask("request-serial", "test")
 	chg := s.state.NewChange("become-operational", "...")

@@ -164,9 +164,7 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	privKey := asserts.RSAPrivateKey(keyPair)
-
-	// TODO: simplify key mgmt API? "device" here is a dummy authorityID
-	err = m.keypairMgr.Put("device", privKey)
+	err = m.keypairMgr.Put(privKey)
 	if err != nil {
 		return fmt.Errorf("cannot store device key pair: %v", err)
 	}
@@ -187,7 +185,7 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 		return nil, fmt.Errorf("internal error: cannot find device key pair")
 	}
 
-	privKey, err := m.keypairMgr.Get("device", device.KeyID)
+	privKey, err := m.keypairMgr.Get(device.KeyID)
 	if err != nil {
 		return nil, fmt.Errorf("cannot read device key pair: %v", err)
 	}
