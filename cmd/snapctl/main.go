@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/client"
 )
 
-var clientConfig client.Config
+var clientConfig = client.Config{Public: true}
 
 func main() {
 	stdout, stderr, err := run()

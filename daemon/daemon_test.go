@@ -174,13 +174,13 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
 	d := newTestDaemon(c)
 
-	expected := make([]string, len(api))
-	for i, v := range api {
+	expected := make([]string, len(privateAPI))
+	for i, v := range privateAPI {
 		expected[i] = v.Path
 	}
 
-	got := make([]string, 0, len(api))
-	c.Assert(d.router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	got := make([]string, 0, len(privateAPI))
+	c.Assert(d.privateRouter.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		got = append(got, route.GetName())
 		return nil
 	}), check.IsNil)
@@ -207,14 +207,37 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
-	accept := make(chan struct{})
-	d.listener = &witnessAcceptListener{l, accept}
+	privateAccept := make(chan struct{})
+	d.privateListener = &witnessAcceptListener{l, privateAccept}
+
+	publicAccept := make(chan struct{})
+	d.publicListener = &witnessAcceptListener{l, publicAccept}
+
 	d.Start()
-	select {
-	case <-accept:
-	case <-time.After(2 * time.Second):
-		c.Fatal("Accept was not called")
-	}
+
+	privateDone := make(chan struct{})
+	go func() {
+		select {
+		case <-privateAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("Private accept was not called")
+		}
+		close(privateDone)
+	}()
+
+	publicDone := make(chan struct{})
+	go func() {
+		select {
+		case <-publicAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("Public accept was not called")
+		}
+		close(publicDone)
+	}()
+
+	<-privateDone
+	<-publicDone
+
 	err = d.Stop()
 	c.Check(err, check.IsNil)
 }
@@ -224,21 +247,60 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
-	accept := make(chan struct{})
-	d.listener = &witnessAcceptListener{l, accept}
+	privateAccept := make(chan struct{})
+	d.privateListener = &witnessAcceptListener{l, privateAccept}
+
+	publicAccept := make(chan struct{})
+	d.publicListener = &witnessAcceptListener{l, publicAccept}
+
 	d.Start()
 	defer d.Stop()
-	select {
-	case <-accept:
-	case <-time.After(2 * time.Second):
-		c.Fatal("Accept was not called")
-	}
+
+	privateDone := make(chan struct{})
+	go func() {
+		select {
+		case <-privateAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("Private accept was not called")
+		}
+		close(privateDone)
+	}()
+
+	publicDone := make(chan struct{})
+	go func() {
+		select {
+		case <-publicAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("Public accept was not called")
+		}
+		close(publicDone)
+	}()
+
+	<-privateDone
+	<-publicDone
 
 	d.overlord.State().RequestRestart()
 
-	select {
-	case <-d.Dying():
-	case <-time.After(2 * time.Second):
-		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
-	}
+	privateDone = make(chan struct{})
+	go func() {
+		select {
+		case <-d.PrivateDying():
+		case <-time.After(2 * time.Second):
+			c.Fatal("RequestRestart -> overlord -> Kill chain didn't work for private API")
+		}
+		close(privateDone)
+	}()
+
+	publicDone = make(chan struct{})
+	go func() {
+		select {
+		case <-d.PublicDying():
+		case <-time.After(2 * time.Second):
+			c.Fatal("RequestRestart -> overlord -> Kill chain didn't work for public API")
+		}
+		close(publicDone)
+	}()
+
+	<-privateDone
+	<-publicDone
 }
