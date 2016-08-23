@@ -65,6 +65,7 @@ var (
 var (
 	SerialProofType   = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
 	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	KeyProofType      = &AssertionType{"key-proof", nil, assembleKeyProof, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -78,6 +79,7 @@ var typeRegistry = map[string]*AssertionType{
 	// no authority
 	SerialProofType.Name:   SerialProofType,
 	SerialRequestType.Name: SerialRequestType,
+	KeyProofType.Name:      KeyProofType,
 }
 
 // Type returns the AssertionType with name or nil

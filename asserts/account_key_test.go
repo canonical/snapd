@@ -33,7 +33,8 @@ import (
 )
 
 type accountKeySuite struct {
-	pubKeyBody           string
+	privKey              asserts.PrivateKey
+	pubKeyEncoded        string
 	keyID                string
 	since, until         time.Time
 	sinceLine, untilLine string
@@ -45,16 +46,16 @@ func (aks *accountKeySuite) SetUpSuite(c *C) {
 	cfg1 := &asserts.DatabaseConfig{}
 	accDb, err := asserts.OpenDatabase(cfg1)
 	c.Assert(err, IsNil)
-	pk := testPrivKey1
-	err = accDb.ImportKey(pk)
+	aks.privKey = testPrivKey1
+	err = accDb.ImportKey(aks.privKey)
 	c.Assert(err, IsNil)
-	aks.keyID = pk.PublicKey().ID()
+	aks.keyID = aks.privKey.PublicKey().ID()
 
 	pubKey, err := accDb.PublicKey(aks.keyID)
 	c.Assert(err, IsNil)
 	pubKeyEncoded, err := asserts.EncodePublicKey(pubKey)
 	c.Assert(err, IsNil)
-	aks.pubKeyBody = string(pubKeyEncoded)
+	aks.pubKeyEncoded = string(pubKeyEncoded)
 
 	aks.since, err = time.Parse(time.RFC822, "16 Nov 15 15:04 UTC")
 	c.Assert(err, IsNil)
@@ -69,9 +70,9 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 		"account-id: acc-id1\n" +
 		"public-key-sha3-384: " + aks.keyID + "\n" +
 		aks.sinceLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-		aks.pubKeyBody + "\n\n" +
+		aks.pubKeyEncoded + "\n\n" +
 		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
@@ -103,9 +104,9 @@ func (aks *accountKeySuite) TestUntil(c *C) {
 			"public-key-sha3-384: " + aks.keyID + "\n" +
 			aks.sinceLine +
 			test.untilLine +
-			fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+			fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 			"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-			aks.pubKeyBody + "\n\n" +
+			aks.pubKeyEncoded + "\n\n" +
 			"openpgp c2ln"
 		a, err := asserts.Decode([]byte(encoded))
 		c.Assert(err, IsNil)
@@ -115,7 +116,8 @@ func (aks *accountKeySuite) TestUntil(c *C) {
 }
 
 const (
-	accKeyErrPrefix = "assertion account-key: "
+	accKeyErrPrefix   = "assertion account-key: "
+	keyProofErrPrefix = "assertion key-proof: "
 )
 
 func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
@@ -126,9 +128,9 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		"public-key-sha3-384: " + aks.keyID + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-		aks.pubKeyBody + "\n\n" +
+		aks.pubKeyEncoded + "\n\n" +
 		"AXNpZw=="
 
 	untilPast := aks.since.AddDate(-1, 0, 0)
@@ -163,7 +165,7 @@ func (aks *accountKeySuite) TestDecodeInvalidPublicKey(c *C) {
 		aks.sinceLine +
 		aks.untilLine
 
-	raw, err := base64.StdEncoding.DecodeString(aks.pubKeyBody)
+	raw, err := base64.StdEncoding.DecodeString(aks.pubKeyEncoded)
 	c.Assert(err, IsNil)
 	spurious := base64.StdEncoding.EncodeToString(append(raw, "gorp"...))
 
@@ -195,9 +197,9 @@ func (aks *accountKeySuite) TestDecodeKeyIDMismatch(c *C) {
 		"public-key-sha3-384: aa\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-		aks.pubKeyBody + "\n\n" +
+		aks.pubKeyEncoded + "\n\n" +
 		"AXNpZw=="
 
 	_, err := asserts.Decode([]byte(invalid))
@@ -250,7 +252,7 @@ func (aks *accountKeySuite) TestAccountKeyCheck(c *C) {
 		"since":               aks.since.Format(time.RFC3339),
 		"until":               aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyEncoded), trustedKey)
 	c.Assert(err, IsNil)
 
 	db := aks.openDB(c)
@@ -271,7 +273,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckNoAccount(c *C) {
 		"since":               aks.since.Format(time.RFC3339),
 		"until":               aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyEncoded), trustedKey)
 	c.Assert(err, IsNil)
 
 	db := aks.openDB(c)
@@ -293,7 +295,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckUntrustedAuthority(c *C) {
 		"since":               aks.since.Format(time.RFC3339),
 		"until":               aks.until.Format(time.RFC3339),
 	}
-	accKey, err := otherDB.Sign(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), "")
+	accKey, err := otherDB.Sign(asserts.AccountKeyType, headers, []byte(aks.pubKeyEncoded), "")
 	c.Assert(err, IsNil)
 
 	err = db.Check(accKey)
@@ -310,7 +312,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 		"since":               aks.since.Format(time.RFC3339),
 		"until":               aks.until.Format(time.RFC3339),
 	}
-	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyEncoded), trustedKey)
 	c.Assert(err, IsNil)
 
 	db := aks.openDB(c)
@@ -326,7 +328,7 @@ func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Assert(found, NotNil)
-	c.Check(found.Body(), DeepEquals, []byte(aks.pubKeyBody))
+	c.Check(found.Body(), DeepEquals, []byte(aks.pubKeyEncoded))
 }
 
 func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
@@ -337,9 +339,9 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 		"public-key-sha3-384: " + aks.keyID + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-		aks.pubKeyBody + "\n\n" +
+		aks.pubKeyEncoded + "\n\n" +
 		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
@@ -360,9 +362,9 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 		"account-id: acc-id1\n" +
 		"public-key-sha3-384: " + aks.keyID + "\n" +
 		aks.sinceLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-		aks.pubKeyBody + "\n\n" +
+		aks.pubKeyEncoded + "\n\n" +
 		"openpgp c2ln"
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
@@ -380,9 +382,9 @@ func (aks *accountKeySuite) TestPublicKeyIsValidAt(c *C) {
 		"public-key-sha3-384: " + aks.keyID + "\n" +
 		aks.sinceLine +
 		"until: " + aks.since.Format(time.RFC3339) + "\n" +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-		aks.pubKeyBody + "\n\n" +
+		aks.pubKeyEncoded + "\n\n" +
 		"openpgp c2ln"
 	a, err = asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
@@ -405,9 +407,9 @@ func (aks *accountKeySuite) TestPrerequisites(c *C) {
 		"public-key-sha3-384: " + aks.keyID + "\n" +
 		aks.sinceLine +
 		aks.untilLine +
-		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyEncoded)) + "\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-		aks.pubKeyBody + "\n\n" +
+		aks.pubKeyEncoded + "\n\n" +
 		"AXNpZw=="
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
@@ -418,4 +420,62 @@ func (aks *accountKeySuite) TestPrerequisites(c *C) {
 		Type:       asserts.AccountType,
 		PrimaryKey: []string{"acc-id1"},
 	})
+}
+
+func (aks *accountKeySuite) TestKeyProofHappy(c *C) {
+	kproof, err := asserts.SignWithoutAuthority(asserts.KeyProofType,
+		map[string]interface{}{
+			"nonce": "NONCE",
+			"key":   aks.pubKeyEncoded,
+		}, nil, aks.privKey)
+	c.Assert(err, IsNil)
+
+	// roundtrip
+	a, err := asserts.Decode(asserts.Encode(kproof))
+	c.Assert(err, IsNil)
+
+	kproof2, ok := a.(*asserts.KeyProof)
+	c.Assert(ok, Equals, true)
+
+	// standalone signature check
+	err = asserts.SignatureCheck(kproof2, aks.privKey.PublicKey())
+	c.Check(err, IsNil)
+
+	c.Check(kproof2.Nonce(), Equals, "NONCE")
+}
+
+func (aks *accountKeySuite) TestKeyProofDecodeInvalid(c *C) {
+	encoded := "type: key-proof\n" +
+		"nonce: NONCE\n" +
+		"key:\n    KEY\n" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: " + aks.privKey.PublicKey().ID() + "\n\n" +
+		"AXNpZw=="
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"nonce: NONCE\n", "", `"nonce" header is mandatory`},
+		{"nonce: NONCE\n", "nonce: \n", `"nonce" header should not be empty`},
+		{"key:\n    KEY\n", "", `"key" header is mandatory`},
+		{"key:\n    KEY\n", "key: \n", `"key" header should not be empty`},
+		{"key:\n    KEY\n", "key: $$$\n", `cannot decode public key: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		invalid = strings.Replace(invalid, "KEY", strings.Replace(aks.pubKeyEncoded, "\n", "\n    ", -1), 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, keyProofErrPrefix+test.expectedErr)
+	}
+}
+
+func (aks *accountKeySuite) TestKeyProofDecodeKeyIDMismatch(c *C) {
+	invalid := "type: key-proof\n" +
+		"nonce: NONCE\n" +
+		"key:\n    " + strings.Replace(aks.pubKeyEncoded, "\n", "\n    ", -1) + "\n" +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij\n\n" +
+		"AXNpZw=="
+
+	_, err := asserts.Decode([]byte(invalid))
+	c.Check(err, ErrorMatches, "assertion key-proof: key does not match included signing key id")
 }
