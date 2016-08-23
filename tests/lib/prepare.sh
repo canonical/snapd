@@ -28,76 +28,99 @@ prepare_classic() {
 }
 
 prepare_all_snap() {
-    if [ $SPREAD_REBOOT = 0 ]; then
-        # install the stuff we need
-        apt install -y kpartx busybox-static
-        apt install -y ${SPREAD_PATH}/../snapd_*.deb
-        
-        snap install --edge ubuntu-core
-        snap install --edge --devmode ubuntu-device-flash
+    # check if its the first reboot and if so,
+    # verify we are now in the all-snap world
+    if [ $SPREAD_REBOOT = 1 ]; then
+        echo "Ensure we are now in an all-snap world"
+        if [ -e /var/lib/dpkg/status ]; then
+            echo "Rebooting into all-snap system did not work"
+            exit 1
+        fi
+    fi
 
-        # needs to be under /home because ubuntu-device-flash
-        # uses snap-confine and that will hide parts of the hostfs
-        IMAGE_HOME=/home/image
-        mkdir -p $IMAGE_HOME
+    # we are in an all-snap world, save the state
+    if [ ! -e /var/lib/dpkg/status ]; then
+        if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+            systemctl stop snapd.socket
+            tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+            systemctl start snapd.socket
+        fi
+        exit 0
+    fi
 
-        # modify the core snap so that the current root-pw works there
-        # for spread to do the first login
-        UNPACKD="/tmp/ubuntu-core-snap"
-        unsquashfs -d $UNPACKD /var/lib/snapd/snaps/ubuntu-core_*.snap
-        
-        # set root pw by concating root line from host and rest from core
-        want_pw="$(grep ^root /etc/shadow)"
-        echo "$want_pw" > /tmp/new-shadow
-        tail -n +2 /etc/shadow >> /tmp/new-shadow
-        cp -v /tmp/new-shadow $UNPACKD/etc/shadow
-        
-        # we need the test user in the image
-        chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
+    
+    # if we reach this point, we must takeover the system and convert
+    # to an all-snap system
+    
+    # install the stuff we need
+    apt install -y kpartx busybox-static
+    apt install -y ${SPREAD_PATH}/../snapd_*.deb
+    
+    snap install --edge ubuntu-core
+    snap install --edge --devmode ubuntu-device-flash
 
-        # modify sshd so that we can connect as root
-        sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
+    # needs to be under /home because ubuntu-device-flash
+    # uses snap-confine and that will hide parts of the hostfs
+    IMAGE_HOME=/home/image
+    mkdir -p $IMAGE_HOME
 
-        # FIXME: install would be better but we don't have dpkg on
-        #        the image
-        # unpack our freshly build snapd into the new core snap
-        dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
-        
-        # build new core snap for the image
-        snapbuild $UNPACKD $IMAGE_HOME
+    # modify the core snap so that the current root-pw works there
+    # for spread to do the first login
+    UNPACKD="/tmp/ubuntu-core-snap"
+    unsquashfs -d $UNPACKD /var/lib/snapd/snaps/ubuntu-core_*.snap
+    
+    # set root pw by concating root line from host and rest from core
+    want_pw="$(grep ^root /etc/shadow)"
+    echo "$want_pw" > /tmp/new-shadow
+    tail -n +2 /etc/shadow >> /tmp/new-shadow
+    cp -v /tmp/new-shadow $UNPACKD/etc/shadow
+    
+    # we need the test user in the image
+    chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
 
-        # FIXME: how to test store updated of ubuntu-core with that?
-        
-        # create new image with the modified ubuntu-core snap
-        IMAGE=all-snap-amd64.img
-        /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os $IMAGE_HOME/ubuntu-core_*.snap --install snapweb  --output $IMAGE_HOME/$IMAGE
-        
-        # mount fresh image and add all our SPREAD_PROJECT data
-        kpartx -avs $IMAGE_HOME/$IMAGE
-        # FIXME: hardcoded mapper location, parse from kpartx
-        mount /dev/mapper/loop2p3 /mnt
-        mkdir -p /mnt/user-data/
-        cp -avr /home/gopath /mnt/user-data/
+    # modify sshd so that we can connect as root
+    sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
 
-        # create test user home dir
-        mkdir -p /mnt/user-data/test
-        chown 1001:1001 /mnt/user-data/test
-        
-        # FIXUP silly systemd
-        mkdir -p /mnt/system-data/etc/systemd/system/snapd.service.d
-        cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.service.d/local.conf
+    # FIXME: install would be better but we don't have dpkg on
+    #        the image
+    # unpack our freshly build snapd into the new core snap
+    dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
+    
+    # build new core snap for the image
+    snapbuild $UNPACKD $IMAGE_HOME
+
+    # FIXME: how to test store updated of ubuntu-core with that?
+    
+    # create new image with the modified ubuntu-core snap
+    IMAGE=all-snap-amd64.img
+    /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os $IMAGE_HOME/ubuntu-core_*.snap --install snapweb  --output $IMAGE_HOME/$IMAGE
+    
+    # mount fresh image and add all our SPREAD_PROJECT data
+    kpartx -avs $IMAGE_HOME/$IMAGE
+    # FIXME: hardcoded mapper location, parse from kpartx
+    mount /dev/mapper/loop2p3 /mnt
+    mkdir -p /mnt/user-data/
+    cp -avr /home/gopath /mnt/user-data/
+
+    # create test user home dir
+    mkdir -p /mnt/user-data/test
+    chown 1001:1001 /mnt/user-data/test
+    
+    # FIXUP silly systemd
+    mkdir -p /mnt/system-data/etc/systemd/system/snapd.service.d
+    cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.service.d/local.conf
 [Unit]
 StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
 EOF
     
-        umount /mnt
-        kpartx -d  $IMAGE_HOME/$IMAGE
-    
-        # the reflash magic
-        # FIXME: ideally in initrd, but this is good enough for now
-        cat > $IMAGE_HOME/reflash.sh << EOF
+    umount /mnt
+    kpartx -d  $IMAGE_HOME/$IMAGE
+
+    # the reflash magic
+    # FIXME: ideally in initrd, but this is good enough for now
+    cat > $IMAGE_HOME/reflash.sh << EOF
 #!/bin/sh -ex
 mount -t tmpfs none /tmp
 cp /bin/busybox /tmp
@@ -107,10 +130,10 @@ cp /bin/busybox /tmp
 /tmp/busybox sync
 /tmp/busybox echo b > /proc/sysrq-trigger
 EOF
-        chmod +x $IMAGE_HOME/reflash.sh
+    chmod +x $IMAGE_HOME/reflash.sh
 
-        # FIXME: hardcoded sda1
-        cat >/boot/grub/grub.cfg <<EOF
+    # FIXME: hardcoded sda1
+    cat >/boot/grub/grub.cfg <<EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
@@ -119,23 +142,6 @@ initrd /initrd.img
 }
 EOF
 
-        # Reboot !
 REBOOT
-    fi
-
-    # verify after the first reboot that we are now in the all-snap world
-    if [ $SPREAD_REBOOT = 1 ]; then
-        echo "Ensure we are now in an all-snap world"
-        if [ -e /var/lib/dpkg/status ]; then
-            echo "Rebooting into all-snap system did not work"
-            exit 1
-        fi
-        # Snapshot the state.json
-        if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-            systemctl stop snapd.socket
-            tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
-            systemctl start snapd.socket
-        fi
-    fi
 }
 
