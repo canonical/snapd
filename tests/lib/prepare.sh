@@ -91,6 +91,7 @@ StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
 EOF
+        mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
 StartLimitInterval=0
@@ -107,8 +108,9 @@ EOF
 #!/bin/sh -ex
 mount -t tmpfs none /tmp
 cp /bin/busybox /tmp
+cp $IMAGE_HOME/$IMAGE /tmp
 # blow away everything
-/tmp/busybox dd if=$IMAGE_HOME/$IMAGE of=/dev/sda bs=4M
+/tmp/busybox dd if=/tmp/$IMAGE of=/dev/sda bs=4M
 # and reboot
 /tmp/busybox sync
 /tmp/busybox echo b > /proc/sysrq-trigger
