@@ -21,6 +21,7 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"sort"
 
 	"github.com/snapcore/snapd/asserts"
@@ -225,7 +226,10 @@ type DeviceAssertions interface {
 type AuthContext interface {
 	Device() (*DeviceState, error)
 	UpdateDevice(device *DeviceState) error
+
 	UpdateUser(user *UserState) error
+
+	StoreID(fallback string) string
 }
 
 // authContext helps keeping track auth data in the state and exposing it.
@@ -260,4 +264,14 @@ func (ac *authContext) UpdateUser(user *UserState) error {
 	defer ac.state.Unlock()
 
 	return UpdateUser(ac.state, user)
+}
+
+// StoreID returns the store id according to system state or
+// the fallback one if the state has none set (yet).
+func (ac *authContext) StoreID(fallback string) string {
+	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
+		return storeID
+	}
+	// XXX: consult the model assertion if there is one
+	return fallback
 }
