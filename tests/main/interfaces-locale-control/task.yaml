@@ -1,5 +1,7 @@
 summary: Ensure that the locale-control interface works.
 
+systems: [-ubuntu-core-16-64]
+
 summary: |
     The locale-control interface allows a snap to access the locale configuration.
 
