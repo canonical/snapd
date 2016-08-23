@@ -42,7 +42,7 @@ if [ "$1" = "purge" ]; then
             # opportunistic remove (may fail if there are still revisions left
             for d in "/snap/bin" "/snap/$snap" "/var/snap/$snap" "/snap" "/var/snap"; do
                 if [ -d "$d" ]; then
-                    rmdir --ignore-fail-on-non-empty $d || true
+                    rmdir --ignore-fail-on-non-empty $d
                 fi
             done
         fi
@@ -53,5 +53,5 @@ if [ "$1" = "purge" ]; then
     done
 
     echo "Removing snapd state"
-    rm -rf /var/lib/snapd/*
+    rm -rf /var/lib/snapd
 fi

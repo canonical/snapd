@@ -39,7 +39,7 @@ reset_all_snap() {
     systemctl start snapd.socket
 }
 
-if [ "$SPREAD_SYSTEM" = "ubuntu-core-16" ]; then
+if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
