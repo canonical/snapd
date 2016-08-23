@@ -27,8 +27,7 @@ prepare_classic() {
     fi
 }
 
-prepare_all_snap() {
-    if [ $SPREAD_REBOOT = 0 ] || [ -e /var/lib/dpkg/status ]; then
+setup_reflash_magic() {
         # install the stuff we need
         apt install -y kpartx busybox-static
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
@@ -128,9 +127,13 @@ linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
+}
 
-        # Reboot !
-REBOOT
+prepare_all_snap() {
+    # we are still a "classic" image, prepare the surgery
+    if [ $SPREAD_REBOOT = 0 ] || [ -e /var/lib/dpkg/status ]; then
+        setup_reflash_magic
+        REBOOT
     fi
 
     # verify after the first reboot that we are now in the all-snap world
