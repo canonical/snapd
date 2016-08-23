@@ -34,8 +34,8 @@ type cmdDeleteKey struct {
 
 func init() {
 	cmd := addCommand("delete-key",
-		i18n.G("Delete key"),
-		i18n.G("Delete an assertion-signing key."),
+		i18n.G("Delete cryptographic key pair"),
+		i18n.G("Delete the local cryptographic key pair with the given name."),
 		func() flags.Commander {
 			return &cmdDeleteKey{}
 		})

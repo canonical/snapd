@@ -35,8 +35,8 @@ type cmdKeys struct {
 
 func init() {
 	cmd := addCommand("keys",
-		i18n.G("List keys"),
-		i18n.G("List keys that can be used for signing assertions."),
+		i18n.G("List cryptographic keys"),
+		i18n.G("List cryptographic keys that can be used for signing assertions."),
 		func() flags.Commander {
 			return &cmdKeys{}
 		})
