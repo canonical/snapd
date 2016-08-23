@@ -51,3 +51,12 @@ execute: |
     expected="cannot use devmode and jailmode flags together"
     ( snap install --devmode --jailmode ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
+    echo "Sideload a second time succeeds"
+    snap install ./test-snapd-tools_1.0_all.snap
+    test-snapd-tools.success
+
+    # TODO: check we copy the data directory over
+
+    echo "Remove --revision works"
+    snap remove --revision x1 test-snapd-tools
+    test-snapd-tools.success

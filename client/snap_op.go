@@ -32,6 +32,7 @@ import (
 
 type SnapOptions struct {
 	Channel  string `json:"channel,omitempty"`
+	Revision string `json:"revision,omitempty"`
 	DevMode  bool   `json:"devmode,omitempty"`
 	JailMode bool   `json:"jailmode,omitempty"`
 }

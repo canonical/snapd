@@ -182,9 +182,9 @@ apps:
  bar:
   command: bin/bar
 `
-	snap := ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
+	snapInfo := ms.installLocalTestSnap(c, snapYamlContent+"version: 1.0")
 
-	ts, err := snapstate.Remove(st, "foo")
+	ts, err := snapstate.Remove(st, "foo", snap.R(0))
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
@@ -201,8 +201,8 @@ apps:
 	c.Assert(osutil.FileExists(binaryWrapper), Equals, false)
 
 	// data dirs
-	c.Assert(osutil.FileExists(snap.DataDir()), Equals, false)
-	c.Assert(osutil.FileExists(snap.CommonDataDir()), Equals, false)
+	c.Assert(osutil.FileExists(snapInfo.DataDir()), Equals, false)
+	c.Assert(osutil.FileExists(snapInfo.CommonDataDir()), Equals, false)
 
 	// snap file and its mount
 	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_x1.snap")), Equals, false)
@@ -374,7 +374,7 @@ apps:
 	defer st.Unlock()
 	snapstate.ReplaceStore(ms.o.State(), mStore)
 
-	ts, err := snapstate.Install(st, "foo", "stable", 0, 0)
+	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)

@@ -112,7 +112,7 @@ func (s *imageSuite) TearDownTest(c *C) {
 }
 
 // interface for the store
-func (s *imageSuite) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (s *imageSuite) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	return s.storeSnapInfo[name], nil
 }
 

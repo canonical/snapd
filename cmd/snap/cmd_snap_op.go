@@ -27,11 +27,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/progress"
-
-	"github.com/jessevdk/go-flags"
 )
 
 func lastLogStr(logs []string) string {
@@ -159,6 +159,7 @@ and the snap can easily be enabled again.
 `)
 
 type cmdRemove struct {
+	Revision   string `long:"revision" description:"Remove only the given revision"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -167,7 +168,7 @@ type cmdRemove struct {
 func (x *cmdRemove) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.Snap
-	changeID, err := cli.Remove(name, nil)
+	changeID, err := cli.Remove(name, &client.SnapOptions{Revision: x.Revision})
 	if err != nil {
 		return err
 	}
@@ -270,6 +271,7 @@ func (mx modeMixin) asksForMode() bool {
 type cmdInstall struct {
 	channelMixin
 	modeMixin
+	Revision string `long:"revision" description:"Install the given revision (only for own snaps)"`
 
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
@@ -290,7 +292,7 @@ func (x *cmdInstall) Execute([]string) error {
 
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode}
+	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
 		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
