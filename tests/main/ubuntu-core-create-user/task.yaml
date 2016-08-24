@@ -1,0 +1,33 @@
+summary: Ensure that snap create-user works in ubuntu-core
+systems: [ubuntu-core-16-64]
+restore: |
+    # meh, deluser has no --extrausers support
+    sed -i '/^mvo/d' /var/lib/extrausers/passwd
+    sed -i '/^mvo/d' /var/lib/extrausers/shadow
+    sed -i '/^mvo/d' /var/lib/extrausers/group
+    rm -rf /home/mvo
+execute: |
+    echo "Adding valid user"
+    expected='Created user "mvo" and imported SSH keys.'
+    output=$(snap create-user --sudoer mvo@ubuntu.com)
+    if [ "$output" != "$expected" ]; then
+        echo "Unexpected output $output"
+        exit 1
+    fi
+    echo "Ensure there are ssh keys imported"
+    grep ssh-rsa /home/mvo/.ssh/authorized_keys
+
+    echo "Ensure the user is a sudo user"
+    sudo -u mvo sudo true
+
+
+    echo "Adding invalid user"
+    expected='error: bad user result: cannot create user "nosuchuser@example.com"'
+    if output=$(snap create-user nosuchuser@example.com); then
+        echo "snap create-user should fail for unknown users but it did not"
+        exit 1
+    fi
+    if !echo $output|grep expected; then
+        echo "Unexpected output $output"
+        exit 1
+    fi
