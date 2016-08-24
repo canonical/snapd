@@ -215,7 +215,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 	})
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
-	script := filepath.Join(dirs.GlobalRootDir, "/snap/snapname/42/run-app")
+	script := fmt.Sprintf("%s/snapname/42/run-app", dirs.SnapMountDir)
 	err := ioutil.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755)
 	c.Assert(err, IsNil)
 
