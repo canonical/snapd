@@ -42,8 +42,7 @@ type Daemon struct {
 	overlord        *overlord.Overlord
 	privateListener net.Listener
 	publicListener  net.Listener
-	privateTomb     tomb.Tomb
-	publicTomb      tomb.Tomb
+	tomb            tomb.Tomb
 	privateRouter   *mux.Router
 	publicRouter    *mux.Router
 	hub             *notifications.Hub
@@ -219,23 +218,22 @@ func (d *Daemon) addRoutes() {
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
 	d.overlord.SetRestartHandler(func() {
-		d.privateTomb.Kill(nil)
-		d.publicTomb.Kill(nil)
+		d.tomb.Kill(nil)
 	})
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
 
-	d.privateTomb.Go(func() error {
-		if err := http.Serve(d.privateListener, logit(d.privateRouter)); err != nil && d.privateTomb.Err() == tomb.ErrStillAlive {
-			return err
-		}
+	d.tomb.Go(func() error {
+		d.tomb.Go(func() error {
+			if err := http.Serve(d.publicListener, logit(d.publicRouter)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+				return err
+			}
 
-		return nil
-	})
+			return nil
+		})
 
-	d.publicTomb.Go(func() error {
-		if err := http.Serve(d.publicListener, logit(d.publicRouter)); err != nil && d.publicTomb.Err() == tomb.ErrStillAlive {
+		if err := http.Serve(d.privateListener, logit(d.privateRouter)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -245,31 +243,17 @@ func (d *Daemon) Start() {
 
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
-	d.privateTomb.Kill(nil)
-	d.publicTomb.Kill(nil)
+	d.tomb.Kill(nil)
 	d.privateListener.Close()
 	d.publicListener.Close()
 	d.overlord.Stop()
 
-	if err := d.privateTomb.Wait(); err != nil {
-		return err
-	}
-
-	if err := d.publicTomb.Wait(); err != nil {
-		return err
-	}
-
-	return nil
+	return d.tomb.Wait()
 }
 
-// PrivateDying is a tomb-ish thing for the private API
-func (d *Daemon) PrivateDying() <-chan struct{} {
-	return d.privateTomb.Dying()
-}
-
-// PublicDying is a tomb-ish thing for the public API
-func (d *Daemon) PublicDying() <-chan struct{} {
-	return d.publicTomb.Dying()
+// Dying is a tomb-ish thing
+func (d *Daemon) Dying() <-chan struct{} {
+	return d.tomb.Dying()
 }
 
 // New Daemon

@@ -65,8 +65,7 @@ func run() error {
 	select {
 	case sig := <-ch:
 		logger.Noticef("Exiting on %s signal.\n", sig)
-	case <-d.PrivateDying():
-	case <-d.PublicDying():
+	case <-d.Dying():
 		// something called Stop()
 	}
 
