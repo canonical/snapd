@@ -1,4 +1,5 @@
 summary: Check that firstboot assertions are imported
+systems: [-ubuntu-core-16-64]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
