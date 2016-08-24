@@ -1,0 +1,17 @@
+summary: Ensure that service keep working after a reboot
+systems: [ubuntu-core-16-64]
+environment:
+    # FIXME: use test-snapd-tools once it has a service
+    SNAP: xkcd-webserver
+    SERVICE: xkcd-webserver
+execute: |
+    assert_service_running() {
+        systemctl status snap.$SNAP.$SERVICE.service|grep 'Active: active (running)'
+    }
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        snap install $SNAP
+        assert_service_running
+        REBOOT
+    fi
+    echo "Ensure the serivce is still running after a reboot"
+    assert_service_running
