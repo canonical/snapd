@@ -51,6 +51,11 @@ var ethdir = "/etc/network/interfaces.d"
 var ifup = "/sbin/ifup"
 
 func EnableFirstEther() error {
+	// ensure that udev is ready and we have the net stuff
+	if output, err := exec.Command("/sbin/udevadm", "settle").CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+
 	var eths []string
 	for _, glob := range globs {
 		eths, _ = filepath.Glob(glob)

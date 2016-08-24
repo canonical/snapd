@@ -15,13 +15,22 @@ backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         systems:
-            - ubuntu-16.04-64-grub
-            - ubuntu-16.04-32-grub
+            - ubuntu-16.04-64:
+                  image: ubuntu-16.04-64-grub
+            - ubuntu-16.04-32:
+                  image: ubuntu-16.04-32-grub
+            - ubuntu-core-16-64:
+                  image: ubuntu-16.04-64-grub
+                  kernel: Direct Disk
     qemu:
         systems:
-            - ubuntu-16.04:
-                username: ubuntu
-                password: ubuntu
+            - ubuntu-16.04-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-core-16-64:
+                  image: ubuntu-16.04-64
+                  username: ubuntu
+                  password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 
@@ -82,31 +91,17 @@ suites:
     tests/main/:
         summary: Full-system tests for snapd
         prepare: |
-            apt install -y ${SPREAD_PATH}/../snapd_*.deb
-            # Snapshot the state including core.
-            if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-                ! snap list | grep core || exit 1
-                snap install test-snapd-tools
-                snap list | grep core
-                snap remove test-snapd-tools
-
-                systemctl stop snapd.service snapd.socket
-                systemctl daemon-reload
-                mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-                services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
-                for unit in $services $mounts; do
-                    systemctl stop $unit
-                done
-                tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd /snap /etc/systemd/system/snap-*core*.mount
-                systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-                for unit in $mounts $services; do
-                    systemctl start $unit
-                done
-                systemctl start snapd.socket
+            . $TESTSLIB/prepare.sh
+            if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+                prepare_all_snap
+            else
+                prepare_classic
             fi
         restore: |
             $TESTSLIB/reset.sh
-            apt purge -y snapd || true
+            if [ "$SPREAD_SYSTEM" != "ubuntu-core-16-64" ]; then
+                apt purge -y snapd || true
+            fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
 

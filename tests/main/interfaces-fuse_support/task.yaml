@@ -1,5 +1,7 @@
 summary: Ensure that the fuse-support interface works.
 
+systems: [-ubuntu-core-16-64]
+
 details: |
     The fuse-support interface allows a snap to manage FUSE file systems.
 

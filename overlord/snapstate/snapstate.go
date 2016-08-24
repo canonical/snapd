@@ -82,10 +82,12 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	revisionIsLocal := snapst.findIndex(ss.Revision()) >= 0
 
 	var prepare, prev *state.Task
+	fromStore := false
 	// if we have a local revision here we go back to that
 	if ss.SnapPath != "" || revisionIsLocal {
 		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), ss.SnapPath, revisionStr))
 	} else {
+		fromStore = true
 		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), ss.Name(), revisionStr, ss.Channel))
 	}
 	prepare.Set("snap-setup", ss)
@@ -96,9 +98,16 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 	}
+	prev = prepare
+
+	if fromStore {
+		// fetch and check assertions
+		checkAsserts := s.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), ss.Name(), revisionStr))
+		addTask(checkAsserts)
+		prev = checkAsserts
+	}
 
 	// mount
-	prev = prepare
 	if !revisionIsLocal {
 		mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), ss.Name(), revisionStr))
 		addTask(mount)
