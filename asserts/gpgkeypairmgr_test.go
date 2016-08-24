@@ -45,7 +45,7 @@ type gpgKeypairMgrSuite struct {
 var _ = Suite(&gpgKeypairMgrSuite{})
 
 func (gkms *gpgKeypairMgrSuite) SetUpSuite(c *C) {
-	if !osutil.FileExists("/usr/bin/gpg") {
+	if !osutil.FileExists("/usr/bin/gpg1") && !osutil.FileExists("/usr/bin/gpg") {
 		c.Skip("gpg not installed")
 	}
 }
