@@ -186,7 +186,7 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	}
 
 	if device.KeyID == "" {
-		return nil, fmt.Errorf("internal error: cannot find device key pair")
+		return nil, state.ErrNoState
 	}
 
 	privKey, err := m.keypairMgr.Get(device.KeyID)
@@ -309,6 +309,9 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	privKey, err := m.keyPair()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot find device key pair")
+	}
 	if err != nil {
 		return err
 	}
@@ -388,7 +391,40 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	device, err := auth.Device(m.state)
+	return Model(m.state)
+}
+
+// Serial returns the device serial assertion.
+func (m *DeviceManager) Serial() (*asserts.Serial, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return Serial(m.state)
+}
+
+// SerialProof produces a serial-proof with the given nonce.
+func (m *DeviceManager) SerialProof(nonce string) (*asserts.SerialProof, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	privKey, err := m.keyPair()
+	if err != nil {
+		return nil, err
+	}
+
+	a, err := asserts.SignWithoutAuthority(asserts.SerialProofType, map[string]interface{}{
+		"nonce": nonce,
+	}, nil, privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.SerialProof), err
+}
+
+// Model returns the device model assertion.
+func Model(st *state.State) (*asserts.Model, error) {
+	device, err := auth.Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -397,7 +433,7 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 		return nil, state.ErrNoState
 	}
 
-	a, err := assertstate.DB(m.state).Find(asserts.ModelType, map[string]string{
+	a, err := assertstate.DB(st).Find(asserts.ModelType, map[string]string{
 		"series":   release.Series,
 		"brand-id": device.Brand,
 		"model":    device.Model,
@@ -413,11 +449,8 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 }
 
 // Serial returns the device serial assertion.
-func (m *DeviceManager) Serial() (*asserts.Serial, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	device, err := auth.Device(m.state)
+func Serial(st *state.State) (*asserts.Serial, error) {
+	device, err := auth.Device(st)
 	if err != nil {
 		return nil, err
 	}
@@ -426,7 +459,7 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 		return nil, state.ErrNoState
 	}
 
-	a, err := assertstate.DB(m.state).Find(asserts.SerialType, map[string]string{
+	a, err := assertstate.DB(st).Find(asserts.SerialType, map[string]string{
 		"brand-id": device.Brand,
 		"model":    device.Model,
 		"serial":   device.Serial,
@@ -439,34 +472,4 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	}
 
 	return a.(*asserts.Serial), nil
-}
-
-// SerialProof produces a serial-proof with the given nonce.
-func (m *DeviceManager) SerialProof(nonce string) (*asserts.SerialProof, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	device, err := auth.Device(m.state)
-	if err != nil {
-		return nil, err
-	}
-
-	if device.KeyID == "" {
-		return nil, state.ErrNoState
-
-	}
-
-	privKey, err := m.keyPair()
-	if err != nil {
-		return nil, err
-	}
-
-	a, err := asserts.SignWithoutAuthority(asserts.SerialProofType, map[string]interface{}{
-		"nonce": nonce,
-	}, nil, privKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.(*asserts.SerialProof), err
 }
