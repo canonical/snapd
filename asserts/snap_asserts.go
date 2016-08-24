@@ -434,7 +434,7 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	valid := assert.headers["valid"] == "yes"
+	valid := assert.headers["valid"] == "true"
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
