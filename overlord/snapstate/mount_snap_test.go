@@ -20,8 +20,11 @@
 package snapstate_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -128,7 +131,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, []fakeOp{
 		{
 			op:  "current",
-			old: "/snap/core/1",
+			old: fmt.Sprintf("%s/core/1", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-snap",
@@ -137,7 +140,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/core/2",
+			name:  fmt.Sprintf("%s/core/2", dirs.SnapMountDir),
 			stype: "os",
 		},
 	})

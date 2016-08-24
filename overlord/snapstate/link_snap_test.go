@@ -20,10 +20,12 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -157,7 +159,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		Channel:  "beta",
 	})
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/foo/35"
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("%s/foo/35", dirs.SnapMountDir)
 	s.state.NewChange("dummy", "...").AddTask(t)
 	s.state.Unlock()
 
@@ -179,11 +181,11 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: "/snap/foo/35",
+			name: fmt.Sprintf("%s/foo/35", dirs.SnapMountDir),
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/foo/35",
+			name: fmt.Sprintf("%s/foo/35", dirs.SnapMountDir),
 		},
 	})
 }

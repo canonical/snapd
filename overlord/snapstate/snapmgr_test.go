@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -641,7 +642,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 			old:  "<no-old>",
 		},
 		{
@@ -660,7 +661,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 		},
 	})
 
@@ -761,7 +762,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:  "current",
-			old: "/snap/some-snap/7",
+			old: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "open-snap-file",
@@ -774,12 +775,12 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
+			old:  fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -797,7 +798,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 		},
 	}
 
@@ -879,7 +880,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/some-snap/11"
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -909,7 +910,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:  "current",
-			old: "/snap/some-snap/7",
+			old: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "open-snap-file",
@@ -922,12 +923,12 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
+			old:  fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -945,11 +946,11 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -958,16 +959,16 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		},
 		{
 			op:   "undo-copy-snap-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
+			old:  fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/some-snap/11",
+			name:  fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 			stype: "app",
 		},
 	}
@@ -1051,7 +1052,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:  "current",
-			old: "/snap/some-snap/7",
+			old: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "open-snap-file",
@@ -1064,12 +1065,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "copy-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
+			old:  fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -1087,12 +1088,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 		},
 		// undoing everything from here down...
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -1101,16 +1102,16 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "undo-copy-snap-data",
-			name: "/snap/some-snap/11",
-			old:  "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
+			old:  fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/some-snap/11",
+			name:  fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 			stype: "app",
 		},
 	}
@@ -1274,7 +1275,7 @@ version: 1.0`)
 		Revision: snap.R(-1),
 	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
+	c.Check(s.fakeBackend.ops[5].name, Equals, fmt.Sprintf("%s/mock/x1", dirs.SnapMountDir))
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -1334,18 +1335,18 @@ version: 1.0`)
 	// ensure only local install was run, i.e. first action is pseudo-action current
 	c.Assert(s.fakeBackend.ops, HasLen, 7)
 	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
-	c.Check(s.fakeBackend.ops[0].old, Equals, "/snap/mock/x2")
+	c.Check(s.fakeBackend.ops[0].old, Equals, fmt.Sprintf("%s/mock/x2", dirs.SnapMountDir))
 	// and setup-snap
 	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
 	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/mock_1.0_all.snap`)
 	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R("x3"))
 
 	c.Check(s.fakeBackend.ops[2].op, Equals, "unlink-snap")
-	c.Check(s.fakeBackend.ops[2].name, Equals, "/snap/mock/x2")
+	c.Check(s.fakeBackend.ops[2].name, Equals, fmt.Sprintf("%s/mock/x2", dirs.SnapMountDir))
 
 	c.Check(s.fakeBackend.ops[3].op, Equals, "copy-data")
-	c.Check(s.fakeBackend.ops[3].name, Equals, "/snap/mock/x3")
-	c.Check(s.fakeBackend.ops[3].old, Equals, "/snap/mock/x2")
+	c.Check(s.fakeBackend.ops[3].name, Equals, fmt.Sprintf("%s/mock/x3", dirs.SnapMountDir))
+	c.Check(s.fakeBackend.ops[3].old, Equals, fmt.Sprintf("%s/mock/x2", dirs.SnapMountDir))
 
 	c.Check(s.fakeBackend.ops[4].op, Equals, "setup-profiles:Doing")
 	c.Check(s.fakeBackend.ops[4].name, Equals, "mock")
@@ -1357,7 +1358,7 @@ version: 1.0`)
 		Revision: snap.R(-3),
 	})
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
-	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x3")
+	c.Check(s.fakeBackend.ops[6].name, Equals, fmt.Sprintf("%s/mock/x3", dirs.SnapMountDir))
 
 	// verify snapSetup info
 	var ss snapstate.SnapSetup
@@ -1419,7 +1420,7 @@ version: 1.0`)
 	ops := s.fakeBackend.ops
 	c.Assert(ops, HasLen, 7)
 	c.Check(ops[0].op, Equals, "current")
-	c.Check(ops[0].old, Equals, "/snap/mock/100001")
+	c.Check(ops[0].old, Equals, fmt.Sprintf("%s/mock/100001", dirs.SnapMountDir))
 	// and setup-snap
 	c.Check(ops[1].op, Equals, "setup-snap")
 	c.Check(ops[1].name, Matches, `.*/mock_1.0_all.snap`)
@@ -1469,7 +1470,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	expected := []fakeOp{
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -1478,15 +1479,15 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:   "remove-snap-common-data",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/7",
+			name:  fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 			stype: "app",
 		},
 		{
@@ -1566,7 +1567,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	expected := []fakeOp{
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "remove-profiles:Doing",
@@ -1575,33 +1576,33 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/7",
+			name:  fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 			stype: "app",
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/3",
+			name: fmt.Sprintf("%s/some-snap/3", dirs.SnapMountDir),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/3",
+			name:  fmt.Sprintf("%s/some-snap/3", dirs.SnapMountDir),
 			stype: "app",
 		},
 		{
 			op:   "remove-snap-data",
-			name: "/snap/some-snap/5",
+			name: fmt.Sprintf("%s/some-snap/5", dirs.SnapMountDir),
 		},
 		{
 			op:   "remove-snap-common-data",
-			name: "/snap/some-snap/5",
+			name: fmt.Sprintf("%s/some-snap/5", dirs.SnapMountDir),
 		},
 		{
 			op:    "remove-snap-files",
-			name:  "/snap/some-snap/5",
+			name:  fmt.Sprintf("%s/some-snap/5", dirs.SnapMountDir),
 			stype: "app",
 		},
 		{
@@ -1698,24 +1699,24 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	ops := s.fakeBackend.ops
 	c.Assert(ops[len(ops)-5], DeepEquals, fakeOp{
 		op:   "link-snap",
-		name: "/snap/some-snap/11",
+		name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 	})
 	c.Assert(ops[len(ops)-4], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
-		name: "/snap/some-snap/1",
+		name: fmt.Sprintf("%s/some-snap/1", dirs.SnapMountDir),
 	})
 	c.Assert(ops[len(ops)-3], DeepEquals, fakeOp{
 		op:    "remove-snap-files",
-		name:  "/snap/some-snap/1",
+		name:  fmt.Sprintf("%s/some-snap/1", dirs.SnapMountDir),
 		stype: "app",
 	})
 	c.Assert(ops[len(ops)-2], DeepEquals, fakeOp{
 		op:   "remove-snap-data",
-		name: "/snap/some-snap/2",
+		name: fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 	})
 	c.Assert(ops[len(ops)-1], DeepEquals, fakeOp{
 		op:    "remove-snap-files",
-		name:  "/snap/some-snap/2",
+		name:  fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 		stype: "app",
 	})
 
@@ -1847,7 +1848,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	expected := []fakeOp{
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 		fakeOp{
 			op:    "setup-profiles:Doing",
@@ -1863,7 +1864,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snap/some-snap/2",
+			name: fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -1962,7 +1963,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	expected := []fakeOp{
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/2",
+			name: fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 		},
 		fakeOp{
 			op:    "setup-profiles:Doing",
@@ -1978,7 +1979,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -2034,7 +2035,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	expected := []fakeOp{
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/2",
+			name: fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2050,12 +2051,12 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/1",
+			name: fmt.Sprintf("%s/some-snap/1", dirs.SnapMountDir),
 		},
 		// undoing everything from here down...
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/1",
+			name: fmt.Sprintf("%s/some-snap/1", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -2064,7 +2065,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/2",
+			name: fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
@@ -2103,7 +2104,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.fakeBackend.linkSnapFailTrigger = "/snap/some-snap/1"
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("%s/some-snap/1", dirs.SnapMountDir)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -2113,7 +2114,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	expected := []fakeOp{
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/2",
+			name: fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Doing",
@@ -2129,12 +2130,12 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap.failed",
-			name: "/snap/some-snap/1",
+			name: fmt.Sprintf("%s/some-snap/1", dirs.SnapMountDir),
 		},
 		// undo stuff here
 		{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/1",
+			name: fmt.Sprintf("%s/some-snap/1", dirs.SnapMountDir),
 		},
 		{
 			op:    "setup-profiles:Undoing",
@@ -2143,7 +2144,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 		},
 		{
 			op:   "link-snap",
-			name: "/snap/some-snap/2",
+			name: fmt.Sprintf("%s/some-snap/2", dirs.SnapMountDir),
 		},
 	}
 
@@ -2216,7 +2217,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		},
 		fakeOp{
 			op:   "link-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -2257,7 +2258,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	expected := []fakeOp{
 		fakeOp{
 			op:   "unlink-snap",
-			name: "/snap/some-snap/7",
+			name: fmt.Sprintf("%s/some-snap/7", dirs.SnapMountDir),
 		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -2298,7 +2299,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
-	s.fakeBackend.copySnapDataFailTrigger = "/snap/some-snap/11"
+	s.fakeBackend.copySnapDataFailTrigger = fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir)
 
 	s.state.Unlock()
 	defer s.snapmgr.Stop()
@@ -2335,12 +2336,12 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		},
 		{
 			op:   "copy-data.failed",
-			name: "/snap/some-snap/11",
+			name: fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 			old:  "<no-old>",
 		},
 		{
 			op:    "undo-setup-snap",
-			name:  "/snap/some-snap/11",
+			name:  fmt.Sprintf("%s/some-snap/11", dirs.SnapMountDir),
 			stype: "app",
 		},
 	}
