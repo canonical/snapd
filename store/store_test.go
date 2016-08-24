@@ -1458,55 +1458,55 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := cpiURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := cpiURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authLocation()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := authLocation()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := authURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := assertsURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_SAS", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := assertsURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := myappsURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := myappsURL()
 
 	c.Check(before, Not(Equals), after)
@@ -1636,7 +1636,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		io.WriteString(w, `{"status": 404,"title": "not found"}`)
 	}))

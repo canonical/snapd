@@ -31,7 +31,7 @@ setup_staging_store(){
     fi
 
     echo "And snapd is configured to use the staging store"
-    _configure_store_backends "SNAPPY_USE_STAGING_CPI=1" "SNAPPY_USE_STAGING_SAS=1"
+    _configure_store_backends "SNAPPY_USE_STAGING_STORE=1"
 }
 
 teardown_store(){
