@@ -1,0 +1,7 @@
+summary: Ensure a snap is still there after reboot
+execute: |
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        snap install test-snapd-tools
+        REBOOT
+    fi
+    snap list|grep test-snapd-tools
