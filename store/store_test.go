@@ -80,6 +80,14 @@ func (ac *testAuthContext) StoreID(fallback string) string {
 	return fallback
 }
 
+func (ac *testAuthContext) Serial() ([]byte, error) {
+	return nil, fmt.Errorf("no serial")
+}
+
+func (ac *testAuthContext) SerialProof(nonce string) ([]byte, error) {
+	return nil, fmt.Errorf("no key pair")
+}
+
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
 	m, err := macaroon.New([]byte("secret"), "some-id", "location")
 	if err != nil {

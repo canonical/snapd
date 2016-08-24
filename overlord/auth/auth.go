@@ -216,7 +216,7 @@ NextUser:
 type DeviceAssertions interface {
 	// Model returns the device model assertion.
 	Model() (*asserts.Model, error)
-	// Serial returns the device serial assertion.
+	// Serial returns the device model assertion.
 	Serial() (*asserts.Serial, error)
 	// SerialProof produces a serial-proof with the given nonce.
 	SerialProof(nonce string) (*asserts.SerialProof, error)
@@ -230,16 +230,20 @@ type AuthContext interface {
 	UpdateUser(user *UserState) error
 
 	StoreID(fallback string) string
+
+	Serial() ([]byte, error)
+	SerialProof(nonce string) ([]byte, error)
 }
 
 // authContext helps keeping track auth data in the state and exposing it.
 type authContext struct {
-	state *state.State
+	state         *state.State
+	deviceAsserts DeviceAssertions
 }
 
 // NewAuthContext returns an AuthContext for state.
-func NewAuthContext(st *state.State) AuthContext {
-	return &authContext{state: st}
+func NewAuthContext(st *state.State, deviceAsserts DeviceAssertions) AuthContext {
+	return &authContext{state: st, deviceAsserts: deviceAsserts}
 }
 
 // Device returns current device state.
@@ -268,12 +272,44 @@ func (ac *authContext) UpdateUser(user *UserState) error {
 
 // StoreID returns the store id according to system state or
 // the fallback one if the state has none set (yet).
+// XXX: we need an error return here actually
 func (ac *authContext) StoreID(fallback string) string {
-	ac.state.Lock()
-	defer ac.state.Unlock()
 	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
 		return storeID
 	}
-	// XXX: consult the model assertion if there is one
+	var storeID string
+	if ac.deviceAsserts != nil {
+		mod, err := ac.deviceAsserts.Model()
+		if err == nil {
+			storeID = mod.Store()
+		}
+	}
+	if storeID != "" {
+		return storeID
+	}
 	return fallback
+}
+
+// Serial returns the encoded device serial assertion.
+func (ac *authContext) Serial() ([]byte, error) {
+	if ac.deviceAsserts == nil {
+		return nil, state.ErrNoState
+	}
+	serial, err := ac.deviceAsserts.Serial()
+	if err != nil {
+		return nil, err
+	}
+	return asserts.Encode(serial), nil
+}
+
+// SerialProof produces a serial-proof with the given nonce.
+func (ac *authContext) SerialProof(nonce string) ([]byte, error) {
+	if ac.deviceAsserts == nil {
+		return nil, state.ErrNoState
+	}
+	proof, err := ac.deviceAsserts.SerialProof(nonce)
+	if err != nil {
+		return nil, err
+	}
+	return asserts.Encode(proof), nil
 }
