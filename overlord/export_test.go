@@ -48,6 +48,7 @@ func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
 	}
 }
 
+// MockEnsureNext sets o.ensureNext for tests.
 func MockEnsureNext(o *Overlord, t time.Time) {
 	o.ensureNext = t
 }
@@ -57,6 +58,7 @@ func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
 }
 
+// MockStoreNew mocks store.New as called by overlord.New.
 func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
 	storeNew = new
 	return func() {
