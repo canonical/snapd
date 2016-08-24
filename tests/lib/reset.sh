@@ -32,11 +32,12 @@ reset_classic() {
 }
 
 reset_all_snap() {
-    systemctl stop snapd.socket
-    rm -rf /var/lib/snapd/*
-    rm -rf /snap/bin/*
-    $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
-    systemctl start snapd.socket
+    for snap in $(ls /snap); do
+        if [ "$snap" = "bin" ] || [ "$snap" = "pc" ] ||  [ "$snap" = "pc-kernel" ] || [ "$snap" = "ubuntu-core" ]; then
+            continue
+        fi
+        snap remove $snap
+    done
 }
 
 if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
