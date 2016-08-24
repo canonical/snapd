@@ -96,12 +96,12 @@ func copySnap(c *check.C, snap, targetDir string) {
 	// check for sideloaded snaps
 	// XXX: simplify this down to consider only the name (and not origin)
 	// in the directory once everything is moved to that
-	baseDir := filepath.Join(dirs.SnapSnapsDir, snap)
+	baseDir := filepath.Join(dirs.SnapMountDir, snap)
 	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
 		snapName := strings.Split(snap, ".")[0]
-		baseDir = filepath.Join(dirs.SnapSnapsDir, snapName)
+		baseDir = filepath.Join(dirs.SnapMountDir, snapName)
 		if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-			baseDir = filepath.Join(dirs.SnapSnapsDir, snapName+".sideload")
+			baseDir = filepath.Join(dirs.SnapMountDir, snapName+".sideload")
 			_, err = os.Stat(baseDir)
 			c.Assert(err, check.IsNil,
 				check.Commentf("%s not found from it's original source not sideloaded", snap))

@@ -138,7 +138,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, "", nil)
 	t.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
 	t.logbuf = bytes.NewBuffer(nil)
 	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)
@@ -1636,7 +1636,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		io.WriteString(w, `{"status": 404,"title": "not found"}`)
 	}))

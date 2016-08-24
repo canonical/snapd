@@ -65,7 +65,7 @@ func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapSnapsDir, name, revision.String())
+	return filepath.Join(dirs.SnapMountDir, name, revision.String())
 }
 
 // SecurityTag returns the snap-specific security tag.
