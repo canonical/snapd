@@ -98,7 +98,7 @@ func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if snapName != "lxd" {
 		return fmt.Errorf("lxd-support plug reserved (snap name '%s' != 'lxd')", snapName)
 	} else if devName != "canonical" {
-		return fmt.Errorf("lxd-support plug reserved (developer name '%s' != 'canonical')", devName)
+		return fmt.Errorf("lxd-support interface is reserved for the upstream LXD project")
 	}
 	return nil
 }
