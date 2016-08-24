@@ -50,6 +50,11 @@ setup_reflash_magic() {
         echo "$want_pw" > /tmp/new-shadow
         tail -n +2 /etc/shadow >> /tmp/new-shadow
         cp -v /tmp/new-shadow $UNPACKD/etc/shadow
+
+        # ensure spread -reuse works in the core image as well
+        if [ -e /.spread.yaml ]; then
+            cp -av /.spread.yaml $UNPACKD
+        fi
         
         # we need the test user in the image
         chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
@@ -131,7 +136,7 @@ EOF
 
 prepare_all_snap() {
     # we are still a "classic" image, prepare the surgery
-    if [ $SPREAD_REBOOT = 0 ] || [ -e /var/lib/dpkg/status ]; then
+    if [ -e /var/lib/dpkg/status ]; then
         setup_reflash_magic
         REBOOT
     fi
