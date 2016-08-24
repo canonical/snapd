@@ -63,7 +63,7 @@ func (s *snapTestSuite) TestMockSnap(c *C) {
 	// Data from SideInfo is used
 	c.Check(snapInfo.Revision, Equals, snap.R(42))
 	// The YAML is placed on disk
-	cont, err := ioutil.ReadFile(filepath.Join(dirs.SnapSnapsDir, "sample", "42", "meta", "snap.yaml"))
+	cont, err := ioutil.ReadFile(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"))
 	c.Assert(err, IsNil)
 
 	c.Check(string(cont), Equals, sampleYaml)
