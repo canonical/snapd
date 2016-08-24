@@ -747,8 +747,9 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	defer st.Unlock()
 
 	st.Unlock()
-	storeID := s.ac.StoreID("fallback")
+	storeID, err := s.ac.StoreID("fallback")
 	st.Lock()
+	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "fallback")
 
 	// setup model in system state
@@ -757,12 +758,13 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 		Model:  s.serial.Model(),
 		Serial: s.serial.Serial(),
 	})
-	err := assertstate.Add(st, s.model)
+	err = assertstate.Add(st, s.model)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	storeID = s.ac.StoreID("fallback")
+	storeID, err = s.ac.StoreID("fallback")
 	st.Lock()
+	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
 }
 
