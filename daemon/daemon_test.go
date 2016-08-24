@@ -281,26 +281,9 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 
 	d.overlord.State().RequestRestart()
 
-	privateDone = make(chan struct{})
-	go func() {
-		select {
-		case <-d.PrivateDying():
-		case <-time.After(2 * time.Second):
-			c.Fatal("RequestRestart -> overlord -> Kill chain didn't work for private API")
-		}
-		close(privateDone)
-	}()
-
-	publicDone = make(chan struct{})
-	go func() {
-		select {
-		case <-d.PublicDying():
-		case <-time.After(2 * time.Second):
-			c.Fatal("RequestRestart -> overlord -> Kill chain didn't work for public API")
-		}
-		close(publicDone)
-	}()
-
-	<-privateDone
-	<-publicDone
+	select {
+	case <-d.Dying():
+	case <-time.After(2 * time.Second):
+		c.Fatal("RequestRestart -> overlord -> Kill chain didn't work")
+	}
 }
