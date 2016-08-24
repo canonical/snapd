@@ -59,6 +59,20 @@ func ensureGPGHomeDirectory() (string, error) {
 	return homedir, nil
 }
 
+// findGPGCommand returns the path to a suitable GnuPG binary to use.
+// GnuPG 2 is mainly intended for desktop use, and is hard for us to use
+// here: in particular, it's extremely difficult to use it to delete a
+// secret key without a pinentry prompt (which would be necessary in our
+// test suite).  GnuPG 1 is still supported so it's reasonable to continue
+// using that for now.
+func findGPGCommand() (string, error) {
+	path, err := exec.LookPath("gpg1")
+	if err != nil {
+		path, err = exec.LookPath("gpg")
+	}
+	return path, err
+}
+
 func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	homedir, err := ensureGPGHomeDirectory()
 	if err != nil {
@@ -68,7 +82,11 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	general := []string{"--homedir", homedir, "-q", "--no-auto-check-trustdb"}
 	allArgs := append(general, args...)
 
-	cmd := exec.Command("gpg", allArgs...)
+	path, err := findGPGCommand()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(path, allArgs...)
 	var outBuf bytes.Buffer
 	var errBuf bytes.Buffer
 
@@ -80,7 +98,7 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	cmd.Stderr = &errBuf
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("gpg %s failed: %v (%q)", strings.Join(args, " "), err, errBuf.Bytes())
+		return nil, fmt.Errorf("%s %s failed: %v (%q)", path, strings.Join(args, " "), err, errBuf.Bytes())
 	}
 
 	return outBuf.Bytes(), nil
