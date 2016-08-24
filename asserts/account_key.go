@@ -141,3 +141,39 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		pubKey:        pubk,
 	}, nil
 }
+
+// KeyProof holds an key-proof assertion, which is a self-signed request to prove that the requester holds the private key.
+type KeyProof struct {
+	assertionBase
+	pubKey PublicKey
+}
+
+// Nonce returns the nonce obtained from the store and to be presented when registering a key.
+func (kproof *KeyProof) Nonce() string {
+	return kproof.HeaderString("nonce")
+}
+
+func assembleKeyProof(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "nonce")
+	if err != nil {
+		return nil, err
+	}
+
+	encodedKey, err := checkNotEmptyString(assert.headers, "key")
+	if err != nil {
+		return nil, err
+	}
+	pubKey, err := DecodePublicKey([]byte(encodedKey))
+	if err != nil {
+		return nil, err
+	}
+	if pubKey.ID() != assert.SignKeyID() {
+		return nil, fmt.Errorf("key does not match included signing key id")
+	}
+
+	// ignore extra headers and non-empty body for future compatibility
+	return &KeyProof{
+		assertionBase: assert,
+		pubKey:        pubKey,
+	}, nil
+}
