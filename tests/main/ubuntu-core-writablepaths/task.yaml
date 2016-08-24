@@ -1,4 +1,5 @@
 summary: Ensure that the writable paths on the image are correct
+systems: [ubuntu-core-16-64]
 execute: |
     echo "Ensure everything in writable-paths is actually writable"
     missing=""
