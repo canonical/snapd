@@ -26,8 +26,8 @@ import (
 var supportedHooks = []*HookType{
 	newHookType(regexp.MustCompile("^apply-config$")),
 	newHookType(regexp.MustCompile("^check-config$")),
-	newHookType(regexp.MustCompile("^collect-plug-attr-[a-zA-Z0-9_]+$")),
-	newHookType(regexp.MustCompile("^collect-slot-attr-[a-zA-Z0-9_]+$")),
+	newHookType(regexp.MustCompile("^collect-plug-attr-[a-zA-Z0-9_\\-]+$")),
+	newHookType(regexp.MustCompile("^collect-slot-attr-[a-zA-Z0-9_\\-]+$")),
 }
 
 // HookType represents a pattern of supported hook names.
