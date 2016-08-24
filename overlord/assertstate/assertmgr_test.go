@@ -271,7 +271,7 @@ func (s *assertMgrSuite) settle() {
 	}
 }
 
-func (s *assertMgrSuite) TestFetchCheckSnapAssertions(c *C) {
+func (s *assertMgrSuite) TestValidateSnap(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
 	tempdir := c.MkDir()
@@ -283,7 +283,7 @@ func (s *assertMgrSuite) TestFetchCheckSnapAssertions(c *C) {
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("fetch-check-snap-assertions", "Fetch and check snap assertions")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 	ss := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
@@ -311,7 +311,7 @@ func (s *assertMgrSuite) TestFetchCheckSnapAssertions(c *C) {
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
 }
 
-func (s *assertMgrSuite) TestFetchCheckSnapAssertionsNotFound(c *C) {
+func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 	tempdir := c.MkDir()
 	snapPath := filepath.Join(tempdir, "foo.snap")
 	err := ioutil.WriteFile(snapPath, fakeSnap(33), 0644)
@@ -321,7 +321,7 @@ func (s *assertMgrSuite) TestFetchCheckSnapAssertionsNotFound(c *C) {
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("fetch-check-snap-assertions", "Fetch and check snap assertions")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 	ss := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
@@ -339,7 +339,7 @@ func (s *assertMgrSuite) TestFetchCheckSnapAssertionsNotFound(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot verify snap "foo" and its hash, no matching assertions found.*`)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
 }
 
 func (s *assertMgrSuite) TestCrossCheckSnapErrors(c *C) {
@@ -386,21 +386,21 @@ func (s *assertMgrSuite) TestCrossCheckSnapErrors(c *C) {
 
 	// different size
 	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size+1, si)
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to assertions \(download is broken or tampered\): %d != %d`, size+1, size))
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
 
 	// mismatched revision vs what we got from store original info
 	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, &snap.SideInfo{
 		SnapID:   "snap-id-1",
 		Revision: snap.R(21),
 	})
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing \(store metadata is broken or communication tampered\): "snap-id-1" and 21`, digest))
+	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
 
 	// mismatched snap id vs what we got from store original info
 	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, &snap.SideInfo{
 		SnapID:   "snap-id-other",
 		Revision: snap.R(12),
 	})
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file hash %q corresponding assertions implied snap id "snap-id-1" and revision 12 are not the ones expected for installing \(store metadata is broken or communication tampered\): "snap-id-other" and 12`, digest))
+	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
 
 	// changed name
 	err = assertstate.CrossCheckSnap(s.state, "baz", digest, size, si)
@@ -455,7 +455,7 @@ func (s *assertMgrSuite) TestCrossCheckSnapRevokedSnapDecl(c *C) {
 	c.Check(err, ErrorMatches, `cannot install snap "foo" with a revoked snap declaration`)
 }
 
-func (s *assertMgrSuite) TestFetchCheckSnapAssertionsCrossCheckFail(c *C) {
+func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
 	tempdir := c.MkDir()
@@ -467,7 +467,7 @@ func (s *assertMgrSuite) TestFetchCheckSnapAssertionsCrossCheckFail(c *C) {
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("fetch-check-snap-assertions", "Fetch and check snap assertions")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 	ss := snapstate.SnapSetup{
 		SnapPath: snapPath,
 		UserID:   0,
