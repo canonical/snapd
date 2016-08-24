@@ -402,6 +402,7 @@ func (s *Store) authenticateDevice(r *http.Request) {
 func (s *Store) setStoreID(r *http.Request) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
+		// XXX: test this case, and error support with log handling
 		storeID = s.authContext.StoreID(storeID)
 	}
 	if storeID != "" {

@@ -127,7 +127,7 @@ func New() (*Overlord, error) {
 	o.stateEng.AddManager(o.deviceMgr)
 
 	// setting up the store
-	authContext := auth.NewAuthContext(s)
+	authContext := auth.NewAuthContext(s, o.deviceMgr)
 	sto := storeNew(nil, authContext)
 	s.Lock()
 	snapstate.ReplaceStore(s, sto)

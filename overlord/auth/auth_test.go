@@ -288,7 +288,7 @@ func (as *authSuite) TestAuthContextUpdateUser(c *C) {
 	user.Username = "different"
 	user.StoreDischarges = []string{"updated-discharge"}
 
-	authContext := auth.NewAuthContext(as.state)
+	authContext := auth.NewAuthContext(as.state, nil)
 	err := authContext.UpdateUser(user)
 	c.Check(err, IsNil)
 
@@ -310,13 +310,13 @@ func (as *authSuite) TestAuthContextUpdateUserInvalid(c *C) {
 		Macaroon: "macaroon",
 	}
 
-	authContext := auth.NewAuthContext(as.state)
+	authContext := auth.NewAuthContext(as.state, nil)
 	err := authContext.UpdateUser(user)
 	c.Assert(err, ErrorMatches, "invalid user")
 }
 
 func (as *authSuite) TestAuthContextDeviceForNonExistent(c *C) {
-	authContext := auth.NewAuthContext(as.state)
+	authContext := auth.NewAuthContext(as.state, nil)
 
 	device, err := authContext.Device()
 	c.Check(err, IsNil)
@@ -330,7 +330,7 @@ func (as *authSuite) TestAuthContextDevice(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
-	authContext := auth.NewAuthContext(as.state)
+	authContext := auth.NewAuthContext(as.state, nil)
 
 	deviceFromState, err := authContext.Device()
 	c.Check(err, IsNil)
@@ -344,7 +344,7 @@ func (as *authSuite) TestAuthContextUpdateDevice(c *C) {
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
 
-	authContext := auth.NewAuthContext(as.state)
+	authContext := auth.NewAuthContext(as.state, nil)
 	device.SessionMacaroon = "the-device-macaroon"
 	err = authContext.UpdateDevice(device)
 	c.Check(err, IsNil)
@@ -355,14 +355,14 @@ func (as *authSuite) TestAuthContextUpdateDevice(c *C) {
 }
 
 func (as *authSuite) TestAuthContextStoreIDFallback(c *C) {
-	authContext := auth.NewAuthContext(as.state)
+	authContext := auth.NewAuthContext(as.state, nil)
 
 	storeID := authContext.StoreID("store-id")
 	c.Check(storeID, Equals, "store-id")
 }
 
 func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
-	authContext := auth.NewAuthContext(as.state)
+	authContext := auth.NewAuthContext(as.state, nil)
 
 	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
 	defer os.Unsetenv("UBUNTU_STORE_ID")
