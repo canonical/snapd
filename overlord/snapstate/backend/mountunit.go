@@ -32,8 +32,8 @@ import (
 )
 
 func addMountUnit(s *snap.Info, meter progress.Meter) error {
-	squashfsPath := dirs.StripGlobalRootDir(s.MountFile())
-	whereDir := dirs.StripGlobalRootDir(s.MountDir())
+	squashfsPath := dirs.StripRootDir(s.MountFile())
+	whereDir := dirs.StripRootDir(s.MountDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir, "squashfs")
@@ -56,7 +56,7 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 
 func removeMountUnit(baseDir string, meter progress.Meter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
-	unit := systemd.MountUnitPath(dirs.StripGlobalRootDir(baseDir), "mount")
+	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
 		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
 			return err
