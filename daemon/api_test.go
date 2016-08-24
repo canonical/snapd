@@ -167,6 +167,9 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
+	if s.command != nil {
+		s.command.Restore()
+	}
 	s.d = nil
 	s.restoreBackends()
 	snapstateInstall = snapstate.Install
@@ -2240,6 +2243,7 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
+	s.command = testutil.MockCommand(c, "snap", "")
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
@@ -2391,6 +2395,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
+	s.command = testutil.MockCommand(c, "snap", "")
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
