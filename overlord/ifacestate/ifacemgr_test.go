@@ -26,11 +26,13 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -38,9 +40,11 @@ func TestInterfaceManager(t *testing.T) { TestingT(t) }
 type interfaceManagerSuite struct {
 	state           *state.State
 	privateMgr      *ifacestate.InterfaceManager
+	privateHookMgr  *hookstate.HookManager
 	extraIfaces     []interfaces.Interface
 	secBackend      *interfaces.TestSecurityBackend
 	restoreBackends func()
+	command         *testutil.MockCmd
 }
 
 var _ = Suite(&interfaceManagerSuite{})
@@ -50,6 +54,7 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 	state := state.New(nil)
 	s.state = state
 	s.privateMgr = nil
+	s.privateHookMgr = nil
 	s.extraIfaces = nil
 	s.secBackend = &interfaces.TestSecurityBackend{}
 	s.restoreBackends = ifacestate.MockSecurityBackends([]interfaces.SecurityBackend{s.secBackend})
@@ -72,6 +77,15 @@ func (s *interfaceManagerSuite) manager(c *C) *ifacestate.InterfaceManager {
 	return s.privateMgr
 }
 
+func (s *interfaceManagerSuite) hookManager(c *C) *hookstate.HookManager {
+	if s.privateHookMgr == nil {
+		mgr, err := hookstate.Manager(s.state)
+		c.Assert(err, IsNil)
+		s.privateHookMgr = mgr
+	}
+	return s.privateHookMgr
+}
+
 func (s *interfaceManagerSuite) TestSmoke(c *C) {
 	mgr := s.manager(c)
 	mgr.Ensure()
@@ -85,7 +99,14 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
 
-	task := ts.Tasks()[0]
+	i := 0
+	task := ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	i++
+	task = ts.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	i++
+	task = ts.Tasks()[i]
 	c.Assert(task.Kind(), Equals, "connect")
 	var plug interfaces.PlugRef
 	err = task.Get("plug", &plug)
@@ -100,6 +121,7 @@ func (s *interfaceManagerSuite) TestConnectTask(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
+	s.command = testutil.MockCommand(c, "snap", "")
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
@@ -107,8 +129,10 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	s.state.Lock()
 	change := s.state.NewChange("kind", "summary")
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+
 	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+	c.Assert(ts.Tasks(), HasLen, 3)
+	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
 		},
@@ -117,15 +141,29 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
+	hookMgr := s.hookManager(c)
 	mgr := s.manager(c)
+	ifacestate.SetupHooks(hookMgr)
+
+	hookMgr.Ensure()
+	hookMgr.Wait()
 	mgr.Ensure()
 	mgr.Wait()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	i := 0
 	c.Assert(change.Err(), IsNil)
-	task := change.Tasks()[0]
+	task := change.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	i++
+	task = change.Tasks()[i]
+	c.Check(task.Kind(), Equals, "run-hook")
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	i++
+	task = change.Tasks()[i]
 	c.Check(task.Kind(), Equals, "connect")
 	c.Check(task.Status(), Equals, state.DoneStatus)
 	c.Check(change.Status(), Equals, state.DoneStatus)
@@ -786,16 +824,20 @@ func (s *interfaceManagerSuite) TestDoRemove(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
+	s.command = testutil.MockCommand(c, "snap", "")
+
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
 	mgr := s.manager(c)
+	hookMgr := s.hookManager(c)
+	ifacestate.SetupHooks(hookMgr)
 
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
 	c.Assert(err, IsNil)
-	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+	ts.Tasks()[2].Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: &snap.SideInfo{
 			RealName: "consumer",
 		},
@@ -805,6 +847,8 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 	change.AddAll(ts)
 	s.state.Unlock()
 
+	hookMgr.Ensure()
+	hookMgr.Wait()
 	mgr.Ensure()
 	mgr.Wait()
 	mgr.Stop()
@@ -825,11 +869,15 @@ func (s *interfaceManagerSuite) TestConnectTracksConnectionsInState(c *C) {
 }
 
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
+	s.command = testutil.MockCommand(c, "snap", "")
+
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
 
+	hookMgr := s.hookManager(c)
 	mgr := s.manager(c)
+	ifacestate.SetupHooks(hookMgr)
 
 	s.state.Lock()
 	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
@@ -843,6 +891,9 @@ func (s *interfaceManagerSuite) TestConnectSetsUpSecurity(c *C) {
 	change := s.state.NewChange("connect", "")
 	change.AddAll(ts)
 	s.state.Unlock()
+
+	hookMgr.Ensure()
+	hookMgr.Wait()
 
 	mgr.Ensure()
 	mgr.Wait()

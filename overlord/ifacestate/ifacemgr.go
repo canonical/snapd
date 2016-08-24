@@ -74,10 +74,10 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
 	summary := fmt.Sprintf(i18n.G("Collect attributes of plug %s:%s"), plugSnap, plugName)
-	collectPlugAttr := hookstate.HookTask(s, summary, plugSnap, snap.Revision{0}, "collect-plug-attr-"+plugName)
+	collectPlugAttr := hookstate.HookTask(s, summary, plugSnap, snap.Revision{N: 0}, "collect-plug-attr-"+plugName)
 
 	summary = fmt.Sprintf(i18n.G("Collect attributes of slot %s:%s"), slotSnap, slotName)
-	collectSlotAttr := hookstate.HookTask(s, summary, slotSnap, snap.Revision{0}, "collect-slot-attr-"+slotName)
+	collectSlotAttr := hookstate.HookTask(s, summary, slotSnap, snap.Revision{N: 0}, "collect-slot-attr-"+slotName)
 
 	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
@@ -87,8 +87,7 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	connectInterface.WaitFor(collectPlugAttr)
 	connectInterface.WaitFor(collectSlotAttr)
 
-	tasks := []*state.Task{collectPlugAttr, collectSlotAttr, connectInterface}
-	return state.NewTaskSet(tasks...), nil
+	return state.NewTaskSet(collectPlugAttr, collectSlotAttr, connectInterface), nil
 }
 
 // Disconnect returns a set of tasks for  disconnecting an interface.
