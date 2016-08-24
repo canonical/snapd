@@ -78,6 +78,9 @@ setup_reflash_magic() {
         mkdir -p /mnt/user-data/
         cp -avr /home/gopath /mnt/user-data/
 
+        # workaround, u-d-f really needs to do that
+        mkdir -p /mnt/system-data/var/lib/snapd/seed/assertions
+
         # create test user home dir
         mkdir -p /mnt/user-data/test
         chown 1001:1001 /mnt/user-data/test
@@ -145,5 +148,9 @@ prepare_all_snap() {
         fi
     fi
 
+    # ensure no test creates havoc
+    for name in pc pc-kernel ubuntu-core; do
+        snap list | grep $name
+    done
 }
 
