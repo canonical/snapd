@@ -1,12 +1,14 @@
 summary: Check that more than one snap is refreshed.
 
+systems: [-ubuntu-core-16-64]
+
 details: |
     We use only the fake store for this test because we currently
     have only one controlled snap in the remote stores, when we will
     have more we can update the test to use them
 
 environment:
-    BLOB_DIR: $(mktemp -d)
+    BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
     . $TESTSLIB/store.sh
@@ -25,7 +27,7 @@ restore: |
 
 execute: |
     echo "When the store is configured to make them refreshable"
-    fakestore -make-refreshable test-snapd-tools,xkcd-webserver -blobdir $BLOB_DIR
+    fakestore -make-refreshable test-snapd-tools,xkcd-webserver -dir $BLOB_DIR
 
     echo "And a refresh is performed"
     snap refresh

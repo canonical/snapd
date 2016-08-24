@@ -55,14 +55,14 @@ interface upon install:
     :log-observe         -
     -                    foo:log-observe
 
-You may manually connect using ``snappy connect``:
+You may manually connect using ``snap connect``:
 
     $ sudo snap connect foo:log-observe core:log-observe
     $ snap interfaces
     Slot                 Plug
     :log-observe         foo:log-observe
 
-and disconnect using ``snappy disconnect``:
+and disconnect using ``snap disconnect``:
 
     $ sudo snap disconnect foo:log-observe core:log-observe
     $ snap interfaces # shows they are disconnected
@@ -147,6 +147,9 @@ Consuming snaps can access media players implementing mpris via the providing
 snap's well-known DBus name.
 
 * Auto-Connect: no
+* Attributes:
+    * name (slot): optional, media player name to use for DBus well-known name
+      (ie, `org.mpris.MediaPlayer2.$name`). If omitted, use the snap's name.
 
 ### network
 
@@ -249,9 +252,21 @@ Can configure network firewalling giving privileged access to networking.
 
 * Auto-Connect: no
 
+### fuse-support
+
+Can mount fuse filesystems (as root only).
+
+* Auto-Connect: no
+
 ### hardware-observe
 
 Can query hardware information from the system.
+
+* Auto-Connect: no
+
+### kernel-module-control
+
+Can insert kernel modules. This interface gives privileged access to the device.
 
 * Auto-Connect: no
 
@@ -280,6 +295,14 @@ privileged access to query location services.
 Can read system logs and set kernel log rate-limiting.
 
 * Auto-Connect: no
+
+### lxd-support
+Can access all resources and syscalls on the device for LXD to mediate
+access for its containers. This interface currently may only be
+established with the upstream LXD project.
+
+* Auto-Connect: yes
+* Transitional: yes
 
 ### modem-manager
 

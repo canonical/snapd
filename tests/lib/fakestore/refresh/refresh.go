@@ -26,22 +26,66 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/snap"
+
+	"github.com/snapcore/snapd/store"
 )
 
-// CallFakeSnap calls snappy update after faking a new version available for the specified snap.
-// The fake is made copying the currently installed snap.
-func CallFakeSnap(snaps []string, blobDir string) error {
+func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
+	storePrivKey, _ := assertstest.ReadPrivKey(systestkeys.TestStorePrivKey)
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted:        sysdb.Trusted(),
+	})
+	if err != nil {
+		return err
+	}
+	// for signing
+	db.ImportKey(storePrivKey)
+
+	// XXX: ideally for consistency we should talk to the local snapd
+	// but this allows us to go working until snapd itself
+	// start being fully assertion using
+	sto := store.New(nil, "", nil)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+
+	save := func(a asserts.Assertion) error {
+		err := db.Add(a)
+		if err != nil {
+			if _, ok := err.(*asserts.RevisionError); !ok {
+				return err
+			}
+		}
+		return writeAssert(a, blobDir)
+	}
+
+	f := asserts.NewFetcher(db, retrieve, save)
+
 	for _, snap := range snaps {
-		if err := makeFakeRefreshForSnap(snap, blobDir); err != nil {
+		if err := makeFakeRefreshForSnap(snap, blobDir, db, f); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func makeFakeRefreshForSnap(snap, targetDir string) error {
+func writeAssert(a asserts.Assertion, targetDir string) error {
+	ref := a.Ref()
+	fn := fmt.Sprintf("%s.%s", strings.Join(ref.PrimaryKey, ","), ref.Type.Name)
+	return ioutil.WriteFile(filepath.Join(targetDir, "asserts", fn), asserts.Encode(a), 0644)
+}
+
+func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f *asserts.Fetcher) error {
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
 	if err != nil {
@@ -58,9 +102,14 @@ func makeFakeRefreshForSnap(snap, targetDir string) error {
 	}
 	defer exec.Command("sudo", "rm", "-rf", fakeUpdateDir)
 
-	err = copySnap(snap, fakeUpdateDir)
+	origInfo, err := copySnap(snap, fakeUpdateDir)
 	if err != nil {
 		return fmt.Errorf("copying snap: %v", err)
+	}
+
+	err = copySnapAsserts(origInfo, f)
+	if err != nil {
+		return fmt.Errorf("copying asserts: %v", err)
 	}
 
 	// fake new version
@@ -68,45 +117,116 @@ func makeFakeRefreshForSnap(snap, targetDir string) error {
 	if err != nil {
 		return fmt.Errorf("changing fake snap version: %v", err)
 	}
-	return buildSnap(fakeUpdateDir, targetDir)
+
+	newInfo, err := buildSnap(fakeUpdateDir, targetDir)
+	if err != nil {
+		return err
+	}
+
+	// new test-signed snap-revision
+	err = makeNewSnapRevision(origInfo, newInfo, targetDir, db)
+	if err != nil {
+		return fmt.Errorf("making new snap-revision: %v", err)
+	}
+
+	return nil
 }
 
-func copySnap(snap, targetDir string) error {
-	// check for sideloaded snaps
-	// XXX: simplify this down to consider only the name (and not origin)
-	// in the directory once everything is moved to that
-	baseDir := filepath.Join(dirs.SnapSnapsDir, snap)
-	if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-		snapName := strings.Split(snap, ".")[0]
-		baseDir = filepath.Join(dirs.SnapSnapsDir, snapName)
-		if _, err := os.Stat(baseDir); os.IsNotExist(err) {
-			baseDir = filepath.Join(dirs.SnapSnapsDir, snapName+".sideload")
-			_, err = os.Stat(baseDir)
-			if err != nil {
-				return fmt.Errorf("%s not found from it's original source not sideloaded", snap)
-			}
-		}
+type info struct {
+	revision string
+	digest   string
+	size     uint64
+}
+
+func copySnap(snapName, targetDir string) (*info, error) {
+	baseDir := filepath.Join(dirs.SnapSnapsDir, snapName)
+	if _, err := os.Stat(baseDir); err != nil {
+		return nil, err
 	}
 	sourceDir := filepath.Join(baseDir, "current")
 	files, err := filepath.Glob(filepath.Join(sourceDir, "*"))
 	if err != nil {
-		return err
+		return nil, err
 	}
+
+	revnoDir, err := filepath.EvalSymlinks(sourceDir)
+	if err != nil {
+		return nil, err
+	}
+	origRevision := filepath.Base(revnoDir)
+
 	for _, m := range files {
 		if err = exec.Command("sudo", "cp", "-a", m, targetDir).Run(); err != nil {
-			return err
+			return nil, err
+
 		}
 	}
-	return nil
+
+	rev, err := snap.ParseRevision(origRevision)
+	if err != nil {
+		return nil, err
+	}
+
+	place := snap.MinimalPlaceInfo(snapName, rev)
+	origDigest, origSize, err := asserts.SnapFileSHA3_384(place.MountFile())
+	if err != nil {
+		return nil, err
+	}
+
+	return &info{revision: origRevision, size: origSize, digest: origDigest}, nil
 }
 
-func buildSnap(snapDir, targetDir string) error {
+func buildSnap(snapDir, targetDir string) (*info, error) {
 	// build in /var/tmp (which is not a tempfs)
 	cmd := exec.Command("snapbuild", snapDir, targetDir)
 	cmd.Env = append(os.Environ(), "TMPDIR=/var/tmp")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("building fake snap :%s : %v", output, err)
+		return nil, fmt.Errorf("building fake snap: %v, output: %s", err, output)
 	}
-	return nil
+	out := strings.TrimSpace(string(output))
+	if !strings.HasPrefix(out, "built: ") {
+		return nil, fmt.Errorf("building fake snap got unexpected output: %s", output)
+	}
+	fn := out[len("built: "):]
+
+	newDigest, size, err := asserts.SnapFileSHA3_384(fn)
+	if err != nil {
+		return nil, err
+	}
+
+	return &info{digest: newDigest, size: size}, nil
+}
+
+func copySnapAsserts(info *info, f *asserts.Fetcher) error {
+	return f.Fetch(&asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{info.digest},
+	})
+}
+
+func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database) error {
+	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": orig.digest,
+	})
+	if err != nil {
+		return err
+	}
+	origSnapRev := a.(*asserts.SnapRevision)
+
+	headers := map[string]interface{}{
+		"authority-id":  "testrootorg",
+		"snap-sha3-384": new.digest,
+		"snap-id":       origSnapRev.SnapID(),
+		"snap-size":     fmt.Sprintf("%d", new.size),
+		"snap-revision": fmt.Sprintf("%d", origSnapRev.SnapRevision()+1),
+		"developer-id":  origSnapRev.DeveloperID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	a, err = db.Sign(asserts.SnapRevisionType, headers, nil, systestkeys.TestStoreKeyID)
+	if err != nil {
+		return err
+	}
+
+	return writeAssert(a, targetDir)
 }

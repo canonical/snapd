@@ -39,17 +39,16 @@ import (
 )
 
 // GenerateKey generates a private/public key pair of the given bits. It panics on error.
-func GenerateKey(bits int) (asserts.PrivateKey, *packet.PrivateKey) {
+func GenerateKey(bits int) (asserts.PrivateKey, *rsa.PrivateKey) {
 	priv, err := rsa.GenerateKey(rand.Reader, bits)
 	if err != nil {
 		panic(fmt.Errorf("failed to create private key: %v", err))
 	}
-	pkt := packet.NewRSAPrivateKey(time.Now(), priv)
-	return asserts.OpenPGPPrivateKey(pkt), pkt
+	return asserts.RSAPrivateKey(priv), priv
 }
 
 // ReadPrivKey reads a PGP private key (either armored or simply base64 encoded). It panics on error.
-func ReadPrivKey(pk string) (asserts.PrivateKey, *packet.PrivateKey) {
+func ReadPrivKey(pk string) (asserts.PrivateKey, *rsa.PrivateKey) {
 	rd := bytes.NewReader([]byte(pk))
 	blk, err := armor.Decode(rd)
 	var body io.Reader
@@ -66,7 +65,12 @@ func ReadPrivKey(pk string) (asserts.PrivateKey, *packet.PrivateKey) {
 	}
 
 	pkPkt := pkt.(*packet.PrivateKey)
-	return asserts.OpenPGPPrivateKey(pkPkt), pkPkt
+	rsaPrivKey, ok := pkPkt.PrivateKey.(*rsa.PrivateKey)
+	if !ok {
+		panic("not a RSA key")
+	}
+
+	return asserts.RSAPrivateKey(rsaPrivKey), rsaPrivKey
 }
 
 // A sample developer key.
@@ -75,63 +79,63 @@ const (
 	DevKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
 Version: GnuPG v1
 
-lQcYBFdLWPQBEAC4GPsC/slzwiuJDVVVfEAyTt/Pwn+TEvGuHUr0fVzT+wld66CN
-ZHGIx2q9h3ai58M33CpsCsILJaIt5BrQC7DGSiyx7KG7SWkZ0HsXF1qUmiWK4PIk
-QgTphXC+Q2WuTWpXXmyaN8/bHcKir3vj5b7JP1rHL95whRj3WCdAqgCxI31mIqp3
-ecdNHSztRCDCVtFBxULY9BzyIYtw26b2COZtuHMuhsJZll72+qQj+zc+L/T61706
-LSC21DI/sEqTk97IC9BEhgKbGxITY9Bt2PezbsjflHtesbCWI5E5T3OpUHCQhZli
-9I/xsFtk9SIrxaCAqFlOQbf4MK/W+je7BGsOZfXWzoNWxOWbCjV+4YSt4a8xuULK
-oJe/heAQySwn4s5qQaTK8Xr5Z2XTQ20q8GZ/gJ1p5JQXMxON//UbPKwH1cWwfIMj
-Y9WZIw2Pcn+c3fWc5aI3Czpzq8T5RmaE1qdGx+MBLlLBXLKPVwSZlZoDeW5vzmIR
-R/tNYUzSNeU62NFoAH6myl7wo7u9dgj//VSBPXrZumqQnWsLXdv2E2n6eQ3DQUX0
-NqWUSs0jVoqGfByfc7NliYq1y8Nn+TnuTwcGfyyjfFbGhFeSXYRn+1/pLLLtsetb
-v56/cNMwbJrO2xaBFBFObzz3jgF2ntrgM8usAWvLI3mbWEoBPYVppz80QwARAQAB
-AA/8CNHq5hFWjc0N2z1AIIjZOy/L3unMGpFBR/IPqcKpzwl2FkGtiaiixzFP/AWV
-7vxt6MALvkJjr+IH25f+mty8hZDUhFpjGJR4ocElweJKDNg3wpLADHGnR5gvjHCx
-L0EhPk9VTQGDMVXDLJp+CS9Jd93TrRBY4V4sZzPvftRw6mEEvH8eWKavyueCGVn2
-vH4pUgkv3dy62Eo4IoTmLQpvHm7vAcR4t48R51ZJxTmKGNjLrWA8U3cJsV4INu9C
-G2uYXvrbPwqGlxocaxZl9s/6yhDINJdUs8w35XGNycefMcubS6lC7dqWsjccodZx
-Yn8k5JUW4OjFdhwVs0B9/rVEUFxJtQ6t28bl4qAGZaXgU4z4lj1zUcOFf3jQdfu8
-uePfo9Ts8o2B6HaF4nInxCVZzHACy3Xk8/Kl7Qv8UJcfzaJto0v7p6V9BfHji3kg
-pOuxoSzhOl0EOD93XHhM1J0CaYTB2AmErAktHiSS7QolEEfJS4OrX6LBMOF6NwDG
-rdX6H/hsO2qeF48s1tpPw0gTa4+awdsQYFwBjFBHWqOROrjr+d3S3iRsKafjXoEG
-wGnBZ3VeTqlhylp9v+A7qx1A7H62Fyf8kJn1sXi209hs9y+83icL4iP9j2BbLVoe
-a0Fn8bNvBhJBwLBfibUgM2LWnIzU0/sVaX4Yk3ni1fX5GG0IAM7aqKVi5IVN2mlW
-2MFWaH8wmML6r/EpXYHhY8lAj9BWBlkQZqoMe2g+CbNol0nLNf/B24qHsSv0JXBI
-TWxBt2UtJiHx9plaQLYT1O+FYl2zHU90GTxKqmv6SmR8oKk4bOG7g4hoXMdLAgWt
-CUrjTgG3HUk7Wg+ZGvKyx53CMYXao2lWxWYnWNhX3n17ulqWtPEKzPFcYnJbBIDK
-9V9swkOIV0yMxnMWtxIGKeG2IfnCTl5z3qROzFRGvYEkT5zJrcWxekSDkAiZoXRT
-e4JMQDmI9rdnXZ8HybcAv1noYlxDIRuHPB0jp4X1GROaG2zcruVhPoxa4uT5FV+3
-K+jpurcIAOPWN002QotWWPdtxBgOhReU6CClk/OOzm3UgzYi4Gk0kLSe0Ozn8B8P
-kxhkRZ08HVdydl2aKBFu7Y/1RFq+o5WoVukCWIWPG+h/stHkTkk1EdesL/hjsN6H
-DoVnT0i7HAIsC9bb7hL+WTPZQoDsuwYs3k+zsEQSDXhkN7W+5CVZdE3Cc/IY8wWO
-/+lZoHoDR7lThEJl+G8YiNdb6T3YUNxH3jMzBN1ydQS64CYdqySzK5UxSIxMjXz3
-7Ww0RnFx6kN0g2ae3IlxUbmse2ugLETzX7ABTqbDVpgJLJMkyLk21h9DRfnlAAKY
-IjAsrvNCsQDON2w3F7iZlqrj2Kh99tUH/2Z27+sNrOEVUjMf+Ds9RrKOkrUMcNWe
-l1dM0UAHMOpBew9qimdXwI7lrH6SW4k4QEDdWBHhPOUVYqj2F+i+8sZwgqhmDwsw
-2R3oPLP/pGrQRK2jjLNRztvgy22ASrYYHZd/WkUjBNHRVTXJYArGrvbz3KbhCe3N
-b9Z/CJSx1zeiTRrJSzTxTIlsJGEw06WtAy7bSeXeOo3rD0yUPmP/GLKfIUfxUHkV
-f+u5vm6XVbDf0kp3ZgDWjFtEJNWNajDOI3xA8dv5yXUnQYRLluo33QEZVYg5S+LK
-p9lTBrkp/u8st5Mwzq1ptm45SgmnrT0vsf8kiaB6uE9wuSVE3009+suAuLQHICh0
-ZXN0KYkCOAQTAQgAIgUCV0tY9AIbLwYLCQgHAwIGFQgCCQoLBBYCAwECHgECF4AA
-CgkQtSz0OKLQePc2IxAAheBE2JTGZlxgPn88zc3BlDeqh89ZeQ5Kl7qz1dU/DpiQ
-Wf1cNaV9bf+3bczWtcRHFjREVEj3MR7d8WulRz2br5zB1thGt1h1ayfT5c+W/AM1
-I/VgC/SFdKN6pk1fJjDc9qrJn86pOexAHNHyPwTAxnlQ3t4Q9OzOuHTDBuLvWkzz
-rlWAYFqBiYlnRBa3v0De1dKpYl5mbv/N1co9neyl8EsfL9AyBUv42j8OYBb3mAYF
-mrG2KObUib7zYeJ+M1d1VMkBZUSw2ZWStseHxo42S3c5teHQwnYSfHznTL/fibLA
-OreGNemvTCbWVuZfLYGt1yRjrDP2uBpdH3bq/uLtdhvXzeTc2Hs86mYa9+gJgkXC
-XwnJ41Hw+dRoSsoUOc4WQALBT9BsEuK3MzXj11Wyg3QwLiyF2Tr72mzVKvZO/GRy
-jBvmEimoevu0RB9MlDB7c01B34sBQ0R+GhKyQxxC0cstKGoi/8wF1O3HmbrbjiRk
-grX5x90vvu5HJHR1Pjpi/9FDj8nm7gKZ+pGYqmYvzLU8hOy6WiQObiRid56uQem6
-ECfMJlWnQtzAUVTBrtckGSzlKhO6laLiR9Bg90uCzKjYehW6PCVpMp2vmEsqo0r0
-n/YBufIZs9/L1Gblpi0SL6ZTjZdQ2Wj8btU+OlWiJM3LNIMJAZRtMRBfmljnijQ=
-=r01O
+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
+=5Myf
 -----END PGP PRIVATE KEY BLOCK-----
 `
 
-	DevKeyID = "b52cf438a2d078f7"
+	DevKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
 
-	DevKeyFingerprint = "42a3050d365c10d5c093abeeb52cf438a2d078f7"
+	DevKeyPGPFingerprint = "966e70f4b9f257a2772f8f354a423d28aaea4b4f"
 )
 
 // GPGImportKey imports the given PGP armored key into the GnuPG setup at homedir. It panics on error.
@@ -159,7 +163,7 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 		otherHeaders["account-id"] = strutil.MakeRandomString(32)
 	}
 	if otherHeaders["display-name"] == nil {
-		otherHeaders["display-name"] = strings.ToTitle(username)
+		otherHeaders["display-name"] = strings.ToTitle(username[:1]) + username[1:]
 	}
 	if otherHeaders["validation"] == nil {
 		otherHeaders["validation"] = "unproven"
@@ -180,17 +184,9 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]i
 		otherHeaders = make(map[string]interface{})
 	}
 	otherHeaders["account-id"] = acct.AccountID()
-	otherHeaders["public-key-id"] = pubKey.ID()
-	otherHeaders["public-key-fingerprint"] = pubKey.Fingerprint()
+	otherHeaders["public-key-sha3-384"] = pubKey.ID()
 	if otherHeaders["since"] == nil {
 		otherHeaders["since"] = time.Now().Format(time.RFC3339)
-	}
-	if otherHeaders["until"] == nil {
-		since, err := time.Parse(time.RFC3339, otherHeaders["since"].(string))
-		if err != nil {
-			panic(err)
-		}
-		otherHeaders["until"] = since.AddDate(5, 0, 0).Format(time.RFC3339)
 	}
 	encodedPubKey, err := asserts.EncodePublicKey(pubKey)
 	if err != nil {
@@ -215,13 +211,11 @@ type SigningDB struct {
 
 // NewSigningDB creates a test signing assertion db with the given defaults. It panics on error.
 func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-	})
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, privKey)
+	err = db.ImportKey(privKey)
 	if err != nil {
 		panic(err)
 	}
@@ -244,7 +238,7 @@ func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
 	if keyID == "" {
 		keyID = db.KeyID
 	}
-	return db.Database.PublicKey(db.AuthorityID, keyID)
+	return db.Database.PublicKey(keyID)
 }
 
 // StoreStack realises a store-like set of founding trusted assertions and signing setup.
@@ -264,22 +258,25 @@ type StoreStack struct {
 // NewStoreStack creates a new store assertion stack. It panics on error.
 func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.PrivateKey) *StoreStack {
 	rootSigning := NewSigningDB(authorityID, rootPrivKey)
+	ts := time.Now().Format(time.RFC3339)
 	trustedAcct := NewAccount(rootSigning, authorityID, map[string]interface{}{
 		"account-id": authorityID,
 		"validation": "certified",
+		"timestamp":  ts,
 	}, "")
-	trustedKey := NewAccountKey(rootSigning, trustedAcct, nil, rootPrivKey.PublicKey(), "")
+	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
+		"since": ts,
+	}, rootPrivKey.PublicKey(), "")
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
 	})
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, storePrivKey)
+	err = db.ImportKey(storePrivKey)
 	if err != nil {
 		panic(err)
 	}
@@ -311,8 +308,8 @@ func (ss *StoreStack) StoreAccountKey(keyID string) *asserts.AccountKey {
 		keyID = ss.KeyID
 	}
 	key, err := ss.Find(asserts.AccountKeyType, map[string]string{
-		"account-id":    ss.AuthorityID,
-		"public-key-id": keyID,
+		"account-id":          ss.AuthorityID,
+		"public-key-sha3-384": keyID,
 	})
 	if err == asserts.ErrNotFound {
 		return nil

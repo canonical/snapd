@@ -139,7 +139,9 @@ func MarkBootSuccessful(bootloader Bootloader) error {
 		if err != nil {
 			return err
 		}
-
+		if value == "" {
+			continue
+		}
 		// FIXME: ugly string replace
 		newKey := strings.Replace(k, "_try_", "_", -1)
 		if err := bootloader.SetBootVar(newKey, value); err != nil {

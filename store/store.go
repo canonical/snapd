@@ -106,7 +106,11 @@ type Config struct {
 	AssertionsURI     *url.URL
 	PurchasesURI      *url.URL
 	PaymentMethodsURI *url.URL
-	DetailFields      []string
+
+	Architecture string
+	Series       string
+
+	DetailFields []string
 }
 
 // Store represents the ubuntu snap store
@@ -118,6 +122,9 @@ type Store struct {
 	assertionsURI     *url.URL
 	purchasesURI      *url.URL
 	paymentMethodsURI *url.URL
+
+	architecture string
+	series       string
 
 	detailFields []string
 	// reused http client
@@ -157,8 +164,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func useStaging() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+}
+
 func cpiURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -170,7 +181,7 @@ func cpiURL() string {
 }
 
 func authLocation() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "login.staging.ubuntu.com"
 	}
 	return "login.ubuntu.com"
@@ -184,7 +195,7 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_SAS") != "" {
+	if useStaging() {
 		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
@@ -196,13 +207,19 @@ func assertsURL() string {
 }
 
 func myappsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
+	if useStaging() {
 		return "https://myapps.developer.staging.ubuntu.com/"
 	}
 	return "https://myapps.developer.ubuntu.com/"
 }
 
 var defaultConfig = Config{}
+
+// DefaultConfig returns a copy of the default configuration ready to be adapted.
+func DefaultConfig() *Config {
+	cfg := defaultConfig
+	return &cfg
+}
 
 func init() {
 	storeBaseURI, err := url.Parse(cpiURL())
@@ -288,6 +305,16 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		detailsURI = &uri
 	}
 
+	architecture := arch.UbuntuArchitecture()
+	if cfg.Architecture != "" {
+		architecture = cfg.Architecture
+	}
+
+	series := release.Series
+	if cfg.Series != "" {
+		series = cfg.Series
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
 		storeID:           storeID,
@@ -297,6 +324,8 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		assertionsURI:     cfg.AssertionsURI,
 		purchasesURI:      cfg.PurchasesURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
+		series:            series,
+		architecture:      architecture,
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
@@ -429,8 +458,8 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", reqOptions.Accept)
-	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
-	req.Header.Set("X-Ubuntu-Series", release.Series)
+	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
+	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
 	if reqOptions.ContentType != "" {
@@ -993,7 +1022,8 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		if resp.Header.Get("Content-Type") == "application/json" {
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "application/json" || contentType == "application/problem+json" {
 			var svcErr assertionSvcError
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&svcErr); err != nil {

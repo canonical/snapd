@@ -42,7 +42,8 @@ var (
 	SnapMetaDir               string
 	SnapdSocket               string
 
-	SnapSeedDir string
+	SnapSeedDir   string
+	SnapDeviceDir string
 
 	SnapAssertsDBDir      string
 	SnapTrustedAccountKey string
@@ -68,9 +69,6 @@ var (
 func init() {
 	// init the global directories at startup
 	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
-	}
 
 	SetRootDir(root)
 }
@@ -78,6 +76,9 @@ func init() {
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
+	if rootdir == "" {
+		rootdir = "/"
+	}
 	GlobalRootDir = rootdir
 
 	SnapSnapsDir = filepath.Join(rootdir, "/snap")
@@ -99,6 +100,7 @@ func SetRootDir(rootdir string) {
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
+	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
 	// NOTE: if you change stampFile, update the condition in
 	// snapd.firstboot.service to match

@@ -22,10 +22,18 @@ package asserts
 import (
 	"bufio"
 	"bytes"
+	"crypto"
 	"fmt"
 	"io"
 	"sort"
 	"strconv"
+	"strings"
+)
+
+type typeFlags int
+
+const (
+	noAuthority typeFlags = iota + 1
 )
 
 // AssertionType describes a known assertion type with its name and metadata.
@@ -37,19 +45,26 @@ type AssertionType struct {
 	PrimaryKey []string
 
 	assembler func(assert assertionBase) (Assertion, error)
+	flags     typeFlags
 }
 
 // Understood assertion types.
 var (
-	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount}
-	AccountKeyType      = &AssertionType{"account-key", []string{"account-id", "public-key-id"}, assembleAccountKey}
-	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel}
-	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial}
-	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration}
-	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild}
-	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision}
+	AccountType         = &AssertionType{"account", []string{"account-id"}, assembleAccount, 0}
+	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
+	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
+	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
+	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
+	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
+	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
 
 // ...
+)
+
+// Assertion types without a definite authority set (on the wire and/or self-signed).
+var (
+	SerialProofType   = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
+	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -60,6 +75,9 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
+	// no authority
+	SerialProofType.Name:   SerialProofType,
+	SerialRequestType.Name: SerialRequestType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -71,6 +89,23 @@ func Type(name string) *AssertionType {
 type Ref struct {
 	Type       *AssertionType
 	PrimaryKey []string
+}
+
+// Unique returns a unique string representing the reference that can be used as a key in maps.
+func (ref *Ref) Unique() string {
+	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ref.PrimaryKey, "/"))
+}
+
+// Resolve resolves the reference using the given find function.
+func (ref *Ref) Resolve(find func(assertType *AssertionType, headers map[string]string) (Assertion, error)) (Assertion, error) {
+	if len(ref.PrimaryKey) != len(ref.Type.PrimaryKey) {
+		return nil, fmt.Errorf("%q assertion reference primary key has the wrong length (expected %v): %v", ref.Type.Name, ref.Type.PrimaryKey, ref.PrimaryKey)
+	}
+	headers := make(map[string]string, len(ref.PrimaryKey))
+	for i, name := range ref.Type.PrimaryKey {
+		headers[name] = ref.PrimaryKey[i]
+	}
+	return find(ref.Type, headers)
 }
 
 // Assertion represents an assertion through its general elements.
@@ -97,11 +132,14 @@ type Assertion interface {
 	// Signature returns the signed content and its unprocessed signature
 	Signature() (content, signature []byte)
 
-	// SigningKey returns the signer identifier and key id for the key that signed this assertion.
-	SigningKey() (signerID, keyID string, err error)
+	// SignKeyID returns the key id for the key that signed this assertion.
+	SignKeyID() string
 
 	// Prerequisites returns references to the prerequisite assertions for the validity of this one.
 	Prerequisites() []*Ref
+
+	// Ref returns a reference representing this assertion.
+	Ref() *Ref
 }
 
 // MediaType is the media type for encoded assertions on the wire.
@@ -164,18 +202,27 @@ func (ab *assertionBase) Signature() (content, signature []byte) {
 	return ab.content, ab.signature
 }
 
-// SigningKey returns the signer identifier and key id for the key that signed this assertion.
-func (ab *assertionBase) SigningKey() (signerID, keyID string, err error) {
-	sig, err := decodeSignature(ab.signature)
-	if err != nil {
-		return "", "", err
-	}
-	return ab.AuthorityID(), sig.KeyID(), nil
+// SignKeyID returns the key id for the key that signed this assertion.
+func (ab *assertionBase) SignKeyID() string {
+	return ab.HeaderString("sign-key-sha3-384")
 }
 
 // Prerequisites returns references to the prerequisite assertions for the validity of this one.
 func (ab *assertionBase) Prerequisites() []*Ref {
 	return nil
+}
+
+// Ref returns a reference representing this assertion.
+func (ab *assertionBase) Ref() *Ref {
+	assertType := ab.Type()
+	primKey := make([]string, len(assertType.PrimaryKey))
+	for i, name := range assertType.PrimaryKey {
+		primKey[i] = ab.HeaderString(name)
+	}
+	return &Ref{
+		Type:       assertType,
+		PrimaryKey: primKey,
+	}
 }
 
 // sanity check
@@ -215,10 +262,10 @@ var _ Assertion = (*assertionBase)(nil)
 // previous level introduction (the " "*baseindent " -" bit)
 // length minus 1.
 //
-// The following headers are mandatory:
+// In general the following headers are mandatory:
 //
 //   type
-//   authority-id (the signer id)
+//   authority-id (except for on the wire/self-signed assertions like serial-request)
 //
 // Further for a given assertion type all the primary key headers
 // must be non empty and must not contain '/'.
@@ -465,7 +512,7 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
-	if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
+	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
 
@@ -476,6 +523,17 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 	assertType := Type(typ)
 	if assertType == nil {
 		return nil, fmt.Errorf("unknown assertion type: %q", typ)
+	}
+
+	if assertType.flags&noAuthority == 0 {
+		if _, err := checkNotEmptyString(headers, "authority-id"); err != nil {
+			return nil, fmt.Errorf("assertion: %v", err)
+		}
+	} else {
+		_, ok := headers["authority-id"]
+		if ok {
+			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+		}
 	}
 
 	for _, primKey := range assertType.PrimaryKey {
@@ -516,6 +574,8 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		return nil, err
 	}
 
+	withAuthority := assertType.flags&noAuthority == 0
+
 	err = checkHeaders(headers)
 	if err != nil {
 		return nil, err
@@ -527,9 +587,17 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	copy(finalBody, body)
 	finalHeaders["type"] = assertType.Name
 	finalHeaders["body-length"] = strconv.Itoa(bodyLength)
+	finalHeaders["sign-key-sha3-384"] = privKey.PublicKey().ID()
 
-	if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
-		return nil, err
+	if withAuthority {
+		if _, err := checkNotEmptyString(finalHeaders, "authority-id"); err != nil {
+			return nil, err
+		}
+	} else {
+		_, ok := finalHeaders["authority-id"]
+		if ok {
+			return nil, fmt.Errorf("%q assertion cannot have authority-id set", assertType.Name)
+		}
 	}
 
 	revision, err := checkRevision(finalHeaders)
@@ -540,17 +608,21 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	buf := bytes.NewBufferString("type: ")
 	buf.WriteString(assertType.Name)
 
-	writeHeader(buf, finalHeaders, "authority-id")
+	if withAuthority {
+		writeHeader(buf, finalHeaders, "authority-id")
+	}
+
 	if revision > 0 {
 		writeHeader(buf, finalHeaders, "revision")
 	} else {
 		delete(finalHeaders, "revision")
 	}
 	written := map[string]bool{
-		"type":         true,
-		"authority-id": true,
-		"revision":     true,
-		"body-length":  true,
+		"type":              true,
+		"authority-id":      true,
+		"revision":          true,
+		"body-length":       true,
+		"sign-key-sha3-384": true,
 	}
 	for _, primKey := range assertType.PrimaryKey {
 		if _, err := checkPrimaryKey(finalHeaders, primKey); err != nil {
@@ -578,6 +650,10 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	} else {
 		delete(finalHeaders, "body-length")
 	}
+
+	// signing key reference
+	writeHeader(buf, finalHeaders, "sign-key-sha3-384")
+
 	if bodyLength > 0 {
 		buf.Grow(bodyLength + 2)
 		buf.Write(nlnl)
@@ -605,6 +681,14 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 		return nil, fmt.Errorf("cannot assemble assertion %s: %v", assertType.Name, err)
 	}
 	return assert, nil
+}
+
+// SignWithoutAuthority assembles an assertion without a set authority with the provided information and signs it with the given private key.
+func SignWithoutAuthority(assertType *AssertionType, headers map[string]interface{}, body []byte, privKey PrivateKey) (Assertion, error) {
+	if assertType.flags&noAuthority == 0 {
+		return nil, fmt.Errorf("cannot sign assertions needing a definite authority with SignWithoutAuthority")
+	}
+	return assembleAndSign(assertType, headers, body, privKey)
 }
 
 // Encode serializes an assertion.
@@ -662,4 +746,18 @@ func (enc *Encoder) append(encoded []byte) error {
 func (enc *Encoder) Encode(assert Assertion) error {
 	encoded := Encode(assert)
 	return enc.append(encoded)
+}
+
+// SignatureCheck checks the signature of the assertion against the given public key. Useful for assertions with no authority.
+func SignatureCheck(assert Assertion, pubKey PublicKey) error {
+	content, encodedSig := assert.Signature()
+	sig, err := decodeSignature(encodedSig)
+	if err != nil {
+		return err
+	}
+	err = pubKey.verify(content, sig)
+	if err != nil {
+		return fmt.Errorf("failed signature verification: %v", err)
+	}
+	return nil
 }

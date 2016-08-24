@@ -1,4 +1,5 @@
 summary: Check that prepare-image works for uboot-systems
+systems: [-ubuntu-core-16-64]
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
@@ -6,6 +7,7 @@ environment:
 restore:
     rm -rf $ROOT
 execute: |
+    # TODO: switch to a prebuilt properly signed model assertion once we can do that consistently
     echo Creating model assertion
     cat > model.assertion <<EOF
     type: model
@@ -14,18 +16,19 @@ execute: |
     brand-id: my-brand
     model: my-model
     class: my-class
-    allowed-modes:  
-    required-snaps:  
     architecture: armhf
     store: canonical
     gadget: pi2
     kernel: pi2-kernel
     core: ubuntu-core
     timestamp: 2016-01-02T10:00:00-05:00
-    body-length: 0
-    
-    openpgpg 2cln
+    sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+    AXNpZw==
     EOF
+
+    echo The unverified model assertion will not be copied into the image
+    export UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL=1
 
     echo Running prepare-image
     snap prepare-image --channel edge --extra-snaps snapweb model.assertion $ROOT

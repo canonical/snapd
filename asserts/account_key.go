@@ -48,14 +48,9 @@ func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
-// PublicKeyID returns the key id (as used to match signatures to signing keys) for the account key.
+// PublicKeyID returns the key id used for lookup of the account key.
 func (ak *AccountKey) PublicKeyID() string {
 	return ak.pubKey.ID()
-}
-
-// PublicKeyFingerprint returns the fingerprint of the account key.
-func (ak *AccountKey) PublicKeyFingerprint() string {
-	return ak.pubKey.Fingerprint()
 }
 
 // isKeyValidAt returns whether the account key is valid at 'when' time.
@@ -72,17 +67,10 @@ func (ak *AccountKey) publicKey() PublicKey {
 	return ak.pubKey
 }
 
-func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (PublicKey, error) {
-	pubKey, err := decodePublicKey(ab.Body())
+func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
+	pubKey, err := DecodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
-	}
-	fp, err := checkNotEmptyString(ab.headers, fingerprintName)
-	if err != nil {
-		return nil, err
-	}
-	if fp != pubKey.Fingerprint() {
-		return nil, fmt.Errorf("public key does not match provided fingerprint")
 	}
 	keyID, err := checkNotEmptyString(ab.headers, keyIDName)
 	if err != nil {
@@ -122,6 +110,11 @@ func (ak *AccountKey) Prerequisites() []*Ref {
 }
 
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "account-id")
+	if err != nil {
+		return nil, err
+	}
+
 	since, err := checkRFC3339Date(assert.headers, "since")
 	if err != nil {
 		return nil, err
@@ -135,7 +128,7 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
 
-	pubk, err := checkPublicKey(&assert, "public-key-fingerprint", "public-key-id")
+	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
 	if err != nil {
 		return nil, err
 	}
