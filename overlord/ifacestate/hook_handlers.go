@@ -48,6 +48,6 @@ func SetupHooks(hookMgr *hookstate.HookManager) {
 		return &collectAttrHandler{}
 	}
 
-	hookMgr.Register(regexp.MustCompile("^collect-plug-attr-[a-zA-Z0-9_]+$"), generator)
-	hookMgr.Register(regexp.MustCompile("^collect-slot-attr-[a-zA-Z0-9_]+$"), generator)
+	hookMgr.Register(regexp.MustCompile("^collect-plug-attr-[a-zA-Z0-9_\\-]+$"), generator)
+	hookMgr.Register(regexp.MustCompile("^collect-slot-attr-[a-zA-Z0-9_\\-]+$"), generator)
 }
