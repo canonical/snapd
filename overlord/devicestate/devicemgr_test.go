@@ -230,7 +230,16 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 	// nothing in the state
-	_, err := s.mgr.Model()
+	s.state.Lock()
+	_, err := devicestate.Model(s.state)
+	s.state.Unlock()
+	c.Check(err, Equals, state.ErrNoState)
+	s.state.Lock()
+	_, err = devicestate.Serial(s.state)
+	s.state.Unlock()
+	c.Check(err, Equals, state.ErrNoState)
+
+	_, err = s.mgr.Model()
 	c.Check(err, Equals, state.ErrNoState)
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)
@@ -267,6 +276,12 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 	c.Assert(err, IsNil)
 
 	mod, err := s.mgr.Model()
+	c.Assert(err, IsNil)
+	c.Assert(mod.Store(), Equals, "canonical")
+
+	s.state.Lock()
+	mod, err = devicestate.Model(s.state)
+	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Assert(mod.Store(), Equals, "canonical")
 
@@ -307,6 +322,12 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 	_, err = s.mgr.Model()
 	c.Assert(err, IsNil)
 	ser, err := s.mgr.Serial()
+	c.Assert(err, IsNil)
+	c.Check(ser.Serial(), Equals, "8989")
+
+	s.state.Lock()
+	ser, err = devicestate.Serial(s.state)
+	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(ser.Serial(), Equals, "8989")
 }
