@@ -229,7 +229,7 @@ type AuthContext interface {
 
 	UpdateUser(user *UserState) error
 
-	StoreID(fallback string) string
+	StoreID(fallback string) (string, error)
 
 	Serial() ([]byte, error)
 	SerialProof(nonce string) ([]byte, error)
@@ -272,22 +272,24 @@ func (ac *authContext) UpdateUser(user *UserState) error {
 
 // StoreID returns the store id according to system state or
 // the fallback one if the state has none set (yet).
-// XXX: we need an error return here actually
-func (ac *authContext) StoreID(fallback string) string {
+func (ac *authContext) StoreID(fallback string) (string, error) {
 	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
-		return storeID
+		return storeID, nil
 	}
 	var storeID string
 	if ac.deviceAsserts != nil {
 		mod, err := ac.deviceAsserts.Model()
+		if err != nil && err != state.ErrNoState {
+			return "", err
+		}
 		if err == nil {
 			storeID = mod.Store()
 		}
 	}
 	if storeID != "" {
-		return storeID
+		return storeID, nil
 	}
-	return fallback
+	return fallback, nil
 }
 
 // Serial returns the encoded device serial assertion.

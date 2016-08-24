@@ -357,7 +357,8 @@ func (as *authSuite) TestAuthContextUpdateDevice(c *C) {
 func (as *authSuite) TestAuthContextStoreIDFallback(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
-	storeID := authContext.StoreID("store-id")
+	storeID, err := authContext.StoreID("store-id")
+	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "store-id")
 }
 
@@ -366,6 +367,7 @@ func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
 
 	os.Setenv("UBUNTU_STORE_ID", "env-store-id")
 	defer os.Unsetenv("UBUNTU_STORE_ID")
-	storeID := authContext.StoreID("")
+	storeID, err := authContext.StoreID("")
+	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "env-store-id")
 }

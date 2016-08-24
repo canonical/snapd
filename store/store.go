@@ -402,8 +402,12 @@ func (s *Store) authenticateDevice(r *http.Request) {
 func (s *Store) setStoreID(r *http.Request) {
 	storeID := s.fallbackStoreID
 	if s.authContext != nil {
-		// XXX: test this case, and error support with log handling
-		storeID = s.authContext.StoreID(storeID)
+		cand, err := s.authContext.StoreID(storeID)
+		if err != nil {
+			logger.Debugf("cannot get store ID from state: %v", err)
+		} else {
+			storeID = cand
+		}
 	}
 	if storeID != "" {
 		r.Header.Set("X-Ubuntu-Store", storeID)
