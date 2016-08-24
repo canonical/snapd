@@ -58,7 +58,7 @@ func (m *SnapManager) AddForeignTaskHandlers(tracker ForeignTaskTracker) {
 	m.runner.AddHandler("setup-profiles", fakeHandler, fakeHandler)
 	m.runner.AddHandler("remove-profiles", fakeHandler, fakeHandler)
 	m.runner.AddHandler("discard-conns", fakeHandler, fakeHandler)
-	m.runner.AddHandler("fetch-check-snap-assertions", fakeHandler, fakeHandler)
+	m.runner.AddHandler("validate-snap", fakeHandler, nil)
 
 	// Add handler to test full aborting of changes
 	erroringHandler := func(task *state.Task, _ *tomb.Tomb) error {

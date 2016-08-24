@@ -49,7 +49,7 @@ type AssertManager struct {
 func Manager(s *state.State) (*AssertManager, error) {
 	runner := state.NewTaskRunner(s)
 
-	runner.AddHandler("fetch-check-snap-assertions", doFetchCheckSnapAssertions, undoFetchCheckSnapAssertions)
+	runner.AddHandler("validate-snap", doValidateSnap, nil)
 
 	db, err := sysdb.Open()
 	if err != nil {
@@ -181,8 +181,8 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	return nil
 }
 
-// doFetchCheckSnapAssertions fetches the relevant assertions for the snap being installed and cross checks them with the snap.
-func doFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
+// doValidateSnap fetches the relevant assertions for the snap being installed and cross checks them with the snap.
+func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	defer t.State().Unlock()
 
@@ -205,9 +205,9 @@ func doFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 	err = fetch(t.State(), ref, ss.UserID)
 	if notFound, ok := err.(*assertionNotFoundError); ok {
 		if notFound.ref.Type == asserts.SnapRevisionType {
-			return fmt.Errorf("cannot verify snap %q and its hash, no matching assertions found", ss.Name())
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
 		} else {
-			return fmt.Errorf("cannot find assertions to verify snap %q and its hash (%v)", ss.Name(), notFound)
+			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
 		}
 	}
 	if err != nil {
@@ -223,13 +223,8 @@ func doFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func undoFetchCheckSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
-	// nothing to do, the assertions that were *actually* added are still true
-	return nil
-}
-
 func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo) error {
-	// get relevant assertions and and do cross checks
+	// get relevant assertions and do cross checks
 	db := DB(st)
 
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
@@ -241,7 +236,7 @@ func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64,
 	snapRev := a.(*asserts.SnapRevision)
 
 	if snapRev.SnapSize() != snapSize {
-		return fmt.Errorf("snap %q file does not have expected size according to assertions (download is broken or tampered): %d != %d", name, snapSize, snapRev.SnapSize())
+		return fmt.Errorf("snap %q file does not have expected size according to signatures (download is broken or tampered): %d != %d", name, snapSize, snapRev.SnapSize())
 	}
 
 	snapID := si.SnapID
@@ -252,7 +247,7 @@ func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64,
 		// - broken store metadata resulting into broken assertions
 		//   (more likely if it is snap-revision not matching)
 		//   people would need to report this
-		return fmt.Errorf("snap %q file hash %q corresponding assertions implied snap id %q and revision %d are not the ones expected for installing (store metadata is broken or communication tampered): %q and %s", name, snapSHA3_384, snapRev.SnapID(), snapRev.SnapRevision(), snapID, si.Revision)
+		return fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", name, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
 	}
 
 	a, err = db.Find(asserts.SnapDeclarationType, map[string]string{
