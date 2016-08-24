@@ -21,7 +21,7 @@ execute: |
 
     echo Verifying the result
     output=$(find /var/lib/snapd/assertions/ -type f|wc -l)
-    if [ "$output" != "4" ]; then
-        echo "Expected 4 assertions, found $output"
+    if [ "$output" -lt "4" ]; then
+        echo "Expected at least 4 assertions, found $output"
         exit 1
     fi
