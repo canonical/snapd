@@ -1,5 +1,7 @@
 summary: Check that `snapctl` can be run from within hooks
 
+systems: [-ubuntu-core-16-64]
+
 prepare: |
     echo "Ensure we have a core snap with snap run"
     $SPREAD_PATH/tests/lib/reset.sh
