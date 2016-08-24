@@ -1,8 +1,7 @@
 summary: Check snap ack
 execute: |
     echo "Ack when missing matching key fails"
-    snap ack developer1.account || EXPECTED_FAILED="error"
-    [ "$EXPECTED_FAILED" = "error" ]
+    ! snap ack developer1.account
 
     echo "Ack the test store key"
     snap ack testrootorg-store.account-key
