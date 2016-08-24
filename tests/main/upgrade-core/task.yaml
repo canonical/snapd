@@ -23,6 +23,9 @@ execute: |
     fi
 
     if [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "Useful debug info"
+        grub-editenv list
+        cat /proc/cmdline
         echo "Ensure we booted from the newly installed core snap"
         grep 'snap_core=ubuntu-core_x2.snap' /proc/cmdline
         echo "Ensure the bootloader is correct after reboot"
