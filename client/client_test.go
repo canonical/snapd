@@ -30,10 +30,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
-
-	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
