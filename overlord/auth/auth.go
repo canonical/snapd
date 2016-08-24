@@ -210,7 +210,7 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// DeviceAssertions helps exposing the assertions about device indentity.
+// DeviceAssertions helps exposing the assertions about device identity.
 // All methods should return state.ErrNoState if the underlying needed
 // information is not (yet) available.
 type DeviceAssertions interface {
@@ -235,7 +235,7 @@ type AuthContext interface {
 	SerialProof(nonce string) ([]byte, error)
 }
 
-// authContext helps keeping track auth data in the state and exposing it.
+// authContext helps keeping track of auth data in the state and exposing it.
 type authContext struct {
 	state         *state.State
 	deviceAsserts DeviceAssertions
