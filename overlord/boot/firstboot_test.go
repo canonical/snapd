@@ -37,7 +37,8 @@ import (
 )
 
 type FirstBootTestSuite struct {
-	systemctl *testutil.MockCmd
+	systemctl   *testutil.MockCmd
+	mockUdevAdm *testutil.MockCmd
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -56,12 +57,15 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
+
+	s.mockUdevAdm = testutil.MockCommand(c, "udevadm", "")
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	s.systemctl.Restore()
+	s.mockUdevAdm.Restore()
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
