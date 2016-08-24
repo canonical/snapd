@@ -23,6 +23,8 @@
 package assertstate
 
 import (
+	"fmt"
+
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -30,7 +32,9 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -45,8 +49,7 @@ type AssertManager struct {
 func Manager(s *state.State) (*AssertManager, error) {
 	runner := state.NewTaskRunner(s)
 
-	runner.AddHandler("fetch-snap-assertions", doFetchSnapAssertions, undoFetchSnapAssertions)
-	// TODO: check-snap-assertions handlers
+	runner.AddHandler("validate-snap", doValidateSnap, nil)
 
 	db, err := sysdb.Open()
 	if err != nil {
@@ -110,6 +113,14 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
+type assertionNotFoundError struct {
+	ref *asserts.Ref
+}
+
+func (e *assertionNotFoundError) Error() string {
+	return fmt.Sprintf("%s %v not found", e.ref.Type.Name, e.ref.PrimaryKey)
+}
+
 // fetch fetches or updates the referenced assertion and all its prerequisites from the store and adds them to the system assertion database. It does not fail if required assertions were already present.
 func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
@@ -120,7 +131,7 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	}
 
 	db := cachedDB(s)
-	store := snapstate.Store(s)
+	sto := snapstate.Store(s)
 
 	s.Unlock()
 	defer s.Lock()
@@ -129,7 +140,11 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?
-		return store.Assertion(ref.Type, ref.PrimaryKey, user)
+		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, user)
+		if err == store.ErrAssertionNotFound {
+			return nil, &assertionNotFoundError{ref}
+		}
+		return a, err
 	}
 
 	save := func(a asserts.Assertion) error {
@@ -146,8 +161,6 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	s.Lock()
 	defer s.Unlock()
 
-	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
-
 	for _, a := range got {
 		err := db.Add(a)
 		if revErr, ok := err.(*asserts.RevisionError); ok {
@@ -157,6 +170,9 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 				continue
 			}
 		}
+		// TODO: trigger w. caller a global sanity check if a is revoked
+		// (but try to save as much possible still),
+		// or err is a check error
 		if err != nil {
 			return err
 		}
@@ -165,8 +181,8 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	return nil
 }
 
-// doFetchSnapAssertions fetches the relevant assertions for the snap being installed.
-func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
+// doValidateSnap fetches the relevant assertions for the snap being installed and cross checks them with the snap.
+func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	defer t.State().Unlock()
 
@@ -175,10 +191,7 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	// TODO: when we actually use this, snapPath might come from ss
-	snapPath := snap.MinimalPlaceInfo(ss.Name(), ss.Revision()).MountFile()
-
-	sha3_384, _, err := asserts.SnapFileSHA3_384(snapPath)
+	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(ss.SnapPath)
 	if err != nil {
 		return err
 	}
@@ -189,10 +202,74 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 		PrimaryKey: []string{sha3_384},
 	}
 
-	return fetch(t.State(), ref, ss.UserID)
+	err = fetch(t.State(), ref, ss.UserID)
+	if notFound, ok := err.(*assertionNotFoundError); ok {
+		if notFound.ref.Type == asserts.SnapRevisionType {
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
+		} else {
+			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
+		}
+	}
+	if err != nil {
+		return err
+	}
+
+	err = crossCheckSnap(t.State(), ss.Name(), sha3_384, snapSize, ss.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	// TODO: set DeveloperID from assertions
+	return nil
 }
 
-func undoFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
-	// nothing to do, the assertions that were *actually* added are still true
+func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo) error {
+	// get relevant assertions and do cross checks
+	db := DB(st)
+
+	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
+		"snap-sha3-384": snapSHA3_384,
+	})
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find just fetched snap-revision assertion for %q: %s", name, snapSHA3_384)
+	}
+	snapRev := a.(*asserts.SnapRevision)
+
+	if snapRev.SnapSize() != snapSize {
+		return fmt.Errorf("snap %q file does not have expected size according to signatures (download is broken or tampered): %d != %d", name, snapSize, snapRev.SnapSize())
+	}
+
+	snapID := si.SnapID
+
+	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
+		// we have at least 2 cases here, what's the best message?
+		// - an unsuccesufl MITM
+		// - broken store metadata resulting into broken assertions
+		//   (more likely if it is snap-revision not matching)
+		//   people would need to report this
+		return fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", name, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
+	}
+
+	a, err = db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  release.Series,
+		"snap-id": snapID,
+	})
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find just fetched snap declaration for %q: %s", name, snapID)
+	}
+	snapDecl := a.(*asserts.SnapDeclaration)
+
+	if snapDecl.SnapName() == "" {
+		// TODO: trigger a global sanity check
+		// that will generate the changes to deal with this
+		return fmt.Errorf("cannot install snap %q with a revoked snap declaration", name)
+	}
+
+	if snapDecl.SnapName() != name {
+		// TODO: trigger a global sanity check
+		// that will generate the changes to deal with this
+		return fmt.Errorf("cannot install snap %q that is undergoing a rename to %q", name, snapDecl.SnapName())
+	}
+
 	return nil
 }
