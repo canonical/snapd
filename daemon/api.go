@@ -1132,7 +1132,7 @@ func iconGet(st *state.State, name string) Response {
 	}
 
 	path := filepath.Clean(snapIcon(info))
-	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
+	if !strings.HasPrefix(path, dirs.SnapMountDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")
 	}

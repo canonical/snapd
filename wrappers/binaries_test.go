@@ -71,14 +71,14 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 	err := wrappers.AddSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	wrapper := fmt.Sprintf("%s/bin/hello-snap.hello", dirs.SnapSnapsDir)
+	wrapper := fmt.Sprintf("%s/bin/hello-snap.hello", dirs.SnapMountDir)
 
 	content, err := ioutil.ReadFile(wrapper)
 	c.Assert(err, IsNil)
 
 	needle := fmt.Sprintf(`
 exec /usr/bin/ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello %s/hello-snap/11/bin/hello "$@"
-`, dirs.SnapSnapsDir)
+`, dirs.SnapMountDir)
 
 	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
 

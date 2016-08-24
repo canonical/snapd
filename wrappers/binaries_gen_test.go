@@ -71,7 +71,7 @@ func (s *binariesWrapperGenSuite) TestSnappyGenerateSnapBinaryWrapper(c *C) {
 		Command: "bin/pastebinit",
 	}
 
-	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture(), dirs.SnapSnapsDir)
+	expected := fmt.Sprintf(expectedWrapper, arch.UbuntuArchitecture(), dirs.SnapMountDir)
 
 	generatedWrapper, err := wrappers.GenerateSnapBinaryWrapper(binary)
 	c.Assert(err, IsNil)

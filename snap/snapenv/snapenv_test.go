@@ -50,7 +50,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	sort.Strings(env)
 
 	c.Assert(env, DeepEquals, []string{
-		fmt.Sprintf("SNAP=%s/foo/17", dirs.SnapSnapsDir),
+		fmt.Sprintf("SNAP=%s/foo/17", dirs.SnapMountDir),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_COMMON=/var/snap/foo/common",
 		"SNAP_DATA=/var/snap/foo/17",

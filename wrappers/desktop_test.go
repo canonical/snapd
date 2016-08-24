@@ -125,7 +125,7 @@ Icon=${SNAP}/meep
 Name=foo
 Icon=%s/foo/12/meep
 
-# the empty line above is fine`, dirs.SnapSnapsDir))
+# the empty line above is fine`, dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExec(c *C) {
@@ -183,7 +183,7 @@ Exec=snap.app %U
 	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U`, dirs.SnapSnapsDir))
+Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U`, dirs.SnapMountDir))
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -254,7 +254,7 @@ apps:
 
 	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapSnapsDir))
+	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestTrimLang(c *C) {
