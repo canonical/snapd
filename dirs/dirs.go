@@ -73,6 +73,14 @@ func init() {
 	SetRootDir(root)
 }
 
+// StripGlobalRootDir strips the custom global root directory from the specified argument.
+func StripGlobalRootDir(dir string) string {
+	if GlobalRootDir == "/" {
+		return dir
+	}
+	return dir[len(GlobalRootDir):]
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
