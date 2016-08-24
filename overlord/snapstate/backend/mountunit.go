@@ -31,17 +31,9 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func stripGlobalRootDir(dir string) string {
-	if dirs.GlobalRootDir == "/" {
-		return dir
-	}
-
-	return dir[len(dirs.GlobalRootDir):]
-}
-
 func addMountUnit(s *snap.Info, meter progress.Meter) error {
-	squashfsPath := stripGlobalRootDir(s.MountFile())
-	whereDir := stripGlobalRootDir(s.MountDir())
+	squashfsPath := dirs.StripGlobalRootDir(s.MountFile())
+	whereDir := dirs.StripGlobalRootDir(s.MountDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir, "squashfs")
@@ -64,7 +56,7 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 
 func removeMountUnit(baseDir string, meter progress.Meter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
-	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
+	unit := systemd.MountUnitPath(dirs.StripGlobalRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
 		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
 			return err
