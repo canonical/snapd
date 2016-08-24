@@ -69,9 +69,6 @@ var (
 func init() {
 	// init the global directories at startup
 	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
-	}
 
 	SetRootDir(root)
 }
@@ -79,6 +76,9 @@ func init() {
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
+	if rootdir == "" {
+		rootdir = "/"
+	}
 	GlobalRootDir = rootdir
 
 	SnapSnapsDir = filepath.Join(rootdir, "/snap")
