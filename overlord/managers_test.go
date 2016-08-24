@@ -61,8 +61,8 @@ type mgrsSuite struct {
 	udev       *testutil.MockCmd
 	prevctlCmd func(...string) ([]byte, error)
 
-	storeSigning *assertstest.StoreStack
-	restore      func()
+	storeSigning   *assertstest.StoreStack
+	restoreTrusted func()
 
 	o *overlord.Overlord
 }
@@ -90,7 +90,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
-	ms.restore = sysdb.InjectTrusted(ms.storeSigning.Trusted)
+	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -99,7 +99,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-	ms.restore()
+	ms.restoreTrusted()
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
