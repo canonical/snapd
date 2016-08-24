@@ -618,7 +618,7 @@ func (vs *validationSuite) makeValidEncoded() string {
 		"snap-id: snap-id-1\n" +
 		"approved-snap-id: snap-id-2\n" +
 		"approved-snap-revision: 42\n" +
-		"valid: yes\n" +
+		"valid: true\n" +
 		"revision: 1\n" +
 		vs.tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -633,7 +633,7 @@ func (vs *validationSuite) makeHeaders(overrides map[string]interface{}) map[str
 		"snap-id":                "snap-id-1",
 		"approved-snap-id":       "snap-id-2",
 		"approved-snap-revision": "42",
-		"valid":                  "yes",
+		"valid":                  "true",
 		"revision":               "1",
 		"timestamp":              time.Now().Format(time.RFC3339),
 	}
@@ -677,8 +677,8 @@ func (vs *validationSuite) TestDecodeInvalid(c *C) {
 		{"approved-snap-revision: 42\n", "approved-snap-revision: \n", `"approved-snap-revision" header should not be empty`},
 		{"approved-snap-revision: 42\n", "approved-snap-revision: 0\n", `"approved-snap-revision" header must be >=1: 0`},
 		{"approved-snap-revision: 42\n", "approved-snap-revision: -1\n", `"approved-snap-revision" header must be >=1: -1`},
-		{"valid: yes\n", "", `"valid" header is mandatory`},
-		{"valid: yes\n", "valid: \n", `"valid" header should not be empty`},
+		{"valid: true\n", "", `"valid" header is mandatory`},
+		{"valid: true\n", "valid: \n", `"valid" header should not be empty`},
 		{vs.tsLine, "", `"timestamp" header is mandatory`},
 		{vs.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{vs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
