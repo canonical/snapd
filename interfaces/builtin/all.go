@@ -39,6 +39,7 @@ var allInterfaces = []interfaces.Interface{
 	&PppInterface{},
 	&SerialPortInterface{},
 	&PulseAudioInterface{},
+	&ZigbeeDongleInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
 	NewHardwareObserveInterface(),
