@@ -50,7 +50,7 @@ var enableConfig = []string{"netplan", "apply"}
 
 var netplanConfigData = `
 network:
- version 2:
+ version: 2
   ethernets:
    all:
     match:
