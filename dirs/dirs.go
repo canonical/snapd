@@ -28,7 +28,7 @@ import (
 var (
 	GlobalRootDir string
 
-	SnapSnapsDir              string
+	SnapMountDir              string
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -69,9 +69,6 @@ var (
 func init() {
 	// init the global directories at startup
 	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
-	}
 
 	SetRootDir(root)
 }
@@ -79,9 +76,12 @@ func init() {
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
+	if rootdir == "" {
+		rootdir = "/"
+	}
 	GlobalRootDir = rootdir
 
-	SnapSnapsDir = filepath.Join(rootdir, "/snap")
+	SnapMountDir = filepath.Join(rootdir, "/snap")
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
@@ -106,7 +106,7 @@ func SetRootDir(rootdir string) {
 	// snapd.firstboot.service to match
 	SnapFirstBootStamp = filepath.Join(rootdir, snappyDir, "firstboot", "stamp")
 
-	SnapBinariesDir = filepath.Join(SnapSnapsDir, "bin")
+	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 

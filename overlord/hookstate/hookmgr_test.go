@@ -97,7 +97,7 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(calledContext.HookName(), Equals, "test-hook")
 
 	c.Check(s.command.Calls(), DeepEquals, [][]string{[]string{
-		"snap", "run", "test-snap", "--hook", "test-hook", "-r", "1",
+		"snap", "run", "--hook", "test-hook", "-r", "1", "test-snap",
 	}})
 
 	c.Check(mockHandler.beforeCalled, Equals, true)
