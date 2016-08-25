@@ -51,7 +51,7 @@ var enableConfig = []string{"netplan", "apply"}
 var netplanConfigData = `
 network:
  version: 2
-  ethernets:
+ ethernets:
    all:
     match:
      name: "*"
