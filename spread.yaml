@@ -47,7 +47,7 @@ prepare: |
     apt purge -y snapd || true
     apt update
     # utilities
-    apt install -y devscripts expect jq software-properties-common
+    apt install -y devscripts expect jq rng-tools software-properties-common
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
