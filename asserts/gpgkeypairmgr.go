@@ -23,18 +23,70 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
-func runGPGImpl(homedir string, input []byte, args ...string) ([]byte, error) {
-	general := []string{"-q"}
-	if homedir != "" {
-		general = append([]string{"--homedir", homedir}, general...)
+func ensureGPGHomeDirectory() (string, error) {
+	real, err := osutil.RealUser()
+	if err != nil {
+		return "", err
 	}
+
+	uid, err := strconv.Atoi(real.Uid)
+	if err != nil {
+		return "", err
+	}
+
+	gid, err := strconv.Atoi(real.Gid)
+	if err != nil {
+		return "", err
+	}
+
+	homedir := os.Getenv("SNAP_GNUPG_HOME")
+	if homedir == "" {
+		homedir = filepath.Join(real.HomeDir, ".snap", "gnupg")
+	}
+
+	if err := osutil.MkdirAllChown(homedir, 0700, uid, gid); err != nil {
+		return "", err
+	}
+	return homedir, nil
+}
+
+// findGPGCommand returns the path to a suitable GnuPG binary to use.
+// GnuPG 2 is mainly intended for desktop use, and is hard for us to use
+// here: in particular, it's extremely difficult to use it to delete a
+// secret key without a pinentry prompt (which would be necessary in our
+// test suite).  GnuPG 1 is still supported so it's reasonable to continue
+// using that for now.
+func findGPGCommand() (string, error) {
+	path, err := exec.LookPath("gpg1")
+	if err != nil {
+		path, err = exec.LookPath("gpg")
+	}
+	return path, err
+}
+
+func runGPGImpl(input []byte, args ...string) ([]byte, error) {
+	homedir, err := ensureGPGHomeDirectory()
+	if err != nil {
+		return nil, err
+	}
+
+	general := []string{"--homedir", homedir, "-q", "--no-auto-check-trustdb"}
 	allArgs := append(general, args...)
 
-	cmd := exec.Command("gpg", allArgs...)
+	path, err := findGPGCommand()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(path, allArgs...)
 	var outBuf bytes.Buffer
 	var errBuf bytes.Buffer
 
@@ -46,7 +98,7 @@ func runGPGImpl(homedir string, input []byte, args ...string) ([]byte, error) {
 	cmd.Stderr = &errBuf
 
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("gpg %s failed: %v (%q)", strings.Join(args, " "), err, errBuf.Bytes())
+		return nil, fmt.Errorf("%s %s failed: %v (%q)", path, strings.Join(args, " "), err, errBuf.Bytes())
 	}
 
 	return outBuf.Bytes(), nil
@@ -55,24 +107,18 @@ func runGPGImpl(homedir string, input []byte, args ...string) ([]byte, error) {
 var runGPG = runGPGImpl
 
 // A key pair manager backed by a local GnuPG setup.
-type GPGKeypairManager struct {
-	homedir string
-}
+type GPGKeypairManager struct{}
 
 func (gkm *GPGKeypairManager) gpg(input []byte, args ...string) ([]byte, error) {
-	return runGPG(gkm.homedir, input, args...)
+	return runGPG(input, args...)
 }
 
-// NewGPGKeypairManager creates a new key pair manager backed by a local GnuPG setup
-// using the given GPG homedir, and asking GPG to fallback "~/.gnupg"
-// to default if empty.
+// NewGPGKeypairManager creates a new key pair manager backed by a local GnuPG setup.
 // Importing keys through the keypair manager interface is not
 // suppored.
 // Main purpose is allowing signing using keys from a GPG setup.
-func NewGPGKeypairManager(homedir string) *GPGKeypairManager {
-	return &GPGKeypairManager{
-		homedir: homedir,
-	}
+func NewGPGKeypairManager() *GPGKeypairManager {
+	return &GPGKeypairManager{}
 }
 
 func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
@@ -99,8 +145,7 @@ func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 }
 
 // Walk iterates over all the RSA private keys in the local GPG setup calling the provided callback until this returns an error
-// TODO: revisit exposing this
-func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string) error) error {
+func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string, uid string) error) error {
 	// see GPG source doc/DETAILS
 	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
 	if err != nil {
@@ -128,6 +173,10 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 			continue
 		}
 		keyID := secFields[4]
+		uid := ""
+		if len(secFields) >= 10 {
+			uid = secFields[9]
+		}
 		if j+1 >= n || !strings.HasPrefix(lines[j+1], "fpr:") {
 			continue
 		}
@@ -143,7 +192,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		if err != nil {
 			return err
 		}
-		err = consider(privKey, fpr)
+		err = consider(privKey, fpr, uid)
 		if err != nil {
 			return err
 		}
@@ -159,7 +208,7 @@ func (gkm *GPGKeypairManager) Put(privKey PrivateKey) error {
 func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
 	stop := errors.New("stop marker")
 	var hit PrivateKey
-	match := func(privk PrivateKey, fpr string) error {
+	match := func(privk PrivateKey, fpr string, uid string) error {
 		if privk.PublicKey().ID() == keyID {
 			hit = privk
 			return stop
@@ -182,4 +231,86 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, 
 		return nil, fmt.Errorf("cannot sign using GPG: %v", err)
 	}
 	return out, nil
+}
+
+type gpgKeypairInfo struct {
+	pubKey      PublicKey
+	fingerprint string
+}
+
+func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
+	stop := errors.New("stop marker")
+	var hit *gpgKeypairInfo
+	match := func(privk PrivateKey, fpr string, uid string) error {
+		if uid == name {
+			hit = &gpgKeypairInfo{
+				pubKey:      privk.PublicKey(),
+				fingerprint: fpr,
+			}
+			return stop
+		}
+		return nil
+	}
+	err := gkm.Walk(match)
+	if err == stop {
+		return hit, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("cannot find key named %q in GPG keyring", name)
+}
+
+var generateTemplate = `
+Key-Type: RSA
+Key-Length: 4096
+Subkey-Type: RSA
+Subkey-Length: 4096
+Name-Real: %s
+Creation-Date: %s
+Preferences: SHA512
+`
+
+// Generate creates a new key with the given passphrase and name.
+func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
+	_, err := gkm.findByName(name)
+	if err == nil {
+		return fmt.Errorf("key named %q already exists in GPG keyring", name)
+	}
+	fixedCreationTime := v1FixedTimestamp.Format("20060102T030405")
+	generateParams := fmt.Sprintf(generateTemplate, name, fixedCreationTime)
+	if passphrase != "" {
+		generateParams += "Passphrase: " + passphrase + "\n"
+	}
+	_, err = gkm.gpg([]byte(generateParams), "--batch", "--gen-key")
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// Export returns the encoded text of the named public key.
+func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
+	keyInfo, err := gkm.findByName(name)
+	if err != nil {
+		return nil, err
+	}
+	encoded, err := EncodePublicKey(keyInfo.pubKey)
+	if err != nil {
+		return nil, err
+	}
+	return encoded, nil
+}
+
+// Delete removes the named key pair from GnuPG's storage.
+func (gkm *GPGKeypairManager) Delete(name string) error {
+	keyInfo, err := gkm.findByName(name)
+	if err != nil {
+		return err
+	}
+	_, err = gkm.gpg(nil, "--batch", "--delete-secret-and-public-key", "0x"+keyInfo.fingerprint)
+	if err != nil {
+		return err
+	}
+	return nil
 }
