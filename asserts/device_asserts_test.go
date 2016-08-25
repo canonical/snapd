@@ -228,6 +228,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `cannot decode public key: .*`},
+		{"device-key-sha3-384: KEYID\n", "", `"device-key-sha3-384" header is mandatory`},
 	}
 
 	for _, test := range invalidTests {
