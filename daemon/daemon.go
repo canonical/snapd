@@ -64,7 +64,7 @@ type Command struct {
 	GuestOK bool
 	// can non-admin GET?
 	UserOK bool
-	// is this path accessible on the snap socket?
+	// is this path accessible on the snapd-snap socket?
 	SnapOK bool
 
 	d *Daemon
@@ -189,7 +189,7 @@ func (d *Daemon) Init() error {
 	// systemd provides the sockets in the order they were specified in the
 	// .socket file. This needs to be kept in sync with debian/snapd.socket.
 	// Currently the first socket is snapd.socket, and the second is
-	// snap.socket.
+	// snapd-snap.socket.
 	d.snapdListener = &ucrednetListener{listeners[0]}
 
 	// Note that this listener does not use ucrednet, because we use the lack

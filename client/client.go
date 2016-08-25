@@ -54,7 +54,7 @@ type Config struct {
 	BaseURL string
 
 	// InSnap determines whether or not this client will talk to the snapd or
-	// snap socket.
+	// snapd-snap socket.
 	InSnap bool
 }
 

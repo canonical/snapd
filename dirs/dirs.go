@@ -113,7 +113,7 @@ func SetRootDir(rootdir string) {
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
-	SnapSocket = filepath.Join(rootdir, "/run/snap.socket")
+	SnapSocket = filepath.Join(rootdir, "/run/snapd-snap.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
 
