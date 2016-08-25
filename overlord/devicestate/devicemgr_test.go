@@ -191,6 +191,9 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	restore := devicestate.MockSerialRequestURL(mockServer.URL)
 	defer restore()
 
+	restore = devicestate.MockRepeatSerialRequest(true)
+	defer restore()
+
 	s.state.Lock()
 
 	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
@@ -211,19 +214,22 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	s.mgr.Wait()
 
 	s.state.Lock()
-
-	// run again
-	t.SetStatus(state.DoStatus)
-
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	device, err := auth.Device(s.state)
+	c.Check(err, IsNil)
+	serial := device.Serial
 	s.state.Unlock()
 
 	s.mgr.Ensure()
 	s.mgr.Wait()
 
+	// Repeated and preserved original serial.
 	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	device, err = auth.Device(s.state)
+	c.Check(err, IsNil)
+	c.Check(device.Serial, Equals, serial)
+	s.state.Unlock()
 }
 
 // TODO: test poll logic
