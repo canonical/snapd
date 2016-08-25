@@ -83,6 +83,10 @@ func parseHeaders(head []byte) (map[string]interface{}, error) {
 			return nil, err
 		}
 
+		if _, ok := headers[name]; ok {
+			return nil, fmt.Errorf("repeated header: %q", name)
+		}
+
 		headers[name] = value
 	}
 	return headers, nil
