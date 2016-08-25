@@ -275,6 +275,9 @@ func RequestDeviceSession(serialAssertion, serialProof, previousSession string) 
 		"serial-proof":     serialProof,
 	}
 	deviceJSONData, err := json.Marshal(data)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
 
 	req, err := http.NewRequest("POST", MyAppsDeviceSessionAPI, bytes.NewReader(deviceJSONData))
 	if err != nil {
