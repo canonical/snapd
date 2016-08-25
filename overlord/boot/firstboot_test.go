@@ -24,11 +24,19 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -37,7 +45,14 @@ import (
 )
 
 type FirstBootTestSuite struct {
-	systemctl *testutil.MockCmd
+	systemctl   *testutil.MockCmd
+	mockUdevAdm *testutil.MockCmd
+
+	storeSigning *assertstest.StoreStack
+	restore      func()
+
+	brandPrivKey asserts.PrivateKey
+	brandSigning *assertstest.SigningDB
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -49,19 +64,34 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	// mock the world!
 	err := os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "snaps"), 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(filepath.Join(dirs.SnapSeedDir, "assertions"), 0755)
+	c.Assert(err, IsNil)
+
 	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
 	os.Setenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS", "1")
 	s.systemctl = testutil.MockCommand(c, "systemctl", "")
+	s.mockUdevAdm = testutil.MockCommand(c, "udevadm", "")
 
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), nil, 0644)
 	c.Assert(err, IsNil)
+
+	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	storePrivKey, _ := assertstest.GenerateKey(752)
+	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
+
+	s.brandPrivKey, _ = assertstest.GenerateKey(752)
+	s.brandSigning = assertstest.NewSigningDB("my-brand", s.brandPrivKey)
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("/")
 	os.Unsetenv("SNAPPY_SQUASHFS_UNPACK_FOR_TESTS")
 	s.systemctl.Restore()
+	s.mockUdevAdm.Restore()
+
+	s.restore()
 }
 
 func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
@@ -114,7 +144,7 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// and check the snap got correctly installed
-	c.Check(osutil.FileExists(filepath.Join(dirs.SnapSnapsDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)
@@ -133,4 +163,144 @@ snaps:
 	err = snapstate.Get(state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.DevMode(), Equals, true)
+}
+
+func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.Model {
+	headers := map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        modelStr,
+		"class":        "my-class",
+		"architecture": "amd64",
+		"store":        "canonical",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"core":         "core",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	model, err := s.brandSigning.Sign(asserts.ModelType, headers, nil, "")
+	c.Assert(err, IsNil)
+	return model.(*asserts.Model)
+}
+
+func (s *FirstBootTestSuite) makeModelAssertionChain(c *C) []asserts.Assertion {
+	assertChain := []asserts.Assertion{}
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	assertChain = append(assertChain, brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, s.brandPrivKey.PublicKey(), "")
+	assertChain = append(assertChain, brandAccKey)
+
+	model := s.makeModelAssertion(c, "my-model")
+	assertChain = append(assertChain, model)
+
+	storeAccountKey := s.storeSigning.StoreAccountKey("")
+	assertChain = append(assertChain, storeAccountKey)
+	return assertChain
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assert files
+	assertsChain := s.makeModelAssertionChain(c)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// import them
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, IsNil)
+
+	// verify that the model was added
+	st.Lock()
+	defer st.Unlock()
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "my-brand",
+		"model":    "my-model",
+	})
+	c.Assert(err, IsNil)
+	_, ok := as.(*asserts.Model)
+	c.Check(ok, Equals, true)
+
+	ds, err := auth.Device(st)
+	c.Assert(err, IsNil)
+	c.Check(ds.Brand, Equals, "my-brand")
+	c.Check(ds.Model, Equals, "my-model")
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// write out only the model assertion
+	assertsChain := s.makeModelAssertionChain(c)
+	for _, as := range assertsChain {
+		if as.Type() == asserts.ModelType {
+			fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
+			err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+			c.Assert(err, IsNil)
+			break
+		}
+	}
+
+	// try import and verify that its rejects because other assertions are
+	// missing
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "cannot find account-key/.*: assertion not found")
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// write out two model assertions
+	model := s.makeModelAssertion(c, "my-model")
+	fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
+	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	model2 := s.makeModelAssertion(c, "my-second-model")
+	fn = filepath.Join(dirs.SnapSeedDir, "assertions", "model2")
+	err = ioutil.WriteFile(fn, asserts.Encode(model2), 0644)
+	c.Assert(err, IsNil)
+
+	// try import and verify that its rejects because other assertions are
+	// missing
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "cannot add more than one model assertion")
+}
+
+func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	assertsChain := s.makeModelAssertionChain(c)
+	for _, as := range assertsChain {
+		if as.Type() != asserts.ModelType {
+			fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
+			err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+			c.Assert(err, IsNil)
+			break
+		}
+	}
+
+	// try import and verify that its rejects because other assertions are
+	// missing
+	err = boot.ImportAssertionsFromSeed(st)
+	c.Assert(err, ErrorMatches, "need a model assertion")
 }

@@ -348,10 +348,12 @@ func makeStore(model *asserts.Model) Store {
 	cfg.Architecture = model.Architecture()
 	cfg.Series = model.Series()
 	storeID := model.Store()
+	// XXX: make store optional, so defaulting to empty meaning this
 	if storeID == "canonical" {
 		storeID = ""
 	}
-	return store.New(cfg, storeID, nil)
+	cfg.StoreID = storeID
+	return store.New(cfg, nil)
 }
 
 type Store interface {

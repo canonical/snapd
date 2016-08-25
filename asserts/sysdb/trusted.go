@@ -21,6 +21,7 @@ package sysdb
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/asserts"
 )
@@ -106,7 +107,11 @@ eLzPgOTS4Dklh8H8OXkug2oqBuGwDG6N93ZjgkO8
 `
 )
 
-var trustedAssertions []asserts.Assertion
+var (
+	trustedAssertions        []asserts.Assertion
+	trustedStagingAssertions []asserts.Assertion
+	trustedExtraAssertions   []asserts.Assertion
+)
 
 func init() {
 	canonicalAccount, err := asserts.Decode([]byte(encodedCanonicalAccount))
@@ -122,18 +127,25 @@ func init() {
 
 // Trusted returns a copy of the current set of trusted assertions as used by Open.
 func Trusted() []asserts.Assertion {
-	return append([]asserts.Assertion(nil), trustedAssertions...)
+	trusted := []asserts.Assertion(nil)
+	if os.Getenv("SNAPPY_USE_STAGING_STORE") != "1" {
+		trusted = append(trusted, trustedAssertions...)
+	} else {
+		trusted = append(trusted, trustedStagingAssertions...)
+	}
+	trusted = append(trusted, trustedExtraAssertions...)
+	return trusted
 }
 
 // InjectTrusted injects further assertions into the trusted set for Open.
 // Returns a restore function to reinstate the previous set. Useful
 // for tests or called globally without worrying about restoring.
 func InjectTrusted(extra []asserts.Assertion) (restore func()) {
-	prev := trustedAssertions
-	trustedAssertions = make([]asserts.Assertion, len(prev)+len(extra))
-	copy(trustedAssertions, prev)
-	copy(trustedAssertions[len(prev):], extra)
+	prev := trustedExtraAssertions
+	trustedExtraAssertions = make([]asserts.Assertion, len(prev)+len(extra))
+	copy(trustedExtraAssertions, prev)
+	copy(trustedExtraAssertions[len(prev):], extra)
 	return func() {
-		trustedAssertions = prev
+		trustedExtraAssertions = prev
 	}
 }
