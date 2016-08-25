@@ -1,5 +1,7 @@
 summary: Check that `snapctl` can be run from within hooks
 
+systems: [-ubuntu-core-16-64]
+
 prepare: |
     snapbuild $TESTSLIB/snaps/snapctl-hooks .
     snap install snapctl-hooks_1.0_all.snap
@@ -33,6 +35,12 @@ prepare: |
         exit 1
     fi
 
+    # Make sure we're running with the correct snapctl
+    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
+        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
 restore: |
     rm snapctl-hooks_1.0_all.snap
 
@@ -61,15 +69,15 @@ execute: |
         exit 1
     fi
 
-    if ! curl -s --unix-socket /run/snap.socket http:/v2/snaps | grep status-code\":\s*404; then
-        echo "Expected snapd API to result in 404s on the snap socket"
+    if ! curl -s --unix-socket /run/snap.socket http:/v2/snaps | grep status-code\":\s*401; then
+        echo "Expected snapd API to be unauthorized on the snap socket"
         exit 1
     fi
 
 
-    echo "Verify that the public API is only available via the public socket"
+    echo "Verify that the snap API is also available via the snapd socket"
 
-    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snapctl | grep status-code\":\s*404; then
-        echo "Expected snap API to result in 404s on the snapd socket"
+    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snapctl | grep status-code\":\s*200; then
+        echo "Expected snap API to be available on the snapd socket"
         exit 1
     fi
