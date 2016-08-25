@@ -20,13 +20,11 @@
 package firstboot
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -47,32 +45,25 @@ func StampFirstBoot() error {
 	return osutil.AtomicWriteFile(dirs.SnapFirstBootStamp, []byte{}, 0644, 0)
 }
 
-var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
-var nplandir = "/etc/netplan"
+var netplanConfigFile = "/etc/netplan/00-initial-config.yaml"
 var enableConfig = []string{"netplan", "apply"}
 
-func EnableFirstEther() error {
-	// ensure that udev is ready and we have the net stuff
-	if output, err := exec.Command("udevadm", "settle").CombinedOutput(); err != nil {
-		return osutil.OutputErr(output, err)
-	}
+var netplanConfigData = `
+network:
+ version 2:
+  ethernets:
+   all:
+    match:
+     name: "*"
+    dhcp4: true
+`
 
-	var eths []string
-	for _, glob := range globs {
-		eths, _ = filepath.Glob(glob)
-		if len(eths) != 0 {
-			break
-		}
-	}
-	if len(eths) == 0 {
-		logger.Noticef("no network interfaces found")
-		return nil
-	}
-	eth := filepath.Base(eths[0])
-	ethfile := filepath.Join(nplandir, "00firstboot-"+eth+".yaml")
-	data := fmt.Sprintf("network:\n version: 2\n ethernets:\n  %s:\n   dhcp4: true\n", eth)
-
-	if err := osutil.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
+// InitialNetworkConfig writes and applies a netplan config that
+// enables dhcp on all wired interfaces. In the long run this should
+// be run as part of the config-changed hook and read the snap's
+// config to determine the netplan config to write.
+func InitialNetworkConfig() error {
+	if err := osutil.AtomicWriteFile(netplanConfigFile, []byte(netplanConfigData), 0644, 0); err != nil {
 		return err
 	}
 

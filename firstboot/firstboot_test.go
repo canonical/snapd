@@ -22,24 +22,20 @@ package firstboot
 import (
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/testutil"
 )
 
 func TestStore(t *testing.T) { TestingT(t) }
 
 type FirstBootTestSuite struct {
-	globs        []string
-	nplandir     string
-	enableConfig []string
-	e            error
-
-	udevadm *testutil.MockCmd
+	netplanConfigFile string
+	enableConfig      []string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -48,52 +44,35 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
 
-	s.globs = globs
-	globs = nil
-	s.nplandir = nplandir
-	nplandir = c.MkDir()
+	s.netplanConfigFile = netplanConfigFile
+	netplanConfigFile = filepath.Join(c.MkDir(), "config.yaml")
 	s.enableConfig = enableConfig
 	enableConfig = []string{"/bin/true"}
-
-	s.e = nil
-	s.udevadm = testutil.MockCommand(c, "udevadm", "")
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
-	globs = s.globs
-	nplandir = s.nplandir
+	netplanConfigFile = s.netplanConfigFile
 	enableConfig = s.enableConfig
-	s.udevadm.Restore()
 }
 
-func (s *FirstBootTestSuite) TestEnableFirstEther(c *C) {
-	c.Check(EnableFirstEther(), IsNil)
-	fs, _ := filepath.Glob(filepath.Join(nplandir, "*"))
-	c.Assert(fs, HasLen, 0)
+func (s *FirstBootTestSuite) TestInitialNetworkConfig(c *C) {
+	c.Check(InitialNetworkConfig(), IsNil)
+	bs, err := ioutil.ReadFile(netplanConfigFile)
+	c.Assert(err, IsNil)
+	c.Check(string(bs), Equals, netplanConfigData)
 }
 
-func (s *FirstBootTestSuite) TestEnableFirstEtherSomeEth(c *C) {
-	dir := c.MkDir()
-	_, err := os.Create(filepath.Join(dir, "eth42"))
-	c.Assert(err, IsNil)
-
-	globs = []string{filepath.Join(dir, "eth*")}
-	c.Check(EnableFirstEther(), IsNil)
-	fs, _ := filepath.Glob(filepath.Join(nplandir, "*"))
-	c.Assert(fs, HasLen, 1)
-	bs, err := ioutil.ReadFile(fs[0])
-	c.Assert(err, IsNil)
-	c.Check(string(bs), Equals, "network:\n version: 2\n ethernets:\n  eth42:\n   dhcp4: true\n")
-}
-
-func (s *FirstBootTestSuite) TestEnableFirstEtherBadNplandir(c *C) {
-	dir := c.MkDir()
-	_, err := os.Create(filepath.Join(dir, "eth42"))
-	c.Assert(err, IsNil)
-
-	nplandir = "/no/such/thing"
-	globs = []string{filepath.Join(dir, "eth*")}
-	err = EnableFirstEther()
+func (s *FirstBootTestSuite) TestInitialNetworkConfigBadPath(c *C) {
+	netplanConfigFile = "/no/such/thing"
+	err := InitialNetworkConfig()
 	c.Check(err, NotNil)
 	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *FirstBootTestSuite) TestInitialNetworkConfigEnableFails(c *C) {
+	enableConfig = []string{"/bin/false"}
+	err := InitialNetworkConfig()
+	c.Check(err, NotNil)
+	_, isExitError := err.(*exec.ExitError)
+	c.Check(isExitError, Equals, true)
 }
