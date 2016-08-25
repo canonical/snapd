@@ -203,10 +203,10 @@ func (cs *clientSuite) TestPrivateClientIntegration(c *check.C) {
 }
 
 func (cs *clientSuite) TestPublicClientIntegration(c *check.C) {
-	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdPublicSocket), 0755), check.IsNil)
-	l, err := net.Listen("unix", dirs.SnapdPublicSocket)
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0755), check.IsNil)
+	l, err := net.Listen("unix", dirs.SnapSocket)
 	if err != nil {
-		c.Fatalf("unable to listen on %q: %v", dirs.SnapdPublicSocket, err)
+		c.Fatalf("unable to listen on %q: %v", dirs.SnapSocket, err)
 	}
 
 	f := func(w http.ResponseWriter, r *http.Request) {
@@ -223,7 +223,7 @@ func (cs *clientSuite) TestPublicClientIntegration(c *check.C) {
 	srv.Start()
 	defer srv.Close()
 
-	cli := client.New(&client.Config{Public: true})
+	cli := client.New(&client.Config{InSnap: true})
 	options := client.SnapCtlOptions{
 		Context: "foo",
 		Args:    []string{"bar", "--baz"},

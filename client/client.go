@@ -35,12 +35,12 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-func privateUnixDialer(_, _ string) (net.Conn, error) {
+func snapdUnixDialer(_, _ string) (net.Conn, error) {
 	return net.Dial("unix", dirs.SnapdSocket)
 }
 
-func publicUnixDialer(_, _ string) (net.Conn, error) {
-	return net.Dial("unix", dirs.SnapdPublicSocket)
+func snapUnixDialer(_, _ string) (net.Conn, error) {
+	return net.Dial("unix", dirs.SnapSocket)
 }
 
 type doer interface {
@@ -53,9 +53,9 @@ type Config struct {
 	// It can be empty for a default behavior of talking over a unix socket.
 	BaseURL string
 
-	// Public determines whether or not this client will talk to the private or
-	// public snapd socket (private by default).
-	Public bool
+	// InSnap determines whether or not this client will talk to the snapd or
+	// snap socket.
+	InSnap bool
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -68,9 +68,9 @@ type Client struct {
 func New(config *Config) *Client {
 	// By default talk over an UNIX socket.
 	if config == nil || config.BaseURL == "" {
-		dialer := privateUnixDialer
-		if config != nil && config.Public {
-			dialer = publicUnixDialer
+		dialer := snapdUnixDialer
+		if config != nil && config.InSnap {
+			dialer = snapUnixDialer
 		}
 
 		return &Client{

@@ -180,7 +180,7 @@ func (d *Daemon) Init() error {
 	// systemd provides the sockets in the order they were specified in the
 	// .socket file. This needs to be kept in sync with debian/snapd.socket.
 	// Currently the first socket is snapd.socket, and the second is
-	// snapd-public.socket.
+	// snap.socket.
 	d.privateListener = &ucrednetListener{listeners[0]}
 	d.publicListener = &ucrednetListener{listeners[1]}
 
