@@ -36,6 +36,7 @@ const networkConnectedPlugAppArmor = `
 const networkConnectedPlugSecComp = `
 # Description: Can access the network as a client.
 # Usage: common
+bind
 connect
 getpeername
 getsockname

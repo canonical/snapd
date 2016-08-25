@@ -21,7 +21,9 @@ package store
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"path/filepath"
@@ -30,15 +32,10 @@ import (
 
 	"gopkg.in/tylerb/graceful.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/snap"
-)
-
-var (
-	// FIXME: make both hardcoded values configurable via
-	//        e.g. a "foo_1.0.snap.info" file next to the snap
-	defaultDeveloper   = "canonical"
-	defaultDeveloperID = "canonical"
-	defaultRevision    = 424242
 )
 
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -48,20 +45,19 @@ func rootEndpoint(w http.ResponseWriter, req *http.Request) {
 
 // Store is our snappy software store implementation
 type Store struct {
-	url     string
-	blobDir string
+	url       string
+	blobDir   string
+	assertDir string
 
 	srv *graceful.Server
-
-	snaps map[string]string
 }
 
-// NewStore creates a new store server
-func NewStore(blobDir, addr string) *Store {
+// NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts.
+func NewStore(topDir, addr string) *Store {
 	mux := http.NewServeMux()
 	store := &Store{
-		blobDir: blobDir,
-		snaps:   make(map[string]string),
+		blobDir:   topDir,
+		assertDir: filepath.Join(topDir, "asserts"),
 
 		url: fmt.Sprintf("http://%s", addr),
 		srv: &graceful.Server{
@@ -78,7 +74,8 @@ func NewStore(blobDir, addr string) *Store {
 	mux.HandleFunc("/search", store.searchEndpoint)
 	mux.HandleFunc("/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/snaps/metadata", store.bulkEndpoint)
-	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(blobDir))))
+	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
+	mux.HandleFunc("/assertions/", store.assertionsEndpoint)
 
 	return store
 }
@@ -117,6 +114,12 @@ func (s *Store) Stop() error {
 	return nil
 }
 
+var (
+	defaultDeveloper   = "canonical"
+	defaultDeveloperID = "canonical"
+	defaultRevision    = 424242
+)
+
 func makeRevision(info *snap.Info) int {
 	// TODO: This is a hack to ensure we have higher
 	//       revisions here than locally. The fake
@@ -132,6 +135,70 @@ func makeRevision(info *snap.Info) int {
 	//       that file when sending the reply.
 	n := strings.Count(info.Version, "+fake") + 1
 	return n * defaultRevision
+}
+
+type essentialInfo struct {
+	Name        string
+	SnapID      string
+	DeveloperID string
+	DevelName   string
+	Revision    int
+	Version     string
+	Size        uint64
+	Digest      string
+}
+
+var errInfo = errors.New("cannot get info")
+
+func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
+	snapFile, err := snap.Open(fn)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
+		return nil, errInfo
+	}
+
+	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+		return nil, errInfo
+	}
+
+	snapDigest, size, err := asserts.SnapFileSHA3_384(fn)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("can get digest for: %v: %v", fn, err), http.StatusBadRequest)
+		return nil, errInfo
+	}
+
+	snapRev, devAcct, err := findSnapRevision(snapDigest, bs)
+	if err != nil && err != asserts.ErrNotFound {
+		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+		return nil, errInfo
+	}
+
+	var devel, develID string
+	var revision int
+	if snapRev != nil {
+		snapID = snapRev.SnapID()
+		develID = snapRev.DeveloperID()
+		devel = devAcct.Username()
+		revision = snapRev.SnapRevision()
+	} else {
+		// XXX: fallback until we are always assertion based
+		develID = defaultDeveloperID
+		devel = defaultDeveloper
+		revision = makeRevision(info)
+	}
+
+	return &essentialInfo{
+		Name:        info.Name(),
+		SnapID:      snapID,
+		DeveloperID: develID,
+		DevelName:   devel,
+		Revision:    revision,
+		Version:     info.Version,
+		Digest:      snapDigest,
+		Size:        size,
+	}, nil
 }
 
 type searchPayloadJSON struct {
@@ -164,34 +231,40 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 		panic("how?")
 	}
 
-	s.refreshSnaps()
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), http.StatusInternalServerError)
+		return
+	}
+	snaps, err := s.collectSnaps()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), http.StatusInternalServerError)
+		return
+	}
 
-	fn, ok := s.snaps[pkg]
+	fn, ok := snaps[pkg]
 	if !ok {
 		http.NotFound(w, req)
 		return
 	}
 
-	snapFile, err := snap.Open(fn)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
-		return
-	}
-	// TODO: get side-info from a aux file
-	info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+	essInfo, err := snapEssentialInfo(w, fn, "", bs)
+	if essInfo == nil {
+		if err != errInfo {
+			panic(err)
+		}
 		return
 	}
 
 	details := detailsReplyJSON{
-		PackageName:     info.Name(),
-		Developer:       defaultDeveloper,
-		DeveloperID:     defaultDeveloperID,
+		SnapID:          essInfo.SnapID,
+		PackageName:     essInfo.Name,
+		Developer:       essInfo.DevelName,
+		DeveloperID:     essInfo.DeveloperID,
 		AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 		DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
-		Version:         info.Version,
-		Revision:        makeRevision(info),
+		Version:         essInfo.Version,
+		Revision:        essInfo.Revision,
 	}
 
 	// use indent because this is a development tool, output
@@ -204,27 +277,27 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.Write(out)
 }
 
-func (s *Store) refreshSnaps() error {
-	s.snaps = map[string]string{}
-
-	snaps, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
+func (s *Store) collectSnaps() (map[string]string, error) {
+	snapFns, err := filepath.Glob(filepath.Join(s.blobDir, "*.snap"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	for _, fn := range snaps {
+	snaps := map[string]string{}
+
+	for _, fn := range snapFns {
 		snapFile, err := snap.Open(fn)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		s.snaps[info.Name()] = fn
+		snaps[info.Name()] = fn
 	}
 
-	return nil
+	return snaps, err
 }
 
 type candidateSnap struct {
@@ -244,9 +317,7 @@ type bulkReplyJSON struct {
 	Payload payload `json:"_embedded"`
 }
 
-// FIXME: find a better way to extract the snapID -> name mapping
-//        for the fake store
-var snapIDtoName = map[string]string{
+var someSnapIDtoName = map[string]string{
 	"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ": "hello-world",
 	"EQPfyVOJF0AZNz9P2IJ6UKwldLFN5TzS": "xkcd-webserver",
 	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
@@ -265,7 +336,23 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	s.refreshSnaps()
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	snapIDtoName, err := addSnapIDs(bs, someSnapIDtoName)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snapIDs: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	snaps, err := s.collectSnaps()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting snaps: %v", err), http.StatusInternalServerError)
+		return
+	}
 
 	// check if we have downloadable snap of the given SnapID
 	for _, pkg := range pkgs.CandidateSnaps {
@@ -276,29 +363,24 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 			return
 		}
 
-		if fn, ok := s.snaps[name]; ok {
-			snapFile, err := snap.Open(fn)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
-				return
-			}
-
-			// TODO: get side-info from a aux file
-			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
-			if err != nil {
-				http.Error(w, fmt.Sprintf("can get info for: %v: %v", fn, err), http.StatusBadRequest)
+		if fn, ok := snaps[name]; ok {
+			essInfo, err := snapEssentialInfo(w, fn, pkg.SnapID, bs)
+			if essInfo == nil {
+				if err != errInfo {
+					panic(err)
+				}
 				return
 			}
 
 			replyData.Payload.Packages = append(replyData.Payload.Packages, detailsReplyJSON{
-				SnapID:          pkg.SnapID,
-				PackageName:     info.Name(),
-				Developer:       defaultDeveloper,
-				DeveloperID:     defaultDeveloperID,
+				SnapID:          essInfo.SnapID,
+				PackageName:     essInfo.Name,
+				Developer:       essInfo.DevelName,
+				DeveloperID:     essInfo.DeveloperID,
 				DownloadURL:     fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
 				AnonDownloadURL: fmt.Sprintf("%s/download/%s", s.URL(), filepath.Base(fn)),
-				Version:         info.Version,
-				Revision:        makeRevision(info),
+				Version:         essInfo.Version,
+				Revision:        essInfo.Revision,
 			})
 		}
 	}
@@ -312,4 +394,120 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 	}
 	w.Write(out)
 
+}
+
+func (s *Store) collectAssertions() (asserts.Backstore, error) {
+	bs := asserts.NewMemoryBackstore()
+
+	add := func(a asserts.Assertion) {
+		bs.Put(a.Type(), a)
+	}
+
+	for _, t := range sysdb.Trusted() {
+		add(t)
+	}
+	add(systestkeys.TestRootAccount)
+	add(systestkeys.TestRootAccountKey)
+	add(systestkeys.TestStoreAccountKey)
+
+	aFiles, err := filepath.Glob(filepath.Join(s.assertDir, "*"))
+	if err != nil {
+		return nil, err
+	}
+
+	for _, fn := range aFiles {
+		b, err := ioutil.ReadFile(fn)
+		if err != nil {
+			return nil, err
+		}
+
+		a, err := asserts.Decode(b)
+		if err != nil {
+			return nil, err
+		}
+
+		add(a)
+	}
+
+	return bs, nil
+}
+
+func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
+	assertPath := strings.TrimPrefix(req.URL.Path, "/assertions/")
+
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), http.StatusInternalServerError)
+		return
+	}
+
+	comps := strings.Split(assertPath, "/")
+
+	if len(comps) == 0 {
+		http.Error(w, "missing assertion type", http.StatusBadRequest)
+		return
+
+	}
+
+	typ := asserts.Type(comps[0])
+	if typ == nil {
+		http.Error(w, fmt.Sprintf("unknown assertion type: %s", comps[0]), http.StatusBadRequest)
+		return
+	}
+
+	if len(typ.PrimaryKey) != len(comps)-1 {
+		http.Error(w, fmt.Sprintf("wrong primary key length: %v", comps), http.StatusBadRequest)
+		return
+	}
+
+	a, err := bs.Get(typ, comps[1:])
+	if err == asserts.ErrNotFound {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(404)
+		w.Write([]byte(`{"status": 404}`))
+		return
+	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("cannot retrieve assertion %v: %v", comps, err), http.StatusBadRequest)
+		return
+	}
+
+	w.Header().Set("Content-Type", asserts.MediaType)
+	w.WriteHeader(http.StatusOK)
+	w.Write(asserts.Encode(a))
+}
+
+func addSnapIDs(bs asserts.Backstore, initial map[string]string) (map[string]string, error) {
+	m := make(map[string]string)
+	for id, name := range initial {
+		m[id] = name
+	}
+
+	hit := func(a asserts.Assertion) {
+		decl := a.(*asserts.SnapDeclaration)
+		m[decl.SnapID()] = decl.SnapName()
+	}
+
+	err := bs.Search(asserts.SnapDeclarationType, nil, hit)
+	if err != nil {
+		return nil, err
+	}
+
+	return m, nil
+}
+
+func findSnapRevision(snapDigest string, bs asserts.Backstore) (*asserts.SnapRevision, *asserts.Account, error) {
+	a, err := bs.Get(asserts.SnapRevisionType, []string{snapDigest})
+	if err != nil {
+		return nil, nil, err
+	}
+	snapRev := a.(*asserts.SnapRevision)
+
+	a, err = bs.Get(asserts.AccountType, []string{snapRev.DeveloperID()})
+	if err != nil {
+		return nil, nil, err
+	}
+	devAcct := a.(*asserts.Account)
+
+	return snapRev, devAcct, nil
 }
