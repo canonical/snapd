@@ -62,7 +62,7 @@ func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 	gkms.importKey(assertstest.DevKey)
 }
 
-func (gkms *gpgKeypairMgrSuite) TearDowntest(c *C) {
+func (gkms *gpgKeypairMgrSuite) TearDownTest(c *C) {
 	os.Unsetenv("SNAP_GNUPG_HOME")
 }
 
