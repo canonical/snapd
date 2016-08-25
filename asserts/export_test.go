@@ -159,7 +159,7 @@ var (
 	AppendEntry  = appendEntry
 )
 
-// GetGenerateParameters exposes getGenerateParameters for tests.
-func (gkm *GPGKeypairManager) GetGenerateParameters(passphrase string, name string) string {
-	return gkm.getGenerateParameters(passphrase, name)
+// ParametersForGenerate exposes parametersForGenerate for tests.
+func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
+	return gkm.parametersForGenerate(passphrase, name)
 }

@@ -269,7 +269,7 @@ Creation-Date: seconds=%d
 Preferences: SHA512
 `
 
-func (gkm *GPGKeypairManager) getGenerateParameters(passphrase string, name string) string {
+func (gkm *GPGKeypairManager) parametersForGenerate(passphrase string, name string) string {
 	fixedCreationTime := v1FixedTimestamp.Unix()
 	generateParams := fmt.Sprintf(generateTemplate, name, fixedCreationTime)
 	if passphrase != "" {
@@ -284,7 +284,7 @@ func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
 	if err == nil {
 		return fmt.Errorf("key named %q already exists in GPG keyring", name)
 	}
-	generateParams := gkm.getGenerateParameters(passphrase, name)
+	generateParams := gkm.parametersForGenerate(passphrase, name)
 	_, err = gkm.gpg([]byte(generateParams), "--batch", "--gen-key")
 	if err != nil {
 		return err
