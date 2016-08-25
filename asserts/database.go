@@ -60,14 +60,13 @@ func (nbs nullBackstore) Search(t *AssertionType, h map[string]string, f func(As
 
 // A KeypairManager is a manager and backstore for private/public key pairs.
 type KeypairManager interface {
-	// Put stores the given private/public key pair for identity,
-	// making sure it can be later retrieved by authority-id and
-	// key id with Get().
+	// Put stores the given private/public key pair,
+	// making sure it can be later retrieved by its unique key id with Get.
 	// Trying to store a key with an already present key id should
 	// result in an error.
-	Put(authorityID string, privKey PrivateKey) error
+	Put(privKey PrivateKey) error
 	// Get returns the private/public key pair with the given key id.
-	Get(authorityID, keyID string) (PrivateKey, error)
+	Get(keyID string) (PrivateKey, error)
 }
 
 // DatabaseConfig for an assertion database.
@@ -76,7 +75,7 @@ type DatabaseConfig struct {
 	Trusted []Assertion
 	// backstore for assertions, left unset storing assertions will error
 	Backstore Backstore
-	// manager/backstore for keypairs, mandatory
+	// manager/backstore for keypairs, defaults to in-memory implementation
 	KeypairManager KeypairManager
 	// assertion checkers used by Database.Check, left unset DefaultCheckers will be used which is recommended
 	Checkers []Checker
@@ -149,7 +148,7 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		bs = nullBackstore{}
 	}
 	if keypairMgr == nil {
-		panic("database cannot be used without setting a keypair manager")
+		keypairMgr = NewMemoryKeypairManager()
 	}
 
 	trustedBackstore := NewMemoryBackstore()
@@ -193,9 +192,9 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	}, nil
 }
 
-// ImportKey stores the given private/public key pair for identity.
-func (db *Database) ImportKey(authorityID string, privKey PrivateKey) error {
-	return db.keypairMgr.Put(authorityID, privKey)
+// ImportKey stores the given private/public key pair.
+func (db *Database) ImportKey(privKey PrivateKey) error {
+	return db.keypairMgr.Put(privKey)
 }
 
 var (
@@ -203,19 +202,19 @@ var (
 	base64HashLike = regexp.MustCompile("^[[:alnum:]_-]*$")
 )
 
-func (db *Database) safeGetPrivateKey(authorityID, keyID string) (PrivateKey, error) {
+func (db *Database) safeGetPrivateKey(keyID string) (PrivateKey, error) {
 	if keyID == "" {
 		return nil, fmt.Errorf("key id is empty")
 	}
 	if !base64HashLike.MatchString(keyID) {
 		return nil, fmt.Errorf("key id contains unexpected chars: %q", keyID)
 	}
-	return db.keypairMgr.Get(authorityID, keyID)
+	return db.keypairMgr.Get(keyID)
 }
 
-// PublicKey returns the public key owned by authorityID that has the given key id.
-func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, error) {
-	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
+// PublicKey returns the public key part of the key pair that has the given key id.
+func (db *Database) PublicKey(keyID string) (PublicKey, error) {
+	privKey, err := db.safeGetPrivateKey(keyID)
 	if err != nil {
 		return nil, err
 	}
@@ -225,11 +224,7 @@ func (db *Database) PublicKey(authorityID string, keyID string) (PublicKey, erro
 // Sign assembles an assertion with the provided information and signs it
 // with the private key from `headers["authority-id"]` that has the provided key id.
 func (db *Database) Sign(assertType *AssertionType, headers map[string]interface{}, body []byte, keyID string) (Assertion, error) {
-	authorityID, err := checkNotEmptyString(headers, "authority-id")
-	if err != nil {
-		return nil, err
-	}
-	privKey, err := db.safeGetPrivateKey(authorityID, keyID)
+	privKey, err := db.safeGetPrivateKey(keyID)
 	if err != nil {
 		return nil, err
 	}

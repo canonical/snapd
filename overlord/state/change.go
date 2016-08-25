@@ -320,6 +320,13 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	// Here is the exact moment when a change goes from unready to ready,
 	// and from ready to unready. For now handle only the first of those.
 	// For the latter the channel might be replaced in the future.
+	select {
+	case <-c.ready:
+		if !c.Status().Ready() {
+			panic(fmt.Errorf("change %s unexpectedly became unready (%s)", c.ID(), c.Status()))
+		}
+	default:
+	}
 	c.markReady()
 }
 

@@ -182,7 +182,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+	command := exec.Command("snap", "run", "--hook", hookName, "-r", revision.String(), snapName)
 
 	// Make sure the hook has its context defined so it can communicate via the
 	// REST API.

@@ -82,10 +82,12 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	revisionIsLocal := snapst.findIndex(ss.Revision()) >= 0
 
 	var prepare, prev *state.Task
+	fromStore := false
 	// if we have a local revision here we go back to that
 	if ss.SnapPath != "" || revisionIsLocal {
 		prepare = s.NewTask("prepare-snap", fmt.Sprintf(i18n.G("Prepare snap %q%s"), ss.SnapPath, revisionStr))
 	} else {
+		fromStore = true
 		prepare = s.NewTask("download-snap", fmt.Sprintf(i18n.G("Download snap %q%s from channel %q"), ss.Name(), revisionStr, ss.Channel))
 	}
 	prepare.Set("snap-setup", ss)
@@ -96,9 +98,16 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 		t.WaitFor(prev)
 		tasks = append(tasks, t)
 	}
+	prev = prepare
+
+	if fromStore {
+		// fetch and check assertions
+		checkAsserts := s.NewTask("validate-snap", fmt.Sprintf(i18n.G("Fetch and check assertions for snap %q%s"), ss.Name(), revisionStr))
+		addTask(checkAsserts)
+		prev = checkAsserts
+	}
 
 	// mount
-	prev = prepare
 	if !revisionIsLocal {
 		mount := s.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), ss.Name(), revisionStr))
 		addTask(mount)
@@ -224,7 +233,7 @@ func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, er
 
 // Install returns a set of tasks for installing snap.
 // Note that the state must be locked by the caller.
-func Install(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
+func Install(s *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -234,7 +243,7 @@ func Install(s *state.State, name, channel string, userID int, flags Flags) (*st
 		return nil, fmt.Errorf("snap %q already installed", name)
 	}
 
-	snapInfo, err := snapInfo(s, name, channel, userID, flags)
+	snapInfo, err := snapInfo(s, name, channel, revision, userID, flags)
 	if err != nil {
 		return nil, err
 	}
@@ -525,7 +534,7 @@ func canRemove(s *snap.Info, active bool) bool {
 
 // Remove returns a set of tasks for removing snap.
 // Note that the state must be locked by the caller.
-func Remove(s *state.State, name string) (*state.TaskSet, error) {
+func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -540,8 +549,29 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, err
 	}
 
-	revision := snapst.Current
 	active := snapst.Active
+	var removeAll bool
+	if revision.Unset() {
+		removeAll = true
+		revision = snapst.Current
+	} else {
+		removeAll = false
+
+		if active {
+			if revision == snapst.Current {
+				msg := "cannot remove active revision %s of snap %q"
+				if len(snapst.Sequence) > 1 {
+					msg += " (revert first?)"
+				}
+				return nil, fmt.Errorf(msg, revision, name)
+			}
+			active = false
+		}
+
+		if !revisionInSequence(&snapst, revision) {
+			return nil, fmt.Errorf("revision %s of snap %q is not installed", revision, name)
+		}
+	}
 
 	info, err := Info(s, name, revision)
 	if err != nil {
@@ -586,19 +616,24 @@ func Remove(s *state.State, name string) (*state.TaskSet, error) {
 		addNext(state.NewTaskSet(unlink, removeSecurity))
 	}
 
-	seq := snapst.Sequence
-	for i := len(seq) - 1; i >= 0; i-- {
-		si := seq[i]
-		addNext(removeInactiveRevision(s, name, si.Revision))
-	}
+	if removeAll || len(snapst.Sequence) == 1 {
+		seq := snapst.Sequence
+		for i := len(seq) - 1; i >= 0; i-- {
+			si := seq[i]
+			addNext(removeInactiveRevision(s, name, si.Revision))
+		}
 
-	discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
-	discardConns.Set("snap-setup", &SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-		},
-	})
-	addNext(state.NewTaskSet(discardConns))
+		discardConns := s.NewTask("discard-conns", fmt.Sprintf(i18n.G("Discard interface connections for snap %q (%s)"), name, revision))
+		discardConns.Set("snap-setup", &SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+			},
+		})
+		addNext(state.NewTaskSet(discardConns))
+
+	} else {
+		addNext(removeInactiveRevision(s, name, revision))
+	}
 
 	return full, nil
 }

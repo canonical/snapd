@@ -47,16 +47,11 @@ type openSuite struct{}
 
 func (opens *openSuite) TestOpenDatabaseOK(c *C) {
 	cfg := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore: asserts.NewMemoryBackstore(),
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
 	c.Assert(db, NotNil)
-}
-
-func (opens *openSuite) TestOpenDatabasePanicOnUnsetBackstores(c *C) {
-	cfg := &asserts.DatabaseConfig{}
-	c.Assert(func() { asserts.OpenDatabase(cfg) }, PanicMatches, "database cannot be used without setting a keypair manager")
 }
 
 func (opens *openSuite) TestOpenDatabaseTrustedAccount(c *C) {
@@ -71,8 +66,8 @@ func (opens *openSuite) TestOpenDatabaseTrustedAccount(c *C) {
 	c.Assert(err, IsNil)
 
 	cfg := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        []asserts.Assertion{acct},
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   []asserts.Assertion{acct},
 	}
 
 	db, err := asserts.OpenDatabase(cfg)
@@ -100,8 +95,7 @@ func (opens *openSuite) TestOpenDatabaseTrustedWrongType(c *C) {
 	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey0)
 
 	cfg := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        []asserts.Assertion{a},
+		Trusted: []asserts.Assertion{a},
 	}
 
 	_, err = asserts.OpenDatabase(cfg)
@@ -128,10 +122,10 @@ func (dbs *databaseSuite) SetUpTest(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKey(c *C) {
-	err := dbs.db.ImportKey("account0", testPrivKey1)
+	err := dbs.db.ImportKey(testPrivKey1)
 	c.Assert(err, IsNil)
 
-	keyPath := filepath.Join(dbs.topDir, "private-keys-v1/account0", testPrivKey1SHA3_384)
+	keyPath := filepath.Join(dbs.topDir, "private-keys-v1", testPrivKey1SHA3_384)
 	info, err := os.Stat(keyPath)
 	c.Assert(err, IsNil)
 	c.Check(info.Mode().Perm(), Equals, os.FileMode(0600)) // secret
@@ -146,20 +140,20 @@ func (dbs *databaseSuite) TestImportKey(c *C) {
 }
 
 func (dbs *databaseSuite) TestImportKeyAlreadyExists(c *C) {
-	err := dbs.db.ImportKey("account0", testPrivKey1)
+	err := dbs.db.ImportKey(testPrivKey1)
 	c.Assert(err, IsNil)
 
-	err = dbs.db.ImportKey("account0", testPrivKey1)
+	err = dbs.db.ImportKey(testPrivKey1)
 	c.Check(err, ErrorMatches, "key pair with given key id already exists")
 }
 
 func (dbs *databaseSuite) TestPublicKey(c *C) {
 	pk := testPrivKey1
 	keyID := pk.PublicKey().ID()
-	err := dbs.db.ImportKey("account0", pk)
+	err := dbs.db.ImportKey(pk)
 	c.Assert(err, IsNil)
 
-	pubk, err := dbs.db.PublicKey("account0", keyID)
+	pubk, err := dbs.db.PublicKey(keyID)
 	c.Assert(err, IsNil)
 	c.Check(pubk.ID(), Equals, keyID)
 
@@ -193,13 +187,13 @@ func (dbs *databaseSuite) TestPublicKeyNotFound(c *C) {
 	pk := testPrivKey1
 	keyID := pk.PublicKey().ID()
 
-	_, err := dbs.db.PublicKey("account0", keyID)
+	_, err := dbs.db.PublicKey(keyID)
 	c.Check(err, ErrorMatches, "cannot find key pair")
 
-	err = dbs.db.ImportKey("account0", pk)
+	err = dbs.db.ImportKey(pk)
 	c.Assert(err, IsNil)
 
-	_, err = dbs.db.PublicKey("account0", "ff"+keyID)
+	_, err = dbs.db.PublicKey("ff" + keyID)
 	c.Check(err, ErrorMatches, "cannot find key pair")
 }
 
@@ -227,8 +221,7 @@ func (chks *checkSuite) SetUpTest(c *C) {
 
 func (chks *checkSuite) TestCheckNoPubKey(c *C) {
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      chks.bs,
-		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore: chks.bs,
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -241,9 +234,8 @@ func (chks *checkSuite) TestCheckExpiredPubKey(c *C) {
 	trustedKey := testPrivKey0
 
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      chks.bs,
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        []asserts.Assertion{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Backstore: chks.bs,
+		Trusted:   []asserts.Assertion{asserts.ExpiredAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -256,9 +248,8 @@ func (chks *checkSuite) TestCheckForgery(c *C) {
 	trustedKey := testPrivKey0
 
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      chks.bs,
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+		Backstore: chks.bs,
+		Trusted:   []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
 	}
 	db, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)
@@ -298,15 +289,13 @@ type signAddFindSuite struct {
 var _ = Suite(&signAddFindSuite{})
 
 func (safs *signAddFindSuite) SetUpTest(c *C) {
-	cfg0 := &asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-	}
+	cfg0 := &asserts.DatabaseConfig{}
 	db0, err := asserts.OpenDatabase(cfg0)
 	c.Assert(err, IsNil)
 	safs.signingDB = db0
 
 	pk := testPrivKey0
-	err = db0.ImportKey("canonical", pk)
+	err = db0.ImportKey(pk)
 	c.Assert(err, IsNil)
 	safs.signingKeyID = pk.PublicKey().ID()
 
@@ -316,8 +305,7 @@ func (safs *signAddFindSuite) SetUpTest(c *C) {
 
 	trustedKey := testPrivKey0
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      bs,
-		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore: bs,
 		Trusted: []asserts.Assertion{
 			asserts.BootstrapAccountForTest("canonical"),
 			asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey()),
@@ -662,7 +650,7 @@ func (safs *signAddFindSuite) TestFindTrusted(c *C) {
 
 func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrustedOnes(c *C) {
 	// trusted
-	pubKey0, err := safs.signingDB.PublicKey("canonical", safs.signingKeyID)
+	pubKey0, err := safs.signingDB.PublicKey(safs.signingKeyID)
 	c.Assert(err, IsNil)
 	pubKey0Encoded, err := asserts.EncodePublicKey(pubKey0)
 	c.Assert(err, IsNil)

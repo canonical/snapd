@@ -107,6 +107,9 @@ type Config struct {
 	PurchasesURI      *url.URL
 	PaymentMethodsURI *url.URL
 
+	// StoreID is the store id used if we can't get one through the AuthContext.
+	StoreID string
+
 	Architecture string
 	Series       string
 
@@ -115,7 +118,6 @@ type Config struct {
 
 // Store represents the ubuntu snap store
 type Store struct {
-	storeID           string
 	searchURI         *url.URL
 	detailsURI        *url.URL
 	bulkURI           *url.URL
@@ -125,6 +127,8 @@ type Store struct {
 
 	architecture string
 	series       string
+
+	fallbackStoreID string
 
 	detailFields []string
 	// reused http client
@@ -164,8 +168,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func useStaging() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+}
+
 func cpiURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -177,7 +185,7 @@ func cpiURL() string {
 }
 
 func authLocation() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "login.staging.ubuntu.com"
 	}
 	return "login.ubuntu.com"
@@ -191,7 +199,7 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_SAS") != "" {
+	if useStaging() {
 		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
@@ -203,7 +211,7 @@ func assertsURL() string {
 }
 
 func myappsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
+	if useStaging() {
 		return "https://myapps.developer.staging.ubuntu.com/"
 	}
 	return "https://myapps.developer.ubuntu.com/"
@@ -270,7 +278,7 @@ type searchResults struct {
 var detailFields = getStructFields(snapDetails{})
 
 // New creates a new Store with the given access configuration and for given the store id.
-func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
+func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
@@ -313,7 +321,6 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
-		storeID:           storeID,
 		searchURI:         searchURI,
 		detailsURI:        detailsURI,
 		bulkURI:           cfg.BulkURI,
@@ -322,6 +329,7 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		paymentMethodsURI: cfg.PaymentMethodsURI,
 		series:            series,
 		architecture:      architecture,
+		fallbackStoreID:   cfg.StoreID,
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
@@ -388,6 +396,21 @@ func (s *Store) authenticateDevice(r *http.Request) {
 		if device.SessionMacaroon != "" {
 			r.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
 		}
+	}
+}
+
+func (s *Store) setStoreID(r *http.Request) {
+	storeID := s.fallbackStoreID
+	if s.authContext != nil {
+		cand, err := s.authContext.StoreID(storeID)
+		if err != nil {
+			logger.Debugf("cannot get store ID from state: %v", err)
+		} else {
+			storeID = cand
+		}
+	}
+	if storeID != "" {
+		r.Header.Set("X-Ubuntu-Store", storeID)
 	}
 }
 
@@ -462,9 +485,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		req.Header.Set("Content-Type", reqOptions.ContentType)
 	}
 
-	if s.storeID != "" {
-		req.Header.Set("X-Ubuntu-Store", s.storeID)
-	}
+	s.setStoreID(req)
 
 	return req, nil
 }
@@ -643,14 +664,18 @@ func mustBuy(prices map[string]float64, purchases []*purchase) bool {
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(name)
 	if err != nil {
 		return nil, err
 	}
 
 	query := u.Query()
-	if channel != "" {
+
+	if !revision.Unset() {
+		query.Set("revision", revision.String())
+		query.Set("channel", "") // sidestep the channel map
+	} else if channel != "" {
 		query.Set("channel", channel)
 	}
 
@@ -1018,7 +1043,8 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		if resp.Header.Get("Content-Type") == "application/json" {
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "application/json" || contentType == "application/problem+json" {
 			var svcErr assertionSvcError
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&svcErr); err != nil {
