@@ -42,7 +42,25 @@ func (as *assertsSuite) TestUnknown(c *C) {
 	c.Check(asserts.Type("unknown"), IsNil)
 }
 
+func (as *assertsSuite) TestRef(c *C) {
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc", "xyz"},
+	}
+	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
+}
+
+func (as *assertsSuite) TestRefResolveError(c *C) {
+	ref := &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"abc"},
+	}
+	_, err := ref.Resolve(nil)
+	c.Check(err, ErrorMatches, `"test-only-2" assertion reference primary key has the wrong length \(expected \[pk1 pk2\]\): \[abc\]`)
+}
+
 const exKeyID = "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+
 const exampleEmptyBodyAllDefaults = "type: test-only\n" +
 	"authority-id: auth-id1\n" +
 	"primary-key: abc\n" +
@@ -191,6 +209,18 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, test.expectedErr)
 	}
+}
+
+func (as *assertsSuite) TestDecodeNoAuthorityInvalid(c *C) {
+	invalid := "type: test-only-no-authority\n" +
+		"authority-id: auth-id1\n" +
+		"hdr: FOO\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"openpgp c2ln"
+
+	_, err := asserts.Decode([]byte(invalid))
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
 }
 
 func checkContent(c *C, a asserts.Assertion, encoded string) {
@@ -552,8 +582,34 @@ func (as *assertsSuite) TestSignKeyID(c *C) {
 	c.Assert(err, IsNil)
 
 	keyID := a.SignKeyID()
-	c.Assert(err, IsNil)
 	c.Check(keyID, Equals, testPrivKey1.PublicKey().ID())
+}
+
+func (as *assertsSuite) TestSelfRef(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+	}
+	a1, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	c.Check(a1.Ref(), DeepEquals, &asserts.Ref{
+		Type:       asserts.TestOnlyType,
+		PrimaryKey: []string{"0"},
+	})
+
+	headers = map[string]interface{}{
+		"authority-id": "auth-id1",
+		"pk1":          "a",
+		"pk2":          "b",
+	}
+	a2, err := asserts.AssembleAndSignInTest(asserts.TestOnly2Type, headers, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	c.Check(a2.Ref(), DeepEquals, &asserts.Ref{
+		Type:       asserts.TestOnly2Type,
+		PrimaryKey: []string{"a", "b"},
+	})
 }
 
 func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
@@ -570,4 +626,45 @@ func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
 
 	_, err := asserts.Assemble(headers, nil, cont, nil)
 	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
+}
+
+func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
+	_, err := asserts.SignWithoutAuthority(asserts.TestOnlyType, nil, nil, testPrivKey1)
+	c.Check(err, ErrorMatches, `cannot sign assertions needing a definite authority with SignWithoutAuthority`)
+
+	_, err = asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
+		map[string]interface{}{
+			"authority-id": "auth-id1",
+			"hdr":          "FOO",
+		}, nil, testPrivKey1)
+	c.Check(err, ErrorMatches, `"test-only-no-authority" assertion cannot have authority-id set`)
+}
+
+func (ss *serialSuite) TestSignatureCheckError(c *C) {
+	sreq, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityType,
+		map[string]interface{}{
+			"hdr": "FOO",
+		}, nil, testPrivKey1)
+	c.Assert(err, IsNil)
+
+	err = asserts.SignatureCheck(sreq, testPrivKey2.PublicKey())
+	c.Check(err, ErrorMatches, `failed signature verification:.*`)
+}
+
+func (as *assertsSuite) TestWithAuthority(c *C) {
+	withAuthority := []string{
+		"account",
+		"account-key",
+		"snap-declaration",
+		"snap-build",
+		"snap-revision",
+		"model",
+		"serial",
+	}
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-2) // excluding serial-request, serial-proof
+	for _, name := range withAuthority {
+		typ := asserts.Type(name)
+		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
+		c.Check(err, ErrorMatches, `"authority-id" header is mandatory`)
+	}
 }

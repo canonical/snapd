@@ -114,6 +114,26 @@ If a test hangs, you can enable verbose mode:
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
+### Running the spread tests
+
+To run the spread tests locally you need the latest version of spread
+from https://github.com/snapcore/spread. It can be installed via:
+
+    $ sudo apt install qemu-kvm autopkgtest
+    $ sudo snap install spread
+
+Then setup the environment via:
+
+    $ mkdir -p .spread/qemu
+    $ cd .spread/qemu
+    $ adt-buildvm-ubuntu-cloud
+    $ mv adt-xenial-amd64-cloud.img ubuntu-16.04.img
+
+And you can run the tests via:
+
+    $ spread -v qemu:
+
+
 ### Testing snapd on a snappy system
 
 To test the `snapd` REST API daemon on a snappy system you need to

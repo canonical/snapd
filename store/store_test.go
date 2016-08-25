@@ -35,12 +35,14 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
 
+	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -136,7 +138,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, "", nil)
 	t.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
 	t.logbuf = bytes.NewBuffer(nil)
 	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)
@@ -405,6 +407,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 
 		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
 
+		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, release.Series)
+		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, arch.UbuntuArchitecture())
+
 		c.Check(r.Header.Get("X-Ubuntu-Device-Channel"), Equals, "")
 		c.Check(r.Header.Get("X-Ubuntu-Confinement"), Equals, "")
 
@@ -451,6 +456,40 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	// c.Check(result.Private, Equals, true)
 
 	c.Check(snap.Validate(result), IsNil)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		storeID := r.Header.Get("X-Ubuntu-Store")
+		c.Check(storeID, Equals, "foo")
+
+		c.Check(r.URL.Path, Equals, "/details/hello-world")
+
+		c.Check(r.URL.Query().Get("channel"), Equals, "edge")
+
+		c.Check(r.Header.Get("X-Ubuntu-Series"), Equals, "21")
+		c.Check(r.Header.Get("X-Ubuntu-Architecture"), Equals, "archXYZ")
+
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, MockDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	detailsURI, err := url.Parse(mockServer.URL + "/details/")
+	c.Assert(err, IsNil)
+	cfg := DefaultConfig()
+	cfg.DetailsURI = detailsURI
+	cfg.Series = "21"
+	cfg.Architecture = "archXYZ"
+	repo := New(cfg, "foo", nil)
+	c.Assert(repo, NotNil)
+
+	// the actual test
+	result, err := repo.Snap("hello-world", "edge", true, nil)
+	c.Assert(err, IsNil)
+	c.Check(result.Name(), Equals, "hello-world")
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
@@ -1419,55 +1458,55 @@ func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 }
 
 func (t *remoteRepoTestSuite) TestCpiURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := cpiURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := cpiURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestAuthLocationDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authLocation()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := authLocation()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestAuthURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := authURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_CPI", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_CPI", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := authURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestAssertsURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := assertsURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_SAS", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_SAS", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := assertsURL()
 
 	c.Check(before, Not(Equals), after)
 }
 
 func (t *remoteRepoTestSuite) TestMyAppsURLDependsOnEnviron(c *C) {
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", ""), IsNil)
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", ""), IsNil)
 	before := myappsURL()
 
-	c.Assert(os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "1"), IsNil)
-	defer os.Setenv("SNAPPY_USE_STAGING_MYAPPS", "")
+	c.Assert(os.Setenv("SNAPPY_USE_STAGING_STORE", "1"), IsNil)
+	defer os.Setenv("SNAPPY_USE_STAGING_STORE", "")
 	after := myappsURL()
 
 	c.Check(before, Not(Equals), after)
@@ -1597,7 +1636,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
 		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
-		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
 		io.WriteString(w, `{"status": 404,"title": "not found"}`)
 	}))

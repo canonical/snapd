@@ -137,6 +137,9 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
+	if command == "shell" {
+		fullCmd = "/bin/bash"
+	}
 	fullCmdArgs := []string{fullCmd}
 	fullCmdArgs = append(fullCmdArgs, args...)
 	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {

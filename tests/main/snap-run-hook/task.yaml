@@ -1,0 +1,92 @@
+summary: Check that `snap run` can actually run hooks
+
+systems: [-ubuntu-core-16-64]
+
+prepare: |
+    echo "Ensure we have a core snap with snap run"
+    $SPREAD_PATH/tests/lib/reset.sh
+    snap install --channel=candidate ubuntu-core
+    snapbuild $TESTSLIB/snaps/basic-hooks .
+    snap install basic-hooks_1.0_all.snap
+
+    # We want to use the in-tree snap-exec, not the one in the core snap. To
+    # accomplish that, we'll just unpack the core we just grabbed, shove the new
+    # snap-exec in there, and repack it.
+
+    # First of all, unmount the core
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep "$core" | awk '{print $1}')"
+    umount "$core"
+
+    # Now unpack the core, inject the new snap-exec into it, and repack it.
+    unsquashfs "$snap"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    mv "$snap" "${snap}.orig"
+    mksquashfs squashfs-root "$snap" -comp xz
+
+    # Now mount the new core snap
+    mount "$snap" "$core"
+    systemctl start snapd.service
+
+    # Make sure we're running with the correct snap-exec
+    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
+        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
+restore: |
+    rm basic-hooks_1.0_all.snap
+
+    # Unmount the modified core snap, and put the old one back in place
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep "$core" | awk '{print $1}')"
+    umount "$core"
+    mv "${snap}.orig" "$snap"
+    mount "$snap" "$core"
+    systemctl start snapd.service
+
+    # do not leave a mess around
+    rm -rf squashfs-root
+
+execute: |
+    # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
+    # check the output instead.
+
+    echo "Test that snap run can call valid hooks"
+
+    if ! output="$(snap run --hook=apply-config basic-hooks)"; then
+        echo "Failed to run apply-config hook"
+        exit 1
+    fi
+
+    expected_output="apply-config hook"
+    if [ "$output" != "$expected_output" ]; then
+        echo "Expected apply-config output to be '$expected_output', but it was '$output'"
+        exit 1
+    fi
+
+    if ! output="$(snap run --hook=check-config basic-hooks)"; then
+        echo "Failed to run check-config hook"
+        exit 1
+    fi
+
+    expected_output="check-config hook"
+    if [ "$output" != "$expected_output" ]; then
+        echo "Expected check-config output to be '$expected_output', but it was '$output'"
+        exit 1
+    fi
+
+    echo "Test that snap run cannot call invalid hooks"
+
+    if ! output="$(snap run --hook=invalid-hook basic-hooks)"; then
+        echo "Expected snap run to exit successfully upon missing hook"
+        exit 1
+    fi
+
+    expected_output=""
+    if [ "$output" != "$expected_output" ]; then
+        echo "Expected invalid-hook output to be '$expected_output', but it was '$output'"
+        exit 1
+    fi

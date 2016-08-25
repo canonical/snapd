@@ -39,6 +39,8 @@ type DeviceState struct {
 	Model  string `json:"model,omitempty"`
 	Serial string `json:"serial,omitempty"`
 
+	KeyID string `json:"key-id,omitempty"`
+
 	SessionMacaroon string `json:"session-macaroon,omitempty"`
 }
 

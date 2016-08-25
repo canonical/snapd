@@ -85,6 +85,13 @@ func (s *PartitionTestSuite) TestForceBootloader(c *C) {
 }
 
 func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
+	b := newMockBootloader()
+	b.bootVars["snap_mode"] = "trying"
+	b.bootVars["snap_try_core"] = "os1"
+	b.bootVars["snap_try_kernel"] = "k1"
+	err := MarkBootSuccessful(b)
+	c.Assert(err, IsNil)
+
 	expected := map[string]string{
 		// cleared
 		"snap_mode":       "",
@@ -94,19 +101,33 @@ func (s *PartitionTestSuite) TestMarkBootSuccessfulAllSnap(c *C) {
 		"snap_kernel": "k1",
 		"snap_core":   "os1",
 	}
-
-	b := newMockBootloader()
-	b.bootVars["snap_mode"] = "trying"
-	b.bootVars["snap_try_core"] = "os1"
-	b.bootVars["snap_try_kernel"] = "k1"
-	err := MarkBootSuccessful(b)
-	c.Assert(err, IsNil)
 	c.Assert(b.bootVars, DeepEquals, expected)
 
 	// do it again, verify its still valid
 	err = MarkBootSuccessful(b)
 	c.Assert(err, IsNil)
 	c.Assert(b.bootVars, DeepEquals, expected)
+}
+
+func (s *PartitionTestSuite) TestMarkBootSuccessfulKKernelUpdate(c *C) {
+	b := newMockBootloader()
+	b.bootVars["snap_mode"] = "trying"
+	b.bootVars["snap_core"] = "os1"
+	b.bootVars["snap_kernel"] = "k1"
+	b.bootVars["snap_try_core"] = ""
+	b.bootVars["snap_try_kernel"] = "k2"
+	err := MarkBootSuccessful(b)
+	c.Assert(err, IsNil)
+	c.Assert(b.bootVars, DeepEquals, map[string]string{
+		// cleared
+		"snap_mode":       "",
+		"snap_try_kernel": "",
+		"snap_try_core":   "",
+		// unchanged
+		"snap_core": "os1",
+		// updated
+		"snap_kernel": "k2",
+	})
 }
 
 func (s *PartitionTestSuite) TestInstallBootloaderConfigNoConfig(c *C) {

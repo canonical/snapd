@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -119,6 +118,7 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 func snapExecEnv(info *snap.Info) []string {
 	env := snapenv.Basic(info)
 	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
+	env = append(env, "PATH=${PATH}:/usr/lib/snapd")
 	return env
 }
 
@@ -129,8 +129,8 @@ func createUserDataDirs(info *snap.Info) error {
 	}
 
 	// see snapenv.User
-	userData := filepath.Join(usr.HomeDir, info.MountDir())
-	commonUserData := filepath.Join(userData, "..", "common")
+	userData := info.UserDataDir(usr.HomeDir)
+	commonUserData := info.UserCommonDataDir(usr.HomeDir)
 	for _, d := range []string{userData, commonUserData} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return fmt.Errorf("cannot create %q: %s", d, err)

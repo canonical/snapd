@@ -58,6 +58,12 @@ type Handler interface {
 // HandlerGenerator is the function signature required to register for hooks.
 type HandlerGenerator func(*Context) Handler
 
+// SnapCtlRequest contains a request from a hook to conduct some action.
+type SnapCtlRequest struct {
+	Context string
+	Args    []string
+}
+
 // hookSetup is a reference to a hook within a specific snap.
 type hookSetup struct {
 	Snap     string        `json:"snap"`
@@ -111,6 +117,12 @@ func (m *HookManager) Wait() {
 // Stop implements StateManager.Stop.
 func (m *HookManager) Stop() {
 	m.runner.Stop()
+}
+
+// SnapCtl is used to conduct the action required by the snapctl request.
+func (m *HookManager) SnapCtl(request SnapCtlRequest) (stdout, stderr []byte, err error) {
+	// TODO: Make this do something useful
+	return nil, nil, nil
 }
 
 // doRunHook actually runs the hook that was requested.
@@ -167,7 +179,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+	command := exec.Command("snap", "run", "--hook", hookName, "-r", revision.String(), snapName)
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.
