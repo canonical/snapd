@@ -193,17 +193,17 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	return d
 }
 
-func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
-	return s.mkInstalledInState(c, nil, name, developer, version, revno, active, extraYaml)
+func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+	return s.mkInstalledInState(c, nil, name, developer, version, revision, active, extraYaml)
 }
 
-func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
+func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:    "funky-snap-id",
 		RealName:  name,
 		Developer: developer,
-		Revision:  revno,
+		Revision:  revision,
 		Channel:   "stable",
 	}
 
@@ -1720,11 +1720,11 @@ func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode, snap.R(0))
 }
-func (s *apiSuite) TestInstallRevno(c *check.C) {
+func (s *apiSuite) TestInstallRevision(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0), snap.R(42))
 }
 
-func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags, revno snap.Revision) {
+func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags, revision snap.Revision) {
 	calledFlags := snapstate.Flags(42)
 	installQueue := []string{}
 	restore := release.MockReleaseInfo(releaseInfo)
@@ -1734,7 +1734,7 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revno snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		installQueue = append(installQueue, name)
 		c.Check(revision, check.Equals, revno)
@@ -1749,10 +1749,10 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 	defer d.overlord.Stop()
 
 	var buf bytes.Buffer
-	if revno.Unset() {
+	if revision.Unset() {
 		buf.WriteString(`{"action": "install"}`)
 	} else {
-		fmt.Fprintf(&buf, `{"action": "install", "revision": %s}`, revno.String())
+		fmt.Fprintf(&buf, `{"action": "install", "revision": %s}`, revision.String())
 	}
 	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
 	c.Assert(err, check.IsNil)

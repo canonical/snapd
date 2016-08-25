@@ -639,7 +639,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		{
 			op:    "validate-snap:Doing",
 			name:  "some-snap",
-			revno: snap.R(11),
+			revno: snap.R(42),
 		},
 		{
 			op:  "current",

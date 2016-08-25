@@ -505,7 +505,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNonDefaults(c *C) {
 	c.Assert(repo, NotNil)
 
 	// the actual test
-	result, err := repo.Snap("hello-world", "edge", true, nil)
+	result, err := repo.Snap("hello-world", "edge", true, snap.R(0), nil)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 }
@@ -557,7 +557,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	c.Assert(err, IsNil)
 	cfg := DefaultConfig()
 	cfg.DetailsURI = detailsURI
-	repo := New(cfg, "foo", nil)
+	repo := New(cfg, nil)
 	c.Assert(repo, NotNil)
 
 	// the actual test
