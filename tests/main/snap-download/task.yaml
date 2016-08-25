@@ -10,6 +10,6 @@ execute: |
     snap download --edge test-snapd-tools
     ls test-snapd-tools_*.snap
 
-    echo "Snap download understands --devmode"
-    snap download --devmode --beta classic
+    echo "Snap download downloads devmode snaps"
+    snap download --beta classic
     ls classic_*.snap

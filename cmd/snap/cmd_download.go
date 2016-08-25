@@ -34,7 +34,6 @@ import (
 
 type cmdDownload struct {
 	channelMixin
-	modeMixin
 
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>" description:"snap name"`
@@ -56,9 +55,6 @@ func (x *cmdDownload) Execute(args []string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
 	}
-	if err := x.validateMode(); err != nil {
-		return err
-	}
 
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -71,7 +67,9 @@ func (x *cmdDownload) Execute(args []string) error {
 	var user *auth.UserState
 
 	sto := store.New(nil, "", authContext)
-	snap, err := sto.Snap(snapName, x.Channel, x.DevMode, user)
+	// we always allow devmode
+	devMode := true
+	snap, err := sto.Snap(snapName, x.Channel, devMode, user)
 	if err != nil {
 		return err
 	}
