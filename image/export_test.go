@@ -20,12 +20,7 @@
 package image
 
 var (
+	DecodeModelAssertion = decodeModelAssertion
 	DownloadUnpackGadget = downloadUnpackGadget
 	BootstrapToRootDir   = bootstrapToRootDir
 )
-
-func MockStoreNew(f func(storeID string) Store) (restorer func()) {
-	old := storeNew
-	storeNew = f
-	return func() { storeNew = old }
-}

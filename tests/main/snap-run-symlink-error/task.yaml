@@ -1,13 +1,7 @@
 summary: Check error handling in symlinks to /usr/bin/snap
 restore: |
-    echo Resetting snapd state...
-    systemctl stop snapd || true
-    umount /var/lib/snapd/snaps/*.snap 2>&1 || true
-    rm -rf /snap/*
-    rm -rf /var/lib/snapd/*
-    rm -f /etc/systemd/system/snap-*.{mount,service}
-    rm -f /etc/systemd/system/multi-user.target.wants/snap-*.mount
-    systemctl start snapd
+    rm -f /snap/bin/xxx
+    rmdir /snap/bin
 execute: |
     echo Setting up incorrect symlink for snap run
     mkdir -p /snap/bin
