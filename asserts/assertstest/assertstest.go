@@ -140,7 +140,14 @@ x2O3wmjxoaX/2FmyuU5WhcVkcpRFgceyf1/86NP9gT5MKbWtJC85YYpxibnvPdGd
 
 // GPGImportKey imports the given PGP armored key into the GnuPG setup at homedir. It panics on error.
 func GPGImportKey(homedir, armoredKey string) {
-	gpg := exec.Command("gpg", "--homedir", homedir, "-q", "--batch", "--import", "--armor")
+	path, err := exec.LookPath("gpg1")
+	if err != nil {
+		path, err = exec.LookPath("gpg")
+	}
+	if err != nil {
+		panic(err)
+	}
+	gpg := exec.Command(path, "--homedir", homedir, "-q", "--batch", "--import", "--armor")
 	gpg.Stdin = bytes.NewBufferString(armoredKey)
 	out, err := gpg.CombinedOutput()
 	if err != nil {
