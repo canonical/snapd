@@ -12,10 +12,7 @@ details: |
 environment:
     SNAP_NAME: test-snapd-tools
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
-    CONFIG_DIR: /etc/systemd/system/snapd.service.d
-    STORE_CONFIG: $CONFIG_DIR/fakestore.conf
     BLOB_DIR: $(pwd)/fake-store-blobdir
-    STORE_ADDR: localhost:11028
     STORE_TYPE/fake: fake
     STORE_TYPE/staging: staging
     STORE_TYPE/production: production
@@ -31,7 +28,7 @@ prepare: |
 
     if [ "$STORE_TYPE" = "fake" ]; then
         echo "And a new version of that snap put in the controlled store"
-        fakestore -blobdir $BLOB_DIR -make-refreshable test-snapd-tools
+        fakestore -dir $BLOB_DIR -make-refreshable test-snapd-tools
     fi
 
 restore: |

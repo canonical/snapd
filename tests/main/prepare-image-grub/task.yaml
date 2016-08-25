@@ -1,32 +1,28 @@
 summary: Check that prepare-image works for grub-systems
+systems: [-ubuntu-core-16-64]
+# TODO: use the real stores with proper assertions fully as well once possible
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
     GADGET: /tmp/root/gadget
-restore:
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    STORE_ADDR: localhost:11028
+prepare: |
+    . $TESTSLIB/store.sh
+    setup_store fake $STORE_DIR
+restore: |
+    . $TESTSLIB/store.sh
+    teardown_store fake $STORE_DIR
     rm -rf $ROOT
 execute: |
-    echo Creating model assertion
-    cat > model.assertion <<EOF
-    type: model
-    series: 16
-    authority-id: my-brand
-    brand-id: my-brand
-    model: my-model
-    class: my-class
-    architecture: amd64
-    store: canonical
-    gadget: pc
-    kernel: pc-kernel
-    core: ubuntu-core
-    timestamp: 2016-01-02T10:00:00-05:00
-    sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-
-    AXNpZw==
-    EOF
+    echo Expose the needed assertions through the fakestore
+    cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
+    cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
+    # have snap use the fakestore for assertions
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
 
     echo Running prepare-image
-    snap prepare-image --channel edge --extra-snaps snapweb model.assertion $ROOT
+    snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT
 
     echo Verifying the result
     ls -lR $IMAGE
@@ -35,6 +31,10 @@ execute: |
     done
     grep snap_core=ubuntu-core $IMAGE/boot/grub/grubenv
     grep snap_kernel=pc-kernel $IMAGE/boot/grub/grubenv
+
+    # check copied assertions
+    cmp $TESTSLIB/assertions/developer1-pc.model $IMAGE/var/lib/snapd/seed/assertions/model
+    cmp $TESTSLIB/assertions/developer1.account $IMAGE/var/lib/snapd/seed/assertions/developer1.account
 
     echo Verify the unpacked gadget
     ls -lR $GADGET

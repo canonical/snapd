@@ -1,5 +1,7 @@
 summary: Check that postrm purge works
 
+systems: [-ubuntu-core-16-64]
+
 execute: |
     echo "When some snaps are installed"
     snap install test-snapd-tools

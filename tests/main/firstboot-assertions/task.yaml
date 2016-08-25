@@ -1,0 +1,28 @@
+summary: Check that firstboot assertions are imported
+systems: [-ubuntu-core-16-64]
+environment:
+    SEED_DIR: /var/lib/snapd/seed
+prepare: |
+    systemctl stop snapd.service
+    rm -f /var/lib/snapd/firstboot/stamp
+    rm -f /var/lib/snapd/state.json
+    mkdir -p $SEED_DIR/assertions
+    touch $SEED_DIR/seed.yaml
+restore: |
+    systemctl start snapd.service
+execute: |
+    echo Copy the needed assertions to /var/lib/snapd/
+    cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
+    cp $TESTSLIB/assertions/developer1.account-key $SEED_DIR/assertions
+    cp $TESTSLIB/assertions/developer1-pc.model $SEED_DIR/assertions
+    cp $TESTSLIB/assertions/testrootorg-store.account-key $SEED_DIR/assertions
+
+    echo Running firstboot
+    snap firstboot
+
+    echo Verifying the result
+    output=$(find /var/lib/snapd/assertions/ -type f|wc -l)
+    if [ "$output" -lt "4" ]; then
+        echo "Expected at least 4 assertions, found $output"
+        exit 1
+    fi

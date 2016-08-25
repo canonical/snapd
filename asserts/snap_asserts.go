@@ -26,6 +26,7 @@ import (
 
 	_ "golang.org/x/crypto/sha3" // expected for digests
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -109,6 +110,21 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		assertionBase: assert,
 		timestamp:     timestamp,
 	}, nil
+}
+
+// SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
+// It also returns its size.
+func SnapFileSHA3_384(snapPath string) (digest string, size uint64, err error) {
+	sha3_384Dgst, size, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
+	if err != nil {
+		return "", 0, fmt.Errorf("cannot compute snap %q digest: %v", snapPath, err)
+	}
+
+	sha3_384, err := EncodeDigest(crypto.SHA3_384, sha3_384Dgst)
+	if err != nil {
+		return "", 0, fmt.Errorf("cannot encode snap %q digest: %v", snapPath, err)
+	}
+	return sha3_384, size, nil
 }
 
 // SnapBuild holds a snap-build assertion, asserting the properties of a snap
