@@ -39,7 +39,7 @@ exclude:
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
-    [ ! -e /.spread.yaml ] || exit 0
+    [ ! -e /home/.prepare-done ] || exit 0
 
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
@@ -88,6 +88,8 @@ prepare: |
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
 
+    # stamp prepare-done
+    touch /home/.prepare-done
 suites:
     tests/main/:
         summary: Full-system tests for snapd
