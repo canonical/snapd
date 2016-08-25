@@ -4,7 +4,7 @@ execute: |
     echo "Ensure everything in writable-paths is actually writable"
     missing=""
     broken=""
-    while read -r line; do
+    cat /etc/system-image/writable-paths | while read -r line; do
         line=$(echo $line | sed -e '/\s*#.*$/d')
         if [ -z "$line" ]; then
             continue;
@@ -22,7 +22,7 @@ execute: |
             broken="$dir_or_file\n$broken"
         fi
         rm -f $dir_or_file/random-name-that-I-made-up
-    done < /etc/system-image/writable-paths
+    done
     
     if [ -n "$broken" ]; then
         echo "The following writable paths are not writable:"
