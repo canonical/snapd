@@ -29,11 +29,13 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
 type cmdDownload struct {
 	channelMixin
+	Revision string `long:"revision" description:"Download the given revision of a snap, to which you must have developer access"`
 
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>" description:"snap name"`
@@ -60,16 +62,27 @@ func (x *cmdDownload) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	var revision snap.Revision
+	if x.Revision == "" {
+		revision = snap.R(0)
+	} else {
+		var err error
+		revision, err = snap.ParseRevision(x.Revision)
+		if err != nil {
+			return err
+		}
+	}
+
 	snapName := x.Positional.Snap
 
 	// FIXME: set auth context
 	var authContext auth.AuthContext
 	var user *auth.UserState
 
-	sto := store.New(nil, "", authContext)
+	sto := store.New(nil, authContext)
 	// we always allow devmode
 	devMode := true
-	snap, err := sto.Snap(snapName, x.Channel, devMode, user)
+	snap, err := sto.Snap(snapName, x.Channel, devMode, revision, user)
 	if err != nil {
 		return err
 	}
