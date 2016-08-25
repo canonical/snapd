@@ -38,6 +38,7 @@ exclude:
     - .git
 
 prepare: |
+    # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
 
     # apt update is hanging on security.ubuntu.com with IPv6.
@@ -86,7 +87,6 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
-
 suites:
     tests/main/:
         summary: Full-system tests for snapd
