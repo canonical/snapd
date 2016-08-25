@@ -22,6 +22,7 @@ package overlord_test
 // test the various managers and their operation together through overlord
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -43,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -67,7 +69,19 @@ type mgrsSuite struct {
 	o *overlord.Overlord
 }
 
-var _ = Suite(&mgrsSuite{})
+var (
+	_ = Suite(&mgrsSuite{})
+	_ = Suite(&authContextSetupSuite{})
+)
+
+var (
+	rootPrivKey, _  = assertstest.GenerateKey(1024)
+	storePrivKey, _ = assertstest.GenerateKey(752)
+
+	brandPrivKey, _ = assertstest.GenerateKey(752)
+
+	deviceKey, _ = assertstest.GenerateKey(752)
+)
 
 func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.tempdir = c.MkDir()
@@ -87,8 +101,6 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 
-	rootPrivKey, _ := assertstest.GenerateKey(1024)
-	storePrivKey, _ := assertstest.GenerateKey(752)
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
 
@@ -355,7 +367,7 @@ apps:
 		AssertionsURI: assertionsURL,
 	}
 
-	mStore := store.New(&storeCfg, "", nil)
+	mStore := store.New(&storeCfg, nil)
 
 	st := ms.o.State()
 	st.Lock()
@@ -614,4 +626,174 @@ apps:
 		p := filepath.Join(dirs.SnapBlobDir, fn)
 		c.Assert(osutil.FileExists(p), Equals, true)
 	}
+}
+
+type authContextSetupSuite struct {
+	o  *overlord.Overlord
+	ac auth.AuthContext
+
+	storeSigning   *assertstest.StoreStack
+	restoreTrusted func()
+
+	brandSigning *assertstest.SigningDB
+	deviceKey    asserts.PrivateKey
+
+	model  *asserts.Model
+	serial *asserts.Serial
+}
+
+func (s *authContextSetupSuite) SetUpTest(c *C) {
+	tempdir := c.MkDir()
+	dirs.SetRootDir(tempdir)
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, IsNil)
+
+	captureAuthContext := func(_ *store.Config, ac auth.AuthContext) *store.Store {
+		s.ac = ac
+		return nil
+	}
+	r := overlord.MockStoreNew(captureAuthContext)
+	defer r()
+
+	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
+	s.restoreTrusted = sysdb.InjectTrusted(s.storeSigning.Trusted)
+
+	s.brandSigning = assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+
+	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":       "16",
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"class":        "my-class",
+		"architecture": "amd64",
+		"store":        "my-brand-store-id",
+		"gadget":       "pc",
+		"kernel":       "pc-kernel",
+		"core":         "core",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.model = model.(*asserts.Model)
+
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := s.brandSigning.Sign(asserts.SerialType, map[string]interface{}{
+		"authority-id":        "my-brand",
+		"brand-id":            "my-brand",
+		"model":               "my-model",
+		"serial":              "7878",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	s.serial = serial.(*asserts.Serial)
+
+	o, err := overlord.New()
+	c.Assert(err, IsNil)
+	s.o = o
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	prereqs := []asserts.Assertion{s.storeSigning.StoreAccountKey(""), brandAcct, brandAccKey}
+	for _, a := range prereqs {
+		err = assertstate.Add(st, a)
+		c.Assert(err, IsNil)
+	}
+}
+
+func (s *authContextSetupSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("")
+	s.restoreTrusted()
+}
+
+func (s *authContextSetupSuite) TestSerial(c *C) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	encSerial, err := s.ac.Serial()
+	st.Lock()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// setup serial in system state
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  s.serial.BrandID(),
+		Model:  s.serial.Model(),
+		Serial: s.serial.Serial(),
+	})
+	err = assertstate.Add(st, s.serial)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	encSerial, err = s.ac.Serial()
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
+}
+
+func (s *authContextSetupSuite) TestStoreID(c *C) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	storeID, err := s.ac.StoreID("fallback")
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "fallback")
+
+	// setup model in system state
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  s.serial.BrandID(),
+		Model:  s.serial.Model(),
+		Serial: s.serial.Serial(),
+	})
+	err = assertstate.Add(st, s.model)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	storeID, err = s.ac.StoreID("fallback")
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(storeID, Equals, "my-brand-store-id")
+}
+
+func (s *authContextSetupSuite) TestSerialProof(c *C) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	_, err := s.ac.SerialProof("NONCE")
+	st.Lock()
+	c.Check(err, Equals, state.ErrNoState)
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	auth.SetDevice(st, &auth.DeviceState{
+		KeyID: deviceKey.PublicKey().ID(),
+	})
+	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+	err = kpMgr.Put(deviceKey)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	proof, err := s.ac.SerialProof("NONCE")
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(bytes.HasPrefix(proof, []byte("type: serial-proof\n")), Equals, true)
 }
