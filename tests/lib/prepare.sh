@@ -27,8 +27,7 @@ prepare_classic() {
     fi
 }
 
-prepare_all_snap() {
-    if [ $SPREAD_REBOOT = 0 ] || [ -e /var/lib/dpkg/status ]; then
+setup_reflash_magic() {
         # install the stuff we need
         apt install -y kpartx busybox-static
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
@@ -45,7 +44,10 @@ prepare_all_snap() {
         # for spread to do the first login
         UNPACKD="/tmp/ubuntu-core-snap"
         unsquashfs -d $UNPACKD /var/lib/snapd/snaps/ubuntu-core_*.snap
-        
+
+        # FIXME: netplan workaround
+        mkdir -p $UNPACKD/etc/netplan
+
         # set root pw by concating root line from host and rest from core
         want_pw="$(grep ^root /etc/shadow)"
         echo "$want_pw" > /tmp/new-shadow
@@ -109,6 +111,7 @@ EOF
 mount -t tmpfs none /tmp
 cp /bin/busybox /tmp
 cp $IMAGE_HOME/$IMAGE /tmp
+sync
 # blow away everything
 /tmp/busybox dd if=/tmp/$IMAGE of=/dev/sda bs=4M
 # and reboot
@@ -127,9 +130,13 @@ linux /vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
 initrd /initrd.img
 }
 EOF
+}
 
-        # Reboot !
-REBOOT
+prepare_all_snap() {
+    # we are still a "classic" image, prepare the surgery
+    if [ $SPREAD_REBOOT = 0 ] || [ -e /var/lib/dpkg/status ]; then
+        setup_reflash_magic
+        REBOOT
     fi
 
     # verify after the first reboot that we are now in the all-snap world
@@ -141,11 +148,14 @@ REBOOT
         fi
     fi
 
-    # Snapshot the system
-    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-        systemctl stop snapd.socket
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
-        systemctl start snapd.socket
-    fi
+    echo "Ensure fundamental snaps are still present"
+    for name in pc pc-kernel ubuntu-core; do
+        if ! snap list | grep $name; then
+            echo "Not all fundamental snaps are available, all-snap image not valid"
+            echo "Currently installed snaps"
+            snap list
+            exit 1
+        fi
+    done
 }
 
