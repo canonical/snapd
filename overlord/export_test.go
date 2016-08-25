@@ -21,6 +21,9 @@ package overlord
 
 import (
 	"time"
+
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 )
 
 // MockEnsureInterval sets the overlord ensure interval for tests.
@@ -45,6 +48,7 @@ func MockPruneInterval(prunei, prunew, abortw time.Duration) (restore func()) {
 	}
 }
 
+// MockEnsureNext sets o.ensureNext for tests.
 func MockEnsureNext(o *Overlord, t time.Time) {
 	o.ensureNext = t
 }
@@ -52,4 +56,12 @@ func MockEnsureNext(o *Overlord, t time.Time) {
 // Engine exposes the state engine in an Overlord for tests.
 func (o *Overlord) Engine() *StateEngine {
 	return o.stateEng
+}
+
+// MockStoreNew mocks store.New as called by overlord.New.
+func MockStoreNew(new func(*store.Config, auth.AuthContext) *store.Store) (restore func()) {
+	storeNew = new
+	return func() {
+		storeNew = store.New
+	}
 }

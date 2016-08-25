@@ -37,7 +37,9 @@ import (
 
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 func TestOverlord(t *testing.T) { TestingT(t) }
@@ -67,6 +69,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.SnapManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
+	c.Check(o.DeviceManager(), NotNil)
 
 	s := o.State()
 	c.Check(s, NotNil)
@@ -77,6 +80,10 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	var patchLevel int
 	s.Get("patch-level", &patchLevel)
 	c.Check(patchLevel, Equals, 42)
+
+	// store is setup
+	sto := snapstate.Store(s)
+	c.Check(sto, FitsTypeOf, &store.Store{})
 }
 
 func (ovs *overlordSuite) TestNewWithGoodState(c *C) {
