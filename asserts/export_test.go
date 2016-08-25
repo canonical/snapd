@@ -158,3 +158,8 @@ var (
 	ParseHeaders = parseHeaders
 	AppendEntry  = appendEntry
 )
+
+// GetGenerateParameters exposes getGenerateParameters for tests.
+func (gkm *GPGKeypairManager) GetGenerateParameters(passphrase string, name string) string {
+	return gkm.getGenerateParameters(passphrase, name)
+}
