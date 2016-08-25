@@ -96,7 +96,7 @@ var udisks2ConnectedSlotAppArmor = []byte(`
 
 dbus (send)
     bus=system
-    path=/org/freedesktop/UDisks2
+    path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###PLUG_SECURITY_TAGS###),
@@ -124,7 +124,7 @@ var udisks2ConnectedPlugAppArmor = []byte(`
 
 dbus (receive)
     bus=system
-    path=/org/freedesktop/UDisks2
+    path=/org/freedesktop/UDisks2/**
     interface=org.freedesktop.DBus.Properties
     member=PropertiesChanged
     peer=(label=###SLOT_SECURITY_TAGS###),
