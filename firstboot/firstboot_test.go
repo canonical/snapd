@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestStore(t *testing.T) { TestingT(t) }
@@ -37,6 +38,8 @@ type FirstBootTestSuite struct {
 	ethdir string
 	ifup   string
 	e      error
+
+	udevadm *testutil.MockCmd
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -53,12 +56,14 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	ifup = "/bin/true"
 
 	s.e = nil
+	s.udevadm = testutil.MockCommand(c, "udevadm", "")
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	globs = s.globs
 	ethdir = s.ethdir
 	ifup = s.ifup
+	s.udevadm.Restore()
 }
 
 func (s *FirstBootTestSuite) TestEnableFirstEther(c *C) {

@@ -25,6 +25,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"fmt"
+	"os"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -44,7 +45,7 @@ type gpgKeypairMgrSuite struct {
 var _ = Suite(&gpgKeypairMgrSuite{})
 
 func (gkms *gpgKeypairMgrSuite) SetUpSuite(c *C) {
-	if !osutil.FileExists("/usr/bin/gpg") {
+	if !osutil.FileExists("/usr/bin/gpg1") && !osutil.FileExists("/usr/bin/gpg") {
 		c.Skip("gpg not installed")
 	}
 }
@@ -55,20 +56,25 @@ func (gkms *gpgKeypairMgrSuite) importKey(key string) {
 
 func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 	gkms.homedir = c.MkDir()
-	gkms.keypairMgr = asserts.NewGPGKeypairManager(gkms.homedir)
+	os.Setenv("SNAP_GNUPG_HOME", gkms.homedir)
+	gkms.keypairMgr = asserts.NewGPGKeypairManager()
 	// import test key
 	gkms.importKey(assertstest.DevKey)
 }
 
+func (gkms *gpgKeypairMgrSuite) TearDowntest(c *C) {
+	os.Unsetenv("SNAP_GNUPG_HOME")
+}
+
 func (gkms *gpgKeypairMgrSuite) TestGetPublicKeyLooksGood(c *C) {
-	got, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
+	got, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 	keyID := got.PublicKey().ID()
 	c.Check(keyID, Equals, assertstest.DevKeyID)
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
-	got, err := gkms.keypairMgr.Get("auth-id1", "ffffffffffffffff")
+	got, err := gkms.keypairMgr.Get("ffffffffffffffff")
 	c.Check(err, ErrorMatches, `cannot find key "ffffffffffffffff" in GPG keyring`)
 	c.Check(got, IsNil)
 }
@@ -76,7 +82,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotFound(c *C) {
 func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	store := assertstest.NewStoreStack("trusted", testPrivKey0, testPrivKey1)
 
-	devKey, err := gkms.keypairMgr.Get("dev1", assertstest.DevKeyID)
+	devKey, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Assert(err, IsNil)
 
 	devAcct := assertstest.NewAccount(store, "devel1", map[string]interface{}{
@@ -90,9 +96,8 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 	c.Assert(err, IsNil)
 
 	checkDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        store.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   store.Trusted,
 	})
 	c.Assert(err, IsNil)
 	// add store key
@@ -120,9 +125,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigning(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
-	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
+	mockGPG := func(prev asserts.GPGRunner, input []byte, args ...string) ([]byte, error) {
 		if args[1] == "--list-secret-keys" {
-			return prev(homedir, input, args...)
+			return prev(input, args...)
 		}
 		c.Assert(args[1], Equals, "--export")
 
@@ -142,7 +147,7 @@ func (gkms *gpgKeypairMgrSuite) TestGetNotUnique(c *C) {
 	restore := asserts.MockRunGPG(mockGPG)
 	defer restore()
 
-	_, err := gkms.keypairMgr.Get("auth-id1", assertstest.DevKeyID)
+	_, err := gkms.keypairMgr.Get(assertstest.DevKeyID)
 	c.Check(err, ErrorMatches, `cannot load GPG public key with fingerprint "[A-F0-9]+": cannot select exported public key, found many`)
 }
 
@@ -152,9 +157,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 
 	var breakSig func(sig *packet.Signature, cont []byte) []byte
 
-	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
+	mockGPG := func(prev asserts.GPGRunner, input []byte, args ...string) ([]byte, error) {
 		if args[1] == "--list-secret-keys" || args[1] == "--export" {
-			return prev(homedir, input, args...)
+			return prev(input, args...)
 		}
 		n := len(args)
 		c.Assert(args[n-1], Equals, "--detach-sign")
@@ -217,9 +222,9 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningBrokenSignature(c *C) {
 }
 
 func (gkms *gpgKeypairMgrSuite) TestUseInSigningFailure(c *C) {
-	mockGPG := func(prev asserts.GPGRunner, homedir string, input []byte, args ...string) ([]byte, error) {
+	mockGPG := func(prev asserts.GPGRunner, input []byte, args ...string) ([]byte, error) {
 		if args[1] == "--list-secret-keys" || args[1] == "--export" {
-			return prev(homedir, input, args...)
+			return prev(input, args...)
 		}
 		n := len(args)
 		c.Assert(args[n-1], Equals, "--detach-sign")

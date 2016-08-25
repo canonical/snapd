@@ -181,6 +181,13 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+	keyID, err := checkNotEmptyString(assert.headers, "device-key-sha3-384")
+	if err != nil {
+		return nil, err
+	}
+	if keyID != pubKey.ID() {
+		return nil, fmt.Errorf("device key does not match provided key id")
+	}
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
@@ -192,6 +199,27 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 		assertionBase: assert,
 		timestamp:     timestamp,
 		pubKey:        pubKey,
+	}, nil
+}
+
+// SerialProof holds a serial-proof assertion, which is a self-signed request to prove device owns device key.
+type SerialProof struct {
+	assertionBase
+}
+
+// Nonce returns the nonce obtained from store and to be presented when requesting a device session.
+func (sproof *SerialProof) Nonce() string {
+	return sproof.HeaderString("nonce")
+}
+
+func assembleSerialProof(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "nonce")
+	if err != nil {
+		return nil, err
+	}
+
+	return &SerialProof{
+		assertionBase: assert,
 	}, nil
 }
 

@@ -358,16 +358,25 @@ furthermore, `download-size` and `price` cannot occur in the output of `/v2/snap
 
 ### POST
 
-* Description: Install an uploaded snap to the system.
+* Description: Install, refresh, revert, remove snaps
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
 
 #### Input
 
-The snap to install must be provided as part of the body of a
-`multipart/form-data` request. The form should have one file
-named "snap".
+This endpoint accepts an `application/json` request specifying the
+kind of operation, optional flags and a list of snaps, or a
+`multipart/form-data` request with one file named "snap".
+
+#### Sample JSON input
+
+```javascript
+{
+  "action": "refresh",
+  "snaps": [...] // for refresh an empty or absent snaps field means "refresh all"
+}
+```
 
 ## /v2/snaps/[name]
 ### GET

@@ -39,6 +39,7 @@ snaps:
    channel: stable
    revision: 31
    file: foo_1.0_all.snap
+   devmode: true
 `)
 
 func (s *seedYamlTestSuite) TestSimple(c *C) {
@@ -55,6 +56,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 		SnapID:   "snapidsnapidsnapid",
 		Channel:  "stable",
 		Revision: snap.R(31),
+		DevMode:  true,
 	})
 }
 

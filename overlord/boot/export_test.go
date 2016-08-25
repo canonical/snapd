@@ -20,6 +20,7 @@
 package boot
 
 var (
-	PopulateStateFromInstalled = populateStateFromInstalled
-	NameAndRevnoFromSnap       = nameAndRevnoFromSnap
+	PopulateStateFromSeed    = populateStateFromSeed
+	NameAndRevnoFromSnap     = nameAndRevnoFromSnap
+	ImportAssertionsFromSeed = importAssertionsFromSeed
 )

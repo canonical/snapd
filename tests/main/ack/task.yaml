@@ -1,8 +1,17 @@
 summary: Check snap ack
+environment:
+    ASSERTD: /var/lib/snapd/assertions/asserts-v0/
+prepare: |
+    # the fakestore may already have added these assertions, so the test
+    # below would fail with an "already exists error". to fix that we
+    # ensure the two keys we care about are removed.
+    systemctl stop snapd.socket snapd.service
+    rm -rf $ASSERTD/account-key/XCIC_Wvj9_hiAt0b10sDon74oGr3a6xGODkMZqrj63ZzNYUD5N87-ojjPoeN7f1Y/
+    rm -rf $ASSERTD/account/developer1
+    systemctl start snapd.socket snapd.service
 execute: |
     echo "Ack when missing matching key fails"
-    snap ack developer1.account || EXPECTED_FAILED="error"
-    [ "$EXPECTED_FAILED" = "error" ]
+    ! snap ack developer1.account
 
     echo "Ack the test store key"
     snap ack testrootorg-store.account-key

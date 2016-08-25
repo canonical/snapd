@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
@@ -182,8 +185,8 @@ plugs:
 	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
 	c.Assert(err, IsNil)
 
-	expected := `/snap/content-slot-snap/unset/shared/read /snap/content-slot-snap/unset/import none bind,ro 0 0
-/snap/content-slot-snap/unset/shared/write /snap/content-slot-snap/unset/import none bind 0 0
-`
+	expected := fmt.Sprintf(`%[1]s/content-slot-snap/unset/shared/read %[1]s/content-slot-snap/unset/import none bind,ro 0 0
+%[1]s/content-slot-snap/unset/shared/write %[1]s/content-slot-snap/unset/import none bind 0 0
+`, dirs.SnapMountDir)
 	c.Assert(string(content), DeepEquals, expected)
 }
