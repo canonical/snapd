@@ -91,7 +91,7 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdNotFromCanonical(c *C) {
 		Name:      "lxd-support",
 		Interface: "lxd-support",
 	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(developer name 'foo' != 'canonical'\\)")
+	c.Assert(err, ErrorMatches, "lxd-support interface is reserved for the upstream LXD project")
 }
 
 func (s *LxdSupportInterfaceSuite) TestSanitizePlugNotLxdNotFromCanonical(c *C) {
@@ -115,7 +115,7 @@ func (s *LxdSupportInterfaceSuite) TestSanitizePlugLxdSideload(c *C) {
 		Name:      "lxd-support",
 		Interface: "lxd-support",
 	}})
-	c.Assert(err, ErrorMatches, "lxd-support plug reserved \\(developer name '' != 'canonical'\\)")
+	c.Assert(err, ErrorMatches, "lxd-support interface is reserved for the upstream LXD project")
 }
 
 func (s *LxdSupportInterfaceSuite) TestUnusedSecuritySystems(c *C) {
