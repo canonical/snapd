@@ -223,7 +223,7 @@ func (cs *clientSuite) TestPublicClientIntegration(c *check.C) {
 	srv.Start()
 	defer srv.Close()
 
-	cli := client.New(nil)
+	cli := client.New(&client.Config{InSnap: true})
 	options := client.SnapCtlOptions{
 		Context: "foo",
 		Args:    []string{"bar", "--baz"},
