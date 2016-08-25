@@ -7,23 +7,23 @@ execute: |
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot 
         echo "Ensure we are with the right sideloaded core"
         snap list |grep "ubuntu-core.*$(cat firstBoot)"
-        grep 'snap_core=ubuntu-core_$(cat firstBoot).snap' /proc/cmdline
+        grep "snap_core=ubuntu-core_$(cat firstBoot).snap" /proc/cmdline
 
         echo "Install a new ubuntu-core"
         snap install /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot 
         echo "Ensure we have next installed now"
         snap list |grep "ubuntu-core.*$(nextBoot)"
-        if ! cmp firstBoot nextBoot; then
+        if cmp firstBoot nextBoot; then
             echo "Current and next boot version are identical"
-            cat firsBoot
+            cat firstBoot
             cat nextBoot
             exit 1
         fi
 
         echo "Ensure the bootloader is correct before reboot"
-        grub-editenv list | grep 'snap_core=ubuntu-core_$(cat firstBoot).snap'
-        grub-editenv list | grep 'snap_try_core=ubuntu-core_$(cat nextBoot).snap'
+        grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+        grub-editenv list | grep "snap_try_core=ubuntu-core_$(cat nextBoot).snap"
         grub-editenv list | grep 'snap_mode=try'
 
         REBOOT
@@ -42,9 +42,9 @@ execute: |
         cat /proc/cmdline
 
         echo "Ensure we booted from the newly installed core snap"
-        grep 'snap_core=ubuntu-core_$(cat nextBoot).snap' /proc/cmdline
+        grep "snap_core=ubuntu-core_$(cat nextBoot).snap" /proc/cmdline
         echo "Ensure the bootloader is correct after reboot"
-        grub-editenv list | grep 'snap_core=ubuntu-core_$(cat nextBoot).snap'
+        grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
         grub-editenv list | grep '^snap_try_core=$'
         grub-editenv list | grep '^snap_mode=$'
 
