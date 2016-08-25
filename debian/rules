@@ -21,6 +21,8 @@ endif
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
 
 override_dh_auto_build:
+	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
+	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	dh_auto_build -- $(TAGS)
 
 override_dh_auto_test:
