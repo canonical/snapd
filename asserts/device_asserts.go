@@ -111,7 +111,7 @@ func assembleModel(assert assertionBase) (Assertion, error) {
 	}
 
 	// store is optional but must be a string, defaults to the ubuntu store
-	_, err = checkShouldBeString(assert.headers, "store")
+	_, err = checkOptionalString(assert.headers, "store")
 	if err != nil {
 		return nil, err
 	}

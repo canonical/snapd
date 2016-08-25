@@ -125,7 +125,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
 		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
-		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header should be a string`},
+		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},

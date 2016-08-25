@@ -53,6 +53,18 @@ func checkNotEmptyString(headers map[string]interface{}, name string) (string, e
 	return s, nil
 }
 
+func checkOptionalString(headers map[string]interface{}, name string) (string, error) {
+	value, ok := headers[name]
+	if !ok {
+		return "", nil
+	}
+	s, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%q header must be a string", name)
+	}
+	return s, nil
+}
+
 func checkPrimaryKey(headers map[string]interface{}, primKey string) (string, error) {
 	value, err := checkNotEmptyString(headers, primKey)
 	if err != nil {
@@ -165,18 +177,6 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 	}
 
 	return b, nil
-}
-
-func checkShouldBeString(headers map[string]interface{}, name string) (string, error) {
-	value, ok := headers[name]
-	if !ok {
-		return "", nil
-	}
-	s, ok := value.(string)
-	if !ok {
-		return "", fmt.Errorf("%q header should be a string", name)
-	}
-	return s, nil
 }
 
 func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
