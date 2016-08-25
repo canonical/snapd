@@ -8,7 +8,6 @@ execute: |
             continue;
         fi
         # a writable-path may be either a file or a directory
-        # 
         dir_or_file=$(echo $line|cut -f1 -d' ')
         if [ ! -e "$dir_or_file" ]; then
             echo "$dir_or_file" >> missing

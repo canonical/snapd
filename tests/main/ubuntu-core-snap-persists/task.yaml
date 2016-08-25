@@ -1,8 +1,0 @@
-summary: Ensure a snap is still there after reboot
-systems: [ubuntu-core-16-64]
-execute: |
-    if [ "$SPREAD_REBOOT" = "0" ]; then
-        snap install test-snapd-tools
-        REBOOT
-    fi
-    snap list|grep test-snapd-tools
