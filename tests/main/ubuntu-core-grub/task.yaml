@@ -5,7 +5,7 @@ environment:
     NAME/kernelimg: kernel.img*
     NAME/vmlinuz: vmlinuz*
 execute: |
-    output=$(find /boot -name "$NAME" )
+    output=$(find /boot/grub -name "$NAME" )
     if [ -n "$output" ]; then
         echo "found unexpected file $NAME: $output"
         exit 1
