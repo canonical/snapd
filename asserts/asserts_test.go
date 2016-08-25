@@ -163,6 +163,7 @@ func (as *assertsSuite) TestDecodeHeaderParsingErrors(c *C) {
 		{"foo: a\nbar:>\n\n", `header entry should have a space or newline \(for multiline\) before value: "bar:>"`},
 		{"foo: a\nbar:\n\n", `expected 4 chars nesting prefix after multiline introduction "bar:": EOF`},
 		{"foo: a\nbar:\nbaz: x\n\n", `expected 4 chars nesting prefix after multiline introduction "bar:": "baz: x"`},
+		{"foo: a:\nbar: b\nfoo: x\n\n", `repeated header: "foo"`},
 	}
 
 	for _, test := range headerParsingErrorsTests {
@@ -202,6 +203,7 @@ func (as *assertsSuite) TestDecodeInvalid(c *C) {
 		{"primary-key: abc\n", "", `assertion test-only: "primary-key" header is mandatory`},
 		{"primary-key: abc\n", "primary-key:\n  - abc\n", `assertion test-only: "primary-key" header must be a string`},
 		{"primary-key: abc\n", "primary-key: a/c\n", `assertion test-only: "primary-key" primary key header cannot contain '/'`},
+		{"abcde", "ab\xffde", "body is not utf8"},
 	}
 
 	for _, test := range invalidAssertTests {
@@ -496,6 +498,15 @@ func (as *assertsSuite) TestSignFormatSanitySupportMultilineHeaderValues(c *C) {
 
 		c.Check(decoded.Header("multiline"), Equals, multilineVal)
 	}
+}
+
+func (as *assertsSuite) TestSignBodyIsUTF8Text(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "auth-id1",
+		"primary-key":  "0",
+	}
+	_, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, []byte{'\xff'}, testPrivKey1)
+	c.Assert(err, ErrorMatches, "assertion body is not utf8")
 }
 
 func (as *assertsSuite) TestHeaders(c *C) {
