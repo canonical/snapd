@@ -135,6 +135,15 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, false)
 	c.Check(cmd.canAccess(del, nil), check.Equals, false)
+
+	// Since this request has no RemoteAddr, it must be coming from the snap
+	// socket instead of the snapd one. In that case, if SnapOK is true, this
+	// command should be wide open for all HTTP methods.
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, true)
+	c.Check(cmd.canAccess(del, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
@@ -151,6 +160,13 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+
+	// Since this request has a RemoteAddr, it must be coming from the snapd
+	// socket instead of the snap one. In that case, SnapOK should have no
+	// bearing on the default behavior, which is to deny access.
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, false)
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
@@ -169,18 +185,22 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
 	d := newTestDaemon(c)
 
-	expected := make([]string, len(privateAPI))
-	for i, v := range privateAPI {
+	expected := make([]string, len(api))
+	for i, v := range api {
 		expected[i] = v.Path
 	}
 
-	got := make([]string, 0, len(privateAPI))
-	c.Assert(d.privateRouter.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
+	got := make([]string, 0, len(api))
+	c.Assert(d.router.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 		got = append(got, route.GetName())
 		return nil
 	}), check.IsNil)
@@ -208,10 +228,10 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	privateAccept := make(chan struct{})
-	d.privateListener = &witnessAcceptListener{l, privateAccept}
+	d.snapdListener = &witnessAcceptListener{l, privateAccept}
 
 	publicAccept := make(chan struct{})
-	d.publicListener = &witnessAcceptListener{l, publicAccept}
+	d.snapListener = &witnessAcceptListener{l, publicAccept}
 
 	d.Start()
 
@@ -248,10 +268,10 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	privateAccept := make(chan struct{})
-	d.privateListener = &witnessAcceptListener{l, privateAccept}
+	d.snapdListener = &witnessAcceptListener{l, privateAccept}
 
 	publicAccept := make(chan struct{})
-	d.publicListener = &witnessAcceptListener{l, publicAccept}
+	d.snapListener = &witnessAcceptListener{l, publicAccept}
 
 	d.Start()
 	defer d.Stop()

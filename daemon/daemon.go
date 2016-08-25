@@ -38,14 +38,13 @@ import (
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	Version         string
-	overlord        *overlord.Overlord
-	privateListener net.Listener
-	publicListener  net.Listener
-	tomb            tomb.Tomb
-	privateRouter   *mux.Router
-	publicRouter    *mux.Router
-	hub             *notifications.Hub
+	Version       string
+	overlord      *overlord.Overlord
+	snapdListener net.Listener
+	snapListener  net.Listener
+	tomb          tomb.Tomb
+	router        *mux.Router
+	hub           *notifications.Hub
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -65,7 +64,9 @@ type Command struct {
 	GuestOK bool
 	// can non-admin GET?
 	UserOK bool
-	//
+	// is this path accessible on the snap socket?
+	SnapOK bool
+
 	d *Daemon
 }
 
@@ -83,6 +84,8 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		}
 
 		isUser = true
+	} else if c.SnapOK {
+		return true
 	}
 
 	if r.Method != "GET" {
@@ -181,8 +184,12 @@ func (d *Daemon) Init() error {
 	// .socket file. This needs to be kept in sync with debian/snapd.socket.
 	// Currently the first socket is snapd.socket, and the second is
 	// snap.socket.
-	d.privateListener = &ucrednetListener{listeners[0]}
-	d.publicListener = &ucrednetListener{listeners[1]}
+	d.snapdListener = &ucrednetListener{listeners[0]}
+
+	// Note that this listener does not use ucrednet, because we use the lack
+	// of remote information as an indication that the request originated
+	// with this socket.
+	d.snapListener = listeners[1]
 
 	d.addRoutes()
 
@@ -192,26 +199,17 @@ func (d *Daemon) Init() error {
 }
 
 func (d *Daemon) addRoutes() {
-	d.privateRouter = mux.NewRouter()
+	d.router = mux.NewRouter()
 
-	for _, c := range privateAPI {
+	for _, c := range api {
 		c.d = d
-		logger.Debugf("adding %s to private API", c.Path)
-		d.privateRouter.Handle(c.Path, c).Name(c.Path)
-	}
-
-	d.publicRouter = mux.NewRouter()
-
-	for _, c := range publicAPI {
-		c.d = d
-		logger.Debugf("adding %s to public API", c.Path)
-		d.publicRouter.Handle(c.Path, c).Name(c.Path)
+		logger.Debugf("adding %s", c.Path)
+		d.router.Handle(c.Path, c).Name(c.Path)
 	}
 
 	// also maybe add a /favicon.ico handler...
 
-	d.privateRouter.NotFoundHandler = NotFound("not found")
-	d.publicRouter.NotFoundHandler = NotFound("not found")
+	d.router.NotFoundHandler = NotFound("not found")
 }
 
 // Start the Daemon
@@ -226,14 +224,14 @@ func (d *Daemon) Start() {
 
 	d.tomb.Go(func() error {
 		d.tomb.Go(func() error {
-			if err := http.Serve(d.publicListener, logit(d.publicRouter)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+			if err := http.Serve(d.snapListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 				return err
 			}
 
 			return nil
 		})
 
-		if err := http.Serve(d.privateListener, logit(d.privateRouter)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+		if err := http.Serve(d.snapdListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -244,8 +242,8 @@ func (d *Daemon) Start() {
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
-	d.privateListener.Close()
-	d.publicListener.Close()
+	d.snapdListener.Close()
+	d.snapListener.Close()
 	d.overlord.Stop()
 
 	return d.tomb.Wait()
