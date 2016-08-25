@@ -227,36 +227,36 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
-	privateAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{l, privateAccept}
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
 
-	publicAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{l, publicAccept}
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{l, snapAccept}
 
 	d.Start()
 
-	privateDone := make(chan struct{})
+	snapdDone := make(chan struct{})
 	go func() {
 		select {
-		case <-privateAccept:
+		case <-snapdAccept:
 		case <-time.After(2 * time.Second):
-			c.Fatal("Private accept was not called")
+			c.Fatal("snapd accept was not called")
 		}
-		close(privateDone)
+		close(snapdDone)
 	}()
 
-	publicDone := make(chan struct{})
+	snapDone := make(chan struct{})
 	go func() {
 		select {
-		case <-publicAccept:
+		case <-snapAccept:
 		case <-time.After(2 * time.Second):
-			c.Fatal("Public accept was not called")
+			c.Fatal("snapd accept was not called")
 		}
-		close(publicDone)
+		close(snapDone)
 	}()
 
-	<-privateDone
-	<-publicDone
+	<-snapdDone
+	<-snapDone
 
 	err = d.Stop()
 	c.Check(err, check.IsNil)
@@ -267,37 +267,37 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
-	privateAccept := make(chan struct{})
-	d.snapdListener = &witnessAcceptListener{l, privateAccept}
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
 
-	publicAccept := make(chan struct{})
-	d.snapListener = &witnessAcceptListener{l, publicAccept}
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{l, snapAccept}
 
 	d.Start()
 	defer d.Stop()
 
-	privateDone := make(chan struct{})
+	snapdDone := make(chan struct{})
 	go func() {
 		select {
-		case <-privateAccept:
+		case <-snapdAccept:
 		case <-time.After(2 * time.Second):
-			c.Fatal("Private accept was not called")
+			c.Fatal("snapd accept was not called")
 		}
-		close(privateDone)
+		close(snapdDone)
 	}()
 
-	publicDone := make(chan struct{})
+	snapDone := make(chan struct{})
 	go func() {
 		select {
-		case <-publicAccept:
+		case <-snapAccept:
 		case <-time.After(2 * time.Second):
-			c.Fatal("Public accept was not called")
+			c.Fatal("snap accept was not called")
 		}
-		close(publicDone)
+		close(snapDone)
 	}()
 
-	<-privateDone
-	<-publicDone
+	<-snapdDone
+	<-snapDone
 
 	d.overlord.State().RequestRestart()
 
