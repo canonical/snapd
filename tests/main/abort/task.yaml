@@ -1,5 +1,7 @@
 summary: Check change abort
 
+systems: [-ubuntu-core-16-64]
+
 environment:
     SNAP_NAME: test-snapd-tools
 

@@ -200,7 +200,8 @@ func RSAPublicKey(pubKey *rsa.PublicKey) PublicKey {
 	return newOpenPGPPubKey(intPubKey)
 }
 
-func decodePublicKey(pubKey []byte) (PublicKey, error) {
+// DecodePublicKey deserializes a public key.
+func DecodePublicKey(pubKey []byte) (PublicKey, error) {
 	pkt, err := decodeV1(pubKey, "public key")
 	if err != nil {
 		return nil, err

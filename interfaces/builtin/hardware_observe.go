@@ -39,6 +39,9 @@ capability sys_rawio,
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
 
+# Needed for udevadm
+/run/udev/data/** r,
+
 # util-linux
 /{,usr/}bin/lscpu ixr,
 @{PROC}/bus/pci/devices r,
