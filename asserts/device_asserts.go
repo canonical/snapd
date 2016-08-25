@@ -105,7 +105,7 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Model)(nil)
 
-func checkBrandAndAuthority(a Assertion) error {
+func checkAuthorityMatchesBrand(a Assertion) error {
 	typeName := a.Type().Name
 	authorityID := a.AuthorityID()
 	brand := a.HeaderString("brand-id")
@@ -118,7 +118,7 @@ func checkBrandAndAuthority(a Assertion) error {
 var modelMandatory = []string{"core", "architecture", "gadget", "kernel", "store", "class"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
-	err := checkBrandAndAuthority(&assert)
+	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
 	}
@@ -182,7 +182,7 @@ func (ser *Serial) Timestamp() time.Time {
 // TODO: implement further consistency checks for Serial but first review approach
 
 func assembleSerial(assert assertionBase) (Assertion, error) {
-	err := checkBrandAndAuthority(&assert)
+	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
 	}
