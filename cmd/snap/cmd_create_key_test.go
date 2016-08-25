@@ -17,10 +17,18 @@
  *
  */
 
-package boot
+package main_test
 
-var (
-	PopulateStateFromSeed    = populateStateFromSeed
-	NameAndRevnoFromSnap     = nameAndRevnoFromSnap
-	ImportAssertionsFromSeed = importAssertionsFromSeed
+import (
+	. "gopkg.in/check.v1"
+
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
+
+func (s *SnapSuite) TestCreateKeyInvalidCharacters(c *C) {
+	_, err := snap.Parser().ParseArgs([]string{"create-key", "a b"})
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "key name \"a b\" is not valid; only ASCII letters, digits, and hyphens are allowed")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}

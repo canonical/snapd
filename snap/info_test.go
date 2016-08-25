@@ -469,9 +469,9 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
 	info := &snap.Info{SuggestedName: "name", SideInfo: snap.SideInfo{Revision: snap.R(1)}}
-	c.Check(info.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapSnapsDir))
+	c.Check(info.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
 	c.Check(info.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
-	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapSnapsDir))
+	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(info.DataDir(), Equals, "/var/snap/name/1")
 	c.Check(info.UserDataDir("/home/bob"), Equals, "/home/bob/snap/name/1")
 	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")

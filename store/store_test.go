@@ -138,7 +138,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, "", nil)
 	t.origDownloadFunc = download
 	dirs.SetRootDir(c.MkDir())
-	c.Assert(os.MkdirAll(dirs.SnapSnapsDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
 	t.logbuf = bytes.NewBuffer(nil)
 	l, err := logger.NewConsoleLog(t.logbuf, logger.DefaultFlags)

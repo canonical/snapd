@@ -145,11 +145,5 @@ prepare_all_snap() {
         fi
     fi
 
-    # Snapshot the system
-    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-        systemctl stop snapd.socket
-        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
-        systemctl start snapd.socket
-    fi
 }
 

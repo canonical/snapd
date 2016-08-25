@@ -52,7 +52,7 @@ var ifup = "/sbin/ifup"
 
 func EnableFirstEther() error {
 	// ensure that udev is ready and we have the net stuff
-	if output, err := exec.Command("/sbin/udevadm", "settle").CombinedOutput(); err != nil {
+	if output, err := exec.Command("udevadm", "settle").CombinedOutput(); err != nil {
 		return osutil.OutputErr(output, err)
 	}
 
