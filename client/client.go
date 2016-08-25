@@ -35,17 +35,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 )
 
-func unixDialer(_, _ string) (net.Conn, error) {
-	// We have two sockets available: the SnapdSocket (which provides
-	// administrative access), and the SnapSocket (which doesn't). Use the most
-	// powerful one available (e.g. from within snaps, SnapdSocket is hidden by
-	// apparmor unless the snap has the snapd-control interface).
-	socketPath := dirs.SnapdSocket
-	if _, err := os.Stat(socketPath); err != nil {
-		socketPath = dirs.SnapSocket
-	}
-
-	return net.Dial("unix", socketPath)
+func snapdUnixDialer(_, _ string) (net.Conn, error) {
+	return net.Dial("unix", dirs.SnapdSocket)
 }
 
 func snapUnixDialer(_, _ string) (net.Conn, error) {
@@ -61,6 +52,10 @@ type Config struct {
 	// BaseURL contains the base URL where snappy daemon is expected to be.
 	// It can be empty for a default behavior of talking over a unix socket.
 	BaseURL string
+
+	// InSnap determines whether or not this client will talk to the snapd or
+	// snapd-snap socket.
+	InSnap bool
 }
 
 // A Client knows how to talk to the snappy daemon.
@@ -73,13 +68,18 @@ type Client struct {
 func New(config *Config) *Client {
 	// By default talk over an UNIX socket.
 	if config == nil || config.BaseURL == "" {
+		dialer := snapdUnixDialer
+		if config != nil && config.InSnap {
+			dialer = snapUnixDialer
+		}
+
 		return &Client{
 			baseURL: url.URL{
 				Scheme: "http",
 				Host:   "localhost",
 			},
 			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer},
+				Transport: &http.Transport{Dial: dialer},
 			},
 		}
 	}
