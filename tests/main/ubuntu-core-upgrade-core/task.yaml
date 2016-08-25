@@ -23,9 +23,17 @@ execute: |
     fi
 
     if [ "$SPREAD_REBOOT" = 1 ]; then
+        echo "Waiting for boot-ok to finish"
+        while ! systemctl status snapd.boot-ok|grep SUCCESS; do
+            echo "Show debug info"
+            systemctl status snapd.boot-ok || true
+            sleep 1
+        done
+
         echo "Useful debug info"
         grub-editenv list
         cat /proc/cmdline
+
         echo "Ensure we booted from the newly installed core snap"
         grep 'snap_core=ubuntu-core_x2.snap' /proc/cmdline
         echo "Ensure the bootloader is correct after reboot"
