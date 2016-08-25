@@ -20,8 +20,10 @@
 package dirs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // the various file paths
@@ -72,6 +74,21 @@ func init() {
 	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
 
 	SetRootDir(root)
+}
+
+// StripRootDir strips the custom global root directory from the specified argument.
+func StripRootDir(dir string) string {
+	if !filepath.IsAbs(dir) {
+		panic(fmt.Sprintf("supplied path is not absolute %q", dir))
+	}
+	if !strings.HasPrefix(dir, GlobalRootDir) {
+		panic(fmt.Sprintf("supplied path is not related to global root %q", dir))
+	}
+	result, err := filepath.Rel(GlobalRootDir, dir)
+	if err != nil {
+		panic(err)
+	}
+	return "/" + result
 }
 
 // SetRootDir allows settings a new global root directory, this is useful
