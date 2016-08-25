@@ -105,11 +105,22 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Model)(nil)
 
+func checkBrandAndAuthority(a Assertion) error {
+	typeName := a.Type().Name
+	authorityID := a.AuthorityID()
+	brand := a.HeaderString("brand-id")
+	if brand != authorityID {
+		return fmt.Errorf("authority-id and brand-id must match, %s assertions are expected to be signed by the brand: %q != %q", typeName, authorityID, brand)
+	}
+	return nil
+}
+
 var modelMandatory = []string{"core", "architecture", "gadget", "kernel", "store", "class"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
-	if assert.headers["brand-id"] != assert.headers["authority-id"] {
-		return nil, fmt.Errorf("authority-id and brand-id must match, model assertions are expected to be signed by the brand: %q != %q", assert.headers["authority-id"], assert.headers["brand-id"])
+	err := checkBrandAndAuthority(&assert)
+	if err != nil {
+		return nil, err
 	}
 
 	for _, mandatory := range modelMandatory {
@@ -171,7 +182,10 @@ func (ser *Serial) Timestamp() time.Time {
 // TODO: implement further consistency checks for Serial but first review approach
 
 func assembleSerial(assert assertionBase) (Assertion, error) {
-	// TODO: authority-id can only == canonical or brand-id
+	err := checkBrandAndAuthority(&assert)
+	if err != nil {
+		return nil, err
+	}
 
 	encodedKey, err := checkNotEmptyString(assert.headers, "device-key")
 	if err != nil {

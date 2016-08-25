@@ -176,7 +176,7 @@ func (ss *serialSuite) SetUpSuite(c *C) {
 }
 
 const serialExample = "type: serial\n" +
-	"authority-id: canonical\n" +
+	"authority-id: brand-id1\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
 	"serial: 2700\n" +
@@ -197,7 +197,7 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SerialType)
 	serial := a.(*asserts.Serial)
-	c.Check(serial.AuthorityID(), Equals, "canonical")
+	c.Check(serial.AuthorityID(), Equals, "brand-id1")
 	c.Check(serial.Timestamp(), Equals, ss.ts)
 	c.Check(serial.BrandID(), Equals, "brand-id1")
 	c.Check(serial.Model(), Equals, "baz-3000")
@@ -217,6 +217,7 @@ func (ss *serialSuite) TestDecodeInvalid(c *C) {
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: brand-id1\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"authority-id: brand-id1\n", "authority-id: random\n", `authority-id and brand-id must match, serial assertions are expected to be signed by the brand: "random" != "brand-id1"`},
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"serial: 2700\n", "", `"serial" header is mandatory`},
