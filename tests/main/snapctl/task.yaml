@@ -69,7 +69,7 @@ execute: |
         exit 1
     fi
 
-    if ! curl -s --unix-socket /run/snap.socket http:/v2/snaps | grep status-code\":\s*401; then
+    if ! curl -s --unix-socket /run/snapd-snap.socket http:/v2/snaps | grep status-code\":\s*401; then
         echo "Expected snapd API to be unauthorized on the snap socket"
         exit 1
     fi

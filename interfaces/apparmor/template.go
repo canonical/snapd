@@ -195,7 +195,7 @@ var defaultTemplate = []byte(`
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
   @{PROC}/sys/net/core/somaxconn r,
-  /run/snap.socket rw,
+  /run/snapd-snap.socket rw,
 
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
