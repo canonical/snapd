@@ -106,8 +106,10 @@ apps:
 	c.Assert(err, IsNil)
 	info.Revision = snap.R(42)
 
-	c.Check(info.Apps["bar"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar /snap/foo/42/bar-bin -x")
-	c.Check(info.Apps["foo"].LauncherCommand(), Equals, "/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo /snap/foo/42/foo-bin")
+	c.Check(info.Apps["bar"].LauncherCommand(), Equals,
+		fmt.Sprintf("/usr/bin/ubuntu-core-launcher snap.foo.bar snap.foo.bar %s/foo/42/bar-bin -x", dirs.SnapMountDir))
+	c.Check(info.Apps["foo"].LauncherCommand(), Equals,
+		fmt.Sprintf("/usr/bin/ubuntu-core-launcher snap.foo.foo snap.foo.foo %s/foo/42/foo-bin", dirs.SnapMountDir))
 }
 
 const sampleYaml = `
@@ -469,9 +471,9 @@ func verifyExplicitHook(c *C, info *snap.Info, hookName string, plugNames []stri
 func (s *infoSuite) TestDirAndFileMethods(c *C) {
 	dirs.SetRootDir("")
 	info := &snap.Info{SuggestedName: "name", SideInfo: snap.SideInfo{Revision: snap.R(1)}}
-	c.Check(info.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapSnapsDir))
+	c.Check(info.MountDir(), Equals, fmt.Sprintf("%s/name/1", dirs.SnapMountDir))
 	c.Check(info.MountFile(), Equals, "/var/lib/snapd/snaps/name_1.snap")
-	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapSnapsDir))
+	c.Check(info.HooksDir(), Equals, fmt.Sprintf("%s/name/1/meta/hooks", dirs.SnapMountDir))
 	c.Check(info.DataDir(), Equals, "/var/snap/name/1")
 	c.Check(info.UserDataDir("/home/bob"), Equals, "/home/bob/snap/name/1")
 	c.Check(info.UserCommonDataDir("/home/bob"), Equals, "/home/bob/snap/name/common")

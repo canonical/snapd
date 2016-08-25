@@ -54,7 +54,7 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 	// XXX: ideally for consistency we should talk to the local snapd
 	// but this allows us to go working until snapd itself
 	// start being fully assertion using
-	sto := store.New(nil, "", nil)
+	sto := store.New(nil, nil)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
@@ -139,7 +139,7 @@ type info struct {
 }
 
 func copySnap(snapName, targetDir string) (*info, error) {
-	baseDir := filepath.Join(dirs.SnapSnapsDir, snapName)
+	baseDir := filepath.Join(dirs.SnapMountDir, snapName)
 	if _, err := os.Stat(baseDir); err != nil {
 		return nil, err
 	}
