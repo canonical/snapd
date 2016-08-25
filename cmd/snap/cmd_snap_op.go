@@ -271,7 +271,7 @@ func (mx modeMixin) asksForMode() bool {
 type cmdInstall struct {
 	channelMixin
 	modeMixin
-	Revision string `long:"revision" description:"Install the given revision (only for own snaps)"`
+	Revision string `long:"revision" description:"Install the given revision of a snap, to which you must have developer access"`
 
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`

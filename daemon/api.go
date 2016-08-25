@@ -575,7 +575,7 @@ func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Respons
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if shouldSearchStore(r) {
-		logger.Noticef("jumping to \"find\" to better support legacy request %q", r.URL)
+		logger.Noticef("Jumping to \"find\" to better support legacy request %q", r.URL)
 		return searchStore(c, r, user)
 	}
 
@@ -597,7 +597,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		url, err := route.URL("name", name)
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q revision %s: %v", name, rev, err)
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", name, rev, err)
 			continue
 		}
 
@@ -762,7 +762,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
-	logger.Noticef("going to install %s rev %s", inst.Snaps[0], inst.Revision)
+	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
 
 	tsets, err := withEnsureUbuntuCore(st, inst.Snaps[0], inst.userID,
 		func() (*state.TaskSet, error) {
@@ -1424,7 +1424,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 
 			var snapNames []string
 			if err := chg.Get("snap-names", &snapNames); err != nil {
-				logger.Noticef("cannot get snap-name for change %v", chg.ID())
+				logger.Noticef("Cannot get snap-name for change %v", chg.ID())
 				return false
 			}
 

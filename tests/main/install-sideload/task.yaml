@@ -60,3 +60,4 @@ execute: |
     echo "Remove --revision works"
     snap remove --revision x1 test-snapd-tools
     test-snapd-tools.success
+    test ! -d /snap/test-snapd-tools/x1
