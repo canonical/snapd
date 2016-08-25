@@ -39,7 +39,7 @@ exclude:
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
-    [ ! -e /.spread.yaml ] || exit 0
+    [ ! -e /home/.prepare-done ] || exit 0
 
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
@@ -48,7 +48,7 @@ prepare: |
     apt purge -y snapd || true
     apt update
     # utilities
-    apt install -y devscripts expect jq software-properties-common
+    apt install -y devscripts expect jq rng-tools software-properties-common
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
@@ -88,6 +88,8 @@ prepare: |
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
 
+    # stamp prepare-done
+    touch /home/.prepare-done
 suites:
     tests/main/:
         summary: Full-system tests for snapd

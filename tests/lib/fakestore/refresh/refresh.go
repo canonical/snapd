@@ -139,7 +139,7 @@ type info struct {
 }
 
 func copySnap(snapName, targetDir string) (*info, error) {
-	baseDir := filepath.Join(dirs.SnapSnapsDir, snapName)
+	baseDir := filepath.Join(dirs.SnapMountDir, snapName)
 	if _, err := os.Stat(baseDir); err != nil {
 		return nil, err
 	}
