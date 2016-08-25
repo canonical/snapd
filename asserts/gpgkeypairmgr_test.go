@@ -306,7 +306,7 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningKeyTooShort(c *C) {
 	c.Check(err, ErrorMatches, `cannot sign assertion: signing needs at least a 4096 bits key, got 2048`)
 }
 
-func (gkms *gpgKeypairMgrSuite) TestGetGenerateParameters(c *C) {
+func (gkms *gpgKeypairMgrSuite) TestParametersForGenerate(c *C) {
 	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
 	baseParameters := `
 Key-Type: RSA
@@ -325,7 +325,7 @@ Preferences: SHA512
 	}
 
 	for _, test := range tests {
-		parameters := gpgKeypairMgr.GetGenerateParameters(test.passphrase, "test-key")
+		parameters := gpgKeypairMgr.ParametersForGenerate(test.passphrase, "test-key")
 		c.Check(parameters, Equals, baseParameters+test.extraParameters)
 	}
 }
