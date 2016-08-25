@@ -3,9 +3,7 @@ summary: Check that `snap run` can actually run hooks
 systems: [-ubuntu-core-16-64]
 
 prepare: |
-    echo "Ensure we have a core snap with snap run"
-    $SPREAD_PATH/tests/lib/reset.sh
-    snap install --channel=candidate ubuntu-core
+    echo "Build test hooks package"
     snapbuild $TESTSLIB/snaps/basic-hooks .
     snap install basic-hooks_1.0_all.snap
 
