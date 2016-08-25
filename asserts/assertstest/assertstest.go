@@ -140,7 +140,14 @@ x2O3wmjxoaX/2FmyuU5WhcVkcpRFgceyf1/86NP9gT5MKbWtJC85YYpxibnvPdGd
 
 // GPGImportKey imports the given PGP armored key into the GnuPG setup at homedir. It panics on error.
 func GPGImportKey(homedir, armoredKey string) {
-	gpg := exec.Command("gpg", "--homedir", homedir, "-q", "--batch", "--import", "--armor")
+	path, err := exec.LookPath("gpg1")
+	if err != nil {
+		path, err = exec.LookPath("gpg")
+	}
+	if err != nil {
+		panic(err)
+	}
+	gpg := exec.Command(path, "--homedir", homedir, "-q", "--batch", "--import", "--armor")
 	gpg.Stdin = bytes.NewBufferString(armoredKey)
 	out, err := gpg.CombinedOutput()
 	if err != nil {
@@ -211,13 +218,11 @@ type SigningDB struct {
 
 // NewSigningDB creates a test signing assertion db with the given defaults. It panics on error.
 func NewSigningDB(authorityID string, privKey asserts.PrivateKey) *SigningDB {
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-	})
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{})
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, privKey)
+	err = db.ImportKey(privKey)
 	if err != nil {
 		panic(err)
 	}
@@ -240,7 +245,7 @@ func (db *SigningDB) PublicKey(keyID string) (asserts.PublicKey, error) {
 	if keyID == "" {
 		keyID = db.KeyID
 	}
-	return db.Database.PublicKey(db.AuthorityID, keyID)
+	return db.Database.PublicKey(keyID)
 }
 
 // StoreStack realises a store-like set of founding trusted assertions and signing setup.
@@ -272,14 +277,13 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
 	})
 	if err != nil {
 		panic(err)
 	}
-	err = db.ImportKey(authorityID, storePrivKey)
+	err = db.ImportKey(storePrivKey)
 	if err != nil {
 		panic(err)
 	}

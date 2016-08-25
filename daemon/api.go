@@ -494,7 +494,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 	}
 
 	theStore := getStore(c)
-	snapInfo, err := theStore.Snap(name, "", false, user)
+	snapInfo, err := theStore.Snap(name, "", false, snap.R(0), user)
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -576,7 +576,7 @@ func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Respons
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if shouldSearchStore(r) {
-		logger.Noticef("jumping to \"find\" to better support legacy request %q", r.URL)
+		logger.Noticef("Jumping to \"find\" to better support legacy request %q", r.URL)
 		return searchStore(c, r, user)
 	}
 
@@ -598,7 +598,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		url, err := route.URL("name", name)
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q revision %s: %v", name, rev, err)
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", name, rev, err)
 			continue
 		}
 
@@ -638,10 +638,11 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string `json:"action"`
-	Channel  string `json:"channel"`
-	DevMode  bool   `json:"devmode"`
-	JailMode bool   `json:"jailmode"`
+	Action   string        `json:"action"`
+	Channel  string        `json:"channel"`
+	Revision snap.Revision `json:"revision"`
+	DevMode  bool          `json:"devmode"`
+	JailMode bool          `json:"jailmode"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -684,7 +685,7 @@ func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.Ta
 		return nil, err
 	}
 
-	return snapstateInstall(st, ubuntuCore, "stable", userID, 0)
+	return snapstateInstall(st, ubuntuCore, "stable", snap.R(0), userID, 0)
 }
 
 func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
@@ -762,9 +763,11 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
+	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
+
 	tsets, err := withEnsureUbuntuCore(st, inst.Snaps[0], inst.userID,
 		func() (*state.TaskSet, error) {
-			return snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.userID, flags)
+			return snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 		},
 	)
 	if err != nil {
@@ -779,6 +782,7 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
@@ -798,7 +802,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Remove(st, inst.Snaps[0])
+	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision)
 	if err != nil {
 		return "", nil, err
 	}
@@ -808,6 +812,7 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	// TODO: bail if revision is given (and != current), or revert to that revision?
 	ts, err := snapstate.Revert(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
@@ -818,6 +823,7 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	// TODO: bail if revision is given (and != current?)
 	ts, err := snapstate.Enable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
@@ -828,6 +834,7 @@ func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	// TODO: bail if revision is given (and != current?)
 	ts, err := snapstate.Disable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
@@ -1133,7 +1140,7 @@ func iconGet(st *state.State, name string) Response {
 	}
 
 	path := filepath.Clean(snapIcon(info))
-	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
+	if !strings.HasPrefix(path, dirs.SnapMountDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")
 	}
@@ -1418,7 +1425,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 
 			var snapNames []string
 			if err := chg.Get("snap-names", &snapNames); err != nil {
-				logger.Noticef("cannot get snap-name for change %v", chg.ID())
+				logger.Noticef("Cannot get snap-name for change %v", chg.ID())
 				return false
 			}
 

@@ -1,5 +1,7 @@
 summary: Check that find works with private snaps.
 
+systems: [-ubuntu-core-16-64]
+
 details: |
     These tests rely on the existence of a snap in the production store set to private.
 

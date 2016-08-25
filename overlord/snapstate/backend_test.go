@@ -65,12 +65,14 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	revno := snap.R(11)
-	if channel == "channel-for-7" {
-		revno.N = 7
+	if revision.Unset() {
+		revision = snap.R(11)
+		if channel == "channel-for-7" {
+			revision.N = 7
+		}
 	}
 
 	info := &snap.Info{
@@ -78,14 +80,14 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserStat
 			RealName: strings.Split(name, ".")[0],
 			Channel:  channel,
 			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision: revno,
+			Revision: revision,
 		},
 		Version: name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revno})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revision})
 
 	return info, nil
 }

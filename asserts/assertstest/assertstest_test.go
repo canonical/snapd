@@ -86,9 +86,8 @@ func (s *helperSuite) TestStoreStack(c *C) {
 	c.Check(store.TrustedKey.AccountID(), Equals, "super")
 
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        store.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   store.Trusted,
 	})
 	c.Assert(err, IsNil)
 

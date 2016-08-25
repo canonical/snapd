@@ -65,7 +65,7 @@ func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapSnapsDir, name, revision.String())
+	return filepath.Join(dirs.SnapMountDir, name, revision.String())
 }
 
 // SecurityTag returns the snap-specific security tag.
@@ -185,6 +185,16 @@ func (s *Info) HooksDir() string {
 // DataDir returns the data directory of the snap.
 func (s *Info) DataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), s.Revision.String())
+}
+
+// UserDataDir returns the user-specific data directory of the snap.
+func (s *Info) UserDataDir(home string) string {
+	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+}
+
+// UserCommonDataDir returns the user-specific data directory common across revision of the snap.
+func (s *Info) UserCommonDataDir(home string) string {
+	return filepath.Join(home, "snap", s.Name(), "common")
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
