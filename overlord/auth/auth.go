@@ -273,10 +273,10 @@ func (ac *authContext) UpdateUser(user *UserState) error {
 // StoreID returns the store id according to system state or
 // the fallback one if the state has none set (yet).
 func (ac *authContext) StoreID(fallback string) (string, error) {
-	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
+	storeID := os.Getenv("UBUNTU_STORE_ID")
+	if storeID != "" {
 		return storeID, nil
 	}
-	var storeID string
 	if ac.deviceAsserts != nil {
 		mod, err := ac.deviceAsserts.Model()
 		if err != nil && err != state.ErrNoState {
