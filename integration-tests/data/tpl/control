@@ -1,4 +1,0 @@
-{{ $filter := .Filter }}
-{{ $test := .Test }}
-Test-Command: ./integration-tests/scripts/test-wrapper {{ $test }} {{ if $filter }}-gocheck.f {{ $filter }}{{ end }}
-Restrictions: allow-stderr

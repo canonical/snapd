@@ -133,6 +133,13 @@ And you can run the tests via:
 
     $ spread -v qemu:
 
+For quick reuse you can use:
+
+    $ spread -keep qemu:
+
+It will print how to reuse the systems. Make sure to use
+`export REUSE_PROJECT=1` in your environment too.
+
 
 ### Testing snapd on a snappy system
 
