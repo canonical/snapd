@@ -145,7 +145,7 @@ func (s *snapExecSuite) TestSnapExecAppIntegration(c *C) {
 	// launch and verify its run the right way
 	err := snapExecApp("snapname.app", "42", "stop", []string{"arg1", "arg2"})
 	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapSnapsDir))
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/stop-app", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0, "arg1", "arg2"})
 	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }
@@ -167,7 +167,7 @@ func (s *snapExecSuite) TestSnapExecHookIntegration(c *C) {
 	// launch and verify it ran correctly
 	err := snapExecHook("snapname", "42", "apply-config")
 	c.Assert(err, IsNil)
-	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/apply-config", dirs.SnapSnapsDir))
+	c.Check(execArgv0, Equals, fmt.Sprintf("%s/snapname/42/meta/hooks/apply-config", dirs.SnapMountDir))
 	c.Check(execArgs, DeepEquals, []string{execArgv0})
 }
 
@@ -215,7 +215,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 	})
 
 	canaryFile := filepath.Join(c.MkDir(), "canary.txt")
-	script := filepath.Join(dirs.GlobalRootDir, "/snap/snapname/42/run-app")
+	script := fmt.Sprintf("%s/snapname/42/run-app", dirs.SnapMountDir)
 	err := ioutil.WriteFile(script, []byte(fmt.Sprintf(binaryTemplate, canaryFile)), 0755)
 	c.Assert(err, IsNil)
 
@@ -281,4 +281,28 @@ func actuallyExec(argv0 string, argv []string, env []string) error {
 		return fmt.Errorf("Expected output length to be 0, it was %d", len(output))
 	}
 	return err
+}
+
+func (s *snapExecSuite) TestSnapExecShellIntegration(c *C) {
+	dirs.SetRootDir(c.MkDir())
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("42"),
+	})
+
+	execArgv0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	syscallExec = func(argv0 string, argv []string, env []string) error {
+		execArgv0 = argv0
+		execArgs = argv
+		execEnv = env
+		return nil
+	}
+
+	// launch and verify its run the right way
+	err := snapExecApp("snapname.app", "42", "shell", []string{"-c", "echo foo"})
+	c.Assert(err, IsNil)
+	c.Check(execArgv0, Equals, "/bin/bash")
+	c.Check(execArgs, DeepEquals, []string{execArgv0, "-c", "echo foo"})
+	c.Check(execEnv, testutil.Contains, "LD_LIBRARY_PATH=/some/path\n")
 }

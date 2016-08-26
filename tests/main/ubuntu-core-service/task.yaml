@@ -1,0 +1,21 @@
+summary: Ensure that service keep working after a reboot
+systems: [ubuntu-core-16-64]
+environment:
+    # FIXME: use test-snapd-tools once it has a service
+    SNAP: network-bind-consumer
+    SERVICE: network-consumer
+prepare: |
+    snapbuild $TESTSLIB/snaps/network-bind-consumer .
+    snap install network-bind-consumer_1.0_all.snap
+execute: |
+    echo "Ensure the snap is there"
+    snap list|grep $SNAP
+    echo "Ensure the service is running"
+    systemctl status snap.$SNAP.$SERVICE.service|grep 'Active: active (running)'
+
+    # this triggers the reboot and after the reboot the above checks
+    # ensure that the snap is still there and the service is still running
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        REBOOT
+    fi
+    

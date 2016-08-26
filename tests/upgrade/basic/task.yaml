@@ -1,6 +1,6 @@
 summary: Check that upgrade works
+systems: [-ubuntu-core-16-64]
 restore: |
-    sed -i -e '/SNAP_REEXEC=0/d' /etc/environment
     rm -f /var/tmp/myevil.txt
 execute: |
     echo Install previous version...
@@ -14,11 +14,6 @@ execute: |
     echo Sanity check install
     test-snapd-tools.echo Hello | grep Hello
     test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
-
-    # setup not to reexec
-    export SNAP_REEXEC=0
-    grep SNAP_REEXEC /etc/environment || echo "SNAP_REEXEC=0">>/etc/environment
-    cat /etc/environment
 
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
