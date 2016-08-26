@@ -85,13 +85,11 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 		}
 
 		isUser = true
-	} else {
-		if err != errNoUID {
-			logger.Noticef("unexpected error when attempting to get UID: %s", err)
-			return false
-		} else if c.SnapOK {
-			return true
-		}
+	} else if err != errNoUID {
+		logger.Noticef("unexpected error when attempting to get UID: %s", err)
+		return false
+	} else if c.SnapOK {
+		return true
 	}
 
 	if r.Method != "GET" {
@@ -187,9 +185,10 @@ func (d *Daemon) Init() error {
 	}
 
 	// systemd provides the sockets in the order they were specified in the
-	// .socket file. This needs to be kept in sync with debian/snapd.socket.
-	// Currently the first socket is snapd.socket, and the second is
-	// snapd-snap.socket.
+	// .socket file (as long as they're within the same unit). This needs to be
+	// kept in sync with debian/snapd.socket. Currently the first socket is
+	// snapd.socket, and the second is snapd-snap.socket. WARNING: Getting these
+	// wrong will result in a CVE with your name on it!
 	d.snapdListener = &ucrednetListener{listeners[0]}
 
 	// Note that this listener does not use ucrednet, because we use the lack
