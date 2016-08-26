@@ -220,6 +220,9 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 
 		ref, err := fetchSnapAssertions(fn, f)
 		if err != nil {
+			if os.Getenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS") == "" {
+				return err
+			}
 			logger.Noticef("%s", err)
 		} else {
 			assertRefs = append(assertRefs, ref)
