@@ -22,6 +22,8 @@ package snapasserts_test
 import (
 	"crypto"
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -33,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 func TestSnapasserts(t *testing.T) { TestingT(t) }
@@ -60,6 +63,24 @@ func (s *snapassertsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	s.localDB = localDB
+
+	// add in prereqs assertions
+	err = s.localDB.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapDecl)
+	c.Assert(err, IsNil)
 }
 
 func fakeSnap(rev int) []byte {
@@ -81,27 +102,9 @@ func makeDigest(rev int) string {
 }
 
 func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
-	// add in prereqs assertions
-	err := s.localDB.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
-
-	headers := map[string]interface{}{
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-name":    "foo",
-		"publisher-id": s.dev1Acct.AccountID(),
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
-
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	headers = map[string]interface{}{
+	headers := map[string]interface{}{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -125,27 +128,9 @@ func (s *snapassertsSuite) TestCrossCheckHappy(c *C) {
 }
 
 func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
-	// add in prereqs assertions
-	err := s.localDB.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
-
-	headers := map[string]interface{}{
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-name":    "foo",
-		"publisher-id": s.dev1Acct.AccountID(),
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(snapDecl)
-	c.Assert(err, IsNil)
-
 	digest := makeDigest(12)
 	size := uint64(len(fakeSnap(12)))
-	headers = map[string]interface{}{
+	headers := map[string]interface{}{
 		"snap-id":       "snap-id-1",
 		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -188,18 +173,13 @@ func (s *snapassertsSuite) TestCrossCheckErrors(c *C) {
 }
 
 func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
-	// add in prereqs assertions
-	err := s.localDB.Add(s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = s.localDB.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
-
 	// revoked snap declaration (snap-name=="") !
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "",
 		"publisher-id": s.dev1Acct.AccountID(),
+		"revision":     "1",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
@@ -229,4 +209,123 @@ func (s *snapassertsSuite) TestCrossCheckRevokedSnapDecl(c *C) {
 
 	err = snapasserts.CrossCheck("foo", digest, size, si, s.localDB)
 	c.Check(err, ErrorMatches, `cannot install snap "foo" with a revoked snap declaration`)
+}
+
+func (s *snapassertsSuite) TestReconstructSideInfoHappy(c *C) {
+	digest := makeDigest(42)
+	size := uint64(len(fakeSnap(42)))
+	headers := map[string]interface{}{
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": "42",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "anon.snap")
+	err = ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
+	c.Assert(err, IsNil)
+
+	si, err := snapasserts.ReconstructSideInfo(snapPath, 0, s.localDB)
+	c.Assert(err, IsNil)
+	c.Check(si, DeepEquals, &snap.SideInfo{
+		RealName:    "foo",
+		SnapID:      "snap-id-1",
+		Revision:    snap.R(42),
+		Channel:     "",
+		DeveloperID: s.dev1Acct.AccountID(),
+		Developer:   "developer1",
+	})
+}
+
+func (s *snapassertsSuite) TestReconstructSideInfoNoSignatures(c *C) {
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "anon.snap")
+	err := ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snapasserts.ReconstructSideInfo(snapPath, 0, s.localDB)
+	c.Assert(err, ErrorMatches, fmt.Sprintf("cannot find signatures with metadata for snap %q", snapPath))
+}
+
+func (s *snapassertsSuite) TestReconstructSideInfoSizeMismatch(c *C) {
+	digest := makeDigest(42)
+	size := uint64(len(fakeSnap(42)))
+	headers := map[string]interface{}{
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size+5), // broken
+		"snap-revision": "42",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "anon.snap")
+	err = ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snapasserts.ReconstructSideInfo(snapPath, 0, s.localDB)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`snap %q does not have expected size according to signatures \(broken or tampered\): %d != %d`, snapPath, size, size+5))
+}
+
+func (s *snapassertsSuite) TestReconstructSideInfoRevokedSnapDecl(c *C) {
+	// revoked snap declaration (snap-name=="") !
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snap-id-1",
+		"snap-name":    "",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"revision":     "1",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapDecl)
+	c.Assert(err, IsNil)
+
+	digest := makeDigest(42)
+	size := uint64(len(fakeSnap(42)))
+	headers = map[string]interface{}{
+		"snap-id":       "snap-id-1",
+		"snap-sha3-384": digest,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-revision": "42",
+		"developer-id":  s.dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.localDB.Add(snapRev)
+	c.Assert(err, IsNil)
+
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "anon.snap")
+	err = ioutil.WriteFile(snapPath, fakeSnap(42), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = snapasserts.ReconstructSideInfo(snapPath, 0, s.localDB)
+	c.Check(err, ErrorMatches, fmt.Sprintf(`cannot install snap %q with a revoked snap declaration`, snapPath))
+}
+
+func (s *snapassertsSuite) TestReconstructSideInfoAllowWithoutSignatures(c *C) {
+	snapPath := snaptest.MakeTestSnapWithFiles(c, `type: app
+name: foo-sideloaded
+`, nil)
+
+	si, err := snapasserts.ReconstructSideInfo(snapPath, snapasserts.AllowWithoutSignatures, s.localDB)
+	c.Assert(err, IsNil)
+	c.Check(si, DeepEquals, &snap.SideInfo{
+		RealName: "foo-sideloaded",
+	})
 }
