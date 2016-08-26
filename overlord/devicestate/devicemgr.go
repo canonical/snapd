@@ -378,9 +378,17 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	device.Serial = serial.Serial()
 	auth.SetDevice(st, device)
+
+	if repeatSerialRequest {
+		// For testing purposes, ensure a crash in this state works.
+		return &state.Retry{}
+	}
+
 	t.SetStatus(state.DoneStatus)
 	return nil
 }
+
+var repeatSerialRequest bool
 
 // implementing auth.DeviceAssertions
 // sanity check
