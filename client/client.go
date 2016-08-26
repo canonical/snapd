@@ -46,7 +46,6 @@ func unixDialer() func(string, string) (net.Conn, error) {
 	if err == nil {
 		file.Close()
 	} else if e, ok := err.(*os.PathError); ok && (e.Err == syscall.ENOENT || e.Err == syscall.EACCES) {
-		// Unable to open socket: fallback.
 		socketPath = dirs.SnapSocket
 	}
 
