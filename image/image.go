@@ -348,14 +348,16 @@ func makeStore(model *asserts.Model) Store {
 	cfg.Architecture = model.Architecture()
 	cfg.Series = model.Series()
 	storeID := model.Store()
+	// XXX: make store optional, so defaulting to empty meaning this
 	if storeID == "canonical" {
 		storeID = ""
 	}
-	return store.New(cfg, storeID, nil)
+	cfg.StoreID = storeID
+	return store.New(cfg, nil)
 }
 
 type Store interface {
-	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
+	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
 	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
@@ -375,7 +377,7 @@ func downloadSnapWithSideInfo(sto Store, name string, opts *downloadOptions) (ta
 		targetDir = pwd
 	}
 
-	snap, err := sto.Snap(name, opts.Channel, false, nil)
+	snap, err := sto.Snap(name, opts.Channel, false, snap.R(0), nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %s", name, err)
 	}

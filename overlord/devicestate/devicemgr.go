@@ -71,9 +71,7 @@ func Manager(s *state.State) (*DeviceManager, error) {
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
-	// XXX: auth.Device/SetDevice should probably move to devicestate
-	// they are not quite just about auth and also we risk circular imports
-	// (auth will need to mediate bits from devicestate soon)
+
 	device, err := auth.Device(m.state)
 	if err != nil {
 		return err
@@ -100,6 +98,11 @@ func (m *DeviceManager) ensureOperational() error {
 			// change already in motion
 			return nil
 		}
+	}
+
+	if serialRequestURL == "" {
+		// cannot do anything actually
+		return nil
 	}
 
 	// XXX: some of these will need to be split and use hooks
@@ -138,9 +141,10 @@ func (m *DeviceManager) Stop() {
 
 var (
 	keyLength = 4096
-	// XXX: a 2nd different URL for nonce?
-	// TODO: this will come as config from the gadget snap
-	serialRequestURL = "https://serial.request" // XXX dummy value!
+	// TODO: a 2nd different URL for nonce?
+	// TODO: this will come optionally as config from the gadget snap
+	// TODO: set this once the server side is working!
+	serialRequestURL = ""
 )
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
@@ -182,7 +186,7 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	}
 
 	if device.KeyID == "" {
-		return nil, fmt.Errorf("internal error: cannot find device key pair")
+		return nil, state.ErrNoState
 	}
 
 	privKey, err := m.keypairMgr.Get(device.KeyID)
@@ -305,6 +309,9 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	privKey, err := m.keyPair()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot find device key pair")
+	}
 	if err != nil {
 		return err
 	}
@@ -371,6 +378,106 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 
 	device.Serial = serial.Serial()
 	auth.SetDevice(st, device)
+
+	if repeatSerialRequest {
+		// For testing purposes, ensure a crash in this state works.
+		return &state.Retry{}
+	}
+
 	t.SetStatus(state.DoneStatus)
 	return nil
+}
+
+var repeatSerialRequest bool
+
+// implementing auth.DeviceAssertions
+// sanity check
+var _ auth.DeviceAssertions = (*DeviceManager)(nil)
+
+// Model returns the device model assertion.
+func (m *DeviceManager) Model() (*asserts.Model, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return Model(m.state)
+}
+
+// Serial returns the device serial assertion.
+func (m *DeviceManager) Serial() (*asserts.Serial, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	return Serial(m.state)
+}
+
+// SerialProof produces a serial-proof with the given nonce.
+func (m *DeviceManager) SerialProof(nonce string) (*asserts.SerialProof, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	privKey, err := m.keyPair()
+	if err != nil {
+		return nil, err
+	}
+
+	a, err := asserts.SignWithoutAuthority(asserts.SerialProofType, map[string]interface{}{
+		"nonce": nonce,
+	}, nil, privKey)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.SerialProof), err
+}
+
+// Model returns the device model assertion.
+func Model(st *state.State) (*asserts.Model, error) {
+	device, err := auth.Device(st)
+	if err != nil {
+		return nil, err
+	}
+
+	if device.Brand == "" || device.Model == "" {
+		return nil, state.ErrNoState
+	}
+
+	a, err := assertstate.DB(st).Find(asserts.ModelType, map[string]string{
+		"series":   release.Series,
+		"brand-id": device.Brand,
+		"model":    device.Model,
+	})
+	if err == asserts.ErrNotFound {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.Model), nil
+}
+
+// Serial returns the device serial assertion.
+func Serial(st *state.State) (*asserts.Serial, error) {
+	device, err := auth.Device(st)
+	if err != nil {
+		return nil, err
+	}
+
+	if device.Serial == "" {
+		return nil, state.ErrNoState
+	}
+
+	a, err := assertstate.DB(st).Find(asserts.SerialType, map[string]string{
+		"brand-id": device.Brand,
+		"model":    device.Model,
+		"serial":   device.Serial,
+	})
+	if err == asserts.ErrNotFound {
+		return nil, state.ErrNoState
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return a.(*asserts.Serial), nil
 }
