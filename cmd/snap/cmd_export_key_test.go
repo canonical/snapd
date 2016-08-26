@@ -48,6 +48,6 @@ func (s *SnapKeysSuite) TestExportKey(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
 	c.Assert(err, IsNil)
-	c.Check(pubKey.ID(), Equals, "2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs")
+	c.Check(pubKey.ID(), Equals, "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
 	c.Check(s.Stderr(), Equals, "")
 }
