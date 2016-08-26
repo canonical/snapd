@@ -13,8 +13,7 @@ prepare: |
     cd /
     echo "Install hello-world"
     snap install hello-world
-    sudo systemctl stop snapd.refresh.timer
-    sudo systemctl stop snapd.service
+    systemctl stop snapd.refresh.timer snapd.service snapd.socket
     # all of this ls madness can go away when we have remote environment
     # variables
     echo "Unmount original core snap"
@@ -28,8 +27,7 @@ prepare: |
     if [ ! -e $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) ]; then exit 1; fi
     echo "Mount modified core snap"
     mount $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
-    sudo systemctl start snapd.refresh.timer
-    sudo systemctl start snapd.service
+    systemctl start snapd.refresh.timer snapd.service snapd.socket
 execute: |
     cd /
     echo "Add a udev tag so affected code branch is exercised"
@@ -47,8 +45,7 @@ execute: |
 restore: |
     echo "Remove hello-world"
     snap remove hello-world
-    sudo systemctl stop snapd.refresh.timer
-    sudo systemctl stop snapd.service
+    systemctl stop snapd.refresh.timer snapd.service snapd.socket
     echo "Unmount the modified core snap"
     # all of this ls madness can go away when we have remote environment
     # variables
@@ -63,5 +60,4 @@ restore: |
     udevadm settle
     udevadm trigger
     udevadm settle
-    sudo systemctl start snapd.refresh.timer
-    sudo systemctl start snapd.service
+    systemctl start snapd.refresh.timer snapd.service snapd.socket
