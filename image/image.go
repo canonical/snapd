@@ -112,6 +112,22 @@ func acquireSnap(sto Store, snapName string, dlOpts *downloadOptions) (downloade
 	return downloadSnapWithSideInfo(sto, snapName, dlOpts)
 }
 
+func fetchSnapAssertions(fn string, f *asserts.Fetcher) (*asserts.Ref, error) {
+	// fetch the snap assertions too
+	sha3_384, _, err := asserts.SnapFileSHA3_384(fn)
+	if err != nil {
+		return nil, err
+	}
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{sha3_384},
+	}
+	if err := f.Fetch(ref); err != nil {
+		return nil, fmt.Errorf("cannot fetch assertion %q: %s", ref, err)
+	}
+	return ref, nil
+}
+
 func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
@@ -202,14 +218,9 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		// fetch the snap assertions too
-		sha3_384, _, err := asserts.SnapFileSHA3_384(fn)
-		ref := &asserts.Ref{
-			Type:       asserts.SnapRevisionType,
-			PrimaryKey: []string{sha3_384},
-		}
-		if err := f.Fetch(ref); err != nil {
-			return fmt.Errorf("cannot fetch assertion %q: %s", ref, err)
+		ref, err := fetchSnapAssertions(fn, f)
+		if err != nil {
+			logger.Noticef("%s", err)
 		} else {
 			assertRefs = append(assertRefs, ref)
 		}
