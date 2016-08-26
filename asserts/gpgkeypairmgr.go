@@ -261,6 +261,15 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	return nil, fmt.Errorf("cannot find key named %q in GPG keyring", name)
 }
 
+// GetByName looks up a private key by name and returns it.
+func (gkm *GPGKeypairManager) GetByName(name string) (PrivateKey, error) {
+	keyInfo, err := gkm.findByName(name)
+	if err != nil {
+		return nil, err
+	}
+	return keyInfo.privKey, nil
+}
+
 var generateTemplate = `
 Key-Type: RSA
 Key-Length: 4096
@@ -299,24 +308,6 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 		return nil, err
 	}
 	return EncodePublicKey(keyInfo.privKey.PublicKey())
-}
-
-// SignWithoutAuthority assembles an assertion without a set authority with the provided information and signs it with the named key.
-func (gkm *GPGKeypairManager) SignWithoutAuthority(assertType *AssertionType, makeHeaders func(pubKey PublicKey) (map[string]interface{}, error), makeBody func(pubKey PublicKey) ([]byte, error), name string) (Assertion, error) {
-	keyInfo, err := gkm.findByName(name)
-	if err != nil {
-		return nil, err
-	}
-	pubKey := keyInfo.privKey.PublicKey()
-	headers, err := makeHeaders(pubKey)
-	if err != nil {
-		return nil, err
-	}
-	body, err := makeBody(pubKey)
-	if err != nil {
-		return nil, err
-	}
-	return SignWithoutAuthority(assertType, headers, body, keyInfo.privKey)
 }
 
 // Delete removes the named key pair from GnuPG's storage.
