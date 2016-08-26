@@ -148,5 +148,18 @@ AC_ARG_WITH([snap-mount-dir],
 AC_SUBST(SNAP_MOUNT_DIR)
 AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR], "${SNAP_MOUNT_DIR}", [Location of the snap mount points])
 
+AC_ARG_ENABLE([caps-over-setuid],
+    AS_HELP_STRING([--enable-caps-over-setuid], [Use capabilities rather than setuid bit]),
+    [case "${enableval}" in
+        yes) enable_caps_over_setuid=yes ;;
+        no)  enable_caps_over_setuid=no ;;
+        *) AC_MSG_ERROR([bad value ${enableval} for --enable-caps-over-setuid])
+    esac], [enable_caps_over_setuid=no])
+AM_CONDITIONAL([CAPS_OVER_SETUID], [test "x$enable_caps_over_setuid" = "xyes"])
+
+AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
+    AC_DEFINE([CAPS_OVER_SETUID], [1],
+        [Use capabilities rather than setuid bit])])
+
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile docs/Makefile])
 AC_OUTPUT
