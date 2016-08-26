@@ -216,6 +216,9 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	db := DB(t.State())
 	err = snapasserts.CrossCheck(ss.Name(), sha3_384, snapSize, ss.SideInfo, db)
 	if err != nil {
+		// TODO: trigger a global sanity check
+		// that will generate the changes to deal with this
+		// for things like snap-decl revocation and renames?
 		return err
 	}
 
