@@ -209,6 +209,8 @@ func importAssertionsFromSeed(st *state.State) error {
 	return nil
 }
 
+var firstbootInitialNetworkConfig = firstboot.InitialNetworkConfig
+
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
@@ -217,7 +219,7 @@ func FirstBoot() error {
 	}
 
 	if !release.OnClassic {
-		if err := firstboot.InitialNetworkConfig(); err != nil {
+		if err := firstbootInitialNetworkConfig(); err != nil {
 			logger.Noticef("Failed during inital network configuration: %s", err)
 		}
 	}
