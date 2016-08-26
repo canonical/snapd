@@ -42,6 +42,10 @@ override_dh_systemd_enable:
 	dh_systemd_enable \
 		-pubuntu-core-snapd-units \
 		snapd.firstboot.service
+	# enable the init-network service
+	dh_systemd_enable \
+		-pubuntu-core-snapd-units \
+		snapd.initnetwork.service
 	# we want the auto-update timer enabled by default
 	dh_systemd_enable \
 		-psnapd \
