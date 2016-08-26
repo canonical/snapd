@@ -59,8 +59,8 @@ func (s *SnapKeysSuite) TestKeys(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Matches, `Name +SHA3-384
-default +2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs
-another +zAEl4AL2RpKJv2mBMp8SeyHu8GeI9o6GvQr6EGbiOFsZAAaRixqy4XGydK-h2FgW
+default +g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ
+another +DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L
 `)
 	c.Check(s.Stderr(), Equals, "")
 }
@@ -72,11 +72,11 @@ func (s *SnapKeysSuite) TestKeysJSON(c *C) {
 	expectedResponse := []snap.Key{
 		snap.Key{
 			Name:     "default",
-			Sha3_384: "2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs",
+			Sha3_384: "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ",
 		},
 		snap.Key{
 			Name:     "another",
-			Sha3_384: "zAEl4AL2RpKJv2mBMp8SeyHu8GeI9o6GvQr6EGbiOFsZAAaRixqy4XGydK-h2FgW",
+			Sha3_384: "DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L",
 		},
 	}
 	var obtainedResponse []snap.Key
