@@ -44,7 +44,10 @@ setup_reflash_magic() {
         # for spread to do the first login
         UNPACKD="/tmp/ubuntu-core-snap"
         unsquashfs -d $UNPACKD /var/lib/snapd/snaps/ubuntu-core_*.snap
-        
+
+        # FIXME: netplan workaround
+        mkdir -p $UNPACKD/etc/netplan
+
         # set root pw by concating root line from host and rest from core
         want_pw="$(grep ^root /etc/shadow)"
         echo "$want_pw" > /tmp/new-shadow
@@ -150,5 +153,14 @@ prepare_all_snap() {
         fi
     fi
 
+    echo "Ensure fundamental snaps are still present"
+    for name in pc pc-kernel ubuntu-core; do
+        if ! snap list | grep $name; then
+            echo "Not all fundamental snaps are available, all-snap image not valid"
+            echo "Currently installed snaps"
+            snap list
+            exit 1
+        fi
+    done
 }
 
