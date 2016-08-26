@@ -171,12 +171,10 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
 		"model":        modelStr,
-		"class":        "my-class",
 		"architecture": "amd64",
 		"store":        "canonical",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel",
-		"core":         "core",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	model, err := s.brandSigning.Sign(asserts.ModelType, headers, nil, "")
