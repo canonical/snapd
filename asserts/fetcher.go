@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"fmt"
+	"strings"
 )
 
 type fetchProgress int
@@ -48,6 +49,28 @@ func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), sa
 		save:     save,
 		fetched:  make(map[string]fetchProgress),
 	}
+}
+
+// FIXME: move to asserts.go and make public?
+func newRef(uniq string) *Ref {
+	l := strings.Split(uniq, "/")
+	if len(l) < 2 {
+		return nil
+	}
+	return &Ref{
+		Type:       Type(l[0]),
+		PrimaryKey: l[1:],
+	}
+}
+
+func (f *Fetcher) SavedRefs() []*Ref {
+	refs := make([]*Ref, 0, len(f.fetched))
+	for u, v := range f.fetched {
+		if v == fetchSaved {
+			refs = append(refs, newRef(u))
+		}
+	}
+	return refs
 }
 
 func (f *Fetcher) chase(ref *Ref, a Assertion) error {
