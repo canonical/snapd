@@ -202,7 +202,7 @@ func (cs *clientSuite) TestSnapdClientIntegration(c *check.C) {
 	c.Check(si.Series, check.Equals, "42")
 }
 
-func (cs *clientSuite) TestSnapdClientIntegration(c *check.C) {
+func (cs *clientSuite) TestSnapClientIntegration(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0755), check.IsNil)
 	l, err := net.Listen("unix", dirs.SnapSocket)
 	if err != nil {
