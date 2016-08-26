@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +17,29 @@
  *
  */
 
-package firstboot
+package main
 
 import (
-	"os"
-	"path/filepath"
+	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/boot"
 )
 
-func HasRun() bool {
-	return osutil.FileExists(dirs.SnapFirstBootStamp)
+type cmdInternalInitNetwork struct{}
+
+func init() {
+	cmd := addCommand("init-network",
+		"internal",
+		"internal", func() flags.Commander {
+			return &cmdInternalInitNetwork{}
+		})
+	cmd.hidden = true
 }
 
-func StampFirstBoot() error {
-	// filepath.Dir instead of firstbootDir directly to ease testing
-	stampDir := filepath.Dir(dirs.SnapFirstBootStamp)
-
-	if _, err := os.Stat(stampDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(stampDir, 0755); err != nil {
-			return err
-		}
+func (x *cmdInternalInitNetwork) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
 	}
 
-	return osutil.AtomicWriteFile(dirs.SnapFirstBootStamp, []byte{}, 0644, 0)
+	return boot.InitialNetworkConfig()
 }

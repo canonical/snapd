@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/firstboot"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -213,9 +212,6 @@ func importAssertionsFromSeed(st *state.State) error {
 func FirstBoot() error {
 	if firstboot.HasRun() {
 		return ErrNotFirstBoot
-	}
-	if err := firstboot.InitialNetworkConfig(); err != nil {
-		logger.Noticef("Failed during inital network configuration: %s", err)
 	}
 
 	// snappy will be in a very unhappy state if this happens,
