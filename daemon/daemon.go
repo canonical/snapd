@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -30,10 +31,13 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/notifications"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -198,11 +202,24 @@ func (d *Daemon) addRoutes() {
 	d.router.NotFoundHandler = NotFound("not found")
 }
 
+var shutdownMsg = i18n.G("snapd triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'")
+
 // Start the Daemon
 func (d *Daemon) Start() {
 	// die when asked to restart (systemd should get us back up!)
-	d.overlord.SetRestartHandler(func() {
-		d.tomb.Kill(nil)
+	d.overlord.SetRestartHandler(func(t state.RestartType) {
+		switch t {
+		case state.RestartDaemon:
+			d.tomb.Kill(nil)
+		case state.RestartSystem:
+			cmd := exec.Command("shutdown", "+10", "-r", shutdownMsg)
+			if out, err := cmd.CombinedOutput(); err != nil {
+				logger.Noticef("%s", osutil.OutputErr(out, err))
+			}
+		default:
+			// FIMXE: log error instead?
+			logger.Panicf("called with unknown restartType: %v", t)
+		}
 	})
 
 	// the loop runs in its own goroutine

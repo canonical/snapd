@@ -51,7 +51,7 @@ func (b *witnessRestartReqStateBackend) Checkpoint([]byte) error {
 	return nil
 }
 
-func (b *witnessRestartReqStateBackend) RequestRestart() {
+func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 	b.restartRequested = true
 }
 
