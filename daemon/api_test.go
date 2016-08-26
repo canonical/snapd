@@ -74,6 +74,7 @@ type apiSuite struct {
 	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
+	command           *testutil.MockCmd
 }
 
 var _ = check.Suite(&apiSuite{})
@@ -166,6 +167,9 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 }
 
 func (s *apiSuite) TearDownTest(c *check.C) {
+	if s.command != nil {
+		s.command.Restore()
+	}
 	s.d = nil
 	s.restoreBackends()
 	snapstateInstall = snapstate.Install
@@ -2248,6 +2252,7 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 	d := s.daemon(c)
+	s.command = testutil.MockCommand(c, "snap", "")
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
@@ -2298,6 +2303,7 @@ func (s *apiSuite) TestConnectPlugSuccess(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	d := s.daemon(c)
+	s.command = testutil.MockCommand(c, "snap", "echo 1")
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "different"})
@@ -2349,6 +2355,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	d := s.daemon(c)
+	s.command = testutil.MockCommand(c, "snap", "")
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
@@ -2397,6 +2404,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 
 func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	d := s.daemon(c)
+	s.command = testutil.MockCommand(c, "snap", "")
 
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	s.mockSnap(c, consumerYaml)
