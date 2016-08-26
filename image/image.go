@@ -123,8 +123,25 @@ func acquireSnap(sto Store, snapName string, dlOpts *downloadOptions) (downloade
 	return downloadSnapWithSideInfo(sto, snapName, dlOpts)
 }
 
+
 // one and only core snap for now
 const defaultCore = "ubuntu-core"
+
+func fetchSnapAssertions(fn string, f *asserts.Fetcher) (*asserts.Ref, error) {
+	// fetch the snap assertions too
+	sha3_384, _, err := asserts.SnapFileSHA3_384(fn)
+	if err != nil {
+		return nil, err
+	}
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{sha3_384},
+	}
+	if err := f.Fetch(ref); err != nil {
+		return nil, fmt.Errorf("cannot fetch assertion %q: %s", ref, err)
+	}
+	return ref, nil
+}
 
 func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 	// FIXME: try to avoid doing this
@@ -216,20 +233,15 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		typ := info.Type
-
 		// fetch the snap assertions too
-		sha3_384, _, err := asserts.SnapFileSHA3_384(fn)
-		ref := &asserts.Ref{
-			Type:       asserts.SnapRevisionType,
-			PrimaryKey: []string{sha3_384},
-		}
-		if err := f.Fetch(ref); err != nil {
-			return fmt.Errorf("cannot fetch assertion %q: %s", ref, err)
+		ref, err := fetchSnapAssertions(fn, f)
+		if err != nil {
+			logger.Noticef("%s", err)
 		} else {
 			assertRefs = append(assertRefs, ref)
 		}
 
+		typ := info.Type
 		// kernel/os are required for booting
 		if typ == snap.TypeKernel || typ == snap.TypeOS {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
