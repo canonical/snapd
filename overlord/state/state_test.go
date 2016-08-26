@@ -152,7 +152,7 @@ func (b *fakeStateBackend) EnsureBefore(d time.Duration) {
 	b.ensureBefore = d
 }
 
-func (b *fakeStateBackend) RequestRestart() {
+func (b *fakeStateBackend) RequestRestart(t state.RestartType) {
 	b.restartRequested = true
 }
 
@@ -652,7 +652,7 @@ func (ss *stateSuite) TestRequestRestart(c *C) {
 	b := new(fakeStateBackend)
 	st := state.New(b)
 
-	st.RequestRestart()
+	st.RequestRestart(state.RestartDaemon)
 
 	c.Check(b.restartRequested, Equals, true)
 }
