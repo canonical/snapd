@@ -53,18 +53,22 @@ func (x *cmdExportKey) Execute(args []string) error {
 
 	manager := asserts.NewGPGKeypairManager()
 	if x.Account != "" {
-		makeHeaders := func(pubKey asserts.PublicKey) (map[string]interface{}, error) {
-			return map[string]interface{}{
-				"account-id":          x.Account,
-				"public-key-sha3-384": pubKey.ID(),
-				"since":               time.Now().Format(time.RFC3339),
-				// XXX: To support revocation, we need to check for matching known assertions and set a suitable revision if we find one.
-			}, nil
+		privKey, err := manager.GetByName(x.Positional.KeyName)
+		if err != nil {
+			return err
 		}
-		makeBody := func(pubKey asserts.PublicKey) ([]byte, error) {
-			return asserts.EncodePublicKey(pubKey)
+		pubKey := privKey.PublicKey()
+		headers := map[string]interface{}{
+			"account-id":          x.Account,
+			"public-key-sha3-384": pubKey.ID(),
+			"since":               time.Now().Format(time.RFC3339),
+			// XXX: To support revocation, we need to check for matching known assertions and set a suitable revision if we find one.
 		}
-		assertion, err := manager.SignWithoutAuthority(asserts.AccountKeyRequestType, makeHeaders, makeBody, x.Positional.KeyName)
+		body, err := asserts.EncodePublicKey(pubKey)
+		if err != nil {
+			return err
+		}
+		assertion, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType, headers, body, privKey)
 		if err != nil {
 			return err
 		}
