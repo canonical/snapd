@@ -26,7 +26,7 @@ import (
 	"github.com/snapcore/snapd/client"
 )
 
-var clientConfig = client.Config{InSnap: true}
+var clientConfig client.Config
 
 func main() {
 	stdout, stderr, err := run()
