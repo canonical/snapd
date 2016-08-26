@@ -17,30 +17,28 @@
  *
  */
 
-package firstboot
+package boot
 
 import (
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
 )
 
-func TestStore(t *testing.T) { TestingT(t) }
-
-type FirstBootTestSuite struct {
+type InitialNetworkConfigTestSuite struct {
 	netplanConfigFile string
 	enableConfig      []string
+	removedFiles      []string
 }
 
-var _ = Suite(&FirstBootTestSuite{})
+var _ = Suite(&InitialNetworkConfigTestSuite{})
 
-func (s *FirstBootTestSuite) SetUpTest(c *C) {
+func (s *InitialNetworkConfigTestSuite) SetUpTest(c *C) {
 	tempdir := c.MkDir()
 	dirs.SetRootDir(tempdir)
 
@@ -48,28 +46,31 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	netplanConfigFile = filepath.Join(c.MkDir(), "config.yaml")
 	s.enableConfig = enableConfig
 	enableConfig = []string{"/bin/true"}
+	osRemove = func(name string) error { s.removedFiles = append(s.removedFiles, name); return nil }
 }
 
-func (s *FirstBootTestSuite) TearDownTest(c *C) {
+func (s *InitialNetworkConfigTestSuite) TearDownTest(c *C) {
 	netplanConfigFile = s.netplanConfigFile
 	enableConfig = s.enableConfig
+	osRemove = os.Remove
 }
 
-func (s *FirstBootTestSuite) TestInitialNetworkConfig(c *C) {
+func (s *InitialNetworkConfigTestSuite) TestInitialNetworkConfig(c *C) {
 	c.Check(InitialNetworkConfig(), IsNil)
 	bs, err := ioutil.ReadFile(netplanConfigFile)
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, netplanConfigData)
+	c.Assert(s.removedFiles, DeepEquals, []string{netplanConfigFile})
 }
 
-func (s *FirstBootTestSuite) TestInitialNetworkConfigBadPath(c *C) {
+func (s *InitialNetworkConfigTestSuite) TestInitialNetworkConfigBadPath(c *C) {
 	netplanConfigFile = "/no/such/thing"
 	err := InitialNetworkConfig()
 	c.Check(err, NotNil)
-	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(os.IsPermission(err), Equals, true)
 }
 
-func (s *FirstBootTestSuite) TestInitialNetworkConfigEnableFails(c *C) {
+func (s *InitialNetworkConfigTestSuite) TestInitialNetworkConfigEnableFails(c *C) {
 	enableConfig = []string{"/bin/false"}
 	err := InitialNetworkConfig()
 	c.Check(err, NotNil)

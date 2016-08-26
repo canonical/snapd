@@ -1,0 +1,14 @@
+[Unit]
+Description=Apply default network configuration if none exists
+After=local-fs.target
+Before=network-pre.target snapd.service
+DefaultDependencies=false
+ConditionPathExistsGlob=!/etc/netplan/*.yaml
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/snap init-network
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

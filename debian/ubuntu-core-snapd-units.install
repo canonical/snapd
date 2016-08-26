@@ -1,2 +1,3 @@
 debian/snapd.boot-ok.service /lib/systemd/system/
 debian/snapd.firstboot.service /lib/systemd/system/
+debian/snapd.initnetwork.service /lib/systemd/system/
