@@ -155,8 +155,9 @@ func (r *TaskRunner) run(t *Task) {
 			case DoneStatus:
 				next = t.HaltTasks()
 			case AbortStatus:
-				t.SetStatus(DoneStatus) // Not actually aborted.
-				r.tryUndo(t)
+				// It was actually Done if it got here.
+				t.SetStatus(UndoStatus)
+				r.state.EnsureBefore(0)
 			case UndoingStatus:
 				t.SetStatus(UndoneStatus)
 				fallthrough
@@ -167,9 +168,9 @@ func (r *TaskRunner) run(t *Task) {
 				r.state.EnsureBefore(0)
 			}
 		default:
+			r.abortChange(t.Change())
 			t.SetStatus(ErrorStatus)
 			t.Errorf("%s", err)
-			r.abortChange(t.Change())
 		}
 
 		return nil
