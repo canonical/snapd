@@ -25,8 +25,8 @@ var (
 	ImportAssertionsFromSeed = importAssertionsFromSeed
 )
 
-func MockFirstbootEnableFirstEther(f func() error) func() {
-	old := firstbootEnableFirstEther
-	firstbootEnableFirstEther = f
-	return func() { firstbootEnableFirstEther = old }
+func MockFirstbootInitialNetworkConfig(f func() error) func() {
+	old := firstbootInitialNetworkConfig
+	firstbootInitialNetworkConfig = f
+	return func() { firstbootInitialNetworkConfig = old }
 }

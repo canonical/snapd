@@ -309,7 +309,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 func (s *FirstBootTestSuite) TestFirstBootOnClassicNoEnableEther(c *C) {
 	release.MockOnClassic(true)
 	firstBootEnableFirstEtherRun := false
-	restore := boot.MockFirstbootEnableFirstEther(func() error {
+	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
 		firstBootEnableFirstEtherRun = true
 		return nil
 	})
@@ -322,7 +322,7 @@ func (s *FirstBootTestSuite) TestFirstBootOnClassicNoEnableEther(c *C) {
 func (s *FirstBootTestSuite) TestFirstBootnableEther(c *C) {
 	release.MockOnClassic(false)
 	firstBootEnableFirstEtherRun := false
-	restore := boot.MockFirstbootEnableFirstEther(func() error {
+	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
 		firstBootEnableFirstEtherRun = true
 		return nil
 	})
