@@ -2,10 +2,6 @@
 Description=Socket activation for snappy daemon
 
 [Socket]
-# These sockets will be provided to snapd in the order they're specified here,
-# as long as they remain in the same unit. This needs to be kept in sync with
-# daemon/daemon.go. WARNING: Getting these wrong will result in a CVE with your
-# name on it!
 ListenStream=/run/snapd.socket
 ListenStream=/run/snapd-snap.socket
 SocketMode=0666

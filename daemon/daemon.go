@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/notifications"
 	"github.com/snapcore/snapd/overlord"
@@ -184,17 +185,17 @@ func (d *Daemon) Init() error {
 		return fmt.Errorf("daemon does not handle %d listeners right now, only two", len(listeners))
 	}
 
-	// systemd provides the sockets in the order they were specified in the
-	// .socket file (as long as they're within the same unit). This needs to be
-	// kept in sync with debian/snapd.socket. Currently the first socket is
-	// snapd.socket, and the second is snapd-snap.socket. WARNING: Getting these
-	// wrong will result in a CVE with your name on it!
-	d.snapdListener = &ucrednetListener{listeners[0]}
+	listenerMap := map[string]net.Listener{
+		listeners[0].Addr().String(): listeners[0],
+		listeners[1].Addr().String(): listeners[1],
+	}
 
-	// Note that this listener does not use ucrednet, because we use the lack
-	// of remote information as an indication that the request originated
-	// with this socket.
-	d.snapListener = listeners[1]
+	d.snapdListener = &ucrednetListener{listenerMap[dirs.SnapdSocket]}
+
+	// Note that the SnapSocket listener does not use ucrednet. We use the lack
+	// of remote information as an indication that the request originated with
+	// this socket.
+	d.snapListener = listenerMap[dirs.SnapSocket]
 
 	d.addRoutes()
 
