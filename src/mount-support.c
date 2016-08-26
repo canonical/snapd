@@ -169,11 +169,26 @@ static void sc_bind_mount_hostfs(const char *rootfs_dir)
 	}
 }
 
+// Bind mount the snap mount directory. Unlike other directories above the
+// location of the mount directory on the host filesystem may not match the
+// location in the chroot. In the chroot the directory is always /snap. On
+// the host it is SNAP_MOUNT_DIR.
+static void sc_bind_mount_snap_mount_dir(const char *rootfs_dir)
+{
+	const char *src = SNAP_MOUNT_DIR;
+	char dst[512];
+	must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir, SNAP_MOUNT_DIR);
+	debug("bind mounting %s to %s", src, dst);
+	if (mount(src, dst, NULL, MS_BIND | MS_REC | MS_SLAVE, NULL) != 0) {
+		die("cannot bind mount %s to %s", src, dst);
+	}
+}
+
 void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
 	char rootfs_dir[MAX_BUF] = { 0 };
-	// Create a temporary directory that will become the root directory of this
+// Create a temporary directory that will become the root directory of this
 	// process later on. The directory will be used as a mount point for the
 	// core snap.
 	//
@@ -184,7 +199,7 @@ void setup_snappy_os_mounts()
 		die("cannot create temporary directory for the root file system");
 	}
 	// Bind mount the OS snap into the rootfs directory.
-	const char *core_snap_dir = "/snap/ubuntu-core/current";
+	const char *core_snap_dir = SNAP_MOUNT_DIR "/ubuntu-core/current";
 	debug("bind mounting core snap: %s -> %s", core_snap_dir, rootfs_dir);
 	if (mount(core_snap_dir, rootfs_dir, NULL, MS_BIND, NULL) != 0) {
 		die("cannot bind mount core snap: %s to %s", core_snap_dir,
@@ -199,7 +214,6 @@ void setup_snappy_os_mounts()
 		"/home",	// to support /home/*/snap and home interface
 		"/root",	// because that is $HOME for services
 		"/proc",	// fundamental filesystem
-		"/snap",	// to get access to all the snaps
 		"/sys",		// fundamental filesystem
 		"/tmp",		// to get writable tmp
 		"/var/snap",	// to get access to global snap data
@@ -231,6 +245,7 @@ void setup_snappy_os_mounts()
 			die("cannot bind mount %s to %s", src, dst);
 		}
 	}
+	sc_bind_mount_snap_mount_dir(rootfs_dir);
 	// Since we mounted /etc from the host above, we need to put
 	// /etc/alternatives from the os snap back.
 	// https://bugs.launchpad.net/snap-confine/+bug/1580018

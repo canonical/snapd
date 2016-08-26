@@ -141,5 +141,12 @@ AS_IF([test "x$enable_merged_usr" = "xyes"], [
     AC_DEFINE([MERGED_USR], [1],
         [Support for merged /usr directory])])
 
+SNAP_MOUNT_DIR="/snap"
+AC_ARG_WITH([snap-mount-dir],
+    AS_HELP_STRING([--with-snap-mount-dir=DIR], [Use an alternate snap mount directory]),
+    [SNAP_MOUNT_DIR="$withval"])
+AC_SUBST(SNAP_MOUNT_DIR)
+AC_DEFINE_UNQUOTED([SNAP_MOUNT_DIR], "${SNAP_MOUNT_DIR}", [Location of the snap mount points])
+
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile docs/Makefile])
 AC_OUTPUT
