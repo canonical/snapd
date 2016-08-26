@@ -148,7 +148,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 			if _, ok := err.(*asserts.RevisionError); ok {
 				return nil
 			}
-			return fmt.Errorf("cannot add %s %v: %v", a.Type().Name, a.Ref().PrimaryKey, err)
+			return fmt.Errorf("cannot add %s: %v", a.Ref(), err)
 		}
 		// new one
 		assertRefs = append(assertRefs, a.Ref())
@@ -209,7 +209,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 			PrimaryKey: []string{sha3_384},
 		}
 		if err := f.Fetch(ref); err != nil {
-			logger.Noticef("cannot fetch assertion %q: %s", ref.Unique(), err)
+			return fmt.Errorf("cannot fetch assertion %q: %s", ref, err)
 		} else {
 			assertRefs = append(assertRefs, ref)
 		}
