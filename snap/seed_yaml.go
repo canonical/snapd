@@ -41,7 +41,8 @@ type SeedSnap struct {
 	Private     bool     `yaml:"private,omitempty" json:"private,omitempty"`
 
 	// not in side-info
-	File string `yaml:"file"`
+	File    string `yaml:"file"`
+	DevMode bool   `yaml:"devmode"`
 }
 
 type Seed struct {

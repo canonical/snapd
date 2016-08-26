@@ -32,6 +32,7 @@ import (
 
 type SnapOptions struct {
 	Channel  string `json:"channel,omitempty"`
+	Revision string `json:"revision,omitempty"`
 	DevMode  bool   `json:"devmode,omitempty"`
 	JailMode bool   `json:"jailmode,omitempty"`
 }
@@ -41,6 +42,11 @@ type actionData struct {
 	Name     string `json:"name,omitempty"`
 	SnapPath string `json:"snap-path,omitempty"`
 	*SnapOptions
+}
+
+type multiActionData struct {
+	Action string   `json:"action"`
+	Snaps  []string `json:"snaps,omitempty"`
 }
 
 // Install adds the snap with the given name from the given channel (or
@@ -60,6 +66,10 @@ func (client *Client) Refresh(name string, options *SnapOptions) (changeID strin
 	return client.doSnapAction("refresh", name, options)
 }
 
+func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("refresh", names, options)
+}
+
 func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("enable", name, options)
 }
@@ -76,15 +86,39 @@ func (client *Client) Revert(name string, options *SnapOptions) (changeID string
 func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
 	action := actionData{
 		Action:      actionName,
-		Name:        snapName,
 		SnapOptions: options,
 	}
 	data, err := json.Marshal(&action)
 	if err != nil {
-		return "", fmt.Errorf("cannot marshal snap options: %s", err)
+		return "", fmt.Errorf("cannot marshal snap action: %s", err)
 	}
 	path := fmt.Sprintf("/v2/snaps/%s", snapName)
-	return client.doAsync("POST", path, nil, nil, bytes.NewBuffer(data))
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	return client.doAsync("POST", path, nil, headers, bytes.NewBuffer(data))
+}
+
+func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
+	if options != nil {
+		return "", fmt.Errorf("cannnot use options for multi-action") // (yet)
+	}
+	action := multiActionData{
+		Action: actionName,
+		Snaps:  snaps,
+	}
+	data, err := json.Marshal(&action)
+	if err != nil {
+		return "", fmt.Errorf("cannot marshal multi-snap action: %s", err)
+	}
+
+	headers := map[string]string{
+		"Content-Type": "application/json",
+	}
+
+	return client.doAsync("POST", "/v2/snaps", nil, headers, bytes.NewBuffer(data))
 }
 
 // InstallPath sideloads the snap with the given path, returning the UUID

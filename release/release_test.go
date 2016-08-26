@@ -55,7 +55,6 @@ VERSION_ID="18.09"
 HOME_URL="http://www.ubuntu.com/"
 SUPPORT_URL="http://help.ubuntu.com/"
 BUG_REPORT_URL="http://bugs.launchpad.net/ubuntu/"
-UBUNTU_CODENAME=awesome
 `
 	err := ioutil.WriteFile(mockOSRelease, []byte(s), 0644)
 	c.Assert(err, IsNil)

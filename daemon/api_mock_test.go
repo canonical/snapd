@@ -48,6 +48,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 			{
 				RealName: snapInfo.Name(),
 				Revision: snapInfo.Revision,
+				SnapID:   "ididid",
 			},
 		},
 		Current: snapInfo.Revision,
