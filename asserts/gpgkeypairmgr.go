@@ -234,7 +234,7 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, 
 }
 
 type gpgKeypairInfo struct {
-	pubKey      PublicKey
+	privKey     PrivateKey
 	fingerprint string
 }
 
@@ -244,7 +244,7 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if uid == name {
 			hit = &gpgKeypairInfo{
-				pubKey:      privk.PublicKey(),
+				privKey:     privk,
 				fingerprint: fpr,
 			}
 			return stop
@@ -298,7 +298,25 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodePublicKey(keyInfo.pubKey)
+	return EncodePublicKey(keyInfo.privKey.PublicKey())
+}
+
+// SignWithoutAuthority assembles an assertion without a set authority with the provided information and signs it with the named key.
+func (gkm *GPGKeypairManager) SignWithoutAuthority(assertType *AssertionType, makeHeaders func(pubKey PublicKey) (map[string]interface{}, error), makeBody func(pubKey PublicKey) ([]byte, error), name string) (Assertion, error) {
+	keyInfo, err := gkm.findByName(name)
+	if err != nil {
+		return nil, err
+	}
+	pubKey := keyInfo.privKey.PublicKey()
+	headers, err := makeHeaders(pubKey)
+	if err != nil {
+		return nil, err
+	}
+	body, err := makeBody(pubKey)
+	if err != nil {
+		return nil, err
+	}
+	return SignWithoutAuthority(assertType, headers, body, keyInfo.privKey)
 }
 
 // Delete removes the named key pair from GnuPG's storage.
