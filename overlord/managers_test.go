@@ -670,12 +670,10 @@ func (s *authContextSetupSuite) SetUpTest(c *C) {
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
 		"model":        "my-model",
-		"class":        "my-class",
 		"architecture": "amd64",
 		"store":        "my-brand-store-id",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel",
-		"core":         "core",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)

@@ -267,12 +267,9 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 		"series":       "16",
 		"brand-id":     "canonical",
 		"model":        "pc",
-		"core":         "core",
 		"gadget":       "pc",
 		"kernel":       "kernel",
 		"architecture": "amd64",
-		"store":        "canonical",
-		"class":        "general",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -283,13 +280,13 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 
 	mod, err := s.mgr.Model()
 	c.Assert(err, IsNil)
-	c.Assert(mod.Store(), Equals, "canonical")
+	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	s.state.Lock()
 	mod, err = devicestate.Model(s.state)
 	s.state.Unlock()
 	c.Assert(err, IsNil)
-	c.Assert(mod.Store(), Equals, "canonical")
+	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)
