@@ -175,7 +175,7 @@ func (cs *clientSuite) TestServerVersion(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestPrivateClientIntegration(c *check.C) {
+func (cs *clientSuite) TestSnapdClientIntegration(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
 	l, err := net.Listen("unix", dirs.SnapdSocket)
 	if err != nil {
@@ -202,7 +202,7 @@ func (cs *clientSuite) TestPrivateClientIntegration(c *check.C) {
 	c.Check(si.Series, check.Equals, "42")
 }
 
-func (cs *clientSuite) TestPublicClientIntegration(c *check.C) {
+func (cs *clientSuite) TestSnapdClientIntegration(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0755), check.IsNil)
 	l, err := net.Listen("unix", dirs.SnapSocket)
 	if err != nil {
