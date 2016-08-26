@@ -36,6 +36,7 @@ func TestStore(t *testing.T) { TestingT(t) }
 type FirstBootTestSuite struct {
 	netplanConfigFile string
 	enableConfig      []string
+	removedFiles      []string
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -48,11 +49,13 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 	netplanConfigFile = filepath.Join(c.MkDir(), "config.yaml")
 	s.enableConfig = enableConfig
 	enableConfig = []string{"/bin/true"}
+	osRemove = func(name string) error { s.removedFiles = append(s.removedFiles, name); return nil }
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	netplanConfigFile = s.netplanConfigFile
 	enableConfig = s.enableConfig
+	osRemove = os.Remove
 }
 
 func (s *FirstBootTestSuite) TestInitialNetworkConfig(c *C) {
@@ -60,13 +63,14 @@ func (s *FirstBootTestSuite) TestInitialNetworkConfig(c *C) {
 	bs, err := ioutil.ReadFile(netplanConfigFile)
 	c.Assert(err, IsNil)
 	c.Check(string(bs), Equals, netplanConfigData)
+	c.Assert(s.removedFiles, DeepEquals, []string{netplanConfigFile})
 }
 
 func (s *FirstBootTestSuite) TestInitialNetworkConfigBadPath(c *C) {
 	netplanConfigFile = "/no/such/thing"
 	err := InitialNetworkConfig()
 	c.Check(err, NotNil)
-	c.Check(os.IsNotExist(err), Equals, true)
+	c.Check(os.IsPermission(err), Equals, true)
 }
 
 func (s *FirstBootTestSuite) TestInitialNetworkConfigEnableFails(c *C) {

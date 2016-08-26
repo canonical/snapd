@@ -45,7 +45,7 @@ func StampFirstBoot() error {
 	return osutil.AtomicWriteFile(dirs.SnapFirstBootStamp, []byte{}, 0644, 0)
 }
 
-var netplanConfigFile = "/etc/netplan/00-initial-config.yaml"
+var netplanConfigFile = "/run/netplan/00-initial-config.yaml"
 var enableConfig = []string{"netplan", "apply"}
 
 var netplanConfigData = `
@@ -58,11 +58,16 @@ network:
     dhcp4: true
 `
 
+var osRemove = os.Remove
+
 // InitialNetworkConfig writes and applies a netplan config that
 // enables dhcp on all wired interfaces. In the long run this should
 // be run as part of the config-changed hook and read the snap's
 // config to determine the netplan config to write.
 func InitialNetworkConfig() error {
+	if err := os.MkdirAll(filepath.Dir(netplanConfigFile), 0755); err != nil {
+		return err
+	}
 	if err := osutil.AtomicWriteFile(netplanConfigFile, []byte(netplanConfigData), 0644, 0); err != nil {
 		return err
 	}
@@ -71,6 +76,9 @@ func InitialNetworkConfig() error {
 	enable.Stdout = os.Stdout
 	enable.Stderr = os.Stderr
 	if err := enable.Run(); err != nil {
+		return err
+	}
+	if err := osRemove(netplanConfigFile); err != nil {
 		return err
 	}
 
