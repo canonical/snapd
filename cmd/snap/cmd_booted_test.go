@@ -17,16 +17,22 @@
  *
  */
 
-package boot
+package main_test
 
-var (
-	PopulateStateFromSeed    = populateStateFromSeed
-	NameAndRevnoFromSnap     = nameAndRevnoFromSnap
-	ImportAssertionsFromSeed = importAssertionsFromSeed
+import (
+	"gopkg.in/check.v1"
+
+	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func MockFirstbootInitialNetworkConfig(f func() error) func() {
-	old := firstbootInitialNetworkConfig
-	firstbootInitialNetworkConfig = f
-	return func() { firstbootInitialNetworkConfig = old }
+func (s *SnapSuite) TestBootedErrorsOnExtra(c *check.C) {
+	_, err := snap.Parser().ParseArgs([]string{"booted", "extra-arg"})
+	c.Assert(err, check.ErrorMatches, `too many arguments for command`)
+}
+
+func (s *SnapSuite) TestBootedSkippedOnClassic(c *check.C) {
+	rest, err := snap.Parser().ParseArgs([]string{"booted"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.DeepEquals, []string{})
+	c.Assert(s.Stdout(), check.Equals, "Ignoring 'booted' on classic")
 }
