@@ -96,7 +96,7 @@ fmt:
 EXTRA_DIST = 80-snappy-assign.rules snappy-app-dev snap-confine.apparmor.in
 
 snap-confine.apparmor: snap-confine.apparmor.in Makefile
-	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' <$< >$@
+	sed -e 's,[@]LIBEXECDIR[@],$(libexecdir),g' -e 's,[@]SNAP_MOUNT_DIR[@],$(SNAP_MOUNT_DIR),' <$< >$@
 
 # NOTE: This makes distcheck fail but it is required for udev, so go figure.
 # http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
