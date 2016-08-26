@@ -235,6 +235,9 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 
+	os.Setenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS", "1")
+	defer os.Unsetenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS")
+
 	rootdir := filepath.Join(c.MkDir(), "imageroot")
 
 	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml

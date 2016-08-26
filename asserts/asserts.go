@@ -92,6 +92,10 @@ type Ref struct {
 	PrimaryKey []string
 }
 
+func (ref *Ref) String() string {
+	return fmt.Sprintf("%s %v", ref.Type.Name, ref.PrimaryKey)
+}
+
 // Unique returns a unique string representing the reference that can be used as a key in maps.
 func (ref *Ref) Unique() string {
 	return fmt.Sprintf("%s/%s", ref.Type.Name, strings.Join(ref.PrimaryKey, "/"))
