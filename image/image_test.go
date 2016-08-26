@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,12 +95,9 @@ func (s *imageSuite) SetUpTest(c *C) {
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
 		"model":        "my-model",
-		"class":        "my-class",
 		"architecture": "amd64",
-		"store":        "canonical",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel",
-		"core":         "core",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -181,6 +179,40 @@ AXNpZw==
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion in "%s" is not a model assertion`, fn))
 }
 
+func (s *imageSuite) TestModelAssertionReservedHeaders(c *C) {
+	const mod = `type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel
+timestamp: 2016-01-02T10:00:00-05:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`
+
+	reserved := []string{
+		"core",
+		"os",
+		"class",
+		"allowed-modes",
+	}
+
+	for _, rsvd := range reserved {
+		tweaked := strings.Replace(mod, "kernel: kernel\n", fmt.Sprintf("kernel: kernel\n%s: stuff\n", rsvd), 1)
+		fn := filepath.Join(c.MkDir(), "model.assertion")
+		err := ioutil.WriteFile(fn, []byte(tweaked), 0644)
+		c.Assert(err, IsNil)
+		_, err = image.DecodeModelAssertion(&image.Options{
+			ModelFile: fn,
+		})
+		c.Check(err, ErrorMatches, fmt.Sprintf("model assertion cannot have reserved/unsupported header %q set", rsvd))
+	}
+}
+
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
@@ -248,8 +280,8 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1))
 	s.downloadedSnaps["pc-kernel"] = snaptest.MakeTestSnapWithFiles(c, packageKernel, nil)
 	s.storeSnapInfo["pc-kernel"] = infoFromSnapYaml(c, packageKernel, snap.R(2))
-	s.downloadedSnaps["core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
-	s.storeSnapInfo["core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
+	s.downloadedSnaps["ubuntu-core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
+	s.storeSnapInfo["ubuntu-core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
 
 	// mock the mount cmds (for the extract kernel assets stuff)
 	c1 := testutil.MockCommand(c, "mount", "")

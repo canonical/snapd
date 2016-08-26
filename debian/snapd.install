@@ -20,3 +20,7 @@ debian/*.socket /lib/systemd/system/
 debian/snapd.service /lib/systemd/system/
 # targets
 debian/*.target /lib/systemd/system/
+
+# boot related
+debian/snapd.boot-ok.service /lib/systemd/system/
+debian/snapd.firstboot.service /lib/systemd/system/
