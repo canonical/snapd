@@ -73,11 +73,3 @@ execute: |
         echo "Expected snapd API to be unauthorized on the snap socket"
         exit 1
     fi
-
-
-    echo "Verify that the snap API is also available via the snapd socket"
-
-    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snapctl | grep status-code\":\s*200; then
-        echo "Expected snap API to be available on the snapd socket"
-        exit 1
-    fi
