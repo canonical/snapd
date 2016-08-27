@@ -193,7 +193,7 @@ var (
 
 	snapctlCmd = &Command{
 		Path:   "/v2/snapctl",
-		UserOK: false,
+		SnapOK: true,
 		POST:   runSnapctl,
 	}
 )

@@ -397,6 +397,11 @@ sigwaitinfo
 socket
 connect
 
+# needed by snapctl
+setsockopt
+getsockname
+getpeername
+
 # Per man page, on Linux this is limited to only AF_UNIX so it is ok to have
 # in the default template
 socketpair
