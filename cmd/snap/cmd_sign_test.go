@@ -35,8 +35,8 @@ var statement = []byte(fmt.Sprintf(`type: snap-build
 authority-id: devel1
 series: "16"
 snap-id: snapidsnapidsnapidsnapidsnapidsn
-snap-digest: sha512-pKvURIxJVi2CgRXROh_M6pJ_UrTVRZKX-LQ-QtqJI4vBNibkPcs43bCCSIkn7JBPtCBXRDmD6IWFF51QVRr-Yg
-snap-size: 1
+snap-sha3-384: QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL
+snap-size: "1"
 grade: devel
 timestamp: %s
 `, time.Now().Format(time.RFC3339)))
@@ -45,6 +45,19 @@ func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
 	rest, err := snap.Parser().ParseArgs([]string{"sign"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+
+	a, err := asserts.Decode(s.stdout.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.SnapBuildType)
+}
+
+
+func (s *SnapKeysSuite) TestHappyNonDefaultKey(c *C) {
+	s.stdin.Write(statement)
+
+	rest, err := snap.Parser().ParseArgs([]string{"sign", "--key-name", "another"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 

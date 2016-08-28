@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -36,7 +35,7 @@ var longSignHelp = i18n.G(`Sign an assertion using the specified key, using the 
 `)
 
 type cmdSign struct {
-	KeyID string `long:"key-name" description:"name of the key to use, otherwise use the default key" default:"default"`
+	KeyName string `long:"key-name" description:"name of the key to use, otherwise use the default key" default:"default"`
 }
 
 func init() {
@@ -57,9 +56,13 @@ func (x *cmdSign) Execute(args []string) error {
 	}
 
 	keypairMgr := asserts.NewGPGKeypairManager()
+	privKey, err := keypairMgr.GetByName(x.KeyName)
+	if err != nil {
+		return err
+	}
 
 	signReq := tool.SignRequest{
-		KeyID:     strings.ToLower(x.KeyID),
+		KeyID:     privKey.PublicKey().ID(),
 		Statement: statement,
 	}
 
