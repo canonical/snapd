@@ -27,14 +27,6 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-func (s *SnapKeysSuite) TestExportKeyRequiresName(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"export-key"})
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "the required argument `<key-name>` was not provided")
-	c.Check(s.Stdout(), Equals, "")
-	c.Check(s.Stderr(), Equals, "")
-}
-
 func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"export-key", "nonexistent"})
 	c.Assert(err, NotNil)
@@ -43,13 +35,23 @@ func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *SnapKeysSuite) TestExportKey(c *C) {
-	rest, err := snap.Parser().ParseArgs([]string{"export-key", "default"})
+func (s *SnapKeysSuite) TestExportKeyDefault(c *C) {
+	rest, err := snap.Parser().ParseArgs([]string{"export-key"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
 	c.Assert(err, IsNil)
 	c.Check(pubKey.ID(), Equals, "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapKeysSuite) TestExportKeyNonDefault(c *C) {
+	rest, err := snap.Parser().ParseArgs([]string{"export-key", "another"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(pubKey.ID(), Equals, "DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L")
 	c.Check(s.Stderr(), Equals, "")
 }
 
