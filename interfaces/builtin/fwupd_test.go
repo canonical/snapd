@@ -125,8 +125,8 @@ func (s *FwupdInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 		c.Assert(snippet, IsNil)
 	}
 
-	for _, system := range [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityMount} {
+	for _, system := range [...]interfaces.SecuritySystem{interfaces.SecurityUDev,
+		interfaces.SecurityMount} {
 		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
@@ -138,7 +138,10 @@ func (s *FwupdInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 		c.Assert(snippet, IsNil)
 	}
 
-	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityDBus)
+	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
@@ -153,10 +156,16 @@ func (s *FwupdInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityDBus)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
