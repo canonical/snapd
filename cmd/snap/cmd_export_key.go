@@ -33,7 +33,7 @@ type cmdExportKey struct {
 	Account    string `long:"account" description:"format public key material as a request for an account-key for this account-id"`
 	Positional struct {
 		KeyName string `positional-arg-name:"<key-name>" description:"name of key to export"`
-	} `positional-args:"true" required:"true"`
+	} `positional-args:"true"`
 }
 
 func init() {
@@ -51,9 +51,14 @@ func (x *cmdExportKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	keyName := x.Positional.KeyName
+	if keyName == "" {
+		keyName = "default"
+	}
+
 	manager := asserts.NewGPGKeypairManager()
 	if x.Account != "" {
-		privKey, err := manager.GetByName(x.Positional.KeyName)
+		privKey, err := manager.GetByName(keyName)
 		if err != nil {
 			return err
 		}
@@ -74,7 +79,7 @@ func (x *cmdExportKey) Execute(args []string) error {
 		}
 		fmt.Fprint(Stdout, string(asserts.Encode(assertion)))
 	} else {
-		encoded, err := manager.Export(x.Positional.KeyName)
+		encoded, err := manager.Export(keyName)
 		if err != nil {
 			return err
 		}
