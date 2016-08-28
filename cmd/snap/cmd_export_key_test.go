@@ -59,12 +59,7 @@ func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	storeSigning := assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore:      asserts.NewMemoryBackstore(),
-		Trusted:        storeSigning.Trusted,
-		KeypairManager: asserts.NewGPGKeypairManager(),
-	})
-	c.Assert(err, IsNil)
+	manager := asserts.NewGPGKeypairManager()
 	assertstest.NewAccount(storeSigning, "developer1", nil, "")
 	rest, err := snap.Parser().ParseArgs([]string{"export-key", "default", "--account=developer1"})
 	c.Assert(err, IsNil)
@@ -76,8 +71,8 @@ func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
 	c.Check(assertion.HeaderString("account-id"), Equals, "developer1")
 	c.Check(assertion.HeaderString("public-key-sha3-384"), Equals, "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
 	c.Check(s.Stderr(), Equals, "")
-	pubKey, err := db.PublicKey(assertion.HeaderString("public-key-sha3-384"))
+	privKey, err := manager.Get(assertion.HeaderString("public-key-sha3-384"))
 	c.Assert(err, IsNil)
-	err = asserts.SignatureCheck(assertion, pubKey)
+	err = asserts.SignatureCheck(assertion, privKey.PublicKey())
 	c.Assert(err, IsNil)
 }
