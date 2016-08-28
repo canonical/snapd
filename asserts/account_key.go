@@ -35,7 +35,7 @@ type AccountKey struct {
 
 // AccountID returns the account-id of this account-key.
 func (ak *AccountKey) AccountID() string {
-	return ak.Header("account-id")
+	return ak.HeaderString("account-id")
 }
 
 // Since returns the time when the account key starts being valid.
@@ -43,24 +43,23 @@ func (ak *AccountKey) Since() time.Time {
 	return ak.since
 }
 
-// Until returns the time when the account key stops being valid.
+// Until returns the time when the account key stops being valid. A zero time means the key is valid forever.
 func (ak *AccountKey) Until() time.Time {
 	return ak.until
 }
 
-// PublicKeyID returns the key id (as used to match signatures to signing keys) for the account key.
+// PublicKeyID returns the key id used for lookup of the account key.
 func (ak *AccountKey) PublicKeyID() string {
 	return ak.pubKey.ID()
 }
 
-// PublicKeyFingerprint returns the fingerprint of the account key.
-func (ak *AccountKey) PublicKeyFingerprint() string {
-	return ak.pubKey.Fingerprint()
-}
-
 // isKeyValidAt returns whether the account key is valid at 'when' time.
 func (ak *AccountKey) isKeyValidAt(when time.Time) bool {
-	return (when.After(ak.since) || when.Equal(ak.since)) && when.Before(ak.until)
+	valid := when.After(ak.since) || when.Equal(ak.since)
+	if valid && !ak.until.IsZero() {
+		valid = when.Before(ak.until)
+	}
+	return valid
 }
 
 // publicKey returns the underlying public key of the account key.
@@ -68,19 +67,12 @@ func (ak *AccountKey) publicKey() PublicKey {
 	return ak.pubKey
 }
 
-func checkPublicKey(ab *assertionBase, fingerprintName, keyIDName string) (PublicKey, error) {
-	pubKey, err := decodePublicKey(ab.Body())
+func checkPublicKey(ab *assertionBase, keyIDName string) (PublicKey, error) {
+	pubKey, err := DecodePublicKey(ab.Body())
 	if err != nil {
 		return nil, err
 	}
-	fp, err := checkNotEmpty(ab.headers, fingerprintName)
-	if err != nil {
-		return nil, err
-	}
-	if fp != pubKey.Fingerprint() {
-		return nil, fmt.Errorf("public key does not match provided fingerprint")
-	}
-	keyID, err := checkNotEmpty(ab.headers, keyIDName)
+	keyID, err := checkNotEmptyString(ab.headers, keyIDName)
 	if err != nil {
 		return nil, err
 	}
@@ -110,24 +102,124 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*AccountKey)(nil)
 
+// Prerequisites returns references to this account-key's prerequisite assertions.
+func (ak *AccountKey) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: AccountType, PrimaryKey: []string{ak.AccountID()}},
+	}
+}
+
 func assembleAccountKey(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "account-id")
+	if err != nil {
+		return nil, err
+	}
+
 	since, err := checkRFC3339Date(assert.headers, "since")
 	if err != nil {
 		return nil, err
 	}
-	until, err := checkRFC3339Date(assert.headers, "until")
+
+	until, err := checkRFC3339DateWithDefault(assert.headers, "until", time.Time{})
 	if err != nil {
 		return nil, err
 	}
-	if !until.After(since) {
-		return nil, fmt.Errorf("invalid 'since' and 'until' times (no gap after 'since' till 'until')")
+	if !until.IsZero() && until.Before(since) {
+		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
 	}
-	pubk, err := checkPublicKey(&assert, "public-key-fingerprint", "public-key-id")
+
+	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
 	if err != nil {
 		return nil, err
 	}
+
 	// ignore extra headers for future compatibility
 	return &AccountKey{
+		assertionBase: assert,
+		since:         since,
+		until:         until,
+		pubKey:        pubk,
+	}, nil
+}
+
+// AccountKeyRequest holds an account-key-request assertion, which is a self-signed request to prove that the requester holds the private key and wishes to create an account-key assertion for it.
+type AccountKeyRequest struct {
+	assertionBase
+	since  time.Time
+	until  time.Time
+	pubKey PublicKey
+}
+
+// AccountID returns the account-id of this account-key-request.
+func (akr *AccountKeyRequest) AccountID() string {
+	return akr.HeaderString("account-id")
+}
+
+// Since returns the time when the requested account key starts being valid.
+func (akr *AccountKeyRequest) Since() time.Time {
+	return akr.since
+}
+
+// Until returns the time when the requested account key stops being valid. A zero time means the key is valid forever.
+func (akr *AccountKeyRequest) Until() time.Time {
+	return akr.until
+}
+
+// PublicKey returns the underlying public key of the requested account key.
+func (akr *AccountKeyRequest) PublicKey() PublicKey {
+	return akr.pubKey
+}
+
+// Implement further consistency checks.
+func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) error {
+	_, err := db.Find(AccountType, map[string]string{
+		"account-id": akr.AccountID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("account-key-request assertion for %q does not have a matching account assertion", akr.AccountID())
+	}
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*AccountKeyRequest)(nil)
+
+// Prerequisites returns references to this account-key-request's prerequisite assertions.
+func (akr *AccountKeyRequest) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: AccountType, PrimaryKey: []string{akr.AccountID()}},
+	}
+}
+
+func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "account-id")
+	if err != nil {
+		return nil, err
+	}
+
+	since, err := checkRFC3339Date(assert.headers, "since")
+	if err != nil {
+		return nil, err
+	}
+
+	until, err := checkRFC3339DateWithDefault(assert.headers, "until", time.Time{})
+	if err != nil {
+		return nil, err
+	}
+	if !until.IsZero() && until.Before(since) {
+		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
+	}
+
+	pubk, err := checkPublicKey(&assert, "public-key-sha3-384")
+	if err != nil {
+		return nil, err
+	}
+
+	// ignore extra headers for future compatibility
+	return &AccountKeyRequest{
 		assertionBase: assert,
 		since:         since,
 		until:         until,

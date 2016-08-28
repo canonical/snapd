@@ -22,6 +22,7 @@ package backend
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/progress"
@@ -51,9 +52,8 @@ func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter p
 		return err
 	}
 
-	// FIXME: special handling is bad 'mkay
 	if s.Type == snap.TypeKernel {
-		if err := boot.ExtractKernelAssets(s, meter); err != nil {
+		if err := boot.ExtractKernelAssets(s, snapf); err != nil {
 			return fmt.Errorf("cannot install kernel: %s", err)
 		}
 	}
@@ -74,13 +74,16 @@ func (b Backend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress
 		return err
 	}
 
-	snapPath := s.MountFile()
+	// try to remove parent dir, failure is ok, means some other
+	// revisions are still in there
+	os.Remove(filepath.Dir(mountDir))
 
 	// snapPath may either be a file or a (broken) symlink to a dir
+	snapPath := s.MountFile()
 	if _, err := os.Lstat(snapPath); err == nil {
 		// remove the kernel assets (if any)
 		if typ == snap.TypeKernel {
-			if err := boot.RemoveKernelAssets(s, meter); err != nil {
+			if err := boot.RemoveKernelAssets(s); err != nil {
 				return err
 			}
 		}

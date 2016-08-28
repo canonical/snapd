@@ -25,6 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -67,6 +69,32 @@ func (s revisionSuite) TestJSON(c *C) {
 
 		var got snap.Revision
 		err = json.Unmarshal(data, &got)
+		c.Assert(err, IsNil)
+		c.Assert(got, Equals, r)
+
+		got = snap.Revision{}
+		err = json.Unmarshal([]byte(strconv.Itoa(r.N)), &got)
+		c.Assert(err, IsNil)
+		c.Assert(got, Equals, r)
+	}
+}
+
+func (s revisionSuite) TestYAML(c *C) {
+	for _, v := range []struct {
+		n int
+		s string
+	}{
+		{0, "unset"},
+		{10, `"10"`},
+		{-9, "x9"},
+	} {
+		r := snap.R(v.n)
+		data, err := yaml.Marshal(snap.R(v.n))
+		c.Assert(err, IsNil)
+		c.Assert(string(data), Equals, v.s+"\n")
+
+		var got snap.Revision
+		err = yaml.Unmarshal(data, &got)
 		c.Assert(err, IsNil)
 		c.Assert(got, Equals, r)
 

@@ -1,0 +1,54 @@
+summary: Ensure that the snapd-control interface works.
+
+details: |
+    The snapd-control interface allows a snap to access the locale configuration.
+
+    A snap which defines the snapd-control plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to control the snapd daemon
+    through the socket, the test snap used has a command to install a snap (exercising
+    the write capability on the socket) and a command to list the installed snaps (which
+    checks the read capability). A network plug must be defined and connected for the
+    snap to be able to talk to the socket, the snapd-control is not enough by itself.
+
+
+prepare: |
+    echo "Given a snap declaring a plug on the snapd-control interface is installed"
+    snapbuild $TESTSLIB/snaps/snapd-control-consumer .
+    snap install snapd-control-consumer_1.0_all.snap
+
+restore: |
+    rm -f snapd-control-consumer_1.0_all.snap snapd.error
+
+execute: |
+    CONNECTED_PATTERN=":snapd-control +snapd-control-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +snapd-control-consumer:snapd-control"
+
+    echo "Then it is connected by default"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "================================================"
+
+    echo "When the plug is disconnected"
+    snap disconnect snapd-control-consumer:snapd-control ubuntu-core:snapd-control
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap command is not able to control snapd"
+    if snapd-control-consumer.list 2>snapd.error; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi
+    grep -q "Permission denied" snapd.error
+
+    echo "================================================"
+
+    echo "When the plug is connected"
+    snap connect snapd-control-consumer:snapd-control ubuntu-core:snapd-control
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap command is able to control snapd"
+    ! snapd-control-consumer.list | grep -q test-snapd-tools
+    snapd-control-consumer.install test-snapd-tools
+    while ! snapd-control-consumer.list | grep -q test-snapd-tools; do sleep 1; done

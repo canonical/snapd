@@ -1,0 +1,15 @@
+#!/usr/bin/expect -f
+
+set timeout 2
+
+spawn bash
+
+# Test private /tmp, allowed access
+spawn sudo -i -u test /bin/sh -c /snap/bin/test-snapd-tools.sh
+expect "bash-4.3\\$" {} timeout { exit 1 }
+send "touch /tmp/foo\n"
+send "stat /tmp/foo\n"
+expect {
+    timeout { exit 1 }
+    "File: '/tmp/foo'*Size: 0"
+}

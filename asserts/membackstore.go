@@ -128,7 +128,7 @@ func (mbs *memoryBackstore) Put(assertType *AssertionType, assert Assertion) err
 	internalKey := make([]string, 1+len(assertType.PrimaryKey))
 	internalKey[0] = assertType.Name
 	for i, name := range assertType.PrimaryKey {
-		internalKey[1+i] = assert.Header(name)
+		internalKey[1+i] = assert.HeaderString(name)
 	}
 
 	err := mbs.top.put(internalKey, assert)

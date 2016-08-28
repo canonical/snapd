@@ -1,0 +1,113 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2016 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package builtin
+
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/interfaces"
+)
+
+const lxdSupportConnectedPlugAppArmor = `
+# Description: Can change to any apparmor profile (including unconfined) thus
+# giving access to all resources of the system so LXD may manage what to give
+# to its containers. This gives device ownership to connected snaps.
+@{PROC}/**/attr/current r,
+/usr/sbin/aa-exec ux,
+`
+
+const lxdSupportConnectedPlugSecComp = `
+# Description: Can access all syscalls of the system so LXD may manage what to
+# give to its containers, giving device ownership to connected snaps.
+@unrestricted
+`
+
+type LxdSupportInterface struct{}
+
+func (iface *LxdSupportInterface) Name() string {
+	return "lxd-support"
+}
+
+func (iface *LxdSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
+		interfaces.SecuritySecComp, interfaces.SecurityUDev,
+		interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityAppArmor:
+		return []byte(lxdSupportConnectedPlugAppArmor), nil
+	case interfaces.SecuritySecComp:
+		return []byte(lxdSupportConnectedPlugSecComp), nil
+	case interfaces.SecurityDBus, interfaces.SecurityUDev,
+		interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+func (iface *LxdSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
+		interfaces.SecuritySecComp, interfaces.SecurityUDev,
+		interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+func (iface *LxdSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	switch securitySystem {
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
+		interfaces.SecuritySecComp, interfaces.SecurityUDev,
+		interfaces.SecurityMount:
+		return nil, nil
+	default:
+		return nil, interfaces.ErrUnknownSecurity
+	}
+}
+
+func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
+	snapName := plug.Snap.Name()
+	devName := plug.Snap.Developer
+	if snapName != "lxd" {
+		return fmt.Errorf("lxd-support plug reserved (snap name '%s' != 'lxd')", snapName)
+	} else if devName != "canonical" {
+		return fmt.Errorf("lxd-support interface is reserved for the upstream LXD project")
+	}
+	return nil
+}
+
+func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	return nil
+}
+
+func (iface *LxdSupportInterface) AutoConnect() bool {
+	// since limited to lxd.canonical, we can auto-connect
+	return true
+}

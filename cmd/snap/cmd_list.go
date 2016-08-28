@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 	"text/tabwriter"
@@ -62,10 +63,13 @@ func listSnaps(names []string) error {
 	cli := Client()
 	snaps, err := cli.List(names)
 	if err != nil {
+		if err == client.ErrNoSnapsInstalled {
+			fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
+			return nil
+		}
 		return err
 	} else if len(snaps) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
-		return nil
+		return errors.New(i18n.G("no matching snaps installed"))
 	}
 	sort.Sort(snapsByName(snaps))
 

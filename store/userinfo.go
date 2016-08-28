@@ -22,13 +22,11 @@ package store
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
-	"time"
 )
 
 var (
-	httpClient = http.Client{Timeout: 10 * time.Second}
+	httpClient = newHTTPClient()
 )
 
 type keysReply struct {
@@ -51,6 +49,16 @@ func UserInfo(email string) (userinfo *User, err error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case 200:
+		// good
+		break
+	case 404:
+		return nil, fmt.Errorf("cannot find user %q", email)
+	default:
+		return nil, respToError(resp, fmt.Sprintf("look up user %q", email))
+	}
 
 	var v keysReply
 	dec := json.NewDecoder(resp.Body)

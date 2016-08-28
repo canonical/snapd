@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -42,7 +43,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -72,6 +75,7 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	paymentMethodsCmd,
+	snapctlCmd,
 }
 
 var (
@@ -88,15 +92,14 @@ var (
 	}
 
 	loginCmd = &Command{
-		Path:     "/v2/login",
-		POST:     loginUser,
-		SudoerOK: true,
+		Path: "/v2/login",
+		POST: loginUser,
 	}
 
 	logoutCmd = &Command{
-		Path:     "/v2/logout",
-		POST:     logoutUser,
-		SudoerOK: true,
+		Path:   "/v2/logout",
+		POST:   logoutUser,
+		UserOK: true,
 	}
 
 	appIconCmd = &Command{
@@ -115,7 +118,7 @@ var (
 		Path:   "/v2/snaps",
 		UserOK: true,
 		GET:    getSnapsInfo,
-		POST:   sideloadSnap,
+		POST:   postSnaps,
 	}
 
 	snapCmd = &Command{
@@ -187,6 +190,12 @@ var (
 		UserOK: false,
 		GET:    getPaymentMethods,
 	}
+
+	snapctlCmd = &Command{
+		Path:   "/v2/snapctl",
+		SnapOK: true,
+		POST:   runSnapctl,
+	}
 )
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -201,6 +210,11 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		"on-classic": release.OnClassic,
 	}
 
+	// TODO: set the store-id here from the model information
+	if storeID := os.Getenv("UBUNTU_STORE_ID"); storeID != "" {
+		m["store"] = storeID
+	}
+
 	return SyncResponse(m, nil)
 }
 
@@ -208,6 +222,8 @@ type loginResponseData struct {
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
+
+var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 
 func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	var loginData struct {
@@ -219,6 +235,19 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&loginData); err != nil {
 		return BadRequest("cannot decode login data from request body: %v", err)
+	}
+
+	// the "username" needs to look a lot like an email address
+	if !isEmailish(loginData.Username) {
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: "please use a valid email address.",
+				Kind:    errorKindInvalidAuthData,
+				Value:   map[string][]string{"email": {"invalid"}},
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
 	}
 
 	serializedMacaroon, err := store.RequestStoreMacaroon()
@@ -253,6 +282,17 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 			Status: http.StatusUnauthorized,
 		}, nil)
 	default:
+		if err, ok := err.(store.ErrInvalidAuthData); ok {
+			return SyncResponse(&resp{
+				Type: ResponseTypeError,
+				Result: &errorResult{
+					Message: err.Error(),
+					Kind:    errorKindInvalidAuthData,
+					Value:   err,
+				},
+				Status: http.StatusBadRequest,
+			}, nil)
+		}
 		return Unauthorized(err.Error())
 	case nil:
 		// continue
@@ -389,21 +429,52 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 	query := r.URL.Query()
+	q := query.Get("q")
+	name := query.Get("name")
+	private := false
+	prefix := false
 
-	if query.Get("select") == "refresh" {
-		if query.Get("q") != "" {
-			return BadRequest("cannot use 'q' with 'select=refresh'")
+	if name != "" {
+		if q != "" {
+			return BadRequest("cannot use 'q' and 'name' together")
 		}
-		return storeUpdates(c, r, user)
+
+		if name[len(name)-1] != '*' {
+			return findOne(c, r, user, name)
+		}
+
+		prefix = true
+		q = name[:len(name)-1]
+	}
+
+	if sel := query.Get("select"); sel != "" {
+		switch sel {
+		case "refresh":
+			if prefix {
+				return BadRequest("cannot use 'name' with 'select=refresh'")
+			}
+			if q != "" {
+				return BadRequest("cannot use 'q' with 'select=refresh'")
+			}
+			return storeUpdates(c, r, user)
+		case "private":
+			private = true
+		}
 	}
 
 	theStore := getStore(c)
-	found, err := theStore.Find(query.Get("q"), query.Get("channel"), user)
+	found, err := theStore.Find(&store.Search{
+		Query:   q,
+		Private: private,
+		Prefix:  prefix,
+	}, user)
 	switch err {
 	case nil:
 		// pass
-	case store.ErrEmptyQuery, store.ErrBadQuery, store.ErrBadPrefix:
+	case store.ErrEmptyQuery, store.ErrBadQuery:
 		return BadRequest("%v", err)
+	case store.ErrUnauthenticated:
+		return Unauthorized(err.Error())
 	default:
 		return InternalError("%v", err)
 	}
@@ -414,6 +485,31 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return sendStorePackages(route, meta, found)
+}
+
+func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
+	if err := snap.ValidateName(name); err != nil {
+		return BadRequest(err.Error())
+	}
+
+	theStore := getStore(c)
+	snapInfo, err := theStore.Snap(name, "", false, snap.R(0), user)
+	if err != nil {
+		return InternalError("%v", err)
+	}
+
+	meta := &Meta{
+		SuggestedCurrency: theStore.SuggestedCurrency(),
+		Sources:           []string{"store"},
+	}
+
+	results := make([]*json.RawMessage, 1)
+	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	results[0] = (*json.RawMessage)(&data)
+	return SyncResponse(results, meta)
 }
 
 func shouldSearchStore(r *http.Request) bool {
@@ -444,39 +540,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	found, err := allLocalSnapInfos(c.d.overlord.State())
-	if err != nil {
-		return InternalError("cannot list local snaps: %v", err)
-	}
-
-	candidatesInfo := make([]*store.RefreshCandidate, 0, len(found))
-	for _, sn := range found {
-		// snaps in try mode are not considered here
-		if sn.snapst.TryMode() {
-			continue
-		}
-
-		// FIXME: snaps that are no active are skipped for now
-		//        until we know what we want to do
-		if !sn.snapst.Active {
-			continue
-		}
-
-		// get confinement preference from the snapstate
-		candidatesInfo = append(candidatesInfo, &store.RefreshCandidate{
-			// the desired channel (not sn.info.Channel!)
-			Channel: sn.snapst.Channel,
-			DevMode: sn.snapst.DevMode(),
-			Block:   sn.snapst.Block(),
-
-			SnapID:   sn.info.SnapID,
-			Revision: sn.info.Revision,
-			Epoch:    sn.info.Epoch,
-		})
-	}
-
-	store := getStore(c)
-	updates, err := store.ListRefresh(candidatesInfo, user)
+	state := c.d.overlord.State()
+	state.Lock()
+	updates, err := snapstateRefreshCandidates(state, user)
+	state.Unlock()
 	if err != nil {
 		return InternalError("cannot list updates: %v", err)
 	}
@@ -508,7 +575,7 @@ func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Respons
 func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if shouldSearchStore(r) {
-		logger.Noticef("jumping to \"find\" to better support legacy request %q", r.URL)
+		logger.Noticef("Jumping to \"find\" to better support legacy request %q", r.URL)
 		return searchStore(c, r, user)
 	}
 
@@ -530,7 +597,7 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 		url, err := route.URL("name", name)
 		if err != nil {
-			logger.Noticef("cannot build URL for snap %q revision %s: %v", name, rev, err)
+			logger.Noticef("Cannot build URL for snap %q revision %s: %v", name, rev, err)
 			continue
 		}
 
@@ -570,25 +637,30 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string `json:"action"`
-	Channel  string `json:"channel"`
-	DevMode  bool   `json:"devmode"`
-	JailMode bool   `json:"jailmode"`
+	Action   string        `json:"action"`
+	Channel  string        `json:"channel"`
+	Revision snap.Revision `json:"revision"`
+	DevMode  bool          `json:"devmode"`
+	JailMode bool          `json:"jailmode"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
 	License  *licenseData `json:"license"`
+	Snaps    []string     `json:"snaps"`
 
 	// The fields below should not be unmarshalled into. Do not export them.
-	snap   string
 	userID int
 }
 
-var snapstateInstall = snapstate.Install
-var snapstateUpdate = snapstate.Update
-var snapstateInstallPath = snapstate.InstallPath
-var snapstateTryPath = snapstate.TryPath
-var snapstateGet = snapstate.Get
+var (
+	snapstateGet               = snapstate.Get
+	snapstateInstall           = snapstate.Install
+	snapstateInstallPath       = snapstate.InstallPath
+	snapstateRefreshCandidates = snapstate.RefreshCandidates
+	snapstateTryPath           = snapstate.TryPath
+	snapstateUpdate            = snapstate.Update
+	snapstateUpdateMany        = snapstate.UpdateMany
+)
 
 func ensureStateSoonImpl(st *state.State) {
 	st.EnsureBefore(0)
@@ -612,7 +684,7 @@ func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.Ta
 		return nil, err
 	}
 
-	return snapstateInstall(st, ubuntuCore, "stable", userID, 0)
+	return snapstateInstall(st, ubuntuCore, "stable", snap.R(0), userID, 0)
 }
 
 func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
@@ -658,81 +730,116 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 
 }
 
+func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
+	// TODO: check inst flags and bail if any are given (-many
+	// doesn't take options)
+	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		// all snaps
+		msg = i18n.G("Refresh all snaps in the system")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Refresh snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Refresh snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, updated, tasksets, nil
+}
+
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
 	}
 
-	tsets, err := withEnsureUbuntuCore(st, inst.snap, inst.userID,
+	logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
+
+	tsets, err := withEnsureUbuntuCore(st, inst.Snaps[0], inst.userID,
 		func() (*state.TaskSet, error) {
-			return snapstateInstall(st, inst.snap, inst.Channel, inst.userID, flags)
+			return snapstateInstall(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 		},
 	)
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.snap)
+	msg := fmt.Sprintf(i18n.G("Install %q snap"), inst.Snaps[0])
 	if inst.Channel != "stable" && inst.Channel != "" {
-		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.snap, inst.Channel)
+		msg = fmt.Sprintf(i18n.G("Install %q snap from %q channel"), inst.Snaps[0], inst.Channel)
 	}
 	return msg, tsets, nil
 }
 
 func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	flags := snapstate.Flags(0)
-
-	ts, err := snapstateUpdate(st, inst.snap, inst.Channel, inst.userID, flags)
+	// TODO: bail if revision is given (and != current?), *or* behave as with install --revision?
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Refresh %q snap"), inst.snap)
+	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.userID, flags)
+	if err != nil {
+		return "", nil, err
+	}
+
+	msg := fmt.Sprintf(i18n.G("Refresh %q snap"), inst.Snaps[0])
 	if inst.Channel != "stable" && inst.Channel != "" {
-		msg = fmt.Sprintf(i18n.G("Refresh %q snap from %q channel"), inst.snap, inst.Channel)
+		msg = fmt.Sprintf(i18n.G("Refresh %q snap from %q channel"), inst.Snaps[0], inst.Channel)
 	}
 
 	return msg, []*state.TaskSet{ts}, nil
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Remove(st, inst.snap)
+	ts, err := snapstate.Remove(st, inst.Snaps[0], inst.Revision)
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.snap)
+	msg := fmt.Sprintf(i18n.G("Remove %q snap"), inst.Snaps[0])
 	return msg, []*state.TaskSet{ts}, nil
 }
 
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Revert(st, inst.snap)
+	// TODO: bail if revision is given (and != current), or revert to that revision?
+	ts, err := snapstate.Revert(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Revert %q snap"), inst.snap)
+	msg := fmt.Sprintf(i18n.G("Revert %q snap"), inst.Snaps[0])
 	return msg, []*state.TaskSet{ts}, nil
 }
 
 func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Enable(st, inst.snap)
+	// TODO: bail if revision is given (and != current?)
+	ts, err := snapstate.Enable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Enable %q snap"), inst.snap)
+	msg := fmt.Sprintf(i18n.G("Enable %q snap"), inst.Snaps[0])
 	return msg, []*state.TaskSet{ts}, nil
 }
 
 func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	ts, err := snapstate.Disable(st, inst.snap)
+	// TODO: bail if revision is given (and != current?)
+	ts, err := snapstate.Disable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
 	}
 
-	msg := fmt.Sprintf(i18n.G("Disable %q snap"), inst.snap)
+	msg := fmt.Sprintf(i18n.G("Disable %q snap"), inst.Snaps[0])
 	return msg, []*state.TaskSet{ts}, nil
 }
 
@@ -748,6 +855,9 @@ var snapInstructionDispTable = map[string]snapActionFunc{
 }
 
 func (inst *snapInstruction) dispatch() snapActionFunc {
+	if len(inst.Snaps) != 1 {
+		logger.Panicf("dispatch only handles single-snap ops; got %d", len(inst.Snaps))
+	}
 	return snapInstructionDispTable[inst.Action]
 }
 
@@ -772,7 +882,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	vars := muxVars(r)
-	inst.snap = vars["name"]
+	inst.Snaps = []string{vars["name"]}
 
 	impl := inst.dispatch()
 	if impl == nil {
@@ -781,10 +891,10 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	msg, tsets, err := impl(&inst, state)
 	if err != nil {
-		return InternalError("cannot %s %q: %v", inst.Action, inst.snap, err)
+		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}
 
-	chg := newChange(state, inst.Action+"-snap", msg, tsets, []string{inst.snap})
+	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
 
 	ensureStateSoon(state)
 
@@ -848,16 +958,62 @@ func isTrue(form *multipart.Form, key string) bool {
 	return b
 }
 
-func sideloadSnap(c *Command, r *http.Request, user *auth.UserState) Response {
+func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	route := c.d.router.Get(stateChangeCmd.Path)
 	if route == nil {
 		return InternalError("cannot find route for change")
 	}
 
+	decoder := json.NewDecoder(r.Body)
+	var inst snapInstruction
+	if err := decoder.Decode(&inst); err != nil {
+		return BadRequest("cannot decode request body into snap instruction: %v", err)
+	}
+
+	if inst.Action != "refresh" {
+		return BadRequest("only refresh supported for multi-snap operation right now")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if user != nil {
+		inst.userID = user.ID
+	}
+
+	msg, updated, tsets, err := snapUpdateMany(&inst, st)
+	if err != nil {
+		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
+	}
+
+	var chg *state.Change
+	if len(tsets) == 0 {
+		chg = st.NewChange(inst.Action+"-snap", msg)
+		chg.SetStatus(state.DoneStatus)
+	} else {
+		chg = newChange(st, inst.Action+"-snap", msg, tsets, updated)
+		ensureStateSoon(st)
+	}
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
+func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	contentType := r.Header.Get("Content-Type")
+
+	if contentType == "application/json" {
+		return snapsOp(c, r, user)
+	}
 
 	if !strings.HasPrefix(contentType, "multipart/") {
 		return BadRequest("unknown content type: %s", contentType)
+	}
+
+	route := c.d.router.Get(stateChangeCmd.Path)
+	if route == nil {
+		return InternalError("cannot find route for change")
 	}
 
 	// POSTs to sideload snaps must be a multipart/form-data file upload.
@@ -983,7 +1139,7 @@ func iconGet(st *state.State, name string) Response {
 	}
 
 	path := filepath.Clean(snapIcon(info))
-	if !strings.HasPrefix(path, dirs.SnapSnapsDir) {
+	if !strings.HasPrefix(path, dirs.SnapMountDir) {
 		// XXX: how could this happen?
 		return BadRequest("requested icon is not in snap path")
 	}
@@ -1097,10 +1253,15 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest("cannot decode request body into an assertion: %v", err)
 	}
-	// TODO/XXX: turn this into a Change/Task combination
-	amgr := c.d.overlord.AssertManager()
-	if err := amgr.DB().Add(a); err != nil {
-		// TODO: have a specific error to be able to return  409 for not newer revision?
+
+	state := c.d.overlord.State()
+	state.Lock()
+	defer state.Unlock()
+
+	if err := assertstate.Add(state, a); err != nil {
+		if _, ok := err.(*asserts.RevisionError); ok {
+			return Conflict("assert failed: %v", err)
+		}
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?
@@ -1121,8 +1282,13 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 	for k := range q {
 		headers[k] = q.Get(k)
 	}
-	amgr := c.d.overlord.AssertManager()
-	assertions, err := amgr.DB().FindMany(assertType, headers)
+
+	state := c.d.overlord.State()
+	state.Lock()
+	db := assertstate.DB(state)
+	state.Unlock()
+
+	assertions, err := db.FindMany(assertType, headers)
 	if err == asserts.ErrNotFound {
 		return AssertResponse(nil, true)
 	} else if err != nil {
@@ -1258,7 +1424,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 
 			var snapNames []string
 			if err := chg.Get("snap-names", &snapNames); err != nil {
-				logger.Noticef("cannot get snap-name for change %v", chg.ID())
+				logger.Noticef("Cannot get snap-name for change %v", chg.ID())
 				return false
 			}
 
@@ -1338,7 +1504,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	var createData struct {
-		EMail string `json:"email"`
+		Email  string `json:"email"`
+		Sudoer bool   `json:"sudoer"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -1346,29 +1513,31 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
-	if createData.EMail == "" {
+	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
-	v, err := storeUserInfo(createData.EMail)
+	v, err := storeUserInfo(createData.Email)
 	if err != nil {
-		return BadRequest("cannot create user %q: %s", createData.EMail, err)
+		return BadRequest("cannot create user %q: %s", createData.Email, err)
+	}
+	if len(v.SSHKeys) == 0 {
+		return BadRequest("cannot create user for %s: no ssh keys found", createData.Email)
 	}
 
-	if err := osutilAddExtraUser(v.Username, v.SSHKeys); err != nil {
+	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
+	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos, createData.Sudoer); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
 	var createResponseData struct {
-		Username string `json:"username"`
+		Username    string `json:"username"`
+		SSHKeyCount int    `json:"ssh-key-count"`
 	}
 	createResponseData.Username = v.Username
+	createResponseData.SSHKeyCount = len(v.SSHKeys)
 
 	return SyncResponse(createResponseData, nil)
-}
-
-type buyResponseData struct {
-	State string `json:"state,omitempty"`
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1380,10 +1549,9 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	opts.User = user
 	s := getStore(c)
 
-	buyResult, err := s.Buy(&opts)
+	buyResult, err := s.Buy(&opts, user)
 
 	switch err {
 	default:
@@ -1394,12 +1562,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		// continue
 	}
 
-	// TODO: Support purchasing redirects
-	if buyResult.State == "InProgress" {
-		return InternalError("payment backend %q is not yet supported", opts.BackendID)
-	}
-
-	return SyncResponse(buyResponseData{State: buyResult.State}, nil)
+	return SyncResponse(buyResult, nil)
 }
 
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1417,4 +1580,32 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	return SyncResponse(paymentMethods, nil)
+}
+
+func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
+	var snapctlRequest hookstate.SnapCtlRequest
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&snapctlRequest); err != nil {
+		return BadRequest("cannot decode snapctl request: %s", err)
+	}
+
+	if snapctlRequest.Context == "" {
+		return BadRequest("snapctl cannot run without context")
+	}
+
+	if len(snapctlRequest.Args) == 0 {
+		return BadRequest("snapctl cannot run without args")
+	}
+
+	stdout, stderr, err := c.d.overlord.HookManager().SnapCtl(snapctlRequest)
+	if err != nil {
+		return BadRequest("error running snapctl: %s", err)
+	}
+
+	result := map[string]string{
+		"stdout": string(stdout),
+		"stderr": string(stderr),
+	}
+
+	return SyncResponse(result, nil)
 }

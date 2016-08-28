@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -84,6 +83,7 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 }
 
 type cmdFind struct {
+	Private    bool `long:"private" description:"search private snaps"`
 	Positional struct {
 		Query string `positional-arg-name:"<query>"`
 	} `positional-args:"yes"`
@@ -101,7 +101,8 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	return findSnaps(&client.FindOptions{
-		Query: x.Positional.Query,
+		Private: x.Private,
+		Query:   x.Positional.Query,
 	})
 }
 
@@ -115,8 +116,6 @@ func findSnaps(opts *client.FindOptions) error {
 	if len(snaps) == 0 {
 		return fmt.Errorf("no snaps found for %q", opts.Query)
 	}
-
-	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
 	defer w.Flush()

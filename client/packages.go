@@ -20,6 +20,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"net/url"
 	"time"
@@ -79,11 +80,16 @@ type ResultInfo struct {
 
 // FindOptions supports exactly one of the following options:
 // - Refresh: only return snaps that are refreshable
+// - Private: return snaps that are private
 // - Query: only return snaps that match the query string
 type FindOptions struct {
 	Refresh bool
+	Private bool
+	Prefix  bool
 	Query   string
 }
+
+var ErrNoSnapsInstalled = errors.New("no snaps installed")
 
 // List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
@@ -91,6 +97,10 @@ func (client *Client) List(names []string) ([]*Snap, error) {
 	snaps, _, err := client.snapsFromPath("/v2/snaps", nil)
 	if err != nil {
 		return nil, err
+	}
+
+	if len(snaps) == 0 {
+		return nil, ErrNoSnapsInstalled
 	}
 
 	if len(names) == 0 {
@@ -120,12 +130,37 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	}
 
 	q := url.Values{}
-	q.Set("q", opts.Query)
-	if opts.Refresh {
+	if opts.Prefix {
+		q.Set("name", opts.Query+"*")
+	} else {
+		q.Set("q", opts.Query)
+	}
+	switch {
+	case opts.Refresh && opts.Private:
+		return nil, nil, fmt.Errorf("cannot specify refresh and private together")
+	case opts.Refresh:
 		q.Set("select", "refresh")
+	case opts.Private:
+		q.Set("select", "private")
 	}
 
 	return client.snapsFromPath("/v2/find", q)
+}
+
+func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
+	q := url.Values{}
+	q.Set("name", name)
+
+	snaps, ri, err := client.snapsFromPath("/v2/find", q)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot find snap %q: %s", name, err)
+	}
+
+	if len(snaps) == 0 {
+		return nil, nil, fmt.Errorf("cannot find snap %q", name)
+	}
+
+	return snaps[0], ri, nil
 }
 
 func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {

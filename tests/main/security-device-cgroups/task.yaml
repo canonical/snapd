@@ -1,0 +1,61 @@
+summary: Ensure that the security rules related to device cgroups work.
+
+environment:
+    DEVICE_NAME/kmsg: kmsg
+    UDEVADM_PATH/kmsg: /sys/devices/virtual/mem/kmsg
+    DEVICE_ID/kmsg: "c 1:11 rwm"
+    OTHER_DEVICE_NAME/kmsg: uinput
+    OTHER_UDEVADM_PATH/kmsg: /sys/devices/virtual/misc/uinput
+    OTHER_DEVICE_ID/kmsg: "c 10:223 rwm"
+
+    DEVICE_NAME/uinput: uinput
+    UDEVADM_PATH/uinput: /sys/devices/virtual/misc/uinput
+    DEVICE_ID/uinput: "c 10:223 rwm"
+    OTHER_DEVICE_NAME/uinput: kmsg
+    OTHER_UDEVADM_PATH/uinput: /sys/devices/virtual/mem/kmsg
+    OTHER_DEVICE_ID/uinput: "c 1:11 rwm"
+
+restore: |
+    rm -f test-snapd-tools_1.0_all.snap /etc/udev/rules.d/70-snap.test-snapd-tools.rules
+    udevadm control --reload-rules
+    udevadm trigger
+
+execute: |
+    echo "Given a snap is installed"
+    snapbuild $TESTSLIB/snaps/test-snapd-tools .
+    snap install ./test-snapd-tools_1.0_all.snap
+
+    echo "Then the device is not assigned to that snap"
+    ! udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
+
+    echo "And the device is not shown in the snap device list"
+    ! grep -q $DEVICE_ID /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "================================================="
+
+    echo "When a udev rule assigning the device to the snap is added"
+    content="KERNEL==\"$DEVICE_NAME\", TAG+=\"snap_test-snapd-tools_env\""
+    echo "$content" > /etc/udev/rules.d/70-snap.test-snapd-tools.rules
+    udevadm control --reload-rules
+    udevadm settle
+    udevadm trigger
+    udevadm settle
+
+    echo "Then the device is shown as assigned to the snap"
+    udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
+
+    echo "And other devices are not shown as assigned to the snap"
+    ! udevadm info $OTHER_UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
+
+    echo "================================================="
+
+    echo "When a snap command is called"
+    test-snapd-tools.env
+
+    echo "Then the device is shown in the snap device list"
+    grep -q "$DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    echo "And other devices are not shown in the snap device list"
+    ! grep -q "$OTHER_DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+
+    # TODO: check device unassociated after removing the udev file and rebooting

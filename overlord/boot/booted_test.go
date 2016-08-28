@@ -58,8 +58,8 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	release.MockOnClassic(false)
 
 	bs.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	bs.bootloader.BootVars["snappy_os"] = "ubuntu-core_2.snap"
-	bs.bootloader.BootVars["snappy_kernel"] = "canonical-pc-linux_2.snap"
+	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_2.snap"
+	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
 	partition.ForceBootloader(bs.bootloader)
 
 	ovld, err := overlord.New()
@@ -105,7 +105,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snappy_os"] = "ubuntu-core_1.snap"
+	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_1.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, IsNil)
 
@@ -129,7 +129,7 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snappy_kernel"] = "canonical-pc-linux_1.snap"
+	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_1.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, IsNil)
 
@@ -153,7 +153,7 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snappy_kernel"] = "canonical-pc-linux_99.snap"
+	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_99.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
@@ -162,7 +162,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snappy_os"] = "ubuntu-core_99.snap"
+	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_99.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "ubuntu-core"`)
 }
@@ -181,7 +181,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 	})
 	st.Unlock()
 
-	bs.bootloader.BootVars["snappy_kernel"] = "ubuntu-core_1.snap"
+	bs.bootloader.BootVars["snap_kernel"] = "ubuntu-core_1.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `(?ms)cannot update revisions after boot changes:.*`)
 }
