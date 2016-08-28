@@ -26,11 +26,16 @@ import (
 
 var fwupdPermanentSlotAppArmor = []byte(`
 # Description: Allow operating as the fwupd service. Reserved because this
-#  gives privileged access to the system.
+# gives privileged access to the system.
 # Usage: reserved
 
   # Allow read/write access for old efivars sysfs interface
   capability sys_admin,
+  # Allow libfwup to access efivarfs with immutable flag
+  capability linux_immutable,
+
+  # For udev
+  network netlink raw,
 
   # File accesses
   # Allow access for EFI System Resource Table in the UEFI 2.5+ specification
@@ -41,10 +46,24 @@ var fwupdPermanentSlotAppArmor = []byte(`
   /sys/devices/virtual/dmi/id/product_name r,
   /sys/devices/virtual/dmi/id/sys_vendor r,
 
-  # File accesses
-  # Allow read access for efivarfs filesystem
+  # Allow read/write access for efivarfs filesystem
   /sys/firmware/efi/efivars/ r,
-  /sys/firmware/efi/efivars/** r,
+  /sys/firmware/efi/efivars/** rw,
+
+  # Allow write access for efi firmware updater
+  /boot/efi/EFI/ubuntu/fw/** rw,
+
+  # Allow access from efivar library
+  owner @{PROC}/@{pid}/mounts r,
+  /sys/devices/pci*/**/block/**/partition r,
+  # The efivar library need ESP partition GUID,offset,size
+  #/dev/sd[a-z]* r,
+  # Get data from udev with modified efivar library
+  /run/udev/data/b* r,
+
+  # Allow access UEFI firmware platform size
+  /sys/firmware/efi/ r,
+  /sys/firmware/efi/fw_platform_size r,
 
   # DBus accesses
   #include <abstractions/dbus-strict>
@@ -55,7 +74,7 @@ var fwupdPermanentSlotAppArmor = []byte(`
       member={Request,Release}Name
       peer=(name=org.freedesktop.DBus),
 
-  dbus (receive, send)
+  dbus (send)
       bus=system
       path=/org/freedesktop/DBus
       interface=org.freedesktop.DBus
@@ -66,12 +85,24 @@ var fwupdPermanentSlotAppArmor = []byte(`
   dbus (bind)
       bus=system
       name="org.freedesktop.fwupd",
+
+  # Allow unconfined to talk to us. The API for unconfined will be limited
+  # with DBus policy, below.
+  dbus (receive, send)
+      bus=system
+      path=/
+      interface=org.freedesktop.DBus*
+      peer=(label=unconfined),
 `)
 
 var fwupdConnectedPlugAppArmor = []byte(`
 # Description: Allow using fwupd service. Reserved because this gives
-#  privileged access to the fwupd service.
+# privileged access to the fwupd service.
 # Usage: reserved
+
+  #Can access the network
+  #include <abstractions/nameservice>
+  #include <abstractions/ssl_certs>
 
   # DBus accesses
   #include <abstractions/dbus-strict>
@@ -91,26 +122,9 @@ var fwupdConnectedPlugAppArmor = []byte(`
 `)
 
 var fwupdConnectedSlotAppArmor = []byte(`
-# Description: Allow firmware update from fwupd service. Reserved because this gives
-#  privileged access to the system.
+# Description: Allow firmware update using fwupd service. Reserved because this gives
+# privileged access to the fwupd service.
 # Usage: reserved
-
-  # Allow libfwup to access efivarfs with immutable flag
-  capability linux_immutable,
-
-  # File accesses
-  # Allow write access for efivarfs filesystem
-  /sys/firmware/efi/efivars/** rw,
-
-  # Allow write access for efi firmware updater
-  /boot/efi/EFI/ubuntu/fw/** rw,
-  # Allow access from efivar library
-  @{PROC}/@{pid}/mounts r,
-  /sys/devices/**/partition r,
-  /dev/sd[a-z]* r,
-  # Allow access UEFI firmware platform size
-  /sys/firmware/efi/ r,
-  /sys/firmware/efi/fw_platform_size r,
 
   # Allow traffic to/from org.freedesktop.DBus for fwupd service
   dbus (receive, send)
@@ -142,13 +156,43 @@ var fwupdConnectedSlotAppArmor = []byte(`
 var fwupdPermanentSlotDBus = []byte(`
 <policy user="root">
     <allow own="org.freedesktop.fwupd"/>
-</policy>
-<policy context="default">
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Properties"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Introspectable"/>
     <allow send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.DBus.Peer"/>
 </policy>
+<policy context="default">
+    <deny own="org.freedesktop.fwupd"/>
+    <deny send_destination="org.freedesktop.fwupd" send_interface="org.freedesktop.fwupd"/>
+</policy>
+`)
+
+var fwupdPermanentSlotSecComp = []byte(`
+# Description: Allow operating as the fwupd service. Reserved because this
+# gives privileged access to the system.
+# Usage: reserved
+# Can communicate with DBus system service
+bind
+getsockname
+recvfrom
+recvmsg
+sendmsg
+sendto
+setsockopt
+`)
+
+var fwupdConnectedPlugSecComp = []byte(`
+# Description: Allow using fwupd service. Reserved because this gives
+# privileged access to the fwupd service.
+# Usage: reserved
+bind
+getsockname
+getsockopt
+recvfrom
+recvmsg
+sendmsg
+sendto
+setsockopt
 `)
 
 // FwupdInterface type
@@ -177,7 +221,9 @@ func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(fwupdConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
+	case interfaces.SecuritySecComp:
+		return fwupdConnectedPlugSecComp, nil
+	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -191,7 +237,9 @@ func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return fwupdPermanentSlotAppArmor, nil
 	case interfaces.SecurityDBus:
 		return fwupdPermanentSlotDBus, nil
-	case interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecuritySecComp:
+		return fwupdPermanentSlotSecComp, nil
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
