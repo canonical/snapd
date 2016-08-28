@@ -53,7 +53,6 @@ func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 	c.Check(a.Type(), Equals, asserts.SnapBuildType)
 }
 
-
 func (s *SnapKeysSuite) TestHappyNonDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
