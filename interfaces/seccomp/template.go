@@ -222,6 +222,7 @@ arm_fadvise64_64
 
 mbind
 membarrier
+memfd_create
 mincore
 mkdir
 mkdirat
@@ -395,6 +396,11 @@ sigwaitinfo
 # needed by ls -l
 socket
 connect
+
+# needed by snapctl
+setsockopt
+getsockname
+getpeername
 
 # Per man page, on Linux this is limited to only AF_UNIX so it is ok to have
 # in the default template

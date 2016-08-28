@@ -20,6 +20,13 @@
 package boot
 
 var (
-	PopulateStateFromInstalled = populateStateFromInstalled
-	NameAndRevnoFromSnap       = nameAndRevnoFromSnap
+	PopulateStateFromSeed    = populateStateFromSeed
+	NameAndRevnoFromSnap     = nameAndRevnoFromSnap
+	ImportAssertionsFromSeed = importAssertionsFromSeed
 )
+
+func MockFirstbootInitialNetworkConfig(f func() error) func() {
+	old := firstbootInitialNetworkConfig
+	firstbootInitialNetworkConfig = f
+	return func() { firstbootInitialNetworkConfig = old }
+}

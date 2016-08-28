@@ -27,11 +27,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/progress"
-
-	"github.com/jessevdk/go-flags"
 )
 
 func lastLogStr(logs []string) string {
@@ -107,7 +107,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 				return chg, errors.New(chg.Err)
 			}
 
-			return nil, fmt.Errorf("change finished in status %q with no error message", chg.Status)
+			return nil, fmt.Errorf(i18n.G("change finished in status %q with no error message"), chg.Status)
 		}
 
 		// note this very purposely is not a ticker; we want
@@ -159,6 +159,7 @@ and the snap can easily be enabled again.
 `)
 
 type cmdRemove struct {
+	Revision   string `long:"revision" description:"Remove only the given revision"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -167,7 +168,7 @@ type cmdRemove struct {
 func (x *cmdRemove) Execute([]string) error {
 	cli := Client()
 	name := x.Positional.Snap
-	changeID, err := cli.Remove(name, nil)
+	changeID, err := cli.Remove(name, &client.SnapOptions{Revision: x.Revision})
 	if err != nil {
 		return err
 	}
@@ -175,7 +176,8 @@ func (x *cmdRemove) Execute([]string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
-	fmt.Fprintln(Stdout, "Done")
+
+	fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
 	return nil
 }
 
@@ -189,33 +191,88 @@ type channelMixin struct {
 	StableChannel    bool `long:"stable" description:"Install from the stable channel"`
 }
 
-func (x *channelMixin) setChannelFromCommandline() error {
+func (mx *channelMixin) setChannelFromCommandline() error {
 	for _, ch := range []struct {
 		enabled bool
 		chName  string
 	}{
-		{x.StableChannel, "stable"},
-		{x.CandidateChannel, "candidate"},
-		{x.BetaChannel, "beta"},
-		{x.EdgeChannel, "edge"},
+		{mx.StableChannel, "stable"},
+		{mx.CandidateChannel, "candidate"},
+		{mx.BetaChannel, "beta"},
+		{mx.EdgeChannel, "edge"},
 	} {
 		if !ch.enabled {
 			continue
 		}
-		if x.Channel != "" {
+		if mx.Channel != "" {
 			return fmt.Errorf("Please specify a single channel")
 		}
-		x.Channel = ch.chName
+		mx.Channel = ch.chName
 	}
 
 	return nil
 }
 
+// show what has been done
+func showDone(names []string, op string) error {
+	cli := Client()
+	snaps, err := cli.List(names)
+	if err != nil {
+		return err
+	}
+
+	for _, snap := range snaps {
+		channelStr := ""
+		if snap.Channel != "" {
+			channelStr = fmt.Sprintf(" (%s)", snap.Channel)
+		}
+		switch op {
+		case "install":
+			if snap.Developer != "" {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' installed\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s installed\n"), snap.Name, channelStr, snap.Version)
+			}
+		case "upgrade":
+			if snap.Developer != "" {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s from '%s' upgraded\n"), snap.Name, channelStr, snap.Version, snap.Developer)
+			} else {
+				fmt.Fprintf(Stdout, i18n.G("%s%s %s upgraded\n"), snap.Name, channelStr, snap.Version)
+			}
+		default:
+			fmt.Fprintf(Stdout, "internal error, unknown op %q", op)
+		}
+	}
+	return nil
+}
+
+func (mx *channelMixin) asksForChannel() bool {
+	return mx.Channel != ""
+}
+
+type modeMixin struct {
+	DevMode  bool `long:"devmode" description:"Request non-enforcing security"`
+	JailMode bool `long:"jailmode" description:"Override a snap's request for non-enforcing security"`
+}
+
+var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
+
+func (mx modeMixin) validateMode() error {
+	if mx.DevMode && mx.JailMode {
+		return errModeConflict
+	}
+	return nil
+}
+
+func (mx modeMixin) asksForMode() bool {
+	return mx.DevMode || mx.JailMode
+}
+
 type cmdInstall struct {
 	channelMixin
+	modeMixin
+	Revision string `long:"revision" description:"Install the given revision of a snap, to which you must have developer access"`
 
-	DevMode    bool `long:"devmode" description:"Install the snap with non-enforcing security"`
-	JailMode   bool `long:"jailmode" description:"Override a snap's request for non-enforcing security"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
@@ -225,6 +282,9 @@ func (x *cmdInstall) Execute([]string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
 	}
+	if err := x.validateMode(); err != nil {
+		return err
+	}
 
 	var changeID string
 	var err error
@@ -232,7 +292,7 @@ func (x *cmdInstall) Execute([]string) error {
 
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode}
+	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
 		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
@@ -258,49 +318,48 @@ func (x *cmdInstall) Execute([]string) error {
 		name = snapName
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "install")
 }
 
 type cmdRefresh struct {
 	channelMixin
+	modeMixin
 
 	List       bool `long:"list" description:"show available snaps for refresh"`
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
-func refreshAll() error {
-	// FIXME: move this to snapd instead and have a new refresh-all endpoint
+func refreshMany(snaps []string) error {
 	cli := Client()
-	updates, _, err := cli.Find(&client.FindOptions{Refresh: true})
+	changeID, err := cli.RefreshMany(snaps, nil)
 	if err != nil {
-		return fmt.Errorf("cannot list updates: %s", err)
-	}
-	// nothing to update/list
-	if len(updates) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
-		return nil
+		return err
 	}
 
-	names := make([]string, len(updates))
-	for i, update := range updates {
-		changeID, err := cli.Refresh(update.Name, &client.SnapOptions{Channel: update.Channel})
-		if err != nil {
-			return err
-		}
-		if _, err := wait(cli, changeID); err != nil {
-			return err
-		}
-		names[i] = update.Name
+	chg, err := wait(cli, changeID)
+	if err != nil {
+		return err
 	}
 
-	return listSnaps(names)
+	var upgraded []string
+	if err := chg.Get("snap-names", &upgraded); err != nil && err != client.ErrNoData {
+		return err
+	}
+
+	if len(upgraded) > 0 {
+		return showDone(upgraded, "upgrade")
+	}
+
+	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
+
+	return nil
 }
 
-func refreshOne(name, channel string) error {
+func refreshOne(name string, opts *client.SnapOptions) error {
 	cli := Client()
-	changeID, err := cli.Refresh(name, &client.SnapOptions{Channel: channel})
+	changeID, err := cli.Refresh(name, opts)
 	if err != nil {
 		return err
 	}
@@ -309,7 +368,7 @@ func refreshOne(name, channel string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	return showDone([]string{name}, "upgrade")
 }
 
 func listRefresh() error {
@@ -321,7 +380,7 @@ func listRefresh() error {
 		return err
 	}
 	if len(snaps) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
 		return nil
 	}
 
@@ -346,28 +405,48 @@ func (x *cmdRefresh) Execute([]string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
 	}
+	if err := x.validateMode(); err != nil {
+		return err
+	}
 
 	if x.List {
+		if x.asksForMode() || x.asksForChannel() {
+			return errors.New(i18n.G("--list does not take mode nor channel flags"))
+		}
+
 		return listRefresh()
 	}
-	if x.Positional.Snap == "" {
-		return refreshAll()
+	if len(x.Positional.Snaps) == 1 {
+		return refreshOne(x.Positional.Snaps[0], &client.SnapOptions{
+			Channel:  x.Channel,
+			DevMode:  x.DevMode,
+			JailMode: x.JailMode,
+		})
 	}
-	return refreshOne(x.Positional.Snap, x.Channel)
+
+	if x.asksForMode() || x.asksForChannel() {
+		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	}
+
+	return refreshMany(x.Positional.Snaps)
 }
 
 type cmdTry struct {
-	DevMode    bool `long:"devmode" description:"Install in development mode and disable confinement"`
+	modeMixin
 	Positional struct {
 		SnapDir string `positional-arg-name:"<snap-dir>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func (x *cmdTry) Execute([]string) error {
+	if err := x.validateMode(); err != nil {
+		return err
+	}
 	cli := Client()
 	name := x.Positional.SnapDir
 	opts := &client.SnapOptions{
-		DevMode: x.DevMode,
+		DevMode:  x.DevMode,
+		JailMode: x.JailMode,
 	}
 
 	path, err := filepath.Abs(name)
@@ -392,7 +471,17 @@ func (x *cmdTry) Execute([]string) error {
 	}
 	name = snapName
 
-	return listSnaps([]string{name})
+	// show output as speced
+	snaps, err := cli.List([]string{name})
+	if err != nil {
+		return err
+	}
+	if len(snaps) != 1 {
+		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
+	}
+	snap := snaps[0]
+	fmt.Fprintf(Stdout, i18n.G("%s %s mounted from %s\n"), name, snap.Version, path)
+	return nil
 }
 
 type cmdEnable struct {
@@ -415,7 +504,8 @@ func (x *cmdEnable) Execute([]string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	fmt.Fprintf(Stdout, i18n.G("%s enabled\n"), name)
+	return nil
 }
 
 type cmdDisable struct {
@@ -438,7 +528,8 @@ func (x *cmdDisable) Execute([]string) error {
 		return err
 	}
 
-	return listSnaps([]string{name})
+	fmt.Fprintf(Stdout, i18n.G("%s disabled\n"), name)
+	return nil
 }
 
 type cmdRevert struct {
@@ -472,7 +563,18 @@ func (x *cmdRevert) Execute(args []string) error {
 	if _, err := wait(cli, changeID); err != nil {
 		return err
 	}
-	return listSnaps([]string{name})
+
+	// show output as speced
+	snaps, err := cli.List([]string{name})
+	if err != nil {
+		return err
+	}
+	if len(snaps) != 1 {
+		return fmt.Errorf("cannot get data for %q: %v", name, snaps)
+	}
+	snap := snaps[0]
+	fmt.Fprintf(Stdout, i18n.G("%s reverted to %s\n"), name, snap.Version)
+	return nil
 }
 
 func init() {

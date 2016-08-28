@@ -30,12 +30,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"time"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -54,6 +54,7 @@ type clientSuite struct {
 var _ = check.Suite(&clientSuite{})
 
 func (cs *clientSuite) SetUpTest(c *check.C) {
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "auth.json"))
 	cs.cli = client.New(nil)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
@@ -64,6 +65,10 @@ func (cs *clientSuite) SetUpTest(c *check.C) {
 	cs.doCalls = 0
 
 	dirs.SetRootDir(c.MkDir())
+}
+
+func (cs *clientSuite) TearDownTest(c *check.C) {
+	os.Unsetenv(client.TestAuthFileEnvKey)
 }
 
 func (cs *clientSuite) Do(req *http.Request) (*http.Response, error) {
@@ -109,22 +114,19 @@ func (cs *clientSuite) TestClientWorks(c *check.C) {
 }
 
 func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "json"))
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	var v string
 	_ = cs.cli.Do("GET", "/this", nil, nil, &v)
+	c.Assert(cs.req, check.NotNil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, check.Equals, "")
 }
 
 func (cs *clientSuite) TestClientSetsAuthorization(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "json"))
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	mockUserData := client.User{
 		Macaroon:   "macaroon",
@@ -173,7 +175,7 @@ func (cs *clientSuite) TestServerVersion(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestClientIntegration(c *check.C) {
+func (cs *clientSuite) TestSnapdClientIntegration(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
 	l, err := net.Listen("unix", dirs.SnapdSocket)
 	if err != nil {
@@ -198,6 +200,39 @@ func (cs *clientSuite) TestClientIntegration(c *check.C) {
 	si, err := cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(si.Series, check.Equals, "42")
+}
+
+func (cs *clientSuite) TestSnapClientIntegration(c *check.C) {
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0755), check.IsNil)
+	l, err := net.Listen("unix", dirs.SnapSocket)
+	if err != nil {
+		c.Fatalf("unable to listen on %q: %v", dirs.SnapSocket, err)
+	}
+
+	f := func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snapctl")
+		c.Check(r.URL.RawQuery, check.Equals, "")
+
+		fmt.Fprintln(w, `{"type":"sync", "result":{"stdout":"test stdout","stderr":"test stderr"}}`)
+	}
+
+	srv := &httptest.Server{
+		Listener: l,
+		Config:   &http.Server{Handler: http.HandlerFunc(f)},
+	}
+	srv.Start()
+	defer srv.Close()
+
+	cli := client.New(nil)
+	options := client.SnapCtlOptions{
+		Context: "foo",
+		Args:    []string{"bar", "--baz"},
+	}
+
+	stdout, stderr, err := cli.RunSnapctl(options)
+	c.Check(err, check.IsNil)
+	c.Check(string(stdout), check.Equals, "test stdout")
+	c.Check(string(stderr), check.Equals, "test stderr")
 }
 
 func (cs *clientSuite) TestClientReportsOpError(c *check.C) {
@@ -280,15 +315,17 @@ func (cs *clientSuite) TestClientCreateUser(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"result": {
-                        "username": "karl"
+                        "username": "karl",
+                        "ssh-key-count": 1
 		}
 	}`
-	rsp, err := cs.cli.CreateUser("popper@lse.ac.uk")
+	rsp, err := cs.cli.CreateUser(&client.CreateUserRequest{Email: "popper@lse.ac.uk", Sudoer: true})
 	c.Assert(cs.req.Method, check.Equals, "POST")
 	c.Assert(cs.req.URL.Path, check.Equals, "/v2/create-user")
 	c.Assert(err, check.IsNil)
 	c.Assert(rsp, check.DeepEquals, &client.CreateUserResult{
-		Username: "karl",
+		Username:    "karl",
+		SSHKeyCount: 1,
 	})
 }
 

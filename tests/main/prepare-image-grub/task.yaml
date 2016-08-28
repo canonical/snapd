@@ -1,0 +1,50 @@
+summary: Check that prepare-image works for grub-systems
+systems: [-ubuntu-core-16-64]
+# TODO: use the real stores with proper assertions fully as well once possible
+environment:
+    ROOT: /tmp/root
+    IMAGE: /tmp/root/image
+    GADGET: /tmp/root/gadget
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    STORE_ADDR: localhost:11028
+    UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
+prepare: |
+    . $TESTSLIB/store.sh
+    setup_store fake $STORE_DIR
+restore: |
+    . $TESTSLIB/store.sh
+    teardown_store fake $STORE_DIR
+    rm -rf $ROOT
+execute: |
+    echo Expose the needed assertions through the fakestore
+    cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
+    cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
+    # have snap use the fakestore for assertions
+    export SNAPPY_FORCE_SAS_URL=http://$STORE_ADDR
+
+    echo Running prepare-image
+    snap prepare-image --channel edge --extra-snaps snapweb $TESTSLIB/assertions/developer1-pc.model $ROOT
+
+    echo Verifying the result
+    ls -lR $IMAGE
+    for f in pc pc-kernel ubuntu-core snapweb; do
+        ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
+    done
+    grep snap_core=ubuntu-core $IMAGE/boot/grub/grubenv
+    grep snap_kernel=pc-kernel $IMAGE/boot/grub/grubenv
+
+    # check copied assertions
+    cmp $TESTSLIB/assertions/developer1-pc.model $IMAGE/var/lib/snapd/seed/assertions/model
+    cmp $TESTSLIB/assertions/developer1.account $IMAGE/var/lib/snapd/seed/assertions/developer1.account
+
+    echo Verify the unpacked gadget
+    ls -lR $GADGET
+    ls $GADGET/meta/snap.yaml
+
+    echo Verify that we have valid looking seed.yaml
+    cat $IMAGE/var/lib/snapd/seed/seed.yaml
+    # snap-id of ubuntu-core
+    grep -q "snap-id: b8X2psL1ryVrPt5WEmpYiqfr5emixTd7" $IMAGE/var/lib/snapd/seed/seed.yaml
+    for snap in pc pc-kernel ubuntu-core; do
+      grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
+    done

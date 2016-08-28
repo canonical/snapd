@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/release"
 )
 
 type cmdBooted struct{}
@@ -44,6 +45,11 @@ func init() {
 func (x *cmdBooted) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if release.OnClassic {
+		fmt.Fprintf(Stdout, "Ignoring 'booted' on classic")
+		return nil
 	}
 
 	bootloader, err := partition.FindBootloader()

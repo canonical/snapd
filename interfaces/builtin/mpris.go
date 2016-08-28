@@ -21,6 +21,8 @@ package builtin
 
 import (
 	"bytes"
+	"fmt"
+	"regexp"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
@@ -37,7 +39,7 @@ var mprisPermanentSlotAppArmor = []byte(`
 # allow binding to the well-known DBus mpris interface based on the snap's name
 dbus (bind)
     bus=session
-    name="org.mpris.MediaPlayer2.@{SNAP_NAME}{,.*}",
+    name="org.mpris.MediaPlayer2.###MPRIS_NAME###{,.*}",
 
 # register as a player
 dbus (send)
@@ -84,7 +86,6 @@ dbus (receive)
 dbus (receive)
     bus=session
     interface=org.freedesktop.DBus.Introspectable
-    path="/{,org,org/mpris,org/mpris/MediaPlayer2}"
     peer=(label=###PLUG_SECURITY_TAGS###),
 
 dbus (receive)
@@ -99,6 +100,10 @@ var mprisConnectedSlotAppArmorClassic = []byte(`
 dbus (receive)
     bus=session
     path=/org/mpris/MediaPlayer2
+    peer=(label=unconfined),
+dbus (receive)
+    bus=session
+    interface=org.freedesktop.DBus.Introspectable
     peer=(label=unconfined),
 `)
 
@@ -128,11 +133,6 @@ dbus (send)
     peer=(name="org.freedesktop.DBus", label="unconfined"),
 
 # Communicate with the mpris player
-dbus (send)
-    bus=session
-    interface=org.freedesktop.DBus.Properties
-    path=/org/mpris/MediaPlayer2
-    peer=(label=###SLOT_SECURITY_TAGS###),
 dbus (send)
     bus=session
     path=/org/mpris/MediaPlayer2
@@ -175,11 +175,9 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		new := slotAppLabelExpr(slot)
 		snippet := bytes.Replace(mprisConnectedPlugAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus:
-		return nil, nil
 	case interfaces.SecuritySecComp:
 		return mprisConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -189,18 +187,23 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		snippet := mprisPermanentSlotAppArmor
+		name, err := iface.getName(slot.Attrs)
+		if err != nil {
+			return nil, err
+		}
+
+		old := []byte("###MPRIS_NAME###")
+		new := []byte(name)
+		snippet := bytes.Replace(mprisPermanentSlotAppArmor, old, new, -1)
 		// on classic, allow unconfined remotes to control the player
 		// (eg, indicator-sound)
 		if release.OnClassic {
 			snippet = append(snippet, mprisConnectedSlotAppArmorClassic...)
 		}
 		return snippet, nil
-	case interfaces.SecurityDBus:
-		return nil, nil
 	case interfaces.SecuritySecComp:
 		return mprisPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -221,14 +224,44 @@ func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 	}
 }
 
+func (iface *MprisInterface) getName(attribs map[string]interface{}) (string, error) {
+	// default to snap name if 'name' attribute not set
+	mprisName := "@{SNAP_NAME}"
+	for attr := range attribs {
+		if attr != "name" {
+			return "", fmt.Errorf("unknown attribute '%s'", attr)
+		}
+		raw, ok := attribs[attr]
+		if !ok {
+			return "", fmt.Errorf("cannot find attribute %q", attr)
+		}
+		name, ok := raw.(string)
+		if !ok {
+			return "", fmt.Errorf("name element %v is not a string", raw)
+		}
+
+		validDBusElement := regexp.MustCompile("^[a-zA-Z0-9_-]*$")
+		if !validDBusElement.MatchString(name) {
+			return "", fmt.Errorf("invalid name element: %q", name)
+		}
+		mprisName = name
+	}
+	return mprisName, nil
+}
+
 func (iface *MprisInterface) SanitizePlug(slot *interfaces.Plug) error {
 	return nil
 }
 
 func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
-	return nil
+	if iface.Name() != slot.Interface {
+		panic(fmt.Sprintf("slot is not of interface %q", iface))
+	}
+
+	_, err := iface.getName(slot.Attrs)
+	return err
 }
 
 func (iface *MprisInterface) AutoConnect() bool {
-	return true
+	return false
 }

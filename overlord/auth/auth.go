@@ -21,8 +21,10 @@ package auth
 
 import (
 	"fmt"
+	"os"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -38,6 +40,10 @@ type DeviceState struct {
 	Brand  string `json:"brand,omitempty"`
 	Model  string `json:"model,omitempty"`
 	Serial string `json:"serial,omitempty"`
+
+	KeyID string `json:"key-id,omitempty"`
+
+	SessionMacaroon string `json:"session-macaroon,omitempty"`
 }
 
 // UserState represents an authenticated user
@@ -204,19 +210,56 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// An AuthContext handles user updates.
-type AuthContext interface {
-	UpdateUser(user *UserState) error
+// DeviceAssertions helps exposing the assertions about device identity.
+// All methods should return state.ErrNoState if the underlying needed
+// information is not (yet) available.
+type DeviceAssertions interface {
+	// Model returns the device model assertion.
+	Model() (*asserts.Model, error)
+	// Serial returns the device model assertion.
+	Serial() (*asserts.Serial, error)
+	// SerialProof produces a serial-proof with the given nonce.
+	SerialProof(nonce string) (*asserts.SerialProof, error)
 }
 
-// authContext helps keeping track and updating users in the state.
+// An AuthContext exposes authorization data and handles its updates.
+type AuthContext interface {
+	Device() (*DeviceState, error)
+	UpdateDevice(device *DeviceState) error
+
+	UpdateUser(user *UserState) error
+
+	StoreID(fallback string) (string, error)
+
+	Serial() ([]byte, error)
+	SerialProof(nonce string) ([]byte, error)
+}
+
+// authContext helps keeping track of auth data in the state and exposing it.
 type authContext struct {
-	state *state.State
+	state         *state.State
+	deviceAsserts DeviceAssertions
 }
 
 // NewAuthContext returns an AuthContext for state.
-func NewAuthContext(st *state.State) AuthContext {
-	return &authContext{state: st}
+func NewAuthContext(st *state.State, deviceAsserts DeviceAssertions) AuthContext {
+	return &authContext{state: st, deviceAsserts: deviceAsserts}
+}
+
+// Device returns current device state.
+func (ac *authContext) Device() (*DeviceState, error) {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return Device(ac.state)
+}
+
+// UpdateDevice updates device in state.
+func (ac *authContext) UpdateDevice(device *DeviceState) error {
+	ac.state.Lock()
+	defer ac.state.Unlock()
+
+	return SetDevice(ac.state, device)
 }
 
 // UpdateUser updates user in state.
@@ -225,4 +268,50 @@ func (ac *authContext) UpdateUser(user *UserState) error {
 	defer ac.state.Unlock()
 
 	return UpdateUser(ac.state, user)
+}
+
+// StoreID returns the store id according to system state or
+// the fallback one if the state has none set (yet).
+func (ac *authContext) StoreID(fallback string) (string, error) {
+	storeID := os.Getenv("UBUNTU_STORE_ID")
+	if storeID != "" {
+		return storeID, nil
+	}
+	if ac.deviceAsserts != nil {
+		mod, err := ac.deviceAsserts.Model()
+		if err != nil && err != state.ErrNoState {
+			return "", err
+		}
+		if err == nil {
+			storeID = mod.Store()
+		}
+	}
+	if storeID != "" {
+		return storeID, nil
+	}
+	return fallback, nil
+}
+
+// Serial returns the encoded device serial assertion.
+func (ac *authContext) Serial() ([]byte, error) {
+	if ac.deviceAsserts == nil {
+		return nil, state.ErrNoState
+	}
+	serial, err := ac.deviceAsserts.Serial()
+	if err != nil {
+		return nil, err
+	}
+	return asserts.Encode(serial), nil
+}
+
+// SerialProof produces a serial-proof with the given nonce.
+func (ac *authContext) SerialProof(nonce string) ([]byte, error) {
+	if ac.deviceAsserts == nil {
+		return nil, state.ErrNoState
+	}
+	proof, err := ac.deviceAsserts.SerialProof(nonce)
+	if err != nil {
+		return nil, err
+	}
+	return asserts.Encode(proof), nil
 }

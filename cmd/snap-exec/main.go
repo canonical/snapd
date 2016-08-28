@@ -61,7 +61,7 @@ func parseArgs(args []string) (app string, appArgs []string, err error) {
 	if opts.Hook != "" && opts.Command != "" {
 		return "", nil, fmt.Errorf("cannot use --hook and --command together")
 	}
-	if opts.Hook != "" && len(rest) > 0 {
+	if opts.Hook != "" && len(rest) > 1 {
 		return "", nil, fmt.Errorf("too many arguments for hook %q: %s", opts.Hook, strings.Join(rest, " "))
 	}
 
@@ -137,6 +137,9 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
+	if command == "shell" {
+		fullCmd = "/bin/bash"
+	}
 	fullCmdArgs := []string{fullCmd}
 	fullCmdArgs = append(fullCmdArgs, args...)
 	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {

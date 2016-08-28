@@ -30,13 +30,28 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
 )
 
-func unixDialer(_, _ string) (net.Conn, error) {
-	return net.Dial("unix", dirs.SnapdSocket)
+func unixDialer() func(string, string) (net.Conn, error) {
+	// We have two sockets available: the SnapdSocket (which provides
+	// administrative access), and the SnapSocket (which doesn't). Use the most
+	// powerful one available (e.g. from within snaps, SnapdSocket is hidden by
+	// apparmor unless the snap has the snapd-control interface).
+	socketPath := dirs.SnapdSocket
+	file, err := os.OpenFile(socketPath, os.O_RDWR, 0666)
+	if err == nil {
+		file.Close()
+	} else if e, ok := err.(*os.PathError); ok && (e.Err == syscall.ENOENT || e.Err == syscall.EACCES) {
+		socketPath = dirs.SnapSocket
+	}
+
+	return func(_, _ string) (net.Conn, error) {
+		return net.Dial("unix", socketPath)
+	}
 }
 
 type doer interface {
@@ -66,7 +81,7 @@ func New(config *Config) *Client {
 				Host:   "localhost",
 			},
 			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer},
+				Transport: &http.Transport{Dial: unixDialer()},
 			},
 		}
 	}
@@ -349,20 +364,20 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 
 // CreateUserResult holds the result of a user creation
 type CreateUserResult struct {
-	Username string `json:"username"`
+	Username    string `json:"username"`
+	SSHKeyCount int    `json:"ssh-key-count"`
 }
 
 // createUserRequest holds the user creation request
-type createUserRequest struct {
-	EMail string `json:"email"`
+type CreateUserRequest struct {
+	Email  string `json:"email"`
+	Sudoer bool   `json:"sudoer"`
 }
 
 // CreateUser creates a user from the given mail address
-func (client *Client) CreateUser(mail string) (*CreateUserResult, error) {
+func (client *Client) CreateUser(request *CreateUserRequest) (*CreateUserResult, error) {
 	var createResult CreateUserResult
-	b, err := json.Marshal(createUserRequest{
-		EMail: mail,
-	})
+	b, err := json.Marshal(request)
 	if err != nil {
 		return nil, err
 	}

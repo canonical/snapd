@@ -549,11 +549,11 @@ func (s *RepositorySuite) TestConnectSucceedsWhenIdenticalConnectExists(c *C) {
 	c.Assert(s.testRepo.Interfaces(), DeepEquals, &Interfaces{
 		Plugs: []*Plug{{
 			PlugInfo:    s.plug.PlugInfo,
-			Connections: []SlotRef{{s.slot.Snap.Name(), s.slot.Name}},
+			Connections: []SlotRef{{Snap: s.slot.Snap.Name(), Name: s.slot.Name}},
 		}},
 		Slots: []*Slot{{
 			SlotInfo:    s.slot.SlotInfo,
-			Connections: []PlugRef{{s.plug.Snap.Name(), s.plug.Name}},
+			Connections: []PlugRef{{Snap: s.plug.Snap.Name(), Name: s.plug.Name}},
 		}},
 	})
 }
@@ -714,11 +714,11 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 	c.Assert(ifaces, DeepEquals, &Interfaces{
 		Plugs: []*Plug{{
 			PlugInfo:    s.plug.PlugInfo,
-			Connections: []SlotRef{{s.slot.Snap.Name(), s.slot.Name}},
+			Connections: []SlotRef{{Snap: s.slot.Snap.Name(), Name: s.slot.Name}},
 		}},
 		Slots: []*Slot{{
 			SlotInfo:    s.slot.SlotInfo,
-			Connections: []PlugRef{{s.plug.Snap.Name(), s.plug.Name}},
+			Connections: []PlugRef{{Snap: s.plug.Snap.Name(), Name: s.plug.Name}},
 		}},
 	})
 	// After disconnecting the connections become empty

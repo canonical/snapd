@@ -176,24 +176,28 @@ func (ts *taskRunnerSuite) TestSequenceTests(c *C) {
 	r.AddHandler("do", fn("do"), nil)
 	r.AddHandler("do-undo", fn("do"), fn("undo"))
 
-	st.Lock()
-	chg := st.NewChange("install", "...")
-	tasks := make(map[string]*state.Task)
-	for _, name := range strings.Fields("t11 t12 t21 t31 t32") {
-		if name == "t12" {
-			tasks[name] = st.NewTask("do", name)
-		} else {
-			tasks[name] = st.NewTask("do-undo", name)
-		}
-		chg.AddTask(tasks[name])
-	}
-	tasks["t21"].WaitFor(tasks["t11"])
-	tasks["t21"].WaitFor(tasks["t12"])
-	tasks["t31"].WaitFor(tasks["t21"])
-	tasks["t32"].WaitFor(tasks["t21"])
-	st.Unlock()
-
 	for _, test := range sequenceTests {
+		st.Lock()
+
+		// Delete previous changes.
+		st.Prune(1, 1)
+
+		chg := st.NewChange("install", "...")
+		tasks := make(map[string]*state.Task)
+		for _, name := range strings.Fields("t11 t12 t21 t31 t32") {
+			if name == "t12" {
+				tasks[name] = st.NewTask("do", name)
+			} else {
+				tasks[name] = st.NewTask("do-undo", name)
+			}
+			chg.AddTask(tasks[name])
+		}
+		tasks["t21"].WaitFor(tasks["t11"])
+		tasks["t21"].WaitFor(tasks["t12"])
+		tasks["t31"].WaitFor(tasks["t21"])
+		tasks["t32"].WaitFor(tasks["t21"])
+		st.Unlock()
+
 		c.Logf("-----")
 		c.Logf("Testing setup: %s", test.setup)
 
@@ -484,4 +488,140 @@ func (ts *taskRunnerSuite) TestRetryAfterDuration(c *C) {
 	c.Check(ask, Equals, 2)
 	c.Check(sb.ensureBefore, Equals, time.Hour)
 	c.Check(t.AtTime().IsZero(), Equals, true)
+}
+
+func (ts *taskRunnerSuite) TestTaskSerialization(c *C) {
+	ensureBeforeTick := make(chan bool, 1)
+	sb := &stateBackend{
+		ensureBefore:     time.Hour,
+		ensureBeforeSeen: ensureBeforeTick,
+	}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch1 := make(chan bool)
+	ch2 := make(chan bool)
+	r.AddHandler("do1", func(t *state.Task, _ *tomb.Tomb) error {
+		ch1 <- true
+		ch1 <- true
+		return nil
+	}, nil)
+	r.AddHandler("do2", func(t *state.Task, _ *tomb.Tomb) error {
+		ch2 <- true
+		return nil
+	}, nil)
+
+	// start first do1, and then do2 when nothing else is running
+	startedDo1 := false
+	r.SetBlocked(func(t *state.Task, running []*state.Task) bool {
+		if t.Kind() == "do2" && (len(running) != 0 || !startedDo1) {
+			return true
+		}
+		if t.Kind() == "do1" {
+			startedDo1 = true
+		}
+		return false
+	})
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("do1", "...")
+	chg.AddTask(t1)
+	t2 := st.NewTask("do2", "...")
+	chg.AddTask(t2)
+	st.Unlock()
+
+	r.Ensure() // will start only one, do1
+
+	select {
+	case <-ch1:
+	case <-time.After(2 * time.Second):
+		c.Fatal("do1 wasn't called")
+	}
+
+	c.Check(ensureBeforeTick, HasLen, 0)
+	c.Check(ch2, HasLen, 0)
+
+	r.Ensure() // won't yet start anything new
+
+	c.Check(ensureBeforeTick, HasLen, 0)
+	c.Check(ch2, HasLen, 0)
+
+	// finish do1
+	select {
+	case <-ch1:
+	case <-time.After(2 * time.Second):
+		c.Fatal("do1 wasn't continued")
+	}
+
+	// getting an EnsureBefore 0 call
+	select {
+	case <-ensureBeforeTick:
+	case <-time.After(2 * time.Second):
+		c.Fatal("EnsureBefore wasn't called")
+	}
+	c.Check(sb.ensureBefore, Equals, time.Duration(0))
+
+	r.Ensure() // will start do2
+
+	select {
+	case <-ch2:
+	case <-time.After(2 * time.Second):
+		c.Fatal("do2 wasn't called")
+	}
+
+	// no more EnsureBefore calls
+	c.Check(ensureBeforeTick, HasLen, 0)
+}
+
+func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	ch := make(chan bool)
+	r.AddHandler("block-undo", func(t *state.Task, tb *tomb.Tomb) error { return nil },
+		func(t *state.Task, tb *tomb.Tomb) error {
+			ch <- true
+			<-ch
+			return nil
+		})
+	r.AddHandler("fail", func(t *state.Task, tb *tomb.Tomb) error {
+		return errors.New("BAM")
+	}, nil)
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("block-undo", "...")
+	t2 := st.NewTask("fail", "...")
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	st.Unlock()
+
+	r.Ensure() // Error
+	r.Wait()
+	r.Ensure() // Block on undo
+	<-ch
+
+	defer func() {
+		ch <- true
+		r.Wait()
+	}()
+
+	st.Lock()
+	defer st.Unlock()
+
+	if chg.Status().Ready() {
+		c.Errorf("Change considered ready prematurely")
+	}
+
+	c.Assert(chg.Err(), IsNil)
+
+	select {
+	case <-chg.Ready():
+		c.Errorf("Change considered ready prematurely")
+	default:
+	}
 }

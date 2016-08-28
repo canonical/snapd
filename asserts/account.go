@@ -38,17 +38,17 @@ type Account struct {
 
 // AccountID returns the account-id of the account.
 func (acc *Account) AccountID() string {
-	return acc.Header("account-id")
+	return acc.HeaderString("account-id")
 }
 
 // Username returns the user name for the account.
 func (acc *Account) Username() string {
-	return acc.Header("username")
+	return acc.HeaderString("username")
 }
 
 // DisplayName returns the human-friendly name for the account.
 func (acc *Account) DisplayName() string {
-	return acc.Header("display-name")
+	return acc.HeaderString("display-name")
 }
 
 // IsCertified returns true if the authority has confidence in the account's name.
@@ -73,12 +73,12 @@ func (acc *Account) checkConsistency(db RODatabase, acck *AccountKey) error {
 var _ consistencyChecker = (*Account)(nil)
 
 func assembleAccount(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmpty(assert.headers, "display-name")
+	_, err := checkNotEmptyString(assert.headers, "display-name")
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = checkNotEmpty(assert.headers, "validation")
+	_, err = checkNotEmptyString(assert.headers, "validation")
 	if err != nil {
 		return nil, err
 	}
@@ -88,6 +88,8 @@ func assembleAccount(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO: username is optional (atm) but if it's there it must be a string
 
 	return &Account{
 		assertionBase: assert,

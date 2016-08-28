@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 
@@ -210,7 +211,12 @@ func run() error {
 
 		}
 		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
-			return fmt.Errorf("%s (snap login --help)", e.Message)
+			u, _ := user.Current()
+			if u != nil && u.Username == "root" {
+				return fmt.Errorf(`%s (see "snap login --help")`, e.Message)
+			} else {
+				return fmt.Errorf(`%s (try with sudo)`, e.Message)
+			}
 
 		}
 	}

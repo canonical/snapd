@@ -31,17 +31,9 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func stripGlobalRootDir(dir string) string {
-	if dirs.GlobalRootDir == "/" {
-		return dir
-	}
-
-	return dir[len(dirs.GlobalRootDir):]
-}
-
 func addMountUnit(s *snap.Info, meter progress.Meter) error {
-	squashfsPath := stripGlobalRootDir(s.MountFile())
-	whereDir := stripGlobalRootDir(s.MountDir())
+	squashfsPath := dirs.StripRootDir(s.MountFile())
+	whereDir := dirs.StripRootDir(s.MountDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir, "squashfs")
@@ -49,7 +41,12 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 		return err
 	}
 
-	// we always enable the mount unit even in inhibit hooks
+	// we need to do a daemon-reload here to ensure that systemd really
+	// knows about this new mount unit file
+	if err := sysd.DaemonReload(); err != nil {
+		return err
+	}
+
 	if err := sysd.Enable(mountUnitName); err != nil {
 		return err
 	}
@@ -59,7 +56,7 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 
 func removeMountUnit(baseDir string, meter progress.Meter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
-	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
+	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
 		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
 			return err
@@ -68,6 +65,11 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 			return err
 		}
 		if err := os.Remove(unit); err != nil {
+			return err
+		}
+		// daemon-reload to ensure that systemd actually really
+		// forgets about this mount unit
+		if err := sysd.DaemonReload(); err != nil {
 			return err
 		}
 	}

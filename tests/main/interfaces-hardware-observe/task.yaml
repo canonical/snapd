@@ -1,0 +1,45 @@
+summary: Ensure that the hardware-observe interface works.
+
+summary: |
+    The hardware-observe interface allows a snap to access hardware information.
+
+    A snap which defines the hardware-observe plug must be shown in the interfaces list.
+    The plug must not be connected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to read files in /sys/{block,bus,class,devices}
+
+prepare: |
+    echo "Given a snap declaring a plug on the hardware-observe interface is installed"
+    snapbuild $TESTSLIB/snaps/hardware-observe-consumer .
+    snap install hardware-observe-consumer_1.0_all.snap
+
+restore: |
+    rm -f hardware-observe-consumer_1.0_all.snap hw.error
+
+execute: |
+    CONNECTED_PATTERN=":hardware-observe +hardware-observe-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +hardware-observe-consumer:hardware-observe"
+
+    echo "Then it is not connected by default"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect hardware-observe-consumer:hardware-observe ubuntu-core:hardware-observe
+
+    echo "Then the snap is able to read hardware information"
+    hardware-observe-consumer.consumer
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect hardware-observe-consumer:hardware-observe ubuntu-core:hardware-observe
+
+    echo "Then the snap is not able to read the hardware information"
+    if hardware-observe-consumer.consumer 2>hw.error; then
+        echo "Expected permission error accessing locale configuration with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" hw.error
