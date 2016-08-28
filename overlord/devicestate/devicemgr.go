@@ -145,6 +145,7 @@ var (
 	// TODO: this will come optionally as config from the gadget snap
 	// TODO: set this once the server side is working!
 	serialRequestURL = ""
+	retryInterval    = 60 * time.Second
 )
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
@@ -204,34 +205,31 @@ type requestIDResp struct {
 	RequestID string `json:"request-id"`
 }
 
+func retryErr(t *state.Task, reason string, a ...interface{}) error {
+	t.State().Lock()
+	defer t.State().Unlock()
+	t.Errorf(reason, a...)
+	return &state.Retry{After: retryInterval}
+}
+
 func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
-	// TODO: see to simplify locking here
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
 	resp, err := client.Get(serialRequestURL)
 	if err != nil {
-		st.Lock()
-		t.Errorf("cannot retrieve request-id for making a request for a serial: %v", err)
-		st.Unlock()
-		return "", &state.Retry{After: 60 * time.Second}
+		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
-		st.Lock()
-		t.Errorf("cannot retrieve request-id for making a request for a serial: unexpected status %d", resp.StatusCode)
-		st.Unlock()
-		return "", &state.Retry{After: 60 * time.Second}
+		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: unexpected status %d", resp.StatusCode)
 	}
 
 	dec := json.NewDecoder(resp.Body)
 	var requestID requestIDResp
 	err = dec.Decode(&requestID)
 	if err != nil { // assume broken i/o
-		st.Lock()
-		t.Errorf("cannot read response with request-id for making a request for a serial: %v", err)
-		st.Unlock()
-		return "", &state.Retry{After: 60 * time.Second}
+		return "", retryErr(t, "cannot read response with request-id for making a request for a serial: %v", err)
 	}
 
 	encodedPubKey, err := asserts.EncodePublicKey(privKey.PublicKey())
@@ -256,16 +254,12 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 var errPoll = errors.New("serial-request accepted, poll later")
 
 func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client) (*asserts.Serial, error) {
-	// TODO: see to simplify locking here
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
 	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBufferString(serialRequest))
 	if err != nil {
-		st.Lock()
-		t.Errorf("cannot deliver device serial request: %v", err)
-		st.Unlock()
-		return nil, &state.Retry{After: 60 * time.Second}
+		return nil, retryErr(t, "cannot deliver device serial request: %v", err)
 	}
 	defer resp.Body.Close()
 
@@ -274,20 +268,14 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	case 202:
 		return nil, errPoll
 	default:
-		st.Lock()
-		t.Errorf("cannot deliver device serial request: unexpected status %d", resp.StatusCode)
-		st.Unlock()
-		return nil, &state.Retry{After: 60 * time.Second}
+		return nil, retryErr(t, "cannot deliver device serial request: unexpected status %d", resp.StatusCode)
 	}
 
 	// decode body with serial assertion
 	dec := asserts.NewDecoder(resp.Body)
 	got, err := dec.Decode()
 	if err != nil { // assume broken i/o
-		st.Lock()
-		t.Errorf("cannot read response to request for a serial: %v", err)
-		st.Unlock()
-		return nil, &state.Retry{After: 60 * time.Second}
+		return nil, retryErr(t, "cannot read response to request for a serial: %v", err)
 	}
 
 	serial, ok := got.(*asserts.Serial)
@@ -361,7 +349,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
 		t.Logf("Will poll for device serial assertion in 60 seconds")
-		return &state.Retry{After: 60 * time.Second}
+		return &state.Retry{After: retryInterval}
 	}
 	if err != nil { // errors & retries
 		return err

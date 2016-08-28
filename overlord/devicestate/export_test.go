@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/asserts"
 )
 
@@ -36,6 +38,14 @@ func MockSerialRequestURL(url string) (restore func()) {
 	serialRequestURL = url
 	return func() {
 		serialRequestURL = oldURL
+	}
+}
+
+func MockRetryInterval(interval time.Duration) (restore func()) {
+	old := retryInterval
+	retryInterval = interval
+	return func() {
+		retryInterval = old
 	}
 }
 
