@@ -207,6 +207,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	defer restore()
 
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	auth.SetDevice(s.state, &auth.DeviceState{
@@ -221,27 +222,30 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-
 	s.mgr.Ensure()
 	s.mgr.Wait()
-
 	s.state.Lock()
+
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	device, err := auth.Device(s.state)
 	c.Check(err, IsNil)
-	serial := device.Serial
-	s.state.Unlock()
+	_, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
 
+	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
-
-	// Repeated and preserved original serial.
 	s.state.Lock()
+
+	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	device, err = auth.Device(s.state)
 	c.Check(err, IsNil)
-	c.Check(device.Serial, Equals, serial)
-	s.state.Unlock()
+	c.Check(device.Serial, Equals, "9999")
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
