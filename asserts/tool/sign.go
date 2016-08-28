@@ -30,10 +30,8 @@ import (
 
 // SignRequest specifies the complete input for signing an assertion.
 type SignRequest struct {
-	// The key to use can be speficied either passing the key id in KeyID
+	// KeyID specifies the key id of the key to use
 	KeyID string
-	// or passing the text of an account-key assertion in AccountKey
-	AccountKey []byte
 
 	// Statement is used as input to construct the assertion
 	// it's a mapping encoded as YAML
@@ -45,60 +43,35 @@ type SignRequest struct {
 
 // Sign produces the text of a signed assertion as specified by req.
 func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
-	var headers map[string]string
+	var headers map[string]interface{}
 	err := yaml.Unmarshal(req.Statement, &headers)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse the assertion input as YAML: %v", err)
 	}
-	typ := asserts.Type(headers["type"])
-	if typ == nil {
-		return nil, fmt.Errorf("invalid assertion type: %q", headers["type"])
+	typCand, ok := headers["type"]
+	if !ok {
+		return nil, fmt.Errorf("missing assertion type header")
 	}
-	if req.AccountKey == nil && req.KeyID == "" {
-		return nil, fmt.Errorf("both account-key and key id were not specified")
+	typStr, ok := typCand.(string)
+	if !ok {
+		return nil, fmt.Errorf("assertion type must be a string not: %v", typCand)
+	}
+	typ := asserts.Type(typStr)
+	if typ == nil {
+		return nil, fmt.Errorf("invalid assertion type: %v", headers["type"])
 	}
 
 	var body []byte
 	if bodyCand, ok := headers["body"]; ok {
-		body = []byte(bodyCand)
+		bodyStr, ok := bodyCand.(string)
+		if !ok {
+			return nil, fmt.Errorf("body if specified must be a string")
+		}
+		body = []byte(bodyStr)
 		delete(headers, "body")
 	}
 
 	keyID := req.KeyID
-	authorityID := headers["authority-id"]
-
-	if req.AccountKey != nil {
-		if keyID != "" {
-			return nil, fmt.Errorf("cannot specify both an account-key together with a key id")
-		}
-
-		// use the account-key as a handle to get the information about
-		// signer and key id
-		a, err := asserts.Decode(req.AccountKey)
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse handle account-key: %v", err)
-		}
-		accKey, ok := a.(*asserts.AccountKey)
-		if !ok {
-			return nil, fmt.Errorf("cannot use handle account-key, not actually an account-key, got: %s", a.Type().Name)
-		}
-		if authorityID != accKey.AccountID() {
-			return nil, fmt.Errorf("account-key owner %q does not match assertion input authority-id: %q", accKey.AccountID(), authorityID)
-		}
-		keyID = accKey.PublicKeyID()
-
-		// TODO: teach this check to Database cross-checking against present account-keys?
-		// extra sanity checks about fingerprint
-		pk, err := keypairMgr.Get(authorityID, keyID)
-		if err != nil {
-			return nil, err
-		}
-		expFpr := accKey.PublicKeyFingerprint()
-		gotFpr := pk.PublicKey().Fingerprint()
-		if gotFpr != expFpr {
-			return nil, fmt.Errorf("cannot use found private key, fingerprint does not match account-key, expected %q, got: %s", expFpr, gotFpr)
-		}
-	}
 
 	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: keypairMgr,
@@ -107,6 +80,8 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		return nil, err
 	}
 
+	// TODO: teach Sign to cross check keyID and authority-id
+	// against an account-key
 	a, err := adb.Sign(typ, headers, body, keyID)
 	if err != nil {
 		return nil, err
@@ -114,5 +89,3 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 
 	return asserts.Encode(a), nil
 }
-
-// XXX: should boolean headers use yes/no or true/false ?

@@ -31,16 +31,12 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
-var shortSignHelp = i18n.G("Signs an assertion")
-var longSignHelp = i18n.G(`
-The sign command signs an assertion with the specified key from a local GnuPG setup, using the input for headers from a YAML mapping provided through stdin, the body of the assertion can be specified through a "body" pseudo-header.
+var shortSignHelp = i18n.G("Sign an assertion")
+var longSignHelp = i18n.G(`Sign an assertion using the specified key, using the input for headers from a YAML mapping provided through stdin, the body of the assertion can be specified through a "body" pseudo-header.
 `)
 
 type cmdSign struct {
-	GPGHomedir string `long:"gpg-homedir" description:"alternative GPG homedir, otherwise the default ~/.gnupg is used (or GNUPGHOME env var can be set instead)"`
-
-	KeyID      string `long:"key-id" description:"long key id of the GnuPG key to use (otherwise taken from account-key)"`
-	AccountKey string `long:"account-key" description:"file with the account-key assertion of the key to use"`
+	KeyID string `long:"key-name" description:"name of the key to use, otherwise use the default key" default:"default"`
 }
 
 func init() {
@@ -55,26 +51,16 @@ func (x *cmdSign) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	var accountKey []byte
-	if x.AccountKey != "" {
-		var err error
-		accountKey, err = ioutil.ReadFile(x.AccountKey)
-		if err != nil {
-			return fmt.Errorf("cannot read account-key: %v", err)
-		}
-	}
-
 	statement, err := ioutil.ReadAll(Stdin)
 	if err != nil {
 		return fmt.Errorf("cannot read assertion input: %v", err)
 	}
 
-	keypairMgr := asserts.NewGPGKeypairManager(x.GPGHomedir)
+	keypairMgr := asserts.NewGPGKeypairManager()
 
 	signReq := tool.SignRequest{
-		AccountKey: accountKey,
-		KeyID:      strings.ToLower(x.KeyID),
-		Statement:  statement,
+		KeyID:     strings.ToLower(x.KeyID),
+		Statement: statement,
 	}
 
 	encodedAssert, err := tool.Sign(&signReq, keypairMgr)

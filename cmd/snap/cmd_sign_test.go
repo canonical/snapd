@@ -22,36 +22,14 @@ package main_test
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/assertstest"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
-
-type snapsignSuite struct {
-	BaseSnapSuite
-
-	tempdir string
-	homedir string
-}
-
-var _ = Suite(&snapsignSuite{})
-
-func (s *snapsignSuite) SetUpSuite(c *C) {
-	s.tempdir = c.MkDir()
-	s.homedir = filepath.Join(s.tempdir, "gpg")
-	err := os.Mkdir(s.homedir, 0700)
-	c.Assert(err, IsNil)
-
-	assertstest.GPGImportKey(s.homedir, assertstest.DevKey)
-}
 
 var statement = []byte(fmt.Sprintf(`type: snap-build
 authority-id: devel1
@@ -63,44 +41,10 @@ grade: devel
 timestamp: %s
 `, time.Now().Format(time.RFC3339)))
 
-func (s *snapsignSuite) TestHappy(c *C) {
+func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
-	rest, err := snap.Parser().ParseArgs([]string{"sign", "--gpg-homedir", s.homedir, "--key-id", assertstest.DevKeyID})
-	c.Assert(err, IsNil)
-	c.Assert(rest, DeepEquals, []string{})
-
-	a, err := asserts.Decode(s.stdout.Bytes())
-	c.Assert(err, IsNil)
-	c.Check(a.Type(), Equals, asserts.SnapBuildType)
-}
-
-func (s *snapsignSuite) TestHappyAccountKeyHandle(c *C) {
-	accKeyFile := filepath.Join(s.tempdir, "devel1.account-key")
-
-	devKey, _ := assertstest.ReadPrivKey(assertstest.DevKey)
-	pubKeyEncoded, err := asserts.EncodePublicKey(devKey.PublicKey())
-	c.Assert(err, IsNil)
-
-	now := time.Now()
-	// good enough as a handle as is used by Sign
-	mockAccKey := "type: account-key\n" +
-		"authority-id: canonical\n" +
-		"account-id: devel1\n" +
-		"public-key-id: " + assertstest.DevKeyID + "\n" +
-		"public-key-fingerprint: " + assertstest.DevKeyFingerprint + "\n" +
-		"since: " + now.Format(time.RFC3339) + "\n" +
-		"until: " + now.AddDate(1, 0, 0).Format(time.RFC3339) + "\n" +
-		fmt.Sprintf("body-length: %v", len(pubKeyEncoded)) + "\n\n" +
-		string(pubKeyEncoded) + "\n\n" +
-		"openpgp c2ln"
-
-	err = ioutil.WriteFile(accKeyFile, []byte(mockAccKey), 0655)
-	c.Assert(err, IsNil)
-
-	s.stdin.Write(statement)
-
-	rest, err := snap.Parser().ParseArgs([]string{"sign", "--gpg-homedir", s.homedir, "--account-key", accKeyFile})
+	rest, err := snap.Parser().ParseArgs([]string{"sign"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 
