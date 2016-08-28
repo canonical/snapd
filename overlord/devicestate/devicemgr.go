@@ -304,12 +304,14 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	keyID := privKey.PublicKey().ID()
+
 	// make this idempotent, look if we have already a serial assertion
 	// for privKey
 	serials, err := assertstate.DB(st).FindMany(asserts.SerialType, map[string]string{
 		"brand-id":            device.Brand,
 		"model":               device.Model,
-		"device-key-sha3-384": privKey.PublicKey().ID(),
+		"device-key-sha3-384": keyID,
 	})
 
 	if len(serials) == 1 {
@@ -355,8 +357,11 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	if serial.BrandID() != device.Brand || serial.Model() != device.Model || serial.DeviceKey().ID() != keyID {
+		return fmt.Errorf("obtained serial assertion does not match provided device identity information (brand, model, key id): %s / %s / %s != %s / %s / %s", serial.BrandID(), serial.Model(), serial.DeviceKey().ID(), device.Brand, device.Model, keyID)
+	}
+
 	// TODO: (possibly refetch brand key and)
-	// TODO: double check brand, model and key hash
 
 	// add the serial assertion to the system assertion db
 	err = assertstate.Add(st, serial)
