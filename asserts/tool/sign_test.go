@@ -21,9 +21,7 @@ package tool_test
 
 import (
 	"bytes"
-	"fmt"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -37,9 +35,6 @@ func TestTool(t *testing.T) { TestingT(t) }
 type signSuite struct {
 	keypairMgr asserts.KeypairManager
 	testKeyID  string
-
-	accKey      []byte
-	otherAssert []byte
 }
 
 var _ = Suite(&signSuite{})
@@ -48,35 +43,8 @@ func (s *signSuite) SetUpSuite(c *C) {
 	testKey, _ := assertstest.GenerateKey(752)
 
 	s.keypairMgr = asserts.NewMemoryKeypairManager()
-	s.keypairMgr.Put("user-id1", testKey)
+	s.keypairMgr.Put(testKey)
 	s.testKeyID = testKey.PublicKey().ID()
-
-	pubKeyEncoded, err := asserts.EncodePublicKey(testKey.PublicKey())
-	c.Assert(err, IsNil)
-
-	now := time.Now()
-	// good enough as a handle as is used by Sign
-	mockAccKey := "type: account-key\n" +
-		"authority-id: canonical\n" +
-		"account-id: user-id1\n" +
-		"public-key-id: " + s.testKeyID + "\n" +
-		"public-key-fingerprint: " + testKey.PublicKey().Fingerprint() + "\n" +
-		"since: " + now.Format(time.RFC3339) + "\n" +
-		"until: " + now.AddDate(1, 0, 0).Format(time.RFC3339) + "\n" +
-		fmt.Sprintf("body-length: %v", len(pubKeyEncoded)) + "\n\n" +
-		string(pubKeyEncoded) + "\n\n" +
-		"openpgp c2ln"
-
-	s.accKey = []byte(mockAccKey)
-
-	s.otherAssert = []byte("type: account\n" +
-		"authority-id: canonical\n" +
-		"account-id: user-id1\n" +
-		"display-name: User One\n" +
-		"username: userone\n" +
-		"validation: unproven\n" +
-		"timestamp: " + now.Format(time.RFC3339) + "\n\n" +
-		"openpgp c2ln")
 }
 
 const (
@@ -85,38 +53,33 @@ authority-id: user-id1
 series: "16"
 brand-id: user-id1
 model: baz-3000
-core: core
 architecture: amd64
 gadget: brand-gadget
 kernel: baz-linux
 store: brand-store
-allowed-modes:
-required-snaps: "foo,bar"
-class: fixed
+required-snaps: [foo, bar]
 timestamp: 2015-11-25T20:00:00Z
 `
 )
 
-func expectedModelHeaders() map[string]string {
-	return map[string]string{
-		"type":           "model",
-		"authority-id":   "user-id1",
-		"series":         "16",
-		"brand-id":       "user-id1",
-		"model":          "baz-3000",
-		"allowed-modes":  "",
-		"architecture":   "amd64",
-		"class":          "fixed",
-		"gadget":         "brand-gadget",
-		"kernel":         "baz-linux",
-		"core":           "core",
-		"store":          "brand-store",
-		"required-snaps": "foo,bar",
-		"timestamp":      "2015-11-25T20:00:00Z",
+func expectedModelHeaders(a asserts.Assertion) map[string]interface{} {
+	return map[string]interface{}{
+		"type":              "model",
+		"authority-id":      "user-id1",
+		"series":            "16",
+		"brand-id":          "user-id1",
+		"model":             "baz-3000",
+		"architecture":      "amd64",
+		"gadget":            "brand-gadget",
+		"kernel":            "baz-linux",
+		"store":             "brand-store",
+		"required-snaps":    []interface{}{"foo", "bar"},
+		"timestamp":         "2015-11-25T20:00:00Z",
+		"sign-key-sha3-384": a.SignKeyID(),
 	}
 }
 
-func (s *signSuite) TestSignKeyIDYAML(c *C) {
+func (s *signSuite) TestSignYAML(c *C) {
 	req := tool.SignRequest{
 		KeyID: s.testKeyID,
 
@@ -131,11 +94,17 @@ func (s *signSuite) TestSignKeyIDYAML(c *C) {
 
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 0)
-	c.Check(a.Headers(), DeepEquals, expectedModelHeaders())
+	expectedHeaders := expectedModelHeaders(a)
+	c.Check(a.Headers(), DeepEquals, expectedHeaders)
+
+	for n, v := range a.Headers() {
+		c.Check(v, DeepEquals, expectedHeaders[n], Commentf(n))
+	}
+
 	c.Check(a.Body(), IsNil)
 }
 
-func (s *signSuite) TestSignKeyIDYAMLWithBodyAndRevision(c *C) {
+func (s *signSuite) TestSignYAMLWithBodyAndRevision(c *C) {
 	req := tool.SignRequest{
 		KeyID: s.testKeyID,
 
@@ -152,32 +121,13 @@ revision: "11"`),
 	c.Check(a.Type(), Equals, asserts.ModelType)
 	c.Check(a.Revision(), Equals, 11)
 
-	expectedHeaders := expectedModelHeaders()
+	expectedHeaders := expectedModelHeaders(a)
 	expectedHeaders["revision"] = "11"
 	expectedHeaders["body-length"] = "4"
 
 	c.Check(a.Headers(), DeepEquals, expectedHeaders)
 
 	c.Check(a.Body(), DeepEquals, []byte("BODY"))
-}
-
-func (s *signSuite) TestSignAccountKeyHandle(c *C) {
-	req := tool.SignRequest{
-		AccountKey: s.accKey,
-
-		Statement: []byte(modelYaml),
-	}
-
-	assertText, err := tool.Sign(&req, s.keypairMgr)
-	c.Assert(err, IsNil)
-
-	a, err := asserts.Decode(assertText)
-	c.Assert(err, IsNil)
-
-	c.Check(a.Type(), Equals, asserts.ModelType)
-	c.Check(a.Revision(), Equals, 0)
-	c.Check(a.Headers(), DeepEquals, expectedModelHeaders())
-	c.Check(a.Body(), IsNil)
 }
 
 func (s *signSuite) TestSignErrors(c *C) {
@@ -196,50 +146,35 @@ func (s *signSuite) TestSignErrors(c *C) {
 				req.Statement = []byte("\x00")
 			},
 		},
-		{`invalid assertion type: "what"`,
+		{`invalid assertion type: what`,
 			func(req *tool.SignRequest) {
 				req.Statement = bytes.Replace(req.Statement, []byte(": model"), []byte(": what"), 1)
 			},
 		},
+		{`assertion type must be a string not: \[\]`,
+			func(req *tool.SignRequest) {
+				req.Statement = bytes.Replace(req.Statement, []byte(": model"), []byte(": []"), 1)
+			},
+		},
+		{`missing assertion type header`,
+			func(req *tool.SignRequest) {
+				req.Statement = bytes.Replace(req.Statement, []byte("type: model\n"), []byte(""), 1)
+			},
+		},
 		{"revision should be positive: -10",
 			func(req *tool.SignRequest) {
-				req.Statement = append(req.Statement, "revision: -10"...)
-			},
-		},
-		{"both account-key and key id were not specified",
-			func(req *tool.SignRequest) {
-				req.KeyID = ""
-				req.AccountKey = nil
-			},
-		},
-		{"cannot specify both an account-key together with a key id",
-			func(req *tool.SignRequest) {
-				req.AccountKey = []byte("ak")
-			},
-		},
-		{"cannot parse handle account-key:.*",
-			func(req *tool.SignRequest) {
-				req.KeyID = ""
-				req.AccountKey = []byte("ak")
-			},
-		},
-		{`account-key owner "user-id1" does not match assertion input authority-id: "user-idX"`,
-			func(req *tool.SignRequest) {
-				req.KeyID = ""
-				req.AccountKey = s.accKey
-				req.Statement = bytes.Replace(req.Statement, []byte("authority-id: user-id1\n"), []byte("authority-id: user-idX\n"), 1)
-			},
-		},
-		{"cannot use handle account-key, not actually an account-key, got: account",
-			func(req *tool.SignRequest) {
-				req.KeyID = ""
-				req.AccountKey = s.otherAssert
+				req.Statement = append(req.Statement, `revision: "-10"`...)
 			},
 		},
 		{`"authority-id" header is mandatory`,
 			func(req *tool.SignRequest) {
 				req.Statement = bytes.Replace(req.Statement, []byte("authority-id: user-id1\n"), []byte(""), 1)
 
+			},
+		},
+		{`body if specified must be a string`,
+			func(req *tool.SignRequest) {
+				req.Statement = append(req.Statement, `body: []`...)
 			},
 		},
 	}
