@@ -413,17 +413,17 @@ func (s *Store) refreshDeviceSession() error {
 		return fmt.Errorf("cannot get device from state: %v", err)
 	}
 
+	serialAssertion, err := s.authContext.Serial()
+	if err != nil {
+		return err
+	}
+
 	nonce, err := RequestStoreDeviceNonce()
 	if err != nil {
 		return err
 	}
 
 	serialProof, err := s.authContext.SerialProof(nonce)
-	if err != nil {
-		return err
-	}
-
-	serialAssertion, err := s.authContext.Serial()
 	if err != nil {
 		return err
 	}
