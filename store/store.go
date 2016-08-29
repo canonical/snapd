@@ -485,25 +485,30 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 	}
 
 	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 && user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-		// close previous response, refresh user and retry
-		resp.Body.Close()
-		err = s.refreshUser(user)
-		if err != nil {
-			return nil, err
+	if resp.StatusCode == 401 {
+		refreshed := false
+		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+			// refresh user
+			err = s.refreshUser(user)
+			if err != nil {
+				return nil, err
+			}
+			refreshed = true
 		}
-		// retry
-		return s.doRequest(client, reqOptions, user)
-
-	} else if resp.StatusCode == 401 && strings.Contains(wwwAuth, "refresh_device_session=1") {
-		// close previous response, refresh device session and retry
-		resp.Body.Close()
-		err = s.refreshDeviceSession()
-		if err != nil {
-			return nil, err
+		if strings.Contains(wwwAuth, "refresh_device_session=1") {
+			// refresh device session
+			err = s.refreshDeviceSession()
+			if err != nil {
+				return nil, err
+			}
+			refreshed = true
 		}
-		// retry
-		return s.doRequest(client, reqOptions, user)
+		if refreshed {
+			// close previous response and retry
+			// TODO: make this non-recursive or add a recursion limit
+			resp.Body.Close()
+			return s.doRequest(client, reqOptions, user)
+		}
 	}
 
 	return resp, err
