@@ -1611,7 +1611,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot run snapctl: %s", err)
 	}
 
-	stdout, stderr, err := ctlcmd.RunCommand(context.Handler(), snapctlRequest.Args)
+	stdout, stderr, err := ctlcmd.RunCommand(context, snapctlRequest.Args)
 	if err != nil {
 		return BadRequest("error running snapctl: %s", err)
 	}

@@ -73,11 +73,20 @@ type SnapCtlRequest struct {
 	Args []string `json:"args"`
 }
 
-// hookSetup is a reference to a hook within a specific snap.
-type hookSetup struct {
+// HookSetup is a reference to a hook within a specific snap.
+type HookSetup struct {
 	Snap     string        `json:"snap"`
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
+}
+
+// NewHookSetup returns a new HookSetup.
+func NewHookSetup(snap string, revision snap.Revision, hook string) HookSetup {
+	return HookSetup{
+		Snap:     snap,
+		Revision: revision,
+		Hook:     hook,
+	}
 }
 
 // Manager returns a new HookManager.
@@ -98,7 +107,7 @@ func Manager(s *state.State) (*HookManager, error) {
 // HookTask returns a task that will run the specified hook.
 func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", hookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook-setup", NewHookSetup(snapName, revision, hookName))
 	return task
 }
 
@@ -148,7 +157,7 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	var setup hookSetup
+	var setup HookSetup
 	err := task.Get("hook-setup", &setup)
 	task.State().Unlock()
 
