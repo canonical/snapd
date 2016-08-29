@@ -405,12 +405,12 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 // refreshDeviceSession will set or refresh the device session in the state
 func (s *Store) refreshDeviceSession() error {
 	if s.authContext == nil {
-		return fmt.Errorf("cannot get device from state: no authContext")
+		return fmt.Errorf("internal error: no authContext")
 	}
 
 	device, err := s.authContext.Device()
 	if err != nil {
-		return fmt.Errorf("cannot get device from state: %v", err)
+		return err
 	}
 
 	serialAssertion, err := s.authContext.Serial()
