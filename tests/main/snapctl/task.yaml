@@ -60,12 +60,12 @@ execute: |
     # context is obviously invalid. That failure still means we're correctly
     # hitting the API, though, which is all we care about here.
     export SNAP_CONTEXT="foo"
-    if output="$(snap run --hook=apply-config snapctl-hooks)""; then
+    if output="$(snap run --hook=apply-config snapctl-hooks)"; then
         echo "Expected the hook to fail"
         exit 1
     fi
 
-    if [[ ! "$output" =~ .*no context for ID: \"foo\".* ]]; then
+    if [[ ! "$output" =~ .*"no context for ID: \"foo\"".* ]]; then
         echo "Expected failure to be due to missing context, but it was \"$output\""
         exit 1
     fi
