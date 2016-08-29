@@ -41,7 +41,7 @@ type snapctlOutput struct {
 }
 
 // RunSnapctl requests a snapctl run for the given options.
-func (client *Client) RunSnapctl(options SnapCtlOptions) (stdout, stderr []byte, err error) {
+func (client *Client) RunSnapctl(options *SnapCtlOptions) (stdout, stderr []byte, err error) {
 	b, err := json.Marshal(options)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)

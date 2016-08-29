@@ -224,12 +224,12 @@ func (cs *clientSuite) TestSnapClientIntegration(c *check.C) {
 	defer srv.Close()
 
 	cli := client.New(nil)
-	request := client.SnapCtlOptions{
+	options := &client.SnapCtlOptions{
 		ContextID: "foo",
 		Args:      []string{"bar", "--baz"},
 	}
 
-	stdout, stderr, err := cli.RunSnapctl(request)
+	stdout, stderr, err := cli.RunSnapctl(options)
 	c.Check(err, check.IsNil)
 	c.Check(string(stdout), check.Equals, "test stdout")
 	c.Check(string(stderr), check.Equals, "test stderr")
