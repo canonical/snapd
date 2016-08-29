@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"sync"
 
 	"gopkg.in/tomb.v2"
 
@@ -43,7 +44,20 @@ type HookManager struct {
 	runner     *state.TaskRunner
 	repository *repository
 
-	activeHandlers *handlerCollection
+	contextsMutex sync.RWMutex
+	contexts      map[string]*Context
+}
+
+// Handler is the interface a client must satify to handle hooks.
+type Handler interface {
+	// Before is called right before the hook is to be run.
+	Before() error
+
+	// Done is called right after the hook has finished successfully.
+	Done() error
+
+	// Error is called if the hook encounters an error while running.
+	Error(err error) error
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
@@ -51,8 +65,12 @@ type HandlerGenerator func(*Context) Handler
 
 // SnapCtlRequest contains a request from a hook to conduct some action.
 type SnapCtlRequest struct {
-	Context string
-	Args    []string
+	// ContextID is a string used to determine the context of this call (e.g.
+	// which context and handler should be used, etc.)
+	ContextID string `json:"context-id"`
+
+	// Args contains a list of parameters to use for this invocation.
+	Args []string `json:"args"`
 }
 
 // hookSetup is a reference to a hook within a specific snap.
@@ -66,10 +84,10 @@ type hookSetup struct {
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
 	manager := &HookManager{
-		state:          s,
-		runner:         runner,
-		repository:     newRepository(),
-		activeHandlers: newHandlerCollection(),
+		state:      s,
+		runner:     runner,
+		repository: newRepository(),
+		contexts:   make(map[string]*Context),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -111,15 +129,17 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
-// GetHandler obtains the handler for the given context.
-func (m *HookManager) GetHandler(context string) (Handler, error) {
-	// Extract the appropriate handler for this request
-	handler, err := m.activeHandlers.getHandler(context)
-	if err != nil {
-		return nil, err
+// Context obtains the context for the given context ID.
+func (m *HookManager) Context(contextID string) (*Context, error) {
+	m.contextsMutex.RLock()
+	defer m.contextsMutex.RUnlock()
+
+	context, ok := m.contexts[contextID]
+	if !ok {
+		return nil, fmt.Errorf("no context for ID: %q", contextID)
 	}
 
-	return handler, nil
+	return context, nil
 }
 
 // doRunHook actually runs the hook that was requested.
@@ -149,12 +169,22 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	handler := handlers[0]
-
-	context, err := m.activeHandlers.addHandler(handler)
+	context, err := NewContext(task, setup, handler)
 	if err != nil {
 		return err
 	}
-	defer m.activeHandlers.removeHandler(context)
+
+	contextID := context.ID()
+
+	m.contextsMutex.Lock()
+	m.contexts[contextID] = context
+	m.contextsMutex.Unlock()
+
+	defer func() {
+		m.contextsMutex.Lock()
+		delete(m.contexts, contextID)
+		m.contextsMutex.Unlock()
+	}()
 
 	// About to run the hook-- notify the handler
 	if err = handler.Before(); err != nil {
@@ -162,7 +192,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// Actually run the hook
-	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, context, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
