@@ -354,12 +354,21 @@ Can manage processes via signals and nice.
 
 ### serial-port
 
-Can access serial ports. This is restricted because it provides privileged
-access to configure serial port hardware.
+Provide access to serial ports identfied by either device path or USB VID & PID.
+This is restricted because it provides privileged access to configure serial
+port hardware.
 
 * Auto-Connect: no
 * Attributes:
-    * path (slot): path to serial device
+    * path (slot): path to serial device provided
+    * path (plug): path to requested serial device
+    * vendor-id (plug): the 16-bit USB vendor identifier
+    * product-id (plug): the 16-bit USB product identifier
+
+If identifying serial port devices by VID & PID both vendor-id and product-id
+must be specified in the plug declaration.
+If identifying a serial port by device path the plug and slot must have matching
+path attributes.
 
 ### snapd-control
 
