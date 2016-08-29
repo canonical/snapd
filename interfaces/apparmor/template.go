@@ -163,6 +163,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/tempfile ixr,
   /{,usr/}bin/tset ixr,
   /{,usr/}bin/touch ixr,
+  /{,usr/}bin/tput ixr,
   /{,usr/}bin/tr ixr,
   /{,usr/}bin/true ixr,
   /{,usr/}bin/uname ixr,
