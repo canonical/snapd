@@ -62,7 +62,7 @@ func (gkms *gpgKeypairMgrSuite) SetUpTest(c *C) {
 	gkms.importKey(assertstest.DevKey)
 }
 
-func (gkms *gpgKeypairMgrSuite) TearDowntest(c *C) {
+func (gkms *gpgKeypairMgrSuite) TearDownTest(c *C) {
 	os.Unsetenv("SNAP_GNUPG_HOME")
 }
 
@@ -304,4 +304,28 @@ func (gkms *gpgKeypairMgrSuite) TestUseInSigningKeyTooShort(c *C) {
 
 	_, err = signDB.Sign(asserts.SnapBuildType, headers, nil, privk.PublicKey().ID())
 	c.Check(err, ErrorMatches, `cannot sign assertion: signing needs at least a 4096 bits key, got 2048`)
+}
+
+func (gkms *gpgKeypairMgrSuite) TestParametersForGenerate(c *C) {
+	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
+	baseParameters := `
+Key-Type: RSA
+Key-Length: 4096
+Name-Real: test-key
+Creation-Date: seconds=1451606400
+Preferences: SHA512
+`
+
+	tests := []struct {
+		passphrase      string
+		extraParameters string
+	}{
+		{"", ""},
+		{"secret", "Passphrase: secret\n"},
+	}
+
+	for _, test := range tests {
+		parameters := gpgKeypairMgr.ParametersForGenerate(test.passphrase, "test-key")
+		c.Check(parameters, Equals, baseParameters+test.extraParameters)
+	}
 }

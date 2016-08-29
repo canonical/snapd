@@ -42,3 +42,11 @@ func MockSerialRequestURL(url string) (restore func()) {
 func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
 	return m.keypairMgr
 }
+
+func MockRepeatSerialRequest(enabled bool) (restore func()) {
+	old := repeatSerialRequest
+	repeatSerialRequest = enabled
+	return func() {
+		repeatSerialRequest = old
+	}
+}

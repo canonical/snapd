@@ -69,6 +69,10 @@ func Prepare(opts *Options) error {
 	return bootstrapToRootDir(sto, model, opts)
 }
 
+// these are postponed, not implemented or abandoned, not finalized,
+// don't let them sneak in into a used model assertion
+var reserved = []string{"core", "os", "class", "allowed-modes"}
+
 func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	fn := opts.ModelFile
 
@@ -85,6 +89,13 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	if !ok {
 		return nil, fmt.Errorf("assertion in %q is not a model assertion", fn)
 	}
+
+	for _, rsvd := range reserved {
+		if modela.Header(rsvd) != nil {
+			return nil, fmt.Errorf("model assertion cannot have reserved/unsupported header %q set", rsvd)
+		}
+	}
+
 	return modela, nil
 }
 
@@ -111,6 +122,9 @@ func acquireSnap(sto Store, snapName string, dlOpts *downloadOptions) (downloade
 	// FIXME: add support for sideloading snaps here
 	return downloadSnapWithSideInfo(sto, snapName, dlOpts)
 }
+
+// one and only core snap for now
+const defaultCore = "ubuntu-core"
 
 func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 	// FIXME: try to avoid doing this
@@ -183,7 +197,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 	snaps := []string{}
 	snaps = append(snaps, opts.Snaps...)
 	snaps = append(snaps, model.Gadget())
-	snaps = append(snaps, model.Core())
+	snaps = append(snaps, defaultCore)
 	snaps = append(snaps, model.Kernel())
 	snaps = append(snaps, model.RequiredSnaps()...)
 
@@ -202,8 +216,9 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
+		typ := info.Type
 		// kernel/os are required for booting
-		if snapName == model.Kernel() || snapName == model.Core() {
+		if typ == snap.TypeKernel || typ == snap.TypeOS {
 			dst := filepath.Join(dirs.SnapBlobDir, filepath.Base(fn))
 			if err := osutil.CopyFile(fn, dst, 0); err != nil {
 				return err
@@ -347,17 +362,12 @@ func makeStore(model *asserts.Model) Store {
 	cfg := store.DefaultConfig()
 	cfg.Architecture = model.Architecture()
 	cfg.Series = model.Series()
-	storeID := model.Store()
-	// XXX: make store optional, so defaulting to empty meaning this
-	if storeID == "canonical" {
-		storeID = ""
-	}
-	cfg.StoreID = storeID
+	cfg.StoreID = model.Store()
 	return store.New(cfg, nil)
 }
 
 type Store interface {
-	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
+	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
 	Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
@@ -377,7 +387,7 @@ func downloadSnapWithSideInfo(sto Store, name string, opts *downloadOptions) (ta
 		targetDir = pwd
 	}
 
-	snap, err := sto.Snap(name, opts.Channel, false, nil)
+	snap, err := sto.Snap(name, opts.Channel, false, snap.R(0), nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %s", name, err)
 	}

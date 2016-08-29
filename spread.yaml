@@ -38,6 +38,7 @@ exclude:
     - .git
 
 prepare: |
+    # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
 
     # apt update is hanging on security.ubuntu.com with IPv6.
@@ -68,6 +69,7 @@ prepare: |
     dch -i "testing build"
 
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
+    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
     sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip"
 
@@ -86,7 +88,6 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
-
 suites:
     tests/main/:
         summary: Full-system tests for snapd

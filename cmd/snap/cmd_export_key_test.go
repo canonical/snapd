@@ -23,16 +23,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
-
-func (s *SnapKeysSuite) TestExportKeyRequiresName(c *C) {
-	_, err := snap.Parser().ParseArgs([]string{"export-key"})
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "the required argument `<key-name>` was not provided")
-	c.Check(s.Stdout(), Equals, "")
-	c.Check(s.Stderr(), Equals, "")
-}
 
 func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"export-key", "nonexistent"})
@@ -42,12 +35,44 @@ func (s *SnapKeysSuite) TestExportKeyNonexistent(c *C) {
 	c.Check(s.Stderr(), Equals, "")
 }
 
-func (s *SnapKeysSuite) TestExportKey(c *C) {
-	rest, err := snap.Parser().ParseArgs([]string{"export-key", "default"})
+func (s *SnapKeysSuite) TestExportKeyDefault(c *C) {
+	rest, err := snap.Parser().ParseArgs([]string{"export-key"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
 	c.Assert(err, IsNil)
-	c.Check(pubKey.ID(), Equals, "2uDFKgzxAPJ4takHsVbPFjmszLvaxg431C1KmhKFPwcD96MLKWcKj9cFEePrAZRs")
+	c.Check(pubKey.ID(), Equals, "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
 	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapKeysSuite) TestExportKeyNonDefault(c *C) {
+	rest, err := snap.Parser().ParseArgs([]string{"export-key", "another"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	pubKey, err := asserts.DecodePublicKey(s.stdout.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(pubKey.ID(), Equals, "DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
+	rootPrivKey, _ := assertstest.GenerateKey(1024)
+	storePrivKey, _ := assertstest.GenerateKey(752)
+	storeSigning := assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
+	manager := asserts.NewGPGKeypairManager()
+	assertstest.NewAccount(storeSigning, "developer1", nil, "")
+	rest, err := snap.Parser().ParseArgs([]string{"export-key", "default", "--account=developer1"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	assertion, err := asserts.Decode(s.stdout.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(assertion.Type(), Equals, asserts.AccountKeyRequestType)
+	c.Check(assertion.Revision(), Equals, 0)
+	c.Check(assertion.HeaderString("account-id"), Equals, "developer1")
+	c.Check(assertion.HeaderString("public-key-sha3-384"), Equals, "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
+	c.Check(s.Stderr(), Equals, "")
+	privKey, err := manager.Get(assertion.HeaderString("public-key-sha3-384"))
+	c.Assert(err, IsNil)
+	err = asserts.SignatureCheck(assertion, privKey.PublicKey())
+	c.Assert(err, IsNil)
 }

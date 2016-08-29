@@ -78,7 +78,7 @@ type apiSuite struct {
 
 var _ = check.Suite(&apiSuite{})
 
-func (s *apiSuite) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (s *apiSuite) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	s.user = user
 	if len(s.rsnaps) > 0 {
 		return s.rsnaps[0], s.err
@@ -193,17 +193,17 @@ func (s *apiSuite) daemon(c *check.C) *Daemon {
 	return d
 }
 
-func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
-	return s.mkInstalledInState(c, nil, name, developer, version, revno, active, extraYaml)
+func (s *apiSuite) mkInstalled(c *check.C, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
+	return s.mkInstalledInState(c, nil, name, developer, version, revision, active, extraYaml)
 }
 
-func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revno snap.Revision, active bool, extraYaml string) *snap.Info {
+func (s *apiSuite) mkInstalledInState(c *check.C, daemon *Daemon, name, developer, version string, revision snap.Revision, active bool, extraYaml string) *snap.Info {
 	// Collect arguments into a snap.SideInfo structure
 	sideInfo := &snap.SideInfo{
 		SnapID:    "funky-snap-id",
 		RealName:  name,
 		Developer: developer,
-		Revision:  revno,
+		Revision:  revision,
 		Channel:   "stable",
 	}
 
@@ -396,7 +396,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateUpdateMany",
 		"snapstateRefreshCandidates",
 		"readSnapInfo",
-		"osutilAddExtraSudoUser",
+		"osutilAddUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
@@ -1568,7 +1568,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
 		c.Check(flags, check.Equals, snapstate.Flags(0))
 		installQueue = append(installQueue, name)
@@ -1715,13 +1715,16 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 }
 
 func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
-	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0))
+	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0), snap.R(0))
 }
 func (s *apiSuite) TestInstallOnDevModeDistro(c *check.C) {
-	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode)
+	s.testInstall(c, &release.OS{ID: "x-devmode-distro"}, snapstate.DevMode, snap.R(0))
+}
+func (s *apiSuite) TestInstallRevision(c *check.C) {
+	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0), snap.R(42))
 }
 
-func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags) {
+func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapstate.Flags, revision snap.Revision) {
 	calledFlags := snapstate.Flags(42)
 	installQueue := []string{}
 	restore := release.MockReleaseInfo(releaseInfo)
@@ -1731,9 +1734,10 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revno snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		installQueue = append(installQueue, name)
+		c.Check(revision, check.Equals, revno)
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
@@ -1744,8 +1748,13 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 	d.overlord.Loop()
 	defer d.overlord.Stop()
 
-	buf := bytes.NewBufferString(`{"action": "install"}`)
-	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
+	var buf bytes.Buffer
+	if revision.Unset() {
+		buf.WriteString(`{"action": "install"}`)
+	} else {
+		fmt.Fprintf(&buf, `{"action": "install", "revision": %s}`, revision.String())
+	}
+	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
 	c.Assert(err, check.IsNil)
 
 	s.vars = map[string]string{"name": "some-snap"}
@@ -1940,7 +1949,7 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
 		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
 		installQueue = append(installQueue, t1, t2)
@@ -1989,7 +1998,7 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 		// pretend we do not have a state for ubuntu-core
 		return state.ErrNoState
 	}
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
 		t2 := s.NewTask("fake-install-snap", "second task is just here so that we can check that the wait is correctly added to all tasks")
 		installQueue = append(installQueue, t1, t2)
@@ -2021,7 +2030,7 @@ func (s *apiSuite) TestInstallFails(c *check.C) {
 		return nil
 	}
 
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t := s.NewTask("fake-install-snap-error", "Install task")
 		return state.NewTaskSet(t), nil
 	}
@@ -2058,7 +2067,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 	c.Skip("temporarily dropped half-baked support while sorting out flag mess")
 	calledFlags := snapstate.Flags(42)
 
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -2084,7 +2093,7 @@ func (s *apiSuite) TestInstallLeaveOld(c *check.C) {
 func (s *apiSuite) TestInstallDevMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -2112,7 +2121,7 @@ func (s *apiSuite) TestInstallDevMode(c *check.C) {
 func (s *apiSuite) TestInstallJailMode(c *check.C) {
 	var calledFlags snapstate.Flags
 
-	snapstateInstall = func(s *state.State, name, channel string, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
@@ -3280,11 +3289,11 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
-	osutilAddExtraUser = func(username string, sshKeys []string, gecos string, sudoer bool) error {
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
 		c.Check(username, check.Equals, "karl")
-		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
-		c.Check(gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
-		c.Check(sudoer, check.Equals, false)
+		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
+		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
 
@@ -3292,7 +3301,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return 0, nil
 	}
 	defer func() {
-		osutilAddExtraUser = osutil.AddExtraUser
+		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
 

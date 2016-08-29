@@ -664,14 +664,18 @@ func mustBuy(prices map[string]float64, purchases []*purchase) bool {
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(name)
 	if err != nil {
 		return nil, err
 	}
 
 	query := u.Query()
-	if channel != "" {
+
+	if !revision.Unset() {
+		query.Set("revision", revision.String())
+		query.Set("channel", "") // sidestep the channel map
+	} else if channel != "" {
 		query.Set("channel", channel)
 	}
 
