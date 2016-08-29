@@ -80,15 +80,6 @@ type HookSetup struct {
 	Hook     string        `json:"hook"`
 }
 
-// NewHookSetup returns a new HookSetup.
-func NewHookSetup(snap string, revision snap.Revision, hook string) HookSetup {
-	return HookSetup{
-		Snap:     snap,
-		Revision: revision,
-		Hook:     hook,
-	}
-}
-
 // Manager returns a new HookManager.
 func Manager(s *state.State) (*HookManager, error) {
 	runner := state.NewTaskRunner(s)
@@ -107,7 +98,7 @@ func Manager(s *state.State) (*HookManager, error) {
 // HookTask returns a task that will run the specified hook.
 func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", NewHookSetup(snapName, revision, hookName))
+	task.Set("hook-setup", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
 	return task
 }
 
@@ -157,8 +148,8 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	var setup HookSetup
-	err := task.Get("hook-setup", &setup)
+	setup := &HookSetup{}
+	err := task.Get("hook-setup", setup)
 	task.State().Unlock()
 
 	if err != nil {

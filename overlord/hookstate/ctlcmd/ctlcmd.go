@@ -85,8 +85,8 @@ func addCommand(name string, generator commandGenerator) {
 	commandGenerators[name] = generator
 }
 
-// RunCommand runs the requested command.
-func RunCommand(context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
+// Run runs the requested command.
+func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
 	parser := flags.NewParser(nil, flags.PassDoubleDash)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
