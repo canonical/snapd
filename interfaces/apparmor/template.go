@@ -194,6 +194,10 @@ var defaultTemplate = []byte(`
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
 
+  # systemd native journal API (see sd_journal_print(4)). This should be in
+  # AppArmor's base abstraction, but until it is, include here.
+  /run/systemd/journal/socket w,
+
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
   # information leak.
