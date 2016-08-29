@@ -127,8 +127,8 @@ func snapExecEnv(info *snap.Info) []string {
 	}
 
 	env := snapenv.Basic(info)
-	env = append(env, snapenv.User(info, home)...)
 	env = append(env, "PATH=${PATH}:/usr/lib/snapd")
+	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
 	return env
 }
 
