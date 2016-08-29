@@ -16,11 +16,28 @@ set timeout 60
 spawn snap keys
 
 expect {
-    "default " {
-        exit 0
-    } timeout {
-        exit 1
-    } eof {
-        exit 1
-    }
+    "default " {}
+    timeout { exit 1 }
+    eof { exit 1 }
+}
+
+set status [wait]
+if {[lindex $status 3] != 0} {
+    exit 1
+}
+
+spawn snap export-key --account=developer default
+
+expect "Enter passphrase: "
+send "pass\n"
+
+expect {
+    "account-id: developer" {}
+    timeout { exit 1 }
+    eof { exit 1 }
+}
+
+set status [wait]
+if {[lindex $status 3] != 0} {
+    exit 1
 }
