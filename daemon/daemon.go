@@ -194,16 +194,11 @@ func (d *Daemon) Init() error {
 		return fmt.Errorf("daemon is missing the listener for %s", dirs.SnapdSocket)
 	}
 
-	// In new versions of snapd we have two sockets: snapd.socket and
-	// snapd-snap.socket. Ideally we'd be able to use both, but be backward-
-	// compatible and run like the old version if only snapd.socket is
-	// available.
-	if listener, ok := listenerMap[dirs.SnapSocket]; ok {
-		// Note that the SnapSocket listener does not use ucrednet. We use the lack
-		// of remote information as an indication that the request originated with
-		// this socket.
-		d.snapListener = listener
-	}
+	// Note that the SnapSocket listener does not use ucrednet. We use the lack
+	// of remote information as an indication that the request originated with
+	// this socket. This listener may also be nil if that socket wasn't among
+	// the listeners, so check it before using it.
+	d.snapListener = listenerMap[dirs.SnapSocket]
 
 	d.addRoutes()
 
