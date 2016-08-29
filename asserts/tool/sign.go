@@ -54,7 +54,7 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	}
 	typStr, ok := typCand.(string)
 	if !ok {
-		return nil, fmt.Errorf("assertion type must be a string not: %v", typCand)
+		return nil, fmt.Errorf("assertion type must be a string, not: %v", typCand)
 	}
 	typ := asserts.Type(typStr)
 	if typ == nil {

@@ -151,7 +151,7 @@ func (s *signSuite) TestSignErrors(c *C) {
 				req.Statement = bytes.Replace(req.Statement, []byte(": model"), []byte(": what"), 1)
 			},
 		},
-		{`assertion type must be a string not: \[\]`,
+		{`assertion type must be a string, not: \[\]`,
 			func(req *tool.SignRequest) {
 				req.Statement = bytes.Replace(req.Statement, []byte(": model"), []byte(": []"), 1)
 			},
