@@ -1,0 +1,15 @@
+summary: Ensure appamror profiles are still loaded after reboot
+systems: [ubuntu-core-16-64]
+execute: |
+    ensure_apparmor_profile_loaded() {
+        for app in success fail echo head env block cat; do
+            grep "snap.test-snapd-tools.$app (enforce)" /sys/kernel/security/apparmor/profiles
+        done
+    }
+    if [ "$SPREAD_REBOOT" = "0" ]; then
+        snap install test-snapd-tools
+        ensure_apparmor_profile_loaded
+        REBOOT
+    fi
+    echo "Ensure after the reboot the profile is still loaded"
+    ensure_apparmor_profile_loaded

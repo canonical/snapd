@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 type typeFlags int
@@ -63,8 +64,9 @@ var (
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
-	SerialProofType   = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
-	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	SerialProofType       = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
+	SerialRequestType     = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	AccountKeyRequestType = &AssertionType{"account-key-request", nil, assembleAccountKeyRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -76,8 +78,9 @@ var typeRegistry = map[string]*AssertionType{
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
 	// no authority
-	SerialProofType.Name:   SerialProofType,
-	SerialRequestType.Name: SerialRequestType,
+	SerialProofType.Name:       SerialProofType,
+	SerialRequestType.Name:     SerialRequestType,
+	AccountKeyRequestType.Name: AccountKeyRequestType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -512,6 +515,10 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
+	if !utf8.Valid(body) {
+		return nil, fmt.Errorf("body is not utf8")
+	}
+
 	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -579,6 +586,12 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	err = checkHeaders(headers)
 	if err != nil {
 		return nil, err
+	}
+
+	// there's no hint at all that we will need non-textual bodies,
+	// make sure we actually enforce that
+	if !utf8.Valid(body) {
+		return nil, fmt.Errorf("assertion body is not utf8")
 	}
 
 	finalHeaders := copyHeaders(headers)
