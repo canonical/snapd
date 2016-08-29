@@ -63,16 +63,6 @@ type Handler interface {
 // HandlerGenerator is the function signature required to register for hooks.
 type HandlerGenerator func(*Context) Handler
 
-// SnapCtlRequest contains a request from a hook to conduct some action.
-type SnapCtlRequest struct {
-	// ContextID is a string used to determine the context of this call (e.g.
-	// which context and handler should be used, etc.)
-	ContextID string `json:"context-id"`
-
-	// Args contains a list of parameters to use for this invocation.
-	Args []string `json:"args"`
-}
-
 // HookSetup is a reference to a hook within a specific snap.
 type HookSetup struct {
 	Snap     string        `json:"snap"`

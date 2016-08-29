@@ -36,7 +36,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -225,7 +224,7 @@ func (cs *clientSuite) TestSnapClientIntegration(c *check.C) {
 	defer srv.Close()
 
 	cli := client.New(nil)
-	request := hookstate.SnapCtlRequest{
+	request := client.SnapCtlOptions{
 		ContextID: "foo",
 		Args:      []string{"bar", "--baz"},
 	}

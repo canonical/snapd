@@ -32,9 +32,9 @@ import (
 )
 
 type baseCommand struct {
-	stdout  io.Writer
-	stderr  io.Writer
-	context *hookstate.Context
+	stdout io.Writer
+	stderr io.Writer
+	c      *hookstate.Context
 }
 
 func (c *baseCommand) setStdout(w io.Writer) {
@@ -58,30 +58,26 @@ func (c *baseCommand) errorf(format string, a ...interface{}) {
 }
 
 func (c *baseCommand) setContext(context *hookstate.Context) {
-	c.context = context
+	c.c = context
 }
 
-func (c *baseCommand) getContext() *hookstate.Context {
-	return c.context
+func (c *baseCommand) context() *hookstate.Context {
+	return c.c
 }
 
-type ctlCommand interface {
+type command interface {
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
+
 	setContext(context *hookstate.Context)
-	getContext() *hookstate.Context
+	context() *hookstate.Context
 
 	Execute(args []string) error
 }
 
-type commandGenerator func() ctlCommand
+var commandGenerators = make(map[string]func() command)
 
-var commandGenerators map[string]commandGenerator
-
-func addCommand(name string, generator commandGenerator) {
-	if commandGenerators == nil {
-		commandGenerators = make(map[string]commandGenerator)
-	}
+func addCommand(name string, generator func() command) {
 	commandGenerators[name] = generator
 }
 
@@ -93,12 +89,12 @@ func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err 
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 	for name, generator := range commandGenerators {
-		command := generator()
-		command.setStdout(&stdoutBuffer)
-		command.setStderr(&stderrBuffer)
-		command.setContext(context)
+		cmd := generator()
+		cmd.setStdout(&stdoutBuffer)
+		cmd.setStderr(&stderrBuffer)
+		cmd.setContext(context)
 
-		_, err = parser.AddCommand(name, "", "", command)
+		_, err = parser.AddCommand(name, "", "", cmd)
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
 		}

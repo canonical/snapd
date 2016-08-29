@@ -27,7 +27,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/client"
 
 	. "gopkg.in/check.v1"
 )
@@ -52,11 +52,11 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 			c.Assert(r.Method, Equals, "POST")
 			c.Assert(r.URL.Path, Equals, "/v2/snapctl")
 
-			var snapctlRequest hookstate.SnapCtlRequest
+			var snapctlOptions client.SnapCtlOptions
 			decoder := json.NewDecoder(r.Body)
-			c.Assert(decoder.Decode(&snapctlRequest), IsNil)
-			c.Assert(snapctlRequest.ContextID, Equals, s.expectedContextID)
-			c.Assert(snapctlRequest.Args, DeepEquals, s.expectedArgs)
+			c.Assert(decoder.Decode(&snapctlOptions), IsNil)
+			c.Assert(snapctlOptions.ContextID, Equals, s.expectedContextID)
+			c.Assert(snapctlOptions.Args, DeepEquals, s.expectedArgs)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": {"stdout": "test stdout", "stderr": "test stderr"}}`)
 		default:

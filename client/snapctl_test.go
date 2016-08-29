@@ -22,13 +22,13 @@ package client_test
 import (
 	"encoding/json"
 
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/client"
 
 	"gopkg.in/check.v1"
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
-	request := hookstate.SnapCtlRequest{
+	request := client.SnapCtlOptions{
 		ContextID: "1234ABCD",
 		Args:      []string{"foo", "bar"},
 	}
@@ -47,7 +47,7 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		}
 	}`
 
-	request := hookstate.SnapCtlRequest{
+	request := client.SnapCtlOptions{
 		ContextID: "1234ABCD",
 		Args:      []string{"foo", "bar"},
 	}
