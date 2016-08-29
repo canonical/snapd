@@ -181,21 +181,38 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	if len(listeners) != 2 {
-		return fmt.Errorf("daemon does not handle %d listeners right now, only two", len(listeners))
+	listenersCount := len(listeners)
+	if listenersCount > 2 {
+		return fmt.Errorf("daemon can only handle a maximum of 2 listeners right now (got %d)", listenersCount)
 	}
 
-	listenerMap := map[string]net.Listener{
-		listeners[0].Addr().String(): listeners[0],
-		listeners[1].Addr().String(): listeners[1],
+	listenerMap := make(map[string]net.Listener)
+
+	// In new versions of snapd we have two sockets: snapd.socket and
+	// snapd-snap.socket. Ideally we'd be able to use both, but be backward-
+	// compatible and run like the old version if only snapd.socket is
+	// available.
+	if listenersCount >= 1 {
+		listenerMap[listeners[0].Addr().String()] = listeners[0]
+	}
+	if listenersCount >= 2 {
+		listenerMap[listeners[1].Addr().String()] = listeners[1]
 	}
 
-	d.snapdListener = &ucrednetListener{listenerMap[dirs.SnapdSocket]}
+	// The SnapdSocket is required-- without it, die.
+	if listener, ok := listenerMap[dirs.SnapdSocket]; ok {
+		d.snapdListener = &ucrednetListener{listener}
+	} else {
+		return fmt.Errorf("daemon is missing the listener for %s", dirs.SnapdSocket)
+	}
 
-	// Note that the SnapSocket listener does not use ucrednet. We use the lack
-	// of remote information as an indication that the request originated with
-	// this socket.
-	d.snapListener = listenerMap[dirs.SnapSocket]
+	// The SnapSocket is not required.
+	if listener, ok := listenerMap[dirs.SnapSocket]; ok {
+		// Note that the SnapSocket listener does not use ucrednet. We use the lack
+		// of remote information as an indication that the request originated with
+		// this socket.
+		d.snapListener = listener
+	}
 
 	d.addRoutes()
 
@@ -229,13 +246,15 @@ func (d *Daemon) Start() {
 	d.overlord.Loop()
 
 	d.tomb.Go(func() error {
-		d.tomb.Go(func() error {
-			if err := http.Serve(d.snapListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
-				return err
-			}
+		if d.snapListener != nil {
+			d.tomb.Go(func() error {
+				if err := http.Serve(d.snapListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+					return err
+				}
 
-			return nil
-		})
+				return nil
+			})
+		}
 
 		if err := http.Serve(d.snapdListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
@@ -249,7 +268,9 @@ func (d *Daemon) Start() {
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
 	d.snapdListener.Close()
-	d.snapListener.Close()
+	if d.snapListener != nil {
+		d.snapListener.Close()
+	}
 	d.overlord.Stop()
 
 	return d.tomb.Wait()
