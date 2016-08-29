@@ -56,6 +56,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_DATA=/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=foo",
+		"SNAP_REEXEC=",
 		"SNAP_REVISION=17",
 		"SNAP_VERSION=1.0",
 	})
