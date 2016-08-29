@@ -70,6 +70,10 @@ func (b Backend) LinkSnap(info *snap.Info) error {
 	return updateCurrentSymlinks(info)
 }
 
+func (b Backend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
+	return wrappers.StartSnapServices(info, meter)
+}
+
 func generateWrappers(s *snap.Info) error {
 	// add the CLI apps from the snap.yaml
 	if err := wrappers.AddSnapBinaries(s); err != nil {

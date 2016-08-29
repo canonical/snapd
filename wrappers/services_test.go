@@ -82,11 +82,6 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 
-	c.Assert(sysdLog, HasLen, 3)
-	c.Check(sysdLog[0], DeepEquals, []string{"daemon-reload"})
-	c.Check(sysdLog[1], DeepEquals, []string{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)})
-	c.Check(sysdLog[2], DeepEquals, []string{"start", filepath.Base(svcFile)})
-
 	sysdLog = nil
 
 	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
