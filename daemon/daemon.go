@@ -181,20 +181,23 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	if len(listeners) != 2 {
-		return fmt.Errorf("daemon does not handle %d listeners right now, only two", len(listeners))
+	listenerMap := make(map[string]net.Listener)
+
+	for _, listener := range listeners {
+		listenerMap[listener.Addr().String()] = listener
 	}
 
-	listenerMap := map[string]net.Listener{
-		listeners[0].Addr().String(): listeners[0],
-		listeners[1].Addr().String(): listeners[1],
+	// The SnapdSocket is required-- without it, die.
+	if listener, ok := listenerMap[dirs.SnapdSocket]; ok {
+		d.snapdListener = &ucrednetListener{listener}
+	} else {
+		return fmt.Errorf("daemon is missing the listener for %s", dirs.SnapdSocket)
 	}
-
-	d.snapdListener = &ucrednetListener{listenerMap[dirs.SnapdSocket]}
 
 	// Note that the SnapSocket listener does not use ucrednet. We use the lack
 	// of remote information as an indication that the request originated with
-	// this socket.
+	// this socket. This listener may also be nil if that socket wasn't among
+	// the listeners, so check it before using it.
 	d.snapListener = listenerMap[dirs.SnapSocket]
 
 	d.addRoutes()
@@ -229,13 +232,15 @@ func (d *Daemon) Start() {
 	d.overlord.Loop()
 
 	d.tomb.Go(func() error {
-		d.tomb.Go(func() error {
-			if err := http.Serve(d.snapListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
-				return err
-			}
+		if d.snapListener != nil {
+			d.tomb.Go(func() error {
+				if err := http.Serve(d.snapListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+					return err
+				}
 
-			return nil
-		})
+				return nil
+			})
+		}
 
 		if err := http.Serve(d.snapdListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
@@ -249,7 +254,9 @@ func (d *Daemon) Start() {
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
 	d.snapdListener.Close()
-	d.snapListener.Close()
+	if d.snapListener != nil {
+		d.snapListener.Close()
+	}
 	d.overlord.Stop()
 
 	return d.tomb.Wait()
