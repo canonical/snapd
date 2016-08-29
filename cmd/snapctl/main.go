@@ -24,7 +24,6 @@ import (
 	"os"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
 var clientConfig client.Config
@@ -53,7 +52,7 @@ func run() (stdout, stderr []byte, err error) {
 		return nil, nil, fmt.Errorf("snapctl requires SNAP_CONTEXT environment variable")
 	}
 
-	return cli.RunSnapctl(hookstate.SnapCtlRequest{
+	return cli.RunSnapctl(client.SnapCtlOptions{
 		ContextID: context,
 		Args:      os.Args[1:],
 	})
