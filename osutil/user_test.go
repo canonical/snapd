@@ -32,25 +32,33 @@ import (
 
 type createUserSuite struct {
 	testutil.BaseTest
+
+	mockHome string
+	restorer func()
 }
 
 var _ = check.Suite(&createUserSuite{})
 
-func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
+func (s *createUserSuite) SetUpTest(c *check.C) {
+	s.mockHome = c.MkDir()
+	s.restorer = osutil.MockUserLookup(func(string) (*user.User, error) {
 		current, err := user.Current()
 		if err != nil {
 			c.Fatalf("user.Current() failed with %s", err)
 		}
 		return &user.User{
-			HomeDir: mockHome,
+			HomeDir: s.mockHome,
 			Gid:     current.Gid,
 			Uid:     current.Uid,
 		}, nil
 	})
-	defer restorer()
+}
 
+func (s *createUserSuite) TearDownTest(c *check.C) {
+	s.restorer()
+}
+
+func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 	mockAddUser := testutil.MockCommand(c, "adduser", "true")
 	defer mockAddUser.Restore()
 
@@ -68,20 +76,6 @@ func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
-
 	mockAddUser := testutil.MockCommand(c, "adduser", "true")
 	defer mockAddUser.Restore()
 
@@ -99,21 +93,8 @@ func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddNonSudoUser(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
 	mockSudoers := c.MkDir()
-	restorer = osutil.MockSudoersDotD(mockSudoers)
+	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
 
 	mockAddUser := testutil.MockCommand(c, "adduser", "true")
@@ -135,21 +116,8 @@ func (s *createUserSuite) TestAddNonSudoUser(c *check.C) {
 }
 
 func (s *createUserSuite) TestAddSudoUser(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
 	mockSudoers := c.MkDir()
-	restorer = osutil.MockSudoersDotD(mockSudoers)
+	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
 
 	mockAddUser := testutil.MockCommand(c, "adduser", "true")
@@ -181,20 +149,6 @@ karl.sagan ALL=(ALL) NOPASSWD:ALL
 }
 
 func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
-
 	mockAddUser := testutil.MockCommand(c, "adduser", "true")
 	defer mockAddUser.Restore()
 
@@ -205,7 +159,7 @@ func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 		ExtraUsers: true,
 	})
 	c.Assert(err, check.IsNil)
-	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
+	sshKeys, err := ioutil.ReadFile(filepath.Join(s.mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
 	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
 
