@@ -42,7 +42,6 @@ type cmdAssertBuild struct {
 	SnapID string `long:"snap-id" description:"identifier of the snap package associated with the build" required:"yes"`
 	KeyName string `long:"key-name" description:"name of the GnuPG key to use (otherwise 'default' is assumed)"`
 	Grade string `long:"grade" description:"grade states the build quality of the snap: <stable|devel> (defaults to 'stable')"`
-	Revision int `long:"revision" description:"revision to set for the assertion (starts and defaults to 0)"`
 }
 
 var shortAssertBuildHelp = i18n.G("Process a snap file and assert its build")
