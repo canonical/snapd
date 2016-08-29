@@ -51,7 +51,7 @@ restore: |
     umount "$core"
     mv "${snap}.orig" "$snap"
     mount "$snap" "$core"
-    systemctl start snapd.service
+    systemctl start snapd.service snapd.socket
 
 execute: |
     echo "Run the hook that calls snapctl"
@@ -73,3 +73,18 @@ execute: |
         echo "Expected snapd API to be unauthorized on the snap socket"
         exit 1
     fi
+
+    echo "Verify that hook using snapctl doesn't work without snapd-snap.socket"
+
+    # Stop snapd and run it with a single socket
+    systemctl stop snapd.service snapd.socket
+    /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -l /run/snapd.socket /usr/lib/snapd/snapd &
+    pid=$!
+
+    export SNAP_CONTEXT="foo"
+    if snap run --hook=apply-config snapctl-hooks; then
+        echo "Expected hook to fail, but it succeeded"
+        exit 1
+    fi
+
+    kill -15 $pid
