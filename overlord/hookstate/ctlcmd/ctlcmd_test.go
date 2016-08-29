@@ -47,7 +47,7 @@ func (s *ctlcmdSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	task := state.NewTask("test-task", "my test task")
-	setup := hookstate.NewHookSetup("test-snap", snap.R(1), "test-hook")
+	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
 	s.mockContext, err = hookstate.NewContext(task, setup, handler)
@@ -55,7 +55,7 @@ func (s *ctlcmdSuite) SetUpTest(c *C) {
 }
 
 func (s *ctlcmdSuite) TestNonExistingCommand(c *C) {
-	stdout, stderr, err := ctlcmd.RunCommand(s.mockContext, []string{"foo"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"foo"})
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, ErrorMatches, ".*[Uu]nknown command.*")
@@ -68,7 +68,7 @@ func (s *ctlcmdSuite) TestCommandOutput(c *C) {
 	mockCommand.FakeStdout = "test stdout"
 	mockCommand.FakeStderr = "test stderr"
 
-	stdout, stderr, err := ctlcmd.RunCommand(s.mockContext, []string{"mock", "foo"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"mock", "foo"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -76,7 +76,7 @@ func (s *ctlcmdSuite) TestCommandOutput(c *C) {
 }
 
 func (s *ctlcmdSuite) TestSetCommand(c *C) {
-	stdout, stderr, err := ctlcmd.RunCommand(s.mockContext, []string{"set", "foo=bar"})
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")

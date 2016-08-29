@@ -32,13 +32,13 @@ import (
 // Context represents the context under which a given hook is running.
 type Context struct {
 	task    *state.Task
-	setup   HookSetup
+	setup   *HookSetup
 	id      string
 	handler Handler
 }
 
 // NewContext returns a new Context.
-func NewContext(task *state.Task, setup HookSetup, handler Handler) (*Context, error) {
+func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, error) {
 	// Generate a secure, random ID for this context
 	idBytes := make([]byte, 32)
 	_, err := rand.Read(idBytes)
