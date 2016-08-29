@@ -22,8 +22,11 @@ package ctlcmd_test
 import (
 	"testing"
 
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 
 	. "gopkg.in/check.v1"
 )
@@ -31,17 +34,28 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type ctlcmdSuite struct {
-	mockHandler *hooktest.MockHandler
+	mockContext *hookstate.Context
 }
 
 var _ = Suite(&ctlcmdSuite{})
 
 func (s *ctlcmdSuite) SetUpTest(c *C) {
-	s.mockHandler = hooktest.NewMockHandler()
+	handler := hooktest.NewMockHandler()
+
+	state := state.New(nil)
+	state.Lock()
+	defer state.Unlock()
+
+	task := state.NewTask("test-task", "my test task")
+	setup := hookstate.NewHookSetup("test-snap", snap.R(1), "test-hook")
+
+	var err error
+	s.mockContext, err = hookstate.NewContext(task, setup, handler)
+	c.Assert(err, IsNil)
 }
 
 func (s *ctlcmdSuite) TestNonExistingCommand(c *C) {
-	stdout, stderr, err := ctlcmd.RunCommand(s.mockHandler, []string{"foo", "--bar"})
+	stdout, stderr, err := ctlcmd.RunCommand(s.mockContext, []string{"foo"})
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 	c.Check(err, ErrorMatches, ".*[Uu]nknown command.*")
@@ -54,15 +68,15 @@ func (s *ctlcmdSuite) TestCommandOutput(c *C) {
 	ctlcmd.AddCommand("mock", mockCommand)
 	defer ctlcmd.RemoveCommand("mock")
 
-	stdout, stderr, err := ctlcmd.RunCommand(s.mockHandler, []string{"mock", "foo", "--bar"})
+	stdout, stderr, err := ctlcmd.RunCommand(s.mockContext, []string{"mock", "foo"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
-	c.Check(mockCommand.Args, DeepEquals, []string{"foo", "--bar"})
+	c.Check(mockCommand.Args, DeepEquals, []string{"foo"})
 }
 
 func (s *ctlcmdSuite) TestSetCommand(c *C) {
-	stdout, stderr, err := ctlcmd.RunCommand(s.mockHandler, []string{"set", "foo=bar"})
+	stdout, stderr, err := ctlcmd.RunCommand(s.mockContext, []string{"set", "foo=bar"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")

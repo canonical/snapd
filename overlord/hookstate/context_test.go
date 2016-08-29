@@ -29,7 +29,7 @@ import (
 type contextSuite struct {
 	context *Context
 	task    *state.Task
-	setup   hookSetup
+	setup   HookSetup
 }
 
 var _ = Suite(&contextSuite{})
@@ -40,7 +40,7 @@ func (s *contextSuite) SetUpTest(c *C) {
 	defer state.Unlock()
 
 	s.task = state.NewTask("test-task", "my test task")
-	s.setup = hookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
+	s.setup = NewHookSetup("test-snap", snap.R(1), "test-hook")
 	s.context = &Context{task: s.task, setup: s.setup}
 }
 
