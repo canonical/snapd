@@ -390,12 +390,10 @@ authority-id: my-brand
 series: 16
 brand-id: my-brand
 model: baz-3000
-core: core
 architecture: armhf
 gadget: gadget
 kernel: kernel
 store: my-brand-store-id
-class: general
 timestamp: 2016-08-20T13:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 

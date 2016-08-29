@@ -191,6 +191,9 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	restore := devicestate.MockSerialRequestURL(mockServer.URL)
 	defer restore()
 
+	restore = devicestate.MockRepeatSerialRequest(true)
+	defer restore()
+
 	s.state.Lock()
 
 	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
@@ -211,19 +214,22 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	s.mgr.Wait()
 
 	s.state.Lock()
-
-	// run again
-	t.SetStatus(state.DoStatus)
-
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	device, err := auth.Device(s.state)
+	c.Check(err, IsNil)
+	serial := device.Serial
 	s.state.Unlock()
 
 	s.mgr.Ensure()
 	s.mgr.Wait()
 
+	// Repeated and preserved original serial.
 	s.state.Lock()
-	defer s.state.Unlock()
-
-	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	device, err = auth.Device(s.state)
+	c.Check(err, IsNil)
+	c.Check(device.Serial, Equals, serial)
+	s.state.Unlock()
 }
 
 // TODO: test poll logic
@@ -261,12 +267,9 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 		"series":       "16",
 		"brand-id":     "canonical",
 		"model":        "pc",
-		"core":         "core",
 		"gadget":       "pc",
 		"kernel":       "kernel",
 		"architecture": "amd64",
-		"store":        "canonical",
-		"class":        "general",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -277,13 +280,13 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 
 	mod, err := s.mgr.Model()
 	c.Assert(err, IsNil)
-	c.Assert(mod.Store(), Equals, "canonical")
+	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	s.state.Lock()
 	mod, err = devicestate.Model(s.state)
 	s.state.Unlock()
 	c.Assert(err, IsNil)
-	c.Assert(mod.Store(), Equals, "canonical")
+	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)

@@ -75,7 +75,6 @@ func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {
 	env := snaprun.SnapExecEnv(info)
 	sort.Strings(env)
 	c.Check(env, check.DeepEquals, []string{
-		"PATH=${PATH}:/usr/lib/snapd",
 		fmt.Sprintf("SNAP=%s/snapname/42", dirs.SnapMountDir),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_COMMON=/var/snap/snapname/common",
