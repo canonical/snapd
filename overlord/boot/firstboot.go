@@ -214,14 +214,23 @@ var firstbootInitialNetworkConfig = firstboot.InitialNetworkConfig
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
+	// Disable firstboot on classic for now. In the long run we want
+	// classic to have a firstboot as well so that we can install
+	// snaps in a classic environment (LP: #1609903). However right
+	// now firstboot is under heavy development so until the dust
+	// settles we disable it.
+	if release.OnClassic {
+		return nil
+	}
+
 	if firstboot.HasRun() {
 		return ErrNotFirstBoot
 	}
 
-	if !release.OnClassic {
-		if err := firstbootInitialNetworkConfig(); err != nil {
-			logger.Noticef("Failed during inital network configuration: %s", err)
-		}
+	// FIXME: the netplan config is static, we do not need to generate
+	//        it from snapd, we can just set it in e.g. ubuntu-core-config
+	if err := firstbootInitialNetworkConfig(); err != nil {
+		logger.Noticef("Failed during inital network configuration: %s", err)
 	}
 
 	// snappy will be in a very unhappy state if this happens,
