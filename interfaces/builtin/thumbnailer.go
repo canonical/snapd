@@ -20,30 +20,68 @@
 package builtin
 
 import (
-	"fmt"
 	"bytes"
+	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
 )
 
+var thumbnailerServicePermanentSlotAppArmor = []byte(`
+# Description: Allow operating as the thumbnailer service. Reserved because this
+# gives privileged access to the system.
+# Usage: reserved
+
+# DBus accesses
+#include <abstractions/dbus-strict>
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member={Request,Release}Name
+    peer=(name=org.freedesktop.DBus),
+
+dbus (send)
+    bus=session
+    path=/org/freedesktop/*
+    interface=org.freedesktop.DBus.Properties
+    peer=(label=unconfined),
+
+# Allow binding the service to the requested connection name
+dbus (bind)
+    bus=session
+    name="com.canonical.Thumbnailer",
+
+# Allow traffic to/from our path and interface with any method
+dbus (receive, send)
+    bus=session
+    path=/com/canonical/Thumbnailer{,/**}
+    interface=com.canonical.Thumbnailer*,
+
+# Allow traffic to/from org.freedesktop.DBus for thumbnailer service
+dbus (receive, send)
+    bus=session
+    path=/com/canonical/Thumbnailer{,/**}
+    interface=org.freedesktop.DBus.*,
+`)
+
 var thumbnailerServiceConnectedPlugAppArmor = []byte(`
+# Description: Allow accessing the thumbnailer service.
+# Usage: reserved
+
 # DBus accesses
 #include <abstractions/dbus-session-strict>
+
 # Allow all access to Thumbnailer service
 dbus (receive, send)
     bus=session
     peer=(label=###SLOT_SECURITY_TAGS###),
-dbus (send)
+
+dbus (receive)
      bus=session
-     path=/org/freedesktop/DBus
-     interface=org.freedesktop.DBus
-     member={Request,Release}Name
-     peer=(name=org.freedesktop.DBus),
-dbus (send)
-     bus=session
-     path=/org/freedesktop/*
-     interface=org.freedesktop.DBus.Properties
+     path=/
+     interface=org.freedesktop.DBus.ObjectManager
      peer=(label=unconfined),
+
 # Thumbnailer service interface
 dbus (send)
      bus=session
@@ -51,36 +89,46 @@ dbus (send)
      interface="org.freedesktop.DBus.Introspectable"
      member="Introspect"
      peer=(label=unconfined),
+
 dbus (send)
      bus=session
      path="/com/canonical/Thumbnailer"
-     member={GetAlbumArt,GetArtistArt}
+     member={GetAlbumArt,GetArtistArt,GetThumbnail,ClientConfig}
      peer=(label=unconfined),
 `)
 
-var thumbnailerServiceConnectedPlugSecComp = []byte(`
+var thumbnailerServicePermanentSlotSecComp = []byte(`
+# Description: Allow operating as the thumbnailer service. Reserved because this
+# gives privileged access to the system.
 # Usage: reserved
-# Can communicate with DBus system service
-accept
-accept4
-bind
-connect
-getpeername
+
 getsockname
-getsockopt
-listen
-recv
-recvfrom
-recvmmsg
 recvmsg
-send
-sendmmsg
 sendmsg
 sendto
-setsockopt
-shutdown
-socketpair
-socket
+`)
+
+var thumbnailerServiceConnectedPlugSecComp = []byte(`
+# Description: Allow accessing the thumbnailer service.
+# Usage: reserved
+
+getsockname
+recvmsg
+sendmsg
+sendto
+`)
+
+var thumbnailerServicePermanentSlotDBus = []byte(`
+<policy user="root">
+    <allow own="com.canonical.Thumbnailer"/>
+    <allow send_destination="com.canonical.Thumbnailer"/>
+    <allow send_interface="com.canonical.Thumbnailer"/>
+    <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
+    <allow send_interface="org.freedesktop.DBus.Properties"/>
+</policy>
+<policy context="default">
+    <deny send_destination="com.canonical.Thumbnailer"/>
+</policy>
 `)
 
 type ThumbnailerInterface struct{}
@@ -116,7 +164,13 @@ func (iface *ThumbnailerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, s
 
 func (iface *ThumbnailerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor:
+		return thumbnailerServicePermanentSlotAppArmor, nil
+	case interfaces.SecuritySecComp:
+		return thumbnailerServicePermanentSlotSecComp, nil
+	case interfaces.SecurityDBus:
+		return thumbnailerServicePermanentSlotDBus, nil
+	case interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
