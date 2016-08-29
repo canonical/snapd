@@ -28,11 +28,11 @@ import (
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
-	request := client.SnapCtlOptions{
+	options := &client.SnapCtlOptions{
 		ContextID: "1234ABCD",
 		Args:      []string{"foo", "bar"},
 	}
-	cs.cli.RunSnapctl(request)
+	cs.cli.RunSnapctl(options)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snapctl")
 }
@@ -47,12 +47,12 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		}
 	}`
 
-	request := client.SnapCtlOptions{
+	options := &client.SnapCtlOptions{
 		ContextID: "1234ABCD",
 		Args:      []string{"foo", "bar"},
 	}
 
-	stdout, stderr, err := cs.cli.RunSnapctl(request)
+	stdout, stderr, err := cs.cli.RunSnapctl(options)
 	c.Assert(err, check.IsNil)
 	c.Check(string(stdout), check.Equals, "test stdout")
 	c.Check(string(stderr), check.Equals, "test stderr")
