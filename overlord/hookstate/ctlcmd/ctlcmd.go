@@ -74,13 +74,15 @@ type ctlCommand interface {
 	Execute(args []string) error
 }
 
-var commands map[string]ctlCommand
+type commandGenerator func() ctlCommand
 
-func addCommand(name string, command ctlCommand) {
-	if commands == nil {
-		commands = make(map[string]ctlCommand)
+var commandGenerators map[string]commandGenerator
+
+func addCommand(name string, generator commandGenerator) {
+	if commandGenerators == nil {
+		commandGenerators = make(map[string]commandGenerator)
 	}
-	commands[name] = command
+	commandGenerators[name] = generator
 }
 
 // RunCommand runs the requested command.
@@ -90,7 +92,8 @@ func RunCommand(context *hookstate.Context, args []string) (stdout, stderr []byt
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
-	for name, command := range commands {
+	for name, generator := range commandGenerators {
+		command := generator()
 		command.setStdout(&stdoutBuffer)
 		command.setStderr(&stderrBuffer)
 		command.setContext(context)

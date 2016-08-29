@@ -62,11 +62,11 @@ func (s *ctlcmdSuite) TestNonExistingCommand(c *C) {
 }
 
 func (s *ctlcmdSuite) TestCommandOutput(c *C) {
-	mockCommand := ctlcmd.NewMockCommand()
+	mockCommand := ctlcmd.AddMockCommand("mock")
+	defer ctlcmd.RemoveCommand("mock")
+
 	mockCommand.FakeStdout = "test stdout"
 	mockCommand.FakeStderr = "test stderr"
-	ctlcmd.AddCommand("mock", mockCommand)
-	defer ctlcmd.RemoveCommand("mock")
 
 	stdout, stderr, err := ctlcmd.RunCommand(s.mockContext, []string{"mock", "foo"})
 	c.Check(err, IsNil)

@@ -21,10 +21,14 @@ package ctlcmd
 
 import "fmt"
 
-var AddCommand = addCommand
+func AddMockCommand(name string) *MockCommand {
+	mockCommand := NewMockCommand()
+	addCommand(name, func() ctlCommand { return mockCommand })
+	return mockCommand
+}
 
 func RemoveCommand(name string) {
-	delete(commands, name)
+	delete(commandGenerators, name)
 }
 
 type MockCommand struct {
