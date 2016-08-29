@@ -17,8 +17,8 @@
  *
  */
 
-// Package tools contains the various snapctl subcommands.
-package tools
+// Package ctlcmd contains the various snapctl subcommands.
+package ctlcmd
 
 import (
 	"bytes"
@@ -65,7 +65,7 @@ func (c *baseCommand) getHandler() hookstate.Handler {
 	return c.handler
 }
 
-type toolCommand interface {
+type ctlCommand interface {
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
 	setHandler(handler hookstate.Handler)
@@ -74,11 +74,11 @@ type toolCommand interface {
 	Execute(args []string) error
 }
 
-var commands map[string]toolCommand
+var commands map[string]ctlCommand
 
-func addCommand(name string, command toolCommand) {
+func addCommand(name string, command ctlCommand) {
 	if commands == nil {
-		commands = make(map[string]toolCommand)
+		commands = make(map[string]ctlCommand)
 	}
 	commands[name] = command
 }

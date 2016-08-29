@@ -46,7 +46,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/hookstate/tools"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1611,7 +1611,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot run snapctl: %s", err)
 	}
 
-	stdout, stderr, err := tools.RunCommand(context.Handler(), snapctlRequest.Args)
+	stdout, stderr, err := ctlcmd.RunCommand(context.Handler(), snapctlRequest.Args)
 	if err != nil {
 		return BadRequest("error running snapctl: %s", err)
 	}
