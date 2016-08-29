@@ -63,9 +63,7 @@ func (s *createUserSuite) TearDownTest(c *check.C) {
 
 func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
 		Gecos:      "my gecos",
-		Sudoer:     false,
 		ExtraUsers: false,
 	})
 	c.Assert(err, check.IsNil)
@@ -77,9 +75,7 @@ func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 
 func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
 	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
 		Gecos:      "my gecos",
-		Sudoer:     false,
 		ExtraUsers: true,
 	})
 	c.Assert(err, check.IsNil)
@@ -89,33 +85,12 @@ func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
 	})
 }
 
-func (s *createUserSuite) TestAddNonSudoUser(c *check.C) {
-	mockSudoers := c.MkDir()
-	restorer := osutil.MockSudoersDotD(mockSudoers)
-	defer restorer()
-
-	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
-		Gecos:      "my gecos",
-		Sudoer:     false,
-		ExtraUsers: true,
-	})
-	c.Assert(err, check.IsNil)
-
-	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
-		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "--extrausers", "karl.sagan"},
-	})
-	fs, _ := filepath.Glob(filepath.Join(mockSudoers, "*"))
-	c.Assert(fs, check.HasLen, 0)
-}
-
 func (s *createUserSuite) TestAddSudoUser(c *check.C) {
 	mockSudoers := c.MkDir()
 	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
 
 	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
 		Gecos:      "my gecos",
 		Sudoer:     true,
 		ExtraUsers: true,
@@ -141,10 +116,7 @@ karl.sagan ALL=(ALL) NOPASSWD:ALL
 
 func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
 	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
-		Gecos:      "my gecos",
-		Sudoer:     false,
-		ExtraUsers: true,
+		SSHKeys: []string{"ssh-key1", "ssh-key2"},
 	})
 	c.Assert(err, check.IsNil)
 	sshKeys, err := ioutil.ReadFile(filepath.Join(s.mockHome, ".ssh", "authorized_keys"))
