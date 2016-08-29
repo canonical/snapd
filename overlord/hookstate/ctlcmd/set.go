@@ -24,7 +24,7 @@ type setCommand struct {
 }
 
 func init() {
-	addCommand("set", &setCommand{})
+	addCommand("set", func() ctlCommand { return &setCommand{} })
 }
 
 func (s *setCommand) Execute(args []string) error {
