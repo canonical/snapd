@@ -1596,8 +1596,8 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if snapctlRequest.Context == "" {
-		return BadRequest("snapctl cannot run without context")
+	if snapctlRequest.ContextID == "" {
+		return BadRequest("snapctl cannot run without context ID")
 	}
 
 	if len(snapctlRequest.Args) == 0 {
@@ -1606,12 +1606,12 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// Right now snapctl is only used for hooks. If at some point it grows
 	// beyond that, this probably shouldn't go straight to the HookManager.
-	handler, err := c.d.overlord.HookManager().GetHandler(snapctlRequest.Context)
+	context, err := c.d.overlord.HookManager().Context(snapctlRequest.ContextID)
 	if err != nil {
 		return BadRequest("cannot run snapctl: %s", err)
 	}
 
-	stdout, stderr, err := tools.RunCommand(handler, snapctlRequest.Args)
+	stdout, stderr, err := tools.RunCommand(context.Handler(), snapctlRequest.Args)
 	if err != nil {
 		return BadRequest("error running snapctl: %s", err)
 	}

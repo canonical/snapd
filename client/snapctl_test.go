@@ -22,17 +22,17 @@ package client_test
 import (
 	"encoding/json"
 
-	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/overlord/hookstate"
 
 	"gopkg.in/check.v1"
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
-	options := client.SnapCtlOptions{
-		Context: "1234ABCD",
-		Args:    []string{"foo", "bar"},
+	request := hookstate.SnapCtlRequest{
+		ContextID: "1234ABCD",
+		Args:      []string{"foo", "bar"},
 	}
-	cs.cli.RunSnapctl(options)
+	cs.cli.RunSnapctl(request)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/snapctl")
 }
@@ -47,12 +47,12 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		}
 	}`
 
-	options := client.SnapCtlOptions{
-		Context: "1234ABCD",
-		Args:    []string{"foo", "bar"},
+	request := hookstate.SnapCtlRequest{
+		ContextID: "1234ABCD",
+		Args:      []string{"foo", "bar"},
 	}
 
-	stdout, stderr, err := cs.cli.RunSnapctl(options)
+	stdout, stderr, err := cs.cli.RunSnapctl(request)
 	c.Assert(err, check.IsNil)
 	c.Check(string(stdout), check.Equals, "test stdout")
 	c.Check(string(stderr), check.Equals, "test stderr")
@@ -62,7 +62,7 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"context": "1234ABCD",
-		"args":    []interface{}{"foo", "bar"},
+		"context-id": "1234ABCD",
+		"args":       []interface{}{"foo", "bar"},
 	})
 }

@@ -20,6 +20,8 @@
 package hookstate
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 
@@ -29,8 +31,27 @@ import (
 
 // Context represents the context under which a given hook is running.
 type Context struct {
-	task  *state.Task
-	setup hookSetup
+	task    *state.Task
+	setup   hookSetup
+	id      string
+	handler Handler
+}
+
+// NewContext returns a new Context.
+func NewContext(task *state.Task, setup hookSetup, handler Handler) (*Context, error) {
+	// Generate a secure, random ID for this context
+	idBytes := make([]byte, 32)
+	_, err := rand.Read(idBytes)
+	if err != nil {
+		return nil, fmt.Errorf("cannot generate context ID: %s", err)
+	}
+
+	return &Context{
+		task:    task,
+		setup:   setup,
+		id:      base64.URLEncoding.EncodeToString(idBytes),
+		handler: handler,
+	}, nil
 }
 
 // SnapName returns the name of the snap containing the hook.
@@ -46,6 +67,16 @@ func (c *Context) SnapRevision() snap.Revision {
 // HookName returns the name of the hook in this context.
 func (c *Context) HookName() string {
 	return c.setup.Hook
+}
+
+// ID returns the ID of the context.
+func (c *Context) ID() string {
+	return c.id
+}
+
+// Handler returns the handler for this context
+func (c *Context) Handler() Handler {
+	return c.handler
 }
 
 // Lock acquires the state lock for this context (required for Set/Get).

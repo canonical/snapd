@@ -35,10 +35,10 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type snapctlSuite struct {
-	server          *httptest.Server
-	oldArgs         []string
-	expectedContext string
-	expectedArgs    []string
+	server            *httptest.Server
+	oldArgs           []string
+	expectedContextID string
+	expectedArgs      []string
 }
 
 var _ = Suite(&snapctlSuite{})
@@ -55,7 +55,7 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 			var snapctlRequest hookstate.SnapCtlRequest
 			decoder := json.NewDecoder(r.Body)
 			c.Assert(decoder.Decode(&snapctlRequest), IsNil)
-			c.Assert(snapctlRequest.Context, Equals, s.expectedContext)
+			c.Assert(snapctlRequest.ContextID, Equals, s.expectedContextID)
 			c.Assert(snapctlRequest.Args, DeepEquals, s.expectedArgs)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": {"stdout": "test stdout", "stderr": "test stderr"}}`)
@@ -68,7 +68,7 @@ func (s *snapctlSuite) SetUpTest(c *C) {
 	clientConfig.BaseURL = s.server.URL
 	s.oldArgs = os.Args
 	os.Args = []string{"snapctl"}
-	s.expectedContext = "snap-context-test"
+	s.expectedContextID = "snap-context-test"
 	s.expectedArgs = []string{}
 }
 
