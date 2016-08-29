@@ -29,6 +29,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -140,7 +141,7 @@ func makeFetcher(sto Store, db *asserts.Database) *addingFetcher {
 			if _, ok := err.(*asserts.RevisionError); ok {
 				return nil
 			}
-			return fmt.Errorf("cannot add %s: %v", a.Ref(), err)
+			return fmt.Errorf("cannot add assertion %s: %v", a.Ref(), err)
 		}
 		f.addedRefs = append(f.addedRefs, a.Ref())
 		return nil
@@ -150,9 +151,9 @@ func makeFetcher(sto Store, db *asserts.Database) *addingFetcher {
 
 }
 
-func fetchSnapAssertions(fn string, f *addingFetcher) error {
-	// fetch the snap assertions too
-	sha3_384, _, err := asserts.SnapFileSHA3_384(fn)
+func fetchSnapAssertions(fn string, info *snap.Info, f *addingFetcher, db asserts.RODatabase) error {
+	// TODO: share some of this code
+	sha3_384, size, err := asserts.SnapFileSHA3_384(fn)
 	if err != nil {
 		return err
 	}
@@ -161,9 +162,11 @@ func fetchSnapAssertions(fn string, f *addingFetcher) error {
 		PrimaryKey: []string{sha3_384},
 	}
 	if err := f.Fetch(ref); err != nil {
-		return fmt.Errorf("cannot fetch assertion %q: %s", ref, err)
+		return fmt.Errorf("cannot fetch assertion %s: %s", ref, err)
 	}
-	return nil
+
+	// cross checks
+	return snapasserts.CrossCheck(info.Name(), sha3_384, size, &info.SideInfo, db)
 }
 
 // one and only core snap for now
@@ -239,7 +242,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 		}
 
 		// fetch the snap assertions too
-		err = fetchSnapAssertions(fn, f)
+		err = fetchSnapAssertions(fn, info, f, db)
 		if err != nil {
 			if os.Getenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS") == "" {
 				return err
