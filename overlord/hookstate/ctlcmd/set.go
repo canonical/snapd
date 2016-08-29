@@ -17,46 +17,17 @@
  *
  */
 
-package tools
+package ctlcmd
 
-import "fmt"
-
-var AddCommand = addCommand
-
-func RemoveCommand(name string) {
-	delete(commands, name)
-}
-
-type MockCommand struct {
+type setCommand struct {
 	baseCommand
-
-	ExecuteError bool
-	FakeStdout   string
-	FakeStderr   string
-
-	Args []string
 }
 
-func NewMockCommand() *MockCommand {
-	return &MockCommand{
-		ExecuteError: false,
-	}
+func init() {
+	addCommand("set", &setCommand{})
 }
 
-func (c *MockCommand) Execute(args []string) error {
-	c.Args = args
-
-	if c.FakeStdout != "" {
-		c.writeStdout(c.FakeStdout)
-	}
-
-	if c.FakeStderr != "" {
-		c.writeStderr(c.FakeStderr)
-	}
-
-	if c.ExecuteError {
-		return fmt.Errorf("failed at user request")
-	}
-
+func (s *setCommand) Execute(args []string) error {
+	// TODO: Talk to the handler to take care of the set request.
 	return nil
 }
