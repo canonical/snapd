@@ -262,6 +262,24 @@ Can mount fuse filesystems (as root only).
 
 Can query hardware information from the system.
 
+### hidraw-device
+
+Provide access to devices with HIDRaw interfaces identfied by either device path
+or USB VID & PID.
+This is restricted because it provides privileged access to hardware devices.
+
+* Auto-Connect: no
+* Attributes:
+    * path (slot): path to hidraw device provided
+    * path (plug): path to requested hidraw device
+    * vendor-id (plug): the 16-bit USB vendor identifier
+    * product-id (plug): the 16-bit USB product identifier
+
+If identifying hidraw devices by VID & PID both vendor-id and product-id
+must be specified in the plug declaration.
+If identifying a hidraw device by path the plug and slot must have matching
+path attributes.
+
 * Auto-Connect: no
 
 ### kernel-module-control
