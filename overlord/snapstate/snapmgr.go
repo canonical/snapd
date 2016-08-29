@@ -185,11 +185,11 @@ func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
 	return snapst.Sequence[currentIndex-1]
 }
 
-// findIndex returns the index of the given revision rev in the
+// findIndex returns the index of the given revision in the
 // snapst.Sequence
-func (snapst *SnapState) findIndex(rev snap.Revision) int {
+func (snapst *SnapState) findIndex(revision snap.Revision) int {
 	for i, si := range snapst.Sequence {
-		if si.Revision == rev {
+		if si.Revision == revision {
 			return i
 		}
 	}
@@ -330,14 +330,14 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	return res[0], nil
 }
 
-func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), user)
+	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), revision, user)
 	st.Lock()
 	return snap, err
 }
@@ -410,16 +410,7 @@ func Store(s *state.State) StoreService {
 	if cachedStore := cachedStore(s); cachedStore != nil {
 		return cachedStore
 	}
-
-	storeID := ""
-	// TODO: set the store-id here from the model information
-	if cand := os.Getenv("UBUNTU_STORE_ID"); cand != "" {
-		storeID = cand
-	}
-
-	authContext := auth.NewAuthContext(s)
-	s.Cache(cachedStoreKey{}, store.New(nil, storeID, authContext))
-	return cachedStore(s)
+	panic("internal error: needing the store before managers have initialized it")
 }
 
 func checkRevisionIsNew(name string, snapst *SnapState, revision snap.Revision) error {
@@ -496,7 +487,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := theStore.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), user)
+		storeInfo, err := theStore.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), ss.Revision(), user)
 		if err != nil {
 			return err
 		}

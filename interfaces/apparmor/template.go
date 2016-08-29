@@ -198,6 +198,11 @@ var defaultTemplate = []byte(`
   # AppArmor's base abstraction, but until it is, include here.
   /run/systemd/journal/socket w,
 
+  # snapctl and its requirements
+  /usr/bin/snapctl ixr,
+  @{PROC}/sys/net/core/somaxconn r,
+  /run/snapd-snap.socket rw,
+
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
   # information leak.

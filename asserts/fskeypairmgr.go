@@ -22,7 +22,6 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -52,10 +51,9 @@ func OpenFSKeypairManager(path string) (KeypairManager, error) {
 
 var errKeypairAlreadyExists = errors.New("key pair with given key id already exists")
 
-func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+func (fskm *filesystemKeypairManager) Put(privKey PrivateKey) error {
 	keyID := privKey.PublicKey().ID()
-	escapedAuthorityID := url.QueryEscape(authorityID)
-	if entryExists(fskm.top, escapedAuthorityID, keyID) {
+	if entryExists(fskm.top, keyID) {
 		return errKeypairAlreadyExists
 	}
 	encoded, err := encodePrivateKey(privKey)
@@ -66,7 +64,7 @@ func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey
 	fskm.mu.Lock()
 	defer fskm.mu.Unlock()
 
-	err = atomicWriteEntry(encoded, true, fskm.top, escapedAuthorityID, keyID)
+	err = atomicWriteEntry(encoded, true, fskm.top, keyID)
 	if err != nil {
 		return fmt.Errorf("cannot store private key: %v", err)
 	}
@@ -75,11 +73,11 @@ func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey
 
 var errKeypairNotFound = errors.New("cannot find key pair")
 
-func (fskm *filesystemKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+func (fskm *filesystemKeypairManager) Get(keyID string) (PrivateKey, error) {
 	fskm.mu.RLock()
 	defer fskm.mu.RUnlock()
 
-	encoded, err := readEntry(fskm.top, url.QueryEscape(authorityID), keyID)
+	encoded, err := readEntry(fskm.top, keyID)
 	if os.IsNotExist(err) {
 		return nil, errKeypairNotFound
 	}

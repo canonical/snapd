@@ -1,3 +1,117 @@
+snapd (2.14) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - cmd: enable SNAP_REEXEC only if it is set to SNAP_REEXEC=1
+    - osutil: fix create-user on classic
+    - firstboot: disable firstboot on classic for now
+    - cmd/snap: add export-key --account= option
+    - many: split public snapd REST API into separate socket.
+    - many: drop ubuntu-core-snapd-units package, use release.OnClassic
+      instead
+    - tests: add content-shareing binary test that excersises snap-
+      confine
+    - snap: use "up to date" instead of "up-to-date"
+    - asserts: add an account-key-request assertion
+    - asserts: fix GPG key generation parameters
+    - tests, integration-tests: implement the cups-control manual test
+      as a spread test
+    - many: clarify/tie down model assertion
+    - cmd/snap: add "snap download" command
+    - integration-tests: remove them in favour of the spread tests
+    - tests: test all snap ubuntu core upgrade
+    - many: support install and remove by revision
+    - overlord/state: prevent change ready => unready
+    - tests: fixes to make the ubuntu-core-16 image usable with
+      -keep/-reuse
+    - asserts: authority-id and brand-id of serial must match
+    - firstboot: generate netplan config rather than ifupdown
+    - store: request device session macaroon from store
+    - tests: add workaround for u-d-f to unblock all-snap image tests
+    - tests: the stable ubuntu-core snap has snap run support now
+    - many: use make StripGlobalRootDir public
+    - asserts: add some stricter checks around format
+    - many: have AuthContext expose device store-id, serial and serial-
+      proof signing to the store
+    - tests: fix "tests/main/ack" to not break if asserts are alreay
+      there
+    - tests/main/ack: fix test/style
+    - snap: add key management commands
+    - firstboot: add firstboot assertions importing
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 29 Aug 2016 17:07:20 +0200
+
+snapd (2.13) xenial; urgency=medium
+
+  * New upstream release: LP: #1616157
+    - many: respect dirs.SnapSnapsDir in tests
+    - tests: update listing test for latest stable image
+    - many: hook in start of code to fetch/check assertions when
+      installing snap from store
+    - boot: add missing udevadm mock to fix FTBFS
+    - interfaces: add lxd-support interface
+    - dirs,snap: handle empty root directory in SetRootDir
+    - dirs,snap: define methods for SNAP_USER_DATA and SNAP_USER_COMMON
+    - tests: spread all-snap test cleanup
+    - tests: add all-snap spread image tests
+    - store,tests: have just one envvar SNAPPY_USE_STAGING_STORE to
+      control talking to staging
+    - overlord/hookstate: use snap run posix parameters.
+    - interfaces/builtin: allow bind in the network interface
+    - asserts,overlord/devicestate: simplify private key/key pairs APIs,
+      they take just key ids
+    - dependencies: update godeps
+    - boot: add support for "devmode: {true,false}" in seed.yaml
+    - many: teach prepare-image to copy the model assertion (and
+      prereqs) into the seed area of the image
+    - tests: start teaching the fakestore about assertions
+    - asserts/sysdb: embed the new format official root/trusted
+      assertions
+    - overlord/devicestate: first pass at device registration logic
+    - tests: add process-control interface spread test
+    - tests: disable unity test
+    - tests: adapt to new spread version
+    - asserts: add serial-proof device assertion
+    - client, cmd/snap: use the new multi-refresh endpoint
+    - many: preparations for image code to fetch model prereqs
+    - debian: add extra checks when debian/snapd.postrm purge is run
+    - overlord/snapstate, daemon: support for multi-snap refresh
+    - tests: do not leave "squashfs-root" around
+    - snap-exec: Fix broken `snap run --shell` and add test
+    - overlord/snapstate: check changes to SnapState for conflicts also.
+    - docs/interfaces: change snappy command to snap
+    - tests: test `snap run --hook` using in-tree snap-exec.
+    - partition: ensure that snap_{kernel,core} is not overriden with an
+      empty value
+    - asserts,overlord/assertstate: introduce an assertstate task
+      handler to fetch snap assertions
+    - spread: disable re-exec to always test development tree.
+    - interfaces: implement a fuse interface
+    - interfaces/hardware-observe.go: re-add /run/udev/data
+    - overlord/assertstate,daemon: reorg how the assert manager exposes
+      the assertion db and adding to it
+    - release: Remove "UBUNTU_CODENAME" from the test data
+    - many: implement snapctl command.
+    - interfaces: mpris updates (fix unconfined introspection, add name
+      attribute)
+    - asserts: export DecodePublicKey
+    - asserts: introduce support for assertions with no authority,
+      implement serial-request
+    - interfaces: bluez: add a few more tests to verify interface
+      connection works
+    - interfaces: bluez: add missing mount security snippet case
+    - interfaces: add kernel-module interface for module insertion.
+    - integration-tests: look for ubuntu-device-flash on PATH before
+      calling sudo
+    - client, cmd, daemon, osutil: support --yaml and --sudoer flags for
+      create-user
+    - spread: use snap-confine from ppa:snappy-dev/image for the tests
+    - many: move to purely hash based key lookup and to new
+      key/signature format (v1)
+    - spread: Use /home/gopath in spread.yaml
+    - tests: base security spread tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 24 Aug 2016 14:48:28 +0200
+
 snapd (2.12) xenial; urgency=medium
 
   * New upstream release: LP: #1612362
