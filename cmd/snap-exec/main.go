@@ -127,20 +127,23 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	cmd, err := findCommand(app, command)
+	cmdRaw, err := findCommand(app, command)
 	if err != nil {
 		return err
 	}
+	// FIXME: this is is way too simplistic, we need shlex.split()
+	cmd := strings.Split(cmdRaw, " ")
 
 	// build the environment from the yaml
 	env := append(os.Environ(), app.Env()...)
 
 	// run the command
-	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
+	fullCmd := filepath.Join(app.Snap.MountDir(), cmd[0])
 	if command == "shell" {
 		fullCmd = "/bin/bash"
 	}
 	fullCmdArgs := []string{fullCmd}
+	fullCmdArgs = append(fullCmdArgs, cmd[1:]...)
 	fullCmdArgs = append(fullCmdArgs, args...)
 	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd, err)

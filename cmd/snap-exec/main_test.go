@@ -58,7 +58,7 @@ var mockYaml = []byte(`name: snapname
 version: 1.0
 apps:
  app:
-  command: run-app
+  command: run-app run-app-cmd-arg
   stop-command: stop-app
   post-stop-command: post-stop-app
   environment:
@@ -100,7 +100,7 @@ func (s *snapExecSuite) TestFindCommand(c *C) {
 		cmd      string
 		expected string
 	}{
-		{cmd: "", expected: "run-app"},
+		{cmd: "", expected: "run-app run-app-cmd-arg"},
 		{cmd: "stop", expected: "stop-app"},
 		{cmd: "post-stop", expected: "post-stop-app"},
 	} {
@@ -231,6 +231,7 @@ func (s *snapExecSuite) TestSnapExecAppRealIntegration(c *C) {
 	output, err := ioutil.ReadFile(canaryFile)
 	c.Assert(err, IsNil)
 	c.Assert(string(output), Equals, `run-app
+run-app-cmd-arg
 foo
 --bar=baz
 foobar
