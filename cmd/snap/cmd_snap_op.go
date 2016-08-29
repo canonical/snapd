@@ -352,7 +352,7 @@ func refreshMany(snaps []string) error {
 		return showDone(upgraded, "upgrade")
 	}
 
-	fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+	fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
 
 	return nil
 }
@@ -380,7 +380,7 @@ func listRefresh() error {
 		return err
 	}
 	if len(snaps) == 0 {
-		fmt.Fprintln(Stderr, i18n.G("All snaps up-to-date."))
+		fmt.Fprintln(Stderr, i18n.G("All snaps up to date."))
 		return nil
 	}
 

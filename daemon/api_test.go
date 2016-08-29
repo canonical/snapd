@@ -396,7 +396,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateUpdateMany",
 		"snapstateRefreshCandidates",
 		"readSnapInfo",
-		"osutilAddExtraSudoUser",
+		"osutilAddUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
@@ -3289,11 +3289,11 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 			OpenIDIdentifier: "xxyyzz",
 		}, nil
 	}
-	osutilAddExtraUser = func(username string, sshKeys []string, gecos string, sudoer bool) error {
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
 		c.Check(username, check.Equals, "karl")
-		c.Check(sshKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
-		c.Check(gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
-		c.Check(sudoer, check.Equals, false)
+		c.Check(opts.SSHKeys, check.DeepEquals, []string{"ssh1", "ssh2"})
+		c.Check(opts.Gecos, check.Equals, "popper@lse.ac.uk,xxyyzz")
+		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
 
@@ -3301,7 +3301,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return 0, nil
 	}
 	defer func() {
-		osutilAddExtraUser = osutil.AddExtraUser
+		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
 	}()
 
