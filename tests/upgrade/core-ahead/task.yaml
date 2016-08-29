@@ -1,0 +1,42 @@
+summary: Check that upgrading ubuntu-core from edge snapd still works
+systems: [-ubuntu-core-16-64]
+environment:
+    CONF: /etc/systemd/system/snapd.service.d/local.conf
+prepare: |
+    cp $CONF $CONF.save
+    # ensure we use the re-exec feature
+    sed -i 's/SNAP_REEXEC=0/SNAP_REEXEC=1/' $CONF
+restore: |
+    rm -f /var/tmp/myevil.txt
+    cp $CONF.save $CONF
+execute: |
+    echo "Install current distro version..."
+    apt install -y snapd
+
+    echo "Install a test snap with it"
+    snap install test-snapd-tools
+
+    echo "Sanity check install"
+    test-snapd-tools.echo Hello | grep Hello
+    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+
+    echo "Do upgrade ubuntu-core to the edge channel"
+    sudo snap refresh --edge ubuntu-core
+
+    echo "Sanity check already installed snaps after upgrade"
+    snap list | grep core
+    snap list | grep test-snapd-tools
+    test-snapd-tools.echo Hello | grep Hello
+    test-snapd-tools.env | grep SNAP_NAME=test-snapd-tools
+    echo Hello > /var/tmp/myevil.txt
+    test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
+
+    echo "Basic install/remove test"
+    snap remove test-snapd-tools
+    snap list | grep -v test-snapd-tools
+    
+    snap install test-snapd-tools
+    snap list | grep test-snapd-tools
+    test-snapd-tools.echo Hello | grep Hello
+
+
