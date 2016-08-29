@@ -181,22 +181,10 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	listenersCount := len(listeners)
-	if listenersCount > 2 {
-		return fmt.Errorf("daemon can only handle a maximum of 2 listeners right now (got %d)", listenersCount)
-	}
-
 	listenerMap := make(map[string]net.Listener)
 
-	// In new versions of snapd we have two sockets: snapd.socket and
-	// snapd-snap.socket. Ideally we'd be able to use both, but be backward-
-	// compatible and run like the old version if only snapd.socket is
-	// available.
-	if listenersCount >= 1 {
-		listenerMap[listeners[0].Addr().String()] = listeners[0]
-	}
-	if listenersCount >= 2 {
-		listenerMap[listeners[1].Addr().String()] = listeners[1]
+	for _, listener := range listeners {
+		listenerMap[listener.Addr().String()] = listener
 	}
 
 	// The SnapdSocket is required-- without it, die.
@@ -206,7 +194,10 @@ func (d *Daemon) Init() error {
 		return fmt.Errorf("daemon is missing the listener for %s", dirs.SnapdSocket)
 	}
 
-	// The SnapSocket is not required.
+	// In new versions of snapd we have two sockets: snapd.socket and
+	// snapd-snap.socket. Ideally we'd be able to use both, but be backward-
+	// compatible and run like the old version if only snapd.socket is
+	// available.
 	if listener, ok := listenerMap[dirs.SnapSocket]; ok {
 		// Note that the SnapSocket listener does not use ucrednet. We use the lack
 		// of remote information as an indication that the request originated with
