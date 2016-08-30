@@ -21,12 +21,12 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
-       "github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/release"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
 const usbConnectedPlugAppArmor = `
-# Description: Can access files in usb drives.
+# Description: Can access files in user's usb drives.
 # Usage: reserved
 
 # Allow read access to media for the user
@@ -34,7 +34,6 @@ const usbConnectedPlugAppArmor = `
 /media/*/ rw,
 /media/*/** rw,
 
-# allow access to gvfs mounts (only allow writes to files, not mount point)
 /run/media/ rw,
 /run/media/*/ rw,
 /run/media/*/** rw,
