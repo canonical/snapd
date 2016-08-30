@@ -6,3 +6,4 @@ tags
 cmd/version_generated.go
 *~
 *.swp
+vendor/*/
