@@ -29,7 +29,7 @@ const usbConnectedPlugAppArmor = `
 # Description: Can access files in user's usb drives.
 # Usage: reserved
 
-# Allow read access to media directory
+# Allow read access to media for the user
 /media/ rw,
 /media/*/ rw,
 /media/*/** rw,
@@ -38,7 +38,8 @@ const usbConnectedPlugAppArmor = `
 /run/media/*/ rw,
 /run/media/*/** rw,
 `
-// NewUsbInterface returns a new "usb" interface.
+
+// NewHomeInterface returns a new "usb" interface.
 func NewUsbInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "usb",
