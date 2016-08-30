@@ -59,6 +59,10 @@ func (s *SnapAssertBuildSuite) TestAssertBuildMissingKey(c *C) {
 	c.Assert(_err, IsNil)
 	defer os.Remove(snap_filename)
 
+	tempdir := c.MkDir()
+	os.Setenv("SNAP_GNUPG_HOME", tempdir)
+	defer os.Unsetenv("SNAP_GNUPG_HOME")
+
 	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot get key by name: cannot find key named \"default\" in GPG keyring")
