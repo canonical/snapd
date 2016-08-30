@@ -160,7 +160,7 @@ connect).
 
 ## Reporting bugs
 
-If you have found an issue with the application, please [file a bug](https://bugs.launchpad.net/snappy/+filebug) on the [bugs list on Launchpad](http://snapcraft.io/community/).
+If you have found an issue with the application, please [file a bug](https://bugs.launchpad.net/snappy/+filebug) on the [bugs list on Launchpad](https://bugs.launchpad.net/snappy/).
 
 
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
