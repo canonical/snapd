@@ -63,6 +63,7 @@ const screenInhibitControlConnectedPlugSecComp = `
 # dbus
 connect
 getsockname
+recvfrom
 recvmsg
 send
 sendto
