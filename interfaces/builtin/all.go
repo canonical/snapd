@@ -51,6 +51,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
 	NewProcessControlInterface(),
+	NewScreenInhibitControlInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
 	NewSystemTraceInterface(),
