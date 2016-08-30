@@ -218,7 +218,7 @@ func (akr *AccountKeyRequest) PublicKey() PublicKey {
 }
 
 // Implement further consistency checks.
-func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) error {
+func (akr *AccountKeyRequest) noAuthorityCheckConsistency(db RODatabase, signingKey PublicKey) error {
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": akr.AccountID(),
 	})
@@ -232,7 +232,7 @@ func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) 
 }
 
 // sanity
-var _ consistencyChecker = (*AccountKeyRequest)(nil)
+var _ noAuthorityConsistencyChecker = (*AccountKeyRequest)(nil)
 
 // Prerequisites returns references to this account-key-request's prerequisite assertions.
 func (akr *AccountKeyRequest) Prerequisites() []*Ref {

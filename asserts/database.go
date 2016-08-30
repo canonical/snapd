@@ -129,14 +129,18 @@ type RODatabase interface {
 // assertions in the database.
 type Checker func(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error
 
+// A NoAuthorityChecker defines a check on a no-authority assertion.
+type NoAuthorityChecker func(assert Assertion, signingKey PublicKey, roDB RODatabase) error
+
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	bs         Backstore
-	keypairMgr KeypairManager
-	trusted    Backstore
-	backstores []Backstore
-	checkers   []Checker
+	bs                  Backstore
+	keypairMgr          KeypairManager
+	trusted             Backstore
+	backstores          []Backstore
+	checkers            []Checker
+	noAuthorityCheckers []NoAuthorityChecker
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -180,6 +184,9 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	dbCheckers := make([]Checker, len(checkers))
 	copy(dbCheckers, checkers)
 
+	dbNoAuthorityCheckers := make([]NoAuthorityChecker, len(noAuthorityCheckers))
+	copy(dbNoAuthorityCheckers, noAuthorityCheckers)
+
 	return &Database{
 		bs:         bs,
 		keypairMgr: keypairMgr,
@@ -187,8 +194,9 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		// order here is relevant, Find* precedence and
 		// findAccountKey depend on it, trusted should win over the
 		// general backstore!
-		backstores: []Backstore{trustedBackstore, bs},
-		checkers:   dbCheckers,
+		backstores:          []Backstore{trustedBackstore, bs},
+		checkers:            dbCheckers,
+		noAuthorityCheckers: dbNoAuthorityCheckers,
 	}, nil
 }
 
@@ -282,6 +290,22 @@ func (db *Database) Check(assert Assertion) error {
 	return nil
 }
 
+// NoAuthorityCheck tests whether a no-authority assertion is properly signed and consistent with all the stored knowledge.
+func (db *Database) NoAuthorityCheck(assert Assertion, pubKey PublicKey) error {
+	if assert.AuthorityID() != "" {
+		return fmt.Errorf("cannot perform no-authority check because assertion declares authority-id %q", assert.AuthorityID())
+	}
+
+	for _, checker := range db.noAuthorityCheckers {
+		err := checker(assert, pubKey, db)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // Add persists the assertion after ensuring it is properly signed and consistent with all the stored knowledge.
 // It will return an error when trying to add an older revision of the assertion than the one currently stored.
 func (db *Database) Add(assert Assertion) error {
@@ -291,9 +315,18 @@ func (db *Database) Add(assert Assertion) error {
 		return fmt.Errorf("internal error: assertion type %q has no primary key", ref.Type.Name)
 	}
 
-	err := db.Check(assert)
-	if err != nil {
-		return err
+	switch assertImpl := assert.(type) {
+	case *AccountKeyRequest:
+		err := db.NoAuthorityCheck(assertImpl, assertImpl.PublicKey())
+		if err != nil {
+			return err
+		}
+
+	default:
+		err := db.Check(assert)
+		if err != nil {
+			return err
+		}
 	}
 
 	for i, keyVal := range ref.PrimaryKey {
@@ -305,7 +338,7 @@ func (db *Database) Add(assert Assertion) error {
 	// assuming trusted account keys/assertions will be managed
 	// through the os snap this seems the safest policy until we
 	// know more/better
-	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey)
+	_, err := db.trusted.Get(ref.Type, ref.PrimaryKey)
 	if err != ErrNotFound {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
@@ -460,4 +493,41 @@ var DefaultCheckers = []Checker{
 	CheckSignature,
 	CheckTimestampVsSigningKeyValidity,
 	CheckCrossConsistency,
+}
+
+// no-authority assertion checkers
+
+// NoAuthorityCheckSignature checks that the signature is valid.
+func NoAuthorityCheckSignature(assert Assertion, signingKey PublicKey, roDB RODatabase) error {
+	content, encSig := assert.Signature()
+	signature, err := decodeSignature(encSig)
+	if err != nil {
+		return err
+	}
+	err = signingKey.verify(content, signature)
+	if err != nil {
+		return fmt.Errorf("failed signature verification: %v", err)
+	}
+	return nil
+}
+
+// A noAuthorityConsistencyChecker performs further checks based on the full
+// assertion database knowledge and its own signing key.
+type noAuthorityConsistencyChecker interface {
+	noAuthorityCheckConsistency(roDB RODatabase, signingKey PublicKey) error
+}
+
+// NoAuthorityCheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
+func NoAuthorityCheckCrossConsistency(assert Assertion, signingKey PublicKey, roDB RODatabase) error {
+	// see if the assertion requires further checks
+	if checker, ok := assert.(noAuthorityConsistencyChecker); ok {
+		return checker.noAuthorityCheckConsistency(roDB, signingKey)
+	}
+	return nil
+}
+
+// noAuthorityCheckers lists the assertion checkers used by Database.
+var noAuthorityCheckers = []NoAuthorityChecker{
+	NoAuthorityCheckSignature,
+	NoAuthorityCheckCrossConsistency,
 }

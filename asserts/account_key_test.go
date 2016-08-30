@@ -627,8 +627,10 @@ func (aks *accountKeySuite) TestAccountKeyRequestHappy(c *C) {
 	akr2, ok := a.(*asserts.AccountKeyRequest)
 	c.Assert(ok, Equals, true)
 
-	// standalone signature check
-	err = asserts.SignatureCheck(akr2, aks.privKey.PublicKey())
+	db := aks.openDB(c)
+	aks.prereqAccount(c, db)
+
+	err = db.NoAuthorityCheck(akr2, akr2.PublicKey())
 	c.Check(err, IsNil)
 
 	c.Check(akr2.AccountID(), Equals, "acc-id1")
@@ -638,34 +640,63 @@ func (aks *accountKeySuite) TestAccountKeyRequestHappy(c *C) {
 }
 
 func (aks *accountKeySuite) TestAccountKeyRequestUntil(c *C) {
-	untilSinceLine := "until: " + aks.since.Format(time.RFC3339) + "\n"
+	db := aks.openDB(c)
+	aks.prereqAccount(c, db)
 
 	tests := []struct {
-		untilLine string
-		until     time.Time
+		untilHeader string
+		until       time.Time
 	}{
-		{"", time.Time{}},           // zero time default
-		{aks.untilLine, aks.until},  // in the future
-		{untilSinceLine, aks.since}, // same as since
+		{"", time.Time{}},                           // zero time default
+		{aks.until.Format(time.RFC3339), aks.until}, // in the future
+		{aks.since.Format(time.RFC3339), aks.since}, // same as since
 	}
 
 	for _, test := range tests {
 		c.Log(test)
-		encoded := "type: account-key-request\n" +
-			"account-id: acc-id1\n" +
-			"name: default\n" +
-			"public-key-sha3-384: " + aks.keyID + "\n" +
-			aks.sinceLine +
-			test.untilLine +
-			fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
-			"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
-			aks.pubKeyBody + "\n\n" +
-			"AXNpZw=="
-		a, err := asserts.Decode([]byte(encoded))
+		headers := map[string]interface{}{
+			"account-id":          "acc-id1",
+			"name":                "default",
+			"public-key-sha3-384": aks.keyID,
+			"since":               aks.since.Format(time.RFC3339),
+		}
+		if test.untilHeader != "" {
+			headers["until"] = test.untilHeader
+		}
+		akr, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType, headers, []byte(aks.pubKeyBody), aks.privKey)
 		c.Assert(err, IsNil)
-		accKeyReq := a.(*asserts.AccountKeyRequest)
-		c.Check(accKeyReq.Until(), Equals, test.until)
+		a, err := asserts.Decode(asserts.Encode(akr))
+		c.Assert(err, IsNil)
+		akr2 := a.(*asserts.AccountKeyRequest)
+		c.Check(akr2.Until(), Equals, test.until)
+		err = db.NoAuthorityCheck(akr2, akr2.PublicKey())
+		c.Check(err, IsNil)
 	}
+}
+
+func (aks *accountKeySuite) TestAccountKeyRequestAddAndFind(c *C) {
+	akr, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType,
+		map[string]interface{}{
+			"account-id":          "acc-id1",
+			"name":                "default",
+			"public-key-sha3-384": aks.keyID,
+			"since":               aks.since.Format(time.RFC3339),
+		}, []byte(aks.pubKeyBody), aks.privKey)
+	c.Assert(err, IsNil)
+
+	db := aks.openDB(c)
+	aks.prereqAccount(c, db)
+
+	err = db.Add(akr)
+	c.Assert(err, IsNil)
+
+	found, err := db.Find(asserts.AccountKeyRequestType, map[string]string{
+		"account-id":          "acc-id1",
+		"public-key-sha3-384": aks.keyID,
+	})
+	c.Assert(err, IsNil)
+	c.Assert(found, NotNil)
+	c.Check(found.Body(), DeepEquals, []byte(aks.pubKeyBody))
 }
 
 func (aks *accountKeySuite) TestAccountKeyRequestDecodeInvalid(c *C) {
@@ -756,4 +787,20 @@ func (aks *accountKeySuite) TestAccountKeyRequestDecodeKeyIDMismatch(c *C) {
 
 	_, err := asserts.Decode([]byte(invalid))
 	c.Check(err, ErrorMatches, "assertion account-key-request: public key does not match provided key id")
+}
+
+func (aks *accountKeySuite) TestAccountKeyRequestNoAccount(c *C) {
+	headers := map[string]interface{}{
+		"account-id":          "acc-id1",
+		"name":                "default",
+		"public-key-sha3-384": aks.keyID,
+		"since":               aks.since.Format(time.RFC3339),
+	}
+	akr, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType, headers, []byte(aks.pubKeyBody), aks.privKey)
+	c.Assert(err, IsNil)
+
+	db := aks.openDB(c)
+
+	err = db.NoAuthorityCheck(akr, akr.(*asserts.AccountKeyRequest).PublicKey())
+	c.Assert(err, ErrorMatches, `account-key-request assertion for "acc-id1" does not have a matching account assertion`)
 }
