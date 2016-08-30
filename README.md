@@ -158,6 +158,10 @@ should then
 so the socket has the right permissions (otherwise you need `sudo` to
 connect).
 
+## Reporting bugs
+
+If you have found an issue with the application, please [file a bug](https://bugs.launchpad.net/snappy/+filebug) on the [bugs list on Launchpad](https://bugs.launchpad.net/snappy/).
+
 
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
 [travis-url]: https://travis-ci.org/snapcore/snapd
