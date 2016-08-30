@@ -21,7 +21,7 @@ package builtin
 
 import (
 	"github.com/snapcore/snapd/interfaces"
-        "github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/release"
 )
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
@@ -29,7 +29,7 @@ const usbConnectedPlugAppArmor = `
 # Description: Can access non-hidden files in user's usb drives.
 # Usage: reserved
 
-# Allow read access to media
+# Allow read access to media for the user
 /media/ rw,
 /media/*/ rw,
 /media/*/** rw,
