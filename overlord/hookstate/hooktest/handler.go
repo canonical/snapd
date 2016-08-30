@@ -36,17 +36,7 @@ type MockHandler struct {
 
 // NewMockHandler returns a new MockHandler.
 func NewMockHandler() *MockHandler {
-	return &MockHandler{
-		BeforeCalled: false,
-		BeforeError:  false,
-
-		DoneCalled: false,
-		DoneError:  false,
-
-		ErrorCalled: false,
-		ErrorError:  false,
-		Err:         nil,
-	}
+	return &MockHandler{}
 }
 
 // Before satisfies hookstate.Handler.Before
