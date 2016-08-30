@@ -141,7 +141,7 @@ func makeFetcher(sto Store, db *asserts.Database) *addingFetcher {
 			if _, ok := err.(*asserts.RevisionError); ok {
 				return nil
 			}
-			return fmt.Errorf("cannot add assertion %s: %v", a.Ref(), err)
+			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
 		}
 		f.addedRefs = append(f.addedRefs, a.Ref())
 		return nil
@@ -162,7 +162,7 @@ func fetchSnapAssertions(fn string, info *snap.Info, f *addingFetcher, db assert
 		PrimaryKey: []string{sha3_384},
 	}
 	if err := f.Fetch(ref); err != nil {
-		return fmt.Errorf("cannot fetch assertion %s: %s", ref, err)
+		return fmt.Errorf("cannot fetch assertion %v: %s", ref, err)
 	}
 
 	// cross checks
