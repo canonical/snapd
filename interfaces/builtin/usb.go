@@ -26,7 +26,7 @@ import (
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/home
 const usbConnectedPlugAppArmor = `
-# Description: Can access non-hidden files in user's usb drives.
+# Description: Can access files in user's usb drives.
 # Usage: reserved
 
 # Allow read access to media directory
@@ -37,8 +37,8 @@ const usbConnectedPlugAppArmor = `
 /run/media/ rw,
 /run/media/*/ rw,
 /run/media/*/** rw,
-
-// NewHomeInterface returns a new "home" interface.
+`
+// NewUsbInterface returns a new "usb" interface.
 func NewUsbInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "usb",
