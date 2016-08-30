@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -533,7 +534,11 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		}
 		if device.SessionMacaroon == "" {
 			err = s.refreshDeviceSession()
-			if err != nil {
+			if err == state.ErrNoState {
+				// missing serial assertion, log and continue without device authentication
+				logger.Debugf("cannot set device session: %v", err)
+			}
+			if err != nil && err != state.ErrNoState {
 				return nil, err
 			}
 		}
