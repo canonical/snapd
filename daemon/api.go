@@ -652,6 +652,12 @@ type snapInstruction struct {
 	userID int
 }
 
+// hasOpts determines whether the snapInstruction has any options on it.
+// This is used to bail from multi-snap operations which don't typically take options.
+func (inst *snapInstruction) hasOpts() bool {
+	return inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode
+}
+
 var (
 	snapstateGet               = snapstate.Get
 	snapstateInstall           = snapstate.Install
