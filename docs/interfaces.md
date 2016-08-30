@@ -403,6 +403,7 @@ Can access the tpm device /dev/tpm0.
 
 ### udisks2
 
-Can access snaps providing the udisks2 interface which gives privileged access to storage on the device
+Can access snaps providing the udisks2 interface which gives privileged access
+to storage on the device
 
 * Auto-Connect: no
