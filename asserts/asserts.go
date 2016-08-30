@@ -64,9 +64,10 @@ var (
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
-	SerialProofType       = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
-	SerialRequestType     = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
-	AccountKeyRequestType = &AssertionType{"account-key-request", nil, assembleAccountKeyRequest, noAuthority}
+	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, assembleDeviceSessionRequest, noAuthority}
+	SerialProofType          = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
+	SerialRequestType        = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	AccountKeyRequestType    = &AssertionType{"account-key-request", nil, assembleAccountKeyRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -78,9 +79,10 @@ var typeRegistry = map[string]*AssertionType{
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
 	// no authority
-	SerialProofType.Name:       SerialProofType,
-	SerialRequestType.Name:     SerialRequestType,
-	AccountKeyRequestType.Name: AccountKeyRequestType,
+	DeviceSessionRequestType.Name: DeviceSessionRequestType,
+	SerialProofType.Name:          SerialProofType,
+	SerialRequestType.Name:        SerialRequestType,
+	AccountKeyRequestType.Name:    AccountKeyRequestType,
 }
 
 // Type returns the AssertionType with name or nil
