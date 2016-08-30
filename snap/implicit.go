@@ -51,6 +51,7 @@ var implicitSlots = []string{
 	"timezone-control",
 	"tpm",
 	"kernel-module-control",
+	"thumbnailer",
 }
 
 var implicitClassicSlots = []string{
