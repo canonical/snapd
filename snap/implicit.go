@@ -63,6 +63,7 @@ var implicitClassicSlots = []string{
 	"optical-drive",
 	"pulseaudio",
 	"unity7",
+	"upower-observe",
 	"x11",
 }
 
