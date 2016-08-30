@@ -736,6 +736,9 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 
 }
 
+// reqerr can be returned by snapInstruction handlers to ask for a 400 instead of a 500
+type reqerr struct{ error }
+
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
 	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
@@ -828,7 +831,7 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
 	}
 	if err != nil {
-		return "", nil, err
+		return "", nil, reqerr{err}
 	}
 
 	msg := fmt.Sprintf(i18n.G("Revert %q snap"), inst.Snaps[0])
