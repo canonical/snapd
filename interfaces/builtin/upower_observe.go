@@ -24,7 +24,7 @@ import (
 )
 
 const upowerObserveConnectedPlugAppArmor = `
-# Description: Can observe UPower properties.
+# Description: Can query UPower for power devices, history and statistics.
 
 #include <abstractions/dbus-strict>
 
@@ -68,7 +68,7 @@ dbus (receive)
 `
 
 const upowerObserveConnectedPlugSecComp = `
-# Description: Can observe UPower properties.
+# Description: Can query UPower for power devices, history and statistics.
 
 # dbus
 connect
