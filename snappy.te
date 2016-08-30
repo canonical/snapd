@@ -1,0 +1,57 @@
+
+policy_module(snappy,0.0.1)
+
+########################################
+#
+# Declarations
+#
+
+type snappy_t;
+type snappy_exec_t;
+init_daemon_domain(snappy_t, snappy_exec_t)
+
+type snappy_config_t;
+files_config_file(snappy_config_t)
+
+type snappy_var_lib_t;
+files_type(snappy_var_lib_t)
+
+type snappy_var_run_t;
+files_pid_file(snappy_var_run_t)
+
+type snappy_unit_file_t;
+systemd_unit_file(snappy_unit_file_t)
+
+########################################
+#
+# snappy local policy
+#
+
+# Allow snapd to read config files
+read_files_pattern(snappy_t, snappy_config_t, snappy_config_t)
+
+# Read l10n files?
+miscfiles_read_localization(snappy_t)
+
+# Allow snapd to manage its socket files
+manage_files_pattern(snappy_t, snappy_var_run_t, snappy_var_run_t)
+
+# Allow snapd to manage its persistent data
+manage_dirs_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+manage_files_pattern(snappy_t, snappy_var_lib_t, snappy_var_lib_t)
+
+logging_send_syslog_msg(snappy_t);
+
+allow snappy_t self:capability { setuid setgid };
+allow snappy_t self:process { getcap signal };
+
+allow snappy_t self:tcp_socket create_stream_socket_perms;
+allow snappy_t self:unix_dgram_socket create_socket_perms;
+
+corenet_all_recvfrom_unlabeled(snappy_t)
+corenet_all_recvfrom_netlabel(snappy_t)
+corenet_tcp_sendrecv_generic_if(snappy_t)
+corenet_tcp_sendrecv_generic_node(snappy_t)
+
+corenet_tcp_sendrecv_http_port(snappy_t)
+corenet_tcp_connect_http_port(snappy_t)
