@@ -531,7 +531,12 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		if err != nil {
 			return nil, err
 		}
-		// TODO: if device session is empty, request new session
+		if device.SessionMacaroon == "" {
+			err = s.refreshDeviceSession()
+			if err != nil {
+				return nil, err
+			}
+		}
 		authenticateDevice(req, device)
 	}
 
