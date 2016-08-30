@@ -1,0 +1,4 @@
+#!/bin/sh
+
+echo "apply-config hook"
+exit 1
