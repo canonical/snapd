@@ -411,7 +411,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
+func Update(s *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -431,21 +431,38 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		channel = snapst.Channel
 	}
 
-	updateInfo, err := updateInfo(s, &snapst, channel, userID, flags)
+	ss := &SnapSetup{
+		Channel: channel,
+		UserID:  userID,
+		Flags:   SnapSetupFlags(flags),
+	}
+
+	var info *snap.Info
+	if revision.Unset() {
+		// good ol' refresh
+		info, err = updateInfo(s, &snapst, channel, userID, flags)
+	} else {
+		var sideInfo *snap.SideInfo
+		for _, si := range snapst.Sequence {
+			if si.Revision == revision {
+				sideInfo = si
+				break
+			}
+		}
+		if sideInfo == nil {
+			// refresh from given revision from store
+			info, err = snapInfo(s, name, channel, revision, userID, flags)
+		} else {
+			// refresh-to-local
+			info, err = readInfo(name, sideInfo)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
-	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
-		return nil, err
-	}
 
-	ss := &SnapSetup{
-		Channel:      channel,
-		UserID:       userID,
-		Flags:        SnapSetupFlags(flags),
-		DownloadInfo: &updateInfo.DownloadInfo,
-		SideInfo:     &updateInfo.SideInfo,
-	}
+	ss.DownloadInfo = &info.DownloadInfo
+	ss.SideInfo = &info.SideInfo
 
 	return doInstall(s, &snapst, ss)
 }

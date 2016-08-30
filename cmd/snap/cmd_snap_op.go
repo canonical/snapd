@@ -353,7 +353,8 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
-	List       bool `long:"list"`
+	Revision   string `long:"revision"`
+	List       bool   `long:"list"`
 	Positional struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -449,6 +450,7 @@ func (x *cmdRefresh) Execute([]string) error {
 			Channel:  x.Channel,
 			DevMode:  x.DevMode,
 			JailMode: x.JailMode,
+			Revision: x.Revision,
 		})
 	}
 
@@ -566,6 +568,7 @@ func (x *cmdDisable) Execute([]string) error {
 
 type cmdRevert struct {
 	modeMixin
+	Revision   string `long:"revision" description:"Revert to the given revision"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -592,7 +595,7 @@ func (x *cmdRevert) Execute(args []string) error {
 
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode}
+	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
 	changeID, err := cli.Revert(name, opts)
 	if err != nil {
 		return err
@@ -626,7 +629,8 @@ func init() {
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		channelDescs.also(modeDescs).also(map[string]string{
-			"list": i18n.G("show available snaps for refresh"),
+			"revision": i18n.G("Refresh to the given revision"),
+			"list":     i18n.G("show available snaps for refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, modeDescs, nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, nil, nil)

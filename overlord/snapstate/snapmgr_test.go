@@ -208,7 +208,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
 		Current: snap.R(4),
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "", 0, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
 
 	i := verifyInstallUpdateTasks(c, true, ts, s.state)
@@ -238,7 +238,7 @@ func (s *snapmgrTestSuite) TestUpdateCreatesDiscardAfterCurrentTasks(c *C) {
 		Current: snap.R(1),
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "", 0, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
 
 	i := verifyInstallUpdateTasks(c, true, ts, s.state)
@@ -521,7 +521,7 @@ func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
 		Current:  snap.R(7),
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 	n := verifyInstallUpdateTasks(c, true, ts, s.state)
 	c.Assert(ts.Tasks(), HasLen, n)
@@ -545,7 +545,7 @@ func (s *snapmgrTestSuite) TestUpdateChannelFallback(c *C) {
 		Current:  snap.R(7),
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 
 	var ss snapstate.SnapSetup
@@ -565,7 +565,7 @@ func (s *snapmgrTestSuite) TestUpdatePassDevMode(c *C) {
 		Current:  snap.R(7),
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, snapstate.DevMode)
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, snapstate.DevMode)
 	c.Assert(err, IsNil)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 1)
@@ -592,12 +592,12 @@ func (s *snapmgrTestSuite) TestUpdateConflict(c *C) {
 		Current:  snap.R(7),
 	})
 
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 	// need a change to make the tasks visible
 	s.state.NewChange("refresh", "...").AddAll(ts)
 
-	_, err = snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	_, err = snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
 }
 
@@ -796,7 +796,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -950,7 +950,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1095,7 +1095,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("install", "install a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1255,7 +1255,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 		Current:  si.Revision,
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
+	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", snap.R(0), s.user.ID, 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has no updates available`)
 }
 
@@ -1280,7 +1280,7 @@ func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
 		Current:  si7.Revision,
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Check(err, ErrorMatches, `snap "some-snap" has no updates available`)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 1)
@@ -1313,7 +1313,7 @@ func (s *snapmgrTestSuite) TestUpdateLocalSnapFails(c *C) {
 		Current:  si.Revision,
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, ErrorMatches, `cannot refresh local snap "some-snap"`)
 }
 
@@ -1333,7 +1333,7 @@ func (s *snapmgrTestSuite) TestUpdateDisabledUnsupported(c *C) {
 		Current:  si.Revision,
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	_, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, ErrorMatches, `refreshing disabled snap "some-snap" not supported`)
 }
 
@@ -2071,7 +2071,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	})
 
 	chg := s.state.NewChange("update", "update a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -3252,7 +3252,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	})
 
 	// run the update
-	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", s.user.ID, 0)
+	ts, err := snapstate.Update(s.state, "some-snap", "some-channel", snap.R(0), s.user.ID, 0)
 	c.Assert(err, IsNil)
 
 	// and ensure that it will remove the revisions after "current"
@@ -3296,8 +3296,56 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 		Current:  si11.Revision,
 	})
 
-	_, err := snapstate.Update(s.state, "some-snap", "channel-for-7", s.user.ID, 0)
-	c.Assert(err, ErrorMatches, `revision 7 of snap "some-snap" already installed`)
+	chg := s.state.NewChange("refresh", "refresh a snap")
+	ts, err := snapstate.Update(s.state, "some-snap", "", snap.R(7), s.user.ID, 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+	expected := fakeOps{
+		{
+			op:   "stop-snap-services",
+			name: "/snap/some-snap/11",
+		},
+		{
+			op:   "unlink-snap",
+			name: "/snap/some-snap/11",
+		},
+		// XXX: TBD
+		// {
+		// 	op:   "copy-data",
+		// 	name: "/snap/some-snap/11",
+		// 	old:  "/snap/some-snap/7",
+		// },
+		{
+			op:    "setup-profiles:Doing",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				SnapID:   "some-snap-id",
+				Channel:  "",
+				Revision: snap.R(7),
+			},
+		},
+		{
+			op:   "link-snap",
+			name: "/snap/some-snap/7",
+		},
+		{
+			op:   "start-snap-services",
+			name: "/snap/some-snap/7",
+		},
+	}
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
 }
 
 func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
