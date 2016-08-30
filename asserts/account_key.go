@@ -21,8 +21,11 @@ package asserts
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 )
+
+var ValidAccountKeyName = regexp.MustCompile(`^[-a-z0-9]+$`)
 
 // AccountKey holds an account-key assertion, asserting a public key
 // belonging to the account.
@@ -36,6 +39,11 @@ type AccountKey struct {
 // AccountID returns the account-id of this account-key.
 func (ak *AccountKey) AccountID() string {
 	return ak.HeaderString("account-id")
+}
+
+// Name returns the name of the account key.
+func (ak *AccountKey) Name() string {
+	return ak.HeaderString("name")
 }
 
 // Since returns the time when the account key starts being valid.
@@ -96,6 +104,21 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if err != nil {
 		return err
 	}
+	// XXX: Make this unconditional once account-key assertions are required to have a name.
+	if ak.Name() != "" {
+		assertions, err := db.FindMany(AccountKeyType, map[string]string{
+			"account-id": ak.AccountID(),
+			"name":       ak.Name(),
+		})
+		if err == nil {
+			for _, assertion := range assertions {
+				existingAccKey := assertion.(*AccountKey)
+				if ak.PublicKeyID() != existingAccKey.PublicKeyID() {
+					return fmt.Errorf("new account-key assertion for %q (%q) has ID %q, but clashes with existing ID %q", ak.AccountID(), ak.Name(), ak.PublicKeyID(), existingAccKey.PublicKeyID())
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -113,6 +136,21 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
+	}
+
+	// XXX: We should require name to be non-empty after backfilling existing assertions.
+	value, ok := assert.headers["name"]
+	if ok {
+		name, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf(`"name" header must be a string`)
+		}
+		if len(name) == 0 {
+			return nil, fmt.Errorf(`"name" header should not be empty`)
+		}
+		if !ValidAccountKeyName.MatchString(name) {
+			return nil, fmt.Errorf(`"name" header contains invalid characters: %q`, name)
+		}
 	}
 
 	since, err := checkRFC3339Date(assert.headers, "since")
@@ -153,6 +191,11 @@ type AccountKeyRequest struct {
 // AccountID returns the account-id of this account-key-request.
 func (akr *AccountKeyRequest) AccountID() string {
 	return akr.HeaderString("account-id")
+}
+
+// Name returns the name of the account key.
+func (akr *AccountKeyRequest) Name() string {
+	return akr.HeaderString("name")
 }
 
 // Since returns the time when the requested account key starts being valid.
@@ -198,6 +241,14 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
+	}
+
+	name, err := checkNotEmptyString(assert.headers, "name")
+	if err != nil {
+		return nil, err
+	}
+	if !ValidAccountKeyName.MatchString(name) {
+		return nil, fmt.Errorf(`"name" header contains invalid characters: %q`, name)
 	}
 
 	since, err := checkRFC3339Date(assert.headers, "since")
