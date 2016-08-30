@@ -33,7 +33,6 @@ const usbConnectedPlugAppArmor = `
 /media/ rw,
 /media/*/ rw,
 /media/*/** rw,
-
 /run/media/ rw,
 /run/media/*/ rw,
 /run/media/*/** rw,
