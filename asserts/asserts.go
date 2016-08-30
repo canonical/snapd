@@ -67,7 +67,7 @@ var (
 	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, assembleDeviceSessionRequest, noAuthority}
 	SerialProofType          = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
 	SerialRequestType        = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
-	AccountKeyRequestType    = &AssertionType{"account-key-request", nil, assembleAccountKeyRequest, noAuthority}
+	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, assembleAccountKeyRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
