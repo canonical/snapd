@@ -652,6 +652,12 @@ type snapInstruction struct {
 	userID int
 }
 
+// hasOpts determines whether the snapInstruction has any options on it.
+// This is used to bail from multi-snap operations which don't typically take options.
+func (inst *snapInstruction) hasOpts() bool {
+	return inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode
+}
+
 var (
 	snapstateGet               = snapstate.Get
 	snapstateInstall           = snapstate.Install
@@ -785,7 +791,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.userID, flags)
+	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -809,13 +815,18 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	var ts *state.TaskSet
+
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
 	}
 
-	// TODO: bail if revision is given (and != current), or revert to that revision?
-	ts, err := snapstate.Revert(st, inst.Snaps[0], flags)
+	if inst.Revision.Unset() {
+		ts, err = snapstate.Revert(st, inst.Snaps[0], flags)
+	} else {
+		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+	}
 	if err != nil {
 		return "", nil, err
 	}
