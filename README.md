@@ -147,7 +147,7 @@ To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -l /run/snapd.socket ./snapd
+    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 This will stop the installed snapd and activate the new one. Once it's
 printed out something like `Listening on /run/snapd.socket as 3.` you
@@ -157,6 +157,10 @@ should then
 
 so the socket has the right permissions (otherwise you need `sudo` to
 connect).
+
+## Reporting bugs
+
+If you have found an issue with the application, please [file a bug](https://bugs.launchpad.net/snappy/+filebug) on the [bugs list on Launchpad](https://bugs.launchpad.net/snappy/).
 
 
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
