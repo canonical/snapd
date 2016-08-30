@@ -1326,7 +1326,7 @@ var sideLoadBodyWithoutDevMode = "" +
 	"\r\n" +
 	"xyzzy\r\n" +
 	"----hello--\r\n" +
-	"Content-Disposition: form-data; name=\"forcedangerous\"\r\n" +
+	"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
 	"\r\n" +
 	"true\r\n" +
 	"----hello--\r\n" +
@@ -1364,7 +1364,7 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"forcedangerous\"\r\n" +
+		"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
@@ -1387,7 +1387,7 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"forcedangerous\"\r\n" +
+		"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
@@ -1412,7 +1412,7 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"forcedangerous\"\r\n" +
+		"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
