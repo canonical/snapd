@@ -29,12 +29,11 @@ const usbConnectedPlugAppArmor = `
 # Description: Can access non-hidden files in user's usb drives.
 # Usage: reserved
 
-# Allow read access to media for the user
+# Allow read access to media
 /media/ rw,
 /media/*/ rw,
 /media/*/** rw,
 
-# allow access to gvfs mounts (only allow writes to files, not mount point)
 /run/media/ rw,
 /run/media/*/ rw,
 /run/media/*/** rw,
