@@ -394,3 +394,9 @@ Can manage timeservers directly separate from ``config core``.
 Can access the tpm device /dev/tpm0.
 
 * Auto-Connect: no
+
+### upower-observe
+
+Can query UPower for power devices, history and statistics.
+
+* Auto-Connect: yes
