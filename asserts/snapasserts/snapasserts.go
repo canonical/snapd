@@ -63,11 +63,6 @@ func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, d
 	snapID := si.SnapID
 
 	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
-		// we have at least 2 cases here, what's the best message?
-		// - an unsuccesufl MITM
-		// - broken store metadata resulting into broken assertions
-		//   (more likely if it is snap-revision not matching)
-		//   people would need to report this
 		return fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", name, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
 	}
 
@@ -83,16 +78,8 @@ func CrossCheck(name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo, d
 	return nil
 }
 
-// ReconstructSideInfoFlags represent the mode flags for ReconstructSideInfo.
-type ReconstructSideInfoFlags int
-
-const (
-	// AllowWithoutSignatures flags allowing extracting information from a snap for which signatures cannot be found.
-	AllowWithoutSignatures ReconstructSideInfoFlags = iota + 1
-)
-
-// ReconstructSideInfo tries to construct a SideInfo for the given snap using its digest to find the relevant snap assertions with the information in the given database. It will fail if it cannot find them, unless flags is AllowWithoutSignatures in which case it extracts unsafely just the name from the snap itself.
-func ReconstructSideInfo(snapPath string, flags ReconstructSideInfoFlags, db asserts.RODatabase) (*snap.SideInfo, error) {
+// DeriveSideInfo tries to construct a SideInfo for the given snap using its digest to find the relevant snap assertions with the information in the given database. It will fail with asserts.ErrNotFound if it cannot find them.
+func DeriveSideInfo(snapPath string, db asserts.RODatabase) (*snap.SideInfo, error) {
 	snapSHA3_384, snapSize, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return nil, err
@@ -102,13 +89,6 @@ func ReconstructSideInfo(snapPath string, flags ReconstructSideInfoFlags, db ass
 	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
 		"snap-sha3-384": snapSHA3_384,
 	})
-	if err == asserts.ErrNotFound {
-		if flags == AllowWithoutSignatures {
-			// unsafe fallback mode
-			return unsafeReconstructSideInfo(snapPath)
-		}
-		return nil, fmt.Errorf("cannot find signatures with metadata for snap %q", snapPath)
-	}
 	if err != nil {
 		return nil, err
 	}
@@ -144,19 +124,5 @@ func ReconstructSideInfo(snapPath string, flags ReconstructSideInfoFlags, db ass
 		Revision:    snap.R(snapRev.SnapRevision()),
 		DeveloperID: snapRev.DeveloperID(),
 		Developer:   devAcct.Username(),
-	}, nil
-}
-
-func unsafeReconstructSideInfo(snapPath string) (*snap.SideInfo, error) {
-	snapf, err := snap.Open(snapPath)
-	if err != nil {
-		return nil, err
-	}
-	info, err := snap.ReadInfoFromSnapFile(snapf, nil)
-	if err != nil {
-		return nil, err
-	}
-	return &snap.SideInfo{
-		RealName: info.Name(),
 	}, nil
 }
