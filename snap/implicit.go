@@ -62,6 +62,7 @@ var implicitClassicSlots = []string{
 	"network-manager",
 	"optical-drive",
 	"pulseaudio",
+	"screen-inhibit-control",
 	"unity7",
 	"x11",
 }
