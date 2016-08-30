@@ -30,6 +30,7 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/notifications"
 	"github.com/snapcore/snapd/overlord"
@@ -38,12 +39,13 @@ import (
 
 // A Daemon listens for requests and routes them to the right command
 type Daemon struct {
-	Version  string
-	overlord *overlord.Overlord
-	listener net.Listener
-	tomb     tomb.Tomb
-	router   *mux.Router
-	hub      *notifications.Hub
+	Version       string
+	overlord      *overlord.Overlord
+	snapdListener net.Listener
+	snapListener  net.Listener
+	tomb          tomb.Tomb
+	router        *mux.Router
+	hub           *notifications.Hub
 	// enableInternalInterfaceActions controls if adding and removing slots and plugs is allowed.
 	enableInternalInterfaceActions bool
 }
@@ -63,7 +65,9 @@ type Command struct {
 	GuestOK bool
 	// can non-admin GET?
 	UserOK bool
-	//
+	// is this path accessible on the snapd-snap socket?
+	SnapOK bool
+
 	d *Daemon
 }
 
@@ -74,13 +78,19 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) bool {
 	}
 
 	isUser := false
-	if uid, err := ucrednetGetUID(r.RemoteAddr); err == nil {
+	uid, err := ucrednetGetUID(r.RemoteAddr)
+	if err == nil {
 		if uid == 0 {
 			// Superuser does anything.
 			return true
 		}
 
 		isUser = true
+	} else if err != errNoUID {
+		logger.Noticef("unexpected error when attempting to get UID: %s", err)
+		return false
+	} else if c.SnapOK {
+		return true
 	}
 
 	if r.Method != "GET" {
@@ -171,11 +181,24 @@ func (d *Daemon) Init() error {
 		return err
 	}
 
-	if len(listeners) != 1 {
-		return fmt.Errorf("daemon does not handle %d listeners right now, just one", len(listeners))
+	listenerMap := make(map[string]net.Listener)
+
+	for _, listener := range listeners {
+		listenerMap[listener.Addr().String()] = listener
 	}
 
-	d.listener = &ucrednetListener{listeners[0]}
+	// The SnapdSocket is required-- without it, die.
+	if listener, ok := listenerMap[dirs.SnapdSocket]; ok {
+		d.snapdListener = &ucrednetListener{listener}
+	} else {
+		return fmt.Errorf("daemon is missing the listener for %s", dirs.SnapdSocket)
+	}
+
+	// Note that the SnapSocket listener does not use ucrednet. We use the lack
+	// of remote information as an indication that the request originated with
+	// this socket. This listener may also be nil if that socket wasn't among
+	// the listeners, so check it before using it.
+	d.snapListener = listenerMap[dirs.SnapSocket]
 
 	d.addRoutes()
 
@@ -207,8 +230,19 @@ func (d *Daemon) Start() {
 
 	// the loop runs in its own goroutine
 	d.overlord.Loop()
+
 	d.tomb.Go(func() error {
-		if err := http.Serve(d.listener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+		if d.snapListener != nil {
+			d.tomb.Go(func() error {
+				if err := http.Serve(d.snapListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
+					return err
+				}
+
+				return nil
+			})
+		}
+
+		if err := http.Serve(d.snapdListener, logit(d.router)); err != nil && d.tomb.Err() == tomb.ErrStillAlive {
 			return err
 		}
 
@@ -219,8 +253,12 @@ func (d *Daemon) Start() {
 // Stop shuts down the Daemon
 func (d *Daemon) Stop() error {
 	d.tomb.Kill(nil)
-	d.listener.Close()
+	d.snapdListener.Close()
+	if d.snapListener != nil {
+		d.snapListener.Close()
+	}
 	d.overlord.Stop()
+
 	return d.tomb.Wait()
 }
 
