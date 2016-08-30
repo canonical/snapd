@@ -48,7 +48,7 @@ prepare: |
     apt purge -y snapd || true
     apt update
     # utilities
-    apt install -y devscripts expect jq rng-tools software-properties-common
+    apt install -y devscripts expect jq rng-tools software-properties-common git
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
@@ -57,6 +57,10 @@ prepare: |
     apt update
 
     apt build-dep -y ./
+
+    # update vendoring
+    go get -u github.com/kardianos/govendor
+    govendor sync
 
     # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
     #        hits xenial-updates
