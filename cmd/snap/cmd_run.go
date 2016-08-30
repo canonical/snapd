@@ -116,8 +116,19 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 // returns the environment that is important for the later stages of execution
 // (like SNAP_REVISION that snap-exec requires to work)
 func snapExecEnv(info *snap.Info) []string {
+	home := os.Getenv("HOME")
+	// HOME is not set for systemd services
+	if home == "" {
+		user, err := user.Current()
+		if err != nil {
+			panic(err)
+		}
+		home = user.HomeDir
+	}
+
 	env := snapenv.Basic(info)
-	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
+	env = append(env, "PATH=${PATH}:/usr/lib/snapd")
+	env = append(env, snapenv.User(info, home)...)
 	return env
 }
 

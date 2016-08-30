@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 	"time"
 
@@ -32,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -74,6 +72,42 @@ func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
 	return genSocketFile(app), nil
 }
 
+func StartSnapServices(s *snap.Info, inter interacter) error {
+	for _, app := range s.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		// daemon-reload and enable plus start
+		serviceName := filepath.Base(app.ServiceFile())
+		sysd := systemd.New(dirs.GlobalRootDir, inter)
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
+
+		if err := sysd.Enable(serviceName); err != nil {
+			return err
+		}
+
+		if err := sysd.Start(serviceName); err != nil {
+			return err
+		}
+
+		if app.Socket {
+			socketName := filepath.Base(app.ServiceSocketFile())
+			// enable the socket
+			if err := sysd.Enable(socketName); err != nil {
+				return err
+			}
+
+			if err := sysd.Start(socketName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 // AddSnapServices adds and starts service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) error {
 	for _, app := range s.Apps {
@@ -99,34 +133,6 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 			svcSocketFilePath := app.ServiceSocketFile()
 			os.MkdirAll(filepath.Dir(svcSocketFilePath), 0755)
 			if err := osutil.AtomicWriteFile(svcSocketFilePath, []byte(content), 0644, 0); err != nil {
-				return err
-			}
-		}
-		// daemon-reload and enable plus start
-		serviceName := filepath.Base(app.ServiceFile())
-		sysd := systemd.New(dirs.GlobalRootDir, inter)
-
-		if err := sysd.DaemonReload(); err != nil {
-			return err
-		}
-
-		// enable the service
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
-		}
-
-		if err := sysd.Start(serviceName); err != nil {
-			return err
-		}
-
-		if app.Socket {
-			socketName := filepath.Base(app.ServiceSocketFile())
-			// enable the socket
-			if err := sysd.Enable(socketName); err != nil {
-				return err
-			}
-
-			if err := sysd.Start(socketName); err != nil {
 				return err
 			}
 		}
@@ -194,7 +200,6 @@ X-Snappy=yes
 ExecStart={{.App.LauncherCommand}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
-Environment={{.EnvVars}}
 {{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}
 {{if .App.PostStopCommand}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
@@ -242,9 +247,6 @@ WantedBy={{.ServiceTargetUnit}}
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	allVars := snapenv.Basic(appInfo.Snap)
-	allVars = append(allVars, snapenv.User(appInfo.Snap, "/root")...)
-	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable
