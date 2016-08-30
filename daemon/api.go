@@ -193,7 +193,7 @@ var (
 
 	snapctlCmd = &Command{
 		Path:   "/v2/snapctl",
-		UserOK: false,
+		SnapOK: true,
 		POST:   runSnapctl,
 	}
 )
@@ -1491,7 +1491,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 var (
 	postCreateUserUcrednetGetUID = ucrednetGetUID
 	storeUserInfo                = store.UserInfo
-	osutilAddExtraUser           = osutil.AddExtraUser
+	osutilAddUser                = osutil.AddUser
 )
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1526,7 +1526,13 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
-	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos, createData.Sudoer); err != nil {
+	opts := &osutil.AddUserOptions{
+		SSHKeys:    v.SSHKeys,
+		Gecos:      gecos,
+		Sudoer:     createData.Sudoer,
+		ExtraUsers: !release.OnClassic,
+	}
+	if err := osutilAddUser(v.Username, opts); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
