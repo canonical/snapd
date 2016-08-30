@@ -59,6 +59,10 @@ func (s *SnapAssertBuildSuite) TestAssertBuildMissingKey(c *C) {
 	c.Assert(_err, IsNil)
 	defer os.Remove(snap_filename)
 
+	tempdir := c.MkDir()
+	os.Setenv("SNAP_GNUPG_HOME", tempdir)
+	defer os.Unsetenv("SNAP_GNUPG_HOME")
+
 	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot get key by name: cannot find key named \"default\" in GPG keyring")
@@ -99,6 +103,42 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorks(c *C) {
 	c.Check(assertion.HeaderString("snap-id"), Equals, "snap-id-1")
 	c.Check(assertion.HeaderString("snap-size"), Equals, fmt.Sprintf("%d", len(snap_content)))
 	c.Check(assertion.HeaderString("snap-sha3-384"), Equals, "jyP7dUgb8HiRNd1SdYPp_il-YNrl6P6PgNAe-j6_7WytjKslENhMD3Of5XBU5bQK")
+
+	// check for valid signature ?!
+
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+
+	defer os.Remove(build_filename)
+}
+
+func (s *SnapAssertBuildSuite) TestAssertBuildWorksDevelGrade(c *C) {
+	snap_filename := "foo_1_amd64.snap"
+	snap_content := []byte("sample")
+	_err := ioutil.WriteFile(snap_filename, snap_content, 0644)
+	c.Assert(_err, IsNil)
+	defer os.Remove(snap_filename)
+
+	tempdir := c.MkDir()
+	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
+		data, err := ioutil.ReadFile(filepath.Join("test-data", fileName))
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(filepath.Join(tempdir, fileName), data, 0644)
+		c.Assert(err, IsNil)
+	}
+	os.Setenv("SNAP_GNUPG_HOME", tempdir)
+	defer os.Unsetenv("SNAP_GNUPG_HOME")
+
+	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"})
+	c.Assert(err, IsNil)
+
+	build_filename := snap_filename + ".build"
+	data, err := ioutil.ReadFile(build_filename)
+	c.Assert(err, IsNil)
+	assertion, err := asserts.Decode(data)
+	c.Assert(err, IsNil)
+	c.Check(assertion.Type(), Equals, asserts.SnapBuildType)
+	c.Check(assertion.HeaderString("grade"), Equals, "devel")
 
 	// check for valid signature ?!
 
