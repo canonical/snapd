@@ -29,6 +29,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -139,13 +140,24 @@ func (m *DeviceManager) Stop() {
 	m.runner.Stop()
 }
 
+func useStaging() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+}
+
+func deviceAPIBaseURL() string {
+	if useStaging() {
+		return "https://myapps.developer.staging.ubuntu.com/identity/api/v1/"
+	}
+	return "https://myapps.developer.ubuntu.com/identity/api/v1/"
+}
+
 var (
-	keyLength = 4096
-	// TODO: a 2nd different URL for nonce?
+	keyLength     = 4096
+	retryInterval = 60 * time.Second
 	// TODO: this will come optionally as config from the gadget snap
-	// TODO: set this once the server side is working!
-	serialRequestURL = ""
-	retryInterval    = 60 * time.Second
+	deviceAPIBase    = deviceAPIBaseURL()
+	requestIDURL     = deviceAPIBase + "request-id"
+	serialRequestURL = deviceAPIBase + "devices"
 )
 
 func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
@@ -216,7 +228,7 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
-	resp, err := client.Get(serialRequestURL)
+	resp, err := client.Post(requestIDURL, "", nil)
 	if err != nil {
 		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
