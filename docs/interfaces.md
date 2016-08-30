@@ -297,6 +297,7 @@ Can read system logs and set kernel log rate-limiting.
 * Auto-Connect: no
 
 ### lxd-support
+
 Can access all resources and syscalls on the device for LXD to mediate
 access for its containers. This interface currently may only be
 established with the upstream LXD project.
