@@ -30,12 +30,12 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"time"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -175,7 +175,7 @@ func (cs *clientSuite) TestServerVersion(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestClientIntegration(c *check.C) {
+func (cs *clientSuite) TestSnapdClientIntegration(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdSocket), 0755), check.IsNil)
 	l, err := net.Listen("unix", dirs.SnapdSocket)
 	if err != nil {
@@ -200,6 +200,39 @@ func (cs *clientSuite) TestClientIntegration(c *check.C) {
 	si, err := cli.SysInfo()
 	c.Check(err, check.IsNil)
 	c.Check(si.Series, check.Equals, "42")
+}
+
+func (cs *clientSuite) TestSnapClientIntegration(c *check.C) {
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapSocket), 0755), check.IsNil)
+	l, err := net.Listen("unix", dirs.SnapSocket)
+	if err != nil {
+		c.Fatalf("unable to listen on %q: %v", dirs.SnapSocket, err)
+	}
+
+	f := func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snapctl")
+		c.Check(r.URL.RawQuery, check.Equals, "")
+
+		fmt.Fprintln(w, `{"type":"sync", "result":{"stdout":"test stdout","stderr":"test stderr"}}`)
+	}
+
+	srv := &httptest.Server{
+		Listener: l,
+		Config:   &http.Server{Handler: http.HandlerFunc(f)},
+	}
+	srv.Start()
+	defer srv.Close()
+
+	cli := client.New(nil)
+	options := client.SnapCtlOptions{
+		Context: "foo",
+		Args:    []string{"bar", "--baz"},
+	}
+
+	stdout, stderr, err := cli.RunSnapctl(options)
+	c.Check(err, check.IsNil)
+	c.Check(string(stdout), check.Equals, "test stdout")
+	c.Check(string(stderr), check.Equals, "test stderr")
 }
 
 func (cs *clientSuite) TestClientReportsOpError(c *check.C) {

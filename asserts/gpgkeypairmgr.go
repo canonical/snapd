@@ -234,7 +234,7 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, 
 }
 
 type gpgKeypairInfo struct {
-	pubKey      PublicKey
+	privKey     PrivateKey
 	fingerprint string
 }
 
@@ -244,7 +244,7 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if uid == name {
 			hit = &gpgKeypairInfo{
-				pubKey:      privk.PublicKey(),
+				privKey:     privk,
 				fingerprint: fpr,
 			}
 			return stop
@@ -259,6 +259,15 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 		return nil, err
 	}
 	return nil, fmt.Errorf("cannot find key named %q in GPG keyring", name)
+}
+
+// GetByName looks up a private key by name and returns it.
+func (gkm *GPGKeypairManager) GetByName(name string) (PrivateKey, error) {
+	keyInfo, err := gkm.findByName(name)
+	if err != nil {
+		return nil, err
+	}
+	return keyInfo.privKey, nil
 }
 
 var generateTemplate = `
@@ -298,7 +307,7 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return EncodePublicKey(keyInfo.pubKey)
+	return EncodePublicKey(keyInfo.privKey.PublicKey())
 }
 
 // Delete removes the named key pair from GnuPG's storage.

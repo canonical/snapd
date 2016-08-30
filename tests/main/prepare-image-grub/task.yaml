@@ -7,6 +7,7 @@ environment:
     GADGET: /tmp/root/gadget
     STORE_DIR: $(pwd)/fake-store-blobdir
     STORE_ADDR: localhost:11028
+    UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
 prepare: |
     . $TESTSLIB/store.sh
     setup_store fake-w-assert-fallback $STORE_DIR

@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -301,4 +302,30 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	// missing
 	err = boot.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "need a model assertion")
+}
+
+func (s *FirstBootTestSuite) TestFirstBootOnClassicNoEnableEther(c *C) {
+	release.MockOnClassic(true)
+	firstBootEnableFirstEtherRun := false
+	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
+		firstBootEnableFirstEtherRun = true
+		return nil
+	})
+	defer restore()
+
+	c.Assert(boot.FirstBoot(), IsNil)
+	c.Assert(firstBootEnableFirstEtherRun, Equals, false)
+}
+
+func (s *FirstBootTestSuite) TestFirstBootnableEther(c *C) {
+	release.MockOnClassic(false)
+	firstBootEnableFirstEtherRun := false
+	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
+		firstBootEnableFirstEtherRun = true
+		return nil
+	})
+	defer restore()
+
+	c.Assert(boot.FirstBoot(), IsNil)
+	c.Assert(firstBootEnableFirstEtherRun, Equals, true)
 }
