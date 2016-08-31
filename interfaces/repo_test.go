@@ -1239,3 +1239,54 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
 	c.Check(candidateSlots, HasLen, 0)
 }
+
+func makeLivepatchConnectionTestSnaps(c *C, name, developer string) (*Repository, *snap.Info, *snap.Info) {
+	repo := NewRepository()
+	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted", AutoConnectFlag: false})
+
+	plugSnap, err := snap.InfoFromSnapYaml([]byte(`
+name: ` + name + `
+plugs:
+  canonical-livepatch:
+    interface: restricted
+`))
+	c.Assert(err, IsNil)
+	slotSnap, err := snap.InfoFromSnapYaml([]byte(`
+name: ubuntu-core
+type: os
+slots:
+  restricted:
+    interface: restricted
+`))
+	c.Assert(err, IsNil)
+
+	plugSnap.Developer = developer
+	slotSnap.Developer = "canonical"
+	slotSnap.Type = snap.TypeOS
+
+	err = repo.AddSnap(plugSnap)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(slotSnap)
+	c.Assert(err, IsNil)
+
+	return repo, plugSnap, slotSnap
+}
+
+// test auto-connecting livepatch interfaces
+func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "canonical-livepatch")
+	c.Check(candidateSlots, HasLen, 1)
+}
+
+func (s *RepositorySuite) TestAutoConnectLivepatchWrongDeveloper(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "somebody")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "canonical-livepatch")
+	c.Check(candidateSlots, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAutoConnectLivepatchWrongName(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "something", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "canonical-livepatch")
+	c.Check(candidateSlots, HasLen, 0)
+}

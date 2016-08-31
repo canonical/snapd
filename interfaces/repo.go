@@ -716,6 +716,17 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
+// isSpecialAutoConnectSnap checks special Name/Developer combinations to see
+// if this particular snap's connections should be automatically connected even
+// if the interfaces are not autoconnect and the snap is not an OS snap.
+// TODO: When assertions are in place this code should be removed.
+func isSpecialAutoConnectSnap(snap *snap.Info) bool {
+	if snap.Name() == "canonical-livepatch" && snap.Developer == "canonical" {
+		return true
+	}
+	return false
+}
+
 // AutoConnectCandidates finds and returns viable auto-connection candidates
 // for a given plug.
 func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slot {
@@ -726,9 +737,11 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 	if plug == nil {
 		return nil
 	}
-	if r.ifaces[plug.Interface].AutoConnect() == false {
+
+	if (r.ifaces[plug.Interface].AutoConnect() == false) && !(isSpecialAutoConnectSnap(plug.Snap)) {
 		return nil
 	}
+
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
@@ -754,7 +767,7 @@ func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
 	}
 
 	// OS snap auto connect candidates
-	if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
+	if (slot.Snap.Type == snap.TypeOS || isSpecialAutoConnectSnap(plug.Snap)) && slot.Interface == plug.Interface {
 		return true
 	}
 
