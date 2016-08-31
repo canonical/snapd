@@ -170,6 +170,8 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 		{"name: default\n", "name: a b\n", `"name" header contains invalid characters: "a b"`},
 		{"name: default\n", "name: -default\n", `"name" header contains invalid characters: "-default"`},
 		{"name: default\n", "name: foo:bar\n", `"name" header contains invalid characters: "foo:bar"`},
+		{"name: default\n", "name: a--b\n", `"name" header contains invalid characters: "a--b"`},
+		{"name: default\n", "name: 42\n", `"name" header contains invalid characters: "42"`},
 		{"public-key-sha3-384: " + aks.keyID + "\n", "", `"public-key-sha3-384" header is mandatory`},
 		{"public-key-sha3-384: " + aks.keyID + "\n", "public-key-sha3-384: \n", `"public-key-sha3-384" header should not be empty`},
 		{aks.sinceLine, "", `"since" header is mandatory`},
