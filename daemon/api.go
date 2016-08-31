@@ -1094,7 +1094,7 @@ out:
 
 	if !dangerousOK {
 		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
-		if err != nil && err == asserts.ErrNotFound {
+		if err == asserts.ErrNotFound {
 			msg := "cannot find signatures with metadata for snap"
 			if origPath != "" {
 				msg = fmt.Sprintf("%s %q", msg, origPath)
