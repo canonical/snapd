@@ -89,7 +89,7 @@ unix (connect, receive, send)
 # input methods (fcitx)
 # allow communicating with fcitx dbus service
 dbus send
-    bus=fcitx
+    bus=session
     path=/org/freedesktop/DBus
     interface=org.freedesktop.DBus
     member={Hello,AddMatch,RemoveMatch,GetNameOwner,NameHasOwner,StartServiceByName}
@@ -99,22 +99,22 @@ owner @{HOME}/.config/fcitx/dbus/* r,
 
 # allow creating an input context
 dbus send
-    bus=fcitx
+    bus=session
     path=/inputmethod
     interface=org.fcitx.Fcitx.InputMethod
-    member=CreateIC*
+    member=CreateIC{,v2,v3}
     peer=(label=unconfined),
 
 # allow setting up and tearing down the input context
 dbus send
-    bus=fcitx
+    bus=session
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
-    member="{Close,Destroy,Enable}IC"
+    member={Close,Destroy,Enable}IC
     peer=(label=unconfined),
 
 dbus send
-    bus=fcitx
+    bus=session
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
     member=Reset
@@ -122,32 +122,32 @@ dbus send
 
 # allow service to send us signals
 dbus receive
-    bus=fcitx
+    bus=session
     peer=(label=unconfined),
 
 # use the input context
 dbus send
-    bus=fcitx
+    bus=session
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
-    member="Focus{In,Out}"
+    member=Focus{In,Out}
     peer=(label=unconfined),
 
 dbus send
-    bus=fcitx
+    bus=session
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
-    member="{CommitPreedit,Set*}"
+    member={CommitPreedit,Set*}
     peer=(label=unconfined),
 
 # this is an information leak and allows key and mouse sniffing. If the input
 # context path were tied to the process' security label, this would not be an
 # issue.
 dbus send
-    bus=fcitx
+    bus=session
     path=/inputcontext_[0-9]*
     interface=org.fcitx.Fcitx.InputContext
-    member="{MouseEvent,ProcessKeyEvent}"
+    member={MouseEvent,ProcessKeyEvent}
     peer=(label=unconfined),
 
 # this method does not exist with the sunpinyin backend (at least), so allow
@@ -155,7 +155,7 @@ dbus send
 # again, could be avoided if the path were tied to the process' security
 # label).
 dbus send
-    bus=fcitx
+    bus=session
     path=/inputcontext_[0-9]*
     interface=org.freedesktop.DBus.Properties
     member=GetAll
@@ -178,7 +178,7 @@ dbus (send)
 
 # unfortunate, but org.a11y.atspi is not designed for separation
 dbus (receive, send)
-    bus=accessibility
+    bus=session
     path=/org/a11y/atspi/**
     peer=(label=unconfined),
 
