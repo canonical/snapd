@@ -164,9 +164,9 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
 		{"account-id: acc-id1\n", "account-id: \n", `"account-id" header should not be empty`},
-		// XXX: enable these once name is mandatory
+		// XXX: enable this once name is mandatory
 		// {"name: default\n", "", `"name" header is mandatory`},
-		// {"name: default\n", "name: \n", `"name" header should not be empty`},
+		{"name: default\n", "name: \n", `"name" header should not be empty`},
 		{"name: default\n", "name: a b\n", `"name" header contains invalid characters: "a b"`},
 		{"name: default\n", "name: -default\n", `"name" header contains invalid characters: "-default"`},
 		{"name: default\n", "name: foo:bar\n", `"name" header contains invalid characters: "foo:bar"`},
