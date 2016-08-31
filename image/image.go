@@ -245,7 +245,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 		fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
 		fn, info, err := acquireSnap(sto, snapName, dlOpts, seen)
 		if err == errSeen {
-			fmt.Fprintf(Stdout, "... Already installed")
+			fmt.Fprintf(Stdout, "... already installed")
 			continue
 		}
 		if err != nil {
@@ -276,10 +276,11 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 
 		// set seed.yaml
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
-			Name:    info.Name(),
-			SnapID:  info.SnapID,
-			Channel: info.Channel,
-			File:    filepath.Base(fn),
+			Name:       info.Name(),
+			SnapID:     info.SnapID,
+			Channel:    info.Channel,
+			File:       filepath.Base(fn),
+			Sideloaded: info.SnapID == "",
 		})
 	}
 

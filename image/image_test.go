@@ -335,10 +335,24 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 3)
+
 	// check the files are in place
-	for _, fn := range []string{"pc_1.snap", "pc-kernel_2.snap", "ubuntu-core_3.snap"} {
+	for i, name := range []string{"pc", "ubuntu-core", "pc-kernel"} {
+		info := s.storeSnapInfo[name]
+		fn := filepath.Base(info.MountFile())
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
+
+		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
+			Name:   name,
+			SnapID: name + "-Id",
+			File:   fn,
+		})
 	}
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
@@ -401,10 +415,37 @@ func (s *imageSuite) TestBootstrapToRootDirSideloadCore(c *C) {
 	})
 	c.Assert(err, IsNil)
 
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 3)
+
 	// check the files are in place
-	for _, fn := range []string{"pc_1.snap", "pc-kernel_2.snap", "ubuntu-core_x1.snap"} {
+	for i, name := range []string{"ubuntu-core_x1.snap", "pc", "pc-kernel"} {
+		sideloaded := false
+		info := s.storeSnapInfo[name]
+		if info == nil {
+			// ubuntu-core
+			info = &snap.Info{
+				SideInfo: snap.SideInfo{
+					RealName: "ubuntu-core",
+					Revision: snap.R("x1"),
+				},
+			}
+			sideloaded = true
+		}
+
+		fn := filepath.Base(info.MountFile())
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
+
+		c.Check(seed.Snaps[i], DeepEquals, &snap.SeedSnap{
+			Name:       info.Name(),
+			SnapID:     info.SnapID,
+			File:       fn,
+			Sideloaded: sideloaded,
+		})
 	}
 
 	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
