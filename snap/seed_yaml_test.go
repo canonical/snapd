@@ -40,6 +40,9 @@ snaps:
    revision: 31
    file: foo_1.0_all.snap
    devmode: true
+ - name: local
+   sideloaded: true
+   file: local.snap
 `)
 
 func (s *seedYamlTestSuite) TestSimple(c *C) {
@@ -49,7 +52,7 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 
 	seed, err := snap.ReadSeedYaml(fn)
 	c.Assert(err, IsNil)
-	c.Assert(seed.Snaps, HasLen, 1)
+	c.Assert(seed.Snaps, HasLen, 2)
 	c.Assert(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
 		File:     "foo_1.0_all.snap",
 		Name:     "foo",
@@ -57,6 +60,11 @@ func (s *seedYamlTestSuite) TestSimple(c *C) {
 		Channel:  "stable",
 		Revision: snap.R(31),
 		DevMode:  true,
+	})
+	c.Assert(seed.Snaps[1], DeepEquals, &snap.SeedSnap{
+		File:       "local.snap",
+		Name:       "local",
+		Sideloaded: true,
 	})
 }
 
