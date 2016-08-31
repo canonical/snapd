@@ -42,7 +42,7 @@ const bluetoothControlConnectedPlugAppArmor = `
   /sys/devices/**/bluetooth/**    rw,
 
   # Requires CONFIG_BT_VHCI to be loaded
-  /dev/vhci                       r,
+  /dev/vhci                       rw,
 
 `
 
