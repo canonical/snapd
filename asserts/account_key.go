@@ -106,6 +106,11 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	}
 	// XXX: Make this unconditional once account-key assertions are required to have a name.
 	if ak.Name() != "" {
+		// Check that we don't end up with multiple keys with
+		// different IDs but the same account-id and name.
+		// Note that this is a non-transactional check-then-add, so
+		// is not a hard guarantee.  Backstores that can implement a
+		// unique constraint should do so.
 		assertions, err := db.FindMany(AccountKeyType, map[string]string{
 			"account-id": ak.AccountID(),
 			"name":       ak.Name(),
