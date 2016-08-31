@@ -32,7 +32,13 @@ setup_reflash_magic() {
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
         
         snap install --edge ubuntu-core
-        snap install --edge --devmode ubuntu-device-flash
+
+        # install special u-d-f
+        apt install -y bzr git
+        export GOPATH=/tmp/go
+        mkdir -p $GOPATH/src/launchpad.net/
+        ln -s $GOPATH/src/launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/  $GOPATH/src/launchpad.net/goget-ubuntu-touch
+        go get -insecure -u launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/ubuntu-device-flash
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
@@ -72,16 +78,26 @@ setup_reflash_magic() {
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 
-        # FIXME: how to test store updated of ubuntu-core with that?
-        
-        # create new image with the modified ubuntu-core snap
+        # FIXME: remove once we have a proper model.assertion
+        . $TESTSLIB/store.sh
+        STORE_DIR=/tmp/fake-store-blobdir
+        mkdir -p $STORE_DIR
+        setup_store fake-w-assert-fallback $STORE_DIR
+        cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
+        cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
+
+        # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
+        export SNAPPY_FORCE_SAS_URL=http://localhost:11028
         IMAGE=all-snap-amd64.img
-        /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os $IMAGE_HOME/ubuntu-core_*.snap --install snapweb  --output $IMAGE_HOME/$IMAGE
+        /tmp/go/bin/ubuntu-device-flash core 16 $TESTSLIB/assertions/developer1-pc.model --channel edge --install snapweb --install $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+
+        # teardown store
+        teardown_store fake $STORE_DIR
         
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
-        mount /dev/mapper/loop2p3 /mnt
+        mount /dev/mapper/loop1p3 /mnt
         mkdir -p /mnt/user-data/
         cp -avr /home/gopath /mnt/user-data/
 
