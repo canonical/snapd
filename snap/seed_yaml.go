@@ -31,8 +31,8 @@ import (
 
 type SeedSnap struct {
 	// yaml needs to be in sync with SideInfo
-	Name string `yaml:"name" json:"name"`
-	Channel     string   `yaml:"channel,omitempty" json:"channel,omitempty"`
+	Name    string `yaml:"name" json:"name"`
+	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
 
 	// XXX: these come from assertions now
 	SnapID      string   `yaml:"snap-id,omitempty" json:"snap-id"`
