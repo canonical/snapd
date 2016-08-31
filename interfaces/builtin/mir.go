@@ -30,7 +30,7 @@ var mirPermanentSlotAppArmor = []byte(`
 # Usage: reserved
 # needed since Mir is the display server, to configure tty devices
 capability sys_tty_config,
-/dev/shm/\#* rw,
+/{dev,run}/shm/\#* rw,
 /dev/tty[0-9]* rw,
 network netlink raw,
 /run/mir_socket rw,

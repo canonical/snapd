@@ -189,6 +189,12 @@ and media application. Recording not supported but will be in a future release.
 
 * Auto-Connect: yes
 
+### screen-inhibit-control
+
+Can access desktop session manager screen inhibit and uninhibit functionality.
+
+* Auto-Connect: yes
+
 ### unity7
 
 Can access Unity7. Unity 7 runs on X and requires access to various DBus
@@ -407,3 +413,9 @@ Can access snaps providing the udisks2 interface which gives privileged access
 to storage on the device
 
 * Auto-Connect: no
+
+### upower-observe
+
+Can query UPower for power devices, history and statistics.
+
+* Auto-Connect: yes
