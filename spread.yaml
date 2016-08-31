@@ -14,23 +14,24 @@ environment:
 backends:
     linode:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+        halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
-                  image: ubuntu-16.04-64-grub
+                kernel: GRUB 2
             - ubuntu-16.04-32:
-                  image: ubuntu-16.04-32-grub
+                kernel: GRUB 2
             - ubuntu-core-16-64:
-                  image: ubuntu-16.04-64-grub
-                  kernel: Direct Disk
+                kernel: Direct Disk
+                image: ubuntu-16.04-64
     qemu:
         systems:
             - ubuntu-16.04-64:
-                  username: ubuntu
-                  password: ubuntu
+                username: ubuntu
+                password: ubuntu
             - ubuntu-core-16-64:
-                  image: ubuntu-16.04-64
-                  username: ubuntu
-                  password: ubuntu
+                image: ubuntu-16.04-64
+                username: ubuntu
+                password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 

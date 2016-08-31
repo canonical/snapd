@@ -32,7 +32,7 @@ setup_reflash_magic() {
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
         
         snap install --edge ubuntu-core
-        snap install --edge --devmode ubuntu-device-flash
+        snap install --beta --devmode ubuntu-device-flash
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
