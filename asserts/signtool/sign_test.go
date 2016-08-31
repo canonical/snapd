@@ -17,7 +17,7 @@
  *
  */
 
-package tool_test
+package signtool_test
 
 import (
 	"bytes"
@@ -27,10 +27,10 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/asserts/tool"
+	"github.com/snapcore/snapd/asserts/signtool"
 )
 
-func TestTool(t *testing.T) { TestingT(t) }
+func TestSigntool(t *testing.T) { TestingT(t) }
 
 type signSuite struct {
 	keypairMgr asserts.KeypairManager
@@ -80,13 +80,13 @@ func expectedModelHeaders(a asserts.Assertion) map[string]interface{} {
 }
 
 func (s *signSuite) TestSignYAML(c *C) {
-	req := tool.SignRequest{
+	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
 		Statement: []byte(modelYaml),
 	}
 
-	assertText, err := tool.Sign(&req, s.keypairMgr)
+	assertText, err := signtool.Sign(&opts, s.keypairMgr)
 	c.Assert(err, IsNil)
 
 	a, err := asserts.Decode(assertText)
@@ -105,14 +105,14 @@ func (s *signSuite) TestSignYAML(c *C) {
 }
 
 func (s *signSuite) TestSignYAMLWithBodyAndRevision(c *C) {
-	req := tool.SignRequest{
+	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
 		Statement: []byte(modelYaml + `body: "BODY"
 revision: "11"`),
 	}
 
-	assertText, err := tool.Sign(&req, s.keypairMgr)
+	assertText, err := signtool.Sign(&opts, s.keypairMgr)
 	c.Assert(err, IsNil)
 
 	a, err := asserts.Decode(assertText)
@@ -131,60 +131,60 @@ revision: "11"`),
 }
 
 func (s *signSuite) TestSignErrors(c *C) {
-	req := tool.SignRequest{
+	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
 		Statement: []byte(modelYaml),
 	}
 
 	tests := []struct {
-		expError string
-		breakReq func(*tool.SignRequest)
+		expError  string
+		breakOpts func(*signtool.Options)
 	}{
 		{`cannot parse the assertion input as YAML:.*`,
-			func(req *tool.SignRequest) {
-				req.Statement = []byte("\x00")
+			func(opts *signtool.Options) {
+				opts.Statement = []byte("\x00")
 			},
 		},
 		{`invalid assertion type: what`,
-			func(req *tool.SignRequest) {
-				req.Statement = bytes.Replace(req.Statement, []byte(": model"), []byte(": what"), 1)
+			func(opts *signtool.Options) {
+				opts.Statement = bytes.Replace(opts.Statement, []byte(": model"), []byte(": what"), 1)
 			},
 		},
 		{`assertion type must be a string, not: \[\]`,
-			func(req *tool.SignRequest) {
-				req.Statement = bytes.Replace(req.Statement, []byte(": model"), []byte(": []"), 1)
+			func(opts *signtool.Options) {
+				opts.Statement = bytes.Replace(opts.Statement, []byte(": model"), []byte(": []"), 1)
 			},
 		},
 		{`missing assertion type header`,
-			func(req *tool.SignRequest) {
-				req.Statement = bytes.Replace(req.Statement, []byte("type: model\n"), []byte(""), 1)
+			func(opts *signtool.Options) {
+				opts.Statement = bytes.Replace(opts.Statement, []byte("type: model\n"), []byte(""), 1)
 			},
 		},
 		{"revision should be positive: -10",
-			func(req *tool.SignRequest) {
-				req.Statement = append(req.Statement, `revision: "-10"`...)
+			func(opts *signtool.Options) {
+				opts.Statement = append(opts.Statement, `revision: "-10"`...)
 			},
 		},
 		{`"authority-id" header is mandatory`,
-			func(req *tool.SignRequest) {
-				req.Statement = bytes.Replace(req.Statement, []byte("authority-id: user-id1\n"), []byte(""), 1)
+			func(opts *signtool.Options) {
+				opts.Statement = bytes.Replace(opts.Statement, []byte("authority-id: user-id1\n"), []byte(""), 1)
 
 			},
 		},
 		{`body if specified must be a string`,
-			func(req *tool.SignRequest) {
-				req.Statement = append(req.Statement, `body: []`...)
+			func(opts *signtool.Options) {
+				opts.Statement = append(opts.Statement, `body: []`...)
 			},
 		},
 	}
 
 	for _, t := range tests {
-		fresh := req
+		fresh := opts
 
-		t.breakReq(&fresh)
+		t.breakOpts(&fresh)
 
-		_, err := tool.Sign(&fresh, s.keypairMgr)
+		_, err := signtool.Sign(&fresh, s.keypairMgr)
 		c.Check(err, ErrorMatches, t.expError)
 	}
 }

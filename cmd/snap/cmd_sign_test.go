@@ -56,7 +56,7 @@ func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 func (s *SnapKeysSuite) TestHappyNonDefaultKey(c *C) {
 	s.stdin.Write(statement)
 
-	rest, err := snap.Parser().ParseArgs([]string{"sign", "--key-name", "another"})
+	rest, err := snap.Parser().ParseArgs([]string{"sign", "-k", "another"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 

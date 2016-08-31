@@ -17,8 +17,8 @@
  *
  */
 
-// Package tool offers tooling to sign assertions.
-package tool
+// Package signtool offers tooling to sign assertions.
+package signtool
 
 import (
 	"fmt"
@@ -28,8 +28,8 @@ import (
 	"github.com/snapcore/snapd/asserts"
 )
 
-// SignRequest specifies the complete input for signing an assertion.
-type SignRequest struct {
+// Options specifies the complete input for signing an assertion.
+type Options struct {
 	// KeyID specifies the key id of the key to use
 	KeyID string
 
@@ -41,10 +41,10 @@ type SignRequest struct {
 	Statement []byte
 }
 
-// Sign produces the text of a signed assertion as specified by req.
-func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
+// Sign produces the text of a signed assertion as specified by opts.
+func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	var headers map[string]interface{}
-	err := yaml.Unmarshal(req.Statement, &headers)
+	err := yaml.Unmarshal(opts.Statement, &headers)
 	if err != nil {
 		return nil, fmt.Errorf("cannot parse the assertion input as YAML: %v", err)
 	}
@@ -71,7 +71,7 @@ func Sign(req *SignRequest, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		delete(headers, "body")
 	}
 
-	keyID := req.KeyID
+	keyID := opts.KeyID
 
 	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: keypairMgr,
