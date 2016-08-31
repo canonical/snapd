@@ -366,6 +366,42 @@ func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndNewRevision(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (aks *accountKeySuite) TestAccountKeyCheckSameAccountAndDifferentName(c *C) {
+	trustedKey := testPrivKey0
+
+	headers := map[string]interface{}{
+		"authority-id":        "canonical",
+		"account-id":          "acc-id1",
+		"name":                "default",
+		"public-key-sha3-384": aks.keyID,
+		"since":               aks.since.Format(time.RFC3339),
+		"until":               aks.until.Format(time.RFC3339),
+	}
+	accKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, []byte(aks.pubKeyBody), trustedKey)
+	c.Assert(err, IsNil)
+
+	db := aks.openDB(c)
+	aks.prereqAccount(c, db)
+
+	err = db.Add(accKey)
+	c.Assert(err, IsNil)
+
+	newPrivKey, _ := assertstest.GenerateKey(752)
+	err = db.ImportKey(newPrivKey)
+	c.Assert(err, IsNil)
+	newPubKey, err := db.PublicKey(newPrivKey.PublicKey().ID())
+	c.Assert(err, IsNil)
+	newPubKeyEncoded, err := asserts.EncodePublicKey(newPubKey)
+
+	headers["name"] = "another"
+	headers["public-key-sha3-384"] = newPubKey.ID()
+	newAccKey, err := asserts.AssembleAndSignInTest(asserts.AccountKeyType, headers, newPubKeyEncoded, trustedKey)
+	c.Assert(err, IsNil)
+
+	err = db.Check(newAccKey)
+	c.Assert(err, IsNil)
+}
+
 func (aks *accountKeySuite) TestAccountKeyCheckSameNameAndDifferentAccount(c *C) {
 	trustedKey := testPrivKey0
 
