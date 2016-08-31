@@ -20,7 +20,7 @@
 package signtool_test
 
 import (
-	"bytes"
+	"encoding/json"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -47,43 +47,47 @@ func (s *signSuite) SetUpSuite(c *C) {
 	s.testKeyID = testKey.PublicKey().ID()
 }
 
-const (
-	modelYaml = `type: model
-authority-id: user-id1
-series: "16"
-brand-id: user-id1
-model: baz-3000
-architecture: amd64
-gadget: brand-gadget
-kernel: baz-linux
-store: brand-store
-required-snaps: [foo, bar]
-timestamp: 2015-11-25T20:00:00Z
-`
-)
-
 func expectedModelHeaders(a asserts.Assertion) map[string]interface{} {
-	return map[string]interface{}{
-		"type":              "model",
-		"authority-id":      "user-id1",
-		"series":            "16",
-		"brand-id":          "user-id1",
-		"model":             "baz-3000",
-		"architecture":      "amd64",
-		"gadget":            "brand-gadget",
-		"kernel":            "baz-linux",
-		"store":             "brand-store",
-		"required-snaps":    []interface{}{"foo", "bar"},
-		"timestamp":         "2015-11-25T20:00:00Z",
-		"sign-key-sha3-384": a.SignKeyID(),
+	m := map[string]interface{}{
+		"type":           "model",
+		"authority-id":   "user-id1",
+		"series":         "16",
+		"brand-id":       "user-id1",
+		"model":          "baz-3000",
+		"architecture":   "amd64",
+		"gadget":         "brand-gadget",
+		"kernel":         "baz-linux",
+		"store":          "brand-store",
+		"required-snaps": []interface{}{"foo", "bar"},
+		"timestamp":      "2015-11-25T20:00:00Z",
 	}
+	if a != nil {
+		m["sign-key-sha3-384"] = a.SignKeyID()
+	}
+	return m
+}
+
+func exampleJSON(overrides map[string]interface{}) []byte {
+	m := expectedModelHeaders(nil)
+	for k, v := range overrides {
+		if v == nil {
+			delete(m, k)
+		} else {
+			m[k] = v
+		}
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		panic(err)
+	}
+	return b
 }
 
 func (s *signSuite) TestSignYAML(c *C) {
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
-		Statement: []byte(modelYaml),
+		Statement: exampleJSON(nil),
 	}
 
 	assertText, err := signtool.Sign(&opts, s.keypairMgr)
@@ -105,11 +109,14 @@ func (s *signSuite) TestSignYAML(c *C) {
 }
 
 func (s *signSuite) TestSignYAMLWithBodyAndRevision(c *C) {
+	statement := exampleJSON(map[string]interface{}{
+		"body":     "BODY",
+		"revision": "11",
+	})
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
-		Statement: []byte(modelYaml + `body: "BODY"
-revision: "11"`),
+		Statement: statement,
 	}
 
 	assertText, err := signtool.Sign(&opts, s.keypairMgr)
@@ -133,56 +140,38 @@ revision: "11"`),
 func (s *signSuite) TestSignErrors(c *C) {
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
-
-		Statement: []byte(modelYaml),
 	}
 
+	emptyList := []interface{}{}
+
 	tests := []struct {
-		expError  string
-		breakOpts func(*signtool.Options)
+		expError        string
+		brokenStatement []byte
 	}{
-		{`cannot parse the assertion input as YAML:.*`,
-			func(opts *signtool.Options) {
-				opts.Statement = []byte("\x00")
-			},
+		{`cannot parse the assertion input as JSON:.*`,
+			[]byte("\x00"),
 		},
 		{`invalid assertion type: what`,
-			func(opts *signtool.Options) {
-				opts.Statement = bytes.Replace(opts.Statement, []byte(": model"), []byte(": what"), 1)
-			},
+			exampleJSON(map[string]interface{}{"type": "what"}),
 		},
 		{`assertion type must be a string, not: \[\]`,
-			func(opts *signtool.Options) {
-				opts.Statement = bytes.Replace(opts.Statement, []byte(": model"), []byte(": []"), 1)
-			},
+			exampleJSON(map[string]interface{}{"type": emptyList}),
 		},
 		{`missing assertion type header`,
-			func(opts *signtool.Options) {
-				opts.Statement = bytes.Replace(opts.Statement, []byte("type: model\n"), []byte(""), 1)
-			},
+			exampleJSON(map[string]interface{}{"type": nil}),
 		},
 		{"revision should be positive: -10",
-			func(opts *signtool.Options) {
-				opts.Statement = append(opts.Statement, `revision: "-10"`...)
-			},
-		},
+			exampleJSON(map[string]interface{}{"revision": "-10"})},
 		{`"authority-id" header is mandatory`,
-			func(opts *signtool.Options) {
-				opts.Statement = bytes.Replace(opts.Statement, []byte("authority-id: user-id1\n"), []byte(""), 1)
-
-			},
-		},
+			exampleJSON(map[string]interface{}{"authority-id": nil})},
 		{`body if specified must be a string`,
-			func(opts *signtool.Options) {
-				opts.Statement = append(opts.Statement, `body: []`...)
-			},
-		},
+			exampleJSON(map[string]interface{}{"body": emptyList})},
 	}
 
 	for _, t := range tests {
 		fresh := opts
 
-		t.breakOpts(&fresh)
+		fresh.Statement = t.brokenStatement
 
 		_, err := signtool.Sign(&fresh, s.keypairMgr)
 		c.Check(err, ErrorMatches, t.expError)
