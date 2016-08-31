@@ -58,6 +58,9 @@ type Handler interface {
 
 	// Error is called if the hook encounters an error while running.
 	Error(err error) error
+
+	// SetConf associates the value with the key in the snap's configuration.
+	SetConf(key string, value interface{})
 }
 
 // HandlerGenerator is the function signature required to register for hooks.

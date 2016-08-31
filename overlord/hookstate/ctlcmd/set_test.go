@@ -31,12 +31,13 @@ import (
 
 type setSuite struct {
 	mockContext *hookstate.Context
+	mockHandler *hooktest.MockHandler
 }
 
 var _ = Suite(&setSuite{})
 
 func (s *setSuite) SetUpTest(c *C) {
-	handler := hooktest.NewMockHandler()
+	s.mockHandler = hooktest.NewMockHandler()
 
 	state := state.New(nil)
 	state.Lock()
@@ -46,8 +47,13 @@ func (s *setSuite) SetUpTest(c *C) {
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
 
 	var err error
-	s.mockContext, err = hookstate.NewContext(task, setup, handler)
+	s.mockContext, err = hookstate.NewContext(task, setup, s.mockHandler)
 	c.Assert(err, IsNil)
+}
+
+func (s *setSuite) TestInvalidArguments(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"})
+	c.Check(err, ErrorMatches, ".*invalid configuration.*want key=value.*")
 }
 
 func (s *setSuite) TestCommand(c *C) {
@@ -55,6 +61,25 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
+
+	// Verify that the handler's SetConf function was called appropriately
+	c.Assert(s.mockHandler.SetConfCalls, HasLen, 1)
+	c.Check(s.mockHandler.SetConfCalls[0].Key, Equals, "foo")
+	c.Check(s.mockHandler.SetConfCalls[0].Value, Equals, "bar")
+}
+
+func (s *setSuite) TestCommandMultipleValues(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar", "baz=qux"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Verify that the handler's SetConf function was called appropriately
+	c.Assert(s.mockHandler.SetConfCalls, HasLen, 2)
+	c.Check(s.mockHandler.SetConfCalls[0].Key, Equals, "foo")
+	c.Check(s.mockHandler.SetConfCalls[0].Value, Equals, "bar")
+	c.Check(s.mockHandler.SetConfCalls[1].Key, Equals, "baz")
+	c.Check(s.mockHandler.SetConfCalls[1].Value, Equals, "qux")
 }
 
 func (s *setSuite) TestCommandWithoutContext(c *C) {
