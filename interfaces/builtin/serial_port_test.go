@@ -30,7 +30,9 @@ import (
 
 type SerialPortInterfaceSuite struct {
 	testutil.BaseTest
-	iface            interfaces.Interface
+	iface interfaces.Interface
+
+	// OS Snap
 	testSlot1        *interfaces.Slot
 	testSlot2        *interfaces.Slot
 	testSlot3        *interfaces.Slot
@@ -40,8 +42,16 @@ type SerialPortInterfaceSuite struct {
 	badPathSlot2     *interfaces.Slot
 	badPathSlot3     *interfaces.Slot
 	badInterfaceSlot *interfaces.Slot
-	plug             *interfaces.Plug
-	badInterfacePlug *interfaces.Plug
+
+	// Gadget Snap
+	testUdev1         *interfaces.Slot
+	testUdev2         *interfaces.Slot
+	testUdevBadValue1 *interfaces.Slot
+	testUdevBadValue2 *interfaces.Slot
+
+	// Consuming Snap
+	testPlugPort1 *interfaces.Plug
+	testPlugPort2 *interfaces.Plug
 }
 
 var _ = Suite(&SerialPortInterfaceSuite{
@@ -49,8 +59,9 @@ var _ = Suite(&SerialPortInterfaceSuite{
 })
 
 func (s *SerialPortInterfaceSuite) SetUpTest(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	osSnapInfo, err := snap.InfoFromSnapYaml([]byte(`
 name: ubuntu-core
+type: os
 slots:
     test-port-1:
         interface: serial-port
@@ -75,192 +86,170 @@ slots:
         interface: serial-port
         path: /dev/ttyUSB9271
     bad-interface: other-interface
-plugs:
-    plug: serial-port
-    bad-interface: other-interface
 `))
 	c.Assert(err, IsNil)
-	s.testSlot1 = &interfaces.Slot{SlotInfo: info.Slots["test-port-1"]}
-	s.testSlot2 = &interfaces.Slot{SlotInfo: info.Slots["test-port-2"]}
-	s.testSlot3 = &interfaces.Slot{SlotInfo: info.Slots["test-port-3"]}
-	s.testSlot4 = &interfaces.Slot{SlotInfo: info.Slots["test-port-4"]}
-	s.missingPathSlot = &interfaces.Slot{SlotInfo: info.Slots["missing-path"]}
-	s.badPathSlot1 = &interfaces.Slot{SlotInfo: info.Slots["bad-path-1"]}
-	s.badPathSlot2 = &interfaces.Slot{SlotInfo: info.Slots["bad-path-2"]}
-	s.badPathSlot3 = &interfaces.Slot{SlotInfo: info.Slots["bad-path-3"]}
-	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface"]}
-	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["plug"]}
-	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface"]}
+	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
+	s.testSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-2"]}
+	s.testSlot3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-3"]}
+	s.testSlot4 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-4"]}
+	s.missingPathSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["missing-path"]}
+	s.badPathSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-1"]}
+	s.badPathSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-2"]}
+	s.badPathSlot3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-3"]}
+	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-interface"]}
+
+	gadgetSnapInfo, err := snap.InfoFromSnapYaml([]byte(`
+name: some-device
+type: gadget
+slots:
+  test-udev-1:
+      interface: serial-port
+      usb-vendor: 0x0001
+      usb-product: 0x0001
+      path: /dev/zigbee
+  test-udev-2:
+      interface: serial-port
+      usb-vendor: 0xffff
+      usb-product: 0xffff
+      path: /dev/my-device
+  test-udev-bad-value-1:
+      interface: serial-port
+      usb-vendor: -1
+      usb-product: 0xffff
+      path: /dev/my-device
+  test-udev-bad-value-2:
+      interface: serial-port
+      usb-vendor: 0x1234
+      usb-product: 0x10000
+      path: /dev/my-device
+`))
+	c.Assert(err, IsNil)
+	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
+	s.testUdev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
+	s.testUdevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
+	s.testUdevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
+
+	consumingSnapInfo, err := snap.InfoFromSnapYaml([]byte(`
+name: client-snap
+plugs:
+    plug-for-port-1:
+        interface: serial-port
+    plug-for-port-2:
+        interface: serial-port
+
+apps:
+    app-accessing-1-port:
+        command: foo
+        plugs: [serial-port]
+    app-accessing-2-ports:
+        command: bar
+        plugs: [plug-for-port-1, plug-for-port-2]
+`))
+	c.Assert(err, IsNil)
+	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
+	s.testPlugPort2 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-2"]}
 }
 
 func (s *SerialPortInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "serial-port")
 }
 
-func (s *SerialPortInterfaceSuite) TestSanitizeSlot(c *C) {
-	// Test good slot examples
+func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, IsNil)
 	}
+}
+
+func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 	// Slots without the "path" attribute are rejected.
 	err := s.iface.SanitizeSlot(s.missingPathSlot)
-	c.Assert(err, ErrorMatches,
-		"serial-port slot must have a path attribute")
+	c.Assert(err, ErrorMatches, `serial-port slot must have a path attribute`)
+
 	// Slots with incorrect value of the "path" attribute are rejected.
 	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3} {
 		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, ErrorMatches,
-			"serial-port path attribute must be a valid device node")
+		c.Assert(err, ErrorMatches, "serial-port path attribute must be a valid device node")
 	}
+
 	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches,
-		`slot is not of interface "serial-port"`)
+	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches, `slot is not of interface "serial-port"`)
 }
 
-func (s *SerialPortInterfaceSuite) TestSanitizePlug(c *C) {
-	err := s.iface.SanitizePlug(s.plug)
+func (s *SerialPortInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
+	err := s.iface.SanitizeSlot(s.testUdev1)
 	c.Assert(err, IsNil)
-	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
-	c.Assert(func() { s.iface.SanitizePlug(s.badInterfacePlug) }, PanicMatches,
-		`plug is not of interface "serial-port"`)
+
+	err = s.iface.SanitizeSlot(s.testUdev2)
+	c.Assert(err, IsNil)
 }
 
-func (s *SerialPortInterfaceSuite) TestConnectedPlugSnippetPanicsOnUnsanitizedSlots(c *C) {
-	// Unsanitized slots should never be used and cause a panic.
-	c.Assert(func() {
-		s.iface.ConnectedPlugSnippet(s.plug, s.missingPathSlot, interfaces.SecurityAppArmor)
-	}, PanicMatches, "slot is not sanitized")
+func (s *SerialPortInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
+	err := s.iface.SanitizeSlot(s.testUdevBadValue1)
+	c.Assert(err, ErrorMatches, "serial-port usb-vendor attribute not valid: -1")
+
+	err = s.iface.SanitizeSlot(s.testUdevBadValue2)
+	c.Assert(err, ErrorMatches, "serial-port usb-product attribute not valid: 65536")
 }
 
-func (s *SerialPortInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c *C) {
+func (s *SerialPortInterfaceSuite) TestPermanentSlotUdevSnippets(c *C) {
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
-		// No extra seccomp permissions for plug
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecuritySecComp)
+		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityDBus)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for plug
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}
-}
 
-func (s *SerialPortInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c *C) {
-	// No extra seccomp permissions for plug
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	// No extra dbus permissions for plug
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityDBus)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	// No extra udev permissions for plug
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	// No extra udev permissions for plug
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	// Other security types are not recognized
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, ErrorMatches, `unknown security system`)
-	c.Assert(snippet, IsNil)
-}
-
-func (s *SerialPortInterfaceSuite) TestPermanentSlotSnippetGivesExtraPermissions(c *C) {
-	// slot snippet 1
-	expectedSlotSnippet1 := []byte(`
-/dev/ttyS0 rwk,
+	expectedSnippet1 := []byte(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="/dev/zigbee"
 `)
-	snippet, err := s.iface.PermanentSlotSnippet(s.testSlot1, interfaces.SecurityAppArmor)
+	snippet, err := s.iface.PermanentSlotSnippet(s.testUdev1, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSlotSnippet1)
-	// slot snippet 2
-	expectedSlotSnippet2 := []byte(`
-/dev/ttyAMA2 rwk,
+	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+
+	expectedSnippet2 := []byte(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="FFFF", ATTRS{idProduct}=="FFFF", SYMLINK+="/dev/my-device"
 `)
-	snippet, err = s.iface.PermanentSlotSnippet(s.testSlot2, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.PermanentSlotSnippet(s.testUdev2, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSlotSnippet2)
-	// slot snippet 3
-	expectedSlotSnippet3 := []byte(`
-/dev/ttyUSB927 rwk,
+	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
+}
+
+func (s *SerialPortInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, interfaces.SecurityUDev)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, IsNil)
+
+	expectedSnippet1 := []byte(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-2-ports"
 `)
-	snippet, err = s.iface.PermanentSlotSnippet(s.testSlot3, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSlotSnippet3)
-	// slot snippet 4
-	expectedSlotSnippet4 := []byte(`
-/dev/ttyS42 rwk,
+	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
+
+	expectedSnippet2 := []byte(`IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="FFFF", ATTRS{idProduct}=="FFFF", TAG+="snap_client-snap_app-accessing-2-ports"
 `)
-	snippet, err = s.iface.PermanentSlotSnippet(s.testSlot4, interfaces.SecurityAppArmor)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, DeepEquals, expectedSlotSnippet4)
+	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 }
 
-func (s *SerialPortInterfaceSuite) TestPermanentSlotSnippetPanicsOnUnsanitizedSlots(c *C) {
-	// Unsanitized slots should never be used and cause a panic.
-	c.Assert(func() {
-		s.iface.PermanentSlotSnippet(s.missingPathSlot, interfaces.SecurityAppArmor)
-	}, PanicMatches, "slot is not sanitized")
-}
+func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
+	expectedSnippet1 := []byte(`/dev/ttyS0 rw,
+`)
+	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
-func (s *SerialPortInterfaceSuite) TestConnectedSlotSnippetUnusedSecuritySystems(c *C) {
-	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
-		// No extra seccomp permissions for slot
-		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecuritySecComp)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for slot
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityDBus)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for slot
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
-		c.Assert(snippet, IsNil)
-	}
-}
+	expectedSnippet2 := []byte(`/dev/* rw,
+`)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testUdev1, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 
-func (s *SerialPortInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c *C) {
-	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2, s.testSlot3, s.testSlot4} {
-		// No extra seccomp permissions for slot
-		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecuritySecComp)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for slot
-		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityDBus)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for slot
-		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.PermanentSlotSnippet(slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
-		c.Assert(snippet, IsNil)
-	}
-}
-
-func (s *SerialPortInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	expectedSnippet3 := []byte(`/dev/* rw,
+`)
+	snippet, err = s.iface.ConnectedPlugSnippet(s.testPlugPort2, s.testUdev2, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, DeepEquals, expectedSnippet3, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet3, snippet))
 }
