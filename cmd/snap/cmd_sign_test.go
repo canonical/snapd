@@ -31,15 +31,15 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-var statement = []byte(fmt.Sprintf(`type: snap-build
-authority-id: devel1
-series: "16"
-snap-id: snapidsnapidsnapidsnapidsnapidsn
-snap-sha3-384: QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL
-snap-size: "1"
-grade: devel
-timestamp: %s
-`, time.Now().Format(time.RFC3339)))
+var statement = []byte(fmt.Sprintf(`{"type": "snap-build",
+"authority-id": "devel1",
+"series": "16",
+"snap-id": "snapidsnapidsnapidsnapidsnapidsn",
+"snap-sha3-384": "QlqR0uAWEAWF5Nwnzj5kqmmwFslYPu1IL16MKtLKhwhv0kpBv5wKZ_axf_nf_2cL",
+"snap-size": "1",
+"grade": "devel",
+"timestamp": %q
+}`, time.Now().Format(time.RFC3339)))
 
 func (s *SnapKeysSuite) TestHappyDefaultKey(c *C) {
 	s.stdin.Write(statement)

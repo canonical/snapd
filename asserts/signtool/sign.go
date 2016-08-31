@@ -21,9 +21,8 @@
 package signtool
 
 import (
+	"encoding/json"
 	"fmt"
-
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 )
@@ -34,7 +33,7 @@ type Options struct {
 	KeyID string
 
 	// Statement is used as input to construct the assertion
-	// it's a mapping encoded as YAML
+	// it's a mapping encoded as JSON
 	// of the header fields of the assertion
 	// plus an optional pseudo-header "body" to specify
 	// the body of the assertion
@@ -44,9 +43,9 @@ type Options struct {
 // Sign produces the text of a signed assertion as specified by opts.
 func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 	var headers map[string]interface{}
-	err := yaml.Unmarshal(opts.Statement, &headers)
+	err := json.Unmarshal(opts.Statement, &headers)
 	if err != nil {
-		return nil, fmt.Errorf("cannot parse the assertion input as YAML: %v", err)
+		return nil, fmt.Errorf("cannot parse the assertion input as JSON: %v", err)
 	}
 	typCand, ok := headers["type"]
 	if !ok {
@@ -71,8 +70,6 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 		delete(headers, "body")
 	}
 
-	keyID := opts.KeyID
-
 	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		KeypairManager: keypairMgr,
 	})
@@ -82,7 +79,7 @@ func Sign(opts *Options, keypairMgr asserts.KeypairManager) ([]byte, error) {
 
 	// TODO: teach Sign to cross check keyID and authority-id
 	// against an account-key
-	a, err := adb.Sign(typ, headers, body, keyID)
+	a, err := adb.Sign(typ, headers, body, opts.KeyID)
 	if err != nil {
 		return nil, err
 	}
