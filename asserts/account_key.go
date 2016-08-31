@@ -115,12 +115,13 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 			"account-id": ak.AccountID(),
 			"name":       ak.Name(),
 		})
-		if err == nil {
-			for _, assertion := range assertions {
-				existingAccKey := assertion.(*AccountKey)
-				if ak.PublicKeyID() != existingAccKey.PublicKeyID() {
-					return fmt.Errorf("account-key assertion for %q with ID %q has the same name %q as existing ID %q", ak.AccountID(), ak.PublicKeyID(), ak.Name(), existingAccKey.PublicKeyID())
-				}
+		if err != nil && err != ErrNotFound {
+			return err
+		}
+		for _, assertion := range assertions {
+			existingAccKey := assertion.(*AccountKey)
+			if ak.PublicKeyID() != existingAccKey.PublicKeyID() {
+				return fmt.Errorf("account-key assertion for %q with ID %q has the same name %q as existing ID %q", ak.AccountID(), ak.PublicKeyID(), ak.Name(), existingAccKey.PublicKeyID())
 			}
 		}
 	}
