@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -127,16 +128,67 @@ version: 1.0`
 	err := os.Rename(mockSnapFile, targetSnapFile)
 	c.Assert(err, IsNil)
 
+	// put a firstboot sideloaded snap into the SnapBlobDir
+	snapYaml = `name: local
+version: 1.0`
+	mockSnapFile = snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+	targetSnapFile2 := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
+	err = os.Rename(mockSnapFile, targetSnapFile2)
+	c.Assert(err, IsNil)
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	err = ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snapidsnapid",
+		"publisher-id": "developerid",
+		"snap-name":    "foo",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	declFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-declaration")
+	err = ioutil.WriteFile(declFn, asserts.Encode(snapDecl), 0644)
+	c.Assert(err, IsNil)
+
+	sha3_384, size, err := asserts.SnapFileSHA3_384(targetSnapFile)
+	c.Assert(err, IsNil)
+
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": sha3_384,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       "snapidsnapid",
+		"developer-id":  "developerid",
+		"snap-revision": "128",
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	revFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-revision")
+	err = ioutil.WriteFile(revFn, asserts.Encode(snapRev), 0644)
+	c.Assert(err, IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
 snaps:
  - name: foo
-   revision: 128
-   snap-id: snapidsnapid
-   developer-id: developerid
    file: %s
    devmode: true
-`, filepath.Base(targetSnapFile)))
+ - name: local
+   sideloaded: true
+   file: %s
+`, filepath.Base(targetSnapFile), filepath.Base(targetSnapFile2)))
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
@@ -147,6 +199,8 @@ snaps:
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "local", "x1", "meta", "snap.yaml")), Equals, true)
+
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)
 	c.Assert(err, IsNil)
@@ -155,15 +209,24 @@ snaps:
 
 	state.Lock()
 	defer state.Unlock()
+	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
-	c.Assert(info.SideInfo.SnapID, Equals, "snapidsnapid")
-	c.Assert(info.SideInfo.DeveloperID, Equals, "developerid")
+	c.Assert(info.SnapID, Equals, "snapidsnapid")
+	c.Assert(info.Revision, Equals, snap.R(128))
+	c.Assert(info.DeveloperID, Equals, "developerid")
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.DevMode(), Equals, true)
+
+	// check local
+	info, err = snapstate.CurrentInfo(state, "local")
+	c.Assert(err, IsNil)
+	c.Assert(info.SnapID, Equals, "")
+	c.Assert(info.Revision, Equals, snap.R("x1"))
+	c.Assert(info.DeveloperID, Equals, "")
 }
 
 func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.Model {
@@ -258,7 +321,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	err = boot.ImportAssertionsFromSeed(st)
-	c.Assert(err, ErrorMatches, "cannot find account-key/.*: assertion not found")
+	c.Assert(err, ErrorMatches, "cannot find account-key .*: assertion not found")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {

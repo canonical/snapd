@@ -293,14 +293,7 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	}
 }
 
-func (s *imageSuite) TestBootstrapToRootDir(c *C) {
-	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
-	defer restore()
-
-	rootdir := filepath.Join(c.MkDir(), "imageroot")
-
-	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
-	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
+func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string) {
 	err := os.MkdirAll(gadgetUnpackDir, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
@@ -317,6 +310,18 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	s.downloadedSnaps["ubuntu-core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
 	s.storeSnapInfo["ubuntu-core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
 	s.addSystemSnapAssertions(c, "ubuntu-core")
+}
+
+func (s *imageSuite) TestBootstrapToRootDir(c *C) {
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+
+	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
+	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
+
+	s.setupSnaps(c, gadgetUnpackDir)
 
 	// mock the mount cmds (for the extract kernel assets stuff)
 	c1 := testutil.MockCommand(c, "mount", "")
@@ -324,7 +329,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	defer c2.Restore()
 
-	err = image.BootstrapToRootDir(s, s.model, &image.Options{
+	err := image.BootstrapToRootDir(s, s.model, &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	})
@@ -357,6 +362,12 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Check(a.Type(), Equals, asserts.AccountType)
 	c.Check(a.HeaderString("account-id"), Equals, "my-brand")
 
+	// check the snap assertions are also in place
+	for _, snapId := range []string{"pc-Id", "pc-kernel-Id", "ubuntu-core-Id"} {
+		p := filepath.Join(rootdir, "var/lib/snapd/seed/assertions", fmt.Sprintf("16,%s.snap-declaration", snapId))
+		c.Check(osutil.FileExists(p), Equals, true)
+	}
+
 	// check the bootloader config
 	cv, err := s.bootloader.GetBootVar("snap_kernel")
 	c.Assert(err, IsNil)
@@ -364,4 +375,73 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	cv, err = s.bootloader.GetBootVar("snap_core")
 	c.Assert(err, IsNil)
 	c.Check(cv, Equals, "ubuntu-core_3.snap")
+}
+
+func (s *imageSuite) TestBootstrapToRootDirSideloadCore(c *C) {
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+
+	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
+	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
+
+	s.setupSnaps(c, gadgetUnpackDir)
+
+	// mock the mount cmds (for the extract kernel assets stuff)
+	c1 := testutil.MockCommand(c, "mount", "")
+	defer c1.Restore()
+	c2 := testutil.MockCommand(c, "umount", "")
+	defer c2.Restore()
+
+	err := image.BootstrapToRootDir(s, s.model, &image.Options{
+		Snaps:           []string{s.downloadedSnaps["ubuntu-core"]},
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	})
+	c.Assert(err, IsNil)
+
+	// check the files are in place
+	for _, fn := range []string{"pc_1.snap", "pc-kernel_2.snap", "ubuntu-core_x1.snap"} {
+		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+	}
+
+	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
+	c.Assert(err, IsNil)
+	c.Check(l, HasLen, 3)
+
+	storeAccountKey := s.storeSigning.StoreAccountKey("")
+	brandPubKey, err := s.brandSigning.PublicKey("")
+	c.Assert(err, IsNil)
+
+	// check the assertions are in place
+	for _, fn := range []string{"model", brandPubKey.ID() + ".account-key", "my-brand.account", storeAccountKey.PublicKeyID() + ".account-key"} {
+		p := filepath.Join(rootdir, "var/lib/snapd/seed/assertions", fn)
+		c.Check(osutil.FileExists(p), Equals, true)
+	}
+
+	b, err := ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "model"))
+	c.Assert(err, IsNil)
+	c.Check(b, DeepEquals, asserts.Encode(s.model))
+
+	b, err = ioutil.ReadFile(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "my-brand.account"))
+	c.Assert(err, IsNil)
+	a, err := asserts.Decode(b)
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.AccountType)
+	c.Check(a.HeaderString("account-id"), Equals, "my-brand")
+
+	decls, err := filepath.Glob(filepath.Join(rootdir, "var/lib/snapd/seed/assertions", "*.snap-declaration"))
+	c.Assert(err, IsNil)
+	// nothing for ubuntu-core
+	c.Check(decls, HasLen, 2)
+
+	// check the bootloader config
+	cv, err := s.bootloader.GetBootVar("snap_kernel")
+	c.Assert(err, IsNil)
+	c.Check(cv, Equals, "pc-kernel_2.snap")
+	cv, err = s.bootloader.GetBootVar("snap_core")
+	c.Assert(err, IsNil)
+	c.Check(cv, Equals, "ubuntu-core_x1.snap")
 }
