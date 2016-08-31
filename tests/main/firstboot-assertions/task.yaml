@@ -8,8 +8,11 @@ prepare: |
     rm -f /var/lib/snapd/state.json
     mkdir -p $SEED_DIR/assertions
     touch $SEED_DIR/seed.yaml
+    # pretend to be not classic :)
+    mv /var/lib/dpkg/status /var/lib/dpkg/status.save 
 restore: |
     systemctl start snapd.service
+    mv /var/lib/dpkg/status.save /var/lib/dpkg/status
 execute: |
     echo Copy the needed assertions to /var/lib/snapd/
     cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
@@ -21,8 +24,7 @@ execute: |
     snap firstboot
 
     echo Verifying the result
-    output=$(find /var/lib/snapd/assertions/ -type f|wc -l)
-    if [ "$output" -lt "4" ]; then
-        echo "Expected at least 4 assertions, found $output"
+    if [ $(snap known model|grep "type: model"|wc -l) != "1" ]; then
+        echo "Model assertion was not imported on firstboot"
         exit 1
     fi
