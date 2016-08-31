@@ -65,6 +65,7 @@ var implicitClassicSlots = []string{
 	"screen-inhibit-control",
 	"unity7",
 	"x11",
+	"usb",
 }
 
 // AddImplicitSlots adds implicitly defined slots to a given snap.
