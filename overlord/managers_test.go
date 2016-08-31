@@ -59,8 +59,10 @@ import (
 type mgrsSuite struct {
 	tempdir string
 
-	aa         *testutil.MockCmd
-	udev       *testutil.MockCmd
+	aa     *testutil.MockCmd
+	udev   *testutil.MockCmd
+	umount *testutil.MockCmd
+
 	prevctlCmd func(...string) ([]byte, error)
 
 	storeSigning   *assertstest.StoreStack
@@ -100,6 +102,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	}
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
+	ms.umount = testutil.MockCommand(c, "umount", "")
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
@@ -116,6 +119,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
+	ms.umount.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
