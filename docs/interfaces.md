@@ -176,18 +176,18 @@ playback.
 
 * Auto-Connect: yes
 
-### pluggable-storage
-
-Can access files from pluggable storage in /media and /run/media
-
-* Auto-Connect: no
-
 ### pulseaudio
 
 Can access the PulseAudio sound server which allows for sound playback in games
 and media application. Recording not supported but will be in a future release.
 
 * Auto-Connect: yes
+
+### removable-media
+
+Can access files from removable media in /media and /run/media
+
+* Auto-Connect: no
 
 ### screen-inhibit-control
 
