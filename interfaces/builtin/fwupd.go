@@ -56,10 +56,8 @@ var fwupdPermanentSlotAppArmor = []byte(`
   # Allow access from efivar library
   owner @{PROC}/@{pid}/mounts r,
   /sys/devices/pci*/**/block/**/partition r,
-  # The efivar library need ESP partition GUID,offset,size
-  #/dev/sd[a-z]* r,
-  # Get data from udev with modified efivar library
-  /run/udev/data/b* r,
+  # Introspect the block devices to get partition guid and size information
+  /run/udev/data/b[0-9]*:[0-9]* r,
 
   # Allow access UEFI firmware platform size
   /sys/firmware/efi/ r,
@@ -85,14 +83,6 @@ var fwupdPermanentSlotAppArmor = []byte(`
   dbus (bind)
       bus=system
       name="org.freedesktop.fwupd",
-
-  # Allow unconfined to talk to us. The API for unconfined will be limited
-  # with DBus policy, below.
-  dbus (receive, send)
-      bus=system
-      path=/
-      interface=org.freedesktop.DBus*
-      peer=(label=unconfined),
 `)
 
 var fwupdConnectedPlugAppArmor = []byte(`
