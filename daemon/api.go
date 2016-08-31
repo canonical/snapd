@@ -38,6 +38,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -45,7 +46,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1491,7 +1492,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 var (
 	postCreateUserUcrednetGetUID = ucrednetGetUID
 	storeUserInfo                = store.UserInfo
-	osutilAddExtraUser           = osutil.AddExtraUser
+	osutilAddUser                = osutil.AddUser
 )
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1526,7 +1527,13 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
-	if err := osutilAddExtraUser(v.Username, v.SSHKeys, gecos, createData.Sudoer); err != nil {
+	opts := &osutil.AddUserOptions{
+		SSHKeys:    v.SSHKeys,
+		Gecos:      gecos,
+		Sudoer:     createData.Sudoer,
+		ExtraUsers: !release.OnClassic,
+	}
+	if err := osutilAddUser(v.Username, opts); err != nil {
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
@@ -1583,21 +1590,28 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 }
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
-	var snapctlRequest hookstate.SnapCtlRequest
+	var snapctlOptions client.SnapCtlOptions
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&snapctlRequest); err != nil {
+	if err := decoder.Decode(&snapctlOptions); err != nil {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if snapctlRequest.Context == "" {
-		return BadRequest("snapctl cannot run without context")
+	if snapctlOptions.ContextID == "" {
+		return BadRequest("snapctl cannot run without context ID")
 	}
 
-	if len(snapctlRequest.Args) == 0 {
+	if len(snapctlOptions.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	stdout, stderr, err := c.d.overlord.HookManager().SnapCtl(snapctlRequest)
+	// Right now snapctl is only used for hooks. If at some point it grows
+	// beyond that, this probably shouldn't go straight to the HookManager.
+	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	if err != nil {
+		return BadRequest("cannot run snapctl: %s", err)
+	}
+
+	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
 		return BadRequest("error running snapctl: %s", err)
 	}

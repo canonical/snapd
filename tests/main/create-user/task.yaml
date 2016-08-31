@@ -1,0 +1,30 @@
+summary: Ensure create-user functionality 
+
+systems: [-ubuntu-core-16-64]
+
+environment:
+    USER_EMAIL: mvo@ubuntu.com
+    USER_NAME: mvo
+
+restore: |
+    userdel -r $USER_NAME
+    rm -rf /etc/sudoers.d/create-user-$USER_NAME
+
+execute: |
+    echo "snap create-user -- ensure failure when no email address provided"
+    expected="error: bad user result: cannot create user: 'email' field is empty"
+    snap create-user 2>&1 | grep -q "$expected"
+
+    echo "snap create-user -- ensure failure when run as non-root user without sudo"
+    expected="error: bad user result: access denied"
+    su - test /bin/sh -c "SNAP_REEXEC=0 snap create-user $USER_EMAIL 2>&1" | grep -q "$expected"
+
+    echo "snap create-user -- ensure success when run as non-root user with sudo"
+    expected="Created user \"$USER_NAME\" and imported SSH keys."
+    su - test /bin/sh -c "sudo SNAP_REEXEC=0 snap create-user --sudoer $USER_EMAIL 2>&1" | grep -q "$expected"
+
+    echo "ensure user exists in /etc/passwd"
+    grep -qE "^$USER_NAME:x:[0-9]+:[0-9]+:$USER_EMAIL" /etc/passwd
+
+    echo "ensure proper sudoers.d file"
+    grep -q "$USER_NAME ALL=(ALL) NOPASSWD:ALL" /etc/sudoers.d/create-user-$USER_NAME
