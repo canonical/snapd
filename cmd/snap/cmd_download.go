@@ -20,11 +20,14 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -51,6 +54,49 @@ func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
 		return &cmdDownload{}
 	})
+}
+
+func fetchSnapAssertions(sto *store.Store, snapFn string) (string, error) {
+	// TODO: share some of this code
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		KeypairManager: asserts.NewMemoryKeypairManager(),
+		Backstore:      asserts.NewMemoryBackstore(),
+		Trusted:        sysdb.Trusted(),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	assertsFn := snapFn + ".asserts"
+	w, err := os.Create(assertsFn)
+	if err != nil {
+		return "", fmt.Errorf("cannot create assertions file: %s", err)
+	}
+	defer w.Close()
+
+	encoder := asserts.NewEncoder(w)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+	save := func(a asserts.Assertion) error {
+		return encoder.Encode(a)
+	}
+	f := asserts.NewFetcher(db, retrieve, save)
+
+	sha3_384, _, err := asserts.SnapFileSHA3_384(snapFn)
+	if err != nil {
+		return "", err
+	}
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{sha3_384},
+	}
+	if err := f.Fetch(ref); err != nil {
+		return "", fmt.Errorf("cannot fetch assertion %s: %s", ref, err)
+	}
+	// FIXME: cross check assertions here?
+
+	return assertsFn, nil
 }
 
 func (x *cmdDownload) Execute(args []string) error {
@@ -80,12 +126,14 @@ func (x *cmdDownload) Execute(args []string) error {
 	var user *auth.UserState
 
 	sto := store.New(nil, authContext)
-	// we always allow devmode
+	// we always allow devmode for downloads
 	devMode := true
 	snap, err := sto.Snap(snapName, x.Channel, devMode, revision, user)
 	if err != nil {
 		return err
 	}
+
+	fmt.Printf("Fetching snap %s\n", snapName)
 	pb := progress.NewTextProgress()
 	tmpName, err := sto.Download(snapName, &snap.DownloadInfo, pb, user)
 	if err != nil {
@@ -93,6 +141,17 @@ func (x *cmdDownload) Execute(args []string) error {
 	}
 	defer os.Remove(tmpName)
 
-	targetPath := filepath.Base(snap.MountFile())
-	return osutil.CopyFile(tmpName, targetPath, 0)
+	fmt.Printf("Fetching assertions for %s\n", snapName)
+	tmpAssertsFn, err := fetchSnapAssertions(sto, tmpName)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmpAssertsFn)
+
+	// copy files into the working directory
+	targetFn := filepath.Base(snap.MountFile())
+	if err := osutil.CopyFile(tmpAssertsFn, targetFn+".asserts", 0); err != nil {
+		return err
+	}
+	return osutil.CopyFile(tmpName, targetFn, 0)
 }
