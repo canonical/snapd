@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-var ValidAccountKeyName = regexp.MustCompile(`^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
+var validAccountKeyName = regexp.MustCompile(`^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
 
 // AccountKey holds an account-key assertion, asserting a public key
 // belonging to the account.
@@ -44,6 +44,10 @@ func (ak *AccountKey) AccountID() string {
 // Name returns the name of the account key.
 func (ak *AccountKey) Name() string {
 	return ak.HeaderString("name")
+}
+
+func IsValidAccountKeyName(name string) bool {
+	return validAccountKeyName.MatchString(name)
 }
 
 // Since returns the time when the account key starts being valid.
@@ -147,7 +151,7 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	// XXX: We should require name to be present after backfilling existing assertions.
 	_, ok := assert.headers["name"]
 	if ok {
-		_, err = checkStringMatches(assert.headers, "name", ValidAccountKeyName)
+		_, err = checkStringMatches(assert.headers, "name", validAccountKeyName)
 		if err != nil {
 			return nil, err
 		}
@@ -243,7 +247,7 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkStringMatches(assert.headers, "name", ValidAccountKeyName)
+	_, err = checkStringMatches(assert.headers, "name", validAccountKeyName)
 	if err != nil {
 		return nil, err
 	}

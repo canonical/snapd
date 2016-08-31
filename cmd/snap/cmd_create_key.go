@@ -55,7 +55,7 @@ func (x *cmdCreateKey) Execute(args []string) error {
 	if keyName == "" {
 		keyName = "default"
 	}
-	if !asserts.ValidAccountKeyName.MatchString(keyName) {
+	if !asserts.IsValidAccountKeyName(keyName) {
 		return fmt.Errorf("key name %q is not valid; only ASCII letters, digits, and hyphens are allowed", keyName)
 	}
 
