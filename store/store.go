@@ -385,17 +385,66 @@ func refreshMacaroon(user *auth.UserState) error {
 	return nil
 }
 
-// authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
-func (s *Store) authenticateDevice(r *http.Request) {
+// refreshUser will refresh user discharge macaroon and update state
+func (s *Store) refreshUser(user *auth.UserState) error {
+	err := refreshMacaroon(user)
+	if err != nil {
+		return err
+	}
+
 	if s.authContext != nil {
-		device, err := s.authContext.Device()
+		err = s.authContext.UpdateUser(user)
 		if err != nil {
-			logger.Debugf("cannot get device from state: %v", err)
-			return
+			return err
 		}
-		if device.SessionMacaroon != "" {
-			r.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
-		}
+	}
+
+	return nil
+}
+
+// refreshDeviceSession will set or refresh the device session in the state
+func (s *Store) refreshDeviceSession() error {
+	if s.authContext == nil {
+		return fmt.Errorf("internal error: no authContext")
+	}
+
+	device, err := s.authContext.Device()
+	if err != nil {
+		return err
+	}
+
+	serialAssertion, err := s.authContext.Serial()
+	if err != nil {
+		return err
+	}
+
+	nonce, err := RequestStoreDeviceNonce()
+	if err != nil {
+		return err
+	}
+
+	serialProof, err := s.authContext.SerialProof(nonce)
+	if err != nil {
+		return err
+	}
+
+	session, err := RequestDeviceSession(string(serialAssertion), string(serialProof), device.SessionMacaroon)
+	if err != nil {
+		return err
+	}
+
+	device.SessionMacaroon = session
+	err = s.authContext.UpdateDevice(device)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
+func authenticateDevice(r *http.Request, device *auth.DeviceState) {
+	if device.SessionMacaroon != "" {
+		r.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
 	}
 }
 
@@ -436,25 +485,32 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 	}
 
 	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 && user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-		// close previous response, refresh and retry
-		resp.Body.Close()
-		err = refreshMacaroon(user)
-		if err != nil {
-			return nil, err
-		}
-		if s.authContext != nil {
-			err = s.authContext.UpdateUser(user)
+	if resp.StatusCode == 401 {
+		refreshed := false
+		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+			// refresh user
+			err = s.refreshUser(user)
 			if err != nil {
 				return nil, err
 			}
+			refreshed = true
 		}
-		req, err := s.newRequest(reqOptions, user)
-		if err != nil {
-			return nil, err
+		if strings.Contains(wwwAuth, "refresh_device_session=1") {
+			// refresh device session
+			err = s.refreshDeviceSession()
+			if err != nil {
+				return nil, err
+			}
+			refreshed = true
 		}
-		resp, err = client.Do(req)
+		if refreshed {
+			// close previous response and retry
+			// TODO: make this non-recursive or add a recursion limit
+			resp.Body.Close()
+			return s.doRequest(client, reqOptions, user)
+		}
 	}
+
 	return resp, err
 }
 
@@ -470,7 +526,15 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		return nil, err
 	}
 
-	s.authenticateDevice(req)
+	if s.authContext != nil {
+		device, err := s.authContext.Device()
+		if err != nil {
+			return nil, err
+		}
+		// TODO: if device session is empty, request new session
+		authenticateDevice(req, device)
+	}
+
 	if user != nil {
 		authenticateUser(req, user)
 	}

@@ -33,6 +33,7 @@ import (
 
 var (
 	start           = flag.Bool("start", false, "Start the store service")
+	assertFallback  = flag.Bool("assert-fallback", false, "Fallback to the main online store for missing assertions")
 	topDir          = flag.String("dir", "", "Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions")
 	makeRefreshable = flag.String("make-refreshable", "", "List of snaps with new versions separated by commas")
 	addr            = flag.String("addr", "locahost:11028", "Store address")
@@ -49,7 +50,7 @@ func run() error {
 	flag.Parse()
 
 	if *start {
-		return runServer(*topDir, *addr)
+		return runServer(*topDir, *addr, *assertFallback)
 	}
 
 	if *makeRefreshable != "" {
@@ -59,8 +60,8 @@ func run() error {
 	return fmt.Errorf("please specify either start or make-refreshable")
 }
 
-func runServer(topDir, addr string) error {
-	st := store.NewStore(topDir, addr)
+func runServer(topDir, addr string, assertFallback bool) error {
+	st := store.NewStore(topDir, addr, assertFallback)
 
 	if err := st.Start(); err != nil {
 		return err

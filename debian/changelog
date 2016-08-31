@@ -1,3 +1,19 @@
+snapd (2.14.1) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - snap-exec: add support for commands with internal args in snap-
+      exec
+    - store: refresh expired device sessions
+    - debian: re-add ubuntu-core-snapd-units as a transitional package
+    - image: snap assertions into image
+    - overlord/assertstate,asserts/snapasserts: give snap assertions
+      helpers a package, introduce ReconstructSideInfo
+    - docs/interfaces: Add empty line after lxd-support title
+    - README: cover the new /run/snapd-snap.socket
+    - daemon: make socket split backward-compatible.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 30 Aug 2016 16:43:29 +0200
+
 snapd (2.14) xenial; urgency=medium
 
   * New upstream release: LP: #1618095
