@@ -324,6 +324,12 @@ func (o *Overlord) HookManager() *hookstate.HookManager {
 	return o.hookMgr
 }
 
+// ConfigManager returns the config manager maintaining configurations for all
+// snaps in the system.
+func (o *Overlord) ConfigManager() *configstate.ConfigManager {
+	return o.configMgr
+}
+
 // DeviceManager returns the device manager responsible for the device identity and policies
 func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
 	return o.deviceMgr

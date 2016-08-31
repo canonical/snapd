@@ -44,3 +44,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager
 
 	return manager, nil
 }
+
+// NewTransaction returns a getter/setter for snap configs that runs all
+// operations on a copy of the system configuration until committed.
+func (m *ConfigManager) NewTransaction() *Transaction {
+	return newTransaction(m.state)
+}

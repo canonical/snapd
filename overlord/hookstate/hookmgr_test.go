@@ -54,7 +54,7 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	s.manager = manager
 
 	s.state.Lock()
-	s.task = hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook")
+	s.task = hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook", nil)
 	c.Assert(s.task, NotNil, Commentf("Expected HookTask to return a task"))
 
 	s.change = s.state.NewChange("kind", "summary")

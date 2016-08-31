@@ -35,6 +35,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -1760,6 +1761,44 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	})
 
 	return chg.Summary()
+}
+
+func (s *apiSuite) runGetConf(c *check.C, keys []string) map[string]interface{} {
+	s.vars = map[string]string{"name": "test-snap"}
+	req, err := http.NewRequest("GET", "/v2/snaps/test-snap/conf?keys="+strings.Join(keys, ","), nil)
+	c.Check(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	snapConfCmd.GET(snapConfCmd, req, nil).ServeHTTP(rec, req)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	return body["result"].(map[string]interface{})
+}
+
+func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
+	d := s.daemon(c)
+
+	// Set a config that we'll get in a moment
+	transaction := d.overlord.ConfigManager().NewTransaction()
+	transaction.Set("test-snap", "test-key", "test-value")
+	transaction.Commit()
+
+	result := s.runGetConf(c, []string{"test-key"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key": "test-value"})
+}
+
+func (s *apiSuite) TestGetConfSingleMultipleKeys(c *check.C) {
+	d := s.daemon(c)
+
+	// Set a config that we'll get in a moment
+	transaction := d.overlord.ConfigManager().NewTransaction()
+	transaction.Set("test-snap", "test-key1", "test-value1")
+	transaction.Set("test-snap", "test-key2", "test-value2")
+	transaction.Commit()
+
+	result := s.runGetConf(c, []string{"test-key1", "test-key2"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
 }
 
 func (s *apiSuite) TestSetConf(c *check.C) {

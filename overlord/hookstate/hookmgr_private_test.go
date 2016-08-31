@@ -66,7 +66,7 @@ func (s *hookManagerSuite) TestRunHookInstruction(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	task := HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook")
+	task := HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook", nil)
 	c.Assert(task, NotNil, Commentf("Expected HookTask to return a task"))
 	c.Check(task.Kind(), Equals, "run-hook")
 

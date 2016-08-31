@@ -71,6 +71,7 @@ type HookSetup struct {
 	Snap     string        `json:"snap"`
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
+	Payload  interface{}   `json:"payload,omitempty"`
 }
 
 // Manager returns a new HookManager.
@@ -89,9 +90,14 @@ func Manager(s *state.State) (*HookManager, error) {
 }
 
 // HookTask returns a task that will run the specified hook.
-func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
+func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string, payload interface{}) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook-setup", HookSetup{
+		Snap:     snapName,
+		Revision: revision,
+		Hook:     hookName,
+		Payload:  payload,
+	})
 	return task
 }
 
