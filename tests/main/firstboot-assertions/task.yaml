@@ -11,8 +11,8 @@ prepare: |
     # pretend to be not classic :)
     mv /var/lib/dpkg/status /var/lib/dpkg/status.save 
 restore: |
-    systemctl start snapd.service
     mv /var/lib/dpkg/status.save /var/lib/dpkg/status
+    systemctl start snapd.service
 execute: |
     echo Copy the needed assertions to /var/lib/snapd/
     cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
