@@ -212,7 +212,7 @@ func assembleSerial(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// SerialProof holds a serial-proof assertion, which is a self-signed request to prove device owns device key.
+// SerialProof is deprecated.
 type SerialProof struct {
 	assertionBase
 }
@@ -292,5 +292,56 @@ func assembleSerialRequest(assert assertionBase) (Assertion, error) {
 	return &SerialRequest{
 		assertionBase: assert,
 		pubKey:        pubKey,
+	}, nil
+}
+
+// DeviceSessionRequest holds a device-session-request assertion, which is a request wrapping a store-provided nonce to start a session by a device signed with its key.
+type DeviceSessionRequest struct {
+	assertionBase
+	timestamp time.Time
+}
+
+// BrandID returns the brand identifier of the device making the request.
+func (req *DeviceSessionRequest) BrandID() string {
+	return req.HeaderString("brand-id")
+}
+
+// Model returns the model name identifier of the device making the request.
+func (req *DeviceSessionRequest) Model() string {
+	return req.HeaderString("model")
+}
+
+// Serial returns the serial identifier of the device making the request,
+// together with brand id and model it forms the unique identifier of
+// the device.
+func (req *DeviceSessionRequest) Serial() string {
+	return req.HeaderString("serial")
+}
+
+// Nonce returns the nonce obtained from store and to be presented when requesting a device session.
+func (req *DeviceSessionRequest) Nonce() string {
+	return req.HeaderString("nonce")
+}
+
+// Timestamp returns the time when the device-session-request was created.
+func (req *DeviceSessionRequest) Timestamp() time.Time {
+	return req.timestamp
+}
+
+func assembleDeviceSessionRequest(assert assertionBase) (Assertion, error) {
+	_, err := checkNotEmptyString(assert.headers, "nonce")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	// ignore extra headers and non-empty body for future compatibility
+	return &DeviceSessionRequest{
+		assertionBase: assert,
+		timestamp:     timestamp,
 	}, nil
 }
