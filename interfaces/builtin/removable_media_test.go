@@ -27,58 +27,58 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type PluggableStorageInterfaceSuite struct {
+type RemovableMediaInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&PluggableStorageInterfaceSuite{
-	iface: builtin.NewPluggableStorageInterface(),
+var _ = Suite(&RemovableMediaInterfaceSuite{
+	iface: builtin.NewRemovableMediaInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
-			Name:      "pluggable-storage",
-			Interface: "pluggable-storage",
+			Name:      "removable-media",
+			Interface: "removable-media",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "pluggable-storage",
-			Interface: "pluggable-storage",
+			Name:      "removable-media",
+			Interface: "removable-media",
 		},
 	},
 })
 
-func (s *PluggableStorageInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "pluggable-storage")
+func (s *RemovableMediaInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "removable-media")
 }
 
-func (s *PluggableStorageInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *RemovableMediaInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "pluggable-storage",
-		Interface: "pluggable-storage",
+		Name:      "removable-media",
+		Interface: "removable-media",
 	}})
-	c.Assert(err, ErrorMatches, "pluggable-storage slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "removable-media slots are reserved for the operating system snap")
 }
 
-func (s *PluggableStorageInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *RemovableMediaInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *PluggableStorageInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *RemovableMediaInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "pluggable-storage"`)
+		PanicMatches, `slot is not of interface "removable-media"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "pluggable-storage"`)
+		PanicMatches, `plug is not of interface "removable-media"`)
 }
 
-func (s *PluggableStorageInterfaceSuite) TestUnusedSecuritySystems(c *C) {
+func (s *RemovableMediaInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus,
 		interfaces.SecurityUDev, interfaces.SecurityMount}
@@ -104,14 +104,14 @@ func (s *PluggableStorageInterfaceSuite) TestUnusedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *PluggableStorageInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *RemovableMediaInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *PluggableStorageInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
+func (s *RemovableMediaInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
 	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
 	c.Assert(snippet, IsNil)
@@ -126,6 +126,6 @@ func (s *PluggableStorageInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *PluggableStorageInterfaceSuite) TestAutoConnect(c *C) {
+func (s *RemovableMediaInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, false)
 }

@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const pluggableStorageConnectedPlugAppArmor = `
+const removableMediaConnectedPlugAppArmor = `
 # Description: Can access removable storage filesystems
 
 # Mount points could be in /run/media/<user>/* or /media/<user>/*
@@ -31,11 +31,11 @@ const pluggableStorageConnectedPlugAppArmor = `
 /{,run/}media/*/** rw,
 `
 
-// NewPluggableStorageInterface returns a new "pluggable-storage" interface.
-func NewPluggableStorageInterface() interfaces.Interface {
+// NewRemovableMediaInterface returns a new "removable-media" interface.
+func NewRemovableMediaInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "pluggable-storage",
-		connectedPlugAppArmor: pluggableStorageConnectedPlugAppArmor,
+		name: "removable-media",
+		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
 		reservedForOS:         true,
 	}
 }
