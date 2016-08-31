@@ -49,11 +49,6 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[A-Z]{1,3}[0-9]{1,3}$
 // are also specified
 var serialUdevSymlinkPattern = regexp.MustCompile("^/dev/")
 
-// Strings used to build up udev snippet for VID+PID identified devices. The TAG
-// attribute of the udev rule is used to indicate that devices with these
-// parameters should be added to the apps device cgroup
-//var udevVidPidFormat = regexp.MustCompile(`^[\da-fA-F]{4}$`)
-
 // Strings used to build up the udev snippet
 const udevHeader string = `IMPORT{builtin}="usb_id"`
 const udevDevicePrefix string = `SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04X", ATTRS{idProduct}=="%04X"`
