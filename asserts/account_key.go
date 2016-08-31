@@ -114,7 +114,7 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 			for _, assertion := range assertions {
 				existingAccKey := assertion.(*AccountKey)
 				if ak.PublicKeyID() != existingAccKey.PublicKeyID() {
-					return fmt.Errorf("new account-key assertion for %q (%q) has ID %q, but clashes with existing ID %q", ak.AccountID(), ak.Name(), ak.PublicKeyID(), existingAccKey.PublicKeyID())
+					return fmt.Errorf("account-key assertion for %q with ID %q has the same name %q as existing ID %q", ak.AccountID(), ak.PublicKeyID(), ak.Name(), existingAccKey.PublicKeyID())
 				}
 			}
 		}

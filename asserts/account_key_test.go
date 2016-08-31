@@ -444,7 +444,7 @@ func (aks *accountKeySuite) TestAccountKeyCheckNameClash(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(newAccKey)
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`new account-key assertion for "acc-id1" \("default"\) has ID %q, but clashes with existing ID %q`, newPubKey.ID(), aks.keyID))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`account-key assertion for "acc-id1" with ID %q has the same name "default" as existing ID %q`, newPubKey.ID(), aks.keyID))
 }
 
 func (aks *accountKeySuite) TestAccountKeyAddAndFind(c *C) {
