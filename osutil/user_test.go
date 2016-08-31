@@ -32,138 +32,72 @@ import (
 
 type createUserSuite struct {
 	testutil.BaseTest
+
+	mockHome    string
+	restorer    func()
+	mockAddUser *testutil.MockCmd
 }
 
 var _ = check.Suite(&createUserSuite{})
 
-func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
+func (s *createUserSuite) SetUpTest(c *check.C) {
+	s.mockHome = c.MkDir()
+	s.restorer = osutil.MockUserLookup(func(string) (*user.User, error) {
 		current, err := user.Current()
 		if err != nil {
 			c.Fatalf("user.Current() failed with %s", err)
 		}
 		return &user.User{
-			HomeDir: mockHome,
+			HomeDir: s.mockHome,
 			Gid:     current.Gid,
 			Uid:     current.Uid,
 		}, nil
 	})
-	defer restorer()
+	s.mockAddUser = testutil.MockCommand(c, "adduser", "true")
+}
 
-	mockAddUser := testutil.MockCommand(c, "adduser", "true")
-	defer mockAddUser.Restore()
+func (s *createUserSuite) TearDownTest(c *check.C) {
+	s.restorer()
+	s.mockAddUser.Restore()
+}
 
+func (s *createUserSuite) TestAddUserExtraUsersFalse(c *check.C) {
 	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
 		Gecos:      "my gecos",
-		Sudoer:     false,
 		ExtraUsers: false,
 	})
 	c.Assert(err, check.IsNil)
 
-	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
+	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
 		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "lakatos"},
 	})
 }
 
 func (s *createUserSuite) TestAddUserExtraUsersTrue(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
-
-	mockAddUser := testutil.MockCommand(c, "adduser", "true")
-	defer mockAddUser.Restore()
-
 	err := osutil.AddUser("lakatos", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
 		Gecos:      "my gecos",
-		Sudoer:     false,
 		ExtraUsers: true,
 	})
 	c.Assert(err, check.IsNil)
 
-	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
+	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
 		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "--extrausers", "lakatos"},
 	})
 }
 
-func (s *createUserSuite) TestAddNonSudoUser(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
-	mockSudoers := c.MkDir()
-	restorer = osutil.MockSudoersDotD(mockSudoers)
-	defer restorer()
-
-	mockAddUser := testutil.MockCommand(c, "adduser", "true")
-	defer mockAddUser.Restore()
-
-	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
-		Gecos:      "my gecos",
-		Sudoer:     false,
-		ExtraUsers: true,
-	})
-	c.Assert(err, check.IsNil)
-
-	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
-		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "--extrausers", "karl.sagan"},
-	})
-	fs, _ := filepath.Glob(filepath.Join(mockSudoers, "*"))
-	c.Assert(fs, check.HasLen, 0)
-}
-
 func (s *createUserSuite) TestAddSudoUser(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
 	mockSudoers := c.MkDir()
-	restorer = osutil.MockSudoersDotD(mockSudoers)
+	restorer := osutil.MockSudoersDotD(mockSudoers)
 	defer restorer()
-
-	mockAddUser := testutil.MockCommand(c, "adduser", "true")
-	defer mockAddUser.Restore()
 
 	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
 		Gecos:      "my gecos",
 		Sudoer:     true,
 		ExtraUsers: true,
 	})
 	c.Assert(err, check.IsNil)
 
-	c.Check(mockAddUser.Calls(), check.DeepEquals, [][]string{
+	c.Check(s.mockAddUser.Calls(), check.DeepEquals, [][]string{
 		{"adduser", "--force-badname", "--gecos", "my gecos", "--disabled-password", "--extrausers", "karl.sagan"},
 	})
 
@@ -181,31 +115,11 @@ karl.sagan ALL=(ALL) NOPASSWD:ALL
 }
 
 func (s *createUserSuite) TestAddUserSSHKeys(c *check.C) {
-	mockHome := c.MkDir()
-	restorer := osutil.MockUserLookup(func(string) (*user.User, error) {
-		current, err := user.Current()
-		if err != nil {
-			c.Fatalf("user.Current() failed with %s", err)
-		}
-		return &user.User{
-			HomeDir: mockHome,
-			Gid:     current.Gid,
-			Uid:     current.Uid,
-		}, nil
-	})
-	defer restorer()
-
-	mockAddUser := testutil.MockCommand(c, "adduser", "true")
-	defer mockAddUser.Restore()
-
 	err := osutil.AddUser("karl.sagan", &osutil.AddUserOptions{
-		SSHKeys:    []string{"ssh-key1", "ssh-key2"},
-		Gecos:      "my gecos",
-		Sudoer:     false,
-		ExtraUsers: true,
+		SSHKeys: []string{"ssh-key1", "ssh-key2"},
 	})
 	c.Assert(err, check.IsNil)
-	sshKeys, err := ioutil.ReadFile(filepath.Join(mockHome, ".ssh", "authorized_keys"))
+	sshKeys, err := ioutil.ReadFile(filepath.Join(s.mockHome, ".ssh", "authorized_keys"))
 	c.Assert(err, check.IsNil)
 	c.Check(string(sshKeys), check.Equals, "ssh-key1\nssh-key2")
 
