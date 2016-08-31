@@ -441,6 +441,6 @@ func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error 
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AutoConnect() bool {
+func (iface *NetworkManagerInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return false
 }

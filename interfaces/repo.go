@@ -679,7 +679,8 @@ func (r *Repository) AutoConnectBlacklist(snapName string) map[string]bool {
 
 	for plugName, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
-		if !iface.AutoConnect() {
+		// FIXME: passing in nil slot.
+		if !iface.AutoConnect(plug, nil) {
 			continue
 		}
 		if len(r.plugSlots[plug]) != 0 {
@@ -736,13 +737,13 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 	if plug == nil {
 		return nil
 	}
-	if r.ifaces[plug.Interface].AutoConnect() == false {
-		return nil
-	}
+
+	iface := r.ifaces[plug.Interface]
+
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if isAutoConnectCandidate(plug, slot) {
+			if iface.AutoConnect(plug, slot) && isAutoConnectCandidate(plug, slot) {
 				candidates = append(candidates, slot)
 			}
 		}
@@ -753,20 +754,9 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 // isAutoConnectCandidate returns true if the plug is a candidate to
 // automatically connect to the given slot.
 func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
-	// content sharing auto connect candidates
-	if slot.Interface == "content" {
-		if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
-			return true
-		}
-		// we need to stop here to avoid the OS snap autoconnecting
-		// any content later
-		return false
-	}
-
 	// OS snap auto connect candidates
 	if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
 		return true
 	}
-
 	return false
 }

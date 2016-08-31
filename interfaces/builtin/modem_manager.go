@@ -1220,6 +1220,6 @@ func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *ModemManagerInterface) AutoConnect() bool {
+func (iface *ModemManagerInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return false
 }

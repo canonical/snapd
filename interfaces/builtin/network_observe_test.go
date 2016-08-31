@@ -128,5 +128,5 @@ func (s *NetworkObserveInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *NetworkObserveInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, false)
 }

@@ -116,6 +116,6 @@ func (t *TestInterface) PermanentSlotSnippet(slot *Slot, securitySystem Security
 // AutoConnect returns whether plugs and slots should be implicitly
 // auto-connected when an unambiguous connection candidate is available in
 // the OS snap.
-func (t *TestInterface) AutoConnect() bool {
+func (t *TestInterface) AutoConnect(plug *Plug, slot *Slot) bool {
 	return t.AutoConnectFlag
 }

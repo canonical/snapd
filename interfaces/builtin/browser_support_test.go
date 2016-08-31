@@ -224,5 +224,5 @@ func (s *BrowserSupportInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }

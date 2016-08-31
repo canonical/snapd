@@ -110,6 +110,6 @@ func (iface *PppInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *PppInterface) AutoConnect() bool {
+func (iface *PppInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return false
 }

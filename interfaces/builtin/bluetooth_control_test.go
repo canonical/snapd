@@ -128,5 +128,5 @@ func (s *BluetoothControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *BluetoothControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, false)
 }

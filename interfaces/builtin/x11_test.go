@@ -129,7 +129,7 @@ func (s *X11InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *X11InterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
 
 // The getsockname system call is allowed

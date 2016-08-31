@@ -130,5 +130,5 @@ func (s *ProcessControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *ProcessControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, false)
 }

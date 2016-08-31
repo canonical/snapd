@@ -128,5 +128,5 @@ func (s *ScreenInhibitControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C)
 }
 
 func (s *ScreenInhibitControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }

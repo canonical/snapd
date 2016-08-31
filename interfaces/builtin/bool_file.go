@@ -167,6 +167,6 @@ func (iface *BoolFileInterface) isGPIO(slot *interfaces.Slot) bool {
 // auto-connected when an unambiguous connection candidate is available.
 //
 // This interface does not auto-connect.
-func (iface *BoolFileInterface) AutoConnect() bool {
+func (iface *BoolFileInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return false
 }

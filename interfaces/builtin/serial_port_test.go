@@ -262,5 +262,6 @@ func (s *SerialPortInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems
 }
 
 func (s *SerialPortInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	// FIXME: passing in nil plug/slot.
+	c.Check(s.iface.AutoConnect(nil, nil), Equals, false)
 }

@@ -162,7 +162,7 @@ func fetchSnapAssertions(fn string, info *snap.Info, f *addingFetcher, db assert
 		PrimaryKey: []string{sha3_384},
 	}
 	if err := f.Fetch(ref); err != nil {
-		return fmt.Errorf("cannot fetch assertion %s: %s", ref, err)
+		return fmt.Errorf("cannot fetch assertion %v: %s", ref, err)
 	}
 
 	// cross checks

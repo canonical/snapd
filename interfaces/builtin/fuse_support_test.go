@@ -128,5 +128,5 @@ func (s *FuseSupportInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *FuseSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, false)
 }

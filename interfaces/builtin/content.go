@@ -154,6 +154,10 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 	}
 }
 
-func (iface *ContentInterface) AutoConnect() bool {
-	return true
+func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+	// content sharing auto connect candidates
+	if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
+		return true
+	}
+	return false
 }

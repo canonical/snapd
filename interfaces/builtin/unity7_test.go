@@ -128,5 +128,5 @@ func (s *Unity7InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *Unity7InterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, true)
 }
