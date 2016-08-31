@@ -26,7 +26,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/asserts/tool"
+	"github.com/snapcore/snapd/asserts/signtool"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -35,7 +35,7 @@ var longSignHelp = i18n.G(`Sign an assertion using the specified key, using the 
 `)
 
 type cmdSign struct {
-	KeyName string `long:"key-name" description:"name of the key to use, otherwise use the default key" default:"default"`
+	KeyName string `short:"k" description:"name of the key to use, otherwise use the default key" default:"default"`
 }
 
 func init() {
@@ -61,12 +61,12 @@ func (x *cmdSign) Execute(args []string) error {
 		return err
 	}
 
-	signReq := tool.SignRequest{
+	signOpts := signtool.Options{
 		KeyID:     privKey.PublicKey().ID(),
 		Statement: statement,
 	}
 
-	encodedAssert, err := tool.Sign(&signReq, keypairMgr)
+	encodedAssert, err := signtool.Sign(&signOpts, keypairMgr)
 	if err != nil {
 		return err
 	}
