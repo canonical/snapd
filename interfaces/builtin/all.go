@@ -59,6 +59,7 @@ var allInterfaces = []interfaces.Interface{
 	NewTimezoneControlInterface(),
 	NewTpmInterface(),
 	NewUnity7Interface(),
+	NewUPowerObserveInterface(),
 	NewX11Interface(),
 	NewOpenglInterface(),
 	NewCupsControlInterface(),
