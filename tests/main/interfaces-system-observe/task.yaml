@@ -13,7 +13,7 @@ details: |
 prepare: |
     echo "Given a snap declaring a plug on the system-observe interface is installed"
     snapbuild $TESTSLIB/snaps/system-observe-consumer .
-    snap install system-observe-consumer_1.0_all.snap
+    snap install --force-dangerous system-observe-consumer_1.0_all.snap
 
 restore: |
     rm -f system-observe-consumer_1.0_all.snap

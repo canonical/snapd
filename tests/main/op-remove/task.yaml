@@ -11,8 +11,8 @@ execute: |
 
     echo "Given two revisions of a snap have been installed"
     snapbuild $TESTSLIB/snaps/basic .
-    snap install basic_1.0_all.snap
-    snap install basic_1.0_all.snap
+    snap install --force-dangerous basic_1.0_all.snap
+    snap install --force-dangerous basic_1.0_all.snap
 
     echo "Then the two revisions are available on disk"
     [ $(snap_revisions basic) = "2" ]
