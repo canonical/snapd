@@ -201,3 +201,14 @@ func checkStringList(headers map[string]interface{}, name string) ([]string, err
 	}
 	return res, nil
 }
+
+func checkAccountKeyName(headers map[string]interface{}, name string) (string, error) {
+	keyName, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return "", err
+	}
+	if !ValidAccountKeyName.MatchString(keyName) {
+		return "", fmt.Errorf("%q header contains invalid characters: %q", name, keyName)
+	}
+	return keyName, nil
+}

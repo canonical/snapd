@@ -138,18 +138,12 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	// XXX: We should require name to be non-empty after backfilling existing assertions.
-	value, ok := assert.headers["name"]
+	// XXX: We should require name to be present after backfilling existing assertions.
+	_, ok := assert.headers["name"]
 	if ok {
-		name, ok := value.(string)
-		if !ok {
-			return nil, fmt.Errorf(`"name" header must be a string`)
-		}
-		if len(name) == 0 {
-			return nil, fmt.Errorf(`"name" header should not be empty`)
-		}
-		if !ValidAccountKeyName.MatchString(name) {
-			return nil, fmt.Errorf(`"name" header contains invalid characters: %q`, name)
+		_, err = checkAccountKeyName(assert.headers, "name")
+		if err != nil {
+			return nil, err
 		}
 	}
 
@@ -243,12 +237,9 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	name, err := checkNotEmptyString(assert.headers, "name")
+	_, err = checkAccountKeyName(assert.headers, "name")
 	if err != nil {
 		return nil, err
-	}
-	if !ValidAccountKeyName.MatchString(name) {
-		return nil, fmt.Errorf(`"name" header contains invalid characters: %q`, name)
 	}
 
 	since, err := checkRFC3339Date(assert.headers, "since")
