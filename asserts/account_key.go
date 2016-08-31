@@ -25,7 +25,7 @@ import (
 	"time"
 )
 
-var ValidAccountKeyName = regexp.MustCompile(`^[-a-z0-9]+$`)
+var ValidAccountKeyName = regexp.MustCompile(`^[a-z0-9][-a-z0-9]*$`)
 
 // AccountKey holds an account-key assertion, asserting a public key
 // belonging to the account.
