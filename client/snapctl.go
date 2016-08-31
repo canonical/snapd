@@ -27,9 +27,9 @@ import (
 
 // SnapCtlOptions holds the various options with which snapctl is invoked.
 type SnapCtlOptions struct {
-	// Context is a string used by snapd to determine the context of this call.
-	// (e.g. which handler should be used, etc.)
-	Context string `json:"context"`
+	// ContextID is a string used to determine the context of this call (e.g.
+	// which context and handler should be used, etc.)
+	ContextID string `json:"context-id"`
 
 	// Args contains a list of parameters to use for this invocation.
 	Args []string `json:"args"`
@@ -41,7 +41,7 @@ type snapctlOutput struct {
 }
 
 // RunSnapctl requests a snapctl run for the given options.
-func (client *Client) RunSnapctl(options SnapCtlOptions) (stdout, stderr []byte, err error) {
+func (client *Client) RunSnapctl(options *SnapCtlOptions) (stdout, stderr []byte, err error) {
 	b, err := json.Marshal(options)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot marshal options: %s", err)

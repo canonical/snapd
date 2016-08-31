@@ -204,17 +204,29 @@ func checkChangeConflict(s *state.State, snapName string, snapst *SnapState) err
 
 // InstallPath returns a set of tasks for installing snap from a file path.
 // Note that the state must be locked by the caller.
-func InstallPath(s *state.State, name, path, channel string, flags Flags) (*state.TaskSet, error) {
+// The provided SideInfo can contain just a name which results in a
+// local revision and sideloading, or full metadata in which case it
+// the snap will appear as installed from the store.
+func InstallPath(s *state.State, si *snap.SideInfo, path, channel string, flags Flags) (*state.TaskSet, error) {
+	name := si.RealName
+	if name == "" {
+		return nil, fmt.Errorf("internal error: snap name to install %q not provided", path)
+	}
+
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
+	if si.SnapID != "" {
+		if si.Revision.Unset() {
+			return nil, fmt.Errorf("internal error: snap id set to install %q but revision is unset", path)
+		}
+	}
+
 	ss := &SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: name,
-		},
+		SideInfo: si,
 		SnapPath: path,
 		Channel:  channel,
 		Flags:    SnapSetupFlags(flags),
@@ -228,7 +240,7 @@ func InstallPath(s *state.State, name, path, channel string, flags Flags) (*stat
 func TryPath(s *state.State, name, path string, flags Flags) (*state.TaskSet, error) {
 	flags |= TryMode
 
-	return InstallPath(s, name, path, "", flags)
+	return InstallPath(s, &snap.SideInfo{RealName: name}, path, "", flags)
 }
 
 // Install returns a set of tasks for installing snap.

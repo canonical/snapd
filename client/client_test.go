@@ -224,9 +224,9 @@ func (cs *clientSuite) TestSnapClientIntegration(c *check.C) {
 	defer srv.Close()
 
 	cli := client.New(nil)
-	options := client.SnapCtlOptions{
-		Context: "foo",
-		Args:    []string{"bar", "--baz"},
+	options := &client.SnapCtlOptions{
+		ContextID: "foo",
+		Args:      []string{"bar", "--baz"},
 	}
 
 	stdout, stderr, err := cli.RunSnapctl(options)

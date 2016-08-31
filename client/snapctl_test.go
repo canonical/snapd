@@ -28,9 +28,9 @@ import (
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {
-	options := client.SnapCtlOptions{
-		Context: "1234ABCD",
-		Args:    []string{"foo", "bar"},
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"foo", "bar"},
 	}
 	cs.cli.RunSnapctl(options)
 	c.Check(cs.req.Method, check.Equals, "POST")
@@ -47,9 +47,9 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 		}
 	}`
 
-	options := client.SnapCtlOptions{
-		Context: "1234ABCD",
-		Args:    []string{"foo", "bar"},
+	options := &client.SnapCtlOptions{
+		ContextID: "1234ABCD",
+		Args:      []string{"foo", "bar"},
 	}
 
 	stdout, stderr, err := cs.cli.RunSnapctl(options)
@@ -62,7 +62,7 @@ func (cs *clientSuite) TestClientRunSnapctl(c *check.C) {
 	err = decoder.Decode(&body)
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"context": "1234ABCD",
-		"args":    []interface{}{"foo", "bar"},
+		"context-id": "1234ABCD",
+		"args":       []interface{}{"foo", "bar"},
 	})
 }
