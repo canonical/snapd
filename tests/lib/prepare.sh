@@ -93,7 +93,7 @@ setup_reflash_magic() {
 
         # teardown store
         teardown_store fake $STORE_DIR
-        
+
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
@@ -104,7 +104,14 @@ setup_reflash_magic() {
         # create test user home dir
         mkdir -p /mnt/user-data/test
         chown 1001:1001 /mnt/user-data/test
-        
+
+        # we do what sync-dirs is normally doing on boot, but because
+        # we have subdirs/files in /etc/systemd/system (created below)
+        # the writeable-path sync-boot won't work
+        mkdir -p /mnt/system-data/etc/systemd
+        (cd /tmp ; unsquashfs -v $IMAGE_HOME/ubuntu-core_*.snap etc/systemd/system)
+        cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
+
         # FIXUP silly systemd
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.service.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.service.d/local.conf
