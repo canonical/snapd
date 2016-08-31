@@ -146,7 +146,7 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	// XXX: We should require name to be present after backfilling existing assertions.
 	_, ok := assert.headers["name"]
 	if ok {
-		_, err = checkAccountKeyName(assert.headers, "name")
+		_, err = checkStringMatches(assert.headers, "name", ValidAccountKeyName)
 		if err != nil {
 			return nil, err
 		}
@@ -242,7 +242,7 @@ func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkAccountKeyName(assert.headers, "name")
+	_, err = checkStringMatches(assert.headers, "name", ValidAccountKeyName)
 	if err != nil {
 		return nil, err
 	}
