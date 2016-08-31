@@ -43,8 +43,8 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /dev/shm/.org.chromium.Chromium.* rw,
-owner /dev/shm/.com.google.Chrome.* rw,
+owner /{dev,run}/shm/.org.chromium.Chromium.* rw,
+owner /{dev,run}/shm/.com.google.Chrome.* rw,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
