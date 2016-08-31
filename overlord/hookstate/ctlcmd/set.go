@@ -17,27 +17,17 @@
  *
  */
 
-package builtin
+package ctlcmd
 
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
+type setCommand struct {
+	baseCommand
+}
 
-const cameraConnectedPlugAppArmor = `
-# Until we have proper device assignment, allow access to all cameras
-/dev/video[0-9]* rw,
+func init() {
+	addCommand("set", func() command { return &setCommand{} })
+}
 
-# Allow detection of cameras. Leaks plugged in USB device info
-/sys/bus/usb/devices/ r,
-/sys/devices/pci**/usb*/**/idVendor r,
-/sys/devices/pci**/usb*/**/idProduct r,
-`
-
-// NewCameraInterface returns a new "camera" interface.
-func NewCameraInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "camera",
-		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
-		reservedForOS:         true,
-	}
+func (s *setCommand) Execute(args []string) error {
+	// TODO: Talk to the handler to take care of the set request.
+	return nil
 }

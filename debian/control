@@ -71,3 +71,10 @@ Depends: snapd,  ${misc:Depends}
 Section: oldlibs
 Description: transitional dummy package
  This is a transitional dummy package. It can safely be removed.
+
+Package: ubuntu-core-snapd-units
+Architecture: all
+Depends: snapd,  ${misc:Depends}
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.
