@@ -122,6 +122,8 @@ type RODatabase interface {
 	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
+	// NoAuthorityCheck tests whether a no-authority assertion is properly signed and consistent with all the stored knowledge.
+	NoAuthorityCheck(assert Assertion, pubKey PublicKey) error
 }
 
 // A Checker defines a check on an assertion considering aspects such as
