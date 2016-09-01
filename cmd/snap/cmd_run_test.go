@@ -73,6 +73,9 @@ func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {
 	usr, err := user.Current()
 	c.Assert(err, check.IsNil)
 
+	homeEnv := os.Getenv("HOME")
+	defer os.Setenv("HOME", homeEnv)
+
 	for _, withHomeEnv := range []bool{true, false} {
 		if !withHomeEnv {
 			os.Setenv("HOME", "")
