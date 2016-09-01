@@ -47,7 +47,7 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[A-Z]{1,3}[0-9]{1,3}$
 // Pattern that is considered valid for the udev symlink to the serial device,
 // path attributes will be compared to this for validity when usb vid and pid
 // are also specified
-var serialUdevSymlinkPattern = regexp.MustCompile("^/dev/")
+var serialUdevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
 // Strings used to build up the udev snippet
 const udevHeader string = `IMPORT{builtin}="usb_id"`
@@ -187,7 +187,7 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		if len(slot.Attrs) == 3 {
 			// Wildcarded apparmor snippet as the cgroup will restrict down to the
 			// specific device
-			return []byte("/dev/* rw,\n"), nil
+			return []byte("/dev/serial-port-* rw,\n"), nil
 		}
 
 		return nil, nil
