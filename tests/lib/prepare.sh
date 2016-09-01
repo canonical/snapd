@@ -141,7 +141,7 @@ EOF
         rm -f /mnt/system-data/var/lib/extrausers/passwd
         rm -f /mnt/system-data/var/lib/extrausers/shadow
         
-        
+        # done customizing stuff
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
     
