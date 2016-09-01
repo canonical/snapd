@@ -76,14 +76,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Clean the path before further checks
 	path = filepath.Clean(path)
 
-	switch len(slot.Attrs) {
-	case 1:
-		// Just a path attribute - must be a valid usb device node
-		// Check the path attribute is in the allowable pattern
-		if !serialDeviceNodePattern.MatchString(path) {
-			return fmt.Errorf("serial-port path attribute must be a valid device node")
-		}
-	case 3:
+	if iface.hasUsbAttrs(slot) {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
 		if !serialUdevSymlinkPattern.MatchString(path) {
@@ -105,10 +98,13 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		if (usbProduct < 0x0) || (usbProduct > 0xFFFF) {
 			return fmt.Errorf("serial-port usb-product attribute not valid: %d", usbProduct)
 		}
-	default:
-		return fmt.Errorf("serial-port slot definition has unexpected number of attributes")
+	} else {
+		// Just a path attribute - must be a valid usb device node
+		// Check the path attribute is in the allowable pattern
+		if !serialDeviceNodePattern.MatchString(path) {
+			return fmt.Errorf("serial-port path attribute must be a valid device node")
+		}
 	}
-
 	return nil
 }
 
@@ -174,23 +170,19 @@ func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		if len(slot.Attrs) == 1 {
-			// Path to fixed device node (no udev tagging)
-			path, pathOk := slot.Attrs["path"].(string)
-			if !pathOk {
-				return nil, nil
-			}
-			cleanedPath := filepath.Clean(path)
-			return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
+		if iface.hasUsbAttrs(slot) {
+			// This apparmor rule must match serialDeviceNodePattern
+			// UDev tagging and device cgroups will restrict down to the specific device
+			return []byte("/dev/tty[A-Z]{,[A-Z],[A-Z][A-Z]}[0-9]{,[0-9],[0-9][0-9]} rw,\n"), nil
 		}
 
-		if len(slot.Attrs) == 3 {
-			// Wildcarded apparmor snippet as the cgroup will restrict down to the
-			// specific device
-			return []byte("/dev/serial-port-* rw,\n"), nil
+		// Path to fixed device node (no udev tagging)
+		path, pathOk := slot.Attrs["path"].(string)
+		if !pathOk {
+			return nil, nil
 		}
-
-		return nil, nil
+		cleanedPath := filepath.Clean(path)
+		return []byte(fmt.Sprintf("%s rw,\n", cleanedPath)), nil
 	case interfaces.SecurityUDev:
 		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
 		if !vOk {
@@ -217,5 +209,15 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 
 // AutoConnect indicates whether this type of interface should allow autoconnect
 func (iface *SerialPortInterface) AutoConnect() bool {
+	return false
+}
+
+func (iface *SerialPortInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
+	if _, ok := slot.Attrs["usb-vendor"]; ok {
+		return true
+	}
+	if _, ok := slot.Attrs["usb-product"]; ok {
+		return true
+	}
 	return false
 }
