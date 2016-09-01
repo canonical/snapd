@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -94,16 +95,42 @@ func (s *imageSuite) SetUpTest(c *C) {
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
 		"model":        "my-model",
-		"class":        "my-class",
 		"architecture": "amd64",
-		"store":        "canonical",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel",
-		"core":         "core",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.model = model.(*asserts.Model)
+}
+
+func (s *imageSuite) addSystemSnapAssertions(c *C, snapName string) {
+	snapID := snapName + "-Id"
+	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      snapID,
+		"snap-name":    snapName,
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(decl)
+	c.Assert(err, IsNil)
+
+	snapSHA3_384, snapSize, err := asserts.SnapFileSHA3_384(s.downloadedSnaps[snapName])
+	c.Assert(err, IsNil)
+
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": snapSHA3_384,
+		"snap-size":     fmt.Sprintf("%d", snapSize),
+		"snap-id":       snapID,
+		"snap-revision": s.storeSnapInfo[snapName].Revision.String(),
+		"developer-id":  "can0nical",
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapRev)
+	c.Assert(err, IsNil)
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
@@ -138,7 +165,7 @@ type: kernel
 `
 
 const packageCore = `
-name: core
+name: ubuntu-core
 version: 16.04
 type: os
 `
@@ -181,6 +208,40 @@ AXNpZw==
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion in "%s" is not a model assertion`, fn))
 }
 
+func (s *imageSuite) TestModelAssertionReservedHeaders(c *C) {
+	const mod = `type: model
+authority-id: brand
+series: 16
+brand-id: brand
+model: baz-3000
+architecture: armhf
+gadget: brand-gadget
+kernel: kernel
+timestamp: 2016-01-02T10:00:00-05:00
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==
+`
+
+	reserved := []string{
+		"core",
+		"os",
+		"class",
+		"allowed-modes",
+	}
+
+	for _, rsvd := range reserved {
+		tweaked := strings.Replace(mod, "kernel: kernel\n", fmt.Sprintf("kernel: kernel\n%s: stuff\n", rsvd), 1)
+		fn := filepath.Join(c.MkDir(), "model.assertion")
+		err := ioutil.WriteFile(fn, []byte(tweaked), 0644)
+		c.Assert(err, IsNil)
+		_, err = image.DecodeModelAssertion(&image.Options{
+			ModelFile: fn,
+		})
+		c.Check(err, ErrorMatches, fmt.Sprintf("model assertion cannot have reserved/unsupported header %q set", rsvd))
+	}
+}
+
 func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
@@ -202,6 +263,7 @@ func infoFromSnapYaml(c *C, snapYaml string, rev snap.Revision) *snap.Info {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 
+	info.SnapID = info.Name() + "-Id"
 	info.Revision = rev
 	return info
 }
@@ -246,10 +308,15 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 
 	s.downloadedSnaps["pc"] = snaptest.MakeTestSnapWithFiles(c, packageGadget, [][]string{{"grub.cfg", "I'm a grub.cfg"}})
 	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(1))
+	s.addSystemSnapAssertions(c, "pc")
+
 	s.downloadedSnaps["pc-kernel"] = snaptest.MakeTestSnapWithFiles(c, packageKernel, nil)
 	s.storeSnapInfo["pc-kernel"] = infoFromSnapYaml(c, packageKernel, snap.R(2))
-	s.downloadedSnaps["core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
-	s.storeSnapInfo["core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
+	s.addSystemSnapAssertions(c, "pc-kernel")
+
+	s.downloadedSnaps["ubuntu-core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
+	s.storeSnapInfo["ubuntu-core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
+	s.addSystemSnapAssertions(c, "ubuntu-core")
 
 	// mock the mount cmds (for the extract kernel assets stuff)
 	c1 := testutil.MockCommand(c, "mount", "")
@@ -264,7 +331,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Assert(err, IsNil)
 
 	// check the files are in place
-	for _, fn := range []string{"pc_1.snap", "pc-kernel_2.snap", "core_3.snap"} {
+	for _, fn := range []string{"pc_1.snap", "pc-kernel_2.snap", "ubuntu-core_3.snap"} {
 		p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 		c.Check(osutil.FileExists(p), Equals, true)
 	}
@@ -296,5 +363,5 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Check(cv, Equals, "pc-kernel_2.snap")
 	cv, err = s.bootloader.GetBootVar("snap_core")
 	c.Assert(err, IsNil)
-	c.Check(cv, Equals, "core_3.snap")
+	c.Check(cv, Equals, "ubuntu-core_3.snap")
 }

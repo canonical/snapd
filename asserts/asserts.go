@@ -64,8 +64,10 @@ var (
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
-	SerialProofType   = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
-	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, assembleDeviceSessionRequest, noAuthority}
+	SerialProofType          = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
+	SerialRequestType        = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	AccountKeyRequestType    = &AssertionType{"account-key-request", nil, assembleAccountKeyRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -77,8 +79,10 @@ var typeRegistry = map[string]*AssertionType{
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
 	// no authority
-	SerialProofType.Name:   SerialProofType,
-	SerialRequestType.Name: SerialRequestType,
+	DeviceSessionRequestType.Name: DeviceSessionRequestType,
+	SerialProofType.Name:          SerialProofType,
+	SerialRequestType.Name:        SerialRequestType,
+	AccountKeyRequestType.Name:    AccountKeyRequestType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -90,6 +94,10 @@ func Type(name string) *AssertionType {
 type Ref struct {
 	Type       *AssertionType
 	PrimaryKey []string
+}
+
+func (ref *Ref) String() string {
+	return fmt.Sprintf("%s %v", ref.Type.Name, ref.PrimaryKey)
 }
 
 // Unique returns a unique string representing the reference that can be used as a key in maps.
