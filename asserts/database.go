@@ -130,7 +130,7 @@ type RODatabase interface {
 type Checker func(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error
 
 // A NoAuthorityChecker defines a check on a no-authority assertion.
-type NoAuthorityChecker func(assert Assertion, signingKey PublicKey, roDB RODatabase) error
+type NoAuthorityChecker func(assert Assertion, roDB RODatabase) error
 
 // Database holds assertions and can be used to sign or check
 // further assertions.
@@ -292,14 +292,9 @@ func (db *Database) Check(assert Assertion) error {
 		if assert.AuthorityID() != "" {
 			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
 		}
-		selfSigned, ok := assert.(selfSignedAssertion)
-		if !ok {
-			return fmt.Errorf("cannot check non-self-signed assertion type %q", typ.Name)
-		}
-		pubKey := selfSigned.signKey()
 
 		for _, checker := range db.noAuthorityCheckers {
-			err := checker(assert, pubKey, db)
+			err := checker(assert, db)
 			if err != nil {
 				return err
 			}
@@ -492,7 +487,12 @@ var DefaultCheckers = []Checker{
 // no-authority assertion checkers
 
 // NoAuthorityCheckSignature checks that the signature is valid.
-func NoAuthorityCheckSignature(assert Assertion, signingKey PublicKey, roDB RODatabase) error {
+func NoAuthorityCheckSignature(assert Assertion, roDB RODatabase) error {
+	selfSigned, ok := assert.(selfSignedAssertion)
+	if !ok {
+		return fmt.Errorf("cannot check non-self-signed assertion type %q", assert.Type().Name)
+	}
+	signingKey := selfSigned.signKey()
 	content, encSig := assert.Signature()
 	signature, err := decodeSignature(encSig)
 	if err != nil {
@@ -508,14 +508,14 @@ func NoAuthorityCheckSignature(assert Assertion, signingKey PublicKey, roDB RODa
 // A noAuthorityConsistencyChecker performs further checks based on the full
 // assertion database knowledge and its own signing key.
 type noAuthorityConsistencyChecker interface {
-	noAuthorityCheckConsistency(roDB RODatabase, signingKey PublicKey) error
+	noAuthorityCheckConsistency(roDB RODatabase) error
 }
 
 // NoAuthorityCheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
-func NoAuthorityCheckCrossConsistency(assert Assertion, signingKey PublicKey, roDB RODatabase) error {
+func NoAuthorityCheckCrossConsistency(assert Assertion, roDB RODatabase) error {
 	// see if the assertion requires further checks
 	if checker, ok := assert.(noAuthorityConsistencyChecker); ok {
-		return checker.noAuthorityCheckConsistency(roDB, signingKey)
+		return checker.noAuthorityCheckConsistency(roDB)
 	}
 	return nil
 }

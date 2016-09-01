@@ -218,7 +218,7 @@ func (akr *AccountKeyRequest) signKey() PublicKey {
 }
 
 // Implement further consistency checks.
-func (akr *AccountKeyRequest) noAuthorityCheckConsistency(db RODatabase, signingKey PublicKey) error {
+func (akr *AccountKeyRequest) noAuthorityCheckConsistency(db RODatabase) error {
 	_, err := db.Find(AccountType, map[string]string{
 		"account-id": akr.AccountID(),
 	})
