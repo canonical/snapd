@@ -151,6 +151,12 @@ type Assertion interface {
 	Ref() *Ref
 }
 
+// selfSignedAssertion represents an assertion that contains its own signing key.
+type selfSignedAssertion interface {
+	// signKey returns the public key material for the key that signed this assertion.  See also SignKeyID.
+	signKey() PublicKey
+}
+
 // MediaType is the media type for encoded assertions on the wire.
 const MediaType = "application/x.ubuntu.assertion"
 

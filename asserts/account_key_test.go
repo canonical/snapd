@@ -630,12 +630,11 @@ func (aks *accountKeySuite) TestAccountKeyRequestHappy(c *C) {
 	db := aks.openDB(c)
 	aks.prereqAccount(c, db)
 
-	err = db.NoAuthorityCheck(akr2, akr2.PublicKey())
+	err = db.Check(akr2)
 	c.Check(err, IsNil)
 
 	c.Check(akr2.AccountID(), Equals, "acc-id1")
 	c.Check(akr2.Name(), Equals, "default")
-	c.Check(akr2.PublicKey().ID(), Equals, aks.keyID)
 	c.Check(akr2.Since(), Equals, aks.since)
 }
 
@@ -669,7 +668,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestUntil(c *C) {
 		c.Assert(err, IsNil)
 		akr2 := a.(*asserts.AccountKeyRequest)
 		c.Check(akr2.Until(), Equals, test.until)
-		err = db.NoAuthorityCheck(akr2, akr2.PublicKey())
+		err = db.Check(akr2)
 		c.Check(err, IsNil)
 	}
 }
@@ -801,6 +800,6 @@ func (aks *accountKeySuite) TestAccountKeyRequestNoAccount(c *C) {
 
 	db := aks.openDB(c)
 
-	err = db.NoAuthorityCheck(akr, akr.(*asserts.AccountKeyRequest).PublicKey())
+	err = db.Check(akr)
 	c.Assert(err, ErrorMatches, `account-key-request assertion for "acc-id1" does not have a matching account assertion`)
 }

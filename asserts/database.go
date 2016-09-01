@@ -122,8 +122,6 @@ type RODatabase interface {
 	FindMany(assertionType *AssertionType, headers map[string]string) ([]Assertion, error)
 	// Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 	Check(assert Assertion) error
-	// NoAuthorityCheck tests whether a no-authority assertion is properly signed and consistent with all the stored knowledge.
-	NoAuthorityCheck(assert Assertion, pubKey PublicKey) error
 }
 
 // A Checker defines a check on an assertion considering aspects such as
@@ -272,36 +270,39 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
-	// TODO: later may need to consider type of assert to find candidate keys
-	accKey, err := db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
-	if err == ErrNotFound {
-		return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
-	}
-	if err != nil {
-		return fmt.Errorf("error finding matching public key for signature: %v", err)
-	}
-
-	now := time.Now()
-	for _, checker := range db.checkers {
-		err := checker(assert, accKey, db, now)
-		if err != nil {
-			return err
+	typ := assert.Type()
+	if typ.flags&noAuthority == 0 {
+		// TODO: later may need to consider type of assert to find candidate keys
+		accKey, err := db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
+		if err == ErrNotFound {
+			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
 		}
-	}
-
-	return nil
-}
-
-// NoAuthorityCheck tests whether a no-authority assertion is properly signed and consistent with all the stored knowledge.
-func (db *Database) NoAuthorityCheck(assert Assertion, pubKey PublicKey) error {
-	if assert.AuthorityID() != "" {
-		return fmt.Errorf("cannot perform no-authority check because assertion declares authority-id %q", assert.AuthorityID())
-	}
-
-	for _, checker := range db.noAuthorityCheckers {
-		err := checker(assert, pubKey, db)
 		if err != nil {
-			return err
+			return fmt.Errorf("error finding matching public key for signature: %v", err)
+		}
+
+		now := time.Now()
+		for _, checker := range db.checkers {
+			err := checker(assert, accKey, db, now)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		if assert.AuthorityID() != "" {
+			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
+		}
+		selfSigned, ok := assert.(selfSignedAssertion)
+		if !ok {
+			return fmt.Errorf("cannot check non-self-signed assertion type %q", typ.Name)
+		}
+		pubKey := selfSigned.signKey()
+
+		for _, checker := range db.noAuthorityCheckers {
+			err := checker(assert, pubKey, db)
+			if err != nil {
+				return err
+			}
 		}
 	}
 
@@ -317,18 +318,9 @@ func (db *Database) Add(assert Assertion) error {
 		return fmt.Errorf("internal error: assertion type %q has no primary key", ref.Type.Name)
 	}
 
-	switch assertImpl := assert.(type) {
-	case *AccountKeyRequest:
-		err := db.NoAuthorityCheck(assertImpl, assertImpl.PublicKey())
-		if err != nil {
-			return err
-		}
-
-	default:
-		err := db.Check(assert)
-		if err != nil {
-			return err
-		}
+	err := db.Check(assert)
+	if err != nil {
+		return err
 	}
 
 	for i, keyVal := range ref.PrimaryKey {
@@ -340,7 +332,7 @@ func (db *Database) Add(assert Assertion) error {
 	// assuming trusted account keys/assertions will be managed
 	// through the os snap this seems the safest policy until we
 	// know more/better
-	_, err := db.trusted.Get(ref.Type, ref.PrimaryKey)
+	_, err = db.trusted.Get(ref.Type, ref.PrimaryKey)
 	if err != ErrNotFound {
 		return fmt.Errorf("cannot add %q assertion with primary key clashing with a trusted assertion: %v", ref.Type.Name, ref.PrimaryKey)
 	}
