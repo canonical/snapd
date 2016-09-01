@@ -30,23 +30,22 @@ import (
 )
 
 type SeedSnap struct {
-	// XXX: this will all go away once we have assertions
 	// yaml needs to be in sync with SideInfo
-	Name string `yaml:"name" json:"name"`
+	Name    string `yaml:"name" json:"name"`
+	Channel string `yaml:"channel,omitempty" json:"channel,omitempty"`
 
 	// XXX: these come from assertions now
-	SnapID      string   `yaml:"snap-id" json:"snap-id"`
+	SnapID      string   `yaml:"snap-id,omitempty" json:"snap-id"`
 	Revision    Revision `yaml:"revision" json:"revision"`
-	Channel     string   `yaml:"channel,omitempty" json:"channel,omitempty"`
 	DeveloperID string   `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
 	Developer   string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
 
 	Private bool `yaml:"private,omitempty" json:"private,omitempty"`
 	// not in side-info
 	File    string `yaml:"file"`
-	DevMode bool   `yaml:"devmode"`
+	DevMode bool   `yaml:"devmode,omitempty"`
 
-	Sideloaded bool `yaml:"sideloaded"`
+	Sideloaded bool `yaml:"sideloaded,omitempty"`
 }
 
 type Seed struct {

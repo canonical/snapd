@@ -20,7 +20,6 @@
 package image
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -56,20 +55,74 @@ type Options struct {
 	GadgetUnpackDir string
 }
 
+type localInfos struct {
+	// path to info for local snaps
+	pathToInfo map[string]*snap.Info
+	// name to path
+	nameToPath map[string]string
+}
+
+func (li *localInfos) Name(pathOrName string) string {
+	if info := li.pathToInfo[pathOrName]; info != nil {
+		return info.Name()
+	}
+	return pathOrName
+}
+
+func (li *localInfos) Path(name string) string {
+	return li.nameToPath[name]
+}
+
+func (li *localInfos) Info(name string) *snap.Info {
+	if p := li.nameToPath[name]; p != "" {
+		return li.pathToInfo[p]
+	}
+	return nil
+}
+
+func localSnaps(opts *Options) (*localInfos, error) {
+	local := make(map[string]*snap.Info)
+	nameToPath := make(map[string]string)
+	for _, snapName := range opts.Snaps {
+		if strings.HasSuffix(snapName, ".snap") && osutil.FileExists(snapName) {
+			snapFile, err := snap.Open(snapName)
+			if err != nil {
+				return nil, err
+			}
+			info, err := snap.ReadInfoFromSnapFile(snapFile, nil)
+			if err != nil {
+				return nil, err
+			}
+			// local snap gets sideloaded revision
+			info.Revision = snap.R(-1)
+			nameToPath[info.Name()] = snapName
+			local[snapName] = info
+		}
+	}
+	return &localInfos{
+		pathToInfo: local,
+		nameToPath: nameToPath,
+	}, nil
+}
+
 func Prepare(opts *Options) error {
 	model, err := decodeModelAssertion(opts)
 	if err != nil {
 		return err
 	}
 
-	sto := makeStore(model)
-
-	// TODO: let opts.Snaps also override gadget with a local one
-	if err := downloadUnpackGadget(sto, model, opts); err != nil {
+	local, err := localSnaps(opts)
+	if err != nil {
 		return err
 	}
 
-	return bootstrapToRootDir(sto, model, opts)
+	sto := makeStore(model)
+
+	if err := downloadUnpackGadget(sto, model, opts, local); err != nil {
+		return err
+	}
+
+	return bootstrapToRootDir(sto, model, opts, local)
 }
 
 // these are postponed, not implemented or abandoned, not finalized,
@@ -102,7 +155,7 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	return modela, nil
 }
 
-func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options) error {
+func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
 	if err := os.MkdirAll(opts.GadgetUnpackDir, 0755); err != nil {
 		return fmt.Errorf("cannot create gadget unpack dir %q: %s", opts.GadgetUnpackDir, err)
 	}
@@ -111,7 +164,7 @@ func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options) error 
 		TargetDir: opts.GadgetUnpackDir,
 		Channel:   opts.Channel,
 	}
-	snapFn, _, err := acquireSnap(sto, model.Gadget(), dlOpts, nil)
+	snapFn, _, err := acquireSnap(sto, model.Gadget(), dlOpts, local)
 	if err != nil {
 		return err
 	}
@@ -121,14 +174,17 @@ func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options) error 
 	return snap.Unpack("*", opts.GadgetUnpackDir)
 }
 
-var errSeen = errors.New("already seen/installed")
-
-func acquireSnap(sto Store, snapName string, dlOpts *downloadOptions, seen map[string]bool) (downloadedSnap string, info *snap.Info, err error) {
-	if strings.HasSuffix(snapName, ".snap") && osutil.FileExists(snapName) {
+func acquireSnap(sto Store, name string, dlOpts *downloadOptions, local *localInfos) (downloadedSnap string, info *snap.Info, err error) {
+	if info := local.Info(name); info != nil {
 		// local snap to sideload
-		return copyLocalSnapFile(snapName, dlOpts.TargetDir)
+		p := local.Path(name)
+		dst, err := copyLocalSnapFile(p, dlOpts.TargetDir, info)
+		if err != nil {
+			return "", nil, err
+		}
+		return dst, info, nil
 	}
-	return downloadSnapWithSideInfo(sto, snapName, dlOpts, seen)
+	return downloadSnapWithSideInfo(sto, name, dlOpts)
 }
 
 type addingFetcher struct {
@@ -136,10 +192,23 @@ type addingFetcher struct {
 	addedRefs []*asserts.Ref
 }
 
+// TODO: share this
+type assertionNotFoundError struct {
+	ref *asserts.Ref
+}
+
+func (e *assertionNotFoundError) Error() string {
+	return fmt.Sprintf("%v not found", e.ref)
+}
+
 func makeFetcher(sto Store, db *asserts.Database) *addingFetcher {
 	var f addingFetcher
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+		if err == store.ErrAssertionNotFound {
+			return nil, &assertionNotFoundError{ref}
+		}
+		return a, err
 	}
 	save := func(a asserts.Assertion) error {
 		// for checking
@@ -148,7 +217,7 @@ func makeFetcher(sto Store, db *asserts.Database) *addingFetcher {
 			if _, ok := err.(*asserts.RevisionError); ok {
 				return nil
 			}
-			return fmt.Errorf("cannot add assertion %s: %v", a.Ref(), err)
+			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
 		}
 		f.addedRefs = append(f.addedRefs, a.Ref())
 		return nil
@@ -169,7 +238,7 @@ func fetchSnapAssertions(fn string, info *snap.Info, f *addingFetcher, db assert
 		PrimaryKey: []string{sha3_384},
 	}
 	if err := f.Fetch(ref); err != nil {
-		return fmt.Errorf("cannot fetch assertion %s: %s", ref, err)
+		return fmt.Errorf("cannot fetch assertion %v: %s", ref, err)
 	}
 
 	// cross checks
@@ -179,7 +248,7 @@ func fetchSnapAssertions(fn string, info *snap.Info, f *addingFetcher, db assert
 // one and only core snap for now
 const defaultCore = "ubuntu-core"
 
-func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
+func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
 	if opts.RootDir != "" {
 		dirs.SetRootDir(opts.RootDir)
@@ -231,28 +300,34 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options) error {
 	snaps = append(snaps, model.Kernel())
 	snaps = append(snaps, model.RequiredSnaps()...)
 
-	seen := make(map[string]bool)
-
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
 	}
 
+	seen := make(map[string]bool)
 	downloadedSnapsInfo := map[string]*snap.Info{}
 	var seedYaml snap.Seed
 	for _, snapName := range snaps {
-		fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
-		fn, info, err := acquireSnap(sto, snapName, dlOpts, seen)
-		if err == errSeen {
-			fmt.Fprintf(Stdout, "... already installed")
+		name := local.Name(snapName)
+		if seen[name] {
+			fmt.Fprintf(Stdout, "%s already prepared, skipping\n", name)
 			continue
 		}
+
+		if name != snapName {
+			fmt.Fprintf(Stdout, "Copying %q (%s)\n", snapName, name)
+		} else {
+			fmt.Fprintf(Stdout, "Fetching %s\n", snapName)
+		}
+
+		fn, info, err := acquireSnap(sto, name, dlOpts, local)
 		if err != nil {
 			return err
 		}
 
-		seen[info.Name()] = true
+		seen[name] = true
 
 		// if it comes from the store fetch the snap assertions too
 		if info.SnapID != "" {
@@ -379,22 +454,9 @@ func extractKernelAssets(snapPath string, info *snap.Info) error {
 	return nil
 }
 
-func copyLocalSnapFile(snapName, targetDir string) (copyiedSnapFn string, info *snap.Info, err error) {
-	snapFile, err := snap.Open(snapName)
-	if err != nil {
-		return "", nil, err
-	}
-	info, err = snap.ReadInfoFromSnapFile(snapFile, nil)
-	if err != nil {
-		return "", nil, err
-	}
-	// local snap gets sideloaded revision
-	if info.Revision.Unset() {
-		info.Revision = snap.R(-1)
-	}
+func copyLocalSnapFile(snapPath, targetDir string, info *snap.Info) (dstPath string, err error) {
 	dst := filepath.Join(targetDir, filepath.Base(info.MountFile()))
-
-	return dst, info, osutil.CopyFile(snapName, dst, 0)
+	return dst, osutil.CopyFile(snapPath, dst, 0)
 }
 
 type downloadOptions struct {
@@ -417,7 +479,7 @@ type Store interface {
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
 }
 
-func downloadSnapWithSideInfo(sto Store, name string, opts *downloadOptions, seen map[string]bool) (targetPath string, info *snap.Info, err error) {
+func downloadSnapWithSideInfo(sto Store, name string, opts *downloadOptions) (targetPath string, info *snap.Info, err error) {
 	if opts == nil {
 		opts = &downloadOptions{}
 	}
@@ -434,9 +496,6 @@ func downloadSnapWithSideInfo(sto Store, name string, opts *downloadOptions, see
 	snap, err := sto.Snap(name, opts.Channel, false, snap.R(0), nil)
 	if err != nil {
 		return "", nil, fmt.Errorf("cannot find snap %q: %s", name, err)
-	}
-	if seen[snap.Name()] {
-		return "", nil, errSeen
 	}
 	pb := progress.NewTextProgress()
 	tmpName, err := sto.Download(name, &snap.DownloadInfo, pb, nil)
