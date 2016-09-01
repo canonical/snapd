@@ -24,7 +24,13 @@ import (
 )
 
 const cameraConnectedPlugAppArmor = `
-/dev/video0 rw,
+# Until we have proper device assignment, allow access to all cameras
+/dev/video[0-9]* rw,
+
+# Allow detection of cameras. Leaks plugged in USB device info
+/sys/bus/usb/devices/ r,
+/sys/devices/pci**/usb*/**/idVendor r,
+/sys/devices/pci**/usb*/**/idProduct r,
 `
 
 // NewCameraInterface returns a new "camera" interface.
