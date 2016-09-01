@@ -21,7 +21,7 @@ environment:
 prepare: |
     echo "Given a snap declaring the network plug is installed"
     snapbuild $TESTSLIB/snaps/$SNAP_NAME .
-    snap install $SNAP_FILE
+    snap install --force-dangerous $SNAP_FILE
 
     echo "And a service is listening"
     printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
