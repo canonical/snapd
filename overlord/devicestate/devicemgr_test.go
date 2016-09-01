@@ -98,15 +98,17 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 	var mu sync.Mutex
 	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
+		switch r.URL.Path {
+		case "/identity/api/v1/request-id":
 			w.WriteHeader(http.StatusOK)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, reqID))
-		case "POST":
+
+		case "/identity/api/v1/devices":
 			mu.Lock()
 			serialNum := 9999 + count
 			count++
 			mu.Unlock()
+
 			b, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			a, err := asserts.Decode(b)
@@ -144,8 +146,13 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	mockServer := s.mockServer(c, "REQID-1")
 	defer mockServer.Close()
 
-	r2 := devicestate.MockSerialRequestURL(mockServer.URL)
+	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
+
+	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer r3()
 
 	s.state.Lock()
 	// setup state as will be done by first-boot
@@ -200,7 +207,12 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	mockServer := s.mockServer(c, "REQID-1")
 	defer mockServer.Close()
 
-	restore := devicestate.MockSerialRequestURL(mockServer.URL)
+	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer restore()
+
+	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer restore()
 
 	restore = devicestate.MockRepeatSerialRequest(true)
@@ -255,12 +267,17 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	mockServer := s.mockServer(c, "REQID-POLL")
 	defer mockServer.Close()
 
-	r2 := devicestate.MockSerialRequestURL(mockServer.URL)
+	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	r2 := devicestate.MockRequestIDURL(mockRequestIDURL)
 	defer r2()
 
-	// immediately
-	r3 := devicestate.MockRetryInterval(0)
+	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
+
+	// immediately
+	r4 := devicestate.MockRetryInterval(0)
+	defer r4()
 
 	s.state.Lock()
 	// setup state as will be done by first-boot

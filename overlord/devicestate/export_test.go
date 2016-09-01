@@ -33,6 +33,14 @@ func MockKeyLength(n int) (restore func()) {
 	}
 }
 
+func MockRequestIDURL(url string) (restore func()) {
+	oldURL := requestIDURL
+	requestIDURL = url
+	return func() {
+		requestIDURL = oldURL
+	}
+}
+
 func MockSerialRequestURL(url string) (restore func()) {
 	oldURL := serialRequestURL
 	serialRequestURL = url
