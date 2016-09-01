@@ -364,6 +364,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
+	runner.AddHandler("start-services-snap", m.doStartServicesSnap, m.undoStartServicesSnap)
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
@@ -771,6 +772,19 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as active again
 	Set(st, ss.Name(), snapst)
+
+	// FIXME: would be good to undo in undoStartServicesSnap
+	//        however in order to start the old service again
+	//        we need "current" to point to the previous version
+	//        of the snap and that is happening here.
+	st.Unlock()
+	pb := &TaskProgressAdapter{task: t}
+	err = m.backend.StartSnapServices(oldInfo, pb)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+
 	return nil
 
 }
@@ -1007,5 +1021,32 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	Set(st, ss.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
+	return nil
+}
+
+func (m *SnapManager) doStartServicesSnap(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ss, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	info, err := readInfo(ss.Name(), ss.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	st.Unlock()
+	err = m.backend.StartSnapServices(info, pb)
+	st.Lock()
+	return err
+}
+
+func (m *SnapManager) undoStartServicesSnap(t *state.Task, _ *tomb.Tomb) error {
+	// nothing needs to be done here, m.backend.UnlinkSnap() in
+	// undoLinkSnap will stop all the services
 	return nil
 }

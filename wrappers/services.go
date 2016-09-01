@@ -74,7 +74,44 @@ func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
 	return genSocketFile(app), nil
 }
 
-// AddSnapServices adds and starts service units for the applications from the snap which are services.
+// StartSnapServices starts service units for the applications from the snap which are services.
+func StartSnapServices(s *snap.Info, inter interacter) error {
+	for _, app := range s.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		// daemon-reload and enable plus start
+		serviceName := filepath.Base(app.ServiceFile())
+		sysd := systemd.New(dirs.GlobalRootDir, inter)
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
+
+		if err := sysd.Enable(serviceName); err != nil {
+			return err
+		}
+
+		if err := sysd.Start(serviceName); err != nil {
+			return err
+		}
+
+		if app.Socket {
+			socketName := filepath.Base(app.ServiceSocketFile())
+			// enable the socket
+			if err := sysd.Enable(socketName); err != nil {
+				return err
+			}
+
+			if err := sysd.Start(socketName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) error {
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
@@ -99,34 +136,6 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 			svcSocketFilePath := app.ServiceSocketFile()
 			os.MkdirAll(filepath.Dir(svcSocketFilePath), 0755)
 			if err := osutil.AtomicWriteFile(svcSocketFilePath, []byte(content), 0644, 0); err != nil {
-				return err
-			}
-		}
-		// daemon-reload and enable plus start
-		serviceName := filepath.Base(app.ServiceFile())
-		sysd := systemd.New(dirs.GlobalRootDir, inter)
-
-		if err := sysd.DaemonReload(); err != nil {
-			return err
-		}
-
-		// enable the service
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
-		}
-
-		if err := sysd.Start(serviceName); err != nil {
-			return err
-		}
-
-		if app.Socket {
-			socketName := filepath.Base(app.ServiceSocketFile())
-			// enable the socket
-			if err := sysd.Enable(socketName); err != nil {
-				return err
-			}
-
-			if err := sysd.Start(socketName); err != nil {
 				return err
 			}
 		}
