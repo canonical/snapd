@@ -33,6 +33,7 @@ if [ "$1" = "purge" ]; then
             rm -f "/snap/bin/$snap"
             rm -f "/snap/bin/$snap".*
             # snap mount dir
+            umount --lazy "/snap/$snap/$rev" 2> /dev/null || true 
             rm -rf "/snap/$snap/$rev"
             rm -f "/snap/$snap/current"
             # snap data dir
