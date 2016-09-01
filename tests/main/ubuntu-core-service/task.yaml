@@ -6,7 +6,7 @@ environment:
     SERVICE: network-consumer
 prepare: |
     snapbuild $TESTSLIB/snaps/network-bind-consumer .
-    snap install network-bind-consumer_1.0_all.snap
+    snap install --force-dangerous network-bind-consumer_1.0_all.snap
 execute: |
     echo "Ensure the snap is there"
     snap list|grep $SNAP

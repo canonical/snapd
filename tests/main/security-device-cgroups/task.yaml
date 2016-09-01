@@ -23,7 +23,7 @@ restore: |
 execute: |
     echo "Given a snap is installed"
     snapbuild $TESTSLIB/snaps/test-snapd-tools .
-    snap install ./test-snapd-tools_1.0_all.snap
+    snap install --force-dangerous ./test-snapd-tools_1.0_all.snap
 
     echo "Then the device is not assigned to that snap"
     ! udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
