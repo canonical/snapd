@@ -1,7 +1,7 @@
 [Unit]
 Description=Automatically refresh installed snaps
 After=network.target
-Requires=snapd.socket
+Requisite=snapd.socket
 ConditionPathExistsGlob=/snap/*/current
 Documentation=man:snap(1)
 
