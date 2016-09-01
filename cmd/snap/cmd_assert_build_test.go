@@ -48,7 +48,7 @@ func (s *SnapAssertBuildSuite) TestAssertBuildMandatoryFlags(c *C) {
 func (s *SnapAssertBuildSuite) TestAssertBuildMissingSnap(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"assert-build", "foo_1_amd64.snap", "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot open snap: open foo_1_amd64.snap: no such file or directory")
+	c.Check(err.Error(), Equals, "cannot compute snap \"foo_1_amd64.snap\" digest: open foo_1_amd64.snap: no such file or directory")
 	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
 }
@@ -90,10 +90,21 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorks(c *C) {
 	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, IsNil)
 
-	build_filename := snap_filename + ".build"
-	data, err := ioutil.ReadFile(build_filename)
-	c.Assert(err, IsNil)
-	assertion, err := asserts.Decode(data)
+	/*
+		statementFile := snap_filename + ".build"
+		f, err := os.OpenFile(statementFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+		if err != nil {
+			return fmt.Errorf("cannot open assertion file to write: %v", err)
+		}
+		defer f.Close()
+
+		_, err = f.WriteString(string(asserts.Encode(a)))
+		if err != nil {
+			return fmt.Errorf("cannot write to assertion file: %v", err)
+		}
+	*/
+
+	assertion, err := asserts.Decode([]byte(s.Stdout()))
 	c.Assert(err, IsNil)
 	c.Check(assertion.Type(), Equals, asserts.SnapBuildType)
 	c.Check(assertion.Revision(), Equals, 0)
@@ -105,11 +116,7 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorks(c *C) {
 	c.Check(assertion.HeaderString("snap-sha3-384"), Equals, "jyP7dUgb8HiRNd1SdYPp_il-YNrl6P6PgNAe-j6_7WytjKslENhMD3Of5XBU5bQK")
 
 	// check for valid signature ?!
-
-	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
-
-	defer os.Remove(build_filename)
 }
 
 func (s *SnapAssertBuildSuite) TestAssertBuildWorksDevelGrade(c *C) {
@@ -131,19 +138,11 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorksDevelGrade(c *C) {
 
 	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"})
 	c.Assert(err, IsNil)
-
-	build_filename := snap_filename + ".build"
-	data, err := ioutil.ReadFile(build_filename)
-	c.Assert(err, IsNil)
-	assertion, err := asserts.Decode(data)
+	assertion, err := asserts.Decode([]byte(s.Stdout()))
 	c.Assert(err, IsNil)
 	c.Check(assertion.Type(), Equals, asserts.SnapBuildType)
 	c.Check(assertion.HeaderString("grade"), Equals, "devel")
 
 	// check for valid signature ?!
-
-	c.Check(s.Stdout(), Equals, "")
 	c.Check(s.Stderr(), Equals, "")
-
-	defer os.Remove(build_filename)
 }
