@@ -49,6 +49,9 @@ set -e
 if [ ! -d "$SNAP_USER_DATA" ]; then
    mkdir -p "$SNAP_USER_DATA"
 fi
+if [ ! -d "$SNAP_USER_COMMON" ]; then
+   mkdir -p "$SNAP_USER_COMMON"
+fi
 export HOME="$SNAP_USER_DATA"
 
 # Snap name is: {{.App.Snap.Name}}
