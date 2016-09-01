@@ -5,9 +5,14 @@ description: A basic snap declaring a plug on thumbnailer
 
 apps:
     thumbnailer-consumer:
-        command: gdbus call --session --dest com.canonical.Thumbnailer  --object-path /com/canonical/Thumbnailer --method com.canonical.Thumbnailer.GetThumbnail "/home/kaleo/snappy-dev/thumbnailer_client/test.jpg" "(16,16)"
+        command: gdbus call --session --dest com.canonical.Thumbnailer  --object-path /com/canonical/Thumbnailer --method com.canonical.Thumbnailer.GetThumbnail $SNAP/test.png \"(16,16)\"
         plugs: [thumbnailer]
 parts:
-    thumbnailer-consumer:
+    gdbus:
         plugin: nil
         stage-packages: [libglib2.0-bin]
+    testimage:
+        plugin: dump
+        source: .
+        snap:
+          - test.png

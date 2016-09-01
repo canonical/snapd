@@ -1,0 +1,50 @@
+summary: Ensure that the thumbnailer interface works.
+
+systems: [-ubuntu-core-16-64]
+
+details: |
+    The thumbnailer interface allows a snap to access the thumbnailer service.
+
+    A snap which defines the thumbnailer plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to talk to the thumbnailer service
+    via D-Bus.
+    The test snap used calls a D-Bus method of the thumbnailer service.
+    The test checks that the method calls returns successfully.
+
+environment:
+    TEST_IMAGE: /var/snap/thumbnailer-consumer/current/test.png
+
+prepare: |
+    echo "Given a snap declaring a thumbnailer plug is installed"
+    snap install thumbnailer-consumer
+
+execute: |
+    CONNECTED_PATTERN=":thumbnailer +thumbnailer-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +thumbnailer-consumer:thumbnailer"
+
+    echo "Then it is not shown as connected"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "===================================="
+
+    echo "When the plug is connected"
+    snap connect thumbnailer-consumer:thumbnailer ubuntu-core:thumbnailer
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap command exits with a success code"
+    thumbnailer-consumer
+
+    echo "===================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect thumbnailer-consumer:thumbnailer ubuntu-core:thumbnailer
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap command is not able to print files"
+    if thumbnailer-consumer 2>print.error; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi
