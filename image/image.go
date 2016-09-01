@@ -294,6 +294,9 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	}
 
 	snaps := []string{}
+	// opts.Snaps need to be considered first to support local sideloaded
+	// overrides of snaps mentioned in the model assertion
+	// whose fetching from the store will be then skipped
 	snaps = append(snaps, opts.Snaps...)
 	snaps = append(snaps, model.Gadget())
 	snaps = append(snaps, defaultCore)
