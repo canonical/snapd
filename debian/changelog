@@ -1,3 +1,61 @@
+snapd (2.14.1) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - snap-exec: add support for commands with internal args in snap-
+      exec
+    - store: refresh expired device sessions
+    - debian: re-add ubuntu-core-snapd-units as a transitional package
+    - image: snap assertions into image
+    - overlord/assertstate,asserts/snapasserts: give snap assertions
+      helpers a package, introduce ReconstructSideInfo
+    - docs/interfaces: Add empty line after lxd-support title
+    - README: cover the new /run/snapd-snap.socket
+    - daemon: make socket split backward-compatible.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 30 Aug 2016 16:43:29 +0200
+
+snapd (2.14) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - cmd: enable SNAP_REEXEC only if it is set to SNAP_REEXEC=1
+    - osutil: fix create-user on classic
+    - firstboot: disable firstboot on classic for now
+    - cmd/snap: add export-key --account= option
+    - many: split public snapd REST API into separate socket.
+    - many: drop ubuntu-core-snapd-units package, use release.OnClassic
+      instead
+    - tests: add content-shareing binary test that excersises snap-
+      confine
+    - snap: use "up to date" instead of "up-to-date"
+    - asserts: add an account-key-request assertion
+    - asserts: fix GPG key generation parameters
+    - tests, integration-tests: implement the cups-control manual test
+      as a spread test
+    - many: clarify/tie down model assertion
+    - cmd/snap: add "snap download" command
+    - integration-tests: remove them in favour of the spread tests
+    - tests: test all snap ubuntu core upgrade
+    - many: support install and remove by revision
+    - overlord/state: prevent change ready => unready
+    - tests: fixes to make the ubuntu-core-16 image usable with
+      -keep/-reuse
+    - asserts: authority-id and brand-id of serial must match
+    - firstboot: generate netplan config rather than ifupdown
+    - store: request device session macaroon from store
+    - tests: add workaround for u-d-f to unblock all-snap image tests
+    - tests: the stable ubuntu-core snap has snap run support now
+    - many: use make StripGlobalRootDir public
+    - asserts: add some stricter checks around format
+    - many: have AuthContext expose device store-id, serial and serial-
+      proof signing to the store
+    - tests: fix "tests/main/ack" to not break if asserts are alreay
+      there
+    - tests/main/ack: fix test/style
+    - snap: add key management commands
+    - firstboot: add firstboot assertions importing
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 29 Aug 2016 17:07:20 +0200
+
 snapd (2.13) xenial; urgency=medium
 
   * New upstream release: LP: #1616157

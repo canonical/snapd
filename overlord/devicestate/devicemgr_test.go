@@ -20,10 +20,12 @@
 package devicestate_test
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -92,13 +94,19 @@ func (s *deviceMgrSuite) settle() {
 	}
 }
 
-func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
+func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
+	var mu sync.Mutex
+	count := 0
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
 			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, `{"request-id": "REQID-1"}`)
+			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, reqID))
 		case "POST":
+			mu.Lock()
+			serialNum := 9999 + count
+			count++
+			mu.Unlock()
 			b, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			a, err := asserts.Decode(b)
@@ -109,10 +117,14 @@ func (s *deviceMgrSuite) mockServer(c *C) *httptest.Server {
 			c.Assert(err, IsNil)
 			c.Check(serialReq.BrandID(), Equals, "canonical")
 			c.Check(serialReq.Model(), Equals, "pc")
+			if reqID == "REQID-POLL" && serialNum != 10002 {
+				w.WriteHeader(http.StatusAccepted)
+				return
+			}
 			serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 				"brand-id":            "canonical",
 				"model":               "pc",
-				"serial":              "9999",
+				"serial":              fmt.Sprintf("%d", serialNum),
 				"device-key":          serialReq.HeaderString("device-key"),
 				"device-key-sha3-384": serialReq.SignKeyID(),
 				"timestamp":           time.Now().Format(time.RFC3339),
@@ -129,7 +141,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	r1 := devicestate.MockKeyLength(752)
 	defer r1()
 
-	mockServer := s.mockServer(c)
+	mockServer := s.mockServer(c, "REQID-1")
 	defer mockServer.Close()
 
 	r2 := devicestate.MockSerialRequestURL(mockServer.URL)
@@ -185,7 +197,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	privKey, _ := assertstest.GenerateKey(1024)
 
-	mockServer := s.mockServer(c)
+	mockServer := s.mockServer(c, "REQID-1")
 	defer mockServer.Close()
 
 	restore := devicestate.MockSerialRequestURL(mockServer.URL)
@@ -195,6 +207,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	defer restore()
 
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	auth.SetDevice(s.state, &auth.DeviceState{
@@ -209,30 +222,92 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	chg.AddTask(t)
 
 	s.state.Unlock()
-
 	s.mgr.Ensure()
 	s.mgr.Wait()
-
 	s.state.Lock()
+
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 	device, err := auth.Device(s.state)
 	c.Check(err, IsNil)
-	serial := device.Serial
-	s.state.Unlock()
+	_, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
 
+	s.state.Unlock()
 	s.mgr.Ensure()
 	s.mgr.Wait()
-
-	// Repeated and preserved original serial.
 	s.state.Lock()
+
+	// Repeated handler run but set original serial.
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	device, err = auth.Device(s.state)
 	c.Check(err, IsNil)
-	c.Check(device.Serial, Equals, serial)
-	s.state.Unlock()
+	c.Check(device.Serial, Equals, "9999")
 }
 
-// TODO: test poll logic
+func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
+	r1 := devicestate.MockKeyLength(752)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-POLL")
+	defer mockServer.Close()
+
+	r2 := devicestate.MockSerialRequestURL(mockServer.URL)
+	defer r2()
+
+	// immediately
+	r3 := devicestate.MockRetryInterval(0)
+	defer r3()
+
+	s.state.Lock()
+	// setup state as will be done by first-boot
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	s.state.Unlock()
+
+	// runs the whole device registration process with polling
+	s.settle()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var becomeOperational *state.Change
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Serial, Equals, "10002")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "10002",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
 
 func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 	// nothing in the state
@@ -267,12 +342,9 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 		"series":       "16",
 		"brand-id":     "canonical",
 		"model":        "pc",
-		"core":         "core",
 		"gadget":       "pc",
 		"kernel":       "kernel",
 		"architecture": "amd64",
-		"store":        "canonical",
-		"class":        "general",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -283,13 +355,13 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 
 	mod, err := s.mgr.Model()
 	c.Assert(err, IsNil)
-	c.Assert(mod.Store(), Equals, "canonical")
+	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	s.state.Lock()
 	mod, err = devicestate.Model(s.state)
 	s.state.Unlock()
 	c.Assert(err, IsNil)
-	c.Assert(mod.Store(), Equals, "canonical")
+	c.Assert(mod.BrandID(), Equals, "canonical")
 
 	_, err = s.mgr.Serial()
 	c.Check(err, Equals, state.ErrNoState)

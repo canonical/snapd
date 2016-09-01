@@ -33,13 +33,12 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/testutil"
-
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestOverlord(t *testing.T) { TestingT(t) }

@@ -257,6 +257,31 @@ func (s *SnapOpSuite) TestInstallPathDevMode(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallPathForceDangerous(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+		postData, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, check.IsNil)
+		c.Assert(string(postData), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
+		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
+		c.Assert(string(postData), check.Matches, "(?s).*Content-Disposition: form-data; name=\"force-dangerous\"\r\n\r\ntrue\r\n.*")
+	}
+
+	snapBody := []byte("snap-data")
+	s.RedirectClientToTestServer(s.srv.handle)
+	snapPath := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snapPath, snapBody, 0644)
+	c.Assert(err, check.IsNil)
+
+	rest, err := snap.Parser().ParseArgs([]string{"install", "--force-dangerous", snapPath})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from 'bar' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestRevert(c *check.C) {
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")

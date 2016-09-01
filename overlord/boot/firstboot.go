@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -74,23 +75,9 @@ func populateStateFromSeed() error {
 			flags |= snapstate.DevMode
 		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, flags)
-		if i > 0 {
-			ts.WaitAll(tsAll[i-1])
-		}
-		st.Unlock()
 
-		if err != nil {
-			return err
-		}
-
-		// XXX: this is a temporary hack until we have assertions
-		//      and do not need this anymore
-		st.Lock()
-		var ss snapstate.SnapSetup
-		tasks := ts.Tasks()
-		tasks[0].Get("snap-setup", &ss)
-		ss.SideInfo = &snap.SideInfo{
+		// TODO: next use snapasserts.DeriveSideInfo for most of this
+		si := &snap.SideInfo{
 			RealName:    sn.Name,
 			SnapID:      sn.SnapID,
 			Revision:    sn.Revision,
@@ -99,8 +86,15 @@ func populateStateFromSeed() error {
 			Developer:   sn.Developer,
 			Private:     sn.Private,
 		}
-		tasks[0].Set("snap-setup", &ss)
+		ts, err := snapstate.InstallPath(st, si, path, sn.Channel, flags)
+		if i > 0 {
+			ts.WaitAll(tsAll[i-1])
+		}
 		st.Unlock()
+
+		if err != nil {
+			return err
+		}
 
 		tsAll = append(tsAll, ts)
 	}
@@ -208,13 +202,27 @@ func importAssertionsFromSeed(st *state.State) error {
 	return nil
 }
 
+var firstbootInitialNetworkConfig = firstboot.InitialNetworkConfig
+
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
+	// Disable firstboot on classic for now. In the long run we want
+	// classic to have a firstboot as well so that we can install
+	// snaps in a classic environment (LP: #1609903). However right
+	// now firstboot is under heavy development so until the dust
+	// settles we disable it.
+	if release.OnClassic {
+		return nil
+	}
+
 	if firstboot.HasRun() {
 		return ErrNotFirstBoot
 	}
-	if err := firstboot.InitialNetworkConfig(); err != nil {
+
+	// FIXME: the netplan config is static, we do not need to generate
+	//        it from snapd, we can just set it in e.g. ubuntu-core-config
+	if err := firstbootInitialNetworkConfig(); err != nil {
 		logger.Noticef("Failed during inital network configuration: %s", err)
 	}
 
