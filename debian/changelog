@@ -1,3 +1,36 @@
+snapd (2.14.2~16.04) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - tests: use the spread tests with the adhoc interface inside
+      autopkgtest
+    - interfaces: add fwupd interface
+    - asserts,cmd/snap: add "name" header to account-key(-request)
+    - client,cmd/snap: display os-release data only on classic
+    - asserts/tool,cmd/snap: introduce hidden "snap sign"
+    - many: when installing snap file derive metadata from assertions
+      unless --force-dangerous
+    - osutil: tweak the createUserTests a bit and extract common code
+    - debian: umount --lazy before rm on snapd.postrm
+    - interfaces: updates to default policy, browser-support, and x11
+    - store: set initial device session
+    - interfaces: add upower-observe interface (LP: #1595813)
+    - tests: use beta u-d-f in test by default
+    - interfaces/builtin: allow writing on /dev/vhci in bluetooth-
+      control
+    - interfaces/builtin: allow /dev/vhci on bluetooth-control
+    - tests: port integration tests to spread
+    - snapstate: use umount --lazy when removing the mount units
+    - spread: enable halt-timeout, tweak image selection
+    - tests: fix firstboot-assertions to actually be runnable on classic
+      again
+    - asserts: introduce device-session-request
+    - interfaces: add screen-inhibit-control interface (LP: #1604880)
+    - firstboot: change location of netplan config
+    - overlord/devicestate: some cleanups and solving a couple todos
+    - daemon,overlord: add subcommand handling to snapctl
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 01 Sep 2016 18:52:05 +0200
+
 snapd (2.14.1) xenial; urgency=medium
 
   * New upstream release: LP: #1618095
