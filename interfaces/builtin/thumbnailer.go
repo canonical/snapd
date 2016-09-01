@@ -112,6 +112,7 @@ var thumbnailerServiceConnectedPlugSecComp = []byte(`
 # Usage: reserved
 
 getsockname
+recvfrom
 recvmsg
 sendmsg
 sendto
