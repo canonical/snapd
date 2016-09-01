@@ -7,10 +7,9 @@ prepare_classic() {
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        snap install test-snapd-tools
+        snap install ubuntu-core
         snap list | grep core
-        snap remove test-snapd-tools
-        
+
         systemctl stop snapd.service snapd.socket
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
