@@ -37,7 +37,11 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -51,6 +55,56 @@ type deviceMgrSuite struct {
 }
 
 var _ = Suite(&deviceMgrSuite{})
+
+type fakeStore struct {
+	state *state.State
+	db    asserts.RODatabase
+}
+
+func (sto *fakeStore) pokeStateLock() {
+	// the store should be called without the state lock held. Try
+	// to acquire it.
+	sto.state.Lock()
+	sto.state.Unlock()
+}
+
+func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
+	sto.pokeStateLock()
+	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
+	a, err := ref.Resolve(sto.db.Find)
+	if err != nil {
+		return nil, store.ErrAssertionNotFound
+	}
+	return a, nil
+}
+
+func (*fakeStore) Snap(string, string, bool, snap.Revision, *auth.UserState) (*snap.Info, error) {
+	panic("fakeStore.Snap not expected")
+}
+
+func (sto *fakeStore) Find(*store.Search, *auth.UserState) ([]*snap.Info, error) {
+	panic("fakeStore.Find not expected")
+}
+
+func (sto *fakeStore) ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error) {
+	panic("fakeStore.ListRefresh not expected")
+}
+
+func (sto *fakeStore) Download(string, *snap.DownloadInfo, progress.Meter, *auth.UserState) (string, error) {
+	panic("fakeStore.Download not expected")
+}
+
+func (sto *fakeStore) SuggestedCurrency() string {
+	panic("fakeStore.SuggestedCurrency not expected")
+}
+
+func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult, error) {
+	panic("fakeStore.Buy not expected")
+}
+
+func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
+	panic("fakeStore.PaymentMethods not expected")
+}
 
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
@@ -78,6 +132,13 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 
 	s.db = db
 	s.mgr = mgr
+
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, &fakeStore{
+		state: s.state,
+		db:    s.storeSigning,
+	})
+	s.state.Unlock()
 }
 
 func (s *deviceMgrSuite) TearDownTest(c *C) {
@@ -201,7 +262,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 }
 
-func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
+func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	privKey, _ := assertstest.GenerateKey(1024)
 
 	mockServer := s.mockServer(c, "REQID-1")
@@ -215,7 +276,7 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer restore()
 
-	restore = devicestate.MockRepeatSerialRequest(true)
+	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
 	defer restore()
 
 	s.state.Lock()
@@ -247,6 +308,65 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotent(c *C) {
 		"serial":   "9999",
 	})
 	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	// Repeated handler run but set original serial.
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	device, err = auth.Device(s.state)
+	c.Check(err, IsNil)
+	c.Check(device.Serial, Equals, "9999")
+}
+
+func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
+	privKey, _ := assertstest.GenerateKey(1024)
+
+	mockServer := s.mockServer(c, "REQID-1")
+	defer mockServer.Close()
+
+	mockRequestIDURL := mockServer.URL + "/identity/api/v1/request-id"
+	restore := devicestate.MockRequestIDURL(mockRequestIDURL)
+	defer restore()
+
+	mockSerialRequestURL := mockServer.URL + "/identity/api/v1/devices"
+	restore = devicestate.MockSerialRequestURL(mockSerialRequestURL)
+	defer restore()
+
+	restore = devicestate.MockRepeatRequestSerial("after-got-serial")
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+		KeyID: privKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(privKey)
+
+	t := s.state.NewTask("request-serial", "test")
+	chg := s.state.NewChange("become-operational", "...")
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	s.mgr.Ensure()
+	s.mgr.Wait()
+	s.state.Lock()
+
+	c.Check(chg.Status(), Equals, state.DoingStatus)
+	device, err := auth.Device(s.state)
+	c.Check(err, IsNil)
+	_, err = s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "9999",
+	})
+	c.Assert(err, Equals, asserts.ErrNotFound)
 
 	s.state.Unlock()
 	s.mgr.Ensure()
