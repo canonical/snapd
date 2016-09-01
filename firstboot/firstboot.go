@@ -56,7 +56,7 @@ network:
  ethernets:
    all:
     match:
-     name: "*"
+     name: "en*"
     dhcp4: true
 `
 
