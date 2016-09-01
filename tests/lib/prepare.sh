@@ -184,5 +184,8 @@ prepare_all_snap() {
             exit 1
         fi
     done
+
+    echo "Kernel has a store revision"
+    snap list|grep ^pc-kernel|grep -E " [0-9]+\s+canonical"
 }
 
