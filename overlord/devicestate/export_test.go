@@ -61,10 +61,10 @@ func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
 	return m.keypairMgr
 }
 
-func MockRepeatSerialRequest(enabled bool) (restore func()) {
-	old := repeatSerialRequest
-	repeatSerialRequest = enabled
+func MockRepeatRequestSerial(label string) (restore func()) {
+	old := repeatRequestSerial
+	repeatRequestSerial = label
 	return func() {
-		repeatSerialRequest = old
+		repeatRequestSerial = old
 	}
 }
