@@ -16,7 +16,7 @@ environment:
 prepare: |
     echo "Given a snap declaring the $PLUG plug is installed"
     snapbuild $TESTSLIB/snaps/$SNAP_NAME .
-    snap install $SNAP_FILE
+    snap install --force-dangerous $SNAP_FILE
 
 restore: |
     rm -f $SNAP_FILE

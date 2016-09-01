@@ -75,23 +75,9 @@ func populateStateFromSeed() error {
 			flags |= snapstate.DevMode
 		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, flags)
-		if i > 0 {
-			ts.WaitAll(tsAll[i-1])
-		}
-		st.Unlock()
 
-		if err != nil {
-			return err
-		}
-
-		// XXX: this is a temporary hack until we have assertions
-		//      and do not need this anymore
-		st.Lock()
-		var ss snapstate.SnapSetup
-		tasks := ts.Tasks()
-		tasks[0].Get("snap-setup", &ss)
-		ss.SideInfo = &snap.SideInfo{
+		// TODO: next use snapasserts.DeriveSideInfo for most of this
+		si := &snap.SideInfo{
 			RealName:    sn.Name,
 			SnapID:      sn.SnapID,
 			Revision:    sn.Revision,
@@ -100,8 +86,15 @@ func populateStateFromSeed() error {
 			Developer:   sn.Developer,
 			Private:     sn.Private,
 		}
-		tasks[0].Set("snap-setup", &ss)
+		ts, err := snapstate.InstallPath(st, si, path, sn.Channel, flags)
+		if i > 0 {
+			ts.WaitAll(tsAll[i-1])
+		}
 		st.Unlock()
+
+		if err != nil {
+			return err
+		}
 
 		tsAll = append(tsAll, ts)
 	}
