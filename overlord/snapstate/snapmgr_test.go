@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -462,8 +463,26 @@ func (s *snapmgrTestSuite) TestInstallPathConflict(c *C) {
 	s.state.NewChange("install", "...").AddAll(ts)
 
 	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
-	_, err = snapstate.InstallPath(s.state, "some-snap", mockSnap, "", 0)
+	_, err = snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap"}, mockSnap, "", 0)
 	c.Assert(err, ErrorMatches, `snap "some-snap" has changes in progress`)
+}
+
+func (s *snapmgrTestSuite) TestInstallPathMissingName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
+	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{}, mockSnap, "", 0)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap name to install %q not provided`, mockSnap))
+}
+
+func (s *snapmgrTestSuite) TestInstallPathSnapIDRevisionUnset(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mockSnap := makeTestSnap(c, "name: some-snap\nversion: 1.0")
+	_, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "some-snap", SnapID: "snapididid"}, mockSnap, "", 0)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`internal error: snap id set to install %q but revision is unset`, mockSnap))
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasks(c *C) {
@@ -1265,7 +1284,7 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, "mock", mockSnap, "", 0)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1337,7 +1356,7 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, "mock", mockSnap, "", 0)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1421,7 +1440,7 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
 	chg := s.state.NewChange("install", "install a local snap")
-	ts, err := snapstate.InstallPath(s.state, "mock", mockSnap, "", 0)
+	ts, err := snapstate.InstallPath(s.state, &snap.SideInfo{RealName: "mock"}, mockSnap, "", 0)
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -1452,6 +1471,67 @@ version: 1.0`)
 		Revision: snap.R(-1),
 	})
 	c.Assert(snapst.LocalRevision(), Equals, snap.R(-1))
+}
+
+func (s *snapmgrTestSuite) TestInstallPathWithMetadataRunThrough(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	someSnap := makeTestSnap(c, `name: orig-name
+version: 1.0`)
+	chg := s.state.NewChange("install", "install a local snap")
+
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+		Revision: snap.R(42),
+	}
+	ts, err := snapstate.InstallPath(s.state, si, someSnap, "", 0)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	// ensure only local install was run, i.e. first actions are pseudo-action current
+	c.Assert(s.fakeBackend.ops, HasLen, 6)
+	c.Check(s.fakeBackend.ops[0].op, Equals, "current")
+	c.Check(s.fakeBackend.ops[0].old, Equals, "<no-current>")
+	// and setup-snap
+	c.Check(s.fakeBackend.ops[1].op, Equals, "setup-snap")
+	c.Check(s.fakeBackend.ops[1].name, Matches, `.*/orig-name_1.0_all.snap`)
+	c.Check(s.fakeBackend.ops[1].revno, Equals, snap.R(42))
+
+	c.Check(s.fakeBackend.ops[4].op, Equals, "candidate")
+	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
+	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
+	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/some-snap/42")
+
+	// verify snapSetup info
+	var ss snapstate.SnapSetup
+	task := ts.Tasks()[0]
+	err = task.Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
+		SnapPath: someSnap,
+		SideInfo: ss.SideInfo,
+	})
+	c.Assert(ss.SideInfo, DeepEquals, si)
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Channel, Equals, "")
+	c.Assert(snapst.Sequence[0], DeepEquals, si)
+	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {

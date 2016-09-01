@@ -47,6 +47,7 @@ getsockname
 getsockopt
 recvfrom
 recvmsg
+sendmsg
 shutdown
 `
 
