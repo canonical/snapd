@@ -79,12 +79,16 @@ setup_reflash_magic() {
         STORE_DIR=/tmp/fake-store-blobdir
         mkdir -p $STORE_DIR
         setup_store fake-w-assert-fallback $STORE_DIR
+        cp $TESTSLIB/assertions/testrootorg-store.account-key $STORE_DIR/asserts
         cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
         cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
 
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         export SNAPPY_FORCE_SAS_URL=http://localhost:11028
         IMAGE=all-snap-amd64.img
+        # ensure that ubuntu-image is using our test-build of snapd with the
+        # test keys and not the bundled version of usr/bin/snap from the snap
+        export UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
         /snap/bin/ubuntu-image -w $IMAGE_HOME $TESTSLIB/assertions/developer1-pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # teardown store
