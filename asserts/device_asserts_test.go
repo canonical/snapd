@@ -222,9 +222,10 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 }
 
 const (
-	serialErrPrefix      = "assertion serial: "
-	serialProofErrPrefix = "assertion serial-proof: "
-	serialReqErrPrefix   = "assertion serial-request: "
+	deviceSessReqErrPrefix = "assertion device-session-request: "
+	serialErrPrefix        = "assertion serial: "
+	serialProofErrPrefix   = "assertion serial-proof: "
+	serialReqErrPrefix     = "assertion serial-request: "
 )
 
 func (ss *serialSuite) TestDecodeInvalid(c *C) {
@@ -377,5 +378,62 @@ func (ss *serialSuite) TestSerialProofDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, serialProofErrPrefix+test.expectedErr)
+	}
+}
+
+func (ss *serialSuite) TestDeviceSessionRequest(c *C) {
+	ts := time.Now().UTC().Round(time.Second)
+	sessReq, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType,
+		map[string]interface{}{
+			"brand-id":  "brand-id1",
+			"model":     "baz-3000",
+			"serial":    "99990",
+			"nonce":     "NONCE",
+			"timestamp": ts.Format(time.RFC3339),
+		}, nil, ss.deviceKey)
+	c.Assert(err, IsNil)
+
+	// roundtrip
+	a, err := asserts.Decode(asserts.Encode(sessReq))
+	c.Assert(err, IsNil)
+
+	sessReq2, ok := a.(*asserts.DeviceSessionRequest)
+	c.Assert(ok, Equals, true)
+
+	// standalone signature check
+	err = asserts.SignatureCheck(sessReq2, ss.deviceKey.PublicKey())
+	c.Check(err, IsNil)
+
+	c.Check(sessReq2.BrandID(), Equals, "brand-id1")
+	c.Check(sessReq2.Model(), Equals, "baz-3000")
+	c.Check(sessReq2.Serial(), Equals, "99990")
+	c.Check(sessReq2.Nonce(), Equals, "NONCE")
+	c.Check(sessReq2.Timestamp().Equal(ts), Equals, true)
+}
+
+func (ss *serialSuite) TestDeviceSessionRequestDecodeInvalid(c *C) {
+	tsLine := "timestamp: " + time.Now().Format(time.RFC3339) + "\n"
+	encoded := "type: device-session-request\n" +
+		"brand-id: brand-id1\n" +
+		"model: baz-3000\n" +
+		"serial: 99990\n" +
+		"nonce: NONCE\n" +
+		tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
+		"AXNpZw=="
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"serial: 99990\n", "", `"serial" header is mandatory`},
+		{"nonce: NONCE\n", "nonce: \n", `"nonce" header should not be empty`},
+		{tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, deviceSessReqErrPrefix+test.expectedErr)
 	}
 }

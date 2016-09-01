@@ -31,7 +31,7 @@ import (
 
 // SetupSnap does prepare and mount the snap for further processing.
 func (b Backend) SetupSnap(snapFilePath string, sideInfo *snap.SideInfo, meter progress.Meter) error {
-	// This assumes that the snap was already verified or devmode was requested.
+	// This assumes that the snap was already verified or --force-dangerous was used.
 
 	s, snapf, err := OpenSnapFile(snapFilePath, sideInfo)
 	if err != nil {
