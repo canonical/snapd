@@ -92,7 +92,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
 		if !vOk {
-			return fmt.Errorf("serial-port plug failed to find usb-vendor attribute")
+			return fmt.Errorf("serial-port slot failed to find usb-vendor attribute")
 		}
 		if (usbVendor < 0x1) || (usbVendor > 0xFFFF) {
 			return fmt.Errorf("serial-port usb-vendor attribute not valid: %d", usbVendor)
@@ -100,7 +100,7 @@ func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 		usbProduct, pOk := slot.Attrs["usb-product"].(int)
 		if !pOk {
-			return fmt.Errorf("serial-port plug failed to find usb-product attribute")
+			return fmt.Errorf("serial-port slot failed to find usb-product attribute")
 		}
 		if (usbProduct < 0x0) || (usbProduct > 0xFFFF) {
 			return fmt.Errorf("serial-port usb-product attribute not valid: %d", usbProduct)
