@@ -84,11 +84,6 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 
-	c.Assert(sysdLog, HasLen, 3)
-	c.Check(sysdLog[0], DeepEquals, []string{"daemon-reload"})
-	c.Check(sysdLog[1], DeepEquals, []string{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)})
-	c.Check(sysdLog[2], DeepEquals, []string{"start", filepath.Base(svcFile)})
-
 	sysdLog = nil
 
 	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
@@ -138,4 +133,23 @@ apps:
 	c.Check(sysdLog[len(sysdLog)-2], DeepEquals, []string{"kill", svcFName, "-s", "KILL"})
 
 	c.Check(sysdLog[len(sysdLog)-1], DeepEquals, []string{"daemon-reload"})
+}
+
+func (s *servicesTestSuite) TestStartSnapServices(c *C) {
+	var sysdLog [][]string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	}
+
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	err := wrappers.StartSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(sysdLog, HasLen, 3)
+	c.Check(sysdLog[0], DeepEquals, []string{"daemon-reload"})
+	c.Check(sysdLog[1], DeepEquals, []string{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)})
+	c.Check(sysdLog[2], DeepEquals, []string{"start", filepath.Base(svcFile)})
 }
