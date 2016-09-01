@@ -375,7 +375,8 @@ access to configure serial port hardware.
        in range 0 < vid <= 65535
     * usb-product (slot): integer representing the USB Product ID, must be
        in range 0 <= vid <= 65535
-    * path (slot): path where a symlink will be created to the device e.g. /dev/my-device
+    * path (slot): path where a symlink will be created to the device
+    e.g. /dev/serial-port-mydevice
 
 ### snapd-control
 
