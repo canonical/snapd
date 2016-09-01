@@ -204,12 +204,12 @@ func checkStringList(headers map[string]interface{}, name string) ([]string, err
 }
 
 func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
-	keyName, err := checkNotEmptyString(headers, name)
+	s, err := checkNotEmptyString(headers, name)
 	if err != nil {
 		return "", err
 	}
-	if !pattern.MatchString(keyName) {
-		return "", fmt.Errorf("%q header contains invalid characters: %q", name, keyName)
+	if !pattern.MatchString(s) {
+		return "", fmt.Errorf("%q header contains invalid characters: %q", name, s)
 	}
-	return keyName, nil
+	return s, nil
 }
