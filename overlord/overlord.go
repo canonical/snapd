@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -68,6 +69,7 @@ type Overlord struct {
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
 	hookMgr   *hookstate.HookManager
+	configMgr *configstate.ConfigManager
 	deviceMgr *devicestate.DeviceManager
 }
 
@@ -118,6 +120,12 @@ func New() (*Overlord, error) {
 	}
 	o.hookMgr = hookMgr
 	o.stateEng.AddManager(o.hookMgr)
+
+	configMgr, err := configstate.Manager(s, hookMgr)
+	if err != nil {
+		return nil, err
+	}
+	o.configMgr = configMgr
 
 	deviceMgr, err := devicestate.Manager(s)
 	if err != nil {

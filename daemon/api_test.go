@@ -39,6 +39,7 @@ import (
 
 	"gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
+	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -48,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1752,6 +1754,64 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	})
 
 	return chg.Summary()
+}
+
+func (s *apiSuite) TestSetConfig(c *check.C) {
+	d := s.daemon(c)
+	s.mockSnap(c, configYaml)
+
+	oldHookRunner := hookstate.HookRunner
+	defer func() { hookstate.HookRunner = oldHookRunner }()
+
+	// Mock the hook runner
+	var hookSnap string
+	var hookRevision snap.Revision
+	var hookName string
+	hookstate.HookRunner = func(snap string, revision snap.Revision, hook, _ string, _ *tomb.Tomb) ([]byte, error) {
+		hookSnap = snap
+		hookRevision = revision
+		hookName = hook
+		return nil, nil
+	}
+
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	text, err := json.Marshal(map[string]interface{}{"key": "value"})
+	c.Assert(err, check.IsNil)
+
+	buffer := bytes.NewBuffer(text)
+	req, err := http.NewRequest("PUT", "/v2/snaps/config-snap/config", buffer)
+	c.Assert(err, check.IsNil)
+
+	s.vars = map[string]string{"name": "config-snap"}
+
+	rec := httptest.NewRecorder()
+	snapConfigCmd.PUT(snapConfigCmd, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 202)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	id := body["change"].(string)
+
+	st := d.overlord.State()
+	st.Lock()
+	chg := st.Change(id)
+	st.Unlock()
+	c.Assert(chg, check.NotNil)
+
+	<-chg.Ready()
+
+	st.Lock()
+	err = chg.Err()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// Check that the apply-config hook was run correctly
+	c.Check(hookSnap, check.Equals, "config-snap")
+	c.Check(hookRevision, check.Equals, snap.R(0))
+	c.Check(hookName, check.Equals, "apply-config")
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {
