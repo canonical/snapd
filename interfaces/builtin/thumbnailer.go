@@ -66,7 +66,6 @@ dbus (receive, send)
 
 var thumbnailerServiceConnectedPlugAppArmor = []byte(`
 # Description: Allow accessing the thumbnailer service.
-# Usage: reserved
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>
