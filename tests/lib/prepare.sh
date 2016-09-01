@@ -85,7 +85,7 @@ setup_reflash_magic() {
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         export SNAPPY_FORCE_SAS_URL=http://localhost:11028
         IMAGE=all-snap-amd64.img
-        /snap/bin/ubuntu-image $TESTSLIB/assertions/developer1-pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $TESTSLIB/assertions/developer1-pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # teardown store
         teardown_store fake $STORE_DIR
