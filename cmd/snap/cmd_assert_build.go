@@ -77,18 +77,13 @@ func (x *cmdAssertBuild) Execute(args []string) error {
 	timestamp := time.Now().Format(time.RFC3339)
 
 	headers := map[string]interface{}{
-		"grade":         x.Grade,
-		"timestamp":     timestamp,
 		"developer-id":  x.DeveloperID,
 		"authority-id":  x.DeveloperID,
 		"snap-sha3-384": snap_digest,
 		"snap-id":       x.SnapID,
 		"snap-size":     fmt.Sprintf("%d", snap_size),
-	}
-
-	body, err := asserts.EncodePublicKey(pubKey)
-	if err != nil {
-		return fmt.Errorf("cannot encode assertion body with pubkey: %v", err)
+		"grade":         x.Grade,
+		"timestamp":     timestamp,
 	}
 
 	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
@@ -98,7 +93,7 @@ func (x *cmdAssertBuild) Execute(args []string) error {
 		return fmt.Errorf("cannot open the assertions database: %v", err)
 	}
 
-	a, err := adb.Sign(asserts.SnapBuildType, headers, body, pubKey.ID())
+	a, err := adb.Sign(asserts.SnapBuildType, headers, nil, pubKey.ID())
 	if err != nil {
 		return fmt.Errorf("cannot sign assertion: %v", err)
 	}
