@@ -137,3 +137,38 @@ func (s *SnapSuite) TestExtraArgs(c *C) {
 	err := snap.RunMain()
 	c.Assert(err, ErrorMatches, `too many arguments for command`)
 }
+
+func (s *SnapSuite) TestVersionOnClassic(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+	})
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap", "--version"}
+	err := snap.RunMain()
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals,
+		`snap    7.89
+snapd   7.89
+series  56
+ubuntu  12.34
+`)
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+	})
+	origArgs := os.Args
+	defer func() { os.Args = origArgs }()
+	os.Args = []string{"snap", "--version"}
+	err := snap.RunMain()
+	c.Assert(err, IsNil)
+	c.Assert(s.Stdout(), Equals,
+		`snap    7.89
+snapd   7.89
+series  56
+`)
+	c.Assert(s.Stderr(), Equals, "")
+}
