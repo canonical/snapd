@@ -83,7 +83,7 @@ func exampleJSON(overrides map[string]interface{}) []byte {
 	return b
 }
 
-func (s *signSuite) TestSignYAML(c *C) {
+func (s *signSuite) TestSignJSON(c *C) {
 	opts := signtool.Options{
 		KeyID: s.testKeyID,
 
@@ -108,7 +108,7 @@ func (s *signSuite) TestSignYAML(c *C) {
 	c.Check(a.Body(), IsNil)
 }
 
-func (s *signSuite) TestSignYAMLWithBodyAndRevision(c *C) {
+func (s *signSuite) TestSignJSONWithBodyAndRevision(c *C) {
 	statement := exampleJSON(map[string]interface{}{
 		"body":     "BODY",
 		"revision": "11",
