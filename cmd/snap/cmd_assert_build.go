@@ -21,8 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
 	_ "golang.org/x/crypto/sha3" // expected for digests
@@ -40,8 +38,8 @@ type cmdAssertBuild struct {
 
 	DeveloperID string `long:"developer-id" description:"identifier of the signer" required:"yes"`
 	SnapID      string `long:"snap-id" description:"identifier of the snap package associated with the build" required:"yes"`
-	KeyName     string `long:"key-name" description:"name of the GnuPG key to use (otherwise 'default' is assumed)"`
-	Grade       string `long:"grade" description:"grade states the build quality of the snap: <stable|devel> (defaults to 'stable')"`
+	KeyName     string `short:"k" default:"default" description:"name of the GnuPG key to use (defaults to 'default' as key name)"`
+	Grade       string `long:"grade" choice:"devel" choice:"stable" default:"stable" description:"grade states the build quality of the snap (defaults to 'stable')"`
 }
 
 var shortAssertBuildHelp = i18n.G("Process a snap file and assert its build")
@@ -64,43 +62,28 @@ func (x *cmdAssertBuild) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	timestamp := time.Now().Format(time.RFC3339)
-	statementFile := x.Positional.Filename + ".build"
-
-	s, err := os.Open(x.Positional.Filename)
-	if err != nil {
-		return fmt.Errorf("cannot open snap: %v", err)
-	}
-	defer s.Close()
-
 	snap_digest, snap_size, err := asserts.SnapFileSHA3_384(x.Positional.Filename)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
-	key := "default"
-	if x.KeyName != "" {
-		key = x.KeyName
-	}
-	grade := "stable"
-	if x.Grade != "" && (x.Grade == "stable" || x.Grade == "devel") {
-		grade = x.Grade
-	}
 	gkm := asserts.NewGPGKeypairManager()
-	keyInfo, err := gkm.GetByName(key)
+	privKey, err := gkm.GetByName(x.KeyName)
 	if err != nil {
 		return fmt.Errorf("cannot get key by name: %v", err)
 	}
 
-	pubKey := keyInfo.PublicKey()
+	pubKey := privKey.PublicKey()
+	timestamp := time.Now().Format(time.RFC3339)
+
 	headers := map[string]interface{}{
-		"grade":         grade,
+		"grade":         x.Grade,
 		"timestamp":     timestamp,
 		"developer-id":  x.DeveloperID,
 		"authority-id":  x.DeveloperID,
 		"snap-sha3-384": snap_digest,
 		"snap-id":       x.SnapID,
-		"snap-size":     strconv.FormatUint(snap_size, 10),
+		"snap-size":     fmt.Sprintf("%d", snap_size),
 	}
 
 	body, err := asserts.EncodePublicKey(pubKey)
@@ -120,20 +103,9 @@ func (x *cmdAssertBuild) Execute(args []string) error {
 		return fmt.Errorf("cannot sign assertion: %v", err)
 	}
 
-	f, err := os.OpenFile(statementFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	_, err = Stdout.Write(asserts.Encode(a))
 	if err != nil {
-		return fmt.Errorf("cannot open assertion file to write: %v", err)
-	}
-	defer f.Close()
-
-	_, err = f.WriteString(string(asserts.Encode(a)))
-	if err != nil {
-		return fmt.Errorf("cannot write to assertion file: %v", err)
-	}
-
-	err = f.Sync()
-	if err != nil {
-		return fmt.Errorf("cannot save signed assertion file: %v", err)
+		return err
 	}
 
 	return nil
