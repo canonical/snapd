@@ -255,7 +255,7 @@ func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
 }
 
 func (s *imageSuite) TestMissingGadgetUnpackDir(c *C) {
-	err := image.DownloadUnpackGadget(s, s.model, &image.Options{})
+	err := image.DownloadUnpackGadget(s, s.model, &image.Options{}, nil)
 	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "": mkdir : no such file or directory`)
 }
 
@@ -276,9 +276,13 @@ func (s *imageSuite) TestDownloadUnpackGadget(c *C) {
 	s.storeSnapInfo["pc"] = infoFromSnapYaml(c, packageGadget, snap.R(99))
 
 	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget-unpack-dir")
-	err := image.DownloadUnpackGadget(s, s.model, &image.Options{
+	opts := &image.Options{
 		GadgetUnpackDir: gadgetUnpackDir,
-	})
+	}
+	local, err := image.LocalSnaps(opts)
+	c.Assert(err, IsNil)
+
+	err = image.DownloadUnpackGadget(s, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// verify the right data got unpacked
@@ -329,10 +333,14 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	defer c2.Restore()
 
-	err := image.BootstrapToRootDir(s, s.model, &image.Options{
+	opts := &image.Options{
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
-	})
+	}
+	local, err := image.LocalSnaps(opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
@@ -408,11 +416,15 @@ func (s *imageSuite) TestBootstrapToRootDirSideloadCore(c *C) {
 	c2 := testutil.MockCommand(c, "umount", "")
 	defer c2.Restore()
 
-	err := image.BootstrapToRootDir(s, s.model, &image.Options{
+	opts := &image.Options{
 		Snaps:           []string{s.downloadedSnaps["ubuntu-core"]},
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
-	})
+	}
+	local, err := image.LocalSnaps(opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s, s.model, opts, local)
 	c.Assert(err, IsNil)
 
 	// check seed yaml
