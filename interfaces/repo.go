@@ -471,9 +471,14 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			return nil, err
 		}
 		if snippet != nil {
-			for appName := range slot.Apps {
-				securityTag := snap.AppSecurityTag(snapName, appName)
+			if len(slot.Apps) == 0 {
+				securityTag := snap.AppSecurityTag(snapName, snapName)
 				snippets[securityTag] = append(snippets[securityTag], snippet)
+			} else {
+				for appName := range slot.Apps {
+					securityTag := snap.AppSecurityTag(snapName, appName)
+					snippets[securityTag] = append(snippets[securityTag], snippet)
+				}
 			}
 		}
 		// Add connection-specific snippet specific to each plug
@@ -485,9 +490,14 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			if snippet == nil {
 				continue
 			}
-			for appName := range slot.Apps {
-				securityTag := snap.AppSecurityTag(snapName, appName)
+			if len(slot.Apps) == 0 {
+				securityTag := snap.AppSecurityTag(snapName, snapName)
 				snippets[securityTag] = append(snippets[securityTag], snippet)
+			} else {
+				for appName := range slot.Apps {
+					securityTag := snap.AppSecurityTag(snapName, appName)
+					snippets[securityTag] = append(snippets[securityTag], snippet)
+				}
 			}
 		}
 	}
@@ -500,9 +510,14 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			return nil, err
 		}
 		if snippet != nil {
-			for appName := range plug.Apps {
-				securityTag := snap.AppSecurityTag(snapName, appName)
+			if len(plug.Apps) == 0 {
+				securityTag := snap.AppSecurityTag(snapName, snapName)
 				snippets[securityTag] = append(snippets[securityTag], snippet)
+			} else {
+				for appName := range plug.Apps {
+					securityTag := snap.AppSecurityTag(snapName, appName)
+					snippets[securityTag] = append(snippets[securityTag], snippet)
+				}
 			}
 			for hookName := range plug.Hooks {
 				securityTag := snap.HookSecurityTag(snapName, hookName)
@@ -518,9 +533,14 @@ func (r *Repository) securitySnippetsForSnap(snapName string, securitySystem Sec
 			if snippet == nil {
 				continue
 			}
-			for appName := range plug.Apps {
-				securityTag := snap.AppSecurityTag(snapName, appName)
+			if len(plug.Apps) == 0 {
+				securityTag := snap.AppSecurityTag(snapName, snapName)
 				snippets[securityTag] = append(snippets[securityTag], snippet)
+			} else {
+				for appName := range plug.Apps {
+					securityTag := snap.AppSecurityTag(snapName, appName)
+					snippets[securityTag] = append(snippets[securityTag], snippet)
+				}
 			}
 			for hookName := range plug.Hooks {
 				securityTag := snap.HookSecurityTag(snapName, hookName)
