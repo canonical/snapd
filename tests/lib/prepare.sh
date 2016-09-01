@@ -33,12 +33,8 @@ setup_reflash_magic() {
         
         snap install --edge ubuntu-core
 
-        # install special u-d-f
-        apt install -y bzr git
-        export GOPATH=/tmp/go
-        mkdir -p $GOPATH/src/launchpad.net/
-        ln -s $GOPATH/src/launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/  $GOPATH/src/launchpad.net/goget-ubuntu-touch
-        go get -insecure -u launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/ubuntu-device-flash
+        # install ubuntu-image
+        snap install --devmode --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
@@ -89,7 +85,7 @@ setup_reflash_magic() {
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         export SNAPPY_FORCE_SAS_URL=http://localhost:11028
         IMAGE=all-snap-amd64.img
-        /tmp/go/bin/ubuntu-device-flash core 16 $TESTSLIB/assertions/developer1-pc.model --channel edge --install snapweb --install $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+        /snap/bin/ubuntu-image $TESTSLIB/assertions/developer1-pc.model --channel edge --extra-snaps snapweb --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # teardown store
         teardown_store fake $STORE_DIR
@@ -127,7 +123,25 @@ StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
 EOF
-    
+
+        # manually create cloud-init configuration
+        # FIXME: move this to ubuntu-image once it supports it
+        mkdir -p /mnt/system-data/var/lib/cloud/seed/nocloud-net
+        cat <<EOF > /mnt/system-data/var/lib/cloud/seed/nocloud-net/meta-data
+instance-id: nocloud-static
+EOF
+        cat <<EOF > /mnt/system-data/var/lib/cloud/seed/nocloud-net/user-data
+#cloud-config
+password: ubuntu
+chpasswd: { expire: False }
+ssh_pwauth: True
+ssh_genkeytypes: ['rsa', 'dsa', 'ecdsa', 'ed25519']
+EOF
+        # FIXME: remove ubuntu user from the ubuntu-core/livecd-rootfs
+        rm -f /mnt/system-data/var/lib/extrausers/passwd
+        rm -f /mnt/system-data/var/lib/extrausers/shadow
+        
+        
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
     
