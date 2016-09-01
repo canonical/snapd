@@ -183,6 +183,12 @@ and media application. Recording not supported but will be in a future release.
 
 * Auto-Connect: yes
 
+### screen-inhibit-control
+
+Can access desktop session manager screen inhibit and uninhibit functionality.
+
+* Auto-Connect: yes
+
 ### thumbnailer
 
 Can access the thumbnailer service to retrieve thumbnails.
@@ -400,3 +406,9 @@ Can manage timeservers directly separate from ``config core``.
 Can access the tpm device /dev/tpm0.
 
 * Auto-Connect: no
+
+### upower-observe
+
+Can query UPower for power devices, history and statistics.
+
+* Auto-Connect: yes

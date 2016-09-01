@@ -38,6 +38,8 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -45,7 +47,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -926,7 +928,8 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot try %q: not a snap directory", trydir)
 	}
 
-	info, err := readSnapInfo(trydir)
+	// the developer asked us to do this with a trusted snap dir
+	info, err := unsafeReadSnapInfo(trydir)
 	if err != nil {
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
 	}
@@ -1031,6 +1034,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest(err.Error())
 	}
+	dangerousOK := isTrue(form, "force-dangerous")
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1081,15 +1085,36 @@ out:
 		origPath = form.Value["snap-path"][0]
 	}
 
-	info, err := readSnapInfo(tempPath)
-	if err != nil {
-		return InternalError("cannot read snap file: %v", err)
-	}
-	snapName := info.Name()
-
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+
+	var snapName string
+	var sideInfo *snap.SideInfo
+
+	if !dangerousOK {
+		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
+		if err == asserts.ErrNotFound {
+			msg := "cannot find signatures with metadata for snap"
+			if origPath != "" {
+				msg = fmt.Sprintf("%s %q", msg, origPath)
+			}
+			return BadRequest(msg)
+		}
+		if err != nil {
+			return BadRequest(err.Error())
+		}
+		snapName = si.RealName
+		sideInfo = si
+	} else {
+		// potentially dangerous but force-dangerous was provided
+		info, err := unsafeReadSnapInfo(tempPath)
+		if err != nil {
+			return InternalError("cannot read snap file: %v", err)
+		}
+		snapName = info.Name()
+		sideInfo = &snap.SideInfo{RealName: snapName}
+	}
 
 	msg := fmt.Sprintf(i18n.G("Install %q snap from file"), snapName)
 	if origPath != "" {
@@ -1103,7 +1128,7 @@ out:
 
 	tsets, err := withEnsureUbuntuCore(st, snapName, userID,
 		func() (*state.TaskSet, error) {
-			return snapstateInstallPath(st, snapName, tempPath, "", flags)
+			return snapstateInstallPath(st, sideInfo, tempPath, "", flags)
 		},
 	)
 	if err != nil {
@@ -1118,8 +1143,8 @@ out:
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
 
-func readSnapInfoImpl(snapPath string) (*snap.Info, error) {
-	// TODO Only open if in devmode or we have the assertion proving content right.
+func unsafeReadSnapInfoImpl(snapPath string) (*snap.Info, error) {
+	// Condider using DeriveSideInfo before falling back to this!
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
 		return nil, err
@@ -1127,7 +1152,7 @@ func readSnapInfoImpl(snapPath string) (*snap.Info, error) {
 	return snap.ReadInfoFromSnapFile(snapf, nil)
 }
 
-var readSnapInfo = readSnapInfoImpl
+var unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 
 func iconGet(st *state.State, name string) Response {
 	info, _, err := localSnapInfo(st, name)
@@ -1589,21 +1614,28 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 }
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
-	var snapctlRequest hookstate.SnapCtlRequest
+	var snapctlOptions client.SnapCtlOptions
 	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&snapctlRequest); err != nil {
+	if err := decoder.Decode(&snapctlOptions); err != nil {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if snapctlRequest.Context == "" {
-		return BadRequest("snapctl cannot run without context")
+	if snapctlOptions.ContextID == "" {
+		return BadRequest("snapctl cannot run without context ID")
 	}
 
-	if len(snapctlRequest.Args) == 0 {
+	if len(snapctlOptions.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	stdout, stderr, err := c.d.overlord.HookManager().SnapCtl(snapctlRequest)
+	// Right now snapctl is only used for hooks. If at some point it grows
+	// beyond that, this probably shouldn't go straight to the HookManager.
+	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
+	if err != nil {
+		return BadRequest("cannot run snapctl: %s", err)
+	}
+
+	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
 		return BadRequest("error running snapctl: %s", err)
 	}

@@ -35,7 +35,7 @@ func (b Backend) CurrentInfo(*snap.Info) {}
 
 // OpenSnapFile opens a snap blob returning both a snap.Info completed
 // with sideInfo (if not nil) and a corresponding snap.Container.
-// Assumes the file was verified beforehand or the user asked for devmode.
+// Assumes the file was verified beforehand or the user asked for --force-dangerous.
 func OpenSnapFile(snapPath string, sideInfo *snap.SideInfo) (*snap.Info, snap.Container, error) {
 	snapf, err := snap.Open(snapPath)
 	if err != nil {
