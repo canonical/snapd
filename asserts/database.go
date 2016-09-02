@@ -415,11 +415,13 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB 
 	if signingKey != nil {
 		valid = signingKey.isKeyValidAt(checkTime)
 	} else {
-		custom, ok := assert.(customSigner)
-		if !ok {
+		_, ok := assert.(*AccountKeyRequest)
+		if ok {
+			// account-key-request assertions are special, and are valid regardless of time.
+			valid = true
+		} else {
 			panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
 		}
-		valid = custom.isValidAt(checkTime)
 	}
 	if !valid {
 		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
@@ -464,11 +466,13 @@ func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey
 		if signingKey != nil {
 			valid = signingKey.isKeyValidAt(checkTime)
 		} else {
-			custom, ok := assert.(customSigner)
-			if !ok {
+			_, ok := assert.(*AccountKeyRequest)
+			if ok {
+				// account-key-request assertions are special, and are valid regardless of time.
+				valid = true
+			} else {
 				panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
 			}
-			valid = custom.isValidAt(checkTime)
 		}
 		if !valid {
 			return fmt.Errorf("%s assertion timestamp outside of signing key validity", assert.Type().Name)
