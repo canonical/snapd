@@ -42,10 +42,8 @@ type cmdAssertBuild struct {
 	Grade       string `long:"grade" choice:"devel" choice:"stable" default:"stable" description:"grade states the build quality of the snap (defaults to 'stable')"`
 }
 
-var shortAssertBuildHelp = i18n.G("Process a snap file and assert its build")
-var longAssertBuildHelp = i18n.G(`
-Mainly used to generate and sign snap-build assertions at the moment.
-`)
+var shortAssertBuildHelp = i18n.G("Create snap build assertion")
+var longAssertBuildHelp = i18n.G("Create snap-build assertion for the provided snap file.")
 
 func init() {
 	cmd := addCommand("assert-build",
@@ -70,7 +68,7 @@ func (x *cmdAssertBuild) Execute(args []string) error {
 	gkm := asserts.NewGPGKeypairManager()
 	privKey, err := gkm.GetByName(x.KeyName)
 	if err != nil {
-		return fmt.Errorf("cannot get key by name: %v", err)
+		return fmt.Errorf("cannot use %q key: %v", x.KeyName, err)
 	}
 
 	pubKey := privKey.PublicKey()
