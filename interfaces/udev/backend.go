@@ -161,6 +161,18 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		}
 	}
 
+	for _, slotInfo := range snapInfo.Slots {
+		securityTag := snap.NoneSecurityTag(snapInfo.Name(), slotInfo.Name)
+		slotSnippets := snippets[securityTag]
+		if len(slotSnippets) == 0 {
+			continue
+		}
+
+		for _, snippet := range slotSnippets {
+			snapSnippets[string(snippet)] = snippet
+		}
+	}
+
 	var combinedSnippets [][]byte
 	for _, snippet := range snapSnippets {
 		combinedSnippets = append(combinedSnippets, snippet)
