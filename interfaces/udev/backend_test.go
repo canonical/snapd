@@ -274,7 +274,7 @@ func (s *backendSuite) TestCombineSnippetsWithActualSnippets(c *C) {
 
 func (s *backendSuite) TestCombineSnippetsWithActualSnippetsWhenPlugNoApps(c *C) {
 	// NOTE: Hand out a permanent snippet so that .rules file is generated.
-	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	s.Iface.PermanentSlotSnippetCallback = func(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		return []byte("dummy"), nil
 	}
 	for _, devMode := range []bool{false, true} {
