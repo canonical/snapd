@@ -48,6 +48,7 @@ type managerBackend interface {
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
 	StartSnapServices(info *snap.Info, meter progress.Meter) error
+	StopSnapServices(info *snap.Info, meter progress.Meter) error
 
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error

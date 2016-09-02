@@ -1046,7 +1046,23 @@ func (m *SnapManager) doStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 }
 
 func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
-	// nothing needs to be done here, m.backend.UnlinkSnap() in
-	// undoLinkSnap will stop all the services
-	return nil
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ss, _, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+	info, err := readInfo(ss.Name(), ss.SideInfo)
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	st.Unlock()
+	err = m.backend.StopSnapServices(info, pb)
+	st.Lock()
+
+	return err
 }
