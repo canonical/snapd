@@ -280,7 +280,6 @@ func (db *Database) Check(assert Assertion) error {
 		if assert.AuthorityID() != "" {
 			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
 		}
-		accKey = nil
 	}
 
 	for _, checker := range db.checkers {
