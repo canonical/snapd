@@ -212,6 +212,11 @@ func (akr *AccountKeyRequest) Until() time.Time {
 	return akr.until
 }
 
+// PublicKey returns the underlying public key ID of the requested account key.
+func (akr *AccountKeyRequest) PublicKeyID() string {
+	return akr.pubKey.ID()
+}
+
 // signKey returns the underlying public key of the requested account key.
 func (akr *AccountKeyRequest) signKey() PublicKey {
 	return akr.pubKey

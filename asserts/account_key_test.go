@@ -635,6 +635,7 @@ func (aks *accountKeySuite) TestAccountKeyRequestHappy(c *C) {
 
 	c.Check(akr2.AccountID(), Equals, "acc-id1")
 	c.Check(akr2.Name(), Equals, "default")
+	c.Check(akr2.PublicKeyID(), Equals, aks.keyID)
 	c.Check(akr2.Since(), Equals, aks.since)
 }
 
