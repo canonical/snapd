@@ -192,23 +192,10 @@ type addingFetcher struct {
 	addedRefs []*asserts.Ref
 }
 
-// TODO: share this
-type assertionNotFoundError struct {
-	ref *asserts.Ref
-}
-
-func (e *assertionNotFoundError) Error() string {
-	return fmt.Sprintf("%v not found", e.ref)
-}
-
 func makeFetcher(sto Store, db *asserts.Database) *addingFetcher {
 	var f addingFetcher
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, nil)
-		if err == store.ErrAssertionNotFound {
-			return nil, &assertionNotFoundError{ref}
-		}
-		return a, err
+		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
 	save := func(a asserts.Assertion) error {
 		// for checking
