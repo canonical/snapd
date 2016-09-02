@@ -192,19 +192,19 @@ struct mountinfo *parse_mountinfo(const char *fname)
 
 static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 {
-	// NOTE: the mouninfo structure is allocated along with enough extra storage
-	// to hold the whole line we are parsing. This is used as backing store for
-	// all of the text fields.
+	// NOTE: the mountinfo structure is allocated along with enough extra
+	// storage to hold the whole line we are parsing. This is used as backing
+	// store for all of the text fields.
 	//
 	// The idea is that since the line has a given length and we are only after
-	// set of substrings we can easily predict the amount of required data
+	// set of substrings we can easily predict the amount of required space
 	// (after all, it is just a set of non-overlapping substrings) and append
 	// it to the allocated entry structure.
 	//
-	// The parsing code below, specifically parse_next_string_field() uses this
-	// extra memory to hold data parsed from the original line. In the end the
-	// result is similar to using strtok except that the source and destination
-	// buffers are separate.
+	// The parsing code below, specifically parse_next_string_field(), uses
+	// this extra memory to hold data parsed from the original line. In the end
+	// the result is similar to using strtok except that the source and
+	// destination buffers are separate.
 	struct mountinfo_entry *entry =
 	    calloc(1, sizeof *entry + strlen(line) + 1);
 	if (entry == NULL) {
