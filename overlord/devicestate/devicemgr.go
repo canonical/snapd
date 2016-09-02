@@ -462,7 +462,37 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return Serial(m.state)
 }
 
-// SerialProof produces a serial-proof with the given nonce.
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
+func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	serial, err := Serial(m.state)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	privKey, err := m.keyPair()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	a, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType, map[string]interface{}{
+		"brand-id":  serial.BrandID(),
+		"model":     serial.Model(),
+		"serial":    serial.Serial(),
+		"nonce":     nonce,
+		"timestamp": time.Now().UTC().Format(time.RFC3339),
+	}, nil, privKey)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return a.(*asserts.DeviceSessionRequest), serial, err
+
+}
+
+// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
 func (m *DeviceManager) SerialProof(nonce string) (*asserts.SerialProof, error) {
 	m.state.Lock()
 	defer m.state.Unlock()

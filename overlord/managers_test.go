@@ -857,3 +857,35 @@ func (s *authContextSetupSuite) TestSerialProof(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(bytes.HasPrefix(proof, []byte("type: serial-proof\n")), Equals, true)
 }
+
+func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	_, _, err := s.ac.DeviceSessionRequest("NONCE")
+	st.Lock()
+	c.Check(err, Equals, auth.ErrNoSerial)
+
+	// setup serial and key in system state
+	err = assertstate.Add(st, s.serial)
+	c.Assert(err, IsNil)
+	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+	err = kpMgr.Put(deviceKey)
+	c.Assert(err, IsNil)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  s.serial.BrandID(),
+		Model:  s.serial.Model(),
+		Serial: s.serial.Serial(),
+		KeyID:  deviceKey.PublicKey().ID(),
+	})
+
+	st.Unlock()
+	req, encSerial, err := s.ac.DeviceSessionRequest("NONCE")
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(bytes.HasPrefix(req, []byte("type: device-session-request\n")), Equals, true)
+	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
+}

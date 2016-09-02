@@ -134,6 +134,10 @@ func (ac *testAuthContext) SerialProof(nonce string) ([]byte, error) {
 	return asserts.Encode(a.(*asserts.SerialProof)), nil
 }
 
+func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
+	panic("implement me")
+}
+
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
 	m, err := macaroon.New([]byte("secret"), "some-id", "location")
 	if err != nil {
