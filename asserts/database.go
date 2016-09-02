@@ -135,11 +135,11 @@ type NoAuthorityChecker func(assert Assertion, roDB RODatabase, checkTime time.T
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
-	bs                  Backstore
-	keypairMgr          KeypairManager
-	trusted             Backstore
-	backstores          []Backstore
-	checkers            []Checker
+	bs         Backstore
+	keypairMgr KeypairManager
+	trusted    Backstore
+	backstores []Backstore
+	checkers   []Checker
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -190,8 +190,8 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		// order here is relevant, Find* precedence and
 		// findAccountKey depend on it, trusted should win over the
 		// general backstore!
-		backstores:          []Backstore{trustedBackstore, bs},
-		checkers:            dbCheckers,
+		backstores: []Backstore{trustedBackstore, bs},
+		checkers:   dbCheckers,
 	}, nil
 }
 
@@ -266,6 +266,8 @@ func (db *Database) IsTrustedAccount(accountID string) bool {
 // Check tests whether the assertion is properly signed and consistent with all the stored knowledge.
 func (db *Database) Check(assert Assertion) error {
 	typ := assert.Type()
+	now := time.Now()
+
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
 		accKey, err := db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
@@ -276,7 +278,6 @@ func (db *Database) Check(assert Assertion) error {
 			return fmt.Errorf("error finding matching public key for signature: %v", err)
 		}
 
-		now := time.Now()
 		for _, checker := range db.checkers {
 			err := checker(assert, accKey, db, now)
 			if err != nil {
@@ -288,7 +289,6 @@ func (db *Database) Check(assert Assertion) error {
 			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
 		}
 
-		now := time.Now()
 		for _, checker := range noAuthorityCheckers {
 			err := checker(assert, db, now)
 			if err != nil {
