@@ -129,9 +129,6 @@ type RODatabase interface {
 // assertions in the database.
 type Checker func(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error
 
-// A NoAuthorityChecker defines a check on a no-authority assertion.
-type NoAuthorityChecker func(assert Assertion, roDB RODatabase, checkTime time.Time) error
-
 // Database holds assertions and can be used to sign or check
 // further assertions.
 type Database struct {
@@ -268,32 +265,28 @@ func (db *Database) Check(assert Assertion) error {
 	typ := assert.Type()
 	now := time.Now()
 
+	var accKey *AccountKey
+	var err error
 	if typ.flags&noAuthority == 0 {
 		// TODO: later may need to consider type of assert to find candidate keys
-		accKey, err := db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
+		accKey, err = db.findAccountKey(assert.AuthorityID(), assert.SignKeyID())
 		if err == ErrNotFound {
 			return fmt.Errorf("no matching public key %q for signature by %q", assert.SignKeyID(), assert.AuthorityID())
 		}
 		if err != nil {
 			return fmt.Errorf("error finding matching public key for signature: %v", err)
 		}
-
-		for _, checker := range db.checkers {
-			err := checker(assert, accKey, db, now)
-			if err != nil {
-				return err
-			}
-		}
 	} else {
 		if assert.AuthorityID() != "" {
 			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
 		}
+		accKey = nil
+	}
 
-		for _, checker := range noAuthorityCheckers {
-			err := checker(assert, db, now)
-			if err != nil {
-				return err
-			}
+	for _, checker := range db.checkers {
+		err := checker(assert, accKey, db, now)
+		if err != nil {
+			return err
 		}
 	}
 
@@ -418,7 +411,17 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 
 // CheckSigningKeyIsNotExpired checks that the signing key is not expired.
 func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
-	if !signingKey.isKeyValidAt(checkTime) {
+	var valid bool
+	if signingKey != nil {
+		valid = signingKey.isKeyValidAt(checkTime)
+	} else {
+		custom, ok := assert.(customSigner)
+		if !ok {
+			panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
+		}
+		valid = custom.isValidAt(checkTime)
+	}
+	if !valid {
 		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
 	}
 	return nil
@@ -426,12 +429,22 @@ func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB 
 
 // CheckSignature checks that the signature is valid.
 func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+	var pubKey PublicKey
+	if signingKey != nil {
+		pubKey = signingKey.publicKey()
+	} else {
+		custom, ok := assert.(customSigner)
+		if !ok {
+			panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
+		}
+		pubKey = custom.signKey()
+	}
 	content, encSig := assert.Signature()
 	signature, err := decodeSignature(encSig)
 	if err != nil {
 		return err
 	}
-	err = signingKey.publicKey().verify(content, signature)
+	err = pubKey.verify(content, signature)
 	if err != nil {
 		return fmt.Errorf("failed signature verification: %v", err)
 	}
@@ -446,7 +459,18 @@ type timestamped interface {
 // the assertion is within the signing key validity.
 func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
 	if tstamped, ok := assert.(timestamped); ok {
-		if !signingKey.isKeyValidAt(tstamped.Timestamp()) {
+		checkTime := tstamped.Timestamp()
+		var valid bool
+		if signingKey != nil {
+			valid = signingKey.isKeyValidAt(checkTime)
+		} else {
+			custom, ok := assert.(customSigner)
+			if !ok {
+				panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
+			}
+			valid = custom.isValidAt(checkTime)
+		}
+		if !valid {
 			return fmt.Errorf("%s assertion timestamp outside of signing key validity", assert.Type().Name)
 		}
 	}
@@ -478,46 +502,4 @@ var DefaultCheckers = []Checker{
 	CheckSignature,
 	CheckTimestampVsSigningKeyValidity,
 	CheckCrossConsistency,
-}
-
-// no-authority assertion checkers
-
-// NoAuthorityCheckSignature checks that the signature is valid.
-func NoAuthorityCheckSignature(assert Assertion, roDB RODatabase, checkTime time.Time) error {
-	selfSigned, ok := assert.(selfSignedAssertion)
-	if !ok {
-		panic(fmt.Errorf("cannot check non-self-signed assertion type %q", assert.Type().Name))
-	}
-	signingKey := selfSigned.signKey()
-	content, encSig := assert.Signature()
-	signature, err := decodeSignature(encSig)
-	if err != nil {
-		return err
-	}
-	err = signingKey.verify(content, signature)
-	if err != nil {
-		return fmt.Errorf("failed signature verification: %v", err)
-	}
-	return nil
-}
-
-// A noAuthorityConsistencyChecker performs further checks based on the full
-// assertion database knowledge and its own signing key.
-type noAuthorityConsistencyChecker interface {
-	noAuthorityCheckConsistency(roDB RODatabase) error
-}
-
-// NoAuthorityCheckCrossConsistency verifies that the assertion is consistent with the other statements in the database.
-func NoAuthorityCheckCrossConsistency(assert Assertion, roDB RODatabase, checkTime time.Time) error {
-	// see if the assertion requires further checks
-	if checker, ok := assert.(noAuthorityConsistencyChecker); ok {
-		return checker.noAuthorityCheckConsistency(roDB)
-	}
-	return nil
-}
-
-// noAuthorityCheckers lists the assertion checkers used by Database.
-var noAuthorityCheckers = []NoAuthorityChecker{
-	NoAuthorityCheckSignature,
-	NoAuthorityCheckCrossConsistency,
 }
