@@ -86,6 +86,35 @@ static void test_parse_mountinfo_entry__snapd_mnt()
 	g_assert_null(entry->next);
 }
 
+static void test_parse_mountinfo_entry__garbage()
+{
+	const char *line = "256 104 0:3";
+	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	g_assert_null(entry);
+}
+
+static void test_accessor_funcs()
+{
+	const char *line =
+	    "256 104 0:3 mnt:[4026532509] /run/snapd/ns/hello-world.mnt rw - nsfs nsfs rw";
+	struct mountinfo_entry *entry = parse_mountinfo_entry(line);
+	g_assert_nonnull(entry);
+	g_test_queue_destroy((GDestroyNotify) free_mountinfo_entry, entry);
+	g_assert_cmpint(mountinfo_entry_mount_id(entry), ==, 256);
+	g_assert_cmpint(mountinfo_entry_parent_id(entry), ==, 104);
+	g_assert_cmpint(mountinfo_entry_dev_major(entry), ==, 0);
+	g_assert_cmpint(mountinfo_entry_dev_minor(entry), ==, 3);
+
+	g_assert_cmpstr(mountinfo_entry_root(entry), ==, "mnt:[4026532509]");
+	g_assert_cmpstr(mountinfo_entry_mount_dir(entry), ==,
+			"/run/snapd/ns/hello-world.mnt");
+	g_assert_cmpstr(mountinfo_entry_mount_opts(entry), ==, "rw");
+	g_assert_cmpstr(mountinfo_entry_optional_fields(entry), ==, "");
+	g_assert_cmpstr(mountinfo_entry_fs_type(entry), ==, "nsfs");
+	g_assert_cmpstr(mountinfo_entry_mount_source(entry), ==, "nsfs");
+	g_assert_cmpstr(mountinfo_entry_super_opts(entry), ==, "rw");
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/sysfs",
@@ -94,4 +123,7 @@ static void __attribute__ ((constructor)) init()
 			test_parse_mountinfo_entry__snapd_ns);
 	g_test_add_func("/mountinfo/parse_mountinfo_entry/snapd-mnt",
 			test_parse_mountinfo_entry__snapd_mnt);
+	g_test_add_func("/mountinfo/parse_mountinfo_entry/garbage",
+			test_parse_mountinfo_entry__garbage);
+	g_test_add_func("/mountinfo/accessor_funcs", test_accessor_funcs);
 }
