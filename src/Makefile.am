@@ -60,8 +60,7 @@ snap_confine_unit_tests_SOURCES = \
 	cleanup-funcs-test.c \
 	mount-support-test.c \
 	verify-executable-name-test.c \
-	mountinfo.c \
-	mountinfo.h
+	mountinfo-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
