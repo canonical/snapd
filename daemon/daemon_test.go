@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -299,7 +300,7 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	<-snapdDone
 	<-snapDone
 
-	d.overlord.State().RequestRestart()
+	d.overlord.State().RequestRestart(state.RestartDaemon)
 
 	select {
 	case <-d.Dying():
