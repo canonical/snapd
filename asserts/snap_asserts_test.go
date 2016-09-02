@@ -57,6 +57,7 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
+		"refresh-control:\n  - foo\n  - bar\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -72,6 +73,7 @@ func (sds *snapDeclSuite) TestDecodeOK(c *C) {
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
 	c.Check(snapDecl.SnapName(), Equals, "first")
 	c.Check(snapDecl.PublisherID(), Equals, "dev-id1")
+	c.Check(snapDecl.RefreshControl(), DeepEquals, []string{"foo", "bar"})
 }
 
 func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
@@ -90,6 +92,24 @@ func (sds *snapDeclSuite) TestEmptySnapName(c *C) {
 	c.Assert(err, IsNil)
 	snapDecl := a.(*asserts.SnapDeclaration)
 	c.Check(snapDecl.SnapName(), Equals, "")
+}
+
+func (sds *snapDeclSuite) TestMissingRefreshControl(c *C) {
+	encoded := "type: snap-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"snap-name: \n" +
+		"publisher-id: dev-id1\n" +
+		sds.tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.RefreshControl(), DeepEquals, []string(nil))
 }
 
 const (

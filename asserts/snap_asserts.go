@@ -35,7 +35,8 @@ import (
 // publisher and its other properties.
 type SnapDeclaration struct {
 	assertionBase
-	timestamp time.Time
+	refreshControl []string
+	timestamp      time.Time
 }
 
 // Series returns the series for which the snap is being declared.
@@ -63,6 +64,11 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
 
+// RefreshControl return the snaps whose updates are controlled by this declaration
+func (mod *SnapDeclaration) RefreshControl() []string {
+	return mod.refreshControl
+}
+
 // Implement further consistency checks.
 func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
@@ -77,6 +83,8 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	if err != nil {
 		return err
 	}
+
+	// FIXME check that snap-ids in refresh-control are valid?
 	return nil
 }
 
@@ -106,9 +114,15 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	refControl, err := checkStringList(assert.headers, "refresh-control")
+	if err != nil {
+		return nil, err
+	}
+
 	return &SnapDeclaration{
-		assertionBase: assert,
-		timestamp:     timestamp,
+		assertionBase:  assert,
+		timestamp:      timestamp,
+		refreshControl: refControl,
 	}, nil
 }
 
