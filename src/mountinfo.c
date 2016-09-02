@@ -38,7 +38,12 @@ struct mountinfo_entry {
 	char *super_opts;
 
 	struct mountinfo_entry *next;
-	char line_buf[0];	// Buffer holding all of the text data above;
+	// Buffer holding all of the text data above.
+	//
+	// The buffer must be the last element of the structure. It is allocated
+	// along with the structure itself and does not need to be freed
+	// separately.
+	char line_buf[0];
 };
 
 /**
