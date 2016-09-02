@@ -571,7 +571,7 @@ func (s *deviceMgrSuite) TestDeviceAssertionsSerialProof(c *C) {
 
 func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	// nothing there
-	_, err := s.mgr.SerialProof("NONCE-1")
+	_, _, err := s.mgr.DeviceSessionRequest("NONCE-1")
 	c.Check(err, Equals, state.ErrNoState)
 
 	// setup state as done by device initialisation
