@@ -128,7 +128,7 @@ version: 1.0`
 	err := os.Rename(mockSnapFile, targetSnapFile)
 	c.Assert(err, IsNil)
 
-	// put a firstboot sideloaded snap into the SnapBlobDir
+	// put a firstboot local snap into the SnapBlobDir
 	snapYaml = `name: local
 version: 1.0`
 	mockSnapFile = snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
@@ -186,7 +186,7 @@ snaps:
    file: %s
    devmode: true
  - name: local
-   sideloaded: true
+   unasserted: true
    file: %s
 `, filepath.Base(targetSnapFile), filepath.Base(targetSnapFile2)))
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)

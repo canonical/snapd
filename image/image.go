@@ -93,7 +93,7 @@ func localSnaps(opts *Options) (*localInfos, error) {
 			if err != nil {
 				return nil, err
 			}
-			// local snap gets sideloaded revision
+			// local snap gets local revision
 			info.Revision = snap.R(-1)
 			nameToPath[info.Name()] = snapName
 			local[snapName] = info
@@ -176,7 +176,7 @@ func downloadUnpackGadget(sto Store, model *asserts.Model, opts *Options, local 
 
 func acquireSnap(sto Store, name string, dlOpts *downloadOptions, local *localInfos) (downloadedSnap string, info *snap.Info, err error) {
 	if info := local.Info(name); info != nil {
-		// local snap to sideload
+		// local snap to install (unasserted only for now)
 		p := local.Path(name)
 		dst, err := copyLocalSnapFile(p, dlOpts.TargetDir, info)
 		if err != nil {
@@ -294,9 +294,9 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	}
 
 	snaps := []string{}
-	// opts.Snaps need to be considered first to support local sideloaded
-	// overrides of snaps mentioned in the model assertion
-	// whose fetching from the store will be then skipped
+	// opts.Snaps need to be considered first to support local overrides
+	// of snaps mentioned in the model assertion whose fetching
+	// from the store will be then skipped
 	snaps = append(snaps, opts.Snaps...)
 	snaps = append(snaps, model.Gadget())
 	snaps = append(snaps, defaultCore)
@@ -333,6 +333,8 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		seen[name] = true
 
 		// if it comes from the store fetch the snap assertions too
+		// TODO: support somehow including available assertions
+		// also for local snaps
 		if info.SnapID != "" {
 			err = fetchSnapAssertions(fn, info, f, db)
 			if err != nil {
@@ -354,11 +356,12 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 
 		// set seed.yaml
 		seedYaml.Snaps = append(seedYaml.Snaps, &snap.SeedSnap{
-			Name:       info.Name(),
-			SnapID:     info.SnapID,
-			Channel:    info.Channel,
-			File:       filepath.Base(fn),
-			Sideloaded: info.SnapID == "",
+			Name:    info.Name(),
+			SnapID:  info.SnapID, // cross-ref
+			Channel: info.Channel,
+			File:    filepath.Base(fn),
+			// no assertions for this snap were put in the seed
+			Unasserted: info.SnapID == "",
 		})
 	}
 
