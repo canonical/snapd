@@ -20,6 +20,7 @@
 package image
 
 var (
+	LocalSnaps           = localSnaps
 	DecodeModelAssertion = decodeModelAssertion
 	DownloadUnpackGadget = downloadUnpackGadget
 	BootstrapToRootDir   = bootstrapToRootDir
