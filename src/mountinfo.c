@@ -225,6 +225,9 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 		if (strcmp(opt_field, "-") == 0) {
 			break;
 		}
+		if (*entry->optional_fields) {
+			strcat(entry->optional_fields, " ");
+		}
 		strcat(entry->optional_fields, opt_field);
 	}
 	if ((entry->fs_type = parse_next_string_field()) == NULL)
