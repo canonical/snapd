@@ -479,7 +479,11 @@ func Enable(s *state.State, name string) (*state.TaskSet, error) {
 	linkSnap.Set("snap-setup", &ss)
 	linkSnap.WaitFor(prepareSnap)
 
-	return state.NewTaskSet(prepareSnap, linkSnap), nil
+	startSnapServices := s.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q (%s) services"), ss.Name(), snapst.Current))
+	startSnapServices.Set("snap-setup", &ss)
+	startSnapServices.WaitFor(linkSnap)
+
+	return state.NewTaskSet(prepareSnap, linkSnap, startSnapServices), nil
 }
 
 // Disable sets a snap to the inactive state
