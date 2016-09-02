@@ -85,6 +85,13 @@ quirks:
   the execution environment. This allows various snaps, while running in
   devmode, to access the LXD socket. LP: #1613845
 
+Sharing of the mount namespace
+------------------------------
+
+As a part of application startup `snap-confine` will move the process to a new
+mount namespace. Since version 1.0.41 all the applications belonging to a given
+snap will share the mount namespace amongst them.
+
 ENVIRONMENT
 ===========
 
@@ -125,6 +132,18 @@ FILES
 `/var/lib/snapd/seccomp/profiles/*`:
 
 	Description of the seccomp profile.
+
+`/run/snapd/ns/.lock`:
+
+	Global lock acquired to initialize namespace sharing feature
+
+`/run/snapd/ns/$SNAP_NAME.lock`:
+
+    Lock acquired to initialize the namespace of a specific snap.
+
+`/run/snapd/ns/$SNAP_NAME.mnt`:
+
+    Location of a preserved mount namespace.
 
 Note that the apparmor profile is external to `snap-confine` and is loaded
 directly into the kernel. The actual apparmor profile is managed by `snapd`.

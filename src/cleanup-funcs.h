@@ -72,4 +72,12 @@ void sc_cleanup_seccomp_release(scmp_filter_ctx * ptr);
  **/
 void sc_cleanup_closedir(DIR ** ptr);
 
+/**
+ * Close an open file descriptor with close(2)
+ *
+ * This function is designed to be used with
+ * __attribute__((cleanup(sc_cleanup_close))).
+ **/
+void sc_cleanup_close(int *ptr);
+
 #endif
