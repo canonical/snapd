@@ -149,10 +149,12 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rmdir ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
+  /{,usr/}bin/shuf ixr,
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
+  /{,usr/}bin/stty ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -161,6 +163,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/tempfile ixr,
   /{,usr/}bin/tset ixr,
   /{,usr/}bin/touch ixr,
+  /{,usr/}bin/tput ixr,
   /{,usr/}bin/tr ixr,
   /{,usr/}bin/true ixr,
   /{,usr/}bin/uname ixr,
@@ -191,6 +194,10 @@ var defaultTemplate = []byte(`
   /usr/bin/lsb_release ixr,
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
+
+  # systemd native journal API (see sd_journal_print(4)). This should be in
+  # AppArmor's base abstraction, but until it is, include here.
+  /run/systemd/journal/socket w,
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -229,6 +236,7 @@ var defaultTemplate = []byte(`
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
+  owner @{PROC}/@{pid}/limits r,
   @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,

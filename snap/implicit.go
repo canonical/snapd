@@ -64,6 +64,7 @@ var implicitClassicSlots = []string{
 	"pulseaudio",
 	"screen-inhibit-control",
 	"unity7",
+	"upower-observe",
 	"x11",
 }
 
