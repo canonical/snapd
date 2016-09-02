@@ -373,6 +373,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	// with --devmode, set jailmode from snapstate).
 
 	// remove related
+	runner.AddHandler("stop-snap-services", m.doStopSnapServices, m.undoStopSnapServices)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
@@ -809,6 +810,12 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	pb := &TaskProgressAdapter{task: t}
 	st.Unlock() // pb itself will ask for locking
+	err = m.backend.StopSnapServices(oldInfo, pb)
+	st.Lock()
+	if err != nil {
+		return err
+	}
+	st.Unlock()
 	err = m.backend.UnlinkSnap(oldInfo, pb)
 	st.Lock()
 	if err != nil {
@@ -1024,7 +1031,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) startSnapServices(t *state.Task) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1045,7 +1052,7 @@ func (m *SnapManager) doStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
+func (m *SnapManager) stopSnapServices(t *state.Task) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1065,4 +1072,20 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 
 	return err
+}
+
+func (m *SnapManager) doStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	return m.startSnapServices(t)
+}
+
+func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	return m.stopSnapServices(t)
+}
+
+func (m *SnapManager) doStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	return m.stopSnapServices(t)
+}
+
+func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	return m.startSnapServices(t)
 }
