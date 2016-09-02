@@ -399,7 +399,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	c.Check(cv, Equals, "ubuntu-core_3.snap")
 }
 
-func (s *imageSuite) TestBootstrapToRootDirSideloadCore(c *C) {
+func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 
@@ -435,7 +435,7 @@ func (s *imageSuite) TestBootstrapToRootDirSideloadCore(c *C) {
 
 	// check the files are in place
 	for i, name := range []string{"ubuntu-core_x1.snap", "pc", "pc-kernel"} {
-		sideloaded := false
+		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
 			// ubuntu-core
@@ -445,7 +445,7 @@ func (s *imageSuite) TestBootstrapToRootDirSideloadCore(c *C) {
 					Revision: snap.R("x1"),
 				},
 			}
-			sideloaded = true
+			unasserted = true
 		}
 
 		fn := filepath.Base(info.MountFile())
@@ -456,7 +456,7 @@ func (s *imageSuite) TestBootstrapToRootDirSideloadCore(c *C) {
 			Name:       info.Name(),
 			SnapID:     info.SnapID,
 			File:       fn,
-			Sideloaded: sideloaded,
+			Unasserted: unasserted,
 		})
 	}
 
