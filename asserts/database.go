@@ -140,7 +140,6 @@ type Database struct {
 	trusted             Backstore
 	backstores          []Backstore
 	checkers            []Checker
-	noAuthorityCheckers []NoAuthorityChecker
 }
 
 // OpenDatabase opens the assertion database based on the configuration.
@@ -184,9 +183,6 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 	dbCheckers := make([]Checker, len(checkers))
 	copy(dbCheckers, checkers)
 
-	dbNoAuthorityCheckers := make([]NoAuthorityChecker, len(noAuthorityCheckers))
-	copy(dbNoAuthorityCheckers, noAuthorityCheckers)
-
 	return &Database{
 		bs:         bs,
 		keypairMgr: keypairMgr,
@@ -196,7 +192,6 @@ func OpenDatabase(cfg *DatabaseConfig) (*Database, error) {
 		// general backstore!
 		backstores:          []Backstore{trustedBackstore, bs},
 		checkers:            dbCheckers,
-		noAuthorityCheckers: dbNoAuthorityCheckers,
 	}, nil
 }
 
@@ -293,7 +288,7 @@ func (db *Database) Check(assert Assertion) error {
 			return fmt.Errorf("internal error: %q assertion cannot have authority-id set", typ.Name)
 		}
 
-		for _, checker := range db.noAuthorityCheckers {
+		for _, checker := range noAuthorityCheckers {
 			err := checker(assert, db)
 			if err != nil {
 				return err
