@@ -82,6 +82,16 @@ var statePatch3JSON = []byte(`
 				"3"
 			],
 			"change": "1"
+		},
+		"4": {
+			"id": "4",
+			"kind": "unlink-current-snap",
+			"summary": "meep",
+			"status": 2,
+			"halt-tasks": [
+				"3"
+			],
+			"change": "1"
 		}
 	}
 }
@@ -108,7 +118,7 @@ func (s *patch3Suite) TestPatch3(c *C) {
 
 	// our mocks are correct
 	st.Lock()
-	c.Assert(st.Tasks(), HasLen, 3)
+	c.Assert(st.Tasks(), HasLen, 4)
 	st.Unlock()
 
 	// go from patch level 2 -> 3
@@ -119,17 +129,21 @@ func (s *patch3Suite) TestPatch3(c *C) {
 	defer st.Unlock()
 
 	// we got two more tasks
-	c.Assert(st.Tasks(), HasLen, 5)
+	c.Assert(st.Tasks(), HasLen, 7)
 	for _, t := range st.Tasks() {
 		switch t.Kind() {
 		case "start-snap-services":
 			ht := t.WaitTasks()
 			c.Check(ht, HasLen, 1)
 			c.Check(ht[0].Kind(), Equals, "link-snap")
-		case "stop-snap-services":
-			ht := t.HaltTasks()
+		case "unlink-snap":
+			ht := t.WaitTasks()
 			c.Check(ht, HasLen, 1)
-			c.Check(ht[0].Kind(), Equals, "unlink-snap")
+			c.Check(ht[0].Kind(), Equals, "stop-snap-services")
+		case "unlink-current-snap":
+			ht := t.WaitTasks()
+			c.Check(ht, HasLen, 1)
+			c.Check(ht[0].Kind(), Equals, "stop-snap-services")
 		}
 	}
 }

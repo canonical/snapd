@@ -116,6 +116,10 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 
 	if snapst.Active {
 		// unlink-current-snap (will stop services for copy-data)
+		stop := s.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), ss.Name()))
+		addTask(stop)
+		prev = stop
+
 		unlink := s.NewTask("unlink-current-snap", fmt.Sprintf(i18n.G("Make current revision for snap %q unavailable"), ss.Name()))
 		addTask(unlink)
 		prev = unlink

@@ -116,7 +116,7 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	i := 0
 	n := 7
 	if curActive {
-		n++
+		n += 2
 	}
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "download-snap")
 	i++
@@ -125,6 +125,8 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "mount-snap")
 	i++
 	if curActive {
+		c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
+		i++
 		c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
 		i++
 	}
@@ -167,9 +169,11 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 5)
-	c.Assert(s.state.NumTask(), Equals, 5)
+	c.Assert(ts.Tasks(), HasLen, 6)
+	c.Assert(s.state.NumTask(), Equals, 6)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
 	i++
@@ -290,9 +294,11 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 
 	// ensure that we do not run any form of garbage-collection
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 5)
-	c.Assert(s.state.NumTask(), Equals, 5)
+	c.Assert(ts.Tasks(), HasLen, 6)
+	c.Assert(s.state.NumTask(), Equals, 6)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-current-snap")
 	i++

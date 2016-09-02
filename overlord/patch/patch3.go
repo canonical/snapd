@@ -30,21 +30,17 @@ func init() {
 	patches[3] = patch3
 }
 
-func activeStatus(status state.Status) bool {
-	switch status {
-	case state.DoStatus, state.DoingStatus, state.UndoStatus, state.UndoingStatus:
-		return true
-	}
-	return false
-}
-
 // patch3:
 // - migrates pending tasks and add {start,stop}-snap-services tasks
 func patch3(s *state.State) error {
 
 	// migrate all pending tasks and insert "{start,stop}-snap-server"
 	for _, t := range s.Tasks() {
-		if t.Kind() == "link-snap" && activeStatus(t.Status()) {
+		if t.Status().Ready() {
+			continue
+		}
+
+		if t.Kind() == "link-snap" {
 			startSnapServices := s.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap services")))
 			startSnapServices.Set("snap-setup-task", t.ID())
 			startSnapServices.WaitFor(t)
@@ -53,8 +49,8 @@ func patch3(s *state.State) error {
 			chg.AddTask(startSnapServices)
 		}
 
-		if t.Kind() == "unlink-snap" && activeStatus(t.Status()) {
-			stopSnapServices := s.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap  services")))
+		if t.Kind() == "unlink-snap" || t.Kind() == "unlink-current-snap" {
+			stopSnapServices := s.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap services")))
 			stopSnapServices.Set("snap-setup-task", t.ID())
 			t.WaitFor(stopSnapServices)
 
