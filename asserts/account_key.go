@@ -222,12 +222,6 @@ func (akr *AccountKeyRequest) signKey() PublicKey {
 	return akr.pubKey
 }
 
-// isValidAt returns whether the assertion is valid at a given time, in combination with other checks.
-func (akr *AccountKeyRequest) isValidAt(when time.Time) bool {
-	// account-key-request assertions are valid regardless of time.
-	return true
-}
-
 // Implement further consistency checks.
 func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) error {
 	_, err := db.Find(AccountType, map[string]string{

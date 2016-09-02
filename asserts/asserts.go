@@ -28,7 +28,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 	"unicode/utf8"
 )
 
@@ -156,9 +155,6 @@ type Assertion interface {
 type customSigner interface {
 	// signKey returns the public key material for the key that signed this assertion.  See also SignKeyID.
 	signKey() PublicKey
-
-	// isValidAt returns whether the assertion is valid at a given time, in combination with other checks.
-	isValidAt(when time.Time) bool
 }
 
 // MediaType is the media type for encoded assertions on the wire.
