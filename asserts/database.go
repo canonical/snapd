@@ -486,7 +486,7 @@ var DefaultCheckers = []Checker{
 func NoAuthorityCheckSignature(assert Assertion, roDB RODatabase, checkTime time.Time) error {
 	selfSigned, ok := assert.(selfSignedAssertion)
 	if !ok {
-		return fmt.Errorf("cannot check non-self-signed assertion type %q", assert.Type().Name)
+		panic(fmt.Errorf("cannot check non-self-signed assertion type %q", assert.Type().Name))
 	}
 	signingKey := selfSigned.signKey()
 	content, encSig := assert.Signature()
