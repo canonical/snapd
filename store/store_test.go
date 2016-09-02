@@ -82,8 +82,12 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 
 AXNpZw=`
 
-	exSerialProof = `type: serial-proof
+	exDeviceSessionRequest = `type: device-session-request
+brand-id: my-brand
+model: baz-3000
+serial: 9999
 nonce: @NONCE@
+timestamp: 2016-08-24T21:55:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
@@ -119,23 +123,25 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 }
 
 func (ac *testAuthContext) Serial() ([]byte, error) {
-	a, err := asserts.Decode([]byte(exSerial))
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(a.(*asserts.Serial)), nil
+	panic("Serial is deprecated, it should not be called")
 }
 
 func (ac *testAuthContext) SerialProof(nonce string) ([]byte, error) {
-	a, err := asserts.Decode([]byte(strings.Replace(exSerialProof, "@NONCE@", nonce, 1)))
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(a.(*asserts.SerialProof)), nil
+	panic("SerialProof is deprecated, it should not be called")
 }
 
 func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
-	panic("implement me")
+	serial, err := asserts.Decode([]byte(exSerial))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sessReq, err := asserts.Decode([]byte(strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(serial.(*asserts.Serial)), nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
