@@ -175,7 +175,7 @@ func StopSnapServices(s *snap.Info, inter interacter) error {
 
 }
 
-// RemoveSnapServices stops and removes service units for the applications from the snap which are services.
+// RemoveSnapServices disables and removes service units for the applications from the snap which are services.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
