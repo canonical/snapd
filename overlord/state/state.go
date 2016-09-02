@@ -39,7 +39,7 @@ type Backend interface {
 	Checkpoint(data []byte) error
 	EnsureBefore(d time.Duration)
 	// TODO: take flags to ask for reboot vs restart?
-	RequestRestart()
+	RequestRestart(t RestartType)
 }
 
 type customData map[string]*json.RawMessage
@@ -64,6 +64,14 @@ func (data customData) set(key string, value interface{}) {
 	entryJSON := json.RawMessage(serialized)
 	data[key] = &entryJSON
 }
+
+type RestartType int
+
+const (
+	RestartUnset RestartType = iota
+	RestartDaemon
+	RestartSystem
+)
 
 // State represents an evolving system state that persists across restarts.
 //
@@ -223,9 +231,9 @@ func (s *State) EnsureBefore(d time.Duration) {
 }
 
 // RequestRestart asks for a restart of the managing process.
-func (s *State) RequestRestart() {
+func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
-		s.backend.RequestRestart()
+		s.backend.RequestRestart(t)
 	}
 }
 
