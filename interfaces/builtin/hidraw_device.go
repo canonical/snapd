@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 )
@@ -51,7 +52,7 @@ var hidrawUdevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-device-[a-z0-9]+
 
 // Strings used to build up the udev snippet
 const udevHeader string = `IMPORT{builtin}="usb_id"`
-const udevDevicePrefix string = `SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04X", ATTRS{idProduct}=="%04X"`
+const udevDevicePrefix string = `SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
 const udevSymlinkSuffix string = `, SYMLINK+="%s"`
 const udevTagSuffix string = `, TAG+="%s"`
 
@@ -136,7 +137,7 @@ func (iface *HidrawDeviceInterface) PermanentSlotSnippet(slot *interfaces.Slot, 
 		var udevSnippet bytes.Buffer
 		udevSnippet.WriteString(udevHeader + "\n")
 		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, usbVendor, usbProduct))
-		udevSnippet.WriteString(fmt.Sprintf(udevSymlinkSuffix, path))
+		udevSnippet.WriteString(fmt.Sprintf(udevSymlinkSuffix, strings.TrimPrefix(path, "/dev/")))
 		udevSnippet.WriteString("\n")
 		return udevSnippet.Bytes(), nil
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount:
