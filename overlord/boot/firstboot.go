@@ -78,7 +78,9 @@ func populateStateFromSeed() error {
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
 
 		var sideInfo snap.SideInfo
-		if !sn.Sideloaded {
+		if sn.Unasserted {
+			sideInfo.RealName = sn.Name
+		} else {
 			si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
 			if err == asserts.ErrNotFound {
 				st.Unlock()
@@ -90,9 +92,6 @@ func populateStateFromSeed() error {
 			}
 			sideInfo = *si
 			sideInfo.Private = sn.Private
-		} else {
-			// sideloaded
-			sideInfo.RealName = sn.Name
 		}
 
 		ts, err := snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
