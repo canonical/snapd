@@ -54,16 +54,16 @@ func (s *SnapAssertBuildSuite) TestAssertBuildMissingSnap(c *C) {
 }
 
 func (s *SnapAssertBuildSuite) TestAssertBuildMissingKey(c *C) {
-	snap_filename := "foo_1_amd64.snap"
-	_err := ioutil.WriteFile(snap_filename, []byte("sample"), 0644)
+	snapFilename := "foo_1_amd64.snap"
+	_err := ioutil.WriteFile(snapFilename, []byte("sample"), 0644)
 	c.Assert(_err, IsNil)
-	defer os.Remove(snap_filename)
+	defer os.Remove(snapFilename)
 
 	tempdir := c.MkDir()
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
+	_, err := snap.Parser().ParseArgs([]string{"assert-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot get key by name: cannot find key named \"default\" in GPG keyring")
 	c.Check(s.Stdout(), Equals, "")
@@ -71,11 +71,11 @@ func (s *SnapAssertBuildSuite) TestAssertBuildMissingKey(c *C) {
 }
 
 func (s *SnapAssertBuildSuite) TestAssertBuildWorks(c *C) {
-	snap_filename := "foo_1_amd64.snap"
-	snap_content := []byte("sample")
-	_err := ioutil.WriteFile(snap_filename, snap_content, 0644)
+	snapFilename := "foo_1_amd64.snap"
+	snapContent := []byte("sample")
+	_err := ioutil.WriteFile(snapFilename, snapContent, 0644)
 	c.Assert(_err, IsNil)
-	defer os.Remove(snap_filename)
+	defer os.Remove(snapFilename)
 
 	tempdir := c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
@@ -87,22 +87,8 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorks(c *C) {
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
+	_, err := snap.Parser().ParseArgs([]string{"assert-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1"})
 	c.Assert(err, IsNil)
-
-	/*
-		statementFile := snap_filename + ".build"
-		f, err := os.OpenFile(statementFile, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-		if err != nil {
-			return fmt.Errorf("cannot open assertion file to write: %v", err)
-		}
-		defer f.Close()
-
-		_, err = f.WriteString(string(asserts.Encode(a)))
-		if err != nil {
-			return fmt.Errorf("cannot write to assertion file: %v", err)
-		}
-	*/
 
 	assertion, err := asserts.Decode([]byte(s.Stdout()))
 	c.Assert(err, IsNil)
@@ -112,7 +98,7 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorks(c *C) {
 	c.Check(assertion.HeaderString("developer-id"), Equals, "dev-id1")
 	c.Check(assertion.HeaderString("grade"), Equals, "stable")
 	c.Check(assertion.HeaderString("snap-id"), Equals, "snap-id-1")
-	c.Check(assertion.HeaderString("snap-size"), Equals, fmt.Sprintf("%d", len(snap_content)))
+	c.Check(assertion.HeaderString("snap-size"), Equals, fmt.Sprintf("%d", len(snapContent)))
 	c.Check(assertion.HeaderString("snap-sha3-384"), Equals, "jyP7dUgb8HiRNd1SdYPp_il-YNrl6P6PgNAe-j6_7WytjKslENhMD3Of5XBU5bQK")
 
 	// check for valid signature ?!
@@ -120,11 +106,11 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorks(c *C) {
 }
 
 func (s *SnapAssertBuildSuite) TestAssertBuildWorksDevelGrade(c *C) {
-	snap_filename := "foo_1_amd64.snap"
-	snap_content := []byte("sample")
-	_err := ioutil.WriteFile(snap_filename, snap_content, 0644)
+	snapFilename := "foo_1_amd64.snap"
+	snapContent := []byte("sample")
+	_err := ioutil.WriteFile(snapFilename, snapContent, 0644)
 	c.Assert(_err, IsNil)
-	defer os.Remove(snap_filename)
+	defer os.Remove(snapFilename)
 
 	tempdir := c.MkDir()
 	for _, fileName := range []string{"pubring.gpg", "secring.gpg", "trustdb.gpg"} {
@@ -136,7 +122,7 @@ func (s *SnapAssertBuildSuite) TestAssertBuildWorksDevelGrade(c *C) {
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
 	defer os.Unsetenv("SNAP_GNUPG_HOME")
 
-	_, err := snap.Parser().ParseArgs([]string{"assert-build", snap_filename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"})
+	_, err := snap.Parser().ParseArgs([]string{"assert-build", snapFilename, "--developer-id", "dev-id1", "--snap-id", "snap-id-1", "--grade", "devel"})
 	c.Assert(err, IsNil)
 	assertion, err := asserts.Decode([]byte(s.Stdout()))
 	c.Assert(err, IsNil)
