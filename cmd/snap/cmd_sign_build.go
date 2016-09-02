@@ -46,7 +46,7 @@ var shortSignBuildHelp = i18n.G("Create snap build assertion")
 var longSignBuildHelp = i18n.G("Create snap-build assertion for the provided snap file.")
 
 func init() {
-	cmd := addCommand("assert-build",
+	cmd := addCommand("sign-build",
 		shortSignBuildHelp,
 		longSignBuildHelp,
 		func() flags.Commander {
