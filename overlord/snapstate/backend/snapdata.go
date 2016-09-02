@@ -48,6 +48,21 @@ func (b Backend) RemoveSnapCommonData(snap *snap.Info) error {
 	return removeDirs(dirs)
 }
 
+func (b Backend) untrashData(snap *snap.Info) error {
+	dirs, err := snapDataDirs(snap)
+	if err != nil {
+		return err
+	}
+
+	for _, d := range dirs {
+		if e := untrash(d); e != nil && !os.IsNotExist(e) {
+			err = e
+		}
+	}
+
+	return err
+}
+
 func removeDirs(dirs []string) error {
 	for _, dir := range dirs {
 		if err := os.RemoveAll(dir); err != nil {
@@ -107,9 +122,37 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 	return nil
 }
 
+func trashPath(path string) string {
+	return path + ".old"
+}
+
+// trash moves path aside
+func trash(path string) error {
+	return os.Rename(path, trashPath(path))
+}
+
+// untrash moves the trash for path back in
+func untrash(path string) error {
+	return os.Rename(trashPath(path), path)
+}
+
+// clearTrash removes the trash made for path
+func clearTrash(path string) error {
+	return os.RemoveAll(trashPath(path))
+}
+
 // Lowlevel copy the snap data (but never override existing data)
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
+		if _, err := os.Stat(newPath); err == nil {
+			// newPath already exists; back up
+			if err := trash(newPath); err != nil {
+				return err
+			}
+		} else if !os.IsNotExist(err) {
+			return err
+		}
+
 		if _, err := os.Stat(newPath); err != nil {
 			if err := osutil.CopyFile(oldPath, newPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 				return fmt.Errorf("cannot copy %q to %q: %v", oldPath, newPath, err)
