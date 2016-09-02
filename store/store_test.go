@@ -2036,7 +2036,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	repo := New(&cfg, nil)
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(err, Equals, ErrAssertionNotFound)
+	c.Check(err, DeepEquals, &AssertionNotFoundError{
+		Ref: &asserts.Ref{
+			Type:       asserts.SnapDeclarationType,
+			PrimaryKey: []string{"16", "snapidfoo"},
+		},
+	})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
