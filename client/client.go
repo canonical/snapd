@@ -248,6 +248,7 @@ type ServerVersion struct {
 	Series      string
 	OSID        string
 	OSVersionID string
+	OnClassic   bool
 }
 
 func (client *Client) ServerVersion() (*ServerVersion, error) {
@@ -261,6 +262,7 @@ func (client *Client) ServerVersion() (*ServerVersion, error) {
 		Series:      sysInfo.Series,
 		OSID:        sysInfo.OSRelease.ID,
 		OSVersionID: sysInfo.OSRelease.VersionID,
+		OnClassic:   sysInfo.OnClassic,
 	}, nil
 }
 

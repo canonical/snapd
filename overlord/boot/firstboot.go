@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
@@ -75,7 +76,25 @@ func populateStateFromSeed() error {
 			flags |= snapstate.DevMode
 		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, flags)
+
+		var sideInfo snap.SideInfo
+		if sn.Unasserted {
+			sideInfo.RealName = sn.Name
+		} else {
+			si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+			if err == asserts.ErrNotFound {
+				st.Unlock()
+				return fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+			}
+			if err != nil {
+				st.Unlock()
+				return err
+			}
+			sideInfo = *si
+			sideInfo.Private = sn.Private
+		}
+
+		ts, err := snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
@@ -84,24 +103,6 @@ func populateStateFromSeed() error {
 		if err != nil {
 			return err
 		}
-
-		// XXX: this is a temporary hack until we have assertions
-		//      and do not need this anymore
-		st.Lock()
-		var ss snapstate.SnapSetup
-		tasks := ts.Tasks()
-		tasks[0].Get("snap-setup", &ss)
-		ss.SideInfo = &snap.SideInfo{
-			RealName:    sn.Name,
-			SnapID:      sn.SnapID,
-			Revision:    sn.Revision,
-			Channel:     sn.Channel,
-			DeveloperID: sn.DeveloperID,
-			Developer:   sn.Developer,
-			Private:     sn.Private,
-		}
-		tasks[0].Set("snap-setup", &ss)
-		st.Unlock()
 
 		tsAll = append(tsAll, ts)
 	}
@@ -184,7 +185,7 @@ func importAssertionsFromSeed(st *state.State) error {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		as, err := bs.Get(ref.Type, ref.PrimaryKey)
 		if err != nil {
-			return nil, fmt.Errorf("cannot find %s: %s", ref.Unique(), err)
+			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
 		}
 		return as, nil
 	}

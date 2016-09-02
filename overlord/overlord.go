@@ -62,7 +62,7 @@ type Overlord struct {
 	ensureNext  time.Time
 	pruneTimer  *time.Timer
 	// restarts
-	restartHandler func()
+	restartHandler func(t state.RestartType)
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
@@ -199,16 +199,16 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 }
 
-func (o *Overlord) requestRestart() {
+func (o *Overlord) requestRestart(t state.RestartType) {
 	if o.restartHandler == nil {
 		logger.Noticef("restart requested but no handler set")
 	} else {
-		o.restartHandler()
+		o.restartHandler(t)
 	}
 }
 
 // SetRestartHandler sets a handler to fulfill restart requests asynchronously.
-func (o *Overlord) SetRestartHandler(handleRestart func()) {
+func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
 	o.restartHandler = handleRestart
 }
 

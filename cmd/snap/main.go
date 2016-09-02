@@ -117,7 +117,9 @@ func Parser() *flags.Parser {
 		fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
 		fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
 		fmt.Fprintf(w, "series\t%s\n", sv.Series)
-		fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
+		if sv.OnClassic {
+			fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
+		}
 		w.Flush()
 
 		os.Exit(0)
