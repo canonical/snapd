@@ -134,11 +134,14 @@ const dockerPermanentSlotSecComp = `
 #open_by_handle_at
 
 # Calls the Docker daemon itself requires
-#   /snap/docker/VERSION/bin/docker-runc
-#     "do not inherit the parent's session keyring"
-#     "make session keyring searcheable"
+
+# /snap/docker/VERSION/bin/docker-runc
+#   "do not inherit the parent's session keyring"
+#   "make session keyring searcheable"
+# runC uses this to ensure the container doesn't have access to the host keyring
 keyctl
-#   /snap/docker/VERSION/bin/docker-runc
+
+# /snap/docker/VERSION/bin/docker-runc
 pivot_root
 
 # ptrace can be abused to break out of the seccomp sandbox
