@@ -24,6 +24,8 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -35,9 +37,6 @@ var (
 
 	// ErrSnapNotFound is returned when a snap can not be found
 	ErrSnapNotFound = errors.New("snap not found")
-
-	// ErrAssertionNotFound is returned when an assertion can not be found
-	ErrAssertionNotFound = errors.New("assertion not found")
 
 	// ErrUnauthenticated is returned when authentication is needed to complete the query
 	ErrUnauthenticated = errors.New("you need to log in first")
@@ -74,4 +73,13 @@ func (e ErrInvalidAuthData) Error() string {
 	//      full sentences (with periods and capitalization)
 	//      (empirically this checks out)
 	return strings.Join(es, "  ")
+}
+
+// AssertionNotFoundError is returned when an assertion can not be found
+type AssertionNotFoundError struct {
+	Ref *asserts.Ref
+}
+
+func (e *AssertionNotFoundError) Error() string {
+	return fmt.Sprintf("%v not found", e.Ref)
 }
