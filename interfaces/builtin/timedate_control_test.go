@@ -38,21 +38,21 @@ var _ = Suite(&TimeDateControlTestInterfaceSuite{
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
-			Name:      "time-date-control",
-			Interface: "time-date-control",
+			Name:      "timedate-control",
+			Interface: "timedate-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "time-date-control",
-			Interface: "time-date-control",
+			Name:      "timedate-control",
+			Interface: "timedate-control",
 		},
 	},
 })
 
 func (s *TimeDateControlTestInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "time-date-control")
+	c.Assert(s.iface.Name(), Equals, "timedate-control")
 }
 
 func (s *TimeDateControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -60,10 +60,10 @@ func (s *TimeDateControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "time-date-control",
-		Interface: "time-date-control",
+		Name:      "timedate-control",
+		Interface: "timedate-control",
 	}})
-	c.Assert(err, ErrorMatches, "time-date-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "timedate-control slots are reserved for the operating system snap")
 }
 
 func (s *TimeDateControlTestInterfaceSuite) TestSanitizePlug(c *C) {
@@ -73,9 +73,9 @@ func (s *TimeDateControlTestInterfaceSuite) TestSanitizePlug(c *C) {
 
 func (s *TimeDateControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "time-date-control"`)
+		PanicMatches, `slot is not of interface "timedate-control"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "time-date-control"`)
+		PanicMatches, `plug is not of interface "timedate-control"`)
 }
 
 func (s *TimeDateControlTestInterfaceSuite) TestUnusedSecuritySystems(c *C) {
@@ -128,5 +128,5 @@ func (s *TimeDateControlTestInterfaceSuite) TestUnexpectedSecuritySystems(c *C) 
 }
 
 func (s *TimeDateControlTestInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(), Equals, true)
 }

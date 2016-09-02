@@ -51,7 +51,7 @@ var implicitSlots = []string{
 	"timezone-control",
 	"tpm",
 	"kernel-module-control",
-	"time-date-control",
+	"timedate-control",
 }
 
 var implicitClassicSlots = []string{

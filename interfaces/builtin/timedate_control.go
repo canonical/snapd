@@ -62,13 +62,13 @@ sendmsg
 socket
 `
 
-// NewTimeDateControlInterface returns a new "time-date-control" interface.
+// NewTimeDateControlInterface returns a new "timedate-control" interface.
 func NewTimeDateControlInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "time-date-control",
+		name: "timedate-control",
 		connectedPlugAppArmor: timeDateControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  timeDateControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           false,
+		autoConnect:           true,
 	}
 }
