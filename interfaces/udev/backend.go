@@ -29,6 +29,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -161,10 +162,9 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		}
 	}
 
-	for _, slotInfo := range snapInfo.Slots {
-		securityTag := snap.NoneSecurityTag(snapInfo.Name(), slotInfo.Name)
-		slotSnippets := snippets[securityTag]
-		if len(slotSnippets) == 0 {
+	nonePrefix := snap.NoneSecurityTag(snapInfo.Name(), "")
+	for securityTag, slotSnippets := range snippets {
+		if !strings.HasPrefix(securityTag, nonePrefix) {
 			continue
 		}
 
