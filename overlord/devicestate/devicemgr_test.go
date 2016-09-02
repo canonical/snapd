@@ -568,3 +568,48 @@ func (s *deviceMgrSuite) TestDeviceAssertionsSerialProof(c *C) {
 	err = asserts.SignatureCheck(serialProof, privKey.PublicKey())
 	c.Check(err, IsNil)
 }
+
+func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
+	// nothing there
+	_, err := s.mgr.SerialProof("NONCE-1")
+	c.Check(err, Equals, state.ErrNoState)
+
+	// setup state as done by device initialisation
+	s.state.Lock()
+	devKey, _ := assertstest.GenerateKey(1024)
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	seriala, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            "canonical",
+		"model":               "pc",
+		"serial":              "8989",
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": devKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, seriala)
+	c.Assert(err, IsNil)
+
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+		KeyID:  devKey.PublicKey().ID(),
+	})
+	s.mgr.KeypairManager().Put(devKey)
+	s.state.Unlock()
+
+	sessReq, serial, err := s.mgr.DeviceSessionRequest("NONCE-1")
+	c.Assert(err, IsNil)
+
+	c.Check(serial.Serial(), Equals, "8989")
+
+	// correctly signed with device key
+	err = asserts.SignatureCheck(sessReq, devKey.PublicKey())
+	c.Check(err, IsNil)
+
+	c.Check(sessReq.BrandID(), Equals, "canonical")
+	c.Check(sessReq.Model(), Equals, "pc")
+	c.Check(sessReq.Serial(), Equals, "8989")
+	c.Check(sessReq.Nonce(), Equals, "NONCE-1")
+}
