@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
@@ -151,10 +152,13 @@ type Assertion interface {
 	Ref() *Ref
 }
 
-// selfSignedAssertion represents an assertion that contains its own signing key.
-type selfSignedAssertion interface {
+// customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.
+type customSigner interface {
 	// signKey returns the public key material for the key that signed this assertion.  See also SignKeyID.
 	signKey() PublicKey
+
+	// isValidAt returns whether the assertion is valid at a given time, in combination with other checks.
+	isValidAt(when time.Time) bool
 }
 
 // MediaType is the media type for encoded assertions on the wire.
