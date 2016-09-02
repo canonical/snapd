@@ -294,7 +294,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 
 func (f *fakeSnappyBackend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
 	f.ops = append(f.ops, fakeOp{
-		op:   "start-services-snap",
+		op:   "start-snap-services",
 		name: info.MountDir(),
 	})
 	return nil
