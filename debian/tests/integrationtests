@@ -24,29 +24,6 @@ sudo systemctl daemon-reload
 # ensure our PATH is right
 . /etc/profile.d/apps-bin-path.sh
 
-tmp="${ADT_ARTIFACTS}/build"
-mkdir -p "$tmp"
-export GOPATH="$tmp"
-mkdir -p "$GOPATH"/src/github.com/snapcore/snapd
-cp -R ./* "$GOPATH"/src/github.com/snapcore/snapd/
-mkdir -p "$GOPATH"/src/github.com/snapcore/snapd/integration-tests/data/output
-cp debian/tests/testconfig.json "$GOPATH"/src/github.com/snapcore/snapd/integration-tests/data/output/
-cd "$GOPATH"/src/github.com/snapcore/snapd
-
-# don't install deps nor compile binaries after reboot
-if [ -z "$ADT_REBOOT_MARK" ]; then
-    ./get-deps.sh
-    go test -tags classic -c ./integration-tests/tests
-
-    # ensure we have snapbuild available for the tests
-    go get ./tests/lib/snapbuild
-    sudo cp $GOPATH/bin/snapbuild /usr/local/bin
-fi
-
-SNAP_REEXEC=0 ./tests.test -check.vv
-
-if [ -e "${NEEDS_REBOOT}" ]; then
-    mark=$(cat "${NEEDS_REBOOT}")
-    echo "Rebooting..."
-    sudo /tmp/autopkgtest-reboot "$mark"
-fi
+export GOPATH=/tmp/go
+go get -u github.com/snapcore/spread/cmd/spread
+/tmp/go/bin/spread -v adhoc:
