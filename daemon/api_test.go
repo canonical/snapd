@@ -1326,7 +1326,7 @@ var sideLoadBodyWithoutDevMode = "" +
 	"\r\n" +
 	"xyzzy\r\n" +
 	"----hello--\r\n" +
-	"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
+	"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
 	"\r\n" +
 	"true\r\n" +
 	"----hello--\r\n" +
@@ -1363,10 +1363,6 @@ func (s *apiSuite) TestSideloadSnapDevMode(c *check.C) {
 		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
-		"\r\n" +
-		"true\r\n" +
 		"----hello--\r\n"
 	head := map[string]string{"Content-Type": "multipart/thing; boundary=--hello--"}
 	// try a multipart/form-data upload
@@ -1387,7 +1383,7 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
+		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
@@ -1409,10 +1405,6 @@ func (s *apiSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 		"true\r\n" +
 		"----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"devmode\"\r\n" +
-		"\r\n" +
-		"true\r\n" +
-		"----hello--\r\n" +
-		"Content-Disposition: form-data; name=\"force-dangerous\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"

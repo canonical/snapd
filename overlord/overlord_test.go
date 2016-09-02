@@ -556,7 +556,7 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	o.State().RequestRestart()
+	o.State().RequestRestart(state.RestartDaemon)
 }
 
 func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
@@ -565,11 +565,11 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 
 	restartRequested := false
 
-	o.SetRestartHandler(func() {
+	o.SetRestartHandler(func(t state.RestartType) {
 		restartRequested = true
 	})
 
-	o.State().RequestRestart()
+	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(restartRequested, Equals, true)
 }

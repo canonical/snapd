@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -200,4 +201,15 @@ func checkStringList(headers map[string]interface{}, name string) ([]string, err
 		res[i] = s
 	}
 	return res, nil
+}
+
+func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
+	s, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return "", err
+	}
+	if !pattern.MatchString(s) {
+		return "", fmt.Errorf("%q header contains invalid characters: %q", name, s)
+	}
+	return s, nil
 }

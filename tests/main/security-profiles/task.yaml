@@ -15,7 +15,7 @@ execute: |
     seccomp_profile_directory="/var/lib/snapd/seccomp/profiles"
 
     echo "Security profiles are generated and loaded for apps"
-    snap install --force-dangerous test-snapd-tools_1.0_all.snap
+    snap install --dangerous test-snapd-tools_1.0_all.snap
     loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
     for profile in snap.test-snapd-tools.block snap.test-snapd-tools.cat snap.test-snapd-tools.echo snap.test-snapd-tools.fail snap.test-snapd-tools.success
@@ -25,7 +25,7 @@ execute: |
     done
 
     echo "Security profiles are generated and loaded for hooks"
-    snap install --force-dangerous basic-hooks_1.0_all.snap
+    snap install --dangerous basic-hooks_1.0_all.snap
     loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
     for profile in snap.basic-hooks.hook.apply-config snap.basic-hooks.hook.check-config
