@@ -232,7 +232,10 @@ func (akr *AccountKeyRequest) noAuthorityCheckConsistency(db RODatabase) error {
 }
 
 // sanity
-var _ noAuthorityConsistencyChecker = (*AccountKeyRequest)(nil)
+var (
+	_ noAuthorityConsistencyChecker = (*AccountKeyRequest)(nil)
+	_ selfSignedAssertion           = (*AccountKeyRequest)(nil)
+)
 
 // Prerequisites returns references to this account-key-request's prerequisite assertions.
 func (akr *AccountKeyRequest) Prerequisites() []*Ref {
