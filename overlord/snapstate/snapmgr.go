@@ -923,10 +923,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd
-	if newInfo.Type == snap.TypeOS && release.OnClassic {
-		t.Logf("Restarting snapd...")
+	if release.OnClassic && newInfo.Type == snap.TypeOS {
+		t.Logf("Requested daemon restart.")
 		st.Unlock()
-		st.RequestRestart()
+		st.RequestRestart(state.RestartDaemon)
+		st.Lock()
+	}
+	if !release.OnClassic && (newInfo.Type == snap.TypeOS || newInfo.Type == snap.TypeKernel) {
+		t.Logf("Requested system restart.")
+		st.Unlock()
+		st.RequestRestart(state.RestartSystem)
 		st.Lock()
 	}
 
