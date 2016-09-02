@@ -87,8 +87,11 @@ setup_reflash_magic() {
         export SNAPPY_FORCE_SAS_URL=http://localhost:11028
         IMAGE=all-snap-amd64.img
         # ensure that ubuntu-image is using our test-build of snapd with the
-        # test keys and not the bundled version of usr/bin/snap from the snap
-        export UBUNTU_IMAGE_SNAP_CMD=/usr/bin/snap
+        # test keys and not the bundled version of usr/bin/snap from the snap.
+        # Note that we can not put it into /usr/bin as '/usr' is different
+        # when the snap uses confinement.
+        cp /usr/bin/snap $IMAGE_HOME
+        export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
         /snap/bin/ubuntu-image -w $IMAGE_HOME $TESTSLIB/assertions/developer1-pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # teardown store
