@@ -48,12 +48,14 @@ dbus (receive, send)
     path=/org/freedesktop/timedate1
     interface=org.freedesktop.DBus.Properties
     member="{Get,GetAll,PropertiesChanged}"
+    peer=(label=unconfined),
 `
 const timeDateControlConnectedPlugSecComp = `
 # dbus
 connect
 getsockname
 recvmsg
+recvfrom
 send
 sendto
 sendmsg
