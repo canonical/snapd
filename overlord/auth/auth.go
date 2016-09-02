@@ -20,6 +20,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -218,9 +219,17 @@ type DeviceAssertions interface {
 	Model() (*asserts.Model, error)
 	// Serial returns the device model assertion.
 	Serial() (*asserts.Serial, error)
-	// SerialProof produces a serial-proof with the given nonce.
+
+	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
+	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error)
+
+	// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
 	SerialProof(nonce string) (*asserts.SerialProof, error)
 }
+
+var (
+	ErrNoSerial = errors.New("no device serial yet")
+)
 
 // An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
@@ -231,8 +240,10 @@ type AuthContext interface {
 
 	StoreID(fallback string) (string, error)
 
-	Serial() ([]byte, error)
-	SerialProof(nonce string) ([]byte, error)
+	Serial() ([]byte, error)                  // DEPRECATED
+	SerialProof(nonce string) ([]byte, error) // DEPRECATED
+
+	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, err error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -314,4 +325,19 @@ func (ac *authContext) SerialProof(nonce string) ([]byte, error) {
 		return nil, err
 	}
 	return asserts.Encode(proof), nil
+}
+
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial assertion. It returns ErrNoSerial if the device serial is not yet initialized.
+func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, serial []byte, err error) {
+	if ac.deviceAsserts == nil {
+		return nil, nil, ErrNoSerial
+	}
+	req, ser, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
+	if err == state.ErrNoState {
+		return nil, nil, ErrNoSerial
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return asserts.Encode(req), asserts.Encode(ser), nil
 }

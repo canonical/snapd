@@ -83,6 +83,12 @@ func HookSecurityTag(snapName, hookName string) string {
 	return fmt.Sprintf("%s.hook.%s", SecurityTag(snapName), hookName)
 }
 
+// NoneSecurityTag returns the security tag for interfaces that
+// are not associated to an app or hook in the snap.
+func NoneSecurityTag(snapName, uniqueName string) string {
+	return fmt.Sprintf("%s.none.%s", SecurityTag(snapName), uniqueName)
+}
+
 // SideInfo holds snap metadata that is crucial for the tracking of
 // snaps and for the working of the system offline and which is not
 // included in snap.yaml or for which the store is the canonical
