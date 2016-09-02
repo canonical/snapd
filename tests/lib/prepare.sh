@@ -102,7 +102,7 @@ setup_reflash_magic() {
         # FIXME: hardcoded mapper location, parse from kpartx
         mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -avr /home/gopath /mnt/user-data/
+        cp -ar /home/gopath /mnt/user-data/
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
@@ -202,6 +202,10 @@ prepare_all_snap() {
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
             snap list
+            echo "seed.yaml"
+            cat /var/lib/snapd/seed/seed.yaml
+            echo "Snapd directory"
+            ls -R /var/lib/snapd/
             exit 1
         fi
     done
