@@ -47,9 +47,13 @@ const (
 	// always be enforcing, even if the snap requests otherwise.
 	JailMode
 
-	// if we need flags for just SnapSetup it may be easier
-	// to start a new sequence from the other end with:
-	// 0x40000000 >> iota
+	// flags just for SnapSetup follow
+
+	// HasABA is a feature flag; doInstall sets it, and downstream handlers check for it to handle old SnapSetups
+	HasABA = 0x40000000 >> iota
+
+	// IsRevert flags the SnapSetup as coming from a revert
+	IsRevert
 )
 
 func (f Flags) DevModeAllowed() bool {
@@ -64,10 +68,20 @@ func (f Flags) JailMode() bool {
 	return f&JailMode != 0
 }
 
+func (f Flags) HasABA() bool {
+	return f&HasABA != 0
+}
+
+func (f Flags) IsRevert() bool {
+	return f&IsRevert != 0
+}
+
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name(), snapst); err != nil {
 		return nil, err
 	}
+
+	ss.Flags |= HasABA
 
 	if ss.SnapPath == "" && ss.Channel == "" {
 		ss.Channel = "stable"
@@ -126,7 +140,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	}
 
 	// copy-data (needs stopped services by unlink)
-	if !revisionIsLocal {
+	if !ss.IsRevert() {
 		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name()))
 		addTask(copyData)
 		prev = copyData
@@ -148,7 +162,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
-	if snapst.HasCurrent() && !revisionIsLocal {
+	if snapst.HasCurrent() && !ss.IsRevert() {
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -162,6 +176,17 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			prev = tasks[len(tasks)-1]
 		}
 
+		// discard the first As in A-...-A refreshes
+		for i := 0; i < currentIndex; i++ {
+			si := seq[i]
+			if si.Revision == ss.Revision() {
+				// we do *not* want to removeInactiveRevision of this one
+				seq = seq[:i+copy(seq[i:], seq[i+1:])]
+				i--
+				currentIndex--
+			}
+		}
+
 		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
@@ -170,6 +195,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
 		}
+
 	}
 
 	return state.NewTaskSet(tasks...), nil
@@ -724,7 +750,7 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision, flags Flag
 	}
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
-		Flags:    SnapSetupFlags(flags),
+		Flags:    SnapSetupFlags(flags) | IsRevert,
 	}
 	return doInstall(s, &snapst, ss)
 }

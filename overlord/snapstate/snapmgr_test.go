@@ -755,6 +755,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 		SideInfo: ss.SideInfo,
+		Flags:    snapstate.HasABA,
 	})
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "some-snap",
@@ -895,7 +896,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		Channel: "some-channel",
-		Flags:   0,
+		Flags:   snapstate.HasABA,
 		UserID:  s.user.ID,
 
 		SnapPath: "downloaded-snap-path",
@@ -1387,6 +1388,7 @@ version: 1.0`)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: ss.SideInfo,
+		Flags:    snapstate.HasABA,
 	})
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -1475,6 +1477,7 @@ version: 1.0`)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		SnapPath: mockSnap,
 		SideInfo: ss.SideInfo,
+		Flags:    snapstate.HasABA,
 	})
 	c.Assert(ss.SideInfo, DeepEquals, &snap.SideInfo{
 		RealName: "mock",
@@ -1596,6 +1599,7 @@ version: 1.0`)
 	c.Assert(ss, DeepEquals, snapstate.SnapSetup{
 		SnapPath: someSnap,
 		SideInfo: ss.SideInfo,
+		Flags:    snapstate.HasABA,
 	})
 	c.Assert(ss.SideInfo, DeepEquals, si)
 
@@ -3236,6 +3240,158 @@ func (s *canRemoveSuite) TestActiveOSAndKernelAreNotOK(c *C) {
 	c.Check(snapstate.CanRemove(kernel, true), Equals, false)
 }
 
+func revs(seq []*snap.SideInfo) []int {
+	revs := make([]int, len(seq))
+	for i, si := range seq {
+		revs[i] = si.Revision.N
+	}
+
+	return revs
+}
+
+// build a SnapState with a revision sequence given by `before` and a
+// current revision of `current`. Then refresh --revision via. Then
+// check the revision sequence is as in `after`.
+func (s *snapmgrTestSuite) testOpSequence(c *C, revert bool, before []int, current, via int, after []int) (*snapstate.SnapState, *state.TaskSet) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	seq := make([]*snap.SideInfo, len(before))
+	for i, n := range before {
+		seq[i] = &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(n)}
+	}
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Channel:  "edge",
+		Sequence: seq,
+		Current:  snap.R(current),
+	})
+
+	var chg *state.Change
+	var ts *state.TaskSet
+	var err error
+	if revert {
+		chg = s.state.NewChange("revert", "revert a snap")
+		ts, err = snapstate.RevertToRevision(s.state, "some-snap", snap.R(via))
+	} else {
+		chg = s.state.NewChange("refresh", "refresh a snap")
+		ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(via), s.user.ID, 0)
+	}
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.snapmgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(revs(snapst.Sequence), DeepEquals, after)
+
+	return &snapst, ts
+}
+
+func (s *snapmgrTestSuite) testUpdateSequence(c *C, before []int, current, via int, after []int) *state.TaskSet {
+	snapst, ts := s.testOpSequence(c, false, before, current, via, after)
+	// update always ends with current==seq[-1]==via:
+	c.Check(snapst.Current.N, Equals, after[len(after)-1])
+	c.Check(snapst.Current.N, Equals, via)
+
+	c.Check(s.fakeBackend.ops.Count("copy-data"), Equals, 1)
+	c.Check(s.fakeBackend.ops.First("copy-data"), DeepEquals, &fakeOp{
+		op:   "copy-data",
+		name: fmt.Sprintf("/snap/some-snap/%d", via),
+		old:  fmt.Sprintf("/snap/some-snap/%d", current),
+	})
+
+	return ts
+}
+
+func (s *snapmgrTestSuite) testUpdateFailureSequence(c *C, before []int, current, via int) *state.TaskSet {
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", via)
+	snapst, ts := s.testOpSequence(c, false, before, current, via, before)
+	// a failed update will always end with current unchanged
+	c.Check(snapst.Current.N, Equals, current)
+
+	return ts
+}
+
+func (s *snapmgrTestSuite) testRevertSequence(c *C, before []int, current, via int) *state.TaskSet {
+	snapst, ts := s.testOpSequence(c, true, before, current, via, before)
+	// successful revert leaves current == via
+	c.Check(snapst.Current.N, Equals, via)
+
+	c.Check(s.fakeBackend.ops.Count("copy-data"), Equals, 0)
+
+	return ts
+}
+
+func (s *snapmgrTestSuite) testRevertFailureSequence(c *C, before []int, current, via int) *state.TaskSet {
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", via)
+	snapst, ts := s.testOpSequence(c, true, before, current, via, before)
+	// a failed revert will always end with current unchanged
+	c.Check(snapst.Current.N, Equals, current)
+
+	return ts
+}
+
+func (s *snapmgrTestSuite) TestSeqNormal(c *C) {
+	s.testUpdateSequence(c, []int{1, 2, 3}, 3, 4, []int{2, 3, 4})
+}
+
+func (s *snapmgrTestSuite) TestSeqNormalFailure(c *C) {
+	s.testUpdateFailureSequence(c, []int{1, 2, 3}, 3, 4)
+}
+
+func (s *snapmgrTestSuite) TestSeqRevert(c *C) {
+	s.testRevertSequence(c, []int{1, 2, 3}, 3, 2)
+}
+
+func (s *snapmgrTestSuite) TestSeqRevertFailure(c *C) {
+	s.testRevertFailureSequence(c, []int{1, 2, 3}, 3, 2)
+}
+
+func (s *snapmgrTestSuite) TestSeqPostRevert(c *C) {
+	s.testUpdateSequence(c, []int{1, 2, 3}, 2, 4, []int{1, 2, 4})
+}
+
+func (s *snapmgrTestSuite) TestSeqPostRevertFailure(c *C) {
+	s.testUpdateFailureSequence(c, []int{1, 2, 3}, 2, 4)
+}
+
+func (s *snapmgrTestSuite) TestSeqRevertPostRevert(c *C) {
+	s.testRevertSequence(c, []int{1, 2, 3}, 2, 1)
+}
+
+func (s *snapmgrTestSuite) TestSeqRevertPostRevertFailure(c *C) {
+	s.testRevertFailureSequence(c, []int{1, 2, 3}, 2, 1)
+}
+
+func (s *snapmgrTestSuite) TestSeqMissedOne(c *C) {
+	s.testUpdateSequence(c, []int{1, 2}, 2, 4, []int{1, 2, 4})
+}
+
+func (s *snapmgrTestSuite) TestSeqMissedOneFailure(c *C) {
+	s.testUpdateFailureSequence(c, []int{1, 2}, 2, 4)
+}
+
+func (s *snapmgrTestSuite) TestSeqABA(c *C) {
+	s.testUpdateSequence(c, []int{1, 2, 3}, 3, 2, []int{1, 3, 2})
+	c.Check(s.fakeBackend.ops.First("cleanup-trash"), DeepEquals, &fakeOp{
+		op:    "cleanup-trash",
+		name:  "some-snap",
+		revno: snap.R(2),
+	})
+}
+
+func (s *snapmgrTestSuite) TestSeqABAFailure(c *C) {
+	s.testUpdateFailureSequence(c, []int{1, 2, 3}, 3, 2)
+	c.Check(s.fakeBackend.ops.First("cleanup-trash"), IsNil)
+}
+
 func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -3275,7 +3431,7 @@ func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
 	c.Check(tasks[len(tasks)-5].Kind(), Not(Equals), "discard-snap")
 }
 
-func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
+func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",
 		SnapID:   "some-snap-id",
@@ -3311,19 +3467,14 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
-			op:   "stop-snap-services",
-			name: "/snap/some-snap/11",
-		},
-		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/11",
 		},
-		// XXX: TBD
-		// {
-		// 	op:   "copy-data",
-		// 	name: "/snap/some-snap/11",
-		// 	old:  "/snap/some-snap/7",
-		// },
+		{
+			op:   "copy-data",
+			name: "/snap/some-snap/7",
+			old:  "/snap/some-snap/11",
+		},
 		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
@@ -3343,6 +3494,15 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
+			op:    "cleanup-trash",
+			name:  "some-snap",
+			revno: snap.R(7),
+		},
+		{
+			// XXX: this is wrong, cleanup-trash should
+			// come last, but in the middle of a
+			// rebase. Come back post-rebase and clean it
+			// up.
 			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},

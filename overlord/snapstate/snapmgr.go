@@ -99,6 +99,14 @@ func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
 }
 
+func (ss *SnapSetup) IsRevert() bool {
+	return Flags(ss.Flags).IsRevert()
+}
+
+func (ss *SnapSetup) HasABA() bool {
+	return Flags(ss.Flags).HasABA()
+}
+
 // SnapStateFlags are flags stored in SnapState.
 type SnapStateFlags Flags
 
@@ -566,6 +574,15 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func revs(seq []*snap.SideInfo) []int {
+	revs := make([]int, len(seq))
+	for i, si := range seq {
+		revs[i] = si.Revision.N
+	}
+
+	return revs
+}
+
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 
@@ -861,10 +878,18 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	cand := ss.SideInfo
 	m.backend.Candidate(cand)
 
-	hadCandidate := true
-	if snapst.LastIndex(cand.Revision) < 0 {
+	oldCandidateIndex := snapst.LastIndex(cand.Revision)
+	var oldInfo *snap.Info
+	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
-		hadCandidate = false
+	} else if ss.HasABA() && !ss.IsRevert() {
+		si := snapst.Sequence[oldCandidateIndex]
+		oldInfo, err = readInfo(ss.Name(), si)
+		if err != nil {
+			return err
+		}
+		copy(snapst.Sequence[oldCandidateIndex:len(snapst.Sequence)-1], snapst.Sequence[oldCandidateIndex+1:])
+		snapst.Sequence[len(snapst.Sequence)-1] = cand
 	}
 
 	oldCurrent := snapst.Current
@@ -905,6 +930,10 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
+	if oldInfo != nil {
+		// TODO: move this to its own task
+		m.backend.ClearTrashedData(oldInfo)
+	}
 
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
@@ -912,7 +941,12 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
-	t.Set("had-candidate", hadCandidate)
+	if ss.HasABA() {
+		t.Set("old-candidate-index", oldCandidateIndex)
+	} else {
+		//migration
+		t.Set("had-candidate", oldCandidateIndex < 0)
+	}
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
@@ -972,10 +1006,20 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	var hadCandidate bool
-	err = t.Get("had-candidate", &hadCandidate)
-	if err != nil && err != state.ErrNoState {
-		return err
+
+	isRevert := false
+	oldCandidateIndex := -1
+	if ss.HasABA() {
+		isRevert = ss.IsRevert()
+		err = t.Get("old-candidate-index", &oldCandidateIndex)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = t.Get("had-candidate", &isRevert)
+		if err != nil && err != state.ErrNoState {
+			return err
+		}
 	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
@@ -983,7 +1027,15 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if currentIndex < 0 {
 		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", ss.SideInfo.Revision, snapst.Sequence)
 	}
-	if !hadCandidate {
+	if ss.HasABA() {
+		if oldCandidateIndex < 0 {
+			snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
+		} else if !isRevert {
+			oldCand := snapst.Sequence[currentIndex]
+			copy(snapst.Sequence[oldCandidateIndex+1:], snapst.Sequence[oldCandidateIndex:])
+			snapst.Sequence[oldCandidateIndex] = oldCand
+		}
+	} else if !isRevert {
 		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
 	}
 	snapst.Current = oldCurrent
