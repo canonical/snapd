@@ -225,7 +225,7 @@ func (d *Daemon) addRoutes() {
 	d.router.NotFoundHandler = NotFound("not found")
 }
 
-var shutdownMsg = i18n.G("snapd triggered a reboot to boot into an up to date system -- temprorarily disable the reboot by running 'sudo shutdown -c'")
+var shutdownMsg = i18n.G("reboot scheduled to update the system - temporarily cancel with 'sudo shutdown -c'")
 
 // Start the Daemon
 func (d *Daemon) Start() {
@@ -240,8 +240,8 @@ func (d *Daemon) Start() {
 				logger.Noticef("%s", osutil.OutputErr(out, err))
 			}
 		default:
-			// FIMXE: log error instead?
-			logger.Panicf("called with unknown restartType: %v", t)
+			logger.Noticef("internal error: restart handler called with unknown restart type: %v", t)
+			d.tomb.Kill(nil)
 		}
 	})
 
