@@ -1034,7 +1034,7 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	dangerousOK := isTrue(form, "force-dangerous")
+	dangerousOK := isTrue(form, "dangerous")
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1107,7 +1107,7 @@ out:
 		snapName = si.RealName
 		sideInfo = si
 	} else {
-		// potentially dangerous but force-dangerous was provided
+		// potentially dangerous but dangerous param was set
 		info, err := unsafeReadSnapInfo(tempPath)
 		if err != nil {
 			return InternalError("cannot read snap file: %v", err)

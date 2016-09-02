@@ -18,7 +18,7 @@ environment:
 prepare: |
     echo "Given a snap declaring the network-bind plug is installed"
     snapbuild $TESTSLIB/snaps/$SNAP_NAME .
-    snap install --force-dangerous $SNAP_FILE
+    snap install --dangerous $SNAP_FILE
 
     echo "Given the snap's service is listening"
     while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done

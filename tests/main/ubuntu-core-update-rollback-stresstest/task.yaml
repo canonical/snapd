@@ -18,7 +18,7 @@ execute: |
     echo "Install/revert a couple of times and see if stuff breaks"
     if [ "$SPREAD_REBOOT" = "0" ]; then
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot
-        snap install --force-dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
+        snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
         store_next_boot
         REBOOT
     fi
@@ -32,7 +32,7 @@ execute: |
     if [ "$SPREAD_REBOOT" = "2" ]; then
         wait_boot_ok
         check_boot
-        snap install --force-dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
+        snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
         store_next_boot
         REBOOT
     fi
