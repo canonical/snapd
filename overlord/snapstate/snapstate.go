@@ -507,10 +507,13 @@ func Disable(s *state.State, name string) (*state.TaskSet, error) {
 		},
 	}
 
+	stopSnapServices := s.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q (%s) services"), ss.Name(), snapst.Current))
+	stopSnapServices.Set("snap-setup", &ss)
 	unlinkSnap := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q (%s) unavailable to the system"), ss.Name(), snapst.Current))
-	unlinkSnap.Set("snap-setup", &ss)
+	unlinkSnap.Set("snap-setup-task", stopSnapServices.ID())
+	unlinkSnap.WaitFor(stopSnapServices)
 
-	return state.NewTaskSet(unlinkSnap), nil
+	return state.NewTaskSet(stopSnapServices, unlinkSnap), nil
 }
 
 func removeInactiveRevision(s *state.State, name string, revision snap.Revision) *state.TaskSet {
@@ -622,15 +625,18 @@ func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet
 	}
 
 	if active { // unlink
+		stopSnapServices := s.NewTask("stop-snap-services", fmt.Sprintf(i18n.G("Stop snap %q services"), name))
+		stopSnapServices.Set("snap-setup", ss)
+
 		unlink := s.NewTask("unlink-snap", fmt.Sprintf(i18n.G("Make snap %q unavailable to the system"), name))
-		unlink.Set("snap-setup", ss)
+		unlink.Set("snap-setup-task", stopSnapServices.ID())
+		unlink.WaitFor(stopSnapServices)
 
 		removeSecurity := s.NewTask("remove-profiles", fmt.Sprintf(i18n.G("Remove security profile for snap %q (%s)"), name, revision))
 		removeSecurity.WaitFor(unlink)
+		removeSecurity.Set("snap-setup-task", stopSnapServices.ID())
 
-		removeSecurity.Set("snap-setup-task", unlink.ID())
-
-		addNext(state.NewTaskSet(unlink, removeSecurity))
+		addNext(state.NewTaskSet(stopSnapServices, unlink, removeSecurity))
 	}
 
 	if removeAll || len(snapst.Sequence) == 1 {
