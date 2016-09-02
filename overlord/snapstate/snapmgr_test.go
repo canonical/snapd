@@ -1149,6 +1149,10 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		},
 		// undoing everything from here down...
 		{
+			op:   "stop-snap-services",
+			name: "/snap/some-snap/11",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/11",
 		},
@@ -2404,6 +2408,10 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/1",
 		},
 		// undoing everything from here down...
+		{
+			op:   "stop-snap-services",
+			name: "/snap/some-snap/1",
+		},
 		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/1",

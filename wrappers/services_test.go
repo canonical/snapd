@@ -85,16 +85,21 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 	}
 
 	sysdLog = nil
+	err = wrappers.StopSnapServices(info, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Assert(sysdLog, HasLen, 2)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"stop", filepath.Base(svcFile)},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+	})
 
+	sysdLog = nil
 	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
 	c.Assert(err, IsNil)
-
 	c.Check(osutil.FileExists(svcFile), Equals, false)
-
-	c.Assert(sysdLog, HasLen, 4)
+	c.Assert(sysdLog, HasLen, 2)
 	c.Check(sysdLog[0], DeepEquals, []string{"--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
-	c.Check(sysdLog[1], DeepEquals, []string{"stop", filepath.Base(svcFile)})
-	c.Check(sysdLog[3], DeepEquals, []string{"daemon-reload"})
+	c.Check(sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
@@ -123,16 +128,15 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
+	err = wrappers.StopSnapServices(info, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	c.Check(sysdLog[1], DeepEquals, []string{"stop", svcFName})
-
-	// check kill invocations
-	c.Check(sysdLog[len(sysdLog)-3], DeepEquals, []string{"kill", svcFName, "-s", "TERM"})
-	c.Check(sysdLog[len(sysdLog)-2], DeepEquals, []string{"kill", svcFName, "-s", "KILL"})
-
-	c.Check(sysdLog[len(sysdLog)-1], DeepEquals, []string{"daemon-reload"})
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"stop", svcFName},
+		// check kill invocations
+		{"kill", svcFName, "-s", "TERM"},
+		{"kill", svcFName, "-s", "KILL"},
+	})
 }
 
 func (s *servicesTestSuite) TestStartSnapServices(c *C) {

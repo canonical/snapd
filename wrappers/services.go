@@ -144,6 +144,37 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
+// StopSnapServices stops service units for the applications from the snap which are services.
+func StopSnapServices(s *snap.Info, inter interacter) error {
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+
+	nservices := 0
+
+	for _, app := range s.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		nservices++
+
+		serviceName := filepath.Base(app.ServiceFile())
+		tout := serviceStopTimeout(app)
+		if err := sysd.Stop(serviceName, tout); err != nil {
+			if !systemd.IsTimeout(err) {
+				return err
+			}
+			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
+			// ignore errors for kill; nothing we'd do differently at this point
+			sysd.Kill(serviceName, "TERM")
+			time.Sleep(killWait)
+			sysd.Kill(serviceName, "KILL")
+		}
+
+	}
+
+	return nil
+
+}
+
 // RemoveSnapServices stops and removes service units for the applications from the snap which are services.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
@@ -159,17 +190,6 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		serviceName := filepath.Base(app.ServiceFile())
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
-		}
-		tout := serviceStopTimeout(app)
-		if err := sysd.Stop(serviceName, tout); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL")
 		}
 
 		if err := os.Remove(app.ServiceFile()); err != nil && !os.IsNotExist(err) {
