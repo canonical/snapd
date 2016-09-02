@@ -319,11 +319,13 @@ func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 2)
-	c.Assert(s.state.NumTask(), Equals, 2)
+	c.Assert(ts.Tasks(), HasLen, 3)
+	c.Assert(s.state.NumTask(), Equals, 3)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "prepare-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-snap-services")
 }
 
 func (s *snapmgrTestSuite) TestDisableTasks(c *C) {
@@ -2614,7 +2616,7 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 2)
+	c.Assert(s.fakeBackend.ops, HasLen, 3)
 	expected := []fakeOp{
 		fakeOp{
 			op: "candidate",
@@ -2625,6 +2627,10 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 		},
 		fakeOp{
 			op:   "link-snap",
+			name: "/snap/some-snap/7",
+		},
+		fakeOp{
+			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
 	}
