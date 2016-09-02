@@ -43,11 +43,20 @@ dbus (send)
     member="Set{Time,Timezone,LocalRTC,NTP}"
     peer=(label=unconfined),
 
-dbus (receive, send)
+# Read all properties from timedate1
+dbus (send)
     bus=system
     path=/org/freedesktop/timedate1
     interface=org.freedesktop.DBus.Properties
-    member="{Get,GetAll,PropertiesChanged}"
+    member=Get{,All}
+    peer=(label=unconfined),
+
+# Receive property changed events
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
     peer=(label=unconfined),
 `
 const timeDateControlConnectedPlugSecComp = `
