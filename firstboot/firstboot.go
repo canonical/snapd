@@ -52,12 +52,16 @@ var netplanConfigData = `
 # This is the initial network config written by 'snap firstboot'.
 # It can be overwritten by cloud-init or console-conf.
 network:
- version: 2
- ethernets:
-   all:
-    match:
-     name: "*"
-    dhcp4: true
+    version: 2
+    ethernets:
+        all-en:
+            match:
+                name: "en*"
+            dhcp4: true
+        all-eth:
+            match:
+                name: "eth*"
+            dhcp4: true
 `
 
 // InitialNetworkConfig writes and applies a netplan config that

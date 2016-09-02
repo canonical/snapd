@@ -22,7 +22,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"regexp"
 
 	"github.com/jessevdk/go-flags"
 	"golang.org/x/crypto/ssh/terminal"
@@ -47,8 +46,6 @@ func init() {
 	cmd.hidden = true
 }
 
-var validKeyName = regexp.MustCompile(`^[-a-z0-9]+$`)
-
 func (x *cmdCreateKey) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -58,7 +55,7 @@ func (x *cmdCreateKey) Execute(args []string) error {
 	if keyName == "" {
 		keyName = "default"
 	}
-	if !validKeyName.MatchString(keyName) {
+	if !asserts.IsValidAccountKeyName(keyName) {
 		return fmt.Errorf("key name %q is not valid; only ASCII letters, digits, and hyphens are allowed", keyName)
 	}
 
