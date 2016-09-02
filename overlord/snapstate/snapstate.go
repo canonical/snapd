@@ -139,9 +139,9 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	prev = linkSnap
 
 	// run new serices
-	runServicesSnap := s.NewTask("start-services-snap", fmt.Sprintf(i18n.G("Start snap %q%s services"), ss.Name(), revisionStr))
-	addTask(runServicesSnap)
-	prev = runServicesSnap
+	startSnapServices := s.NewTask("start-snap-services", fmt.Sprintf(i18n.G("Start snap %q%s services"), ss.Name(), revisionStr))
+	addTask(startSnapServices)
+	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
 	if snapst.HasCurrent() && !revisionIsLocal {

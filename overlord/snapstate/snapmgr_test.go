@@ -134,7 +134,7 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-services-snap")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-snap-services")
 	return n
 }
 
@@ -177,7 +177,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-services-snap")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-snap-services")
 }
 
 func (s *snapmgrTestSuite) TestUpdateCreatesGCTasks(c *C) {
@@ -300,7 +300,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "link-snap")
 	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-services-snap")
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "start-snap-services")
 }
 
 func (s *snapmgrTestSuite) TestEnableTasks(c *C) {
@@ -703,7 +703,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 			name: "/snap/some-snap/42",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/42",
 		},
 	})
@@ -846,7 +846,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/11",
 		},
 	}
@@ -1016,7 +1016,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
 		{
@@ -1144,7 +1144,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/11",
 		},
 		// undoing everything from here down...
@@ -1167,7 +1167,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
 		{
@@ -1337,7 +1337,7 @@ version: 1.0`)
 	})
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/mock/x1")
-	c.Check(s.fakeBackend.ops[6].op, Equals, "start-services-snap")
+	c.Check(s.fakeBackend.ops[6].op, Equals, "start-snap-services")
 	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x1")
 
 	// verify snapSetup info
@@ -1422,7 +1422,7 @@ version: 1.0`)
 	})
 	c.Check(s.fakeBackend.ops[6].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/mock/x3")
-	c.Check(s.fakeBackend.ops[7].op, Equals, "start-services-snap")
+	c.Check(s.fakeBackend.ops[7].op, Equals, "start-snap-services")
 	c.Check(s.fakeBackend.ops[7].name, Equals, "/snap/mock/x3")
 
 	// verify snapSetup info
@@ -1543,7 +1543,7 @@ version: 1.0`)
 	c.Check(s.fakeBackend.ops[4].sinfo, DeepEquals, *si)
 	c.Check(s.fakeBackend.ops[5].op, Equals, "link-snap")
 	c.Check(s.fakeBackend.ops[5].name, Equals, "/snap/some-snap/42")
-	c.Check(s.fakeBackend.ops[6].op, Equals, "start-services-snap")
+	c.Check(s.fakeBackend.ops[6].op, Equals, "start-snap-services")
 	c.Check(s.fakeBackend.ops[6].name, Equals, "/snap/some-snap/42")
 
 	// verify snapSetup info
@@ -2038,7 +2038,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 		name: "/snap/some-snap/11",
 	})
 	c.Assert(ops[len(ops)-5], DeepEquals, fakeOp{
-		op:   "start-services-snap",
+		op:   "start-snap-services",
 		name: "/snap/some-snap/11",
 	})
 	c.Assert(ops[len(ops)-4], DeepEquals, fakeOp{
@@ -2206,7 +2206,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		fakeOp{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/2",
 		},
 	}
@@ -2324,7 +2324,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 			name: "/snap/some-snap/7",
 		},
 		fakeOp{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
 	}
@@ -2400,7 +2400,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/1",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/1",
 		},
 		// undoing everything from here down...
@@ -2418,7 +2418,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/2",
 		},
 	}
@@ -2501,7 +2501,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 			name: "/snap/some-snap/2",
 		},
 		{
-			op:   "start-services-snap",
+			op:   "start-snap-services",
 			name: "/snap/some-snap/2",
 		},
 	}
