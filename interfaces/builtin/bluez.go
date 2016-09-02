@@ -249,6 +249,6 @@ func (iface *BluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *BluezInterface) AutoConnect() bool {
+func (iface *BluezInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return false
 }

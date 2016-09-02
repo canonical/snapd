@@ -107,7 +107,7 @@ func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *LxdSupportInterface) AutoConnect() bool {
+func (iface *LxdSupportInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	// since limited to lxd.canonical, we can auto-connect
 	return true
 }

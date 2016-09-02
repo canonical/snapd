@@ -289,5 +289,6 @@ func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c
 }
 
 func (s *BoolFileInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	// FIXME: passing in nil plug/slot
+	c.Check(s.iface.AutoConnect(nil, nil), Equals, false)
 }

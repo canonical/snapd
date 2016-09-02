@@ -412,5 +412,5 @@ func (s *MprisInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 
 func (s *MprisInterfaceSuite) TestAutoConnect(c *C) {
 	iface := &builtin.MprisInterface{}
-	c.Check(iface.AutoConnect(), Equals, false)
+	c.Check(iface.AutoConnect(s.plug, s.slot), Equals, false)
 }

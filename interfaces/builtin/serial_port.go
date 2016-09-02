@@ -127,6 +127,6 @@ func (iface *SerialPortInterface) path(slot *interfaces.Slot) string {
 }
 
 // AutoConnect indicates whether this type of interface should allow autoconnect
-func (iface *SerialPortInterface) AutoConnect() bool {
+func (iface *SerialPortInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return false
 }

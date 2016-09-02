@@ -176,6 +176,6 @@ func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *PulseAudioInterface) AutoConnect() bool {
+func (iface *PulseAudioInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return true
 }

@@ -128,5 +128,5 @@ func (s *FirewallControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 }
 
 func (s *FirewallControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.AutoConnect(s.plug, s.slot), Equals, false)
 }
