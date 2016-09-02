@@ -62,7 +62,7 @@ func (x *cmdAssertBuild) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	snap_digest, snap_size, err := asserts.SnapFileSHA3_384(x.Positional.Filename)
+	snapDigest, snapSize, err := asserts.SnapFileSHA3_384(x.Positional.Filename)
 	if err != nil {
 		return err
 	}
@@ -79,9 +79,9 @@ func (x *cmdAssertBuild) Execute(args []string) error {
 	headers := map[string]interface{}{
 		"developer-id":  x.DeveloperID,
 		"authority-id":  x.DeveloperID,
-		"snap-sha3-384": snap_digest,
+		"snap-sha3-384": snapDigest,
 		"snap-id":       x.SnapID,
-		"snap-size":     fmt.Sprintf("%d", snap_size),
+		"snap-size":     fmt.Sprintf("%d", snapSize),
 		"grade":         x.Grade,
 		"timestamp":     timestamp,
 	}
