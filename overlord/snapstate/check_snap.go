@@ -55,7 +55,7 @@ var openSnapFile = backend.OpenSnapFile
 
 // checkSnap ensures that the snap can be installed.
 func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
-	// This assumes that the snap was already verified or --force-dangerous was used.
+	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, _, err := openSnapFile(snapFilePath, nil)
 	if err != nil {
