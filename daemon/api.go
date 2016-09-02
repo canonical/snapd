@@ -1030,11 +1030,12 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"))
+	dangerousOK := isTrue(form, "dangerous")
+	devmode := isTrue(form, "devmode")
+	flags, err := modeFlags(devmode, isTrue(form, "jailmode"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	dangerousOK := isTrue(form, "dangerous")
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1094,20 +1095,28 @@ out:
 
 	if !dangerousOK {
 		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
-		if err == asserts.ErrNotFound {
-			msg := "cannot find signatures with metadata for snap"
-			if origPath != "" {
-				msg = fmt.Sprintf("%s %q", msg, origPath)
+		switch err {
+		case nil:
+			snapName = si.RealName
+			sideInfo = si
+		case asserts.ErrNotFound:
+			// with devmode we try to find assertions but it's ok
+			// if they are not there (implies --dangerous)
+			if !devmode {
+				msg := "cannot find signatures with metadata for snap"
+				if origPath != "" {
+					msg = fmt.Sprintf("%s %q", msg, origPath)
+				}
+				return BadRequest(msg)
 			}
-			return BadRequest(msg)
-		}
-		if err != nil {
+			// TODO: set a warning if devmode
+		default:
 			return BadRequest(err.Error())
 		}
-		snapName = si.RealName
-		sideInfo = si
-	} else {
-		// potentially dangerous but dangerous param was set
+	}
+
+	if snapName == "" {
+		// potentially dangerous but dangerous or devmode params were set
 		info, err := unsafeReadSnapInfo(tempPath)
 		if err != nil {
 			return InternalError("cannot read snap file: %v", err)
