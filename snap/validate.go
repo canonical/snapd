@@ -25,13 +25,13 @@ import (
 )
 
 // Regular expression describing correct identifiers.
-var validName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
+var validSnapName = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
 var validEpoch = regexp.MustCompile("^(?:0|[1-9][0-9]*[*]?)$")
 var validHookName = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 
 // ValidateName checks if a string can be used as a snap name.
 func ValidateName(name string) error {
-	valid := validName.MatchString(name)
+	valid := validSnapName.MatchString(name)
 	if !valid {
 		return fmt.Errorf("invalid snap name: %q", name)
 	}
