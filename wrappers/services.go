@@ -74,7 +74,44 @@ func generateSnapSocketFile(app *snap.AppInfo) (string, error) {
 	return genSocketFile(app), nil
 }
 
-// AddSnapServices adds and starts service units for the applications from the snap which are services.
+// StartSnapServices starts service units for the applications from the snap which are services.
+func StartSnapServices(s *snap.Info, inter interacter) error {
+	for _, app := range s.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		// daemon-reload and enable plus start
+		serviceName := filepath.Base(app.ServiceFile())
+		sysd := systemd.New(dirs.GlobalRootDir, inter)
+		if err := sysd.DaemonReload(); err != nil {
+			return err
+		}
+
+		if err := sysd.Enable(serviceName); err != nil {
+			return err
+		}
+
+		if err := sysd.Start(serviceName); err != nil {
+			return err
+		}
+
+		if app.Socket {
+			socketName := filepath.Base(app.ServiceSocketFile())
+			// enable the socket
+			if err := sysd.Enable(socketName); err != nil {
+				return err
+			}
+
+			if err := sysd.Start(socketName); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// AddSnapServices adds service units for the applications from the snap which are services.
 func AddSnapServices(s *snap.Info, inter interacter) error {
 	for _, app := range s.Apps {
 		if app.Daemon == "" {
@@ -102,40 +139,43 @@ func AddSnapServices(s *snap.Info, inter interacter) error {
 				return err
 			}
 		}
-		// daemon-reload and enable plus start
-		serviceName := filepath.Base(app.ServiceFile())
-		sysd := systemd.New(dirs.GlobalRootDir, inter)
-
-		if err := sysd.DaemonReload(); err != nil {
-			return err
-		}
-
-		// enable the service
-		if err := sysd.Enable(serviceName); err != nil {
-			return err
-		}
-
-		if err := sysd.Start(serviceName); err != nil {
-			return err
-		}
-
-		if app.Socket {
-			socketName := filepath.Base(app.ServiceSocketFile())
-			// enable the socket
-			if err := sysd.Enable(socketName); err != nil {
-				return err
-			}
-
-			if err := sysd.Start(socketName); err != nil {
-				return err
-			}
-		}
 	}
 
 	return nil
 }
 
-// RemoveSnapServices stops and removes service units for the applications from the snap which are services.
+// StopSnapServices stops service units for the applications from the snap which are services.
+func StopSnapServices(s *snap.Info, inter interacter) error {
+	sysd := systemd.New(dirs.GlobalRootDir, inter)
+
+	nservices := 0
+
+	for _, app := range s.Apps {
+		if app.Daemon == "" {
+			continue
+		}
+		nservices++
+
+		serviceName := filepath.Base(app.ServiceFile())
+		tout := serviceStopTimeout(app)
+		if err := sysd.Stop(serviceName, tout); err != nil {
+			if !systemd.IsTimeout(err) {
+				return err
+			}
+			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
+			// ignore errors for kill; nothing we'd do differently at this point
+			sysd.Kill(serviceName, "TERM")
+			time.Sleep(killWait)
+			sysd.Kill(serviceName, "KILL")
+		}
+
+	}
+
+	return nil
+
+}
+
+// RemoveSnapServices disables and removes service units for the applications from the snap which are services.
 func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, inter)
 
@@ -150,17 +190,6 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 		serviceName := filepath.Base(app.ServiceFile())
 		if err := sysd.Disable(serviceName); err != nil {
 			return err
-		}
-		tout := serviceStopTimeout(app)
-		if err := sysd.Stop(serviceName, tout); err != nil {
-			if !systemd.IsTimeout(err) {
-				return err
-			}
-			inter.Notify(fmt.Sprintf("%s refused to stop, killing.", serviceName))
-			// ignore errors for kill; nothing we'd do differently at this point
-			sysd.Kill(serviceName, "TERM")
-			time.Sleep(killWait)
-			sysd.Kill(serviceName, "KILL")
 		}
 
 		if err := os.Remove(app.ServiceFile()); err != nil && !os.IsNotExist(err) {
