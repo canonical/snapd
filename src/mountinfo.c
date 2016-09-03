@@ -194,7 +194,7 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 {
 	// NOTE: the mountinfo structure is allocated along with enough extra
 	// storage to hold the whole line we are parsing. This is used as backing
-	// store for all of the text fields.
+	// store for all text fields.
 	//
 	// The idea is that since the line has a given length and we are only after
 	// set of substrings we can easily predict the amount of required space
