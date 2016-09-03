@@ -103,7 +103,7 @@ setup_reflash_magic() {
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
-        chown 1001:1001 /mnt/user-data/test
+        chown 1000:1000 /mnt/user-data/test
 
         # we do what sync-dirs is normally doing on boot, but because
         # we have subdirs/files in /etc/systemd/system (created below)

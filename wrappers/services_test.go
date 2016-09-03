@@ -84,22 +84,22 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 	}
 
-	c.Assert(sysdLog, HasLen, 3)
-	c.Check(sysdLog[0], DeepEquals, []string{"daemon-reload"})
-	c.Check(sysdLog[1], DeepEquals, []string{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)})
-	c.Check(sysdLog[2], DeepEquals, []string{"start", filepath.Base(svcFile)})
+	sysdLog = nil
+	err = wrappers.StopSnapServices(info, &progress.NullProgress{})
+	c.Assert(err, IsNil)
+	c.Assert(sysdLog, HasLen, 2)
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"stop", filepath.Base(svcFile)},
+		{"show", "--property=ActiveState", "snap.hello-snap.svc1.service"},
+	})
 
 	sysdLog = nil
-
 	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
 	c.Assert(err, IsNil)
-
 	c.Check(osutil.FileExists(svcFile), Equals, false)
-
-	c.Assert(sysdLog, HasLen, 4)
+	c.Assert(sysdLog, HasLen, 2)
 	c.Check(sysdLog[0], DeepEquals, []string{"--root", dirs.GlobalRootDir, "disable", filepath.Base(svcFile)})
-	c.Check(sysdLog[1], DeepEquals, []string{"stop", filepath.Base(svcFile)})
-	c.Check(sysdLog[3], DeepEquals, []string{"daemon-reload"})
+	c.Check(sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
 func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
@@ -108,7 +108,11 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 
 	var sysdLog [][]string
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
-		sysdLog = append(sysdLog, cmd)
+		// filter out the "systemctl show" that
+		// StopSnapServicesGenerates
+		if cmd[0] != "show" {
+			sysdLog = append(sysdLog, cmd)
+		}
 		return []byte("ActiveState=active\n"), nil
 	}
 
@@ -128,14 +132,32 @@ apps:
 
 	svcFName := "snap.wat.wat.service"
 
-	err = wrappers.RemoveSnapServices(info, &progress.NullProgress{})
+	err = wrappers.StopSnapServices(info, &progress.NullProgress{})
 	c.Assert(err, IsNil)
 
-	c.Check(sysdLog[1], DeepEquals, []string{"stop", svcFName})
+	c.Check(sysdLog, DeepEquals, [][]string{
+		{"stop", svcFName},
+		// check kill invocations
+		{"kill", svcFName, "-s", "TERM"},
+		{"kill", svcFName, "-s", "KILL"},
+	})
+}
 
-	// check kill invocations
-	c.Check(sysdLog[len(sysdLog)-3], DeepEquals, []string{"kill", svcFName, "-s", "TERM"})
-	c.Check(sysdLog[len(sysdLog)-2], DeepEquals, []string{"kill", svcFName, "-s", "KILL"})
+func (s *servicesTestSuite) TestStartSnapServices(c *C) {
+	var sysdLog [][]string
+	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	}
 
-	c.Check(sysdLog[len(sysdLog)-1], DeepEquals, []string{"daemon-reload"})
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	err := wrappers.StartSnapServices(info, nil)
+	c.Assert(err, IsNil)
+
+	c.Assert(sysdLog, HasLen, 3)
+	c.Check(sysdLog[0], DeepEquals, []string{"daemon-reload"})
+	c.Check(sysdLog[1], DeepEquals, []string{"--root", dirs.GlobalRootDir, "enable", filepath.Base(svcFile)})
+	c.Check(sysdLog[2], DeepEquals, []string{"start", filepath.Base(svcFile)})
 }
