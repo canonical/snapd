@@ -410,19 +410,14 @@ func (db *Database) FindMany(assertionType *AssertionType, headers map[string]st
 
 // CheckSigningKeyIsNotExpired checks that the signing key is not expired.
 func CheckSigningKeyIsNotExpired(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
-	var valid bool
-	if signingKey != nil {
-		valid = signingKey.isKeyValidAt(checkTime)
-	} else {
-		_, ok := assert.(*AccountKeyRequest)
-		if ok {
-			// account-key-request assertions are special, and are valid regardless of time.
-			valid = true
-		} else {
-			panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
-		}
+	if signingKey == nil {
+		// assert isn't signed with an account-key key, CheckSignature
+		// will fail anyway unless we teach it more stuff,
+		// Also this check isn't so relevant for self-signed asserts
+		// (e.g. account-key-request)
+		return nil
 	}
-	if !valid {
+	if !signingKey.isKeyValidAt(checkTime) {
 		return fmt.Errorf("assertion is signed with expired public key %q from %q", assert.SignKeyID(), assert.AuthorityID())
 	}
 	return nil
@@ -436,7 +431,7 @@ func CheckSignature(assert Assertion, signingKey *AccountKey, roDB RODatabase, c
 	} else {
 		custom, ok := assert.(customSigner)
 		if !ok {
-			panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
+			return fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name)
 		}
 		pubKey = custom.signKey()
 	}
@@ -459,21 +454,16 @@ type timestamped interface {
 // CheckTimestampVsSigningKeyValidity verifies that the timestamp of
 // the assertion is within the signing key validity.
 func CheckTimestampVsSigningKeyValidity(assert Assertion, signingKey *AccountKey, roDB RODatabase, checkTime time.Time) error {
+	if signingKey == nil {
+		// assert isn't signed with an account-key key, CheckSignature
+		// will fail anyway unless we teach it more stuff.
+		// Also this check isn't so relevant for self-signed asserts
+		// (e.g. account-key-request)
+		return nil
+	}
 	if tstamped, ok := assert.(timestamped); ok {
 		checkTime := tstamped.Timestamp()
-		var valid bool
-		if signingKey != nil {
-			valid = signingKey.isKeyValidAt(checkTime)
-		} else {
-			_, ok := assert.(*AccountKeyRequest)
-			if ok {
-				// account-key-request assertions are special, and are valid regardless of time.
-				valid = true
-			} else {
-				panic(fmt.Errorf("cannot check no-authority assertion type %q", assert.Type().Name))
-			}
-		}
-		if !valid {
+		if !signingKey.isKeyValidAt(checkTime) {
 			return fmt.Errorf("%s assertion timestamp outside of signing key validity", assert.Type().Name)
 		}
 	}
