@@ -202,8 +202,8 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	// it to the allocated entry structure.
 	//
 	// The parsing code below, specifically parse_next_string_field(), uses
-	// this extra memory to hold data parsed from the original line. In the end
-	// the result is similar to using strtok except that the source and
+	// this extra memory to hold data parsed from the original line. In the
+	// end, the result is similar to using strtok except that the source and
 	// destination buffers are separate.
 	struct mountinfo_entry *entry =
 	    calloc(1, sizeof *entry + strlen(line) + 1);
