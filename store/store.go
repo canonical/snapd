@@ -500,6 +500,9 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 		}
 		if strings.Contains(wwwAuth, "refresh_device_session=1") {
 			// refresh device session
+			if s.authContext == nil {
+				return nil, fmt.Errorf("internal error: no authContext")
+			}
 			device, err := s.authContext.Device()
 			if err != nil {
 				return nil, err
