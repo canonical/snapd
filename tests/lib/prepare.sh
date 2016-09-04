@@ -7,7 +7,9 @@ prepare_classic() {
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        snap install ubuntu-core
+        # FIXME: go back to stable once we have a stable release with
+        #        the snap-exec fix
+        snap install --candidate ubuntu-core
         snap list | grep core
 
         systemctl stop snapd.service snapd.socket
