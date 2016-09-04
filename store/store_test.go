@@ -94,21 +94,30 @@ type testAuthContext struct {
 	device *auth.DeviceState
 	user   *auth.UserState
 
+	newDischarges []string
+
 	storeID string
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
-	return ac.device, nil
+	freshDevice := *ac.device
+	return &freshDevice, nil
 }
 
-func (ac *testAuthContext) UpdateDevice(d *auth.DeviceState) error {
-	ac.device = d
-	return nil
+func (ac *testAuthContext) UpdateDeviceAuth(d *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+	ac.c.Assert(d, DeepEquals, ac.device)
+	updated := *ac.device
+	updated.SessionMacaroon = newSessionMacaroon
+	*ac.device = updated
+	return &updated, nil
 }
 
-func (ac *testAuthContext) UpdateUser(u *auth.UserState) error {
+func (ac *testAuthContext) UpdateUserAuth(u *auth.UserState, newDischarges []string) (*auth.UserState, error) {
 	ac.c.Assert(u, DeepEquals, ac.user)
-	return nil
+	ac.c.Assert(newDischarges, DeepEquals, ac.newDischarges)
+	updated := *ac.user
+	updated.StoreDischarges = newDischarges
+	return &updated, nil
 }
 
 func (ac *testAuthContext) StoreID(fallback string) (string, error) {
@@ -586,6 +595,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/dev/api/snap-purchases") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
 		c.Check(r.URL.Query(), DeepEquals, url.Values{
 			"channel":  []string{""},
@@ -598,11 +611,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-
+	purchasesURI, err := url.Parse(mockServer.URL + "/dev/api/snap-purchases/")
 	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := DefaultConfig()
 	cfg.DetailsURI = detailsURI
+	cfg.PurchasesURI = purchasesURI
 	repo := New(cfg, nil)
 	c.Assert(repo, NotNil)
 
@@ -743,7 +757,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsRefreshesAuth(c *C
 	defer mockServer.Close()
 	detailsURI, _ := url.Parse(mockServer.URL + "/details/")
 
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user, newDischarges: []string{refresh}}
 	cfg := Config{
 		DetailsURI:   detailsURI,
 		PurchasesURI: purchasesURI,
@@ -1233,7 +1247,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindRefreshesAuth(c *C) {
 		SearchURI:    searchURI,
 		PurchasesURI: purchasesURI,
 	}
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user, newDischarges: []string{refresh}}
 
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
@@ -1694,7 +1708,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesRefreshesAuth(c *C
 	defer mockServer.Close()
 	bulkURI, _ := url.Parse(mockServer.URL + "/updates/")
 
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user, newDischarges: []string{refresh}}
 	cfg := Config{
 		BulkURI: bulkURI,
 	}
@@ -1951,7 +1965,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionRefreshesAuth(c 
 	defer mockServer.Close()
 	assertionsURI, _ := url.Parse(mockServer.URL + "/assertions/")
 
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user, newDischarges: []string{refresh}}
 	cfg := Config{
 		AssertionsURI: assertionsURI,
 	}
@@ -2163,7 +2177,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesRefreshesAuth(c *C
 	defer mockPurchasesServer.Close()
 	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
 
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user, newDischarges: []string{refresh}}
 	cfg := Config{
 		PurchasesURI: purchasesURI,
 	}
@@ -2720,11 +2734,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyRefreshesAuth(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user, newDischarges: []string{refresh}}
 	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
 	cfg := Config{
 		PurchasesURI: purchasesURI,
 	}
-	repo := New(&cfg, nil)
+	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
 	result, err := repo.Buy(&BuyOptions{
@@ -3152,11 +3167,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsRefreshesAuth(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user, newDischarges: []string{refresh}}
 	paymentMethodsURI, _ := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
 	cfg := Config{
 		PaymentMethodsURI: paymentMethodsURI,
 	}
-	repo := New(&cfg, nil)
+	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
 	result, err := repo.PaymentMethods(t.user)

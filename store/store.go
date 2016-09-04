@@ -369,49 +369,50 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 }
 
 // refreshMacaroon will request a refreshed discharge macaroon for the user
-func refreshMacaroon(user *auth.UserState) error {
+func refreshMacaroon(user *auth.UserState) ([]string, error) {
+	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
 		discharge, err := MacaroonDeserialize(d)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if discharge.Location() == UbuntuoneLocation {
-			refreshedDischarge, err := RefreshDischargeMacaroon(d)
-			if err != nil {
-				return err
-			}
-			user.StoreDischarges[i] = refreshedDischarge
+		if discharge.Location() != UbuntuoneLocation {
+			newDischarges[i] = d
+			continue
 		}
+
+		refreshedDischarge, err := RefreshDischargeMacaroon(d)
+		if err != nil {
+			return nil, err
+		}
+		newDischarges[i] = refreshedDischarge
 	}
-	return nil
+	return newDischarges, nil
 }
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
-	err := refreshMacaroon(user)
+	newDischarges, err := refreshMacaroon(user)
 	if err != nil {
 		return err
 	}
 
 	if s.authContext != nil {
-		err = s.authContext.UpdateUser(user)
-		if err != nil {
+		curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
+		if err != nil && err != auth.ErrConflict {
 			return err
 		}
+		// update in place
+		*user = *curUser
 	}
 
 	return nil
 }
 
 // refreshDeviceSession will set or refresh the device session in the state
-func (s *Store) refreshDeviceSession() error {
+func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 	if s.authContext == nil {
 		return fmt.Errorf("internal error: no authContext")
-	}
-
-	device, err := s.authContext.Device()
-	if err != nil {
-		return err
 	}
 
 	serialAssertion, err := s.authContext.Serial()
@@ -434,11 +435,12 @@ func (s *Store) refreshDeviceSession() error {
 		return err
 	}
 
-	device.SessionMacaroon = session
-	err = s.authContext.UpdateDevice(device)
-	if err != nil {
+	curDevice, err := s.authContext.UpdateDeviceAuth(device, session)
+	if err != nil && err != auth.ErrConflict {
 		return err
 	}
+	// update in place
+	*device = *curDevice
 	return nil
 }
 
@@ -498,7 +500,12 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 		}
 		if strings.Contains(wwwAuth, "refresh_device_session=1") {
 			// refresh device session
-			err = s.refreshDeviceSession()
+			device, err := s.authContext.Device()
+			if err != nil {
+				return nil, err
+			}
+
+			err = s.refreshDeviceSession(device)
 			if err != nil {
 				return nil, err
 			}
@@ -533,7 +540,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 			return nil, err
 		}
 		if device.SessionMacaroon == "" {
-			err = s.refreshDeviceSession()
+			err = s.refreshDeviceSession(device)
 			if err == state.ErrNoState {
 				// missing serial assertion, log and continue without device authentication
 				logger.Debugf("cannot set device session: %v", err)
