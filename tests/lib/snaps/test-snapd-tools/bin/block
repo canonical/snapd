@@ -5,6 +5,8 @@ set -ex
 cd $SNAP
 echo "blocking dir $(pwd)"
 
+touch $SNAP_DATA/block
+
 echo "waiting, press ctrl-c to stop"
 sleep 999999
 exit 0
