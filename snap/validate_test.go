@@ -36,6 +36,7 @@ func (s *ValidateSuite) TestValidateName(c *C) {
 		"a", "aa", "aaa", "aaaa",
 		"a-a", "aa-a", "a-aa", "a-b-c",
 		"a0", "a-0", "a-0a",
+		"01game", "1-or-2",
 	}
 	for _, name := range validNames {
 		err := ValidateName(name)
