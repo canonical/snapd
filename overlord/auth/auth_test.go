@@ -351,7 +351,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuthLengthConflict(c *C) {
 	c.Check(*curUser, DeepEquals, conflictUser)
 }
 
-func (as *authSuite) TestAuthContextUpdateUserInvalid(c *C) {
+func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
 	as.state.Lock()
 	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
