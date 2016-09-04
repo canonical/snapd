@@ -106,7 +106,11 @@ func (s *servicesTestSuite) TestRemoveSnapPackageFallbackToKill(c *C) {
 
 	var sysdLog [][]string
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
-		sysdLog = append(sysdLog, cmd)
+		// filter out the "systemctl show" that
+		// StopSnapServicesGenerates
+		if cmd[0] != "show" {
+			sysdLog = append(sysdLog, cmd)
+		}
 		return []byte("ActiveState=active\n"), nil
 	}
 
