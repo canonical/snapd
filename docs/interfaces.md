@@ -183,6 +183,12 @@ and media application. Recording not supported but will be in a future release.
 
 * Auto-Connect: yes
 
+### removable-media
+
+Can access files from removable media in /media and /run/media
+
+* Auto-Connect: no
+
 ### screen-inhibit-control
 
 Can access desktop session manager screen inhibit and uninhibit functionality.
@@ -414,6 +420,13 @@ Can manage timeservers directly separate from ``config core``.
 ### tpm
 
 Can access the tpm device /dev/tpm0.
+
+* Auto-Connect: no
+
+### udisks2
+
+Can access snaps providing the udisks2 interface which gives privileged access
+to storage on the device
 
 * Auto-Connect: no
 
