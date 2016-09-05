@@ -1,4 +1,4 @@
-summary: Ensure that the thumbnailer interface works.
+summary: Check that the thumbnailer interface works.
 
 systems: [-ubuntu-core-16-64]
 
@@ -15,15 +15,25 @@ details: |
     The test checks that the method calls returns successfully.
 
 environment:
-    TEST_IMAGE: /var/snap/thumbnailer-consumer/current/test.png
+    SNAP_NAME: thumbnailer-consumer
+    SNAP_FILE: "${SNAP_NAME}_1.0_all.snap"
+    PLUG: thumbnailer
 
 prepare: |
-    echo "Given a snap declaring a thumbnailer plug is installed"
-    snap install thumbnailer-consumer
+    echo "Given a snap declaring the $PLUG plug is installed"
+    snapbuild $TESTSLIB/snaps/$SNAP_NAME .
+    snap install --dangerous $SNAP_FILE
+
+restore: |
+    rm -f $SNAP_FILE
 
 execute: |
-    CONNECTED_PATTERN=":thumbnailer +thumbnailer-consumer"
-    DISCONNECTED_PATTERN="(?s).*?\n- +thumbnailer-consumer:thumbnailer"
+    CONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    :$PLUG +$SNAP_NAME"
+    DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    - +$SNAP_NAME:$PLUG"
 
     echo "Then it is not shown as connected"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -31,20 +41,31 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect thumbnailer-consumer:thumbnailer ubuntu-core:thumbnailer
+    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the plug can be disconnected again"
+    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "============================================"
+
+    echo "When the plug is connected"
+    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command exits with a success code"
-    thumbnailer-consumer
+    $SNAP_NAME
 
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect thumbnailer-consumer:thumbnailer ubuntu-core:thumbnailer
+    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
+
     echo "Then the snap command is not able to print files"
-    if thumbnailer-consumer 2>print.error; then
+    if $SNAP_NAME 2>print.error; then
         echo "Expected error with plug disconnected"
         exit 1
     fi
