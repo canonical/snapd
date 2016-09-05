@@ -608,9 +608,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 6)
+	c.Assert(ts.Tasks(), HasLen, 7)
 	// all tasks are accounted
-	c.Assert(s.state.NumTask(), Equals, 6)
+	c.Assert(s.state.NumTask(), Equals, 7)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
@@ -622,6 +622,8 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
+	i++
+	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-namespace")
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
@@ -1625,7 +1627,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 7)
+	c.Check(len(s.fakeBackend.ops), Equals, 8)
 	expected := []fakeOp{
 		{
 			op:   "stop-snap-services",
@@ -1657,6 +1659,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
+		{
+			op:   "discard-namespace:Doing",
+			name: "some-snap",
+		},
 	}
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -1667,7 +1673,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" {
+		if t.Kind() == "discard-conns" || t.Kind() == "discard-namespace" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -1775,6 +1781,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
+		{
+			op:   "discard-namespace:Doing",
+			name: "some-snap",
+		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -1787,7 +1797,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" {
+		if t.Kind() == "discard-conns" || t.Kind() == "discard-namespace" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -1914,7 +1924,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 4)
+	c.Check(len(s.fakeBackend.ops), Equals, 5)
 	expected := []fakeOp{
 		{
 			op:   "remove-snap-data",
@@ -1933,6 +1943,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
+		{
+			op:   "discard-namespace:Doing",
+			name: "some-snap",
+		},
 	}
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
@@ -1947,7 +1961,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 			},
 		}
-		if t.Kind() != "discard-conns" {
+		if t.Kind() != "discard-conns" && t.Kind() != "discard-namespace" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
 
