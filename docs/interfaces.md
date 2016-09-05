@@ -282,6 +282,25 @@ Can query hardware information from the system.
 
 * Auto-Connect: no
 
+### hidraw
+
+Can access hidraw devices. This is restricted because it provides privileged
+access to hardware devices.
+
+* Auto-Connect: no
+* Attributes:
+
+    Should specify a single path attribute:
+    * path (slot): path to hidraw device node e.g. /dev/hidraw0
+
+    Or three attributes:
+    * usb-vendor (slot): integer representing the USB Vendor ID, must be
+       in range 0 < vid <= 65535
+    * usb-product (slot): integer representing the USB Product ID, must be
+       in range 0 <= vid <= 65535
+    * path (slot): path where a symlink will be created to the device
+    e.g. /dev/hidraw-mydevice
+
 ### kernel-module-control
 
 Can insert kernel modules. This interface gives privileged access to the device.
