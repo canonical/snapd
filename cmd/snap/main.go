@@ -194,11 +194,12 @@ func main() {
 	}
 
 	defer func() {
-		v := recover()
-		if e, ok := v.(*exitStatus); ok {
-			os.Exit(e.code)
+		if v := recover(); v != nil {
+			if e, ok := v.(*exitStatus); ok {
+				os.Exit(e.code)
+			}
+			panic(v)
 		}
-		panic(v)
 	}()
 
 	// no magic /o\
