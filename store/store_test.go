@@ -134,6 +134,10 @@ func (ac *testAuthContext) SerialProof(nonce string) ([]byte, error) {
 	return asserts.Encode(a.(*asserts.SerialProof)), nil
 }
 
+func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
+	panic("implement me")
+}
+
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
 	m, err := macaroon.New([]byte("secret"), "some-id", "location")
 	if err != nil {
@@ -2036,7 +2040,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
 	repo := New(&cfg, nil)
 
 	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Check(err, Equals, ErrAssertionNotFound)
+	c.Check(err, DeepEquals, &AssertionNotFoundError{
+		Ref: &asserts.Ref{
+			Type:       asserts.SnapDeclarationType,
+			PrimaryKey: []string{"16", "snapidfoo"},
+		},
+	})
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {

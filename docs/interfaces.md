@@ -270,6 +270,12 @@ Can mount fuse filesystems (as root only).
 
 * Auto-Connect: no
 
+### fwupd
+
+Can access snaps providing the fwupd interface which gives privileged access to update UEFI capsule format firmware.
+
+* Auto-Connect: no
+
 ### hardware-observe
 
 Can query hardware information from the system.
@@ -372,7 +378,17 @@ access to configure serial port hardware.
 
 * Auto-Connect: no
 * Attributes:
-    * path (slot): path to serial device
+
+    Should specify a single path attribute:
+    * path (slot): path to serial device node e.g. /dev/ttyS1
+
+    Or three attributes:
+    * usb-vendor (slot): integer representing the USB Vendor ID, must be
+       in range 0 < vid <= 65535
+    * usb-product (slot): integer representing the USB Product ID, must be
+       in range 0 <= vid <= 65535
+    * path (slot): path where a symlink will be created to the device
+    e.g. /dev/serial-port-mydevice
 
 ### snapd-control
 
