@@ -630,7 +630,7 @@ func init() {
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		channelDescs.also(modeDescs).also(map[string]string{
 			"revision": i18n.G("Refresh to the given revision"),
-			"list":     i18n.G("show available snaps for refresh"),
+			"list":     i18n.G("Show available snaps for refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, modeDescs, nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, nil, nil)

@@ -431,40 +431,41 @@ func Update(s *state.State, name, channel string, revision snap.Revision, userID
 		channel = snapst.Channel
 	}
 
-	ss := &SnapSetup{
-		Channel: channel,
-		UserID:  userID,
-		Flags:   SnapSetupFlags(flags),
-	}
-
-	var info *snap.Info
-	if revision.Unset() {
-		// good ol' refresh
-		info, err = updateInfo(s, &snapst, channel, userID, flags)
-	} else {
-		var sideInfo *snap.SideInfo
-		for _, si := range snapst.Sequence {
-			if si.Revision == revision {
-				sideInfo = si
-				break
-			}
-		}
-		if sideInfo == nil {
-			// refresh from given revision from store
-			info, err = snapInfo(s, name, channel, revision, userID, flags)
-		} else {
-			// refresh-to-local
-			info, err = readInfo(name, sideInfo)
-		}
-	}
+	info, err := infoForUpdate(s, &snapst, name, channel, revision, userID, flags)
 	if err != nil {
 		return nil, err
 	}
 
-	ss.DownloadInfo = &info.DownloadInfo
-	ss.SideInfo = &info.SideInfo
+	ss := &SnapSetup{
+		Channel:      channel,
+		UserID:       userID,
+		Flags:        SnapSetupFlags(flags),
+		DownloadInfo: &info.DownloadInfo,
+		SideInfo:     &info.SideInfo,
+	}
 
 	return doInstall(s, &snapst, ss)
+}
+
+func infoForUpdate(s *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
+	if revision.Unset() {
+		// good ol' refresh
+		return updateInfo(s, snapst, channel, userID, flags)
+	}
+	var sideInfo *snap.SideInfo
+	for _, si := range snapst.Sequence {
+		if si.Revision == revision {
+			sideInfo = si
+			break
+		}
+	}
+	if sideInfo == nil {
+		// refresh from given revision from store
+		return snapInfo(s, name, channel, revision, userID, flags)
+	}
+
+	// refresh-to-local
+	return readInfo(name, sideInfo)
 }
 
 // Enable sets a snap to the active state
