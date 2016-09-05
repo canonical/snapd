@@ -242,3 +242,15 @@ hooks:
 	err = Validate(info)
 	c.Check(err, ErrorMatches, `invalid hook name: "123abc"`)
 }
+
+func (s *ValidateSuite) TestPlugSlotNamesUnique(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: snap
+plugs:
+ foo:
+slots:
+ foo:
+`))
+	c.Assert(err, IsNil)
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `cannot have plug and slot with the same name: "foo"`)
+}
