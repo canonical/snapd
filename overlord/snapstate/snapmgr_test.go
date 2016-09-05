@@ -3345,7 +3345,6 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 	}
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
-
 }
 
 func (s *snapmgrTestSuite) TestSnapStateNoLocalRevision(c *C) {
