@@ -276,7 +276,7 @@ Can query hardware information from the system.
 
 * Auto-Connect: no
 
-### hidraw-device
+### hidraw
 
 Can access hidraw devices. This is restricted because it provides privileged
 access to hardware devices.
@@ -293,7 +293,7 @@ access to hardware devices.
     * usb-product (slot): integer representing the USB Product ID, must be
        in range 0 <= vid <= 65535
     * path (slot): path where a symlink will be created to the device
-    e.g. /dev/hidraw-device-mydevice
+    e.g. /dev/hidraw-mydevice
 
 ### kernel-module-control
 
