@@ -3311,6 +3311,10 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwardsNotQuiteYet(c *C) {
 			name: "/snap/some-snap/11",
 		},
 		{
+			op:   "stop-snap-services",
+			name: "/snap/some-snap/11",
+		},
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/11",
 		},
