@@ -62,6 +62,8 @@ var (
 	CloudMetaDataFile string
 
 	ClassicDir string
+
+	LibExecDir string
 )
 
 var (
@@ -136,4 +138,6 @@ func SetRootDir(rootdir string) {
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
+
+	LibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 }
