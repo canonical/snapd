@@ -93,6 +93,11 @@ func StripRootDir(dir string) string {
 	return "/" + result
 }
 
+// InternalCmdPath returns the full path to a given internal command (e.g. to snap-confine)
+func InternalCmdPath(cmd string) string {
+	return filepath.Join(LibExecDir, cmd)
+}
+
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
