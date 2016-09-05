@@ -652,12 +652,6 @@ type snapInstruction struct {
 	userID int
 }
 
-// hasOpts determines whether the snapInstruction has any options on it.
-// This is used to bail from multi-snap operations which don't typically take options.
-func (inst *snapInstruction) hasOpts() bool {
-	return inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode
-}
-
 var (
 	snapstateGet               = snapstate.Get
 	snapstateInstall           = snapstate.Install
@@ -735,9 +729,6 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 	return flags, nil
 
 }
-
-// reqerr can be returned by snapInstruction handlers to ask for a 400 instead of a 500
-type reqerr struct{ error }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
 	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
@@ -831,7 +822,7 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
 	}
 	if err != nil {
-		return "", nil, reqerr{err}
+		return "", nil, err
 	}
 
 	msg := fmt.Sprintf(i18n.G("Revert %q snap"), inst.Snaps[0])
