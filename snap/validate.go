@@ -91,6 +91,21 @@ func Validate(info *Info) error {
 			return err
 		}
 	}
+
+	// ensure that plug and slot have unique names
+	if err := plugsSlotsUniqueNames(info); err != nil {
+		return err
+	}
+	return nil
+}
+
+func plugsSlotsUniqueNames(info *Info) error {
+	// we could choose the smaller collection if we wanted to optimize this check
+	for plugName := range info.Plugs {
+		if info.Slots[plugName] != nil {
+			return fmt.Errorf("cannot have plug and slot with the same name: %q", plugName)
+		}
+	}
 	return nil
 }
 
