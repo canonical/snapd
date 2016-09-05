@@ -1,11 +1,11 @@
-name: thumbnailer-consumer
+name: test-snapd-thumbnailer-consumer
 version: 1.0
 summary: Basic thumbnailer consumer snap
 description: A basic snap declaring a plug on thumbnailer
 
 apps:
-    thumbnailer-consumer:
-        command: gdbus call --session --dest com.canonical.Thumbnailer  --object-path /com/canonical/Thumbnailer --method com.canonical.Thumbnailer.GetThumbnail $SNAP/test.png \"(16,16)\"
+    test-snapd-thumbnailer-consumer:
+        command: gdbus call --session --dest com.canonical.Thumbnailer  --object-path /com/canonical/Thumbnailer --method com.canonical.Thumbnailer.GetThumbnail
         plugs: [thumbnailer]
 parts:
     gdbus:

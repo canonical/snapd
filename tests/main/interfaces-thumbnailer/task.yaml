@@ -15,17 +15,13 @@ details: |
     The test checks that the method calls returns successfully.
 
 environment:
-    SNAP_NAME: thumbnailer-consumer
-    SNAP_FILE: "${SNAP_NAME}_1.0_all.snap"
+    SNAP_NAME: test-snapd-thumbnailer-consumer
     PLUG: thumbnailer
+    TEST_IMAGE: /var/snap/thumbnailer-consumer/current/test.png
 
 prepare: |
     echo "Given a snap declaring the $PLUG plug is installed"
-    snapbuild $TESTSLIB/snaps/$SNAP_NAME .
-    snap install --dangerous $SNAP_FILE
-
-restore: |
-    rm -f $SNAP_FILE
+    snap install $SNAP_NAME
 
 execute: |
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
@@ -55,7 +51,7 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command exits with a success code"
-    $SNAP_NAME
+    $SNAP_NAME $TEST_IMAGE "(16,16)"
 
     echo "===================================="
 
