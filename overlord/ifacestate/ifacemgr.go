@@ -62,6 +62,7 @@ func Manager(s *state.State, extra []interfaces.Interface) (*InterfaceManager, e
 	runner.AddHandler("setup-profiles", m.doSetupProfiles, m.doRemoveProfiles)
 	runner.AddHandler("remove-profiles", m.doRemoveProfiles, m.doSetupProfiles)
 	runner.AddHandler("discard-conns", m.doDiscardConns, m.undoDiscardConns)
+	runner.AddHandler("discard-namespace", m.doDiscardNamespace, nil)
 	return m, nil
 }
 
