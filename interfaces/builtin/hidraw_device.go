@@ -29,15 +29,15 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-// HidrawDeviceInterface is the type for hidraw device interfaces.
-type HidrawDeviceInterface struct{}
+// HidrawInterface is the type for hidraw interfaces.
+type HidrawInterface struct{}
 
 // Name of the hidraw interface.
-func (iface *HidrawDeviceInterface) Name() string {
-	return "hidraw-device"
+func (iface *HidrawInterface) Name() string {
+	return "hidraw"
 }
 
-func (iface *HidrawDeviceInterface) String() string {
+func (iface *HidrawInterface) String() string {
 	return iface.Name()
 }
 
@@ -48,7 +48,7 @@ var hidrawDeviceNodePattern = regexp.MustCompile("^/dev/hidraw[0-9]{1,3}$")
 // Pattern that is considered valid for the udev symlink to the hidraw device,
 // path attributes will be compared to this for validity when usb vid and pid
 // are also specified
-var hidrawUdevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-device-[a-z0-9]+$")
+var hidrawUdevSymlinkPattern = regexp.MustCompile("^/dev/hidraw-[a-z0-9]+$")
 
 // Strings used to build up the udev snippet
 const udevHeader string = `IMPORT{builtin}="usb_id"`
@@ -57,7 +57,7 @@ const udevSymlinkSuffix string = `, SYMLINK+="%s"`
 const udevTagSuffix string = `, TAG+="%s"`
 
 // SanitizeSlot checks validity of the defined slot
-func (iface *HidrawDeviceInterface) SanitizeSlot(slot *interfaces.Slot) error {
+func (iface *HidrawInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Check slot is of right type
 	if iface.Name() != slot.Interface {
 		panic(fmt.Sprintf("slot is not of interface %q", iface))
@@ -65,13 +65,13 @@ func (iface *HidrawDeviceInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 	// We will only allow creation of this type of slot by a gadget or OS snap
 	if !(slot.Snap.Type == "gadget" || slot.Snap.Type == "os") {
-		return fmt.Errorf("hidraw-device slots only allowed on gadget or core snaps")
+		return fmt.Errorf("hidraw slots only allowed on gadget or core snaps")
 	}
 
 	// Check slot has a path attribute identify hidraw device
 	path, ok := slot.Attrs["path"].(string)
 	if !ok || path == "" {
-		return fmt.Errorf("hidraw-device slots must have a path attribute")
+		return fmt.Errorf("hidraw slots must have a path attribute")
 	}
 
 	// Clean the path before further checks
@@ -81,36 +81,36 @@ func (iface *HidrawDeviceInterface) SanitizeSlot(slot *interfaces.Slot) error {
 		// Must be path attribute where symlink will be placed and usb vendor and product identifiers
 		// Check the path attribute is in the allowable pattern
 		if !hidrawUdevSymlinkPattern.MatchString(path) {
-			return fmt.Errorf("hidraw-device path attribute specifies invalid symlink location")
+			return fmt.Errorf("hidraw path attribute specifies invalid symlink location")
 		}
 
 		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
 		if !vOk {
-			return fmt.Errorf("hidraw-device slot failed to find usb-vendor attribute")
+			return fmt.Errorf("hidraw slot failed to find usb-vendor attribute")
 		}
 		if (usbVendor < 0x1) || (usbVendor > 0xFFFF) {
-			return fmt.Errorf("hidraw-device usb-vendor attribute not valid: %d", usbVendor)
+			return fmt.Errorf("hidraw usb-vendor attribute not valid: %d", usbVendor)
 		}
 
 		usbProduct, pOk := slot.Attrs["usb-product"].(int)
 		if !pOk {
-			return fmt.Errorf("hidraw-device slot failed to find usb-product attribute")
+			return fmt.Errorf("hidraw slot failed to find usb-product attribute")
 		}
 		if (usbProduct < 0x0) || (usbProduct > 0xFFFF) {
-			return fmt.Errorf("hidraw-device usb-product attribute not valid: %d", usbProduct)
+			return fmt.Errorf("hidraw usb-product attribute not valid: %d", usbProduct)
 		}
 	} else {
 		// Just a path attribute - must be a valid usb device node
 		// Check the path attribute is in the allowable pattern
 		if !hidrawDeviceNodePattern.MatchString(path) {
-			return fmt.Errorf("hidraw-device path attribute must be a valid device node")
+			return fmt.Errorf("hidraw path attribute must be a valid device node")
 		}
 	}
 	return nil
 }
 
 // SanitizePlug checks and possibly modifies a plug.
-func (iface *HidrawDeviceInterface) SanitizePlug(plug *interfaces.Plug) error {
+func (iface *HidrawInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface))
 	}
@@ -119,7 +119,7 @@ func (iface *HidrawDeviceInterface) SanitizePlug(plug *interfaces.Plug) error {
 }
 
 // PermanentSlotSnippet returns snippets granted on install
-func (iface *HidrawDeviceInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityUDev:
 		usbVendor, vOk := slot.Attrs["usb-vendor"].(int)
@@ -148,7 +148,7 @@ func (iface *HidrawDeviceInterface) PermanentSlotSnippet(slot *interfaces.Slot, 
 }
 
 // ConnectedSlotSnippet no extra permissions granted on connection
-func (iface *HidrawDeviceInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *HidrawInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
@@ -158,7 +158,7 @@ func (iface *HidrawDeviceInterface) ConnectedSlotSnippet(plug *interfaces.Plug, 
 }
 
 // PermanentPlugSnippet no permissions provided to plug permanently
-func (iface *HidrawDeviceInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *HidrawInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
@@ -168,7 +168,7 @@ func (iface *HidrawDeviceInterface) PermanentPlugSnippet(plug *interfaces.Plug, 
 }
 
 // ConnectedPlugSnippet returns security snippet specific to the plug
-func (iface *HidrawDeviceInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		if iface.hasUsbAttrs(slot) {
@@ -209,11 +209,11 @@ func (iface *HidrawDeviceInterface) ConnectedPlugSnippet(plug *interfaces.Plug, 
 }
 
 // AutoConnect indicates whether this type of interface should allow autoconnect
-func (iface *HidrawDeviceInterface) AutoConnect() bool {
+func (iface *HidrawInterface) AutoConnect() bool {
 	return false
 }
 
-func (iface *HidrawDeviceInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
+func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	if _, ok := slot.Attrs["usb-vendor"]; ok {
 		return true
 	}

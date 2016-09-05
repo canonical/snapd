@@ -29,7 +29,7 @@ var allInterfaces = []interfaces.Interface{
 	&BrowserSupportInterface{},
 	&ContentInterface{},
 	&GpioInterface{},
-	&HidrawDeviceInterface{},
+	&HidrawInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&LxdSupportInterface{},

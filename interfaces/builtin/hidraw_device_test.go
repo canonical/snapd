@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type HidrawDeviceInterfaceSuite struct {
+type HidrawInterfaceSuite struct {
 	testutil.BaseTest
 	iface interfaces.Interface
 
@@ -53,30 +53,30 @@ type HidrawDeviceInterfaceSuite struct {
 	testPlugPort2 *interfaces.Plug
 }
 
-var _ = Suite(&HidrawDeviceInterfaceSuite{
-	iface: &builtin.HidrawDeviceInterface{},
+var _ = Suite(&HidrawInterfaceSuite{
+	iface: &builtin.HidrawInterface{},
 })
 
-func (s *HidrawDeviceInterfaceSuite) SetUpTest(c *C) {
+func (s *HidrawInterfaceSuite) SetUpTest(c *C) {
 	osSnapInfo, err := snap.InfoFromSnapYaml([]byte(`
 name: ubuntu-core
 type: os
 slots:
     test-port-1:
-        interface: hidraw-device
+        interface: hidraw
         path: /dev/hidraw0
     test-port-2:
-        interface: hidraw-device
+        interface: hidraw
         path: /dev/hidraw987
-    missing-path: hidraw-device
+    missing-path: hidraw
     bad-path-1:
-        interface: hidraw-device
+        interface: hidraw
         path: path
     bad-path-2:
-        interface: hidraw-device
+        interface: hidraw
         path: /dev/hid0
     bad-path-3:
-        interface: hidraw-device
+        interface: hidraw
         path: /dev/hidraw9271
     bad-interface: other-interface
 `))
@@ -94,27 +94,27 @@ name: some-device
 type: gadget
 slots:
   test-udev-1:
-      interface: hidraw-device
+      interface: hidraw
       usb-vendor: 0x0001
       usb-product: 0x0001
-      path: /dev/hidraw-device-canbus
+      path: /dev/hidraw-canbus
   test-udev-2:
-      interface: hidraw-device
+      interface: hidraw
       usb-vendor: 0xffff
       usb-product: 0xffff
-      path: /dev/hidraw-device-mydevice
+      path: /dev/hidraw-mydevice
   test-udev-bad-value-1:
-      interface: hidraw-device
+      interface: hidraw
       usb-vendor: -1
       usb-product: 0xffff
-      path: /dev/hidraw-device-mydevice
+      path: /dev/hidraw-mydevice
   test-udev-bad-value-2:
-      interface: hidraw-device
+      interface: hidraw
       usb-vendor: 0x1234
       usb-product: 0x10000
-      path: /dev/hidraw-device-mydevice
+      path: /dev/hidraw-mydevice
   test-udev-bad-value-3:
-      interface: hidraw-device
+      interface: hidraw
       usb-vendor: 0x789a
       usb-product: 0x4321
       path: /dev/my-device
@@ -130,14 +130,14 @@ slots:
 name: client-snap
 plugs:
     plug-for-device-1:
-        interface: hidraw-device
+        interface: hidraw
     plug-for-device-2:
-        interface: hidraw-device
+        interface: hidraw
 
 apps:
     app-accessing-1-device:
         command: foo
-        plugs: [hidraw-device]
+        plugs: [hidraw]
     app-accessing-2-devices:
         command: bar
         plugs: [plug-for-device-1, plug-for-device-2]
@@ -147,33 +147,33 @@ apps:
 	s.testPlugPort2 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-device-2"]}
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "hidraw-device")
+func (s *HidrawInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "hidraw")
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
+func (s *HidrawInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2} {
 		err := s.iface.SanitizeSlot(slot)
 		c.Assert(err, IsNil)
 	}
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
+func (s *HidrawInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 	// Slots without the "path" attribute are rejected.
 	err := s.iface.SanitizeSlot(s.missingPathSlot)
-	c.Assert(err, ErrorMatches, `hidraw-device slots must have a path attribute`)
+	c.Assert(err, ErrorMatches, `hidraw slots must have a path attribute`)
 
 	// Slots with incorrect value of the "path" attribute are rejected.
 	for _, slot := range []*interfaces.Slot{s.badPathSlot1, s.badPathSlot2, s.badPathSlot3} {
 		err := s.iface.SanitizeSlot(slot)
-		c.Assert(err, ErrorMatches, "hidraw-device path attribute must be a valid device node")
+		c.Assert(err, ErrorMatches, "hidraw path attribute must be a valid device node")
 	}
 
 	// It is impossible to use "bool-file" interface to sanitize slots with other interfaces.
-	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches, `slot is not of interface "hidraw-device"`)
+	c.Assert(func() { s.iface.SanitizeSlot(s.badInterfaceSlot) }, PanicMatches, `slot is not of interface "hidraw"`)
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
+func (s *HidrawInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
 	err := s.iface.SanitizeSlot(s.testUdev1)
 	c.Assert(err, IsNil)
 
@@ -181,18 +181,18 @@ func (s *HidrawDeviceInterfaceSuite) TestSanitizeGadgetSnapSlots(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
+func (s *HidrawInterfaceSuite) TestSanitizeBadGadgetSnapSlots(c *C) {
 	err := s.iface.SanitizeSlot(s.testUdevBadValue1)
-	c.Assert(err, ErrorMatches, "hidraw-device usb-vendor attribute not valid: -1")
+	c.Assert(err, ErrorMatches, "hidraw usb-vendor attribute not valid: -1")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue2)
-	c.Assert(err, ErrorMatches, "hidraw-device usb-product attribute not valid: 65536")
+	c.Assert(err, ErrorMatches, "hidraw usb-product attribute not valid: 65536")
 
 	err = s.iface.SanitizeSlot(s.testUdevBadValue3)
-	c.Assert(err, ErrorMatches, "hidraw-device path attribute specifies invalid symlink location")
+	c.Assert(err, ErrorMatches, "hidraw path attribute specifies invalid symlink location")
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestPermanentSlotUdevSnippets(c *C) {
+func (s *HidrawInterfaceSuite) TestPermanentSlotUdevSnippets(c *C) {
 	for _, slot := range []*interfaces.Slot{s.testSlot1, s.testSlot2} {
 		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
@@ -200,21 +200,21 @@ func (s *HidrawDeviceInterfaceSuite) TestPermanentSlotUdevSnippets(c *C) {
 	}
 
 	expectedSnippet1 := []byte(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="hidraw-device-canbus"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", SYMLINK+="hidraw-canbus"
 `)
 	snippet, err := s.iface.PermanentSlotSnippet(s.testUdev1, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet1, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet1, snippet))
 
 	expectedSnippet2 := []byte(`IMPORT{builtin}="usb_id"
-SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="hidraw-device-mydevice"
+SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", SYMLINK+="hidraw-mydevice"
 `)
 	snippet, err = s.iface.PermanentSlotSnippet(s.testUdev2, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
+func (s *HidrawInterfaceSuite) TestConnectedPlugUdevSnippets(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, IsNil)
@@ -234,7 +234,7 @@ SUBSYSTEM=="hidraw", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct
 	c.Assert(snippet, DeepEquals, expectedSnippet2, Commentf("\nexpected:\n%s\nfound:\n%s", expectedSnippet2, snippet))
 }
 
-func (s *HidrawDeviceInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
+func (s *HidrawInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet1 := []byte(`/dev/hidraw0 rw,
 `)
 	snippet, err := s.iface.ConnectedPlugSnippet(s.testPlugPort1, s.testSlot1, interfaces.SecurityAppArmor)
