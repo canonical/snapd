@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
@@ -1031,4 +1032,45 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 	c.Check(s.secBackend.SetupCalls[0].DevMode, Equals, true)
 	c.Check(s.secBackend.SetupCalls[1].SnapInfo.Name(), Equals, siP.Name())
 	c.Check(s.secBackend.SetupCalls[1].DevMode, Equals, false)
+}
+
+func (s *interfaceManagerSuite) TestDiscardNamespace(c *C) {
+	mgr := s.manager(c)
+	si := s.mockSnap(c, sampleSnapYaml)
+
+	// Mock enough bits so that we can observe calls to snap-discard-ns
+	defer testutil.MockInternalCmdPath("")()
+	cmd := testutil.MockCommand(c, "snap-discard-ns", "")
+	defer cmd.Restore()
+
+	// Create a change that discards the namespace of a sample snap
+	s.state.Lock()
+	task := s.state.NewTask("discard-namespace", "")
+	ss := &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: si.Name(),
+		},
+	}
+	task.Set("snap-setup", ss)
+	taskset := state.NewTaskSet(task)
+	change := s.state.NewChange("test", "")
+	change.AddAll(taskset)
+	s.state.Unlock()
+
+	// Let the tasks run and settle
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Check(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that snap-discard-ns was called
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{"snap-discard-ns", si.Name()},
+	})
 }
