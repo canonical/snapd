@@ -122,7 +122,6 @@ func (s *linkSnapSuite) TestDoUndoLinkSnap(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Channel:  "beta",
-		Flags:    snapstate.HasABA,
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -156,7 +155,6 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
 		Channel:  "beta",
-		Flags:    snapstate.HasABA,
 	})
 
 	s.fakeBackend.linkSnapFailTrigger = "/snap/foo/35"
@@ -202,7 +200,6 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	t := s.state.NewTask("link-snap", "test")
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si,
-		Flags:    snapstate.HasABA,
 	})
 	s.state.NewChange("dummy", "...").AddTask(t)
 
@@ -247,7 +244,6 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si2,
 		Channel:  "beta",
-		Flags:    snapstate.HasABA,
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)
@@ -292,7 +288,6 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceHadCandidate(c *C) {
 	t.Set("snap-setup", &snapstate.SnapSetup{
 		SideInfo: si1,
 		Channel:  "beta",
-		Flags:    snapstate.HasABA,
 	})
 	chg := s.state.NewChange("dummy", "...")
 	chg.AddTask(t)

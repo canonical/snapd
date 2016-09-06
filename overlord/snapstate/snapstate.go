@@ -46,14 +46,6 @@ const (
 	// JailMode is set when the user has requested confinement
 	// always be enforcing, even if the snap requests otherwise.
 	JailMode
-
-	// flags just for SnapSetup follow
-
-	// HasABA is a feature flag; doInstall sets it, and downstream handlers check for it to handle old SnapSetups
-	HasABA = 0x40000000 >> iota
-
-	// IsRevert flags the SnapSetup as coming from a revert
-	IsRevert
 )
 
 func (f Flags) DevModeAllowed() bool {
@@ -68,20 +60,10 @@ func (f Flags) JailMode() bool {
 	return f&JailMode != 0
 }
 
-func (f Flags) HasABA() bool {
-	return f&HasABA != 0
-}
-
-func (f Flags) IsRevert() bool {
-	return f&IsRevert != 0
-}
-
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name(), snapst); err != nil {
 		return nil, err
 	}
-
-	ss.Flags |= HasABA
 
 	if ss.SnapPath == "" && ss.Channel == "" {
 		ss.Channel = "stable"
@@ -140,7 +122,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	}
 
 	// copy-data (needs stopped services by unlink)
-	if !ss.IsRevert() {
+	if !ss.Flags.Revert() {
 		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name()))
 		addTask(copyData)
 		prev = copyData
@@ -162,7 +144,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
-	if snapst.HasCurrent() && !ss.IsRevert() {
+	if snapst.HasCurrent() && !ss.Flags.Revert() {
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -181,9 +163,10 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			si := seq[i]
 			if si.Revision == ss.Revision() {
 				// we do *not* want to removeInactiveRevision of this one
-				seq = seq[:i+copy(seq[i:], seq[i+1:])]
-				i--
+				copy(seq[i:], seq[i+1:])
+				seq = seq[:len(seq)-1]
 				currentIndex--
+				break
 			}
 		}
 
@@ -196,6 +179,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			prev = tasks[len(tasks)-1]
 		}
 
+		addTask(s.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", ss.Name(), revisionStr)))
 	}
 
 	return state.NewTaskSet(tasks...), nil
@@ -750,7 +734,7 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision, flags Flag
 	}
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
-		Flags:    SnapSetupFlags(flags) | IsRevert,
+		Flags:    SnapSetupFlags(flags) | SnapSetupFlagRevert,
 	}
 	return doInstall(s, &snapst, ss)
 }

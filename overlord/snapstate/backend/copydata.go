@@ -62,7 +62,7 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 	} else {
 		err2 = b.untrashData(newInfo)
 		if err2 != nil {
-			logger.Noticef("Cannot restore data from trash for %q: %v", newInfo.Name(), err2)
+			logger.Noticef("Cannot restore original data for %q while undoing: %v", newInfo.Name(), err2)
 		}
 	}
 
@@ -73,13 +73,13 @@ func (b Backend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, meter 
 func (b Backend) ClearTrashedData(oldSnap *snap.Info) {
 	dirs, err := snapDataDirs(oldSnap)
 	if err != nil {
-		logger.Noticef("Cannot clear trash for %q: %v", oldSnap.Name(), err)
+		logger.Noticef("Cannot remove previous data for %q: %v", oldSnap.Name(), err)
 		return
 	}
 
 	for _, d := range dirs {
-		if err := clearTrash(d); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("Problem clearing trash for %q's directory %s: %v", oldSnap.Name(), d, err)
+		if err := clearTrash(d); err != nil {
+			logger.Noticef("Cannot remove %s: %v", d, err)
 		}
 	}
 }

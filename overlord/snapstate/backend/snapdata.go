@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	unix "syscall"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
@@ -55,7 +56,7 @@ func (b Backend) untrashData(snap *snap.Info) error {
 	}
 
 	for _, d := range dirs {
-		if e := untrash(d); e != nil && !os.IsNotExist(e) {
+		if e := untrash(d); e != nil {
 			err = e
 		}
 	}
@@ -122,34 +123,69 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 	return nil
 }
 
+// trashPath returns the trash path for the given path. This will
+// differ only in the last element.
 func trashPath(path string) string {
 	return path + ".old"
 }
 
-// trash moves path aside
+// trash moves path aside, if it exists. If the trash for the path
+// already exists and is not empty it will be removed first.
 func trash(path string) error {
-	return os.Rename(path, trashPath(path))
+	trash := trashPath(path)
+	err := os.Rename(path, trash)
+	if err == nil {
+		return nil
+	}
+	// os.Rename says it always returns *os.LinkError. Be wary.
+	e, ok := err.(*os.LinkError)
+	if !ok {
+		return err
+	}
+
+	switch e.Err {
+	case unix.ENOENT:
+		// path does not exist (here we use that trashPath(path) and path differ only in the last element)
+		return nil
+	case unix.ENOTEMPTY, unix.EEXIST:
+		// path exists, but trash already exists and is non-empty
+		// (empirically always ENOTEMPTY but rename(2) says it can also be EEXIST)
+		// nuke the old trash and try again
+		if err := os.RemoveAll(trash); err != nil {
+			// well, that didn't work :-(
+			return err
+		}
+		return os.Rename(path, trash)
+	default:
+		// WAT
+		return err
+	}
 }
 
-// untrash moves the trash for path back in
+// untrash moves the trash for path back in, if it exists.
 func untrash(path string) error {
-	return os.Rename(trashPath(path), path)
+	err := os.Rename(trashPath(path), path)
+	if !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
 }
 
-// clearTrash removes the trash made for path
+// clearTrash removes the trash made for path, if it exists.
 func clearTrash(path string) error {
-	return os.RemoveAll(trashPath(path))
+	err := os.RemoveAll(trashPath(path))
+	if !os.IsNotExist(err) {
+		return err
+	}
+
+	return nil
 }
 
 // Lowlevel copy the snap data (but never override existing data)
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
-		if _, err := os.Stat(newPath); err == nil {
-			// newPath already exists; back up
-			if err := trash(newPath); err != nil {
-				return err
-			}
-		} else if !os.IsNotExist(err) {
+		if err := trash(newPath); err != nil {
 			return err
 		}
 

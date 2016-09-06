@@ -315,6 +315,12 @@ func (t *Task) Get(key string, value interface{}) error {
 	return t.data.get(key, value)
 }
 
+// Clear disassociates the value from key.
+func (t *Task) Clear(key string) {
+	t.state.writing()
+	delete(t.data, key)
+}
+
 func addOnce(set []string, s string) []string {
 	for _, cur := range set {
 		if s == cur {

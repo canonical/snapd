@@ -175,10 +175,13 @@ func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
 
 func (s *copydataSuite) populatedData(d string) string {
 	bs, err := ioutil.ReadFile(filepath.Join(dirs.SnapDataDir, "hello", d, "random-subdir", "canary"))
-	if err != nil {
+	if err == nil {
+		return string(bs)
+	}
+	if os.IsNotExist(err) {
 		return ""
 	}
-	return string(bs)
+	panic(err)
 }
 
 func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revision) (homedir string) {

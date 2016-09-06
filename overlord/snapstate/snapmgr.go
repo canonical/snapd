@@ -48,6 +48,17 @@ type SnapManager struct {
 // SnapSetupFlags are flags stored in SnapSetup to control snap manager tasks.
 type SnapSetupFlags Flags
 
+const (
+	// flags that are only used by SnapSetup grow downwards
+
+	// SnapSetupFlagRevert flags the SnapSetup as coming from a revert
+	SnapSetupFlagRevert SnapSetupFlags = 0x40000000 >> iota
+)
+
+func (f SnapSetupFlags) Revert() bool {
+	return f&SnapSetupFlagRevert != 0
+}
+
 // SnapSetup holds the necessary snap details to perform most snap manager tasks.
 type SnapSetup struct {
 	// FIXME: rename to RequestedChannel to convey the meaning better
@@ -97,14 +108,6 @@ func (ss *SnapSetup) DevModeAllowed() bool {
 // TryMode returns true if the snap is being installed in try mode directly from a directory.
 func (ss *SnapSetup) TryMode() bool {
 	return ss.Flags&TryMode != 0
-}
-
-func (ss *SnapSetup) IsRevert() bool {
-	return Flags(ss.Flags).IsRevert()
-}
-
-func (ss *SnapSetup) HasABA() bool {
-	return Flags(ss.Flags).HasABA()
 }
 
 // SnapStateFlags are flags stored in SnapState.
@@ -367,6 +370,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
 	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
+	runner.AddHandler("cleanup", m.cleanup, nil)
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
@@ -879,15 +883,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	m.backend.Candidate(cand)
 
 	oldCandidateIndex := snapst.LastIndex(cand.Revision)
-	var oldInfo *snap.Info
+
 	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
-	} else if ss.HasABA() && !ss.IsRevert() {
-		si := snapst.Sequence[oldCandidateIndex]
-		oldInfo, err = readInfo(ss.Name(), si)
-		if err != nil {
-			return err
-		}
+	} else if !ss.Flags.Revert() {
+		// remove the old candidate from the sequence, add it at the end
 		copy(snapst.Sequence[oldCandidateIndex:len(snapst.Sequence)-1], snapst.Sequence[oldCandidateIndex+1:])
 		snapst.Sequence[len(snapst.Sequence)-1] = cand
 	}
@@ -930,10 +930,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	if oldInfo != nil {
-		// TODO: move this to its own task
-		m.backend.ClearTrashedData(oldInfo)
-	}
 
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
@@ -941,12 +937,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.Set("old-jailmode", oldJailMode)
 	t.Set("old-channel", oldChannel)
 	t.Set("old-current", oldCurrent)
-	if ss.HasABA() {
-		t.Set("old-candidate-index", oldCandidateIndex)
-	} else {
-		//migration
-		t.Set("had-candidate", oldCandidateIndex < 0)
-	}
+	t.Set("old-candidate-index", oldCandidateIndex)
 	// Do at the end so we only preserve the new state if it worked.
 	Set(st, ss.Name(), snapst)
 	// Make sure if state commits and snapst is mutated we won't be rerun
@@ -1006,37 +997,31 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-
-	isRevert := false
-	oldCandidateIndex := -1
-	if ss.HasABA() {
-		isRevert = ss.IsRevert()
-		err = t.Get("old-candidate-index", &oldCandidateIndex)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = t.Get("had-candidate", &isRevert)
-		if err != nil && err != state.ErrNoState {
-			return err
-		}
+	var oldCandidateIndex int
+	if err := t.Get("old-candidate-index", &oldCandidateIndex); err != nil {
+		return err
 	}
+
+	isRevert := ss.Flags.Revert()
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
 	currentIndex := snapst.LastIndex(snapst.Current)
 	if currentIndex < 0 {
 		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", ss.SideInfo.Revision, snapst.Sequence)
 	}
-	if ss.HasABA() {
-		if oldCandidateIndex < 0 {
-			snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
-		} else if !isRevert {
-			oldCand := snapst.Sequence[currentIndex]
-			copy(snapst.Sequence[oldCandidateIndex+1:], snapst.Sequence[oldCandidateIndex:])
-			snapst.Sequence[oldCandidateIndex] = oldCand
-		}
-	} else if !isRevert {
+
+	if oldCandidateIndex >= 0 && !isRevert {
+		oldCand := snapst.Sequence[currentIndex]
+		copy(snapst.Sequence[oldCandidateIndex+1:], snapst.Sequence[oldCandidateIndex:])
+		snapst.Sequence[oldCandidateIndex] = oldCand
+	}
+
+	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
+	} else if !isRevert {
+		oldCand := snapst.Sequence[currentIndex]
+		copy(snapst.Sequence[oldCandidateIndex+1:], snapst.Sequence[oldCandidateIndex:])
+		snapst.Sequence[oldCandidateIndex] = oldCand
 	}
 	snapst.Current = oldCurrent
 	snapst.Active = false
@@ -1110,4 +1095,28 @@ func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 
 	return err
+}
+
+func (m *SnapManager) cleanup(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	pb := &TaskProgressAdapter{task: t}
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		pb.Notify(fmt.Sprintf("cannot clean up: %v", err))
+		return nil // cleanup should not return error
+	}
+
+	info, err := snapst.CurrentInfo()
+	if err != nil {
+		pb.Notify(fmt.Sprintf("cannot clean up: %v", err))
+		return nil
+	}
+
+	m.backend.ClearTrashedData(info)
+
+	return nil
 }
