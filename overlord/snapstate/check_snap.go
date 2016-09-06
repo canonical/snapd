@@ -36,6 +36,8 @@ import (
 var featureSet = map[string]bool{
 	// Support for common data directory across revisions of a snap.
 	"common-data-dir": true,
+	// Support for the "Environment:" feature in snap.yaml
+	"snap-env": true,
 }
 
 func checkAssumes(s *snap.Info) error {

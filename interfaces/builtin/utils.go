@@ -69,3 +69,17 @@ func slotAppLabelExpr(slot *interfaces.Slot) []byte {
 func plugAppLabelExpr(plug *interfaces.Plug) []byte {
 	return appLabelExpr(plug.Apps, plug.Snap)
 }
+
+// Function to support creation of udev snippet
+func udevUsbDeviceSnippet(subsystem string, usbVendor int, usbProduct int, key string, data string) []byte {
+	const udevHeader string = `IMPORT{builtin}="usb_id"`
+	const udevDevicePrefix string = `SUBSYSTEM=="%s", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
+	const udevSuffix string = `, %s+="%s"`
+
+	var udevSnippet bytes.Buffer
+	udevSnippet.WriteString(udevHeader + "\n")
+	udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, subsystem, usbVendor, usbProduct))
+	udevSnippet.WriteString(fmt.Sprintf(udevSuffix, key, data))
+	udevSnippet.WriteString("\n")
+	return udevSnippet.Bytes()
+}
