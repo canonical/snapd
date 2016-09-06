@@ -24,7 +24,7 @@ execute: |
     # we need a marker file, because just using systemd to figure out
     # if the service has started is racy, start just means started,
     # not that the dir is actually blocked yet
-    MARKER=/var/snap/test-snapd-tools/current/block
+    MARKER=/var/snap/test-snapd-tools/current/block-running
     rm -f $MARKER
     systemd-run --unit unmount-blocker $(which test-snapd-tools.block)
     wait_for_service unmount-blocker active
