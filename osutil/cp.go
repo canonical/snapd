@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 // CopyFlag is used to tweak the behaviour of CopyFile
@@ -136,8 +137,8 @@ func runCmd(cmd *exec.Cmd, errdesc string) error {
 	return nil
 }
 
-func runSync() error {
-	return runCmd(exec.Command("sync"), "sync")
+func runSync(args ...string) error {
+	return runCmd(exec.Command("sync", args...), "sync")
 }
 
 func runCpPreserveAll(path, dest, errdesc string) error {
@@ -147,7 +148,10 @@ func runCpPreserveAll(path, dest, errdesc string) error {
 // CopySpecialFile is used to copy all the things that are not files
 // (like device nodes, named pipes etc)
 func CopySpecialFile(path, dest string) error {
-	return runCpPreserveAll(path, dest, "copy device node")
+	if err := runCpPreserveAll(path, dest, "copy device node"); err != nil {
+		return err
+	}
+	return runSync(filepath.Dir(dest))
 }
 
 // ErrCopySpecialFile is returned if a special file copy fails
