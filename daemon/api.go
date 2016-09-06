@@ -733,8 +733,6 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
-	// TODO: check inst flags and bail if any are given (-many
-	// doesn't take options)
 	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
@@ -824,7 +822,9 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// TODO: bail if revision is given (and != current?)
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("enable takes no revision")
+	}
 	ts, err := snapstate.Enable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
@@ -835,7 +835,9 @@ func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// TODO: bail if revision is given (and != current?)
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("disable takes no revision")
+	}
 	ts, err := snapstate.Disable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
@@ -893,7 +895,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	msg, tsets, err := impl(&inst, state)
 	if err != nil {
-		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
@@ -971,6 +973,10 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 	var inst snapInstruction
 	if err := decoder.Decode(&inst); err != nil {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
+	}
+
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
+		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 
 	if inst.Action != "refresh" {
