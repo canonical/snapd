@@ -17,28 +17,25 @@
  *
  */
 
-package wrappers
+package builtin
 
 import (
-	"time"
+	"github.com/snapcore/snapd/interfaces"
 )
 
-// some internal helper exposed for testing
-var (
-	// services
-	GenerateSnapServiceFile = generateSnapServiceFile
-	GenerateSnapSocketFile  = generateSnapSocketFile
+const removableMediaConnectedPlugAppArmor = `
+# Description: Can access removable storage filesystems
 
-	// desktop
-	SanitizeDesktopFile = sanitizeDesktopFile
-	RewriteExecLine     = rewriteExecLine
-	TrimLang            = trimLang
-)
+# Mount points could be in /run/media/<user>/* or /media/<user>/*
+/{,run/}media/*/ r,
+/{,run/}media/*/** rw,
+`
 
-func MockKillWait(wait time.Duration) (restore func()) {
-	oldKillWait := killWait
-	killWait = wait
-	return func() {
-		killWait = oldKillWait
+// NewRemovableMediaInterface returns a new "removable-media" interface.
+func NewRemovableMediaInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "removable-media",
+		connectedPlugAppArmor: removableMediaConnectedPlugAppArmor,
+		reservedForOS:         true,
 	}
 }
