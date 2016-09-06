@@ -198,17 +198,22 @@ func (mockstat) IsDir() bool        { return false }
 func (mockstat) Sys() interface{}   { return nil }
 
 func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
+	sync := testutil.MockCommand(c, "sync", "")
+	defer sync.Restore()
+
 	src := filepath.Join(c.MkDir(), "fifo")
 	err := syscall.Mkfifo(src, 0644)
 	c.Assert(err, IsNil)
-	dst := filepath.Join(c.MkDir(), "copied-fifo")
+	dir := c.MkDir()
+	dst := filepath.Join(dir, "copied-fifo")
 
 	err = CopySpecialFile(src, dst)
 	c.Assert(err, IsNil)
 
 	st, err := os.Stat(dst)
 	c.Assert(err, IsNil)
-	c.Assert((st.Mode() & os.ModeNamedPipe), Equals, os.ModeNamedPipe)
+	c.Check((st.Mode() & os.ModeNamedPipe), Equals, os.ModeNamedPipe)
+	c.Check(sync.Calls(), DeepEquals, [][]string{{"sync", dir}})
 }
 
 func (s *cpSuite) TestCopySpecialFileErrors(c *C) {
