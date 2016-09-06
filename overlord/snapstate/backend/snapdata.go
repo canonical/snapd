@@ -111,8 +111,7 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
-			err := osutil.CopyFile(oldPath, newPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync)
-			if err != nil {
+			if err := osutil.CopyFile(oldPath, newPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
 				return fmt.Errorf("cannot copy %q to %q: %v", oldPath, newPath, err)
 			}
 		}

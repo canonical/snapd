@@ -21,7 +21,6 @@ package osutil
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -31,6 +30,8 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type cpSuite struct {
@@ -245,20 +246,8 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 
 func (s *cpSuite) TestCopyPreserveAllSync(c *C) {
 	dir := c.MkDir()
-	cp := filepath.Join(dir, "cp")
-	sync := filepath.Join(dir, "sync")
-	log := filepath.Join(dir, "log")
-
-	sh := fmt.Sprintf(`#!/bin/sh
-echo "$0:$@" >> %s
-`, log)
-
-	c.Assert(ioutil.WriteFile(cp, []byte(sh), 0755), IsNil)
-	c.Assert(os.Symlink(cp, sync), IsNil)
-
-	oldPATH := os.Getenv("PATH")
-	defer os.Setenv("PATH", oldPATH)
-	os.Setenv("PATH", dir+":"+oldPATH)
+	mocked := testutil.MockCommand(c, "cp", "").Also("sync", "")
+	defer mocked.Restore()
 
 	src := filepath.Join(dir, "meep")
 	dst := filepath.Join(dir, "copied-meep")
@@ -269,27 +258,16 @@ echo "$0:$@" >> %s
 	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
 	c.Assert(err, IsNil)
 
-	content, err := ioutil.ReadFile(log)
-	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, fmt.Sprintf("%[1]s/cp:-av %[1]s/meep %[1]s/copied-meep\n%[1]s/sync:\n", dir))
+	c.Check(mocked.Calls(), DeepEquals, [][]string{
+		{"cp", "-av", src, dst},
+		{"sync"},
+	})
 }
 
 func (s *cpSuite) TestCopyPreserveAllSyncCpFailure(c *C) {
 	dir := c.MkDir()
-	cp := filepath.Join(dir, "cp")
-	sync := filepath.Join(dir, "sync")
-
-	sh := `#!/bin/sh
-echo "OUCH: $(basename $0) failed." >&2
-exit 42
-`
-
-	c.Assert(ioutil.WriteFile(cp, []byte(sh), 0755), IsNil)
-	c.Assert(os.Symlink(cp, sync), IsNil)
-
-	oldPATH := os.Getenv("PATH")
-	defer os.Setenv("PATH", oldPATH)
-	os.Setenv("PATH", dir+":"+oldPATH)
+	mocked := testutil.MockCommand(c, "cp", "echo OUCH: cp failed.;exit 42").Also("sync", "")
+	defer mocked.Restore()
 
 	src := filepath.Join(dir, "meep")
 	dst := filepath.Join(dir, "copied-meep")
@@ -299,25 +277,15 @@ exit 42
 
 	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
 	c.Assert(err, ErrorMatches, `failed to copy all: "OUCH: cp failed." \(42\)`)
+	c.Check(mocked.Calls(), DeepEquals, [][]string{
+		{"cp", "-av", src, dst},
+	})
 }
 
 func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
 	dir := c.MkDir()
-	cp := filepath.Join(dir, "cp")
-	sync := filepath.Join(dir, "sync")
-
-	sh := `#!/bin/sh
-echo
-echo "OUCH: $(basename $0) failed." >&2
-exit 42
-`
-
-	c.Assert(ioutil.WriteFile(cp, []byte("#!/bin/sh\n"), 0755), IsNil)
-	c.Assert(ioutil.WriteFile(sync, []byte(sh), 0755), IsNil)
-
-	oldPATH := os.Getenv("PATH")
-	defer os.Setenv("PATH", oldPATH)
-	os.Setenv("PATH", dir+":"+oldPATH)
+	mocked := testutil.MockCommand(c, "cp", "").Also("sync", "echo OUCH: sync failed.;exit 42")
+	defer mocked.Restore()
 
 	src := filepath.Join(dir, "meep")
 	dst := filepath.Join(dir, "copied-meep")
@@ -327,4 +295,9 @@ exit 42
 
 	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
 	c.Assert(err, ErrorMatches, `failed to sync: "OUCH: sync failed." \(42\)`)
+
+	c.Check(mocked.Calls(), DeepEquals, [][]string{
+		{"cp", "-av", src, dst},
+		{"sync"},
+	})
 }
