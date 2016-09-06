@@ -22,7 +22,9 @@ package boot
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -137,6 +139,27 @@ func populateStateFromSeed() error {
 	return ovld.Stop()
 }
 
+func readAsserts(fn string) ([]asserts.Assertion, error) {
+	res := ([]asserts.Assertion)(nil)
+	f, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := asserts.NewDecoder(f)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, a)
+	}
+	return res, nil
+}
+
 func importAssertionsFromSeed(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
@@ -154,26 +177,31 @@ func importAssertionsFromSeed(st *state.State) error {
 
 	// collect
 	var modelAssertion *asserts.Model
-	assertionsToAdd := make([]asserts.Assertion, len(dc))
+	assertionsToAdd := make([]asserts.Assertion, 0, len(dc))
 	bs := asserts.NewMemoryBackstore()
-	for i, fi := range dc {
-		content, err := ioutil.ReadFile(filepath.Join(assertSeedDir, fi.Name()))
+	for _, fi := range dc {
+		fn := filepath.Join(assertSeedDir, fi.Name())
+		assertions, err := readAsserts(fn)
 		if err != nil {
-			return fmt.Errorf("cannot read assertion: %s", err)
+			return fmt.Errorf("cannot read assertions: %s", err)
 		}
-		as, err := asserts.Decode(content)
-		if err != nil {
-			return fmt.Errorf("cannot decode assertion: %s", err)
-		}
-		if err := bs.Put(as.Type(), as); err != nil {
-			return err
-		}
-		assertionsToAdd[i] = as
-		if as.Type() == asserts.ModelType {
-			if modelAssertion != nil {
-				return fmt.Errorf("cannot add more than one model assertion")
+		for _, as := range assertions {
+			if err := bs.Put(as.Type(), as); err != nil {
+				if revErr, ok := err.(*asserts.RevisionError); ok {
+					if revErr.Current >= as.Revision() {
+						// we already got something more recent
+						continue
+					}
+				}
+				return err
 			}
-			modelAssertion = as.(*asserts.Model)
+			assertionsToAdd = append(assertionsToAdd, as)
+			if as.Type() == asserts.ModelType {
+				if modelAssertion != nil {
+					return fmt.Errorf("cannot add more than one model assertion")
+				}
+				modelAssertion = as.(*asserts.Model)
+			}
 		}
 	}
 	// verify we have one model assertion
