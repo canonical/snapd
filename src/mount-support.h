@@ -18,24 +18,33 @@
 #ifndef SNAP_MOUNT_SUPPORT_H
 #define SNAP_MOUNT_SUPPORT_H
 
-void setup_private_mount(const char *security_tag);
-void setup_private_pts();
-void setup_snappy_os_mounts();
-void setup_slave_mount_namespace();
+/**
+ * Unshare the mount namespace.
+ *
+ * Ensure we run in our own slave mount namespace, this will create a new mount
+ * namespace and make it a slave of "/"
+ *
+ * Note that this means that no mount actions inside our namespace are
+ * propagated to the main "/". We need this both for the private /tmp we create
+ * and for the bind mounts we do on a classic distribution system.
+ *
+ * This also means you can't run an automount daemon under this launcher.
+ **/
+void sc_unshare_mount_ns();
 
 /**
- * Setup mount profiles as described by snapd.
+ * Assuming a new mountspace, populate it accordingly.
  *
- * This function reads /var/lib/snapd/mount/$security_tag.fstab as a fstab(5) file
- * and executes the mount requests described there.
+ * This function performs many internal tasks:
+ * - prepares and chroots into the core snap (on classic systems)
+ * - creates private /tmp
+ * - creates private /dev/pts
+ * - applies quirks for specific snaps (like LXD)
+ * - processes mount profiles
  *
- * Currently only bind mounts are allowed. All bind mounts are read only by
- * default though the `rw` flag can be used.
- *
- * This function is called with the rootfs being "consistent" so that it is
- * either the core snap on an all-snap system or the core snap + punched holes
- * on a classic system.
+ * The function will also try to preserve the current working directory but if
+ * this is impossible it will chdir to SC_VOID_DIR.
  **/
-void sc_setup_mount_profiles(const char *security_tag);
+void sc_populate_mount_ns(const char *security_tag);
 
 #endif

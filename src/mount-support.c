@@ -17,28 +17,37 @@
 #include "config.h"
 #include "mount-support.h"
 
-#include <unistd.h>
+#include <errno.h>
+#include <limits.h>
+#include <mntent.h>
+#include <sched.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <limits.h>
+#include <string.h>
 #include <sys/mount.h>
 #include <sys/stat.h>
-#include <sys/types.h>
 #include <sys/syscall.h>
-#include <errno.h>
-#include <sched.h>
-#include <string.h>
-#include <mntent.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#include "utils.h"
-#include "snap.h"
 #include "classic.h"
-#include "mount-support-nvidia.h"
 #include "cleanup-funcs.h"
+#include "mount-support-nvidia.h"
+#include "quirks.h"
+#include "snap.h"
+#include "utils.h"
 
 #define MAX_BUF 1000
 
-void setup_private_mount(const char *security_tag)
+/*!
+ * The void directory.
+ *
+ * Snap confine moves to that directory in case it cannot retain the current
+ * working directory across the pivot_root call.
+ **/
+#define SC_VOID_DIR "/var/lib/snapd/void"
+
+static void setup_private_mount(const char *security_tag)
 {
 	uid_t uid = getuid();
 	gid_t gid = getgid();
@@ -102,7 +111,7 @@ void setup_private_mount(const char *security_tag)
 	}
 }
 
-void setup_private_pts()
+static void setup_private_pts()
 {
 	// See https://www.kernel.org/doc/Documentation/filesystems/devpts.txt
 	//
@@ -184,7 +193,7 @@ static void sc_bind_mount_snap_mount_dir(const char *rootfs_dir)
 	}
 }
 
-void setup_snappy_os_mounts()
+static void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
 	char rootfs_dir[MAX_BUF] = { 0 };
@@ -292,22 +301,20 @@ void setup_snappy_os_mounts()
 	setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
 }
 
-void setup_slave_mount_namespace()
-{
-	// unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >= 2.14
-	// if using an older glibc, you'd need -D_BSD_SOURCE or -D_SVID_SORUCE.
-	if (unshare(CLONE_NEWNS) < 0) {
-		die("unable to set up mount namespace");
-	}
-	// make our "/" a rslave of the real "/". this means that
-	// mounts from the host "/" get propagated to our namespace
-	// (i.e. we see new media mounts)
-	if (mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL) != 0) {
-		die("can not make make / rslave");
-	}
-}
-
-void sc_setup_mount_profiles(const char *security_tag)
+/**
+ * Setup mount profiles as described by snapd.
+ *
+ * This function reads /var/lib/snapd/mount/$security_tag.fstab as a fstab(5) file
+ * and executes the mount requests described there.
+ *
+ * Currently only bind mounts are allowed. All bind mounts are read only by
+ * default though the `rw` flag can be used.
+ *
+ * This function is called with the rootfs being "consistent" so that it is
+ * either the core snap on an all-snap system or the core snap + punched holes
+ * on a classic system.
+ **/
+static void sc_setup_mount_profiles(const char *security_tag)
 {
 	debug("%s: %s", __FUNCTION__, security_tag);
 
@@ -413,4 +420,57 @@ static bool __attribute__ ((used))
 	if (subdirlen == dirlen)
 		return true;
 	return false;
+}
+
+void sc_unshare_mount_ns()
+{
+	// NOTE: unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >=
+	// 2.14 if using an older glibc, you'd need -D_BSD_SOURCE or
+	// -D_SVID_SORUCE.
+	if (unshare(CLONE_NEWNS) < 0) {
+		die("unable to set up mount namespace");
+	}
+	// Make our "/" a rslave of the real "/". this means that mounts from the
+	// host "/" get propagated to our namespace (i.e. we see new media mounts).
+	if (mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL) != 0) {
+		die("can not make make / rslave");
+	}
+}
+
+void sc_populate_mount_ns(const char *security_tag)
+{
+	// Get the current working directory before we start fiddling with
+	// mounts and possibly pivot_root.  At the end of the whole process, we
+	// will try to re-locate to the same directory (if possible).
+	char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
+	vanilla_cwd = get_current_dir_name();
+	if (vanilla_cwd == NULL) {
+		die("cannot get the current working directory");
+	}
+	// do the mounting if run on a non-native snappy system
+	if (is_running_on_classic_distribution()) {
+		setup_snappy_os_mounts();
+	}
+	// set up private mounts
+	setup_private_mount(security_tag);
+
+	// set up private /dev/pts
+	setup_private_pts();
+
+	// setup quirks for specific snaps
+	sc_setup_quirks();
+
+	// setup the security backend bind mounts
+	sc_setup_mount_profiles(security_tag);
+
+	// Try to re-locate back to vanilla working directory. This can fail
+	// because that directory is no longer present.
+	if (chdir(vanilla_cwd) != 0) {
+		debug("cannot remain in %s, moving to the void directory",
+		      vanilla_cwd);
+		if (chdir(SC_VOID_DIR) != 0) {
+			die("cannot change directory to %s", SC_VOID_DIR);
+		}
+		debug("successfully moved to %s", SC_VOID_DIR);
+	}
 }
