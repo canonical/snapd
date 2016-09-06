@@ -1,0 +1,17 @@
+summary: Regression test that ensures that $HOME/snap is not root owned for sudo commands
+
+prepare: |
+    # ensure we have no snap user data directory yet
+    rm -rf /home/test/snap
+    snap install test-snapd-tools
+
+execute: |
+    # run a snap command via sudo
+    su -l -c "sudo /snap/bin/test-snapd-tools.env" test
+
+    # and verify that the dirs have the right owner
+    if [ $(stat -c '%U' /home/test/snap) != "test" ]; then
+        echo "The ~/snap directory is not owned by the user"
+        ls -ld /home/test/snap
+        exit 1
+    fi
