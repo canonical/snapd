@@ -18,6 +18,7 @@
 #include "mount-support.h"
 
 #include <errno.h>
+#include <fcntl.h>
 #include <limits.h>
 #include <mntent.h>
 #include <sched.h>
@@ -193,6 +194,51 @@ static void sc_bind_mount_snap_mount_dir(const char *rootfs_dir)
 	}
 }
 
+// Use pivot_root to "chroot" into a given directory.
+//
+// Q: Why are we using something as esoteric as pivot_root(2)?
+// A: Because this makes apparmor handling easy. Using a normal chroot makes
+// all apparmor rules conditional.  We are either running on an all-snap system
+// where this would-be chroot didn't happen and all the rules see / as the root
+// file system _OR_ we are running on top of a classic distribution and this
+// chroot has now moved all paths to /tmp/snap.rootfs_*.
+//
+// Because we are using unshare(2) with CLONE_NEWNS we can essentially use
+// pivot_root just like chroot but this makes apparmor unaware of the old root
+// so everything works okay.
+static void sc_pivot_to_new_rootfs(const char *rootfs_dir)
+{
+	int old_rootfs_fd, new_rootfs_fd;
+
+	old_rootfs_fd = open("/", O_DIRECTORY | O_PATH | O_CLOEXEC);
+	if (old_rootfs_fd == -1) {
+		die("cannot open old root file system directory");
+	}
+	new_rootfs_fd =
+	    open(rootfs_dir, O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	if (new_rootfs_fd == -1) {
+		die("cannot open new root file system directory");
+	}
+	if (fchdir(new_rootfs_fd) == -1) {
+		die("cannot move to new root file system directory");
+	}
+	debug("using pivot_root to move into %s", rootfs_dir);
+	if (syscall(SYS_pivot_root, ".", ".") == -1) {
+		die("cannot pivot_root to the new root filesystem");
+	}
+	if (fchdir(old_rootfs_fd) == -1) {
+		die("cannot move to the old root file system directory");
+	}
+	if (umount2(".", MNT_DETACH) == -1) {
+		die("cannot detach old root file system directory");
+	}
+	if (fchdir(new_rootfs_fd) == -1) {
+		die("cannot move to the new root file system directory");
+	}
+	close(old_rootfs_fd);
+	close(new_rootfs_fd);
+}
+
 static void setup_snappy_os_mounts()
 {
 	debug("%s", __func__);
@@ -276,22 +322,7 @@ static void setup_snappy_os_mounts()
 	sc_mkdir_hostfs_if_missing();
 	sc_bind_mount_hostfs(rootfs_dir);
 	sc_mount_nvidia_driver(rootfs_dir);
-	// Chroot into the new root filesystem so that / is the core snap.  Why are
-	// we using something as esoteric as pivot_root? Because this makes apparmor
-	// handling easy. Using a normal chroot makes all apparmor rules conditional.
-	// We are either running on an all-snap system where this would-be chroot
-	// didn't happen and all the rules see / as the root file system _OR_
-	// we are running on top of a classic distribution and this chroot has now
-	// moved all paths to /tmp/snap.rootfs_*. Because we are using unshare with
-	// CLONE_NEWNS we can essentially use pivot_root just like chroot but this
-	// makes apparmor unaware of the old root so everything works okay.
-	debug("chrooting into %s", rootfs_dir);
-	if (chdir(rootfs_dir) == -1) {
-		die("cannot change working directory to %s", rootfs_dir);
-	}
-	if (syscall(SYS_pivot_root, ".", rootfs_dir) == -1) {
-		die("cannot pivot_root to the new root filesystem");
-	}
+	sc_pivot_to_new_rootfs(rootfs_dir);
 	// Reset path as we cannot rely on the path from the host OS to
 	// make sense. The classic distribution may use any PATH that makes
 	// sense but we cannot assume it makes sense for the core snap
