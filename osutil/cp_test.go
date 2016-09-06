@@ -21,6 +21,7 @@ package osutil
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -240,4 +241,90 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	st2, err := os.Stat(dst)
 	c.Assert(err, IsNil)
 	c.Assert(st1.ModTime(), Equals, st2.ModTime())
+}
+
+func (s *cpSuite) TestCopyPreserveAllSync(c *C) {
+	dir := c.MkDir()
+	cp := filepath.Join(dir, "cp")
+	sync := filepath.Join(dir, "sync")
+	log := filepath.Join(dir, "log")
+
+	sh := fmt.Sprintf(`#!/bin/sh
+echo "$0:$@" >> %s
+`, log)
+
+	c.Assert(ioutil.WriteFile(cp, []byte(sh), 0755), IsNil)
+	c.Assert(os.Symlink(cp, sync), IsNil)
+
+	oldPATH := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPATH)
+	os.Setenv("PATH", dir+":"+oldPATH)
+
+	src := filepath.Join(dir, "meep")
+	dst := filepath.Join(dir, "copied-meep")
+
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	c.Assert(err, IsNil)
+
+	content, err := ioutil.ReadFile(log)
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, fmt.Sprintf("%[1]s/cp:-av %[1]s/meep %[1]s/copied-meep\n%[1]s/sync:\n", dir))
+}
+
+func (s *cpSuite) TestCopyPreserveAllSyncCpFailure(c *C) {
+	dir := c.MkDir()
+	cp := filepath.Join(dir, "cp")
+	sync := filepath.Join(dir, "sync")
+
+	sh := `#!/bin/sh
+echo "OUCH: $(basename $0) failed." >&2
+exit 42
+`
+
+	c.Assert(ioutil.WriteFile(cp, []byte(sh), 0755), IsNil)
+	c.Assert(os.Symlink(cp, sync), IsNil)
+
+	oldPATH := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPATH)
+	os.Setenv("PATH", dir+":"+oldPATH)
+
+	src := filepath.Join(dir, "meep")
+	dst := filepath.Join(dir, "copied-meep")
+
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	c.Assert(err, ErrorMatches, `failed to copy all: "OUCH: cp failed." \(42\)`)
+}
+
+func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
+	dir := c.MkDir()
+	cp := filepath.Join(dir, "cp")
+	sync := filepath.Join(dir, "sync")
+
+	sh := `#!/bin/sh
+echo
+echo "OUCH: $(basename $0) failed." >&2
+exit 42
+`
+
+	c.Assert(ioutil.WriteFile(cp, []byte("#!/bin/sh\n"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(sync, []byte(sh), 0755), IsNil)
+
+	oldPATH := os.Getenv("PATH")
+	defer os.Setenv("PATH", oldPATH)
+	os.Setenv("PATH", dir+":"+oldPATH)
+
+	src := filepath.Join(dir, "meep")
+	dst := filepath.Join(dir, "copied-meep")
+
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	c.Assert(err, ErrorMatches, `failed to sync: "OUCH: sync failed." \(42\)`)
 }
