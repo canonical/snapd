@@ -146,6 +146,7 @@
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
     pivot_root,
+    umount /,
 
     # for creating the user data directories: ~/snap, ~/snap/<name> and
     # ~/snap/<name>/<version>
