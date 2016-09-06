@@ -421,7 +421,7 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		return nil, fmt.Errorf("cannot find snap %q", name)
 	}
 
-	// FIXME: snaps that are no active are skipped for now
+	// FIXME: snaps that are not active are skipped for now
 	//        until we know what we want to do
 	if !snapst.Active {
 		return nil, fmt.Errorf("refreshing disabled snap %q not supported", name)
@@ -682,6 +682,7 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 	if pi == nil {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
+
 	return RevertToRevision(s, name, pi.Revision)
 }
 
