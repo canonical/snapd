@@ -67,7 +67,7 @@ func (x *cmdExportKey) Execute(args []string) error {
 			"account-id":          x.Account,
 			"name":                keyName,
 			"public-key-sha3-384": pubKey.ID(),
-			"since":               time.Now().Format(time.RFC3339),
+			"since":               time.Now().UTC().Format(time.RFC3339),
 			// XXX: To support revocation, we need to check for matching known assertions and set a suitable revision if we find one.
 		}
 		body, err := asserts.EncodePublicKey(pubKey)
