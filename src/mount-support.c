@@ -210,13 +210,12 @@ static void sc_pivot_to_new_rootfs(const char *rootfs_dir)
 {
 	int old_rootfs_fd, new_rootfs_fd;
 
-	old_rootfs_fd = open("/", O_DIRECTORY | O_RDONLY | O_PATH | O_CLOEXEC);
+	old_rootfs_fd = open("/", O_DIRECTORY | O_PATH | O_CLOEXEC);
 	if (old_rootfs_fd == -1) {
 		die("cannot open old root file system directory");
 	}
 	new_rootfs_fd =
-	    open(rootfs_dir,
-		 O_DIRECTORY | O_RDONLY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
+	    open(rootfs_dir, O_DIRECTORY | O_PATH | O_NOFOLLOW | O_CLOEXEC);
 	if (new_rootfs_fd == -1) {
 		die("cannot open new root file system directory");
 	}
