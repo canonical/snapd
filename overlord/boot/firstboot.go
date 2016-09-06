@@ -139,8 +139,7 @@ func populateStateFromSeed() error {
 	return ovld.Stop()
 }
 
-func readAsserts(fn string) ([]asserts.Assertion, error) {
-	res := ([]asserts.Assertion)(nil)
+func readAsserts(fn string) (res []asserts.Assertion, err error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
@@ -177,6 +176,7 @@ func importAssertionsFromSeed(st *state.State) error {
 
 	// collect
 	var modelAssertion *asserts.Model
+	modelUnique := ""
 	assertionsToAdd := make([]asserts.Assertion, 0, len(dc))
 	bs := asserts.NewMemoryBackstore()
 	for _, fi := range dc {
@@ -197,9 +197,11 @@ func importAssertionsFromSeed(st *state.State) error {
 			}
 			assertionsToAdd = append(assertionsToAdd, as)
 			if as.Type() == asserts.ModelType {
-				if modelAssertion != nil {
+				asUnique := as.Ref().Unique()
+				if modelUnique != "" && asUnique != modelUnique {
 					return fmt.Errorf("cannot add more than one model assertion")
 				}
+				modelUnique = asUnique
 				modelAssertion = as.(*asserts.Model)
 			}
 		}

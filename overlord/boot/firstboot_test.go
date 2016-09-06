@@ -278,8 +278,6 @@ version: 1.0`
 	sha3_384, size, err := asserts.SnapFileSHA3_384(fooSnapFile)
 	c.Assert(err, IsNil)
 
-	fmt.Println("foo", sha3_384)
-
 	snapRevFoo, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
@@ -303,8 +301,6 @@ version: 1.0`
 
 	sha3_384, size, err = asserts.SnapFileSHA3_384(barSnapFile)
 	c.Assert(err, IsNil)
-
-	fmt.Println("bar", sha3_384)
 
 	snapRevBar, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": sha3_384,
