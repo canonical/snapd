@@ -9,6 +9,7 @@ Build-Depends: bash-completion,
                fakeroot,
                gettext,
                golang-go,
+               lsb-release,
                python3,
                python3-markdown,
                squashfs-tools

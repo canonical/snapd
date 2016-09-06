@@ -12,6 +12,12 @@ export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
+ifeq ( $(RELEASE), "trusty" )
+	SYSTEMD_UNITS_DEST_DIR = "/lib/systemd/upstart/"
+else
+	SYSTEMD_UNITS_DEST_DIR = "/lib/systemd/system/"
+endif
+
 TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
@@ -83,6 +89,19 @@ override_dh_systemd_start:
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
+	# we conditionally install snapd's systemd units
+	dh_install debian/snapd.refresh.timer $(SYSTEMD_UNITS_DESTDIR)
+	dh_install debian/snapd.refresh.service $(SYSTEMD_UNITS_DESTDIR)
+	dh_install debian/*.socket $(SYSTEMD_UNITS_DESTDIR)
+	dh_install debian/snapd.service $(SYSTEMD_UNITS_DESTDIR)
+	dh_install debian/*.target $(SYSTEMD_UNITS_DESTDIR)
+	dh_install debian/snapd.boot-ok.service $(SYSTEMD_UNITS_DESTDIR)
+	dh_install debian/snapd.firstboot.service $(SYSTEMD_UNITS_DESTDIR)
+	ifeq ( $(RELEASE), "trusty" )
+		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.firstboot.service /etc/systemd/system/multi-user.target.wants/snapd.firstboot.service
+		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.boot-ok.service /etc/systemd/system/multi-user.target.wants/snapd.boot-ok.service
+		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.service /etc/systemd/system/multi-user.target.wants/snapd.service
+	endif
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# Making the packages private
