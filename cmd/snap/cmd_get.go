@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -30,15 +31,17 @@ import (
 
 type cmdGet struct {
 	Positional struct {
-		Snap string `positional-arg-name:"<snap name>" description:"the snap whose config is being requested"`
-		Key  string `positional-arg-name:"<key>" description:"key of interest within the configuration"`
+		Snap string   `positional-arg-name:"<snap name>" description:"the snap whose conf is being requested"`
+		Keys []string `positional-arg-name:"<keys>" description:"key of interest within the confuration"`
 	} `positional-args:"yes" required:"yes"`
+
+	Document bool `short:"d" description:"always return document, even with single key"`
 }
 
 func init() {
 	addCommand("get",
-		i18n.G("Get configuration for the given snap"),
-		i18n.G("Get configuration for the given snap."),
+		i18n.G("Get snap configuration"),
+		i18n.G("Get confuration for the given snap."),
 		func() flags.Commander {
 			return &cmdGet{}
 		})
@@ -49,16 +52,26 @@ func (x *cmdGet) Execute(args []string) error {
 		return fmt.Errorf("too many arguments: %s", strings.Join(args, " "))
 	}
 
-	return getConfig(x.Positional.Snap, x.Positional.Key)
+	return getConf(x.Positional.Snap, x.Positional.Keys, x.Document)
 }
 
-func getConfig(snapName, configKey string) error {
+func getConf(snapName string, confKeys []string, fullDocument bool) error {
 	cli := Client()
-	config, err := cli.GetConfig(snapName, configKey)
+	conf, err := cli.Conf(snapName, confKeys)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintln(Stdout, config)
+	var confToPrint interface{} = conf
+	if !fullDocument && len(confKeys) == 1 {
+		confToPrint = conf[confKeys[0]]
+	}
+
+	bytes, err := json.MarshalIndent(confToPrint, "", "\t")
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintln(Stdout, string(bytes))
 	return nil
 }

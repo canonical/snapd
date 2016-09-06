@@ -37,7 +37,7 @@ type cmdSet struct {
 
 func init() {
 	addCommand("set",
-		i18n.G("Set configuration for the given snap"),
+		i18n.G("Set snap configuration"),
 		i18n.G(`Set configuration for the given snap. This command accepts a
 			number of key=value pairs of configuration parameters`),
 		func() flags.Commander {
@@ -61,7 +61,7 @@ func (x *cmdSet) Execute(args []string) error {
 func applyConfig(snapName string, configValues map[string]string) error {
 	cli := Client()
 	config := map[string]interface{}{"config": configValues}
-	id, err := cli.SetConfig(snapName, config)
+	id, err := cli.SetConf(snapName, config)
 	if err != nil {
 		return err
 	}

@@ -80,7 +80,7 @@ func (s *SnapSuite) TestSnapSetJsonIntegration(c *check.C) {
 func (s *SnapSuite) mockSetConfigServer(c *check.C, expectedValue string) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/v2/snaps/snapname/config":
+		case "/v2/snaps/snapname/conf":
 			c.Check(r.Method, check.Equals, "PUT")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
 				"config": map[string]interface{}{"key": expectedValue},
