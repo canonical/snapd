@@ -64,8 +64,7 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		// Our native copy code does not preserve all attributes
 		// (yet). If the user needs this functionatlity we just
 		// fallback to use the system's "cp" binary to do the copy.
-		err := runCpPreserveAll(src, dst, "copy all")
-		if err != nil {
+		if err := runCpPreserveAll(src, dst, "copy all"); err != nil {
 			return err
 		}
 		if flags&CopyFlagSync != 0 {
