@@ -54,6 +54,12 @@ endif
 if WITH_UNIT_TESTS
 snap_confine_unit_tests_SOURCES = \
 	unit-tests-main.c \
+	classic.c \
+	classic.h \
+	user-support.c \
+	user-support.h \
+	quirks.c \
+	quirks.h \
 	unit-tests.c \
 	unit-tests.h \
 	utils-test.c \

@@ -78,63 +78,14 @@ int sc_main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
-
-		// ensure we run in our own slave mount namespace, this will
-		// create a new mount namespace and make it a slave of "/"
-		//
-		// Note that this means that no mount actions inside our
-		// namespace are propagated to the main "/". We need this
-		// both for the private /tmp we create and for the bind
-		// mounts we do on a classic distribution system
-		//
-		// This also means you can't run an automount daemon unter
-		// this launcher
-		setup_slave_mount_namespace();
-
-		// Get the current working directory before we start fiddling with
-		// mounts and possibly pivot_root.  At the end of the whole process, we
-		// will try to re-locate to the same directory (if possible).
-		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
-		    NULL;
-		vanilla_cwd = get_current_dir_name();
-		if (vanilla_cwd == NULL) {
-			die("cannot get the current working directory");
-		}
-		// do the mounting if run on a non-native snappy system
-		if (is_running_on_classic_distribution()) {
-			setup_snappy_os_mounts();
-		}
-		// set up private mounts
-		setup_private_mount(security_tag);
-
-		// set up private /dev/pts
-		setup_private_pts();
-
-		// setup quirks for specific snaps
-		sc_setup_quirks();
-
-		// this needs to happen as root
+		sc_unshare_mount_ns();
+		sc_populate_mount_ns(security_tag);
 		struct snappy_udev udev_s;
 		if (snappy_udev_init(security_tag, &udev_s) == 0)
 			setup_devices_cgroup(security_tag, &udev_s);
 		snappy_udev_cleanup(&udev_s);
 
-		// setup the security backend bind mounts
-		sc_setup_mount_profiles(security_tag);
-
-		// Try to re-locate back to vanilla working directory. This can fail
-		// because that directory is no longer present.
-		if (chdir(vanilla_cwd) != 0) {
-			debug
-			    ("cannot remain in %s, moving to the void directory",
-			     vanilla_cwd);
-			if (chdir(SC_VOID_DIR) != 0) {
-				die("cannot change directory to %s",
-				    SC_VOID_DIR);
-			}
-			debug("successfully moved to %s", SC_VOID_DIR);
-		}
-		// the rest does not so temporarily drop privs back to calling
+		// The rest does not so temporarily drop privs back to calling
 		// user (we'll permanently drop after loading seccomp)
 		if (setegid(real_gid) != 0)
 			die("setegid failed");
