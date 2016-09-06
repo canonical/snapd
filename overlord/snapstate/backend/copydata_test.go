@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -370,7 +371,11 @@ exit 3
 	defer os.Setenv("PATH", oldPATH)
 	os.Setenv("PATH", fakeBinDir+":"+oldPATH)
 
+	q := func(s string) string {
+		return regexp.QuoteMeta(strconv.Quote(s))
+	}
+
 	// copy data will fail
 	err = s.be.CopySnapData(v2, v1, &s.nullProgress)
-	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy %s to %s: cp: boom", v1.DataDir(), v2.DataDir())))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot copy %s to %s: .*: "cp: boom" \(3\)`, q(v1.DataDir()), q(v2.DataDir())))
 }
