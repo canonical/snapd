@@ -22,22 +22,28 @@ package client
 import (
 	"bytes"
 	"encoding/json"
+	"net/url"
+	"strings"
 )
 
-// SetConfig requests a snap to set the provided config.
-func (client *Client) SetConfig(snapName string, config map[string]interface{}) (changeID string, err error) {
-	b, err := json.Marshal(config)
+// SetConf requests a snap to apply the provided patch to the configuration.
+func (client *Client) SetConf(snapName string, patch map[string]interface{}) (changeID string, err error) {
+	b, err := json.Marshal(patch)
 	if err != nil {
 		return "", err
 	}
-	return client.doAsync("PUT", "/v2/snaps/"+snapName+"/config", nil, nil, bytes.NewReader(b))
+	return client.doAsync("PUT", "/v2/snaps/"+snapName+"/conf", nil, nil, bytes.NewReader(b))
 }
 
-// GetConfig asks for a snap's current config.
-func (client *Client) GetConfig(snapName, configKey string) (configuration string, err error) {
-	_, err = client.doSync("GET", "/v2/snaps/"+snapName+"/config/"+configKey, nil, nil, nil, &configuration)
+// Conf asks for a snap's current configuration.
+func (client *Client) Conf(snapName string, keys []string) (configuration map[string]interface{}, err error) {
+	// Prepare query
+	query := url.Values{}
+	query.Set("keys", strings.Join(keys, ","))
+
+	_, err = client.doSync("GET", "/v2/snaps/"+snapName+"/conf", query, nil, nil, &configuration)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return configuration, nil
