@@ -17,7 +17,7 @@ details: |
 environment:
     SNAP_NAME: test-snapd-thumbnailer-consumer
     PLUG: thumbnailer
-    TEST_IMAGE: /var/snap/${SNAP_NAME}/current/test.png
+    TEST_IMAGE: /snap/${SNAP_NAME}/current/test.png
 
 prepare: |
     echo "Given a snap declaring the $PLUG plug is installed"
