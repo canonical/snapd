@@ -733,8 +733,6 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
-	// TODO: check inst flags and bail if any are given (-many
-	// doesn't take options)
 	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
@@ -824,7 +822,9 @@ func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// TODO: bail if revision is given (and != current?)
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("enable takes no revision")
+	}
 	ts, err := snapstate.Enable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
@@ -835,7 +835,9 @@ func snapEnable(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapDisable(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// TODO: bail if revision is given (and != current?)
+	if !inst.Revision.Unset() {
+		return "", nil, errors.New("disable takes no revision")
+	}
 	ts, err := snapstate.Disable(st, inst.Snaps[0])
 	if err != nil {
 		return "", nil, err
@@ -893,7 +895,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	msg, tsets, err := impl(&inst, state)
 	if err != nil {
-		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
+		return BadRequest("cannot %s %q: %v", inst.Action, inst.Snaps[0], err)
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
@@ -973,6 +975,10 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into snap instruction: %v", err)
 	}
 
+	if inst.Channel != "" || !inst.Revision.Unset() || inst.DevMode || inst.JailMode {
+		return BadRequest("unsupported option provided for multi-snap operation")
+	}
+
 	if inst.Action != "refresh" {
 		return BadRequest("only refresh supported for multi-snap operation right now")
 	}
@@ -1030,11 +1036,12 @@ func postSnaps(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot read POST form: %v", err)
 	}
 
-	flags, err := modeFlags(isTrue(form, "devmode"), isTrue(form, "jailmode"))
+	dangerousOK := isTrue(form, "dangerous")
+	devmode := isTrue(form, "devmode")
+	flags, err := modeFlags(devmode, isTrue(form, "jailmode"))
 	if err != nil {
 		return BadRequest(err.Error())
 	}
-	dangerousOK := isTrue(form, "force-dangerous")
 
 	if len(form.Value["action"]) > 0 && form.Value["action"][0] == "try" {
 		if len(form.Value["snap-path"]) == 0 {
@@ -1094,20 +1101,28 @@ out:
 
 	if !dangerousOK {
 		si, err := snapasserts.DeriveSideInfo(tempPath, assertstate.DB(st))
-		if err == asserts.ErrNotFound {
-			msg := "cannot find signatures with metadata for snap"
-			if origPath != "" {
-				msg = fmt.Sprintf("%s %q", msg, origPath)
+		switch err {
+		case nil:
+			snapName = si.RealName
+			sideInfo = si
+		case asserts.ErrNotFound:
+			// with devmode we try to find assertions but it's ok
+			// if they are not there (implies --dangerous)
+			if !devmode {
+				msg := "cannot find signatures with metadata for snap"
+				if origPath != "" {
+					msg = fmt.Sprintf("%s %q", msg, origPath)
+				}
+				return BadRequest(msg)
 			}
-			return BadRequest(msg)
-		}
-		if err != nil {
+			// TODO: set a warning if devmode
+		default:
 			return BadRequest(err.Error())
 		}
-		snapName = si.RealName
-		sideInfo = si
-	} else {
-		// potentially dangerous but force-dangerous was provided
+	}
+
+	if snapName == "" {
+		// potentially dangerous but dangerous or devmode params were set
 		info, err := unsafeReadSnapInfo(tempPath)
 		if err != nil {
 			return InternalError("cannot read snap file: %v", err)

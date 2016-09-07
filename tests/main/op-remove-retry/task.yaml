@@ -18,11 +18,17 @@ execute: |
 
     echo "Given a snap is installed"
     snapbuild $TESTSLIB/snaps/test-snapd-tools .
-    snap install --force-dangerous test-snapd-tools_1.0_all.snap
+    snap install --dangerous test-snapd-tools_1.0_all.snap
 
     echo "And its mount point is kept busy"
+    # we need a marker file, because just using systemd to figure out
+    # if the service has started is racy, start just means started,
+    # not that the dir is actually blocked yet
+    MARKER=/var/snap/test-snapd-tools/current/block-running
+    rm -f $MARKER
     systemd-run --unit unmount-blocker $(which test-snapd-tools.block)
     wait_for_service unmount-blocker active
+    while [ ! -f $MARKER ]; do sleep 1; done
 
     echo "When we try to remove the snap"
     snap remove test-snapd-tools &

@@ -455,6 +455,67 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	c.Check(task0_2.AtTime().Equal(schedule), Equals, true)
 }
 
+func (ss *stateSuite) TestEmptyStateDataAndCheckpointReadAndSet(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "summary")
+	c.Assert(chg, NotNil)
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	// no crash
+	st2.Set("a", 1)
+}
+
+func (ss *stateSuite) TestEmptyTaskAndChangeDataAndCheckpointReadAndSet(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	t1 := st.NewTask("1...", "...")
+	t1ID := t1.ID()
+	chg := st.NewChange("chg", "...")
+	chgID := chg.ID()
+	chg.AddTask(t1)
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+	c.Assert(st2, NotNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chg2 := st2.Change(chgID)
+	t1_2 := st2.Task(t1ID)
+	c.Assert(t1_2, NotNil)
+
+	// no crash
+	chg2.Set("c", 1)
+	// no crash either
+	t1_2.Set("t", 1)
+}
+
 func (ss *stateSuite) TestEnsureBefore(c *C) {
 	b := new(fakeStateBackend)
 	st := state.New(b)

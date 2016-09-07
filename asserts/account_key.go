@@ -212,8 +212,13 @@ func (akr *AccountKeyRequest) Until() time.Time {
 	return akr.until
 }
 
-// PublicKey returns the underlying public key of the requested account key.
-func (akr *AccountKeyRequest) PublicKey() PublicKey {
+// PublicKeyID returns the underlying public key ID of the requested account key.
+func (akr *AccountKeyRequest) PublicKeyID() string {
+	return akr.pubKey.ID()
+}
+
+// signKey returns the underlying public key of the requested account key.
+func (akr *AccountKeyRequest) signKey() PublicKey {
 	return akr.pubKey
 }
 
@@ -232,7 +237,10 @@ func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) 
 }
 
 // sanity
-var _ consistencyChecker = (*AccountKeyRequest)(nil)
+var (
+	_ consistencyChecker = (*AccountKeyRequest)(nil)
+	_ customSigner       = (*AccountKeyRequest)(nil)
+)
 
 // Prerequisites returns references to this account-key-request's prerequisite assertions.
 func (akr *AccountKeyRequest) Prerequisites() []*Ref {

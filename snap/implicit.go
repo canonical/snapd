@@ -44,6 +44,7 @@ var implicitSlots = []string{
 	"opengl",
 	"ppp",
 	"process-control",
+	"removable-media",
 	"snapd-control",
 	"system-observe",
 	"system-trace",
