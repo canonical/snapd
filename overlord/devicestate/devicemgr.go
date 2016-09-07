@@ -417,7 +417,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 			var err error
 			cfg.body, err = yaml.Marshal(deviceYAML.Details)
 			if err != nil {
-				return nil, fmt.Errorf("cannot remarshal device details: %v", yamlData, err)
+				return nil, fmt.Errorf("cannot remarshal device details: %v", err)
 			}
 		}
 		baseURL, err := url.Parse(deviceYAML.ServiceURL)
