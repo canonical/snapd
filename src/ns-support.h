@@ -102,7 +102,7 @@ void sc_unlock_ns_mutex(struct sc_ns_group *group);
  * can be done by calling sc_preserve_populated_ns_group()). In the meantime
  * the parent process unshares the mount namespace() and sets a flag so that
  * sc_should_populate_ns_group() returns true.
- * 
+ *
  * @returns true if the mount namespace needs to be populated
  **/
 void sc_create_or_join_ns_group(struct sc_ns_group *group);
