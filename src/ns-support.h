@@ -112,7 +112,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group);
  *
  * If the return value is true then at this stage the namespace is already
  * unshared. The caller should perform any mount operations that are desired
- * and then proceed to call sc_preserve_ns_group().
+ * and then proceed to call sc_preserve_populated_ns_group().
  **/
 bool sc_should_populate_ns_group(struct sc_ns_group *group);
 
