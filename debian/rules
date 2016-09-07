@@ -99,6 +99,18 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# install binaries and needed files
+	install debian/tmp/usr/bin/snap debian/snapd/usr/bin/snap
+	install debian/tmp/usr/bin/snapctl debian/snapd/usr/bin/snapctl
+	install debian/tmp/usr/bin/snapd debian/snapd/usr/lib/snapd
+	install debian/tmp/usr/bin/snap-exec debian/snapd/usr/lib/snapd
+	install debian/tmp/data/completion/snap debian/snapd/usr/share/bash-completion/completions/
+	# i18n stuff
+	# ../../share /usr
+	# etc/profile.d contains the PATH extension for snap packages
+	install etc/profile.d debian/snapd/
+	# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
+	install etc/X11 debian/snapd/
 	# we conditionally install snapd's systemd units
 	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
