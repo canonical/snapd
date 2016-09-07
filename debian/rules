@@ -87,8 +87,7 @@ override_dh_systemd_start:
 		-psnapd \
 		snapd.service
 
-override_dh_auto_install: snap.8
-	dh_auto_install -O--buildsystem=golang
+override_dh_install:
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# Making the packages private
@@ -100,18 +99,21 @@ override_dh_auto_install: snap.8
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# we conditionally install snapd's systemd units
-	dh_install debian/snapd.refresh.timer $(SYSTEMD_UNITS_DESTDIR)
-	dh_install debian/snapd.refresh.service $(SYSTEMD_UNITS_DESTDIR)
-	dh_install debian/*.socket $(SYSTEMD_UNITS_DESTDIR)
-	dh_install debian/snapd.service $(SYSTEMD_UNITS_DESTDIR)
-	dh_install debian/*.target $(SYSTEMD_UNITS_DESTDIR)
-	dh_install debian/snapd.boot-ok.service $(SYSTEMD_UNITS_DESTDIR)
-	dh_install debian/snapd.firstboot.service $(SYSTEMD_UNITS_DESTDIR)
+	install debian/snapd.refresh.timer $(SYSTEMD_UNITS_DESTDIR)
+	install debian/snapd.refresh.service $(SYSTEMD_UNITS_DESTDIR)
+	install debian/*.socket $(SYSTEMD_UNITS_DESTDIR)
+	install debian/snapd.service $(SYSTEMD_UNITS_DESTDIR)
+	install debian/*.target $(SYSTEMD_UNITS_DESTDIR)
+	install debian/snapd.boot-ok.service $(SYSTEMD_UNITS_DESTDIR)
+	install debian/snapd.firstboot.service $(SYSTEMD_UNITS_DESTDIR)
 	ifeq ( $(RELEASE), "trusty" )
-		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.firstboot.service /etc/systemd/system/multi-user.target.wants/snapd.firstboot.service
-		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.boot-ok.service /etc/systemd/system/multi-user.target.wants/snapd.boot-ok.service
-		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.service /etc/systemd/system/multi-user.target.wants/snapd.service
+		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.firstboot.service /lib/systemd/upstart/multi-user.target.wants/snapd.firstboot.service
+		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.boot-ok.service /lib/systemd/upstart/multi-user.target.wants/snapd.boot-ok.service
+		dh_link $(SYSTEMD_UNITS_DESTDIR)/snapd.service /lib/systemd/upstart/multi-user.target.wants/snapd.service
 	endif
+
+override_dh_auto_install: snap.8
+	dh_auto_install -O--buildsystem=golang
 
 snap.8:
 	$(CURDIR)/_build/bin/snap help --man > $@
