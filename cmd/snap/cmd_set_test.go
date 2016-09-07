@@ -40,10 +40,10 @@ hooks:
 func (s *SnapSuite) TestInvalidSetParameters(c *check.C) {
 	invalidParameters := []string{"set", "snap-name", "key", "value"}
 	_, err := snapset.Parser().ParseArgs(invalidParameters)
-	c.Check(err, check.ErrorMatches, ".*invalid config:.*(want key=value).*")
+	c.Check(err, check.ErrorMatches, ".*invalid configuration:.*(want key=value).*")
 }
 
-func (s *SnapSuite) TestSnapSetIntegration(c *check.C) {
+func (s *SnapSuite) TestSnapSetIntegrationString(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
@@ -60,7 +60,7 @@ func (s *SnapSuite) TestSnapSetIntegration(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
-func (s *SnapSuite) TestSnapSetJsonIntegration(c *check.C) {
+func (s *SnapSuite) TestSnapSetIntegrationNumber(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
@@ -70,20 +70,37 @@ func (s *SnapSuite) TestSnapSetJsonIntegration(c *check.C) {
 	})
 
 	// and mock the server
-	s.mockSetConfigServer(c, "{\"subkey\":\"value\"}")
+	s.mockSetConfigServer(c, 1.2)
 
 	// Set a config value for the active snap
-	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", "key={\"subkey\":\"value\"}"})
+	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", "key=1.2"})
 	c.Assert(err, check.IsNil)
 }
 
-func (s *SnapSuite) mockSetConfigServer(c *check.C, expectedValue string) {
+func (s *SnapSuite) TestSnapSetIntegrationJson(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	snaptest.MockSnap(c, string(validApplyYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockSetConfigServer(c, map[string]interface{}{"subkey": "value"})
+
+	// Set a config value for the active snap
+	_, err := snapset.Parser().ParseArgs([]string{"set", "snapname", `key={"subkey":"value"}`})
+	c.Assert(err, check.IsNil)
+}
+
+func (s *SnapSuite) mockSetConfigServer(c *check.C, expectedValue interface{}) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/v2/snaps/snapname/conf":
 			c.Check(r.Method, check.Equals, "PUT")
 			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
-				"config": map[string]interface{}{"key": expectedValue},
+				"key": expectedValue,
 			})
 			fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "zzz"}`)
 		case "/v2/changes/zzz":
