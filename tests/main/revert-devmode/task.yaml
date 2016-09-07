@@ -1,0 +1,41 @@
+summary: Check that revert of a snap in devmode restores devmode
+
+environment:
+    STORE_TYPE/fake: fake
+    STORE_TYPE/staging: staging
+    STORE_TYPE/production: production
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "Given a snap is installed"
+        snap install --devmode test-snapd-tools
+    fi
+
+    . $TESTSLIB/store.sh
+    setup_store $STORE_TYPE $BLOB_DIR
+
+    if [ "$STORE_TYPE" = "fake" ]; then
+        echo "And a new version of that snap put in the controlled store"
+        fakestore -dir $BLOB_DIR -make-refreshable test-snapd-tools
+    fi
+
+restore: |
+    . $TESTSLIB/store.sh
+    teardown_store $STORE_TYPE $BLOB_DIR
+
+execute: |
+    echo "When a refresh is made"
+    snap refresh --devmode --edge test-snapd-tools
+
+    echo "Then the new version is installed"
+    snap list | grep -Pq "test-snapd-tools +\d+\.\d+\+fake1"
+
+    echo "When a revert is made"
+    snap revert test-snapd-tools
+
+    echo "Then the old version is active"
+    snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
+
+    echo "And apparmor profile is in complain mode"
+    cat /sys/kernel/security/apparmor/profiles|grep test-snapd-tools|grep -q complain
