@@ -31,7 +31,7 @@ execute: |
             fi
             break
         fi
-        sleep 0.1
+        sleep 1
     done
 
     echo "Services can write to writable areas"
