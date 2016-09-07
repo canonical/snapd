@@ -24,7 +24,7 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 
-// Set alternate namespace directory 
+// Set alternate namespace directory
 static void sc_set_ns_dir(const char *dir)
 {
 	sc_ns_dir = dir;
