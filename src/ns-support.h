@@ -31,7 +31,7 @@
  * used for storing preserved namespaces as bind-mounted files from the nsfs
  * filesystem (namespace filesystem).
  *
- * This function acquires a floc(2)-based lock to ensure that no other instance
+ * This function acquires a flock(2)-based lock to ensure that no other instance
  * of snap-confine attempts to do this concurrently. If a process dies for any
  * reason then the lock is released and other instances of snap-confine can
  * complete the initialization.
