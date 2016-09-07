@@ -364,6 +364,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
+	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
@@ -372,6 +373,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	// with --devmode, set jailmode from snapstate).
 
 	// remove related
+	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.startSnapServices)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
@@ -771,6 +773,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as active again
 	Set(st, ss.Name(), snapst)
+
 	return nil
 
 }
@@ -923,10 +926,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd
-	if newInfo.Type == snap.TypeOS && release.OnClassic {
-		t.Logf("Restarting snapd...")
+	if release.OnClassic && newInfo.Type == snap.TypeOS {
+		t.Logf("Requested daemon restart.")
 		st.Unlock()
-		st.RequestRestart()
+		st.RequestRestart(state.RestartDaemon)
+		st.Lock()
+	}
+	if !release.OnClassic && (newInfo.Type == snap.TypeOS || newInfo.Type == snap.TypeKernel) {
+		t.Logf("Requested system restart.")
+		st.Unlock()
+		st.RequestRestart(state.RestartSystem)
 		st.Lock()
 	}
 
@@ -1008,4 +1017,51 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 	return nil
+}
+
+func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	st.Unlock()
+	err = m.backend.StartSnapServices(currentInfo, pb)
+	st.Lock()
+	return err
+}
+
+func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	st.Unlock()
+	err = m.backend.StopSnapServices(currentInfo, pb)
+	st.Lock()
+
+	return err
 }

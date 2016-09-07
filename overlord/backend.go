@@ -23,12 +23,13 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 type overlordStateBackend struct {
 	path           string
 	ensureBefore   func(d time.Duration)
-	requestRestart func()
+	requestRestart func(t state.RestartType)
 }
 
 func (osb *overlordStateBackend) Checkpoint(data []byte) error {
@@ -39,6 +40,6 @@ func (osb *overlordStateBackend) EnsureBefore(d time.Duration) {
 	osb.ensureBefore(d)
 }
 
-func (osb *overlordStateBackend) RequestRestart() {
-	osb.requestRestart()
+func (osb *overlordStateBackend) RequestRestart(t state.RestartType) {
+	osb.requestRestart(t)
 }

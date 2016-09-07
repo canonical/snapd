@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
@@ -356,21 +358,13 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
-	fakeBinDir := filepath.Join(s.tempdir, "bin")
-	err := os.MkdirAll(fakeBinDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(fakeBinDir, "cp"), []byte(
-		`#!/bin/sh
-echo cp: boom
-exit 3
-`), 0755)
-	c.Assert(err, IsNil)
+	defer testutil.MockCommand(c, "cp", "echo cp: boom; exit 3").Restore()
 
-	oldPATH := os.Getenv("PATH")
-	defer os.Setenv("PATH", oldPATH)
-	os.Setenv("PATH", fakeBinDir+":"+oldPATH)
+	q := func(s string) string {
+		return regexp.QuoteMeta(strconv.Quote(s))
+	}
 
 	// copy data will fail
-	err = s.be.CopySnapData(v2, v1, &s.nullProgress)
-	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy %s to %s: cp: boom", v1.DataDir(), v2.DataDir())))
+	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot copy %s to %s: .*: "cp: boom" \(3\)`, q(v1.DataDir()), q(v2.DataDir())))
 }

@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -414,22 +413,17 @@ func (s *Store) refreshDeviceSession() error {
 		return err
 	}
 
-	serialAssertion, err := s.authContext.Serial()
-	if err != nil {
-		return err
-	}
-
 	nonce, err := RequestStoreDeviceNonce()
 	if err != nil {
 		return err
 	}
 
-	serialProof, err := s.authContext.SerialProof(nonce)
+	sessionRequest, serialAssertion, err := s.authContext.DeviceSessionRequest(nonce)
 	if err != nil {
 		return err
 	}
 
-	session, err := RequestDeviceSession(string(serialAssertion), string(serialProof), device.SessionMacaroon)
+	session, err := RequestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -534,11 +528,11 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		}
 		if device.SessionMacaroon == "" {
 			err = s.refreshDeviceSession()
-			if err == state.ErrNoState {
+			if err == auth.ErrNoSerial {
 				// missing serial assertion, log and continue without device authentication
 				logger.Debugf("cannot set device session: %v", err)
 			}
-			if err != nil && err != state.ErrNoState {
+			if err != nil && err != auth.ErrNoSerial {
 				return nil, err
 			}
 		}
@@ -1125,7 +1119,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
 			}
 			if svcErr.Status == 404 {
-				return nil, ErrAssertionNotFound
+				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
 			}
 			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
 		}
