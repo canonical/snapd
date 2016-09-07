@@ -25,9 +25,6 @@ import (
 
 // some internal helper exposed for testing
 var (
-	// binaries
-	GenerateSnapBinaryWrapper = generateSnapBinaryWrapper
-
 	// services
 	GenerateSnapServiceFile = generateSnapServiceFile
 	GenerateSnapSocketFile  = generateSnapSocketFile

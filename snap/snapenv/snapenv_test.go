@@ -56,6 +56,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 		"SNAP_DATA=/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=foo",
+		"SNAP_REEXEC=",
 		"SNAP_REVISION=17",
 		"SNAP_VERSION=1.0",
 	})
@@ -64,7 +65,10 @@ func (ts *HTestSuite) TestBasic(c *C) {
 
 func (ts *HTestSuite) TestUser(c *C) {
 	env := User(mockSnapInfo, "/root")
+	sort.Strings(env)
+
 	c.Assert(env, DeepEquals, []string{
+		"HOME=/root/snap/foo/17",
 		"SNAP_USER_COMMON=/root/snap/foo/common",
 		"SNAP_USER_DATA=/root/snap/foo/17",
 	})

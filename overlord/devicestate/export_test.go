@@ -33,6 +33,14 @@ func MockKeyLength(n int) (restore func()) {
 	}
 }
 
+func MockRequestIDURL(url string) (restore func()) {
+	oldURL := requestIDURL
+	requestIDURL = url
+	return func() {
+		requestIDURL = oldURL
+	}
+}
+
 func MockSerialRequestURL(url string) (restore func()) {
 	oldURL := serialRequestURL
 	serialRequestURL = url
@@ -53,10 +61,10 @@ func (m *DeviceManager) KeypairManager() asserts.KeypairManager {
 	return m.keypairMgr
 }
 
-func MockRepeatSerialRequest(enabled bool) (restore func()) {
-	old := repeatSerialRequest
-	repeatSerialRequest = enabled
+func MockRepeatRequestSerial(label string) (restore func()) {
+	old := repeatRequestSerial
+	repeatRequestSerial = label
 	return func() {
-		repeatSerialRequest = old
+		repeatRequestSerial = old
 	}
 }

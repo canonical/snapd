@@ -83,6 +83,12 @@ func HookSecurityTag(snapName, hookName string) string {
 	return fmt.Sprintf("%s.hook.%s", SecurityTag(snapName), hookName)
 }
 
+// NoneSecurityTag returns the security tag for interfaces that
+// are not associated to an app or hook in the snap.
+func NoneSecurityTag(snapName, uniqueName string) string {
+	return fmt.Sprintf("%s.none.%s", SecurityTag(snapName), uniqueName)
+}
+
 // SideInfo holds snap metadata that is crucial for the tracking of
 // snaps and for the working of the system offline and which is not
 // included in snap.yaml or for which the store is the canonical
@@ -307,24 +313,28 @@ func (app *AppInfo) WrapperPath() string {
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
-	securityTag := app.SecurityTag()
-	return fmt.Sprintf("/usr/bin/ubuntu-core-launcher %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), command))
-
+	if command != "" {
+		command = " " + command
+	}
+	if app.Name == app.Snap.Name() {
+		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
+	}
+	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
 func (app *AppInfo) LauncherCommand() string {
-	return app.launcherCommand(app.Command)
+	return app.launcherCommand("")
 }
 
 // LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
 func (app *AppInfo) LauncherStopCommand() string {
-	return app.launcherCommand(app.StopCommand)
+	return app.launcherCommand("--command=stop")
 }
 
 // LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
 func (app *AppInfo) LauncherPostStopCommand() string {
-	return app.launcherCommand(app.PostStopCommand)
+	return app.launcherCommand("--command=post-stop")
 }
 
 // ServiceFile returns the systemd service file path for the daemon app.

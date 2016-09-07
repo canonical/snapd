@@ -190,7 +190,7 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 
 	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
-	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"force-dangerous\"\r\n\r\nfalse\r\n.*")
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"dangerous\"\r\n\r\nfalse\r\n.*")
 
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))

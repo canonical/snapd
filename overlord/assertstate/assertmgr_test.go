@@ -75,7 +75,7 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	a, err := ref.Resolve(sto.db.Find)
 	if err != nil {
-		return nil, store.ErrAssertionNotFound
+		return nil, &store.AssertionNotFoundError{ref}
 	}
 	return a, nil
 }
