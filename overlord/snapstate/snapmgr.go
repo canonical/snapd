@@ -160,36 +160,30 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	if !snapst.HasCurrent() {
 		return nil
 	}
-	seq := snapst.Sequence
-	for i := len(seq) - 1; i >= 0; i-- {
-		if seq[i].Revision == snapst.Current {
-			return seq[i]
-		}
+	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
+		return snapst.Sequence[idx]
 	}
 	panic("cannot find snapst.Current in the snapst.Sequence")
 }
 
 func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
-	if !snapst.HasCurrent() {
-		return nil
-	}
 	n := len(snapst.Sequence)
 	if n < 2 {
 		return nil
 	}
 	// find "current" and return the one before that
-	currentIndex := snapst.findIndex(snapst.Current)
-	if currentIndex == 0 {
+	currentIndex := snapst.LastIndex(snapst.Current)
+	if currentIndex <= 0 {
 		return nil
 	}
 	return snapst.Sequence[currentIndex-1]
 }
 
-// findIndex returns the index of the given revision in the
+// LastIndex returns the last index of the given revision in the
 // snapst.Sequence
-func (snapst *SnapState) findIndex(revision snap.Revision) int {
-	for i, si := range snapst.Sequence {
-		if si.Revision == revision {
+func (snapst *SnapState) LastIndex(revision snap.Revision) int {
+	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+		if snapst.Sequence[i].Revision == revision {
 			return i
 		}
 	}
@@ -200,7 +194,7 @@ func (snapst *SnapState) findIndex(revision snap.Revision) int {
 // computed from Sequence[currentRevisionIndex+1:].
 func (snapst *SnapState) Block() []snap.Revision {
 	// return revisions from Sequence[currentIndex:]
-	currentIndex := snapst.findIndex(snapst.Current)
+	currentIndex := snapst.LastIndex(snapst.Current)
 	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence) {
 		return nil
 	}
@@ -868,7 +862,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	m.backend.Candidate(cand)
 
 	hadCandidate := true
-	if snapst.findIndex(cand.Revision) < 0 {
+	if snapst.LastIndex(cand.Revision) < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
 		hadCandidate = false
 	}
@@ -985,7 +979,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
-	currentIndex := snapst.findIndex(snapst.Current)
+	currentIndex := snapst.LastIndex(snapst.Current)
 	if currentIndex < 0 {
 		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", ss.SideInfo.Revision, snapst.Sequence)
 	}
