@@ -12,10 +12,11 @@ export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
+SYSTEMD_UNITS_DESTDIR=
 ifeq ( $(RELEASE), "trusty" )
-	SYSTEMD_UNITS_DEST_DIR = "/lib/systemd/upstart/"
+	SYSTEMD_UNITS_DESTDIR="/lib/systemd/upstart/"
 else
-	SYSTEMD_UNITS_DEST_DIR = "/lib/systemd/system/"
+	SYSTEMD_UNITS_DESTDIR="/lib/systemd/system/"
 endif
 
 TAGS=
