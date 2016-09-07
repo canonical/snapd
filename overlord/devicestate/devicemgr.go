@@ -28,15 +28,20 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"time"
 
 	"gopkg.in/tomb.v2"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -226,11 +231,18 @@ func retryErr(t *state.Task, reason string, a ...interface{}) error {
 	return &state.Retry{After: retryInterval}
 }
 
-func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
+func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
-	resp, err := client.Post(requestIDURL, "", nil)
+
+	req, err := http.NewRequest("POST", cfg.requestIDURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("internal error: cannot create request-id request %q", cfg.requestIDURL)
+	}
+	cfg.applyHeaders(req)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
@@ -257,7 +269,7 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 		"model":      device.Model,
 		"request-id": requestID.RequestID,
 		"device-key": string(encodedPubKey),
-	}, nil, privKey) // XXX: fill body with some agreed hardware details
+	}, cfg.body, privKey)
 	if err != nil {
 		return "", err
 	}
@@ -267,11 +279,19 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 
 var errPoll = errors.New("serial-request accepted, poll later")
 
-func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client) (*asserts.Serial, error) {
+func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client, cfg *serialRequestConfig) (*asserts.Serial, error) {
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
-	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBufferString(serialRequest))
+
+	req, err := http.NewRequest("POST", cfg.serialRequestURL, bytes.NewBufferString(serialRequest))
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot create serial-request request %q", cfg.serialRequestURL)
+	}
+	cfg.applyHeaders(req)
+	req.Header.Set("Content-Type", asserts.MediaType)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, retryErr(t, "cannot deliver device serial request: %v", err)
 	}
@@ -300,7 +320,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState) (*asserts.Serial, error) {
+func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, cfg *serialRequestConfig) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -323,7 +343,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		serialRequest, err := prepareSerialRequest(t, privKey, device, client)
+		serialRequest, err := prepareSerialRequest(t, privKey, device, client, cfg)
 		if err != nil { // errors & retries
 			return nil, err
 		}
@@ -331,7 +351,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		serialSup.SerialRequest = serialRequest
 	}
 
-	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client)
+	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
@@ -357,10 +377,86 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	return serial, nil
 }
 
+type deviceYAML struct {
+	ServiceURL string                 `yaml:"device-service-url"`
+	Headers    map[string]string      `yaml:"device-service-headers,omitempty"`
+	Details    map[string]interface{} `yaml:"details,omitempty"`
+}
+
+type serialRequestConfig struct {
+	requestIDURL     string
+	serialRequestURL string
+	headers          map[string]string
+	body             []byte
+}
+
+func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
+	for k, v := range cfg.headers {
+		req.Header.Set(k, v)
+	}
+}
+
+func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
+	deviceYAMLFn := filepath.Join(dirs.SnapSeedDir, "device.yaml")
+	if osutil.FileExists(deviceYAMLFn) {
+		yamlData, err := ioutil.ReadFile(deviceYAMLFn)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read device yaml: %v", deviceYAMLFn)
+		}
+
+		var deviceYAML deviceYAML
+		if err := yaml.Unmarshal(yamlData, &deviceYAML); err != nil {
+			return nil, fmt.Errorf("cannot unmarshal device yaml %q: %v", yamlData, err)
+		}
+
+		cfg := serialRequestConfig{
+			headers: deviceYAML.Headers,
+		}
+
+		if len(deviceYAML.Details) != 0 {
+			var err error
+			cfg.body, err = yaml.Marshal(deviceYAML.Details)
+			if err != nil {
+				return nil, fmt.Errorf("cannot remarshal device details: %v", yamlData, err)
+			}
+		}
+		baseURL, err := url.Parse(deviceYAML.ServiceURL)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse device service URL %q: %v", deviceYAML.ServiceURL, err)
+		}
+
+		reqIDURL, err := baseURL.Parse("request-id")
+		if err != nil {
+			return nil, fmt.Errorf("cannot build /request-id URL from %v: %v", baseURL, err)
+		}
+		cfg.requestIDURL = reqIDURL.String()
+
+		serialURL, err := baseURL.Parse("serial")
+		if err != nil {
+			return nil, fmt.Errorf("cannot build /serial URL from %v: %v", baseURL, err)
+		}
+		cfg.serialRequestURL = serialURL.String()
+
+		return &cfg, nil
+	}
+
+	return &serialRequestConfig{
+		requestIDURL:     requestIDURL,
+		serialRequestURL: serialRequestURL,
+		headers:          nil,
+		body:             nil,
+	}, nil
+}
+
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	cfg, err := getSerialRequestConfig(t)
+	if err != nil {
+		return err
+	}
 
 	device, err := auth.Device(st)
 	if err != nil {
@@ -394,7 +490,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
 	}
 
-	serial, err := getSerial(t, privKey, device)
+	serial, err := getSerial(t, privKey, device, cfg)
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: retryInterval}
