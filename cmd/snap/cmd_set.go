@@ -20,6 +20,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -28,40 +29,45 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
+var shortSetHelp = i18n.G("Set snap configuration")
+var longSetHelp = i18n.G(`
+The set command sets configuration parameters for the given snap. This command
+accepts a number of key=value pairs of parameters.`)
+
 type cmdSet struct {
 	Positional struct {
-		Snap         string   `positional-arg-name:"<snap name>" description:"the snap to configure (e.g. hello-world)"`
-		ConfigValues []string `positional-arg-name:"<config value>" description:"configuration value (key=value)" required:"1"`
+		Snap       string   `positional-arg-name:"<snap name>" description:"the snap to configure (e.g. hello-world)"`
+		ConfValues []string `positional-arg-name:"<conf value>" description:"configuration value (key=value)" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
-	addCommand("set",
-		i18n.G("Set snap configuration"),
-		i18n.G(`Set configuration for the given snap. This command accepts a
-			number of key=value pairs of configuration parameters`),
-		func() flags.Commander {
-			return &cmdSet{}
-		})
+	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} })
 }
 
 func (x *cmdSet) Execute(args []string) error {
-	configValues := make(map[string]string)
-	for _, configValue := range x.Positional.ConfigValues {
-		parts := strings.SplitN(configValue, "=", 2)
+	patchValues := make(map[string]interface{})
+	for _, patchValue := range x.Positional.ConfValues {
+		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid config: %q (want key=value)", configValue)
+			return fmt.Errorf("invalid configuration: %q (want key=value)", patchValue)
 		}
-		configValues[parts[0]] = parts[1]
+		var value interface{}
+		err := json.Unmarshal([]byte(parts[1]), &value)
+		if err == nil {
+			patchValues[parts[0]] = value
+		} else {
+			// Not valid JSON-- just save the string as-is.
+			patchValues[parts[0]] = parts[1]
+		}
 	}
 
-	return applyConfig(x.Positional.Snap, configValues)
+	return applyConfig(x.Positional.Snap, patchValues)
 }
 
-func applyConfig(snapName string, configValues map[string]string) error {
+func applyConfig(snapName string, patchValues map[string]interface{}) error {
 	cli := Client()
-	config := map[string]interface{}{"config": configValues}
-	id, err := cli.SetConf(snapName, config)
+	id, err := cli.SetConf(snapName, patchValues)
 	if err != nil {
 		return err
 	}

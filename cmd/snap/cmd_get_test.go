@@ -106,7 +106,7 @@ func (s *SnapSuite) TestSnapGetIntegrationMissingKey(c *check.C) {
 	// Get the config value for the active snap
 	_, err := snapset.Parser().ParseArgs([]string{"get", "snapname", "missing-key"})
 	c.Check(err, check.IsNil)
-	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "\n")
 }
 
 func (s *SnapSuite) mockGetConfigServer(c *check.C) {
@@ -123,6 +123,9 @@ func (s *SnapSuite) mockGetConfigServer(c *check.C) {
 		case "test-key1,test-key2":
 			c.Check(r.Method, check.Equals, "GET")
 			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {"test-key1":"test-value1","test-key2":"test-value2"}}`)
+		case "missing-key":
+			c.Check(r.Method, check.Equals, "GET")
+			fmt.Fprintln(w, `{"type":"sync", "status-code": 200, "result": {}}`)
 		default:
 			c.Fatalf("unexpected keys %q", query.Get("keys"))
 		}

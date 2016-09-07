@@ -29,6 +29,10 @@ import (
 	"github.com/snapcore/snapd/i18n"
 )
 
+var shortGetHelp = i18n.G("Get snap configuration")
+var longGetHelp = i18n.G(`
+The get command prints the configuration for the given snap.`)
+
 type cmdGet struct {
 	Positional struct {
 		Snap string   `positional-arg-name:"<snap name>" description:"the snap whose conf is being requested"`
@@ -39,12 +43,7 @@ type cmdGet struct {
 }
 
 func init() {
-	addCommand("get",
-		i18n.G("Get snap configuration"),
-		i18n.G("Get confuration for the given snap."),
-		func() flags.Commander {
-			return &cmdGet{}
-		})
+	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} })
 }
 
 func (x *cmdGet) Execute(args []string) error {
@@ -67,9 +66,12 @@ func getConf(snapName string, confKeys []string, fullDocument bool) error {
 		confToPrint = conf[confKeys[0]]
 	}
 
-	bytes, err := json.MarshalIndent(confToPrint, "", "\t")
-	if err != nil {
-		return err
+	var bytes []byte
+	if confToPrint != nil {
+		bytes, err = json.MarshalIndent(confToPrint, "", "\t")
+		if err != nil {
+			return err
+		}
 	}
 
 	fmt.Fprintln(Stdout, string(bytes))
