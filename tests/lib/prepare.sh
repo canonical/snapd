@@ -112,9 +112,6 @@ EOF
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
         /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
-        # teardown store
-        teardown_store fake $STORE_DIR
-
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
@@ -147,24 +144,6 @@ EOF
 StartLimitInterval=0
 EOF
 
-        # manually create cloud-init configuration
-        # FIXME: move this to ubuntu-image once it supports it
-        mkdir -p /mnt/system-data/var/lib/cloud/seed/nocloud-net
-        cat <<EOF > /mnt/system-data/var/lib/cloud/seed/nocloud-net/meta-data
-instance-id: nocloud-static
-EOF
-        cat <<EOF > /mnt/system-data/var/lib/cloud/seed/nocloud-net/user-data
-#cloud-config
-password: ubuntu
-chpasswd: { expire: False }
-ssh_pwauth: True
-ssh_genkeytypes: ['rsa', 'dsa', 'ecdsa', 'ed25519']
-EOF
-        # FIXME: remove ubuntu user from the ubuntu-core/livecd-rootfs
-        rm -f /mnt/system-data/var/lib/extrausers/passwd
-        rm -f /mnt/system-data/var/lib/extrausers/shadow
-        
-        # done customizing stuff
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
     
@@ -218,10 +197,6 @@ prepare_all_snap() {
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
             snap list
-            echo "seed.yaml"
-            cat /var/lib/snapd/seed/seed.yaml
-            echo "Snapd directory"
-            ls -R /var/lib/snapd/
             exit 1
         fi
     done
