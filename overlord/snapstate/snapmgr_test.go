@@ -140,6 +140,15 @@ func verifyInstallUpdateTasks(c *C, curActive bool, ts *state.TaskSet, st *state
 	return n
 }
 
+func (s *snapmgrTestSuite) TestLastIndexFindsLast(c *C) {
+	snapst := &snapstate.SnapState{Sequence: []*snap.SideInfo{
+		{Revision: snap.R(7)},
+		{Revision: snap.R(11)},
+		{Revision: snap.R(11)},
+	}}
+	c.Check(snapst.LastIndex(snap.R(11)), Equals, 2)
+}
+
 func (s *snapmgrTestSuite) TestInstallTasks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -663,7 +672,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
 	}})
-	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:    "storesvc-snap",
 			name:  "some-snap",
@@ -796,7 +805,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op: "storesvc-list-refresh",
 			cand: store.RefreshCandidate{
@@ -952,7 +961,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op: "storesvc-list-refresh",
 			cand: store.RefreshCandidate{
@@ -1102,7 +1111,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op: "storesvc-list-refresh",
 			cand: store.RefreshCandidate{
@@ -1210,6 +1219,8 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",
 	}})
+	// friendlier failure first
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
 
 	// verify snaps in the system state
@@ -1626,7 +1637,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	s.state.Lock()
 
 	c.Check(len(s.fakeBackend.ops), Equals, 7)
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/7",
@@ -1726,7 +1737,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/7",
@@ -1852,7 +1863,7 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	s.state.Lock()
 
 	c.Check(len(s.fakeBackend.ops), Equals, 2)
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
 			name: "/snap/some-snap/3",
@@ -1915,7 +1926,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.state.Lock()
 
 	c.Check(len(s.fakeBackend.ops), Equals, 4)
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
 			name: "/snap/some-snap/2",
@@ -2222,32 +2233,32 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
-		fakeOp{
+	expected := fakeOps{
+		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(2),
 		},
-		fakeOp{
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Revision: snap.R(2),
 			},
 		},
-		fakeOp{
+		{
 			op:   "link-snap",
 			name: "/snap/some-snap/2",
 		},
-		fakeOp{
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/2",
 		},
@@ -2344,32 +2355,32 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
-		fakeOp{
+	expected := fakeOps{
+		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/2",
 		},
-		fakeOp{
+		{
 			op:   "unlink-snap",
 			name: "/snap/some-snap/2",
 		},
-		fakeOp{
+		{
 			op:    "setup-profiles:Doing",
 			name:  "some-snap",
 			revno: snap.R(7),
 		},
-		fakeOp{
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Revision: snap.R(7),
 			},
 		},
-		fakeOp{
+		{
 			op:   "link-snap",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
@@ -2424,7 +2435,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/2",
@@ -2519,7 +2530,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/2",
@@ -2622,20 +2633,19 @@ func (s *snapmgrTestSuite) TestEnableRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 3)
-	expected := []fakeOp{
-		fakeOp{
+	expected := fakeOps{
+		{
 			op: "candidate",
 			sinfo: snap.SideInfo{
 				RealName: "some-snap",
 				Revision: snap.R(7),
 			},
 		},
-		fakeOp{
+		{
 			op:   "link-snap",
 			name: "/snap/some-snap/7",
 		},
-		fakeOp{
+		{
 			op:   "start-snap-services",
 			name: "/snap/some-snap/7",
 		},
@@ -2674,8 +2684,7 @@ func (s *snapmgrTestSuite) TestDisableRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Assert(s.fakeBackend.ops, HasLen, 2)
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
 			name: "/snap/some-snap/7",
@@ -2730,7 +2739,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	expected := []fakeOp{
+	expected := fakeOps{
 		{
 			op:    "storesvc-snap",
 			name:  "some-snap",
