@@ -88,9 +88,9 @@ quirks:
 Sharing of the mount namespace
 ------------------------------
 
-As a part of application startup `snap-confine` will move the process to a new
-mount namespace. Since version 1.0.41 all the applications belonging to a given
-snap will share the mount namespace amongst them.
+As of version 1.0.41 all the applications from the same snap will share the
+same mount namespace. Applications from different snaps continue to use
+separate mount namespaces.
 
 ENVIRONMENT
 ===========
@@ -133,17 +133,40 @@ FILES
 
 	Description of the seccomp profile.
 
+`/run/snapd/ns/`:
+
+    Directory used to keep shared mount namespaces.
+
+    `snap-confine` internally converts this directory to a private bind mount.
+    Semantically the behavior is identical to the following mount commands:
+
+    mount --bind /run/snapd/ns /run/snapd/ns
+    mount --make-private /run/snapd/ns
+
 `/run/snapd/ns/.lock`:
 
-	Global lock acquired to initialize namespace sharing feature
+    A `flock(2)`-based lock file acquired to create and convert
+    `/run/snapd/ns/` to a private bind mount.
 
 `/run/snapd/ns/$SNAP_NAME.lock`:
 
-    Lock acquired to initialize the namespace of a specific snap.
+    A `flock(2)`-based lock file acquired to create or join the mount namespace
+    represented as `/run/snaps/ns/$SNAP_NAME.mnt`.
 
 `/run/snapd/ns/$SNAP_NAME.mnt`:
 
-    Location of a preserved mount namespace.
+    This file can be either:
+
+    - An empty file that may be seen before the mount namespace is preserved or
+      when the mount namespace is unmounted.
+    - A file belonging to the `nsfs` file system, representing a fully
+      populated mount namespace of a given snap. The file is bind mounted from
+      `/proc/self/ns/mnt` from the first process in any snap.
+
+`/proc/self/mountinfo`:
+
+    This file is read to decide if `/run/snapd/ns/` needs to be created and
+    converted to a private bind mount, as described above.
 
 Note that the apparmor profile is external to `snap-confine` and is loaded
 directly into the kernel. The actual apparmor profile is managed by `snapd`.
