@@ -54,7 +54,7 @@ struct sc_ns_group;
  *
  * This will open and keep file descriptors for /run/snapd/ns/ as well as for
  * /run/snapd/ns/${group_name}.lock. The lock file is created if necessary but
- * is not locked in any way.
+ * is not locked until sc_lock_ns_mutex() is called.
  */
 struct sc_ns_group *sc_open_ns_group(const char *group_name);
 
