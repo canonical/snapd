@@ -1,5 +1,6 @@
 src/snap-confine
 src/snap-confine-unit-tests
+src/snap-confine.apparmor
 *~
 *.o
 
