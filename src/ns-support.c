@@ -82,7 +82,7 @@ void sc_initialize_ns_groups()
 	mkpath(sc_ns_dir);
 	debug("opening namespace group directory %s", sc_ns_dir);
 	dir_fd = open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
-	if (dir_fd == -1) {
+	if (dir_fd < 0) {
 		die("cannot open namespace group directory");
 	}
 	debug("opening lock file for group directory");
@@ -90,7 +90,7 @@ void sc_initialize_ns_groups()
 	lock_fd = openat(dir_fd,
 			 SC_NS_LOCK_FILE,
 			 O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (lock_fd == -1) {
+	if (lock_fd < 0) {
 		die("cannot open lock file for namespace group directory");
 	}
 	debug("locking the namespace group directory");
@@ -179,7 +179,7 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name)
 	debug("opening namespace group directory %s", sc_ns_dir);
 	group->dir_fd =
 	    open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
-	if (group->dir_fd == -1) {
+	if (group->dir_fd < 0) {
 		die("cannot open directory for namespace group %s", group_name);
 	}
 	char lock_fname[PATH_MAX];
@@ -189,7 +189,7 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name)
 	group->lock_fd =
 	    openat(group->dir_fd, lock_fname,
 		   O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (group->lock_fd == -1) {
+	if (group->lock_fd < 0) {
 		die("cannot open lock file for namespace group %s", group_name);
 	}
 	group->name = strdup(group_name);
@@ -239,7 +239,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 	mnt_fd =
 	    openat(group->dir_fd, mnt_fname,
 		   O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (mnt_fd == -1) {
+	if (mnt_fd < 0) {
 		die("cannot open mount namespace file for namespace group %s",
 		    group->name);
 	}
@@ -273,7 +273,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 	// processes. It effectively tells the child to perform the capture
 	// operation.
 	group->event_fd = eventfd(0, EFD_CLOEXEC);
-	if (group->event_fd == -1) {
+	if (group->event_fd < 0) {
 		die("cannot create eventfd for mount namespace capture");
 	}
 	debug("forking support process for mount namespace capture");
@@ -303,7 +303,7 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		if (prctl(PR_SET_PDEATHSIG, SIGINT, 0, 0, 0) < 0) {
 			die("cannot set parent process death notification signal to SIGINT");
 		}
-		if (fchdir(group->dir_fd) < -1) {
+		if (fchdir(group->dir_fd) < 0) {
 			die("cannot move process for mount namespace capture to namespace group directory");
 		}
 		debug
@@ -378,11 +378,11 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 	// Remember the current working directory
 	int old_dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	old_dir_fd = open(".", O_PATH | O_DIRECTORY | O_CLOEXEC);
-	if (old_dir_fd == -1) {
+	if (old_dir_fd < 0) {
 		die("cannot open current directory");
 	}
 	// Move to the mount namespace directory (/run/snapd/ns)
-	if (fchdir(group->dir_fd) < -1) {
+	if (fchdir(group->dir_fd) < 0) {
 		die("cannot move to namespace group directory");
 	}
 	// Unmount ${group_name}.mnt which holds the preserved namespace
@@ -390,7 +390,7 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 	must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
 		      SC_NS_MNT_FILE);
 	debug("unmounting preserved mount namespace file %s", mnt_fname);
-	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) == -1) {
+	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) < 0) {
 		// EINVAL is returned when there's nothing to unmount (no bind-mount).
 		// Instead of checking for this explicitly (which is always racy) we
 		// just unmount and check the return code.
@@ -400,7 +400,7 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 		}
 	}
 	// Get back to the original directory
-	if (fchdir(old_dir_fd) < -1) {
+	if (fchdir(old_dir_fd) < 0) {
 		die("cannot move back to original directory");
 	}
 }
