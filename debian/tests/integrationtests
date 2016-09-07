@@ -19,21 +19,12 @@ EOF
 fi
 systemctl daemon-reload
 
-# ensure our PATH is right
-. /etc/profile.d/apps-bin-path.sh
-
-
-# debug
-cat /etc/ssh/sshd_config
-id
-grep ubuntu /etc/passwd
-
 # ensure we can do a connect to localhost
 echo ubuntu:ubuntu|chpasswd
 sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
+systemctl reload sshd.service
 
-
-# ensure we can run spread
+# and now run spread against localhost
 export GOPATH=/tmp/go
 go get -u github.com/snapcore/spread/cmd/spread
 /tmp/go/bin/spread -v adhoc:
