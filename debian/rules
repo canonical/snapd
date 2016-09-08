@@ -99,6 +99,8 @@ override_dh_install:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# install dev package files
+	install debian/tmp/usr/share/gocode -d debian/snapd/usr/share
 	# install binaries and needed files
 	install debian/tmp/usr/bin/snap -D debian/snapd/usr/bin/snap
 	install debian/tmp/usr/bin/snapctl -D debian/snapd/usr/bin/snapctl
