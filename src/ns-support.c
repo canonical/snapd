@@ -134,8 +134,8 @@ static bool sc_is_ns_group_dir_private()
 		    mountinfo_entry_optional_fields(entry);
 		if (strcmp(mount_dir, sc_ns_dir) == 0
 		    && strcmp(optional_fields, "") == 0) {
-			// If the /run/snapd/ns directory is mounted and has no optional
-			// fields (i.e. the shared:xxx is not there) then we are all set.
+			// If /run/snapd/ns has no optional fields, we know it is mounted
+			// private and there is nothing else to do.
 			return true;
 		}
 		entry = next_mountinfo_entry(entry);
