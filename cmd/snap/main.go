@@ -122,7 +122,7 @@ func Parser() *flags.Parser {
 		}
 		w.Flush()
 
-		os.Exit(0)
+		panic(&exitStatus{0})
 	}
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
 	parser.ShortDescription = "Tool to interact with snaps"
@@ -193,11 +193,28 @@ func main() {
 		os.Exit(46)
 	}
 
+	defer func() {
+		if v := recover(); v != nil {
+			if e, ok := v.(*exitStatus); ok {
+				os.Exit(e.code)
+			}
+			panic(v)
+		}
+	}()
+
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
+}
+
+type exitStatus struct {
+	code int
+}
+
+func (e *exitStatus) Error() string {
+	return fmt.Sprintf("internal error: exitStatus{%d} being handled as normal error", e.code)
 }
 
 func run() error {

@@ -40,3 +40,14 @@ func (s *mockCommandSuite) TestMockCommand(c *C) {
 		{"cmd", "second-run", "--arg1", "arg2", "a %s"},
 	})
 }
+
+func (s *mockCommandSuite) TestMockCommandAlso(c *C) {
+	mock := MockCommand(c, "fst", "")
+	also := mock.Also("snd", "")
+	defer mock.Restore()
+
+	c.Assert(exec.Command("fst").Run(), IsNil)
+	c.Assert(exec.Command("snd").Run(), IsNil)
+	c.Check(mock.Calls(), DeepEquals, [][]string{{"fst"}, {"snd"}})
+	c.Check(mock.Calls(), DeepEquals, also.Calls())
+}
