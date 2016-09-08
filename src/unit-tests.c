@@ -30,6 +30,7 @@ static void simple_test_case(void)
 int sc_run_unit_tests(int *argc, char ***argv)
 {
 	g_test_init(argc, argv, NULL);
+	g_test_set_nonfatal_assertions();
 	g_test_add_func("/Simple Test Case", simple_test_case);
 	return g_test_run();
 }
