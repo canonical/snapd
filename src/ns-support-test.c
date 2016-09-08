@@ -209,6 +209,7 @@ static void test_sc_is_ns_group_dir_private()
 
 		// The temporary directory should now be private
 		g_assert_true(sc_is_ns_group_dir_private());
+		return;
 	}
 	g_test_trap_subprocess(NULL, 0, G_TEST_SUBPROCESS_INHERIT_STDERR);
 	g_test_trap_assert_passed();
