@@ -51,8 +51,10 @@ type Options struct {
 	Snaps           []string
 	RootDir         string
 	Channel         string
-	ModelFile       string
 	GadgetUnpackDir string
+
+	ModelFile string
+	ModelRef  string
 }
 
 type localInfos struct {
@@ -106,7 +108,7 @@ func localSnaps(opts *Options) (*localInfos, error) {
 }
 
 func Prepare(opts *Options) error {
-	model, err := decodeModelAssertion(opts)
+	model, err := modelAssertion(opts)
 	if err != nil {
 		return err
 	}
@@ -115,7 +117,6 @@ func Prepare(opts *Options) error {
 	if err != nil {
 		return err
 	}
-
 	sto := makeStore(model)
 
 	if err := downloadUnpackGadget(sto, model, opts, local); err != nil {
@@ -125,25 +126,51 @@ func Prepare(opts *Options) error {
 	return bootstrapToRootDir(sto, model, opts, local)
 }
 
+func modelAssertion(opts *Options) (*asserts.Model, error) {
+	switch {
+	case opts.ModelFile != "" && opts.ModelRef != "":
+		return nil, fmt.Errorf("specifying both model file and model reference is not allowed")
+	case opts.ModelFile != "":
+		return modelAssertionFromFile(opts.ModelFile)
+	case opts.ModelRef != "":
+		return modelAssertionFromStore(opts.ModelRef)
+	}
+
+	return nil, fmt.Errorf("need either a model file or a model reference")
+}
+
+func modelAssertionFromFile(fn string) (*asserts.Model, error) {
+	raw, err := ioutil.ReadFile(fn)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read model assertion %q: %s", fn, err)
+	}
+	rawAssert, err := asserts.Decode(raw)
+	if err != nil {
+		return nil, fmt.Errorf("cannot decode model assertion %q: %s", fn, err)
+	}
+
+	return decodeModelAssertion(rawAssert)
+}
+
+func modelAssertionFromStore(modelRef string) (*asserts.Model, error) {
+	assSto := store.New(nil, nil)
+
+	l := strings.Split(modelRef, "/")
+	rawAssert, err := assSto.Assertion(asserts.Type("model"), l, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot fetch model assertion: %s", err)
+	}
+	return decodeModelAssertion(rawAssert)
+}
+
 // these are postponed, not implemented or abandoned, not finalized,
 // don't let them sneak in into a used model assertion
 var reserved = []string{"core", "os", "class", "allowed-modes"}
 
-func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
-	fn := opts.ModelFile
-
-	rawAssert, err := ioutil.ReadFile(fn)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read model assertion: %s", err)
-	}
-
-	ass, err := asserts.Decode(rawAssert)
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode model assertion %q: %s", fn, err)
-	}
+func decodeModelAssertion(ass asserts.Assertion) (*asserts.Model, error) {
 	modela, ok := ass.(*asserts.Model)
 	if !ok {
-		return nil, fmt.Errorf("assertion in %q is not a model assertion", fn)
+		return nil, fmt.Errorf("assertion %q is not a model assertion", ass.Ref().String())
 	}
 
 	for _, rsvd := range reserved {

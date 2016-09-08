@@ -177,15 +177,15 @@ confinement: devmode
 `
 
 func (s *imageSuite) TestMissingModelAssertions(c *C) {
-	_, err := image.DecodeModelAssertion(&image.Options{})
-	c.Assert(err, ErrorMatches, "cannot read model assertion: open : no such file or directory")
+	_, err := image.ModelAssertion(&image.Options{})
+	c.Assert(err, ErrorMatches, "need either a model file or a model reference")
 }
 
 func (s *imageSuite) TestIncorrectModelAssertions(c *C) {
 	fn := filepath.Join(c.MkDir(), "broken-model.assertion")
 	err := ioutil.WriteFile(fn, nil, 0644)
 	c.Assert(err, IsNil)
-	_, err = image.DecodeModelAssertion(&image.Options{
+	_, err = image.ModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot decode model assertion "%s": assertion content/signature separator not found`, fn))
@@ -208,10 +208,10 @@ AXNpZw==
 	err := ioutil.WriteFile(fn, differentAssertion, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = image.DecodeModelAssertion(&image.Options{
+	_, err = image.ModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
-	c.Assert(err, ErrorMatches, fmt.Sprintf(`assertion in "%s" is not a model assertion`, fn))
+	c.Assert(err, ErrorMatches, `assertion "snap-declaration \[16 snap-id-1\]" is not a model assertion`)
 }
 
 func (s *imageSuite) TestModelAssertionReservedHeaders(c *C) {
@@ -241,19 +241,19 @@ AXNpZw==
 		fn := filepath.Join(c.MkDir(), "model.assertion")
 		err := ioutil.WriteFile(fn, []byte(tweaked), 0644)
 		c.Assert(err, IsNil)
-		_, err = image.DecodeModelAssertion(&image.Options{
+		_, err = image.ModelAssertion(&image.Options{
 			ModelFile: fn,
 		})
 		c.Check(err, ErrorMatches, fmt.Sprintf("model assertion cannot have reserved/unsupported header %q set", rsvd))
 	}
 }
 
-func (s *imageSuite) TestHappyDecodeModelAssertion(c *C) {
+func (s *imageSuite) TestHappyModelAssertion(c *C) {
 	fn := filepath.Join(c.MkDir(), "model.assertion")
 	err := ioutil.WriteFile(fn, asserts.Encode(s.model), 0644)
 	c.Assert(err, IsNil)
 
-	a, err := image.DecodeModelAssertion(&image.Options{
+	a, err := image.ModelAssertion(&image.Options{
 		ModelFile: fn,
 	})
 	c.Assert(err, IsNil)

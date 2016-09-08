@@ -21,7 +21,7 @@ package image
 
 var (
 	LocalSnaps           = localSnaps
-	DecodeModelAssertion = decodeModelAssertion
+	ModelAssertion       = modelAssertion
 	DownloadUnpackGadget = downloadUnpackGadget
 	BootstrapToRootDir   = bootstrapToRootDir
 )
