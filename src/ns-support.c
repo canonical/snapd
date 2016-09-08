@@ -364,7 +364,7 @@ bool sc_should_populate_ns_group(struct sc_ns_group *group)
 	return group->should_populate;
 }
 
-void sc_preserve_ns_group(struct sc_ns_group *group)
+void sc_preserve_populated_ns_group(struct sc_ns_group *group)
 {
 	if (group->child == 0) {
 		die("precondition failed: we don't have a support process for mount namespace capture");
