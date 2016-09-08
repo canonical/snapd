@@ -84,3 +84,13 @@ func (s *SnapKeysSuite) TestKeysJSON(c *C) {
 	c.Check(obtainedResponse, DeepEquals, expectedResponse)
 	c.Check(s.Stderr(), Equals, "")
 }
+
+func (s *SnapKeysSuite) TestKeysJSONEmpty(c *C) {
+	err := os.RemoveAll(os.Getenv("SNAP_GNUPG_HOME"))
+	c.Assert(err, IsNil)
+	rest, err := snap.Parser().ParseArgs([]string{"keys", "--json"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "[]\n")
+	c.Check(s.Stderr(), Equals, "")
+}
