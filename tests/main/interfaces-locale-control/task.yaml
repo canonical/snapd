@@ -35,7 +35,7 @@ execute: |
     snap connect locale-control-consumer:locale-control ubuntu-core:locale-control
 
     echo "Then the snap is able to read the locale configuration"
-    [ "$(sudo -i -u test /bin/sh -c 'locale-control-consumer.get LANG')" = "$LANG" ]
+    [ "$(su -l -c 'locale-control-consumer.get LANG' test)" = "$LANG" ]
 
     echo "==================================="
 
@@ -43,7 +43,7 @@ execute: |
     snap disconnect locale-control-consumer:locale-control ubuntu-core:locale-control
 
     echo "Then the snap is not able to read the locale configuration"
-    if sudo -i -u test /bin/sh -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error"; then
+    if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi

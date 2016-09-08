@@ -17,28 +17,32 @@
  *
  */
 
-package wrappers
+package builtin
 
-import (
-	"time"
-)
+import "github.com/snapcore/snapd/interfaces"
 
-// some internal helper exposed for testing
-var (
-	// services
-	GenerateSnapServiceFile = generateSnapServiceFile
-	GenerateSnapSocketFile  = generateSnapSocketFile
+const libvirtConnectedPlugAppArmor = `
+/run/libvirt/libvirt-sock rw,
+`
 
-	// desktop
-	SanitizeDesktopFile = sanitizeDesktopFile
-	RewriteExecLine     = rewriteExecLine
-	TrimLang            = trimLang
-)
+const libvirtConnectedPlugSecComp = `
+connect
+getsockname
+recv
+recvmsg
+send
+sendto
+sendmsg
+socket
+socketpair
+`
 
-func MockKillWait(wait time.Duration) (restore func()) {
-	oldKillWait := killWait
-	killWait = wait
-	return func() {
-		killWait = oldKillWait
+func NewLibvirtInterface() interfaces.Interface {
+	return &commonInterface{
+		name: "libvirt",
+		connectedPlugAppArmor: libvirtConnectedPlugAppArmor,
+		connectedPlugSecComp:  libvirtConnectedPlugSecComp,
+		reservedForOS:         true,
+		autoConnect:           true,
 	}
 }
