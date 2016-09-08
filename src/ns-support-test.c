@@ -30,6 +30,15 @@ static void sc_set_ns_dir(const char *dir)
 	sc_ns_dir = dir;
 }
 
+static void rm_rf(const char *dir)
+{
+	gint exit_status = 0;
+	gchar *cmd = g_strdup_printf("rm -rf %s", dir);
+	g_spawn_command_line_sync(cmd, NULL, NULL, &exit_status, NULL);
+	g_free(cmd);
+	g_assert_true(g_spawn_check_exit_status(exit_status, NULL));
+}
+
 // Use temporary directory for namespace groups.
 //
 // The directory is automatically reset to the real value at the end of the
@@ -50,7 +59,7 @@ static const char *sc_test_use_fake_ns_dir()
 				0);
 		g_test_queue_destroy((GDestroyNotify) unsetenv,
 				     "SNAP_CONFINE_NS_DIR");
-		// TODO: queue something that rm -rf's the directory tree
+		g_test_queue_destroy((GDestroyNotify) rm_rf, ns_dir);
 	}
 	g_test_queue_destroy((GDestroyNotify) sc_set_ns_dir, SC_NS_DIR);
 	sc_set_ns_dir(ns_dir);
