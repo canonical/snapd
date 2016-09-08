@@ -37,6 +37,7 @@ The find command queries the store for available packages.
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
 	// If there are no prices, then the snap is free
 	if len(prices) == 0 {
+		// TRANSLATORS: free as in gratis
 		return 0, "", errors.New(i18n.G("snap is free"))
 	}
 
@@ -102,7 +103,7 @@ func (x *cmdFind) Execute(args []string) error {
 	}
 
 	if x.Positional.Query == "" {
-		return errors.New(i18n.G("you need to specify a query. For example: snap find hello-world"))
+		return errors.New(i18n.G("you need to specify a query. Try \"snap find hello-world\"."))
 	}
 
 	return findSnaps(&client.FindOptions{
