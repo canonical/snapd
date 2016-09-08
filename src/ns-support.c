@@ -285,9 +285,9 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 	if (pid == 0) {
 		// This is the child process which will capture the mount namespace.
 		//
-		// It will do so by bind-mounting it the SC_NS_MNT_FILE after
-		// the parent process calls unshare() and finishes setting up the
-		// namespace completely.
+		// It will do so by bind-mounting the SC_NS_MNT_FILE after the parent
+		// process calls unshare() and finishes setting up the namespace
+		// completely.
 #ifdef HAVE_APPARMOR
 		// Change the hat to a sub-profile that has limited permissions
 		// necessary to accomplish the capture of the mount namespace.
