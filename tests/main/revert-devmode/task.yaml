@@ -38,8 +38,8 @@ execute: |
     echo "Then the old version is active"
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
 
-    echo "And apparmor profile is in enforcing mode"
-    cat /sys/kernel/security/apparmor/profiles|grep test-snapd-tools|grep -q enforce
+    echo "And the snap uses jailmode"
+    snap list|grep test-snapd-tools|grep -q jailmode
 
     echo "When the latest revision is installed again"
     snap remove --revision=$LATEST test-snapd-tools
@@ -48,5 +48,5 @@ execute: |
     echo "And revert is made with --devmode flag"
     snap revert --devmode test-snapd-tools
 
-    echo "Then apparmor profile is in complain mode"
-    cat /sys/kernel/security/apparmor/profiles|grep test-snapd-tools|grep -q complain
+    echo "Then snap uses devmode"
+    snap list|grep test-snapd-tools|grep -q devmode

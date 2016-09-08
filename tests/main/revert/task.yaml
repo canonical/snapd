@@ -41,8 +41,8 @@ execute: |
     ls /snap/test-snapd-tools | grep -q current
     ls /var/snap/test-snapd-tools | grep -q current
 
-    echo "And apparmor profile is in enforcing mode"
-    cat /sys/kernel/security/apparmor/profiles|grep test-snapd-tools|grep -q enforce
+    echo "And the snap uses jailmode"
+    snap list|grep test-snapd-tools|grep -q jailmode
 
     echo "And a new revert fails"
     if snap revert test-snapd-tools; then
