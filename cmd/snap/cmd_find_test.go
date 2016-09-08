@@ -33,7 +33,7 @@ func (s *SnapSuite) TestFindNothingFails(c *check.C) {
 		c.Fatalf("it reached the server")
 	})
 	_, err := snap.Parser().ParseArgs([]string{"find"})
-	c.Assert(err, check.ErrorMatches, `you need to specify a query. For example.*`)
+	c.Assert(err, check.ErrorMatches, `you need to specify a query. Try.*`)
 }
 
 const findJSON = `

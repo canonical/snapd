@@ -51,7 +51,7 @@ type options struct {
 var optionsData options
 
 // ErrExtraArgs is returned  if extra arguments to a command are found
-var ErrExtraArgs = fmt.Errorf("too many arguments for command")
+var ErrExtraArgs = fmt.Errorf(i18n.G("too many arguments for command"))
 
 // cmdInfo holds information needed to call parser.AddCommand(...).
 type cmdInfo struct {
@@ -172,7 +172,7 @@ func Client() *client.Client {
 func init() {
 	err := logger.SimpleSetup()
 	if err != nil {
-		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %s\n", err)
+		fmt.Fprintf(Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
 	}
 }
 
@@ -235,7 +235,8 @@ func run() error {
 				return fmt.Errorf(i18n.G(`%s (see "snap login --help")`), e.Message)
 			}
 
-			return fmt.Errorf(i18n.G(`%s (try with sudo)`), e.Message)
+			// TRANSLATORS: %s will be a message along the lines of "login required"
+			return fmt.Errorf(i18n.G(`%s (try with sudo)`), i18n.G(e.Message))
 		}
 	}
 
