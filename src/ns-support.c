@@ -23,6 +23,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <linux/magic.h>
 #include <sched.h>
 #include <signal.h>
 #include <string.h>
@@ -32,6 +33,7 @@
 #include <sys/prctl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/vfs.h>
 #include <sys/wait.h>
 #include <unistd.h>
 #ifdef HAVE_APPARMOR
@@ -250,9 +252,6 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 	// sc_discard_preserved_ns_group() it will revert to a regular file.  If
 	// snap-confine is killed for whatever reason after the file is created but
 	// before the file is bind-mounted it will also be a regular file.
-	//
-	// The code below handles this by trying to join the namespace with setns()
-	// and handling both the successful and the unsuccessful paths.
 	mnt_fd =
 	    openat(group->dir_fd, mnt_fname,
 		   O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
@@ -260,28 +259,26 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		die("cannot open mount namespace file for namespace group %s",
 		    group->name);
 	}
-	// attempt to join an existing group
-	debug
-	    ("attempting to re-associate the mount namespace with the namespace group %s",
-	     group->name);
-	if (setns(mnt_fd, CLONE_NEWNS) == 0) {
+	// Check if we got an nsfs-based file or a regular file. This can be
+	// reliably tested because nsfs has an unique filesystem type NSFS_MAGIC.
+	// We can just ensure that this is the case thanks to fstatfs.
+	struct statfs buf;
+	if (fstatfs(mnt_fd, &buf) < 0) {
+		die("cannot perform fstatfs() on an mount namespace file descriptor");
+	}
+	if (buf.f_type == NSFS_MAGIC) {
+		debug
+		    ("attempting to re-associate the mount namespace with the namespace group %s",
+		     group->name);
+		if (setns(mnt_fd, CLONE_NEWNS) < 0) {
+			die("cannot re-associate the mount namespace with namespace group %s", group->name);
+		}
 		debug
 		    ("successfully re-associated the mount namespace with the namespace group %s",
 		     group->name);
 		return;
 	}
-	// Anything but EINVAL is an unexpected error.
-	//
-	// EINVAL is simply a sign that the file we've opened is not a valid
-	// namespace file descriptor. One potential case where this can happen is
-	// when another snap-confine tried to initialize the namespace but was
-	// killed before it managed to complete the process.
-	if (errno != EINVAL) {
-		die("cannot re-associate the mount namespace with namespace group %s", group->name);
-	}
-	debug
-	    ("cannot re-associate the mount namespace with namespace group %s, falling back to initialization",
-	     group->name);
+	debug("initializing new namespace group %s", group->name);
 	// Create a new namespace and ask the caller to populate it.
 	// For rationale of forking see this:
 	// https://lists.linuxfoundation.org/pipermail/containers/2013-August/033386.html
