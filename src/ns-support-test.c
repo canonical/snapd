@@ -21,6 +21,9 @@
 #include "cleanup-funcs.h"
 
 #include <errno.h>
+#include <linux/magic.h>	// for NSFS_MAGIC
+#include <sys/vfs.h>
+
 #include <glib.h>
 #include <glib/gstdio.h>
 
@@ -251,6 +254,16 @@ static void test_sc_initialize_ns_groups()
 	g_test_trap_assert_passed();
 }
 
+// Sanity check, ensure that the namespace filesystem identifier is what we
+// expect, aka NSFS_MAGIC.
+static void test_nsfs_fs_id()
+{
+	struct statfs buf;
+	int err = statfs("/proc/self/ns/mnt", &buf);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_cmpint(buf.f_type, ==, NSFS_MAGIC);
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/ns/sc_alloc_ns_group", test_sc_alloc_ns_group);
@@ -261,6 +274,7 @@ static void __attribute__ ((constructor)) init()
 			test_sc_lock_ns_mutex_precondition);
 	g_test_add_func("/ns/sc_unlock_ns_mutex/precondition",
 			test_sc_unlock_ns_mutex_precondition);
+	g_test_add_func("/ns/nsfs_fs_id", test_nsfs_fs_id);
 	g_test_add_func("/system/ns/sc_is_ns_group_dir_private",
 			test_sc_is_ns_group_dir_private);
 	g_test_add_func("/system/ns/sc_initialize_ns_groups",
