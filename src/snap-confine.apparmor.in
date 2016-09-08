@@ -28,6 +28,7 @@
     /dev/zero rw,
     /dev/random r,
     /dev/urandom r,
+    /dev/pts/[0-9]* rw,
 
     # cgroups
     capability sys_admin,
