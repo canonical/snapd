@@ -2,7 +2,7 @@ snapd (2.14ubuntu18) trusty; urgency=medium
 
   * Bump revision for PPA build.
 
- -- Thomas Voß <thomas.voss@ubuntu.com>  Mon, 29 Aug 2016 17:07:20 +0200
+ -- Thomas Voß <thomas.voss@canonical.com>  Mon, 29 Aug 2016 17:07:20 +0200
 
 snapd (2.14) xenial; urgency=medium
 
