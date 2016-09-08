@@ -235,7 +235,8 @@ static struct mountinfo_entry *parse_mountinfo_entry(const char *line)
 	if ((entry->mount_opts = parse_next_string_field()) == NULL)
 		goto fail;
 	entry->optional_fields = &entry->line_buf[0] + total_used++;
-	// NOTE: This ensures that optional_fields is never NULL.
+	// NOTE: This ensures that optional_fields is never NULL. If this changes,
+	// must adjust all callers of parse_mountinfo_entry() accordingly.
 	strcpy(entry->optional_fields, "");
 	for (;;) {
 		char *opt_field = parse_next_string_field();
