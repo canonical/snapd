@@ -121,3 +121,7 @@ func (s *LibvirtInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityMount)
 	c.Assert(err, IsNil)
 }
+
+func (s *LibvirtInterfaceSuite) TestAutoConnect(c *C) {
+	c.Check(s.iface.AutoConnect(), Equals, false)
+}
