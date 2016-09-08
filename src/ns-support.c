@@ -170,6 +170,9 @@ static struct sc_ns_group *sc_alloc_ns_group()
 	group->dir_fd = -1;
 	group->lock_fd = -1;
 	group->event_fd = -1;
+	// Redundant with calloc but some functions check for the non-zero value so
+	// I'd like to keep this explicit in the code.
+	group->child = 0;
 	return group;
 }
 
