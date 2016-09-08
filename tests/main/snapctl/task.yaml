@@ -70,12 +70,12 @@ execute: |
 
     echo "Verify that the snapd API is only available via the snapd socket"
 
-    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snaps | grep status-code\":\s*200; then
+    if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket | grep "200 OK"; then
         echo "Expected snapd API to be available on the snapd socket"
         exit 1
     fi
 
-    if ! curl -s --unix-socket /run/snapd-snap.socket http:/v2/snaps | grep status-code\":\s*401; then
+    if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd-snap.socket | grep "401 Unauthorized"; then
         echo "Expected snapd API to be unauthorized on the snap socket"
         exit 1
     fi
