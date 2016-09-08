@@ -174,7 +174,7 @@ func (s *snapmgrTestSuite) TestRevertTasks(c *C) {
 		Current: snap.R(11),
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 
 	i := 0
@@ -298,7 +298,7 @@ func (s *snapmgrTestSuite) TestRevertCreatesNoGCTasks(c *C) {
 		Current: snap.R(2),
 	})
 
-	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R(4))
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R(4), snapstate.Flags(0))
 	c.Assert(err, IsNil)
 
 	// ensure that we do not run any form of garbage-collection
@@ -2131,7 +2131,7 @@ func (s *snapmgrTestSuite) TestRevertNoRevertAgain(c *C) {
 		Current:  snap.R(7),
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags(0))
 	c.Assert(err, ErrorMatches, "no revision to revert to")
 	c.Assert(ts, IsNil)
 }
@@ -2151,7 +2151,7 @@ func (s *snapmgrTestSuite) TestRevertNothingToRevertTo(c *C) {
 		Current:  si.Revision,
 	})
 
-	ts, err := snapstate.Revert(s.state, "some-snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags(0))
 	c.Assert(err, ErrorMatches, "no revision to revert to")
 	c.Assert(ts, IsNil)
 }
@@ -2175,7 +2175,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNoValidVersion(c *C) {
 		Current:  snap.R(77),
 	})
 
-	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R("99"))
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R("99"), snapstate.Flags(0))
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "some-snap"`)
 	c.Assert(ts, IsNil)
 }
@@ -2199,7 +2199,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionAlreadyCurrent(c *C) {
 		Current:  snap.R(77),
 	})
 
-	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R("77"))
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R("77"), snapstate.Flags(0))
 	c.Assert(err, ErrorMatches, `already on requested revision`)
 	c.Assert(ts, IsNil)
 }
@@ -2224,7 +2224,7 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap backwards")
-	ts, err := snapstate.Revert(s.state, "some-snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -2306,7 +2306,7 @@ func (s *snapmgrTestSuite) TestRevertWithLocalRevisionRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap backwards")
-	ts, err := snapstate.Revert(s.state, "some-snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -2346,7 +2346,7 @@ func (s *snapmgrTestSuite) TestRevertToRevisionNewVersion(c *C) {
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap forward")
-	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R(7))
+	ts, err := snapstate.RevertToRevision(s.state, "some-snap", snap.R(7), snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -2419,7 +2419,7 @@ func (s *snapmgrTestSuite) TestRevertTotalUndoRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("revert", "revert a snap")
-	ts, err := snapstate.Revert(s.state, "some-snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
@@ -2519,7 +2519,7 @@ func (s *snapmgrTestSuite) TestRevertUndoRunThrough(c *C) {
 	})
 
 	chg := s.state.NewChange("revert", "install a revert")
-	ts, err := snapstate.Revert(s.state, "some-snap")
+	ts, err := snapstate.Revert(s.state, "some-snap", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
 
