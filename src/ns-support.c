@@ -52,7 +52,7 @@
 /**
  * Effective value of SC_NS_DIR.
  *
- * This is only altered for testing.
+ * We use 'const char *' so we can update sc_ns_dir in the testsuite
  **/
 static const char *sc_ns_dir = SC_NS_DIR;
 
@@ -67,7 +67,6 @@ static const char *sc_ns_dir = SC_NS_DIR;
  * and a given group identifier (typically SNAP_NAME).
  **/
 #define SC_NS_MNT_FILE ".mnt"
-
 
 /**
  * Read /proc/self/mountinfo and check if /run/snapd/ns is a private bind mount.
