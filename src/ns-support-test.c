@@ -127,7 +127,7 @@ static void test_sc_lock_unlock_ns_mutex()
 	g_assert_cmpint(saved_errno, ==, EWOULDBLOCK);
 	// Unlock the namespace group mutex
 	sc_unlock_ns_mutex(group);
-	// Re-attempt the locking operation. This time it shoud succeed.
+	// Re-attempt the locking operation. This time it should succeed.
 	err = flock(lock_fd, LOCK_EX | LOCK_NB);
 	g_assert_cmpint(err, ==, 0);
 }
