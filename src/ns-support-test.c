@@ -137,7 +137,7 @@ static void unmount_dir(void *dir)
     umount(dir);
 }
 
-static void test_sc_initialize_ns_groups()
+static void test_sc_is_ns_group_dir_private()
 {
     if (geteuid() != 0) {
         g_test_skip("this test needs to run as root");
@@ -147,12 +147,31 @@ static void test_sc_initialize_ns_groups()
     g_test_queue_destroy(unmount_dir, (char *)ns_dir);
 
     // The temporary directory should not be private initially
-    // as it doesn't exist and isn't bind mounted correctly.
     g_assert_false(sc_is_ns_group_dir_private());
+
+    /// do what "mount --bind /foo /foo; mount --make-private /foo" does.
+    int err;
+    err = mount(ns_dir, ns_dir, NULL, MS_BIND, NULL);
+    g_assert_cmpint(err, ==, 0);
+    err = mount(NULL, ns_dir, NULL, MS_PRIVATE, NULL);
+    g_assert_cmpint(err, ==, 0);
+
+    // The temporary directory should now be private
+    g_assert_true(sc_is_ns_group_dir_private());
+}
+
+
+static void test_sc_initialize_ns_groups()
+{
+    if (geteuid() != 0) {
+        g_test_skip("this test needs to run as root");
+        return;
+    }
+	const char *ns_dir = sc_test_use_fake_ns_dir();
+    g_test_queue_destroy(unmount_dir, (char *)ns_dir);
+
     // Initialize namespace groups using a fake directory.
     sc_initialize_ns_groups();
-    // The temporary directory should now be a private bind mount.
-    g_assert_true(sc_is_ns_group_dir_private());
 
     // Check that the lock file did not leak unclosed.
 
@@ -174,6 +193,8 @@ static void __attribute__ ((constructor)) init()
 	g_test_add_func("/ns/sc_init_ns_group", test_sc_open_ns_group);
 	g_test_add_func("/ns/sc_lock_unlock_ns_mutex",
 			test_sc_lock_unlock_ns_mutex);
+	g_test_add_func("/system/ns/sc_is_ns_group_dir_private",
+			test_sc_is_ns_group_dir_private);
 	g_test_add_func("/system/ns/sc_initialize_ns_groups",
 			test_sc_initialize_ns_groups);
 }
