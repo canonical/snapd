@@ -212,6 +212,9 @@ void sc_close_ns_group(struct sc_ns_group *group)
 
 void sc_lock_ns_mutex(struct sc_ns_group *group)
 {
+	if (group->lock_fd < 0) {
+		die("precondition failed: we don't have an open file descriptor for the mutex file");
+	}
 	debug("acquiring exclusive lock for namespace group %s", group->name);
 	if (flock(group->lock_fd, LOCK_EX) < 0) {
 		die("cannot acquire exclusive lock for namespace group %s",
@@ -222,6 +225,9 @@ void sc_lock_ns_mutex(struct sc_ns_group *group)
 
 void sc_unlock_ns_mutex(struct sc_ns_group *group)
 {
+	if (group->lock_fd < 0) {
+		die("precondition failed: we don't have an open file descriptor for the mutex file");
+	}
 	debug("releasing lock for namespace group %s", group->name);
 	if (flock(group->lock_fd, LOCK_UN) < 0) {
 		die("cannot release lock for namespace group %s", group->name);

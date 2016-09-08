@@ -122,6 +122,36 @@ static void test_sc_open_ns_group()
 		      (lock_file, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR));
 }
 
+static void test_sc_lock_ns_mutex_precondition()
+{
+	sc_test_use_fake_ns_dir();
+	if (g_test_subprocess()) {
+		struct sc_ns_group *group = sc_alloc_ns_group();
+		g_test_queue_free(group);
+		// Try to lock the mutex, this should abort because we never opened the
+		// lock file and don't have a valid file descriptor.
+		sc_lock_ns_mutex(group);
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
+static void test_sc_unlock_ns_mutex_precondition()
+{
+	sc_test_use_fake_ns_dir();
+	if (g_test_subprocess()) {
+		struct sc_ns_group *group = sc_alloc_ns_group();
+		g_test_queue_free(group);
+		// Try to unlock the mutex, this should abort because we never opened the
+		// lock file and don't have a valid file descriptor.
+		sc_unlock_ns_mutex(group);
+		return;
+	}
+	g_test_trap_subprocess(NULL, 0, 0);
+	g_test_trap_assert_failed();
+}
+
 // Check that locking a namespace actually flock's the mutex with LOCK_EX
 static void test_sc_lock_unlock_ns_mutex()
 {
@@ -226,6 +256,10 @@ static void __attribute__ ((constructor)) init()
 	g_test_add_func("/ns/sc_init_ns_group", test_sc_open_ns_group);
 	g_test_add_func("/ns/sc_lock_unlock_ns_mutex",
 			test_sc_lock_unlock_ns_mutex);
+	g_test_add_func("/ns/sc_lock_ns_mutex/precondition",
+			test_sc_lock_ns_mutex_precondition);
+	g_test_add_func("/ns/sc_unlock_ns_mutex/precondition",
+			test_sc_unlock_ns_mutex_precondition);
 	g_test_add_func("/system/ns/sc_is_ns_group_dir_private",
 			test_sc_is_ns_group_dir_private);
 	g_test_add_func("/system/ns/sc_initialize_ns_groups",
