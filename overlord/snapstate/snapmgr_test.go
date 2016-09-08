@@ -3280,15 +3280,23 @@ func revs(seq []*snap.SideInfo) []int {
 	return revs
 }
 
+type opSeqOpts struct {
+	revert  bool
+	before  []int
+	current int
+	via     int
+	after   []int
+}
+
 // build a SnapState with a revision sequence given by `before` and a
 // current revision of `current`. Then refresh --revision via. Then
 // check the revision sequence is as in `after`.
-func (s *snapmgrTestSuite) testOpSequence(c *C, revert bool, before []int, current, via int, after []int) (*snapstate.SnapState, *state.TaskSet) {
+func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.SnapState, *state.TaskSet) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	seq := make([]*snap.SideInfo, len(before))
-	for i, n := range before {
+	seq := make([]*snap.SideInfo, len(opts.before))
+	for i, n := range opts.before {
 		seq[i] = &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(n)}
 	}
 
@@ -3296,18 +3304,18 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, revert bool, before []int, curre
 		Active:   true,
 		Channel:  "edge",
 		Sequence: seq,
-		Current:  snap.R(current),
+		Current:  snap.R(opts.current),
 	})
 
 	var chg *state.Change
 	var ts *state.TaskSet
 	var err error
-	if revert {
+	if opts.revert {
 		chg = s.state.NewChange("revert", "revert a snap")
-		ts, err = snapstate.RevertToRevision(s.state, "some-snap", snap.R(via))
+		ts, err = snapstate.RevertToRevision(s.state, "some-snap", snap.R(opts.via))
 	} else {
 		chg = s.state.NewChange("refresh", "refresh a snap")
-		ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(via), s.user.ID, 0)
+		ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(opts.via), s.user.ID, 0)
 	}
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
@@ -3320,97 +3328,117 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, revert bool, before []int, curre
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
-	c.Check(revs(snapst.Sequence), DeepEquals, after)
+	c.Check(revs(snapst.Sequence), DeepEquals, opts.after)
 
 	return &snapst, ts
 }
 
-func (s *snapmgrTestSuite) testUpdateSequence(c *C, before []int, current, via int, after []int) *state.TaskSet {
-	snapst, ts := s.testOpSequence(c, false, before, current, via, after)
+func (s *snapmgrTestSuite) testUpdateSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	opts.revert = false
+	snapst, ts := s.testOpSequence(c, opts)
 	// update always ends with current==seq[-1]==via:
-	c.Check(snapst.Current.N, Equals, after[len(after)-1])
-	c.Check(snapst.Current.N, Equals, via)
+	c.Check(snapst.Current.N, Equals, opts.after[len(opts.after)-1])
+	c.Check(snapst.Current.N, Equals, opts.via)
 
 	c.Check(s.fakeBackend.ops.Count("copy-data"), Equals, 1)
 	c.Check(s.fakeBackend.ops.First("copy-data"), DeepEquals, &fakeOp{
 		op:   "copy-data",
-		name: fmt.Sprintf("/snap/some-snap/%d", via),
-		old:  fmt.Sprintf("/snap/some-snap/%d", current),
+		name: fmt.Sprintf("/snap/some-snap/%d", opts.via),
+		old:  fmt.Sprintf("/snap/some-snap/%d", opts.current),
 	})
 
 	return ts
 }
 
-func (s *snapmgrTestSuite) testUpdateFailureSequence(c *C, before []int, current, via int) *state.TaskSet {
-	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", via)
-	snapst, ts := s.testOpSequence(c, false, before, current, via, before)
+func (s *snapmgrTestSuite) testUpdateFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	opts.revert = false
+	opts.after = opts.before
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", opts.via)
+	snapst, ts := s.testOpSequence(c, opts)
 	// a failed update will always end with current unchanged
-	c.Check(snapst.Current.N, Equals, current)
+	c.Check(snapst.Current.N, Equals, opts.current)
+
+	ops := s.fakeBackend.ops
+	c.Check(ops.Count("copy-data"), Equals, 1)
+	do := ops.First("copy-data")
+
+	c.Check(ops.Count("undo-copy-snap-data"), Equals, 1)
+	undo := ops.First("undo-copy-snap-data")
+
+	do.op = undo.op
+	c.Check(do, DeepEquals, undo) // i.e. they only differed in the op
 
 	return ts
 }
 
-func (s *snapmgrTestSuite) testRevertSequence(c *C, before []int, current, via int) *state.TaskSet {
-	snapst, ts := s.testOpSequence(c, true, before, current, via, before)
+func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	opts.revert = true
+	opts.after = opts.before
+	snapst, ts := s.testOpSequence(c, opts)
 	// successful revert leaves current == via
-	c.Check(snapst.Current.N, Equals, via)
+	c.Check(snapst.Current.N, Equals, opts.via)
 
 	c.Check(s.fakeBackend.ops.Count("copy-data"), Equals, 0)
 
 	return ts
 }
 
-func (s *snapmgrTestSuite) testRevertFailureSequence(c *C, before []int, current, via int) *state.TaskSet {
-	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", via)
-	snapst, ts := s.testOpSequence(c, true, before, current, via, before)
+func (s *snapmgrTestSuite) testRevertFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	opts.revert = true
+	opts.after = opts.before
+	s.fakeBackend.linkSnapFailTrigger = fmt.Sprintf("/snap/some-snap/%d", opts.via)
+	snapst, ts := s.testOpSequence(c, opts)
 	// a failed revert will always end with current unchanged
-	c.Check(snapst.Current.N, Equals, current)
+	c.Check(snapst.Current.N, Equals, opts.current)
+
+	c.Check(s.fakeBackend.ops.Count("copy-data"), Equals, 0)
+	c.Check(s.fakeBackend.ops.Count("undo-copy-snap-data"), Equals, 0)
 
 	return ts
 }
 
 func (s *snapmgrTestSuite) TestSeqNormal(c *C) {
-	s.testUpdateSequence(c, []int{1, 2, 3}, 3, 4, []int{2, 3, 4})
+	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 4, after: []int{2, 3, 4}})
 }
 
 func (s *snapmgrTestSuite) TestSeqNormalFailure(c *C) {
-	s.testUpdateFailureSequence(c, []int{1, 2, 3}, 3, 4)
+	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 4})
 }
 
 func (s *snapmgrTestSuite) TestSeqRevert(c *C) {
-	s.testRevertSequence(c, []int{1, 2, 3}, 3, 2)
+	s.testRevertSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2})
 }
 
 func (s *snapmgrTestSuite) TestSeqRevertFailure(c *C) {
-	s.testRevertFailureSequence(c, []int{1, 2, 3}, 3, 2)
+	s.testRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2})
 }
 
 func (s *snapmgrTestSuite) TestSeqPostRevert(c *C) {
-	s.testUpdateSequence(c, []int{1, 2, 3}, 2, 4, []int{1, 2, 4})
+	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 4, after: []int{1, 2, 4}})
 }
 
 func (s *snapmgrTestSuite) TestSeqPostRevertFailure(c *C) {
-	s.testUpdateFailureSequence(c, []int{1, 2, 3}, 2, 4)
+	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 4})
 }
 
 func (s *snapmgrTestSuite) TestSeqRevertPostRevert(c *C) {
-	s.testRevertSequence(c, []int{1, 2, 3}, 2, 1)
+	s.testRevertSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 1})
 }
 
 func (s *snapmgrTestSuite) TestSeqRevertPostRevertFailure(c *C) {
-	s.testRevertFailureSequence(c, []int{1, 2, 3}, 2, 1)
+	s.testRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 1})
 }
 
 func (s *snapmgrTestSuite) TestSeqMissedOne(c *C) {
-	s.testUpdateSequence(c, []int{1, 2}, 2, 4, []int{1, 2, 4})
+	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2}, current: 2, via: 4, after: []int{1, 2, 4}})
 }
 
 func (s *snapmgrTestSuite) TestSeqMissedOneFailure(c *C) {
-	s.testUpdateFailureSequence(c, []int{1, 2}, 2, 4)
+	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2}, current: 2, via: 4})
 }
 
 func (s *snapmgrTestSuite) TestSeqABA(c *C) {
-	s.testUpdateSequence(c, []int{1, 2, 3}, 3, 2, []int{1, 3, 2})
+	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2, after: []int{1, 3, 2}})
 	c.Check(s.fakeBackend.ops[len(s.fakeBackend.ops)-1], DeepEquals, fakeOp{
 		op:    "cleanup-trash",
 		name:  "some-snap",
@@ -3419,7 +3447,7 @@ func (s *snapmgrTestSuite) TestSeqABA(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestSeqABAFailure(c *C) {
-	s.testUpdateFailureSequence(c, []int{1, 2, 3}, 3, 2)
+	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2})
 	c.Check(s.fakeBackend.ops.First("cleanup-trash"), IsNil)
 }
 
