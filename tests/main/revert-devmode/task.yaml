@@ -30,12 +30,23 @@ execute: |
 
     echo "Then the new version is installed"
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+\+fake1"
+    LATEST=$(readlink /snap/test-snapd-tools/current)
 
-    echo "When a revert is made"
-    snap revert --devmode test-snapd-tools
+    echo "When a revert is made without --devmode flag"
+    snap revert test-snapd-tools
 
     echo "Then the old version is active"
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
 
-    echo "And apparmor profile is in complain mode"
+    echo "And apparmor profile is in enforcing mode"
+    cat /sys/kernel/security/apparmor/profiles|grep test-snapd-tools|grep -q enforce
+
+    echo "When the latest revision is installed again"
+    snap remove --revision=$LATEST test-snapd-tools
+    snap refresh --devmode --edge test-snapd-tools
+
+    echo "And revert is made with --devmode flag"
+    snap revert --devmode test-snapd-tools
+
+    echo "Then apparmor profile is in complain mode"
     cat /sys/kernel/security/apparmor/profiles|grep test-snapd-tools|grep -q complain
