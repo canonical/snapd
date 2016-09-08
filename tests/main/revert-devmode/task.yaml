@@ -32,7 +32,7 @@ execute: |
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+\+fake1"
 
     echo "When a revert is made"
-    snap revert test-snapd-tools
+    snap revert --devmode test-snapd-tools
 
     echo "Then the old version is active"
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
