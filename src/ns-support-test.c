@@ -37,12 +37,23 @@ static void sc_set_ns_dir(const char *dir)
 static const char *sc_test_use_fake_ns_dir()
 {
 	char *ns_dir = NULL;
-	ns_dir = g_dir_make_tmp(NULL, NULL);
-	g_assert_nonnull(ns_dir);
+	if (g_test_subprocess()) {
+		// Check if the environment variable is set. If so then someone is already
+		// managing the temporary directory and we should not create a new one.
+		ns_dir = getenv("SNAP_CONFINE_NS_DIR");
+		g_assert_nonnull(ns_dir);
+	} else {
+		ns_dir = g_dir_make_tmp(NULL, NULL);
+		g_assert_nonnull(ns_dir);
+		g_test_queue_free(ns_dir);
+		g_assert_cmpint(setenv("SNAP_CONFINE_NS_DIR", ns_dir, 0), ==,
+				0);
+		g_test_queue_destroy((GDestroyNotify) unsetenv,
+				     "SNAP_CONFINE_NS_DIR");
+		// TODO: queue something that rm -rf's the directory tree
+	}
 	g_test_queue_destroy((GDestroyNotify) sc_set_ns_dir, SC_NS_DIR);
-	g_test_queue_free(ns_dir);
 	sc_set_ns_dir(ns_dir);
-	// TODO: queue something that rm -rf's the directory tree
 	return ns_dir;
 }
 
