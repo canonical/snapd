@@ -294,6 +294,8 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		die("cannot create eventfd for mount namespace capture");
 	}
 	debug("forking support process for mount namespace capture");
+	// Glibc defines pid as a signed 32bit integer. There's no standard way to
+	// print pid's portably so this is the best we can do.
 	pid_t pid = fork();
 	debug("forked support process has pid %d", (int)pid);
 	if (pid == -1) {
