@@ -99,10 +99,10 @@ static bool sc_is_ns_group_dir_private()
 
 void sc_initialize_ns_groups()
 {
-	int dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	debug("creating namespace group directory %s", sc_ns_dir);
 	mkpath(sc_ns_dir);
 	debug("opening namespace group directory %s", sc_ns_dir);
+	int dir_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	dir_fd = open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (dir_fd < 0) {
 		die("cannot open namespace group directory");
