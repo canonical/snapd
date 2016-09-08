@@ -35,12 +35,8 @@ setup_reflash_magic() {
         
         snap install --edge ubuntu-core
 
-        # install special u-d-f
-        apt install -y bzr git
-        export GOPATH=/tmp/go
-        mkdir -p $GOPATH/src/launchpad.net/
-        ln -s $GOPATH/src/launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/  $GOPATH/src/launchpad.net/goget-ubuntu-touch
-        go get -insecure -u launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/ubuntu-device-flash
+        # install ubuntu-image
+        snap install --devmode --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
@@ -107,14 +103,21 @@ EOF
 
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         IMAGE=all-snap-amd64.img
-        /tmp/go/bin/ubuntu-device-flash core 16 $IMAGE_HOME/pc.model --channel edge --install snapweb --install $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+
+        # ensure that ubuntu-image is using our test-build of snapd with the
+        # test keys and not the bundled version of usr/bin/snap from the snap.
+        # Note that we can not put it into /usr/bin as '/usr' is different
+        # when the snap uses confinement.
+        cp /usr/bin/snap $IMAGE_HOME
+        export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
-        mount /dev/mapper/loop1p3 /mnt
+        mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -avr /home/gopath /mnt/user-data/
+        cp -ar /home/gopath /mnt/user-data/
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
@@ -140,7 +143,7 @@ EOF
 [Unit]
 StartLimitInterval=0
 EOF
-    
+
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
     

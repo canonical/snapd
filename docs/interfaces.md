@@ -307,6 +307,12 @@ Can insert kernel modules. This interface gives privileged access to the device.
 
 * Auto-Connect: no
 
+### libvirt
+
+Can access the libvirt control socket, which gives privileged access to control
+libvirtd on the host. This is commonly used to create and manage QEMU/KVM
+instances on the host.
+
 ### locale-control
 
 Can manage locales directly separate from ``config core``.
