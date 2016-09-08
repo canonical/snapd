@@ -18,12 +18,29 @@ environment:
     SNAP_NAME: test-snapd-thumbnailer-consumer
     PLUG: thumbnailer
     TEST_IMAGE: /snap/${SNAP_NAME}/current/test.png
+    DISPLAY: ":99.0"
 
 prepare: |
+    echo "Install thumbnailer service"
+    apt install -y thumbnailer-service
     echo "Given a snap declaring the $PLUG plug is installed"
     snap install $SNAP_NAME
 
+restore: |
+    apt remove -y thumbnailer-service
+    apt autoremove -y
+    snap remove $SNAP_NAME
+
 execute: |
+    echo "Start D-Bus session bus"
+    DBUS_SESSION_BUS_ADDRESS=$(dbus-daemon --print-address --session --fork)
+    MACHINE_ID=$(LANGUAGE=C hostnamectl|grep 'Machine ID:'| sed 's/^.*: //')
+    XDISPLAY=$(echo $DISPLAY|sed 's/^.*:\([0-9]\+\)\(\.[0-9]\+\)*$/\1/')
+    DBUS_SESSION_FOLDER=/var/snap/test-snapd-thumbnailer-consumer/current/.dbus/session-bus
+    DBUS_SESSION_FILE="$DBUS_SESSION_FOLDER/$MACHINE_ID-$XDISPLAY"
+    mkdir -p $DBUS_SESSION_FOLDER
+    echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" > $DBUS_SESSION_FILE
+
     CONNECTED_PATTERN="(?s)Slot +Plug\n\
     .*?\n\
     :$PLUG +$SNAP_NAME"
