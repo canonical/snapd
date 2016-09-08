@@ -73,7 +73,29 @@ static const char *sc_ns_dir = SC_NS_DIR;
 // That is, it cannot be shared with any other peer as defined by kernel
 // documentation listed here:
 // https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
-static bool sc_is_ns_group_dir_private();
+static bool sc_is_ns_group_dir_private()
+{
+	struct mountinfo *info
+	    __attribute__ ((cleanup(cleanup_mountinfo))) = NULL;
+	info = parse_mountinfo(NULL);
+	if (info == NULL) {
+		die("cannot parse /proc/self/mountinfo");
+	}
+	struct mountinfo_entry *entry = first_mountinfo_entry(info);
+	while (entry != NULL) {
+		const char *mount_dir = mountinfo_entry_mount_dir(entry);
+		const char *optional_fields =
+		    mountinfo_entry_optional_fields(entry);
+		if (strcmp(mount_dir, sc_ns_dir) == 0
+		    && strcmp(optional_fields, "") == 0) {
+			// If /run/snapd/ns has no optional fields, we know it is mounted
+			// private and there is nothing else to do.
+			return true;
+		}
+		entry = next_mountinfo_entry(entry);
+	}
+	return false;
+}
 
 void sc_initialize_ns_groups()
 {
@@ -117,30 +139,6 @@ void sc_initialize_ns_groups()
 	if (flock(lock_fd, LOCK_UN) < 0) {
 		die("cannot release lock for namespace control directory");
 	}
-}
-
-static bool sc_is_ns_group_dir_private()
-{
-	struct mountinfo *info
-	    __attribute__ ((cleanup(cleanup_mountinfo))) = NULL;
-	info = parse_mountinfo(NULL);
-	if (info == NULL) {
-		die("cannot parse /proc/self/mountinfo");
-	}
-	struct mountinfo_entry *entry = first_mountinfo_entry(info);
-	while (entry != NULL) {
-		const char *mount_dir = mountinfo_entry_mount_dir(entry);
-		const char *optional_fields =
-		    mountinfo_entry_optional_fields(entry);
-		if (strcmp(mount_dir, sc_ns_dir) == 0
-		    && strcmp(optional_fields, "") == 0) {
-			// If /run/snapd/ns has no optional fields, we know it is mounted
-			// private and there is nothing else to do.
-			return true;
-		}
-		entry = next_mountinfo_entry(entry);
-	}
-	return false;
 }
 
 struct sc_ns_group {
