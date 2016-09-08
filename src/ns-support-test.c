@@ -134,55 +134,54 @@ static void test_sc_lock_unlock_ns_mutex()
 
 static void unmount_dir(void *dir)
 {
-    umount(dir);
+	umount(dir);
 }
 
 static void test_sc_is_ns_group_dir_private()
 {
-    if (geteuid() != 0) {
-        g_test_skip("this test needs to run as root");
-        return;
-    }
+	if (geteuid() != 0) {
+		g_test_skip("this test needs to run as root");
+		return;
+	}
 	const char *ns_dir = sc_test_use_fake_ns_dir();
-    g_test_queue_destroy(unmount_dir, (char *)ns_dir);
+	g_test_queue_destroy(unmount_dir, (char *)ns_dir);
 
-    // The temporary directory should not be private initially
-    g_assert_false(sc_is_ns_group_dir_private());
+	// The temporary directory should not be private initially
+	g_assert_false(sc_is_ns_group_dir_private());
 
-    /// do what "mount --bind /foo /foo; mount --make-private /foo" does.
-    int err;
-    err = mount(ns_dir, ns_dir, NULL, MS_BIND, NULL);
-    g_assert_cmpint(err, ==, 0);
-    err = mount(NULL, ns_dir, NULL, MS_PRIVATE, NULL);
-    g_assert_cmpint(err, ==, 0);
+	/// do what "mount --bind /foo /foo; mount --make-private /foo" does.
+	int err;
+	err = mount(ns_dir, ns_dir, NULL, MS_BIND, NULL);
+	g_assert_cmpint(err, ==, 0);
+	err = mount(NULL, ns_dir, NULL, MS_PRIVATE, NULL);
+	g_assert_cmpint(err, ==, 0);
 
-    // The temporary directory should now be private
-    g_assert_true(sc_is_ns_group_dir_private());
+	// The temporary directory should now be private
+	g_assert_true(sc_is_ns_group_dir_private());
 }
-
 
 static void test_sc_initialize_ns_groups()
 {
-    if (geteuid() != 0) {
-        g_test_skip("this test needs to run as root");
-        return;
-    }
+	if (geteuid() != 0) {
+		g_test_skip("this test needs to run as root");
+		return;
+	}
 	const char *ns_dir = sc_test_use_fake_ns_dir();
-    g_test_queue_destroy(unmount_dir, (char *)ns_dir);
+	g_test_queue_destroy(unmount_dir, (char *)ns_dir);
 
-    // Initialize namespace groups using a fake directory.
-    sc_initialize_ns_groups();
+	// Initialize namespace groups using a fake directory.
+	sc_initialize_ns_groups();
 
-    // Check that the lock file did not leak unclosed.
+	// Check that the lock file did not leak unclosed.
 
 	// Construct the name of the lock file
 	char *lock_file __attribute__ ((cleanup(sc_cleanup_string))) = NULL;
-    lock_file = g_strdup_printf("%s/%s", ns_dir, SC_NS_LOCK_FILE);
-    // Attempt to open and lock the lock file.
+	lock_file = g_strdup_printf("%s/%s", ns_dir, SC_NS_LOCK_FILE);
+	// Attempt to open and lock the lock file.
 	int lock_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
 	lock_fd = open(lock_file, O_RDWR | O_CLOEXEC | O_NOFOLLOW);
 	g_assert_cmpint(lock_fd, !=, -1);
-    // The non-blocking lock operation should not fail
+	// The non-blocking lock operation should not fail
 	int err = flock(lock_fd, LOCK_EX | LOCK_NB);
 	g_assert_cmpint(err, ==, 0);
 }
