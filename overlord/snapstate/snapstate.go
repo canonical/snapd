@@ -158,7 +158,9 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			prev = tasks[len(tasks)-1]
 		}
 
-		// discard the first As in A-...-A refreshes
+		// make sure we're not scheduling the removal of the target
+		// revision in the case where the target revision is already in
+		// the sequence.
 		for i := 0; i < currentIndex; i++ {
 			si := seq[i]
 			if si.Revision == ss.Revision() {
@@ -166,7 +168,6 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 				copy(seq[i:], seq[i+1:])
 				seq = seq[:len(seq)-1]
 				currentIndex--
-				break
 			}
 		}
 
