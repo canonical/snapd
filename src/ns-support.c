@@ -68,11 +68,13 @@ static const char *sc_ns_dir = SC_NS_DIR;
  **/
 #define SC_NS_MNT_FILE ".mnt"
 
-// Read /proc/self/mountinfo and check if /run/snapd/ns is a private bind mount.
-//
-// That is, it cannot be shared with any other peer as defined by kernel
-// documentation listed here:
-// https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
+
+/**
+ * Read /proc/self/mountinfo and check if /run/snapd/ns is a private bind mount.
+ *
+ * We do this because /run/snapd/ns cannot be shared with any other peers as per:
+ * https://www.kernel.org/doc/Documentation/filesystems/sharedsubtree.txt
+ **/
 static bool sc_is_ns_group_dir_private()
 {
 	struct mountinfo *info
