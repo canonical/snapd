@@ -48,7 +48,8 @@ func init() {
 
 func (x *cmdGet) Execute(args []string) error {
 	if len(args) > 0 {
-		return fmt.Errorf("too many arguments: %s", strings.Join(args, " "))
+		// TRANSLATORS: the %s is the list of extra arguments
+		return fmt.Errorf(i18n.G("too many arguments: %s"), strings.Join(args, " "))
 	}
 
 	return getConf(x.Positional.Snap, x.Positional.Keys, x.Document)
