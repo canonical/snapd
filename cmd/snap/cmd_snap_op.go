@@ -535,6 +535,7 @@ func (x *cmdDisable) Execute([]string) error {
 }
 
 type cmdRevert struct {
+	modeMixin
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -555,9 +556,14 @@ func (x *cmdRevert) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	if err := x.validateMode(); err != nil {
+		return err
+	}
+
 	cli := Client()
 	name := x.Positional.Snap
-	changeID, err := cli.Revert(name, nil)
+	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode}
+	changeID, err := cli.Revert(name, opts)
 	if err != nil {
 		return err
 	}
@@ -586,7 +592,5 @@ func init() {
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} })
 	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} })
-	// FIXME: make visible once everything has landed for revert
-	cmd := addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
-	cmd.hidden = true
+	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
 }
