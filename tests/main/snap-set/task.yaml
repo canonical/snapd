@@ -1,9 +1,17 @@
-summary: Check that `snap run` can actually run hooks
+summary: Check that `snap set` runs apply-config hook.
 
 prepare: |
-    echo "Build test hooks package"
+    echo "Build basic test package (without hooks)"
+    snapbuild $TESTSLIB/snaps/basic .
+    snap install --dangerous basic_1.0_all.snap
+
+    echo "Build basic hooks package"
     snapbuild $TESTSLIB/snaps/basic-hooks .
     snap install --dangerous basic-hooks_1.0_all.snap
+
+    echo "Build failing hooks package"
+    snapbuild $TESTSLIB/snaps/failing-config-hooks .
+    snap install --dangerous failing-config-hooks_1.0_all.snap
 
     # We want to use the in-tree snap-exec, not the one in the core snap. To
     # accomplish that, we'll just unpack the core we just grabbed, shove the new
@@ -33,7 +41,9 @@ prepare: |
     fi
 
 restore: |
+    rm basic_1.0_all.snap
     rm basic-hooks_1.0_all.snap
+    rm failing-config-hooks_1.0_all.snap
 
     # Unmount the modified core snap, and put the old one back in place
     systemctl stop snapd.service
@@ -45,42 +55,20 @@ restore: |
     systemctl start snapd.service
 
 execute: |
-    # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
-    # check the output instead.
-
-    echo "Test that snap run can call valid hooks"
-
-    if ! output="$(snap run --hook=apply-config basic-hooks)"; then
-        echo "Failed to run apply-config hook"
+    echo "Test that snap set executes successfully without apply-config hook"
+    if ! snap set basic foo=bar; then
+        echo "Expected snap set to succeed, even when apply-config hook is missing"
         exit 1
     fi
 
-    expected_output="apply-config hook"
-    if [ "$output" != "$expected_output" ]; then
-        echo "Expected apply-config output to be '$expected_output', but it was '$output'"
+    echo "Test that snap set executes successfully with apply-config hook"
+    if ! snap set basic-hooks foo=bar; then
+        echo "Expected snap set to succeed when apply-config hook exits successfully"
         exit 1
     fi
 
-    if ! output="$(snap run --hook=check-config basic-hooks)"; then
-        echo "Failed to run check-config hook"
-        exit 1
-    fi
-
-    expected_output="check-config hook"
-    if [ "$output" != "$expected_output" ]; then
-        echo "Expected check-config output to be '$expected_output', but it was '$output'"
-        exit 1
-    fi
-
-    echo "Test that snap run cannot call invalid hooks"
-
-    if ! output="$(snap run --hook=invalid-hook basic-hooks)"; then
-        echo "Expected snap run to exit successfully upon missing hook"
-        exit 1
-    fi
-
-    expected_output=""
-    if [ "$output" != "$expected_output" ]; then
-        echo "Expected invalid-hook output to be '$expected_output', but it was '$output'"
+    echo "Test that snap set fails when apply-config hook fails"
+    if snap set failing-config-hooks foo=bar; then
+        echo "Expected snap set to fail when apply-config hook fails"
         exit 1
     fi
