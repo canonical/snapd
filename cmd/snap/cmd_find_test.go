@@ -28,7 +28,15 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
-const findJson = `
+func (s *SnapSuite) TestFindNothingFails(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("it reached the server")
+	})
+	_, err := snap.Parser().ParseArgs([]string{"find"})
+	c.Assert(err, check.ErrorMatches, `you need to specify a query. For example.*`)
+}
+
+const findJSON = `
 {
   "type": "sync",
   "status-code": 200,
@@ -100,14 +108,14 @@ func (s *SnapSuite) TestFind(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, findJson)
+			fmt.Fprintln(w, findJSON)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find"})
+	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
@@ -118,7 +126,7 @@ hello-huge +1.0 +noise +- +a really big snap
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-const findHelloJson = `
+const findHelloJSON = `
 {
   "type": "sync",
   "status-code": 200,
@@ -175,7 +183,7 @@ func (s *SnapSuite) TestFindHello(c *check.C) {
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			q := r.URL.Query()
 			c.Check(q.Get("q"), check.Equals, "hello")
-			fmt.Fprintln(w, findHelloJson)
+			fmt.Fprintln(w, findHelloJSON)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -192,7 +200,7 @@ hello-huge +1.0 +noise +- +a really big snap
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-const findPricedJson = `
+const findPricedJSON = `
 {
   "type": "sync",
   "status-code": 200,
@@ -231,14 +239,14 @@ func (s *SnapSuite) TestFindPriced(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, findPricedJson)
+			fmt.Fprintln(w, findPricedJSON)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find"})
+	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
@@ -247,7 +255,7 @@ hello +2.10 +canonical +1.99GBP +GNU Hello, the "hello world" snap
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-const findPricedAndBoughtJson = `
+const findPricedAndBoughtJSON = `
 {
   "type": "sync",
   "status-code": 200,
@@ -286,14 +294,14 @@ func (s *SnapSuite) TestFindPricedAndBought(c *check.C) {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
-			fmt.Fprintln(w, findPricedAndBoughtJson)
+			fmt.Fprintln(w, findPricedAndBoughtJSON)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
 
 		n++
 	})
-	rest, err := snap.Parser().ParseArgs([]string{"find"})
+	rest, err := snap.Parser().ParseArgs([]string{"find", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Matches, `Name +Version +Developer +Notes +Summary
