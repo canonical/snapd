@@ -12,6 +12,11 @@ export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
+ifeq ($(RELEASE),trusty)
+	# make sure that trusty's golang-1.6 is picked up correctly.
+	export PATH:=/usr/lib/go-1.6/bin:${PATH}
+endif
+
 # We are relying on a deputy systemd setup for trusty,
 # in which systemd does not run as PID 1. To solve the
 # problem of services shipping systemd units and upstart jobs
