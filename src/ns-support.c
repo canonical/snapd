@@ -236,6 +236,16 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 	must_snprintf(mnt_fname, sizeof mnt_fname, "%s%s", group->name,
 		      SC_NS_MNT_FILE);
 	int mnt_fd __attribute__ ((cleanup(sc_cleanup_close))) = -1;
+	// NOTE: There is no O_EXCL here because the file can be around but
+	// doesn't have to be a mounted namespace.
+	//
+	// If the mounted namespace is discarded with
+	// sc_discard_preserved_ns_group() it will revert to a regular file.  If
+	// snap-confine is killed for whatever reason after the file is created but
+	// before the file is bind-mounted it will also be a regular file.
+	//
+	// The code below handles this by trying to join the namespace with setns()
+	// and handling both the successful and the unsuccessful paths.
 	mnt_fd =
 	    openat(group->dir_fd, mnt_fname,
 		   O_CREAT | O_RDONLY | O_CLOEXEC | O_NOFOLLOW, 0600);
