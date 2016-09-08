@@ -38,8 +38,8 @@ execute: |
     echo "Then the old version is active"
     snap list | grep -Pq "test-snapd-tools +\d+\.\d+ "
 
-    echo "And the snap uses jailmode"
-    snap list|grep test-snapd-tools|grep -q jailmode
+    echo "And the snap runs confined"
+    snap list|grep test-snapd-tools|grep -q "-"
 
     echo "When the latest revision is installed again"
     snap remove --revision=$LATEST test-snapd-tools
