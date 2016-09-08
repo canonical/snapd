@@ -1320,6 +1320,20 @@ func (s *apiSuite) TestPostSnapDispatch(c *check.C) {
 	}
 }
 
+func (s *apiSuite) TestPostSnapEnableDisableRevision(c *check.C) {
+	for _, action := range []string{"enable", "disable"} {
+		buf := bytes.NewBufferString(`{"action": "` + action + `", "revision": "42"}`)
+		req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
+		c.Assert(err, check.IsNil)
+
+		rsp := postSnap(snapCmd, req, nil).(*resp)
+
+		c.Check(rsp.Type, check.Equals, ResponseTypeError)
+		c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+		c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "takes no revision")
+	}
+}
+
 var sideLoadBodyWithoutDevMode = "" +
 	"----hello--\r\n" +
 	"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +

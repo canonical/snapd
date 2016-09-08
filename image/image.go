@@ -347,6 +347,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 			SnapID:  info.SnapID, // cross-ref
 			Channel: info.Channel,
 			File:    filepath.Base(fn),
+			DevMode: info.NeedsDevMode(),
 			// no assertions for this snap were put in the seed
 			Unasserted: info.SnapID == "",
 		})
