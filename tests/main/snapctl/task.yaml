@@ -74,6 +74,7 @@ execute: |
 
     if ! curl -s --unix-socket /run/snapd.socket http:/v2/snaps | grep status-code\":\s*200; then
         echo "Expected snapd API to be available on the snapd socket"
+        echo "Got: $(curl -s --unix-socket /run/snapd.socket http:/v2/snaps)"
         exit 1
     fi
 
