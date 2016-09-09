@@ -31,10 +31,12 @@ import (
 )
 
 type SnapKeysSuite struct {
+	GnupgCmd string
+
 	BaseSnapSuite
 }
 
-var _ = Suite(&SnapKeysSuite{})
+var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg"})
 
 func (s *SnapKeysSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
@@ -47,10 +49,12 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 		c.Assert(err, IsNil)
 	}
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
+	os.Setenv("SNAP_GNUPG_CMD", s.GnupgCmd)
 }
 
 func (s *SnapKeysSuite) TearDownTest(c *C) {
 	os.Unsetenv("SNAP_GNUPG_HOME")
+	os.Unsetenv("SNAP_GNUPG_CMD")
 	s.BaseSnapSuite.TearDownTest(c)
 }
 
