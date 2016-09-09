@@ -63,7 +63,7 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 		return err
 	}
 
-	w, err := os.Create(snapPath+".assertions")
+	w, err := os.Create(snapPath + ".assertions")
 	if err != nil {
 		return fmt.Errorf("cannot create assertions file: %v", err)
 	}
