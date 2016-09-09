@@ -18,6 +18,7 @@
 #include "config.h"
 #include "mount-support-nvidia.h"
 
+#include <errno.h>
 #include <fcntl.h>
 #include <glob.h>
 #include <stdlib.h>
@@ -27,8 +28,9 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "utils.h"
+#include "classic.h"
 #include "cleanup-funcs.h"
+#include "utils.h"
 
 #ifdef NVIDIA_ARCH
 
@@ -187,39 +189,56 @@ static void sc_mount_nvidia_driver_arch(const char *rootfs_dir)
 #endif				// ifdef NVIDIA_ARCH
 
 #ifdef NVIDIA_UBUNTU
+
+struct sc_nvidia_driver {
+	int major_version;
+	int minor_version;
+};
+
+#define SC_NVIDIA_DRIVER_VERSION_FILE "/sys/module/nvidia/version"
+#define SC_LIBGL_DIR "/var/lib/snapd/lib/gl"
+
+static void sc_probe_nvidia_driver(struct sc_nvidia_driver *driver)
+{
+	FILE *file __attribute__ ((cleanup(sc_cleanup_file))) = NULL;
+	debug("opening file describing nvidia driver version");
+	file = fopen(SC_NVIDIA_DRIVER_VERSION_FILE, "rt");
+	if (file == NULL) {
+		if (errno == ENOENT) {
+			debug("nvidia driver version file doesn't exist");
+			driver->major_version = 0;
+			driver->minor_version = 0;
+			return;
+		}
+		die("cannot open file describing nvidia driver version");
+	}
+	// Driver version format is MAJOR.MINOR where both MAJOR and MINOR are
+	// integers. We can use sscanf to parse this data.
+	if (fscanf
+	    (file, "%d.%d", &driver->major_version,
+	     &driver->minor_version) != 2) {
+		die("cannot parse nvidia driver version string");
+	}
+	debug("parsed nvidia driver version: %d.%d", driver->major_version,
+	      driver->minor_version);
+}
+
 static void sc_mount_nvidia_driver_ubuntu(const char *rootfs_dir)
 {
-	// The driver can be in one of a few locations. On some distributions
-	// it is /usr/lib/nvidia-{xxx} (where xxx is the version number)
-	// on other distributions it is just /usr/lib/nvidia.
-	// Before this is all made easy by snapd and the mount security backend
-	// we just look in all the possible places.
-	const char *glob_pattern = "/usr/lib/nvidia-[1-9][0-9][0-9]";
-	glob_t glob_res __attribute__ ((__cleanup__(globfree))) = {
-	.gl_pathv = NULL};
-	int err = glob(glob_pattern, GLOB_ONLYDIR | GLOB_MARK, NULL, &glob_res);
-	debug("glob(%s, ...) returned %d", glob_pattern, err);
-	switch (glob_res.gl_pathc) {
-	case 0:
-		debug("cannot find any nvidia drivers");
-		break;
-	case 1:;
+	struct sc_nvidia_driver driver;
+	sc_probe_nvidia_driver(&driver);
+	if (driver.major_version != 0) {
 		// Bind mount the binary nvidia driver into /var/lib/snapd/lib/gl.
-		const char *src = glob_res.gl_pathv[0];
-		char buf[512];
-		must_snprintf(buf, sizeof(buf), "%s%s", rootfs_dir,
-			      "/var/lib/snapd/lib/gl");
-		const char *dst = buf;
-
+		char src[PATH_MAX], dst[PATH_MAX];
+		must_snprintf(src, sizeof src, "/usr/lib/nvidia-%d",
+			      driver.major_version);
+		must_snprintf(dst, sizeof dst, "%s%s", rootfs_dir,
+			      SC_LIBGL_DIR);
 		debug("bind mounting nvidia driver %s -> %s", src, dst);
 		if (mount(src, dst, NULL, MS_BIND, NULL) != 0) {
-			die("cannot bind mount nvidia driver %s -> %s",
-			    src, dst);
+			die("cannot bind mount nvidia driver %s -> %s", src,
+			    dst);
 		}
-		break;
-	default:
-		die("multiple nvidia drivers detected, this is not supported");
-		break;
 	}
 }
 #endif				// ifdef NVIDIA_UBUNTU
