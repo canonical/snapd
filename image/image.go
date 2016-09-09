@@ -189,24 +189,13 @@ type addingFetcher struct {
 	addedRefs []*asserts.Ref
 }
 
-func makeFetcher(sto Store, db *asserts.Database) *addingFetcher {
+func makeFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database) *addingFetcher {
 	var f addingFetcher
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
-	}
 	save := func(a asserts.Assertion) error {
-		// for checking
-		err := db.Add(a)
-		if err != nil {
-			if _, ok := err.(*asserts.RevisionError); ok {
-				return nil
-			}
-			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
-		}
 		f.addedRefs = append(f.addedRefs, a.Ref())
 		return nil
 	}
-	f.Fetcher = asserts.NewFetcher(db, retrieve, save)
+	f.Fetcher = StoreAssertionFetcher(sto, dlOpts, db, save)
 	return &f
 
 }
@@ -235,7 +224,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	if err != nil {
 		return err
 	}
-	f := makeFetcher(sto, db)
+	f := makeFetcher(sto, &DownloadOptions{}, db)
 
 	if err := f.Save(model); err != nil {
 		if os.Getenv("UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_MODEL") == "" {
