@@ -147,7 +147,7 @@ func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 // Walk iterates over all the RSA private keys in the local GPG setup calling the provided callback until this returns an error
 func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string, uid string) error) error {
 	// see GPG source doc/DETAILS
-	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
+	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons", "--fixed-list-mode")
 	if err != nil {
 		return err
 	}
@@ -161,6 +161,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 	}
 	lines = lines[:n]
 	for j := 0; j < n; j++ {
+		// sec: line
 		line := lines[j]
 		if !strings.HasPrefix(line, "sec:") {
 			continue
@@ -177,6 +178,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		if len(secFields) >= 10 {
 			uid = secFields[9]
 		}
+		// fpr: line
 		if j+1 >= n || !strings.HasPrefix(lines[j+1], "fpr:") {
 			continue
 		}
@@ -192,6 +194,13 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		if err != nil {
 			return err
 		}
+		// uid: line
+		if j+2 >= n || !strings.HasPrefix(lines[j+2], "uid:") {
+			continue
+		}
+		uidFields := strings.Split(lines[j+2], ":")
+		uid = uidFields[9]
+		// collected it all
 		err = consider(privKey, fpr, uid)
 		if err != nil {
 			return err
