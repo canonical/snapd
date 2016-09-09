@@ -17,3 +17,23 @@
 
 #include "cleanup-funcs.h"
 #include "cleanup-funcs.c"
+
+#include <glib.h>
+
+// Test that cleanup functions are applied as expected
+static void test_cleanup_sanity()
+{
+	int called = 0;
+	void fn(int *ptr) {
+		called = 1;
+	}
+	{
+		int test __attribute__ ((cleanup(fn)));
+	}
+	g_assert_cmpint(called, ==, 1);
+}
+
+static void __attribute__ ((constructor)) init()
+{
+	g_test_add_func("/cleanup/sanity", test_cleanup_sanity);
+}
