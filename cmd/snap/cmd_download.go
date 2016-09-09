@@ -20,11 +20,15 @@
 package main
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -36,6 +40,8 @@ import (
 type cmdDownload struct {
 	channelMixin
 	Revision string `long:"revision" description:"Download the given revision of a snap, to which you must have developer access"`
+
+	Assertion bool `long:"assertion" description:"Download the given assertion"`
 
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>" description:"snap name"`
@@ -53,6 +59,31 @@ func init() {
 	})
 }
 
+func makeStore() *store.Store {
+	// FIXME: set auth context
+	var authContext auth.AuthContext
+
+	return store.New(nil, authContext)
+}
+
+func (x *cmdDownload) downloadAssertion() error {
+	var user *auth.UserState
+
+	sto := makeStore()
+	l := strings.Split(x.Positional.Snap, "/")
+	as, err := sto.Assertion(asserts.Type(l[0]), l[1:], user)
+	if err != nil {
+		return err
+	}
+	fn := strings.Replace(x.Positional.Snap, "/", "_", -1) + ".assertion"
+	if err := ioutil.WriteFile(fn, asserts.Encode(as), 0644); err != nil {
+		return err
+	}
+	fmt.Printf("assertion saved as %q\n", fn)
+
+	return nil
+}
+
 func (x *cmdDownload) Execute(args []string) error {
 	if err := x.setChannelFromCommandline(); err != nil {
 		return err
@@ -60,6 +91,10 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.Assertion {
+		return x.downloadAssertion()
 	}
 
 	var revision snap.Revision
@@ -75,11 +110,8 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	snapName := x.Positional.Snap
 
-	// FIXME: set auth context
-	var authContext auth.AuthContext
 	var user *auth.UserState
-
-	sto := store.New(nil, authContext)
+	sto := makeStore()
 	// we always allow devmode
 	devMode := true
 	snap, err := sto.Snap(snapName, x.Channel, devMode, revision, user)
