@@ -20,15 +20,16 @@
 package main
 
 import (
+	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
@@ -51,6 +52,30 @@ func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
 		return &cmdDownload{}
 	})
+}
+
+func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info, dlOpts *image.DownloadOptions) error {
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   sysdb.Trusted(),
+	})
+	if err != nil {
+		return err
+	}
+
+	w, err := os.Create(snapPath + ".assertions")
+	if err != nil {
+		return fmt.Errorf("cannot create assertions file: %v", err)
+	}
+	defer w.Close()
+
+	encoder := asserts.NewEncoder(w)
+	save := func(a asserts.Assertion) error {
+		return encoder.Encode(a)
+	}
+	f := image.StoreAssertionFetcher(sto, dlOpts, db, save)
+
+	return image.FetchSnapAssertions(snapPath, snapInfo, f, db)
 }
 
 func (x *cmdDownload) Execute(args []string) error {
@@ -80,19 +105,27 @@ func (x *cmdDownload) Execute(args []string) error {
 	var user *auth.UserState
 
 	sto := store.New(nil, authContext)
-	// we always allow devmode
+	// we always allow devmode for downloads
 	devMode := true
-	snap, err := sto.Snap(snapName, x.Channel, devMode, revision, user)
-	if err != nil {
-		return err
-	}
-	pb := progress.NewTextProgress()
-	tmpName, err := sto.Download(snapName, &snap.DownloadInfo, pb, user)
-	if err != nil {
-		return err
-	}
-	defer os.Remove(tmpName)
 
-	targetPath := filepath.Base(snap.MountFile())
-	return osutil.CopyFile(tmpName, targetPath, 0)
+	dlOpts := image.DownloadOptions{
+		TargetDir: "", // cwd
+		DevMode:   devMode,
+		Channel:   x.Channel,
+		User:      user,
+	}
+
+	fmt.Fprintf(Stderr, "Fetching snap %s\n", snapName)
+	snapPath, snapInfo, err := image.DownloadSnap(sto, snapName, revision, &dlOpts)
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(Stderr, "Fetching assertions for %s\n", snapName)
+	err = fetchSnapAssertions(sto, snapPath, snapInfo, &dlOpts)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
