@@ -165,7 +165,6 @@ func (s *deviceMgrSuite) settle() {
 func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 	var mu sync.Mutex
 	count := 0
-	withBody := false
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/identity/api/v1/request-id":
@@ -173,7 +172,6 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, reqID))
 
 		case "/identity/api/v1/serial":
-			withBody = true
 			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
 			fallthrough
 		case "/identity/api/v1/devices":
