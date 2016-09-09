@@ -27,8 +27,8 @@ import (
 
 type cmdConnect struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<slot>" required:"true"`
+		Offer SnapAndName `required:"true"`
+		Use   SnapAndName `required:"true"`
 	} `positional-args:"true" required:"true"`
 }
 
@@ -58,6 +58,9 @@ proceeds as above.
 func init() {
 	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
 		return &cmdConnect{}
+	}, nil, [][2]string{
+		{i18n.G("<snap>:<plug>"), ""},
+		{i18n.G("<snap>:<slot>"), ""},
 	})
 }
 

@@ -29,7 +29,7 @@ import (
 
 type cmdAck struct {
 	AckOptions struct {
-		AssertionFile string `positional-arg-name:"<assertion file>" description:"assertion file"`
+		AssertionFile string
 	} `positional-args:"true" required:"true"`
 }
 
@@ -48,7 +48,7 @@ database.
 func init() {
 	addCommand("ack", shortAckHelp, longAckHelp, func() flags.Commander {
 		return &cmdAck{}
-	})
+	}, nil, [][2]string{{i18n.G("<assertion file>"), i18n.G("assertion file")}})
 }
 
 func (x *cmdAck) Execute(args []string) error {

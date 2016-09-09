@@ -35,13 +35,13 @@ var longSignHelp = i18n.G(`Sign an assertion using the specified key, using the 
 `)
 
 type cmdSign struct {
-	KeyName string `short:"k" description:"name of the key to use, otherwise use the default key" default:"default"`
+	KeyName string `short:"k" default:"default"`
 }
 
 func init() {
 	cmd := addCommand("sign", shortSignHelp, longSignHelp, func() flags.Commander {
 		return &cmdSign{}
-	})
+	}, map[string]string{"k": i18n.G("name of the key to use, otherwise use the default key")}, nil)
 	cmd.hidden = true
 }
 

@@ -28,7 +28,7 @@ import (
 
 type cmdDeleteKey struct {
 	Positional struct {
-		KeyName string `positional-arg-name:"<key-name>" description:"name of key to delete"`
+		KeyName string
 	} `positional-args:"true" required:"true"`
 }
 
@@ -38,7 +38,7 @@ func init() {
 		i18n.G("Delete the local cryptographic key pair with the given name."),
 		func() flags.Commander {
 			return &cmdDeleteKey{}
-		})
+		}, nil, [][2]string{{i18n.G("<key-name>"), i18n.G("name of key to delete")}})
 	cmd.hidden = true
 }
 

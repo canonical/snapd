@@ -31,8 +31,8 @@ import (
 
 type cmdKnown struct {
 	KnownOptions struct {
-		AssertTypeName string   `positional-arg-name:"<assertion type>" description:"assertion type name" required:"true"`
-		HeaderFilters  []string `positional-arg-name:"<header filters>" description:"header=value" required:"0"`
+		AssertTypeName string   `required:"true"`
+		HeaderFilters  []string `required:"0"`
 	} `positional-args:"true" required:"true"`
 }
 
@@ -46,6 +46,9 @@ shown must also have the specified headers matching the provided values.
 func init() {
 	addCommand("known", shortKnownHelp, longKnownHelp, func() flags.Commander {
 		return &cmdKnown{}
+	}, nil, [][2]string{
+		{i18n.G("<assertion type>"), i18n.G("assertion type name")},
+		{i18n.G("<header filters>"), i18n.G("header=value")},
 	})
 }
 

@@ -36,13 +36,16 @@ accepts a number of key=value pairs of parameters.`)
 
 type cmdSet struct {
 	Positional struct {
-		Snap       string   `positional-arg-name:"<snap name>" description:"the snap to configure (e.g. hello-world)"`
-		ConfValues []string `positional-arg-name:"<conf value>" description:"configuration value (key=value)" required:"1"`
+		Snap       string
+		ConfValues []string `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} })
+	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, nil, [][2]string{
+		{i18n.G("<snap name>"), i18n.G("the snap to configure (e.g. hello-world)")},
+		{i18n.G("<conf value>"), i18n.G("configuration value (key=value)")},
+	})
 }
 
 func (x *cmdSet) Execute(args []string) error {
