@@ -236,7 +236,7 @@ func run() error {
 			}
 
 			// TRANSLATORS: %s will be a message along the lines of "login required"
-			return fmt.Errorf(i18n.G(`%s (try with sudo)`), i18n.G(e.Message))
+			return fmt.Errorf(i18n.G(`%s (try with sudo)`), e.Message)
 		}
 	}
 
