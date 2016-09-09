@@ -7,6 +7,11 @@ restore: |
     rm data-writer_1.0_all.snap
 
 execute: |
+    wait_for_service(){
+        local service_name=$1
+        local state=$2
+        while ! systemctl show -p ActiveState $service_name | grep -q "ActiveState=$state"; do sleep 1; done
+    }
     snap install --dangerous data-writer_1.0_all.snap
 
     echo "Apps can write to writable areas"
@@ -20,19 +25,7 @@ execute: |
 
     echo "Waiting for data writer service to finish..."
     unit="snap.data-writer.service.service"
-    while true; do
-        code=$(systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
-        # The main code will be 0 until the service is no longer running
-        if [ $code -ne 0 ]; then
-            status=$(systemctl show -p ExecMainStatus $unit | sed 's/.*=\([0-9]\+\)/\1/')
-            if [ $status -ne 0 ]; then
-                echo "Service exited $status"
-                exit 1
-            fi
-            break
-        fi
-        sleep 0.1
-    done
+    wait_for_service $unit inactive
 
     echo "Services can write to writable areas"
     [ -f /var/snap/data-writer/x1/from-service ]
