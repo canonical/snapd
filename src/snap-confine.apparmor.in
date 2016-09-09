@@ -141,6 +141,7 @@
 
     # nvidia handling, glob needs /usr/** and the launcher must be
     # able to bind mount the nvidia dir
+    /sys/module/nvidia/version r,
     /usr/** r,
     mount options=(rw bind) /usr/lib/nvidia-*/ -> /{tmp/snap.rootfs_*/,}var/lib/snapd/lib/gl/,
 
