@@ -809,8 +809,13 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
+	}
+
 	// TODO: bail if revision is given (and != current), or revert to that revision?
-	ts, err := snapstate.Revert(st, inst.Snaps[0])
+	ts, err := snapstate.Revert(st, inst.Snaps[0], flags)
 	if err != nil {
 		return "", nil, err
 	}
