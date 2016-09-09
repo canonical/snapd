@@ -212,3 +212,76 @@ $ snap remove bluez
           Vendor Specific data: 0000
           TPM Version:         01010000
           Manufacturer Info:   57454300
+
+# Test upower-observe interface with upower
+
+1. Create a upower snap:
+
+    name: test-upower-observe
+    version: 0
+    summary: Test upower-observe interface
+    description: |
+     Test upower-observe interface on classic
+    architectures:
+    - amd64
+    confinement: strict
+
+    apps:
+      test-upower-observe:
+        command: usr/bin/upower
+        plugs: [ upower-observe ]
+
+    parts:
+      mypackages:
+        plugin: nil
+        stage-packages:
+        - upower
+
+2. Install the snap:
+
+    $ sudo snap install ./test-upower-observe_0_amd64.snap
+
+3. Dump upower information
+
+    $ test-upower-observe -h
+    Usage:
+      upower [OPTION...] UPower tool
+    ...
+    $ test-upower-observe --dump # output here is from a VM
+    Device: /org/freedesktop/UPower/devices/DisplayDevice
+      power supply:         no
+      updated:              Tue Aug 30 15:48:04 2016 (63174 seconds ago)
+      has history:          no
+      has statistics:       no
+      unknown
+        warning-level:       none
+        icon-name:          ''
+
+    Daemon:
+      daemon-version:  0.99.4
+      on-battery:      no
+      lid-is-closed:   no
+      lid-is-present:  no
+      critical-action: HybridSleep
+
+# Test fwupd interface with uefi-fw-tools
+
+1. Ensure your BIOS support UEFI firmware upgrading via UEFI capsule format
+2. Install the uefi-fw-tools snap from the store
+3. Ensure the 'fwupd' interface is connected
+
+ $ sudo snap connect uefi-fw-tools:fwupdmgr uefi-fw-tools:fwupd
+
+4. Check if the device support UEFI firmware updates
+
+ $ sudo uefi-fw-tools.fwupdmgr get-devices
+
+5. Get available UEFI firmware from the server
+
+ $ sudo uefi-fw-tools.fwupdmgr refresh
+
+6. Download firmware
+
+ $ sudo uefi-fw-tools.fwupdmgr update
+
+7. Reboot and ensure it start the upgrading process

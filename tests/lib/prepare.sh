@@ -7,10 +7,9 @@ prepare_classic() {
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        snap install test-snapd-tools
+        snap install ubuntu-core
         snap list | grep core
-        snap remove test-snapd-tools
-        
+
         systemctl stop snapd.service snapd.socket
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
@@ -33,7 +32,13 @@ setup_reflash_magic() {
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
         
         snap install --edge ubuntu-core
-        snap install --edge --devmode ubuntu-device-flash
+
+        # install special u-d-f
+        apt install -y bzr git
+        export GOPATH=/tmp/go
+        mkdir -p $GOPATH/src/launchpad.net/
+        ln -s $GOPATH/src/launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/  $GOPATH/src/launchpad.net/goget-ubuntu-touch
+        go get -insecure -u launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/ubuntu-device-flash
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
@@ -73,23 +78,40 @@ setup_reflash_magic() {
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 
-        # FIXME: how to test store updated of ubuntu-core with that?
-        
-        # create new image with the modified ubuntu-core snap
+        # FIXME: remove once we have a proper model.assertion
+        . $TESTSLIB/store.sh
+        STORE_DIR=/tmp/fake-store-blobdir
+        mkdir -p $STORE_DIR
+        setup_store fake-w-assert-fallback $STORE_DIR
+        cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
+        cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
+
+        # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
+        export SNAPPY_FORCE_SAS_URL=http://localhost:11028
         IMAGE=all-snap-amd64.img
-        /snap/bin/ubuntu-device-flash core 16 --channel edge --gadget pc  --kernel pc-kernel --os $IMAGE_HOME/ubuntu-core_*.snap --install snapweb  --output $IMAGE_HOME/$IMAGE
-        
+        /tmp/go/bin/ubuntu-device-flash core 16 $TESTSLIB/assertions/developer1-pc.model --channel edge --install snapweb --install $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+
+        # teardown store
+        teardown_store fake $STORE_DIR
+
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
-        mount /dev/mapper/loop2p3 /mnt
+        mount /dev/mapper/loop1p3 /mnt
         mkdir -p /mnt/user-data/
         cp -avr /home/gopath /mnt/user-data/
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
-        chown 1001:1001 /mnt/user-data/test
-        
+        chown 1000:1000 /mnt/user-data/test
+
+        # we do what sync-dirs is normally doing on boot, but because
+        # we have subdirs/files in /etc/systemd/system (created below)
+        # the writeable-path sync-boot won't work
+        mkdir -p /mnt/system-data/etc/systemd
+        (cd /tmp ; unsquashfs -v $IMAGE_HOME/ubuntu-core_*.snap etc/systemd/system)
+        cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
+
         # FIXUP silly systemd
         mkdir -p /mnt/system-data/etc/systemd/system/snapd.service.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.service.d/local.conf
@@ -162,5 +184,8 @@ prepare_all_snap() {
             exit 1
         fi
     done
+
+    echo "Kernel has a store revision"
+    snap list|grep ^pc-kernel|grep -E " [0-9]+\s+canonical"
 }
 

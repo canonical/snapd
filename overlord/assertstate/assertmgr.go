@@ -139,11 +139,7 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?
-		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, user)
-		if err == store.ErrAssertionNotFound {
-			return nil, &assertionNotFoundError{ref}
-		}
-		return a, err
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
 	}
 
 	save := func(a asserts.Assertion) error {
@@ -202,8 +198,8 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	err = fetch(t.State(), ref, ss.UserID)
-	if notFound, ok := err.(*assertionNotFoundError); ok {
-		if notFound.ref.Type == asserts.SnapRevisionType {
+	if notFound, ok := err.(*store.AssertionNotFoundError); ok {
+		if notFound.Ref.Type == asserts.SnapRevisionType {
 			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
 		} else {
 			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)

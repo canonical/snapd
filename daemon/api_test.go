@@ -171,7 +171,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	snapstateInstall = snapstate.Install
 	snapstateGet = snapstate.Get
 	snapstateInstallPath = snapstate.InstallPath
-	readSnapInfo = readSnapInfoImpl
+	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
 }
@@ -395,7 +395,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateGet",
 		"snapstateUpdateMany",
 		"snapstateRefreshCandidates",
-		"readSnapInfo",
+		"unsafeReadSnapInfo",
 		"osutilAddUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
@@ -1326,6 +1326,10 @@ var sideLoadBodyWithoutDevMode = "" +
 	"\r\n" +
 	"xyzzy\r\n" +
 	"----hello--\r\n" +
+	"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
+	"\r\n" +
+	"true\r\n" +
+	"----hello--\r\n" +
 	"Content-Disposition: form-data; name=\"snap-path\"\r\n" +
 	"\r\n" +
 	"a/b/local.snap\r\n" +
@@ -1376,6 +1380,10 @@ func (s *apiSuite) TestSideloadSnapJailMode(c *check.C) {
 		"xyzzy\r\n" +
 		"----hello--\r\n" +
 		"Content-Disposition: form-data; name=\"jailmode\"\r\n" +
+		"\r\n" +
+		"true\r\n" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"dangerous\"\r\n" +
 		"\r\n" +
 		"true\r\n" +
 		"----hello--\r\n"
@@ -1438,6 +1446,107 @@ func (s *apiSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
 	c.Check(rsp.Result.(*errorResult).Message, check.Equals, "this system cannot honour the jailmode flag")
+}
+
+func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+	// add the assertions first
+	st := d.overlord.State()
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+
+	dev1Acct := assertstest.NewAccount(s.storeSigning, "devel1", nil, "")
+	assertAdd(st, dev1Acct)
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "x-id",
+		"snap-name":    "x",
+		"publisher-id": dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	assertAdd(st, snapDecl)
+
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": "YK0GWATaZf09g_fvspYPqm_qtaiqf-KjaNj5uMEQCjQpuXWPjqQbeBINL5H_A0Lo",
+		"snap-size":     "5",
+		"snap-id":       "x-id",
+		"snap-revision": "41",
+		"developer-id":  dev1Acct.AccountID(),
+		"timestamp":     time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	assertAdd(st, snapRev)
+
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x.snap\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n"
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		return nil
+	}
+	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
+		c.Check(flags, check.Equals, snapstate.Flags(0))
+		c.Check(si, check.DeepEquals, &snap.SideInfo{
+			RealName:    "x",
+			SnapID:      "x-id",
+			Revision:    snap.R(41),
+			DeveloperID: dev1Acct.AccountID(),
+			Developer:   "devel1",
+		})
+
+		return state.NewTaskSet(), nil
+	}
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
+
+	st.Lock()
+	defer st.Unlock()
+	chg := st.Change(rsp.Change)
+	c.Assert(chg, check.NotNil)
+	c.Check(chg.Summary(), check.Equals, `Install "x" snap from file "x.snap"`)
+	var names []string
+	err = chg.Get("snap-names", &names)
+	c.Assert(err, check.IsNil)
+	c.Check(names, check.DeepEquals, []string{"x"})
+	var apiData map[string]interface{}
+	err = chg.Get("api-data", &apiData)
+	c.Assert(err, check.IsNil)
+	c.Check(apiData, check.DeepEquals, map[string]interface{}{
+		"snap-name": "x",
+	})
+}
+
+func (s *apiSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
+	body := "" +
+		"----hello--\r\n" +
+		"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
+		"\r\n" +
+		"xyzzy\r\n" +
+		"----hello--\r\n"
+	d := newTestDaemon(c)
+	d.overlord.Loop()
+	defer d.overlord.Stop()
+
+	req, err := http.NewRequest("POST", "/v2/snaps", bytes.NewBufferString(body))
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
+
+	rsp := postSnaps(snapsCmd, req, nil).(*resp)
+	c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Equals, `cannot find signatures with metadata for snap "x"`)
 }
 
 func (s *apiSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
@@ -1557,7 +1666,7 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 
 	// setup done
 	installQueue := []string{}
-	readSnapInfo = func(path string) (*snap.Info, error) {
+	unsafeReadSnapInfo = func(path string) (*snap.Info, error) {
 		return &snap.Info{SuggestedName: "local"}, nil
 	}
 
@@ -1577,14 +1686,14 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return state.NewTaskSet(t), nil
 	}
 
-	snapstateInstallPath = func(s *state.State, name, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
+	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, expectedFlags)
 
 		bs, err := ioutil.ReadFile(path)
 		c.Check(err, check.IsNil)
 		c.Check(string(bs), check.Equals, "xyzzy")
 
-		installQueue = append(installQueue, name+"::"+path)
+		installQueue = append(installQueue, si.RealName+"::"+path)
 		t := s.NewTask("fake-install-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
 	}

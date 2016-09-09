@@ -1,6 +1,8 @@
 [Unit]
 Description=Automatically refresh installed snaps
-After=network.target
+After=network.target snapd.firstboot.service snapd.socket
+Requisite=snapd.socket
+ConditionPathExistsGlob=/snap/*/current
 Documentation=man:snap(1)
 
 # FIXME: add auto-reboot on devices

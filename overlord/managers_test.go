@@ -59,8 +59,10 @@ import (
 type mgrsSuite struct {
 	tempdir string
 
-	aa         *testutil.MockCmd
-	udev       *testutil.MockCmd
+	aa     *testutil.MockCmd
+	udev   *testutil.MockCmd
+	umount *testutil.MockCmd
+
 	prevctlCmd func(...string) ([]byte, error)
 
 	storeSigning   *assertstest.StoreStack
@@ -100,6 +102,7 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	}
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
+	ms.umount = testutil.MockCommand(c, "umount", "")
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
@@ -116,6 +119,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	systemd.SystemctlCmd = ms.prevctlCmd
 	ms.udev.Restore()
 	ms.aa.Restore()
+	ms.umount.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
@@ -134,7 +138,7 @@ apps:
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.InstallPath(st, "foo", snapPath, "", snapstate.DevMode)
+	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "foo"}, snapPath, "", snapstate.DevMode)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -459,6 +463,68 @@ apps:
 	c.Assert(strings.Contains(string(content), "/"+revno+"/svc"), Equals, true)
 }
 
+func (ms *mgrsSuite) TestHappyLocalInstallWithStoreMetadata(c *C) {
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+`
+	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
+
+	si := &snap.SideInfo{
+		RealName:    "foo",
+		SnapID:      fooSnapID,
+		Revision:    snap.R(55),
+		DeveloperID: "devdevdevID",
+		Developer:   "devdevdev",
+	}
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(info.Revision, Equals, snap.R(55))
+	c.Check(info.SnapID, Equals, fooSnapID)
+	c.Check(info.DeveloperID, Equals, "devdevdevID")
+	c.Check(info.Developer, Equals, "devdevdev")
+	c.Check(info.Version, Equals, "1.5")
+
+	// ensure that the binary wrapper file got generated with the right
+	// name
+	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
+	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
+
+	// data dirs
+	c.Assert(osutil.IsDirectory(info.DataDir()), Equals, true)
+	c.Assert(osutil.IsDirectory(info.CommonDataDir()), Equals, true)
+
+	// snap file and its mounting
+
+	// after install the snap file is in the right dir
+	c.Assert(osutil.FileExists(filepath.Join(dirs.SnapBlobDir, "foo_55.snap")), Equals, true)
+
+	// ensure the right unit is created
+	mup := systemd.MountUnitPath("/snap/foo/55", "mount")
+	content, err := ioutil.ReadFile(mup)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/55")
+	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
+}
+
 // core & kernel
 
 func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloader(c *C) {
@@ -481,7 +547,7 @@ type: os
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.InstallPath(st, "core", snapPath, "", 0)
+	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "core"}, snapPath, "", 0)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -523,7 +589,7 @@ type: kernel`
 	st.Lock()
 	defer st.Unlock()
 
-	ts, err := snapstate.InstallPath(st, "krnl", snapPath, "", 0)
+	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "krnl"}, snapPath, "", 0)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -555,7 +621,7 @@ func (ms *mgrsSuite) installLocalTestSnap(c *C, snapYamlContent string) *snap.In
 	var snapst snapstate.SnapState
 	snapstate.Get(st, snapName, &snapst)
 
-	ts, err := snapstate.InstallPath(st, snapName, snapPath, "", snapstate.DevMode)
+	ts, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: snapName}, snapPath, "", snapstate.DevMode)
 	c.Assert(err, IsNil)
 	chg := st.NewChange("install-snap", "...")
 	chg.AddAll(ts)
@@ -790,4 +856,36 @@ func (s *authContextSetupSuite) TestSerialProof(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(bytes.HasPrefix(proof, []byte("type: serial-proof\n")), Equals, true)
+}
+
+func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Unlock()
+	_, _, err := s.ac.DeviceSessionRequest("NONCE")
+	st.Lock()
+	c.Check(err, Equals, auth.ErrNoSerial)
+
+	// setup serial and key in system state
+	err = assertstate.Add(st, s.serial)
+	c.Assert(err, IsNil)
+	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
+	c.Assert(err, IsNil)
+	err = kpMgr.Put(deviceKey)
+	c.Assert(err, IsNil)
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand:  s.serial.BrandID(),
+		Model:  s.serial.Model(),
+		Serial: s.serial.Serial(),
+		KeyID:  deviceKey.PublicKey().ID(),
+	})
+
+	st.Unlock()
+	req, encSerial, err := s.ac.DeviceSessionRequest("NONCE")
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(bytes.HasPrefix(req, []byte("type: device-session-request\n")), Equals, true)
+	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
 }

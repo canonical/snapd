@@ -5,7 +5,7 @@ systems: [-ubuntu-core-16-64]
 prepare: |
     echo "Build test hooks package"
     snapbuild $TESTSLIB/snaps/basic-hooks .
-    snap install basic-hooks_1.0_all.snap
+    snap install --dangerous basic-hooks_1.0_all.snap
 
     # We want to use the in-tree snap-exec, not the one in the core snap. To
     # accomplish that, we'll just unpack the core we just grabbed, shove the new
