@@ -10,6 +10,8 @@ environment:
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo $LANG)"
+    SPREAD_ADHOC_UC_ADDRESS: "$(HOST: echo $SPREAD_ADHOC_UC_ADDRESS)"
+    SPREAD_ADHOC_UC_PORT: "$(HOST: echo $SPREAD_ADHOC_UC_PORT)"
 
 backends:
     linode:
@@ -44,11 +46,17 @@ backends:
                 exit 1
             fi
             ADDRESS localhost:22
+
+    adhoc-ubuntu-core:
+        type: adhoc
+        allocate: |
+            echo "Allocating $SPREAD_SYSTEM..."
+            ADDRESS $SPREAD_ADHOC_UC_ADDRESS:$SPREAD_ADHOC_UC_PORT
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
             - ubuntu-core-16-64:
-                username: fgimenez
+                username: test
                 password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
@@ -61,7 +69,11 @@ prepare: |
     [ "$REUSE_PROJECT" != 1 ] || exit 0
 
     # adhoc backend and ubuntu-core system, nothing to setup
-    [ "$SPREAD_BACKEND" = adhoc -a "$SPREAD_SYSTEM" = ubuntu-core-16-64 ] && exit 0
+    if [ "$SPREAD_BACKEND" = adhoc-ubuntu-core ]; then
+        mkdir -p $GOPATH/bin
+        cp /home/fgimenez/{snapbuild,fakestore} $GOPATH/bin
+        exit 0
+    fi
 
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
