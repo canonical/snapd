@@ -21,10 +21,10 @@ execute: |
     echo "Waiting for data writer service to finish..."
     unit="snap.data-writer.service.service"
     while true; do
-        code=$(sudo systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
+        code=$(systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
         # The main code will be 0 until the service is no longer running
         if [ $code -ne 0 ]; then
-            status=$(sudo systemctl show -p ExecMainStatus $unit | sed 's/.*=\([0-9]\+\)/\1/')
+            status=$(systemctl show -p ExecMainStatus $unit | sed 's/.*=\([0-9]\+\)/\1/')
             if [ $status -ne 0 ]; then
                 echo "Service exited $status"
                 exit 1
