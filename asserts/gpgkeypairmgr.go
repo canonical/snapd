@@ -83,6 +83,13 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 		return nil, err
 	}
 
+	// TERRIBLE: ensure the agent knows what tty to talk to
+	tty, err := os.Readlink("/proc/self/fd/0")
+	if err != nil {
+		return nil, err
+	}
+	os.Setenv("GPG_TTY", tty)
+
 	general := []string{"--homedir", homedir, "-q", "--no-auto-check-trustdb"}
 	allArgs := append(general, args...)
 
