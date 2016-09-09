@@ -133,3 +133,11 @@ install-exec-hook:
 	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
 	install -d -m 755 $(DESTDIR)$(bindir)
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
+
+# The hack target helps devlopers work on snap-confine on their live system by
+# installing a fresh copy of snap confine and the appropriate apparmor profile.
+.PHONY: hack
+hack: snap-confine snap-confine.apparmor
+	sudo install -D -m 4755 snap-confine $(DESTDIR)$(libexecdir)/snap-confine
+	sudo install -m 644 snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine
+	sudo apparmor_parser -r snap-confine.apparmor
