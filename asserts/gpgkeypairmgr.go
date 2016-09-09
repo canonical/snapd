@@ -66,6 +66,10 @@ func ensureGPGHomeDirectory() (string, error) {
 // test suite).  GnuPG 1 is still supported so it's reasonable to continue
 // using that for now.
 func findGPGCommand() (string, error) {
+	if path := os.Getenv("SNAP_GNUPG_CMD"); path != "" {
+		return path, nil
+	}
+
 	path, err := exec.LookPath("gpg1")
 	if err != nil {
 		path, err = exec.LookPath("gpg")
