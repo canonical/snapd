@@ -11,15 +11,15 @@ execute: |
     echo "Snap download can download snaps"
     snap download hello-world
     ls hello-world_*.snap
-    verify_asserts hello-world_*.snap.asserts
+    verify_asserts hello-world_*.snap.assertions
 
     echo "Snap download understand --edge"
     snap download --edge test-snapd-tools
     ls test-snapd-tools_*.snap
-    verify_asserts test-snapd-tools_*.snap.asserts
+    verify_asserts test-snapd-tools_*.snap.assertions
 
     echo "Snap download downloads devmode snaps"
     snap download --beta classic
     ls classic_*.snap
-    verify_asserts classic_*.snap.asserts
+    verify_asserts classic_*.snap.assertions
 

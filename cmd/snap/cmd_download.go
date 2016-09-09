@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
 
@@ -64,21 +63,17 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 		return err
 	}
 
-	assertsFn := filepath.Join(filepath.Dir(snapPath), filepath.Base(snapInfo.MountFile())+".asserts")
-	w, err := os.Create(assertsFn)
+	w, err := os.Create(snapPath+".assertions")
 	if err != nil {
 		return fmt.Errorf("cannot create assertions file: %v", err)
 	}
 	defer w.Close()
 
 	encoder := asserts.NewEncoder(w)
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		return sto.Assertion(ref.Type, ref.PrimaryKey, dlOpts.User)
-	}
 	save := func(a asserts.Assertion) error {
 		return encoder.Encode(a)
 	}
-	f := asserts.NewFetcher(db, retrieve, save)
+	f := image.StoreAssertionFetcher(sto, dlOpts, db, save)
 
 	return image.FetchSnapAssertions(snapPath, snapInfo, f, db)
 }
@@ -120,13 +115,13 @@ func (x *cmdDownload) Execute(args []string) error {
 		User:      user,
 	}
 
-	fmt.Printf("Fetching snap %s\n", snapName)
+	fmt.Fprintf(Stderr, "Fetching snap %s\n", snapName)
 	snapPath, snapInfo, err := image.DownloadSnap(sto, snapName, revision, &dlOpts)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Fetching assertions for %s\n", snapName)
+	fmt.Fprintf(Stderr, "Fetching assertions for %s\n", snapName)
 	err = fetchSnapAssertions(sto, snapPath, snapInfo, &dlOpts)
 	if err != nil {
 		return err
