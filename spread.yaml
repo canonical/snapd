@@ -32,7 +32,11 @@ backends:
                 image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
-    adhoc:
+            - ubuntu-16.10-64:
+                username: ubuntu
+                password: ubuntu
+    autopkgtest:
+        type: adhoc
         allocate: |
             echo "Allocating ad-hoc $SPREAD_SYSTEM"
             if [ -z "$ADT_ARTIFACTS" ]; then
