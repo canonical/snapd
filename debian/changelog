@@ -1,4 +1,4 @@
-snapd (2.14ubuntu18) trusty; urgency=medium
+snapd (2.14ubuntu19) trusty; urgency=medium
 
   * Bump revision for PPA build.
 

@@ -119,7 +119,8 @@ override_dh_install:
 	install debian/tmp/usr/bin/snap-exec -D debian/snapd/usr/lib/snapd
 	install data/completion/snap -D debian/snapd/usr/share/bash-completion/completions/snap
 	# i18n stuff
-	install share/locale -d debian/snapd/usr/share
+	mkdir -p debian/snapd/usr/share
+	cp -R share/locale debian/snapd/usr/share
 	# etc/profile.d contains the PATH extension for snap packages
 	install etc/profile.d -d debian/snapd/etc
 	# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
