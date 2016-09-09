@@ -175,31 +175,31 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		}
 		keyID := secFields[4]
 		uid := ""
-		if len(secFields) >= 10 {
-			uid = secFields[9]
+		fpr := ""
+		var privKey PrivateKey
+		// look for fpr:, uid: lines, order may vary and gpg2.1
+		// may springle additional lines in (like gpr:)
+		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:"); k++ {
+			switch {
+			case strings.HasPrefix(lines[k], "fpr:"):
+				fprFields := strings.Split(lines[k], ":")
+				if len(fprFields) < 10 {
+					break
+				}
+				fpr = fprFields[9]
+				if !strings.HasSuffix(fpr, keyID) {
+					break // strange, skip
+				}
+				privKey, err = gkm.retrieve(fpr)
+				if err != nil {
+					return err
+				}
+			case strings.HasPrefix(lines[k], "uid:"):
+				uidFields := strings.Split(lines[k], ":")
+				uid = uidFields[9]
+				break
+			}
 		}
-		// fpr: line
-		if j+1 >= n || !strings.HasPrefix(lines[j+1], "fpr:") {
-			continue
-		}
-		fprFields := strings.Split(lines[j+1], ":")
-		if len(fprFields) < 10 {
-			continue
-		}
-		fpr := fprFields[9]
-		if !strings.HasSuffix(fpr, keyID) {
-			continue // strange, skip
-		}
-		privKey, err := gkm.retrieve(fpr)
-		if err != nil {
-			return err
-		}
-		// uid: line
-		if j+2 >= n || !strings.HasPrefix(lines[j+2], "uid:") {
-			continue
-		}
-		uidFields := strings.Split(lines[j+2], ":")
-		uid = uidFields[9]
 		// collected it all
 		err = consider(privKey, fpr, uid)
 		if err != nil {
