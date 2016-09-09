@@ -27,7 +27,7 @@ import (
 
 type cmdAbort struct {
 	Positional struct {
-		ID string `positional-arg-name:"change-id"`
+		ID string
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -43,7 +43,10 @@ func init() {
 		longAbortHelp,
 		func() flags.Commander {
 			return &cmdAbort{}
-		})
+		},
+		nil,
+		[][2]string{{i18n.G("change-id"), ""}},
+	)
 }
 
 func (x *cmdAbort) Execute(args []string) error {

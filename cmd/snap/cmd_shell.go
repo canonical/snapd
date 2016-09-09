@@ -32,7 +32,7 @@ import (
 
 type cmdShell struct {
 	Positional struct {
-		ShellType string `positional-arg-name:"shell-type" description:"The type of shell you want"`
+		ShellType string
 	} `positional-args:"yes"`
 }
 
@@ -44,7 +44,7 @@ func init() {
 		i18n.G("Run snappy shell interface"),
 		func() flags.Commander {
 			return &cmdShell{}
-		})
+		}, nil, [][2]string{{i18n.G("shell-type"), i18n.G("The type of shell you want")}})
 }
 */
 
