@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"time"
@@ -70,8 +69,8 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	if allDigits(c.Positional.Snap) {
-		// TRANSLATORS: the first %s, and %[1]s, is the argv[0] (typically "snap"); the last %s is the argument given by the user to 'changes'
-		return fmt.Errorf(i18n.G(`%s changes command expects a snap name, try: %[1]s change %s`), os.Args[0], c.Positional.Snap)
+		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
+		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap change %s"`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
