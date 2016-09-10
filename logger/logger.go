@@ -134,7 +134,7 @@ func NewConsoleLog(w io.Writer, flag int) (*ConsoleLog, error) {
 
 	sys, err := newSyslog()
 	if err != nil {
-		clog.Output(3, "WARNING: can not create syslog logger")
+		clog.Output(3, "WARNING: cannot create syslog logger")
 		sys = log.New(ioutil.Discard, "", flag)
 	}
 
