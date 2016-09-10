@@ -45,7 +45,7 @@ type cmdDownload struct {
 
 var shortDownloadHelp = i18n.G("Download a given snap")
 var longDownloadHelp = i18n.G(`
-The download command will download the given snap to the current directory.
+The download command will download the given snap and its supporting assertions to the current directory.
 `)
 
 func init() {
