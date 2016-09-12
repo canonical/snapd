@@ -32,14 +32,15 @@ backends:
                 image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
-    adhoc:
+    autopkgtest:
+        type: adhoc
         allocate: |
             echo "Allocating ad-hoc $SPREAD_SYSTEM"
-            if [ -z "$ADT_ARTIFACTS" ]; then
-                echo "out adhoc only works inside autopkgtest"
+            if [ -z "${ADT_ARTIFACTS}" ]; then
+                FATAL "adhoc only works inside autopkgtest"
                 exit 1
             fi
-            echo "localhost:22"
+            ADDRESS localhost:22
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
