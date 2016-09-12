@@ -467,9 +467,6 @@ type requestOptions struct {
 	Data        []byte
 }
 
-// Store method for doing requests to store server
-var doStoreRequest = (*Store).doRequest
-
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
@@ -624,7 +621,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		URL:    url,
 		Accept: halJsonContentType,
 	}
-	resp, err := doStoreRequest(s, s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -765,7 +762,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		URL:    u,
 		Accept: halJsonContentType,
 	}
-	resp, err := doStoreRequest(s, s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -860,7 +857,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := doStoreRequest(s, s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -975,7 +972,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
-	resp, err := doStoreRequest(s, s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1066,7 +1063,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		Method: "GET",
 		URL:    storeURL,
 	}
-	resp, err := doStoreRequest(s, client, reqOptions, user)
+	resp, err := s.doRequest(client, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -1107,7 +1104,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    url,
 		Accept: asserts.MediaType,
 	}
-	resp, err := doStoreRequest(s, s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1231,7 +1228,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
-	resp, err := doStoreRequest(s, s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1328,7 +1325,7 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 		URL:    s.paymentMethodsURI,
 		Accept: halJsonContentType,
 	}
-	resp, err := doStoreRequest(s, s.client, reqOptions, user)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
