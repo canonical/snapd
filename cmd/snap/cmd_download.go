@@ -65,7 +65,7 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 
 	w, err := os.Create(snapPath + ".assertions")
 	if err != nil {
-		return fmt.Errorf("cannot create assertions file: %v", err)
+		return fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
 	}
 	defer w.Close()
 
@@ -115,13 +115,13 @@ func (x *cmdDownload) Execute(args []string) error {
 		User:      user,
 	}
 
-	fmt.Fprintf(Stderr, "Fetching snap %s\n", snapName)
+	fmt.Fprintf(Stderr, i18n.G("Fetching snap %q\n"), snapName)
 	snapPath, snapInfo, err := image.DownloadSnap(sto, snapName, revision, &dlOpts)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(Stderr, "Fetching assertions for %s\n", snapName)
+	fmt.Fprintf(Stderr, i18n.G("Fetching assertions for %q\n"), snapName)
 	err = fetchSnapAssertions(sto, snapPath, snapInfo, &dlOpts)
 	if err != nil {
 		return err
