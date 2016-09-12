@@ -51,7 +51,7 @@ type options struct {
 var optionsData options
 
 // ErrExtraArgs is returned  if extra arguments to a command are found
-var ErrExtraArgs = fmt.Errorf("too many arguments for command")
+var ErrExtraArgs = fmt.Errorf(i18n.G("too many arguments for command"))
 
 // cmdInfo holds information needed to call parser.AddCommand(...).
 type cmdInfo struct {
@@ -122,13 +122,13 @@ func Parser() *flags.Parser {
 		}
 		w.Flush()
 
-		os.Exit(0)
+		panic(&exitStatus{0})
 	}
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	parser.ShortDescription = "Tool to interact with snaps"
-	parser.LongDescription = `
+	parser.ShortDescription = i18n.G("Tool to interact with snaps")
+	parser.LongDescription = i18n.G(`
 The snap tool interacts with the snapd daemon to control the snappy software platform.
-`
+`)
 
 	// Add all regular commands
 	for _, c := range commands {
@@ -172,7 +172,7 @@ func Client() *client.Client {
 func init() {
 	err := logger.SimpleSetup()
 	if err != nil {
-		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %s\n", err)
+		fmt.Fprintf(Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
 	}
 }
 
@@ -189,15 +189,32 @@ func main() {
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
 		err := cmd.Execute(args)
-		fmt.Fprintf(Stderr, "internal error, please report: running %q failed: %s\n", snapApp, err)
+		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
 	}
 
+	defer func() {
+		if v := recover(); v != nil {
+			if e, ok := v.(*exitStatus); ok {
+				os.Exit(e.code)
+			}
+			panic(v)
+		}
+	}()
+
 	// no magic /o\
 	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, "error: %v\n", err)
+		fmt.Fprintf(Stderr, i18n.G("error: %v\n"), err)
 		os.Exit(1)
 	}
+}
+
+type exitStatus struct {
+	code int
+}
+
+func (e *exitStatus) Error() string {
+	return fmt.Sprintf("internal error: exitStatus{%d} being handled as normal error", e.code)
 }
 
 func run() error {
@@ -215,11 +232,11 @@ func run() error {
 		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
 			u, _ := user.Current()
 			if u != nil && u.Username == "root" {
-				return fmt.Errorf(`%s (see "snap login --help")`, e.Message)
-			} else {
-				return fmt.Errorf(`%s (try with sudo)`, e.Message)
+				return fmt.Errorf(i18n.G(`%s (see "snap login --help")`), e.Message)
 			}
 
+			// TRANSLATORS: %s will be a message along the lines of "login required"
+			return fmt.Errorf(i18n.G(`%s (try with sudo)`), e.Message)
 		}
 	}
 

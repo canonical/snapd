@@ -23,6 +23,8 @@ import (
 	"strings"
 )
 
+// Notes encapsulate everything that might be interesting about a
+// snap, in order to present a brief summary of it.
 type Notes struct {
 	Price    string
 	Private  bool

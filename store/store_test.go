@@ -82,8 +82,12 @@ sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQ
 
 AXNpZw=`
 
-	exSerialProof = `type: serial-proof
+	exDeviceSessionRequest = `type: device-session-request
+brand-id: my-brand
+model: baz-3000
+serial: 9999
 nonce: @NONCE@
+timestamp: 2016-08-24T21:55:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
@@ -128,23 +132,25 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 }
 
 func (ac *testAuthContext) Serial() ([]byte, error) {
-	a, err := asserts.Decode([]byte(exSerial))
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(a.(*asserts.Serial)), nil
+	panic("Serial is deprecated, it should not be called")
 }
 
 func (ac *testAuthContext) SerialProof(nonce string) ([]byte, error) {
-	a, err := asserts.Decode([]byte(strings.Replace(exSerialProof, "@NONCE@", nonce, 1)))
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(a.(*asserts.SerialProof)), nil
+	panic("SerialProof is deprecated, it should not be called")
 }
 
 func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
-	panic("implement me")
+	serial, err := asserts.Decode([]byte(exSerial))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sessReq, err := asserts.Decode([]byte(strings.Replace(exDeviceSessionRequest, "@NONCE@", nonce, 1)))
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return asserts.Encode(sessReq.(*asserts.DeviceSessionRequest)), asserts.Encode(serial.(*asserts.Serial)), nil
 }
 
 func makeTestMacaroon() (*macaroon.Macaroon, error) {
@@ -350,7 +356,7 @@ const (
 
 /* acquired via
 
-http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha512,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
+http --pretty=format --print b https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world X-Ubuntu-Series:16 fields==anon_download_url,architecture,channel,download_sha3_384,summary,description,binary_filesize,download_url,icon_url,last_updated,package_name,prices,publisher,ratings_average,revision,snap_id,support_url,title,content,version,origin,developer_id,private,confinement channel==edge | xsel -b
 
 on 2016-07-03. Then, by hand:
  * set prices to {"EUR": 0.99, "USD": 1.23}.
@@ -369,10 +375,10 @@ const MockDetailsJSON = `{
             }
         ],
         "self": {
-            "href": "https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha512%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
+            "href": "https://search.apps.ubuntu.com/api/v1/snaps/details/hello-world?fields=anon_download_url%2Carchitecture%2Cchannel%2Cdownload_sha3_384%2Csummary%2Cdescription%2Cbinary_filesize%2Cdownload_url%2Cicon_url%2Clast_updated%2Cpackage_name%2Cprices%2Cpublisher%2Cratings_average%2Crevision%2Csnap_id%2Csupport_url%2Ctitle%2Ccontent%2Cversion%2Corigin%2Cdeveloper_id%2Cprivate%2Cconfinement&channel=edge"
         }
     },
-    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
     "architecture": [
         "all"
     ],
@@ -382,22 +388,23 @@ const MockDetailsJSON = `{
     "content": "application",
     "description": "This is a simple hello world example.",
     "developer_id": "canonical",
-    "download_sha512": "345f33c06373f799b64c497a778ef58931810dd7ae85279d6917d8b4f43d38abaf37e68239cb85914db276cb566a0ef83ea02b6f2fd064b54f9f2508fa4ca1f1",
-    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+    "download_sha3_384": "eed62063c04a8c3819eb71ce7d929cc8d743b43be9e7d86b397b6d61b66b0c3a684f3148a9dbe5821360ae32105c1bd9",
+    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_27.snap",
     "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
-    "last_updated": "2016-05-31T07:02:32.586839Z",
+    "last_updated": "2016-07-12T16:37:23.960632Z",
     "origin": "canonical",
     "package_name": "hello-world",
     "prices": {"EUR": 0.99, "USD": 1.23},
     "publisher": "Canonical",
     "ratings_average": 0.0,
-    "revision": 26,
+    "revision": 27,
     "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
-    "summary": "Hello world example",
+    "summary": "The 'hello-world' of snaps",
     "support_url": "mailto:snappy-devel@lists.ubuntu.com",
     "title": "hello-world",
-    "version": "6.1"
-}`
+    "version": "6.3"
+}
+`
 
 const mockPurchasesJSON = `[
   {
@@ -507,15 +514,15 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
 	c.Check(result.Architectures, DeepEquals, []string{"all"})
-	c.Check(result.Revision, Equals, snap.R(26))
+	c.Check(result.Revision, Equals, snap.R(27))
 	c.Check(result.SnapID, Equals, helloWorldSnapID)
 	c.Check(result.Developer, Equals, "canonical")
-	c.Check(result.Version, Equals, "6.1")
-	c.Check(result.Sha512, Matches, `[[:xdigit:]]{128}`)
+	c.Check(result.Version, Equals, "6.3")
+	c.Check(result.Sha3_384, Matches, `[[:xdigit:]]{96}`)
 	c.Check(result.Size, Equals, int64(20480))
 	c.Check(result.Channel, Equals, "edge")
 	c.Check(result.Description(), Equals, "This is a simple hello world example.")
-	c.Check(result.Summary(), Equals, "Hello world example")
+	c.Check(result.Summary(), Equals, "The 'hello-world' of snaps")
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Check(result.MustBuy, Equals, true)
 
@@ -624,7 +631,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	result, err := repo.Snap("hello-world", "edge", true, snap.R(26), t.user)
 	c.Assert(err, IsNil)
 	c.Check(result.Name(), Equals, "hello-world")
-	c.Check(result.Revision, DeepEquals, snap.R(26))
+	c.Check(result.Revision, DeepEquals, snap.R(27))
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
@@ -3138,6 +3145,50 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethods(c *C) {
 	})
 
 	c.Check(purchaseServerGetCalled, Equals, 1)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsNoAuth(c *C) {
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	cfg := Config{}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	result, err := repo.PaymentMethods(nil)
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "invalid credentials")
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsHandles401(c *C) {
+	purchaseServerGetCalled := 0
+	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case "GET":
+			w.WriteHeader(http.StatusUnauthorized)
+			io.WriteString(w, "Authorization Required")
+			purchaseServerGetCalled++
+		default:
+			c.Error("Unexpected request method: ", r.Method)
+		}
+	}))
+
+	c.Assert(mockPurchasesServer, NotNil)
+	defer mockPurchasesServer.Close()
+
+	paymentMethodsURI, err := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
+	c.Assert(err, IsNil)
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	cfg := Config{
+		PaymentMethodsURI: paymentMethodsURI,
+	}
+	repo := New(&cfg, authContext)
+	c.Assert(repo, NotNil)
+
+	result, err := repo.PaymentMethods(t.user)
+	c.Assert(result, IsNil)
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "invalid credentials")
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsRefreshesAuth(c *C) {

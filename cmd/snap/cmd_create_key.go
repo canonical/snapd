@@ -56,7 +56,7 @@ func (x *cmdCreateKey) Execute(args []string) error {
 		keyName = "default"
 	}
 	if !asserts.IsValidAccountKeyName(keyName) {
-		return fmt.Errorf("key name %q is not valid; only ASCII letters, digits, and hyphens are allowed", keyName)
+		return fmt.Errorf(i18n.G("key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"), keyName)
 	}
 
 	fmt.Fprint(Stdout, i18n.G("Passphrase: "))
