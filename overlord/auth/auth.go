@@ -230,8 +230,6 @@ type DeviceAssertions interface {
 var (
 	// ErrNoSerial indicates that a device serial is not set yet.
 	ErrNoSerial = errors.New("no device serial yet")
-	// ErrConflict indicates there was a conflict trying to update state auth data.
-	ErrConflict = errors.New("updating conflict")
 )
 
 // An AuthContext exposes authorization data and handles its updates.
@@ -269,10 +267,9 @@ func (ac *authContext) Device() (*DeviceState, error) {
 	return Device(ac.state)
 }
 
-// UpdateDeviceAuth updates the device auth details in state if the state
-// values haven't changed since device was read out of state, otherwise
-// it returns ErrConflict, in both cases it returns the actualized
-// device state values.
+// UpdateDeviceAuth updates the device auth details in state.
+// The last update wins but other device details are left unchanged.
+// It returns the actualized device state value.
 func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon string) (actual *DeviceState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
@@ -282,11 +279,7 @@ func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon 
 		return nil, err
 	}
 
-	if cur.SessionMacaroon != device.SessionMacaroon {
-		return cur, ErrConflict
-	}
-
-	// not conflicting, update
+	// just do it, last update wins
 	cur.SessionMacaroon = newSessionMacaroon
 	if err := SetDevice(ac.state, cur); err != nil {
 		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
@@ -295,10 +288,9 @@ func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon 
 	return cur, nil
 }
 
-// UpdateUserAuth updates the user auth details in state if the state
-// values haven't changed since user was read out of state, otherwise
-// it returns ErrConflict, in both cases it returns the actualized
-// user state values.
+// UpdateUserAuth updates the user auth details in state.
+// The last update wins but other user details are left unchanged.
+// It returns the actualized user state value.
 func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (actual *UserState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
@@ -308,17 +300,7 @@ func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (
 		return nil, err
 	}
 
-	if len(cur.StoreDischarges) != len(user.StoreDischarges) {
-		return cur, ErrConflict
-	}
-
-	for i, oldDischarge := range user.StoreDischarges {
-		if cur.StoreDischarges[i] != oldDischarge {
-			return cur, ErrConflict
-		}
-	}
-
-	// not conflicting, update
+	// just do it, last update wins
 	cur.StoreDischarges = newDischarges
 	if err := UpdateUser(ac.state, cur); err != nil {
 		return nil, fmt.Errorf("internal error: cannot update just read user state: %v", err)

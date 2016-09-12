@@ -303,52 +303,36 @@ func (as *authSuite) TestAuthContextUpdateUserAuth(c *C) {
 	c.Check(user.StoreDischarges, DeepEquals, newDischarges)
 }
 
-func (as *authSuite) TestAuthContextUpdateUserAuthConflict(c *C) {
+func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
 	as.state.Lock()
 	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
-	conflictUser := *user
-	conflictUser.StoreDischarges = []string{"other-updated-discharge"}
-	err := auth.UpdateUser(as.state, &conflictUser)
+	otherUpdateUser := *user
+	otherUpdateUser.Macaroon = "macaroon2"
+	otherUpdateUser.StoreDischarges = []string{"other-discharges"}
+	err := auth.UpdateUser(as.state, &otherUpdateUser)
 	as.state.Unlock()
 	c.Assert(err, IsNil)
 
 	newDischarges := []string{"updated-discharge"}
 
 	authContext := auth.NewAuthContext(as.state, nil)
+	// last discharges win
 	curUser, err := authContext.UpdateUserAuth(user, newDischarges)
-	c.Assert(err, Equals, auth.ErrConflict)
-
-	as.state.Lock()
-	userFromState, err := auth.User(as.state, user.ID)
-	as.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(userFromState, DeepEquals, curUser)
-	c.Check(curUser, Not(DeepEquals), user)
-	c.Check(*curUser, DeepEquals, conflictUser)
-}
-
-func (as *authSuite) TestAuthContextUpdateUserAuthLengthConflict(c *C) {
-	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
-	conflictUser := *user
-	conflictUser.StoreDischarges = []string{"discharge", "extra-discharge"}
-	err := auth.UpdateUser(as.state, &conflictUser)
-	as.state.Unlock()
 	c.Assert(err, IsNil)
 
-	newDischarges := []string{"updated-discharge"}
-
-	authContext := auth.NewAuthContext(as.state, nil)
-	curUser, err := authContext.UpdateUserAuth(user, newDischarges)
-	c.Assert(err, Equals, auth.ErrConflict)
-
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, user.ID)
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, curUser)
-	c.Check(curUser, Not(DeepEquals), user)
-	c.Check(*curUser, DeepEquals, conflictUser)
+	c.Check(curUser, DeepEquals, &auth.UserState{
+		ID:              user.ID,
+		Username:        "username",
+		Macaroon:        "macaroon2",
+		Discharges:      []string{"discharge"},
+		StoreMacaroon:   "macaroon",
+		StoreDischarges: newDischarges,
+	})
 }
 
 func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
@@ -408,12 +392,13 @@ func (as *authSuite) TestAuthContextUpdateDeviceAuth(c *C) {
 	c.Check(deviceFromState.SessionMacaroon, DeepEquals, sessionMacaroon)
 }
 
-func (as *authSuite) TestAuthContextUpdateDeviceAuthConflict(c *C) {
+func (as *authSuite) TestAuthContextUpdateDeviceAuthOtherUpdate(c *C) {
 	as.state.Lock()
 	device, _ := auth.Device(as.state)
-	conflictDevice := *device
-	conflictDevice.SessionMacaroon = "othe-session-macaroon"
-	err := auth.SetDevice(as.state, &conflictDevice)
+	otherUpdateDevice := *device
+	otherUpdateDevice.SessionMacaroon = "othe-session-macaroon"
+	otherUpdateDevice.KeyID = "KEYID"
+	err := auth.SetDevice(as.state, &otherUpdateDevice)
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -421,15 +406,17 @@ func (as *authSuite) TestAuthContextUpdateDeviceAuthConflict(c *C) {
 
 	authContext := auth.NewAuthContext(as.state, nil)
 	curDevice, err := authContext.UpdateDeviceAuth(device, sessionMacaroon)
-	c.Assert(err, Equals, auth.ErrConflict)
+	c.Assert(err, IsNil)
 
 	as.state.Lock()
 	deviceFromState, err := auth.Device(as.state)
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(deviceFromState, DeepEquals, curDevice)
-	c.Check(curDevice, Not(DeepEquals), device)
-	c.Check(*curDevice, DeepEquals, conflictDevice)
+	c.Check(curDevice, DeepEquals, &auth.DeviceState{
+		KeyID:           "KEYID",
+		SessionMacaroon: sessionMacaroon,
+	})
 }
 
 func (as *authSuite) TestAuthContextStoreIDFallback(c *C) {

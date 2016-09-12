@@ -398,7 +398,7 @@ func (s *Store) refreshUser(user *auth.UserState) error {
 
 	if s.authContext != nil {
 		curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
-		if err != nil && err != auth.ErrConflict {
+		if err != nil {
 			return err
 		}
 		// update in place
@@ -430,7 +430,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 	}
 
 	curDevice, err := s.authContext.UpdateDeviceAuth(device, session)
-	if err != nil && err != auth.ErrConflict {
+	if err != nil {
 		return err
 	}
 	// update in place
