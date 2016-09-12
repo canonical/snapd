@@ -86,6 +86,8 @@ pivot_root,
 /etc/apparmor/parser.conf r,
 /etc/apparmor/subdomain.conf r,
 /sys/kernel/security/apparmor/.replace rw,
+/sys/kernel/security/apparmor/{,**} r,
+#include <abstractions/dbus-strict>
 
 # We'll want to adjust this to support --security-opts...
 change_profile -> docker-default,
@@ -94,6 +96,8 @@ ptrace (read, trace) peer=docker-default,
 
 # Graph (storage) driver bits
 /dev/shm/aufs.xino rw,
+/proc/fs/aufs/plink_maint w,
+/sys/fs/aufs/** r,
 
 #cf bug 1502785
 / r,
@@ -134,11 +138,14 @@ const dockerPermanentSlotSecComp = `
 #open_by_handle_at
 
 # Calls the Docker daemon itself requires
-#   /snap/docker/VERSION/bin/docker-runc
-#     "do not inherit the parent's session keyring"
-#     "make session keyring searcheable"
+
+# /snap/docker/VERSION/bin/docker-runc
+#   "do not inherit the parent's session keyring"
+#   "make session keyring searcheable"
+# runC uses this to ensure the container doesn't have access to the host keyring
 keyctl
-#   /snap/docker/VERSION/bin/docker-runc
+
+# /snap/docker/VERSION/bin/docker-runc
 pivot_root
 
 # ptrace can be abused to break out of the seccomp sandbox
