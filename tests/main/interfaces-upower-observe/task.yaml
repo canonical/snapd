@@ -16,8 +16,12 @@ prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
     snap install --edge test-snapd-upower-observe-consumer
 
+    apt install -y upower
+
 restore: |
     rm -f upower.error
+    apt remove -y upower
+    apt autoremove -y
 
 execute: |
     CONNECTED_PATTERN=":upower-observe +test-snapd-upower-observe-consumer"
@@ -46,5 +50,5 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to dump info about the upower devices"
-    expected="(?s)Device: /org/freedesktop/UPower/devices/DisplayDevice.*Daemon:.*"
-    su -l -c 'test-snapd-upower-observe-consumer.upower --dump' test | grep -Pqz $expected
+    expected="(?s)Device: +/org/freedesktop/UPower/devices/DisplayDevice.*Daemon:.*"
+    su -l -c 'test-snapd-upower-observe-consumer.upower --dump' test | grep -Pqz "$expected"
