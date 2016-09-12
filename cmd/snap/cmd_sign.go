@@ -52,7 +52,7 @@ func (x *cmdSign) Execute(args []string) error {
 
 	statement, err := ioutil.ReadAll(Stdin)
 	if err != nil {
-		return fmt.Errorf("cannot read assertion input: %v", err)
+		return fmt.Errorf(i18n.G("cannot read assertion input: %v"), err)
 	}
 
 	keypairMgr := asserts.NewGPGKeypairManager()

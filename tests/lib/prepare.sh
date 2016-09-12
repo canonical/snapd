@@ -32,7 +32,7 @@ setup_reflash_magic() {
         # install the stuff we need
         apt install -y kpartx busybox-static
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
-        
+
         snap install --edge ubuntu-core
 
         # install ubuntu-image
@@ -61,7 +61,7 @@ setup_reflash_magic() {
         if [ -e /.spread.yaml ]; then
             cp -av /.spread.yaml $UNPACKD
         fi
-        
+
         # we need the test user in the image
         chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
 
@@ -72,7 +72,7 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
-        
+
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 
@@ -146,7 +146,7 @@ EOF
 
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
-    
+
         # the reflash magic
         # FIXME: ideally in initrd, but this is good enough for now
         cat > $IMAGE_HOME/reflash.sh << EOF
@@ -192,7 +192,9 @@ prepare_all_snap() {
     fi
 
     echo "Ensure fundamental snaps are still present"
-    for name in pc pc-kernel ubuntu-core; do
+    . $TESTSLIB/gadget.sh
+    gadget_name=$(get_gadget_name)
+    for name in $gadget_name ${gadget_name}-kernel ubuntu-core; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -202,6 +204,5 @@ prepare_all_snap() {
     done
 
     echo "Kernel has a store revision"
-    snap list|grep ^pc-kernel|grep -E " [0-9]+\s+canonical"
+    snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
 }
-
