@@ -58,23 +58,24 @@
 
     # don't allow changing profile to unconfined or profiles that start with
     # '/'
-    change_profile -> [^u/]**,
-    change_profile -> u[^n]**,
-    change_profile -> un[^c]**,
-    change_profile -> unc[^o]**,
-    change_profile -> unco[^n]**,
-    change_profile -> uncon[^f]**,
-    change_profile -> unconf[^i]**,
-    change_profile -> unconfi[^n]**,
-    change_profile -> unconfin[^e]**,
-    change_profile -> unconfine[^d]**,
-    change_profile -> unconfined?**,
+    change_profile unsafe /** -> [^u/]**,
+    change_profile unsafe /** -> u[^n]**,
+    change_profile unsafe /** -> un[^c]**,
+    change_profile unsafe /** -> unc[^o]**,
+    change_profile unsafe /** -> unco[^n]**,
+    change_profile unsafe /** -> uncon[^f]**,
+    change_profile unsafe /** -> unconf[^i]**,
+    change_profile unsafe /** -> unconfi[^n]**,
+    change_profile unsafe /** -> unconfin[^e]**,
+    change_profile unsafe /** -> unconfine[^d]**,
+    change_profile unsafe /** -> unconfined?**,
+
     # allow changing to a few not caught above
-    change_profile -> {u,un,unc,unco,uncon,unconf,unconfi,unconfin,unconfine},
+    change_profile unsafe /** -> {u,un,unc,unco,uncon,unconf,unconfi,unconfin,unconfine},
 
     # LP: #1446794 - when this bug is fixed, change the above to:
-    # deny change_profile -> {unconfined,/**},
-    # change_profile -> **,
+    # deny change_profile unsafe /** -> {unconfined,/**},
+    # change_profile unsafe /** -> **,
 
     # reading seccomp filters
     /{tmp/snap.rootfs_*/,}var/lib/snapd/seccomp/profiles/* r,
