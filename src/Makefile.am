@@ -25,7 +25,9 @@ snap_confine_SOURCES = \
 	quirks.c \
 	quirks.h \
 	mountinfo.c \
-	mountinfo.h
+	mountinfo.h \
+	ns-support.c \
+	ns-support.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
@@ -66,7 +68,8 @@ snap_confine_unit_tests_SOURCES = \
 	cleanup-funcs-test.c \
 	mount-support-test.c \
 	verify-executable-name-test.c \
-	mountinfo-test.c
+	mountinfo-test.c \
+	ns-support-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
