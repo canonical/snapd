@@ -47,7 +47,7 @@ if [ "$1" = "purge" ]; then
                 fi
             done
         fi
-        
+
         echo "Removing $unit"
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
@@ -55,4 +55,19 @@ if [ "$1" = "purge" ]; then
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
+
+    echo "Removing symlinks of systemd units"
+    systemd_symlinks="/etc/systemd/system/sockets.target.wants/snapd.socket \
+    /etc/systemd/system/timers.target.wants/snapd.refresh.timer \
+    /etc/systemd/system/multi-user.target.wants/snapd.firstboot.service \
+    /etc/systemd/system/multi-user.target.wants/snapd.refresh.timer \
+    /etc/systemd/system/multi-user.target.wants/snapd.service \
+    /etc/systemd/system/multi-user.target.wants/snapd.boot-ok.service"
+    for sym in ${systemd_symlinks}; do
+        if test -L $sym ; then
+            rm -rf $sym
+        fi
+    done
 fi
+
+#DEBHELPER#
