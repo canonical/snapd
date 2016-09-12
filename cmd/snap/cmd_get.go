@@ -46,9 +46,15 @@ func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
 		map[string]string{
 			"d": i18n.G("always return document, even with single key"),
-		}, [][2]string{
-			{i18n.G("<snap-name>"), i18n.G("the snap whose conf is being requested")},
-			{i18n.G("keys"), i18n.G("key of interest within the configuration")},
+		}, []argDesc{
+			{
+				name: i18n.G("<snap-name>"),
+				desc: i18n.G("the snap whose conf is being requested"),
+			},
+			{
+				name: i18n.G("keys"),
+				desc: i18n.G("key of interest within the configuration"),
+			},
 		})
 }
 

@@ -42,7 +42,10 @@ func init() {
 		i18n.G("Create a cryptographic key pair that can be used for signing assertions."),
 		func() flags.Commander {
 			return &cmdCreateKey{}
-		}, nil, [][2]string{{i18n.G("<key-name>"), i18n.G("name of key to create; defaults to 'default'")}})
+		}, nil, []argDesc{{
+			name: i18n.G("<key-name>"),
+			desc: i18n.G("name of key to create; defaults to 'default'"),
+		}})
 	cmd.hidden = true
 }
 

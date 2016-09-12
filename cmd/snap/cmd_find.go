@@ -96,7 +96,7 @@ func init() {
 		return &cmdFind{}
 	}, map[string]string{
 		"private": i18n.G("search private snaps"),
-	}, [][2]string{{i18n.G("query"), ""}})
+	}, []argDesc{{name: i18n.G("query")}})
 }
 
 func (x *cmdFind) Execute(args []string) error {

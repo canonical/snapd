@@ -38,7 +38,10 @@ func init() {
 		i18n.G("Delete the local cryptographic key pair with the given name."),
 		func() flags.Commander {
 			return &cmdDeleteKey{}
-		}, nil, [][2]string{{i18n.G("<key-name>"), i18n.G("name of key to delete")}})
+		}, nil, []argDesc{{
+			name: i18n.G("<key-name>"),
+			desc: i18n.G("name of key to delete"),
+		}})
 	cmd.hidden = true
 }
 

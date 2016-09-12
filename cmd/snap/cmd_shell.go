@@ -44,7 +44,10 @@ func init() {
 		i18n.G("Run snappy shell interface"),
 		func() flags.Commander {
 			return &cmdShell{}
-		}, nil, [][2]string{{i18n.G("shell-type"), i18n.G("The type of shell you want")}})
+		}, nil, []argDesc{{
+			name: i18n.G("shell-type"),
+			desc: i18n.G("The type of shell you want"),
+		}})
 }
 */
 

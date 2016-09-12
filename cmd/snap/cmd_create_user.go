@@ -50,7 +50,12 @@ func init() {
 		map[string]string{
 			"json":   i18n.G("output results in JSON format"),
 			"sudoer": i18n.G("grant sudo access to the created user"),
-		}, [][2]string{{i18n.G("email"), i18n.G("an email of a user on login.ubuntu.com")}})
+		}, []argDesc{{
+			// TRANSLATORS: noun
+			name: i18n.G("email"),
+			// TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+			desc: i18n.G("an email of a user on login.ubuntu.com"),
+		}})
 }
 
 func (x *cmdCreateUser) Execute(args []string) error {

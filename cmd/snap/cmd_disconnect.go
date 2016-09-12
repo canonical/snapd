@@ -53,7 +53,10 @@ Disconnects all plugs from the provided snap.
 func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
-	}, nil, [][2]string{{i18n.G("<snap>:<plug>"), ""}, {i18n.G("<snap>:<slot>"), ""}})
+	}, nil, []argDesc{
+		{name: i18n.G("<snap>:<plug>")},
+		{name: i18n.G("<snap>:<slot>")},
+	})
 }
 
 func (x *cmdDisconnect) Execute(args []string) error {

@@ -56,9 +56,10 @@ func init() {
 			"snap-id":      i18n.G("identifier of the snap package associated with the build"),
 			"k":            i18n.G("name of the GnuPG key to use (defaults to 'default' as key name)"),
 			"grade":        i18n.G("grade states the build quality of the snap (defaults to 'stable')"),
-		}, [][2]string{
-			{i18n.G("<filename>"), i18n.G("filename of the snap you want to assert a build for")},
-		})
+		}, []argDesc{{
+			name: i18n.G("<filename>"),
+			desc: i18n.G("filename of the snap you want to assert a build for"),
+		}})
 	cmd.hidden = true
 }
 
