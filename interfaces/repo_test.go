@@ -733,37 +733,39 @@ func (s *RepositorySuite) TestInterfacesSmokeTest(c *C) {
 
 // Tests for Repository.SecuritySnippetsForSnap()
 
+const testSecurity SecuritySystem = "security"
+
+var testInterface = &TestInterface{
+	InterfaceName: "interface",
+	PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
+		if securitySystem == testSecurity {
+			return []byte(`static plug snippet`), nil
+		}
+		return nil, ErrUnknownSecurity
+	},
+	PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		if securitySystem == testSecurity {
+			return []byte(`connection-specific plug snippet`), nil
+		}
+		return nil, ErrUnknownSecurity
+	},
+	PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		if securitySystem == testSecurity {
+			return []byte(`static slot snippet`), nil
+		}
+		return nil, ErrUnknownSecurity
+	},
+	SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
+		if securitySystem == testSecurity {
+			return []byte(`connection-specific slot snippet`), nil
+		}
+		return nil, ErrUnknownSecurity
+	},
+}
+
 func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
-	const testSecurity SecuritySystem = "security"
-	iface := &TestInterface{
-		InterfaceName: "interface",
-		PermanentPlugSnippetCallback: func(plug *Plug, securitySystem SecuritySystem) ([]byte, error) {
-			if securitySystem == testSecurity {
-				return []byte(`static plug snippet`), nil
-			}
-			return nil, ErrUnknownSecurity
-		},
-		PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			if securitySystem == testSecurity {
-				return []byte(`connection-specific plug snippet`), nil
-			}
-			return nil, ErrUnknownSecurity
-		},
-		PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			if securitySystem == testSecurity {
-				return []byte(`static slot snippet`), nil
-			}
-			return nil, ErrUnknownSecurity
-		},
-		SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
-			if securitySystem == testSecurity {
-				return []byte(`connection-specific slot snippet`), nil
-			}
-			return nil, ErrUnknownSecurity
-		},
-	}
 	repo := s.emptyRepo
-	c.Assert(repo.AddInterface(iface), IsNil)
+	c.Assert(repo.AddInterface(testInterface), IsNil)
 	c.Assert(repo.AddPlug(s.plug), IsNil)
 	c.Assert(repo.AddSlot(s.slot), IsNil)
 	// Snaps should get static security now
@@ -771,17 +773,17 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err := repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.consumer.app": [][]byte{
+		"snap.consumer.app": {
 			[]byte(`static plug snippet`),
 		},
-		"snap.consumer.hook.apply-config": [][]byte{
+		"snap.consumer.hook.apply-config": {
 			[]byte(`static plug snippet`),
 		},
 	})
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.producer.app": [][]byte{
+		"snap.producer.app": {
 			[]byte(`static slot snippet`),
 		},
 	})
@@ -791,11 +793,11 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err = repo.SecuritySnippetsForSnap(s.plug.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.consumer.app": [][]byte{
+		"snap.consumer.app": {
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},
-		"snap.consumer.hook.apply-config": [][]byte{
+		"snap.consumer.hook.apply-config": {
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},
@@ -803,7 +805,64 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 	snippets, err = repo.SecuritySnippetsForSnap(s.slot.Snap.Name(), testSecurity)
 	c.Assert(err, IsNil)
 	c.Check(snippets, DeepEquals, map[string][][]byte{
-		"snap.producer.app": [][]byte{
+		"snap.producer.app": {
+			[]byte(`static slot snippet`),
+			[]byte(`connection-specific slot snippet`),
+		},
+	})
+}
+
+func (s *RepositorySuite) TestOrphanInterfaces(c *C) {
+	repo := s.emptyRepo
+	snaps := addPlugsSlots(c, s.testRepo, `
+name: snap-a
+plugs:
+    plug-a: interface
+`, `
+name: snap-b
+slots:
+    slot-b: interface
+`)
+
+	c.Assert(repo.AddInterface(testInterface), IsNil)
+	for _, snap := range snaps {
+		err := repo.AddSnap(snap)
+		c.Assert(err, IsNil)
+	}
+
+	// Snaps should get static security now
+	var snippets map[string][][]byte
+	snippets, err := repo.SecuritySnippetsForSnap("snap-a", testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"snap.snap-a.none.plug-a": {
+			[]byte(`static plug snippet`),
+		},
+	})
+	snippets, err = repo.SecuritySnippetsForSnap("snap-b", testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"snap.snap-b.none.slot-b": {
+			[]byte(`static slot snippet`),
+		},
+	})
+
+	// Establish connection between plug and slot
+	c.Assert(repo.Connect("snap-a", "plug-a", "snap-b", "slot-b"), IsNil)
+
+	// Snaps should get static and connection-specific security now
+	snippets, err = repo.SecuritySnippetsForSnap("snap-a", testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"snap.snap-a.none.plug-a": {
+			[]byte(`static plug snippet`),
+			[]byte(`connection-specific plug snippet`),
+		},
+	})
+	snippets, err = repo.SecuritySnippetsForSnap("snap-b", testSecurity)
+	c.Assert(err, IsNil)
+	c.Check(snippets, DeepEquals, map[string][][]byte{
+		"snap.snap-b.none.slot-b": {
 			[]byte(`static slot snippet`),
 			[]byte(`connection-specific slot snippet`),
 		},

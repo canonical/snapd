@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/state"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -135,6 +136,15 @@ func (s *daemonSuite) TestGuestAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 	c.Check(cmd.canAccess(pst, nil), check.Equals, false)
 	c.Check(cmd.canAccess(del, nil), check.Equals, false)
+
+	// Since this request has no RemoteAddr, it must be coming from the snap
+	// socket instead of the snapd one. In that case, if SnapOK is true, this
+	// command should be wide open for all HTTP methods.
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+	c.Check(cmd.canAccess(pst, nil), check.Equals, true)
+	c.Check(cmd.canAccess(del, nil), check.Equals, true)
 }
 
 func (s *daemonSuite) TestUserAccess(c *check.C) {
@@ -152,6 +162,13 @@ func (s *daemonSuite) TestUserAccess(c *check.C) {
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
 	c.Check(cmd.canAccess(put, nil), check.Equals, false)
+
+	// Since this request has a RemoteAddr, it must be coming from the snapd
+	// socket instead of the snap one. In that case, SnapOK should have no
+	// bearing on the default behavior, which is to deny access.
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, false)
+	c.Check(cmd.canAccess(put, nil), check.Equals, false)
 }
 
 func (s *daemonSuite) TestSuperAccess(c *check.C) {
@@ -167,6 +184,10 @@ func (s *daemonSuite) TestSuperAccess(c *check.C) {
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 
 	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
+	c.Check(cmd.canAccess(get, nil), check.Equals, true)
+	c.Check(cmd.canAccess(put, nil), check.Equals, true)
+
+	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
 	c.Check(cmd.canAccess(get, nil), check.Equals, true)
 	c.Check(cmd.canAccess(put, nil), check.Equals, true)
 }
@@ -207,14 +228,37 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
-	accept := make(chan struct{})
-	d.listener = &witnessAcceptListener{l, accept}
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{l, snapAccept}
+
 	d.Start()
-	select {
-	case <-accept:
-	case <-time.After(2 * time.Second):
-		c.Fatal("Accept was not called")
-	}
+
+	snapdDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdDone)
+	}()
+
+	snapDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapDone)
+	}()
+
+	<-snapdDone
+	<-snapDone
+
 	err = d.Stop()
 	c.Check(err, check.IsNil)
 }
@@ -224,17 +268,39 @@ func (s *daemonSuite) TestRestartWiring(c *check.C) {
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
 
-	accept := make(chan struct{})
-	d.listener = &witnessAcceptListener{l, accept}
+	snapdAccept := make(chan struct{})
+	d.snapdListener = &witnessAcceptListener{l, snapdAccept}
+
+	snapAccept := make(chan struct{})
+	d.snapListener = &witnessAcceptListener{l, snapAccept}
+
 	d.Start()
 	defer d.Stop()
-	select {
-	case <-accept:
-	case <-time.After(2 * time.Second):
-		c.Fatal("Accept was not called")
-	}
 
-	d.overlord.State().RequestRestart()
+	snapdDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapdAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snapd accept was not called")
+		}
+		close(snapdDone)
+	}()
+
+	snapDone := make(chan struct{})
+	go func() {
+		select {
+		case <-snapAccept:
+		case <-time.After(2 * time.Second):
+			c.Fatal("snap accept was not called")
+		}
+		close(snapDone)
+	}()
+
+	<-snapdDone
+	<-snapDone
+
+	d.overlord.State().RequestRestart(state.RestartDaemon)
 
 	select {
 	case <-d.Dying():

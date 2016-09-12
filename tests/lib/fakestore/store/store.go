@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 func rootEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -49,15 +50,25 @@ type Store struct {
 	blobDir   string
 	assertDir string
 
+	assertFallback bool
+	fallback       *store.Store
+
 	srv *graceful.Server
 }
 
-// NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts.
-func NewStore(topDir, addr string) *Store {
+// NewStore creates a new store server serving snaps from the given top directory and assertions from topDir/asserts. If assertFallback is true missing assertions are looked up in the main online store.
+func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux := http.NewServeMux()
+	var sto *store.Store
+	if assertFallback {
+		sto = store.New(nil, nil)
+	}
 	store := &Store{
 		blobDir:   topDir,
 		assertDir: filepath.Join(topDir, "asserts"),
+
+		assertFallback: assertFallback,
+		fallback:       sto,
 
 		url: fmt.Sprintf("http://%s", addr),
 		srv: &graceful.Server{
@@ -153,7 +164,7 @@ var errInfo = errors.New("cannot get info")
 func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
 	snapFile, err := snap.Open(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), http.StatusBadRequest)
 		return nil, errInfo
 	}
 
@@ -271,7 +282,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	// should look nice
 	out, err := json.MarshalIndent(details, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can't marshal: %v: %v", details, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", details, err), http.StatusBadRequest)
 		return
 	}
 	w.Write(out)
@@ -332,7 +343,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&pkgs); err != nil {
-		http.Error(w, fmt.Sprintf("can't decode request body: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), http.StatusBadRequest)
 		return
 	}
 
@@ -432,6 +443,14 @@ func (s *Store) collectAssertions() (asserts.Backstore, error) {
 	return bs, nil
 }
 
+func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.AssertionType, primaryKey []string) (asserts.Assertion, error) {
+	a, err := bs.Get(assertType, primaryKey)
+	if err == asserts.ErrNotFound && s.assertFallback {
+		return s.fallback.Assertion(assertType, primaryKey, nil)
+	}
+	return a, err
+}
+
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	assertPath := strings.TrimPrefix(req.URL.Path, "/assertions/")
 
@@ -460,7 +479,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	a, err := bs.Get(typ, comps[1:])
+	a, err := s.retrieveAssertion(bs, typ, comps[1:])
 	if err == asserts.ErrNotFound {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)

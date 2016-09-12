@@ -20,9 +20,8 @@
 package wrappers_test
 
 import (
-	"fmt"
-	"io/ioutil"
-	"regexp"
+	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -71,19 +70,13 @@ func (s *binariesTestSuite) TestAddSnapBinariesAndRemove(c *C) {
 	err := wrappers.AddSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	wrapper := fmt.Sprintf("%s/bin/hello-snap.hello", dirs.SnapMountDir)
-
-	content, err := ioutil.ReadFile(wrapper)
+	link := filepath.Join(s.tempdir, "/snap/bin/hello-snap.hello")
+	target, err := os.Readlink(link)
 	c.Assert(err, IsNil)
-
-	needle := fmt.Sprintf(`
-exec /usr/bin/ubuntu-core-launcher snap.hello-snap.hello snap.hello-snap.hello %s/hello-snap/11/bin/hello "$@"
-`, dirs.SnapMountDir)
-
-	c.Assert(string(content), Matches, "(?ms).*"+regexp.QuoteMeta(needle)+".*")
+	c.Check(target, Equals, "/usr/bin/snap")
 
 	err = wrappers.RemoveSnapBinaries(info)
 	c.Assert(err, IsNil)
 
-	c.Check(osutil.FileExists(wrapper), Equals, false)
+	c.Check(osutil.FileExists(link), Equals, false)
 }
