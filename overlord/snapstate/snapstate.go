@@ -79,7 +79,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	}
 
 	// check if we already have the revision locally (alters tasks)
-	revisionIsLocal := snapst.findIndex(ss.Revision()) >= 0
+	revisionIsLocal := snapst.LastIndex(ss.Revision()) >= 0
 
 	var prepare, prev *state.Task
 	fromStore := false
@@ -150,7 +150,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	// Do not do that if we are reverting to a local revision
 	if snapst.HasCurrent() && !revisionIsLocal {
 		seq := snapst.Sequence
-		currentIndex := snapst.findIndex(snapst.Current)
+		currentIndex := snapst.LastIndex(snapst.Current)
 
 		// discard everything after "current" (we may have reverted to
 		// a previous versions earlier)
@@ -671,7 +671,7 @@ func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet
 
 // Revert returns a set of tasks for reverting to the pervious version of the snap.
 // Note that the state must be locked by the caller.
-func Revert(s *state.State, name string) (*state.TaskSet, error) {
+func Revert(s *state.State, name string, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -683,10 +683,10 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
 
-	return RevertToRevision(s, name, pi.Revision)
+	return RevertToRevision(s, name, pi.Revision, flags)
 }
 
-func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
+func RevertToRevision(s *state.State, name string, rev snap.Revision, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -700,12 +700,13 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	if !snapst.Active {
 		return nil, fmt.Errorf("cannot revert inactive snaps")
 	}
-	i := snapst.findIndex(rev)
+	i := snapst.LastIndex(rev)
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
+		Flags:    SnapSetupFlags(flags),
 	}
 	return doInstall(s, &snapst, ss)
 }

@@ -115,6 +115,9 @@ func copySnapDataDirectory(oldPath, newPath string) (err error) {
 				return fmt.Errorf("cannot copy %q to %q: %v", oldPath, newPath, err)
 			}
 		}
+	} else if !os.IsNotExist(err) {
+		return err
 	}
+
 	return nil
 }
