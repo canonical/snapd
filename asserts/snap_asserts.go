@@ -323,7 +323,7 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 // has been approved by the owner of the gating snap.
 type Validation struct {
 	assertionBase
-	valid     bool
+	revoked   bool
 	timestamp time.Time
 }
 
@@ -431,7 +431,7 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	valid := assert.headers["valid"] == "true"
+	revoked := assert.headers["revoked"] == "true"
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
@@ -440,7 +440,7 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 
 	return &Validation{
 		assertionBase: assert,
-		valid:         valid,
+		revoked:       revoked,
 		timestamp:     timestamp,
 	}, nil
 }
