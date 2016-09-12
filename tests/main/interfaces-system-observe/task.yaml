@@ -1,5 +1,7 @@
 summary: Ensures that the system-observe interface works.
 
+systems: [-ubuntu-core-16-64]
+
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.
@@ -11,7 +13,7 @@ details: |
 prepare: |
     echo "Given a snap declaring a plug on the system-observe interface is installed"
     snapbuild $TESTSLIB/snaps/system-observe-consumer .
-    snap install system-observe-consumer_1.0_all.snap
+    snap install --dangerous system-observe-consumer_1.0_all.snap
 
 restore: |
     rm -f system-observe-consumer_1.0_all.snap
@@ -31,7 +33,7 @@ execute: |
 
     echo "Then the snap is able to get system information"
     expected="(?s)/dev/tty.*?serial"
-    sudo -i -u test /bin/sh -c "system-observe-consumer" | grep -Pq "$expected"
+    su -l -c "system-observe-consumer" test | grep -Pq "$expected"
 
     echo "==========================================="
 
@@ -40,7 +42,7 @@ execute: |
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to get system information"
-    if sudo -i -u test /bin/sh -c "system-observe-consumer"; then
+    if su -l -c "system-observe-consumer" test; then
         echo "Expected error with plug disconnected"
         exit 1
     fi

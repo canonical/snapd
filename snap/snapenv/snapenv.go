@@ -21,7 +21,7 @@ package snapenv
 
 import (
 	"fmt"
-	"path/filepath"
+	"os"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap"
@@ -41,6 +41,7 @@ func Basic(info *snap.Info) []string {
 		fmt.Sprintf("SNAP_REVISION=%s", info.Revision),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
+		fmt.Sprintf("SNAP_REEXEC=%s", os.Getenv("SNAP_REEXEC")),
 	}
 }
 
@@ -49,11 +50,9 @@ func Basic(info *snap.Info) []string {
 // used by so many other modules, we run into circular dependencies if it's
 // somewhere more reasonable like the snappy module.
 func User(info *snap.Info, home string) []string {
-	// FIXME: should go into PlacementInfo
-	userData := filepath.Join(home, info.MountDir())
-	userCommon := filepath.Clean(filepath.Join(userData, "..", "common"))
 	return []string{
-		fmt.Sprintf("SNAP_USER_COMMON=%s", userCommon),
-		fmt.Sprintf("SNAP_USER_DATA=%s", userData),
+		fmt.Sprintf("HOME=%s", info.UserDataDir(home)),
+		fmt.Sprintf("SNAP_USER_COMMON=%s", info.UserCommonDataDir(home)),
+		fmt.Sprintf("SNAP_USER_DATA=%s", info.UserDataDir(home)),
 	}
 }

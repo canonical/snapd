@@ -20,9 +20,13 @@
 package asserts_test
 
 import (
+	"encoding/base64"
+	"io/ioutil"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/sha3"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -31,6 +35,7 @@ import (
 
 var (
 	_ = Suite(&snapDeclSuite{})
+	_ = Suite(&snapFileDigestSuite{})
 	_ = Suite(&snapBuildSuite{})
 	_ = Suite(&snapRevSuite{})
 )
@@ -191,6 +196,25 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) 
 	c.Assert(err, ErrorMatches, `snap-declaration assertion for "foo" \(id "snap-id-1"\) does not have a matching account assertion for the publisher "dev-id1"`)
 }
 
+type snapFileDigestSuite struct{}
+
+func (s *snapFileDigestSuite) TestSnapFileSHA3_384(c *C) {
+	exData := []byte("hashmeplease")
+
+	tempdir := c.MkDir()
+	snapFn := filepath.Join(tempdir, "ex.snap")
+	err := ioutil.WriteFile(snapFn, exData, 0644)
+	c.Assert(err, IsNil)
+
+	encDgst, size, err := asserts.SnapFileSHA3_384(snapFn)
+	c.Assert(err, IsNil)
+	c.Check(size, Equals, uint64(len(exData)))
+
+	h3_384 := sha3.Sum384(exData)
+	expected := base64.RawURLEncoding.EncodeToString(h3_384[:])
+	c.Check(encDgst, DeepEquals, expected)
+}
+
 type snapBuildSuite struct {
 	ts     time.Time
 	tsLine string
@@ -301,9 +325,8 @@ func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts
 
 	store := assertstest.NewStoreStack("canonical", trustedPrivKey, storePrivKey)
 	cfg := &asserts.DatabaseConfig{
-		Backstore:      asserts.NewMemoryBackstore(),
-		KeypairManager: asserts.NewMemoryKeypairManager(),
-		Trusted:        store.Trusted,
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   store.Trusted,
 	}
 	checkDB, err := asserts.OpenDatabase(cfg)
 	c.Assert(err, IsNil)

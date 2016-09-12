@@ -215,7 +215,7 @@ version: 1.0.1
 	c.Assert(err, IsNil)
 
 	_, err = snaptest.BuildSquashfsSnap(sourceDir, "")
-	c.Assert(err, ErrorMatches, "can not handle type of file .*")
+	c.Assert(err, ErrorMatches, "cannot handle type of file .*")
 }
 
 func (s *BuildTestSuite) TestBuildSquashfsSimple(c *C) {

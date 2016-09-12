@@ -21,6 +21,7 @@ package backend
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -31,17 +32,9 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
-func stripGlobalRootDir(dir string) string {
-	if dirs.GlobalRootDir == "/" {
-		return dir
-	}
-
-	return dir[len(dirs.GlobalRootDir):]
-}
-
 func addMountUnit(s *snap.Info, meter progress.Meter) error {
-	squashfsPath := stripGlobalRootDir(s.MountFile())
-	whereDir := stripGlobalRootDir(s.MountDir())
+	squashfsPath := dirs.StripRootDir(s.MountFile())
+	whereDir := dirs.StripRootDir(s.MountDir())
 
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	mountUnitName, err := sysd.WriteMountUnitFile(s.Name(), squashfsPath, whereDir, "squashfs")
@@ -64,8 +57,14 @@ func addMountUnit(s *snap.Info, meter progress.Meter) error {
 
 func removeMountUnit(baseDir string, meter progress.Meter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
-	unit := systemd.MountUnitPath(stripGlobalRootDir(baseDir), "mount")
+	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
+		// use umount --lazy to ensure that even busy mount points
+		// can be unmounted
+		if output, err := exec.Command("umount", "--lazy", baseDir).CombinedOutput(); err != nil {
+			return osutil.OutputErr(output, err)
+		}
+
 		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
 			return err
 		}

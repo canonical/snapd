@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -49,12 +50,13 @@ func (ts *HTestSuite) TestBasic(c *C) {
 	sort.Strings(env)
 
 	c.Assert(env, DeepEquals, []string{
-		"SNAP=/snap/foo/17",
+		fmt.Sprintf("SNAP=%s/foo/17", dirs.SnapMountDir),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_COMMON=/var/snap/foo/common",
 		"SNAP_DATA=/var/snap/foo/17",
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
 		"SNAP_NAME=foo",
+		"SNAP_REEXEC=",
 		"SNAP_REVISION=17",
 		"SNAP_VERSION=1.0",
 	})
@@ -63,7 +65,10 @@ func (ts *HTestSuite) TestBasic(c *C) {
 
 func (ts *HTestSuite) TestUser(c *C) {
 	env := User(mockSnapInfo, "/root")
+	sort.Strings(env)
+
 	c.Assert(env, DeepEquals, []string{
+		"HOME=/root/snap/foo/17",
 		"SNAP_USER_COMMON=/root/snap/foo/common",
 		"SNAP_USER_DATA=/root/snap/foo/17",
 	})

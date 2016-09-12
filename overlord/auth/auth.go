@@ -20,9 +20,12 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -38,6 +41,8 @@ type DeviceState struct {
 	Brand  string `json:"brand,omitempty"`
 	Model  string `json:"model,omitempty"`
 	Serial string `json:"serial,omitempty"`
+
+	KeyID string `json:"key-id,omitempty"`
 
 	SessionMacaroon string `json:"session-macaroon,omitempty"`
 }
@@ -206,21 +211,50 @@ NextUser:
 	return nil, ErrInvalidAuth
 }
 
-// An AuthContext handles user updates.
+// DeviceAssertions helps exposing the assertions about device identity.
+// All methods should return state.ErrNoState if the underlying needed
+// information is not (yet) available.
+type DeviceAssertions interface {
+	// Model returns the device model assertion.
+	Model() (*asserts.Model, error)
+	// Serial returns the device model assertion.
+	Serial() (*asserts.Serial, error)
+
+	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
+	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error)
+
+	// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
+	SerialProof(nonce string) (*asserts.SerialProof, error)
+}
+
+var (
+	ErrNoSerial = errors.New("no device serial yet")
+)
+
+// An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
 	Device() (*DeviceState, error)
 	UpdateDevice(device *DeviceState) error
+
 	UpdateUser(user *UserState) error
+
+	StoreID(fallback string) (string, error)
+
+	Serial() ([]byte, error)                  // DEPRECATED
+	SerialProof(nonce string) ([]byte, error) // DEPRECATED
+
+	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, err error)
 }
 
-// authContext helps keeping track and updating users in the state.
+// authContext helps keeping track of auth data in the state and exposing it.
 type authContext struct {
-	state *state.State
+	state         *state.State
+	deviceAsserts DeviceAssertions
 }
 
 // NewAuthContext returns an AuthContext for state.
-func NewAuthContext(st *state.State) AuthContext {
-	return &authContext{state: st}
+func NewAuthContext(st *state.State, deviceAsserts DeviceAssertions) AuthContext {
+	return &authContext{state: st, deviceAsserts: deviceAsserts}
 }
 
 // Device returns current device state.
@@ -245,4 +279,65 @@ func (ac *authContext) UpdateUser(user *UserState) error {
 	defer ac.state.Unlock()
 
 	return UpdateUser(ac.state, user)
+}
+
+// StoreID returns the store id according to system state or
+// the fallback one if the state has none set (yet).
+func (ac *authContext) StoreID(fallback string) (string, error) {
+	storeID := os.Getenv("UBUNTU_STORE_ID")
+	if storeID != "" {
+		return storeID, nil
+	}
+	if ac.deviceAsserts != nil {
+		mod, err := ac.deviceAsserts.Model()
+		if err != nil && err != state.ErrNoState {
+			return "", err
+		}
+		if err == nil {
+			storeID = mod.Store()
+		}
+	}
+	if storeID != "" {
+		return storeID, nil
+	}
+	return fallback, nil
+}
+
+// Serial returns the encoded device serial assertion.
+func (ac *authContext) Serial() ([]byte, error) {
+	if ac.deviceAsserts == nil {
+		return nil, state.ErrNoState
+	}
+	serial, err := ac.deviceAsserts.Serial()
+	if err != nil {
+		return nil, err
+	}
+	return asserts.Encode(serial), nil
+}
+
+// SerialProof produces a serial-proof with the given nonce.
+func (ac *authContext) SerialProof(nonce string) ([]byte, error) {
+	if ac.deviceAsserts == nil {
+		return nil, state.ErrNoState
+	}
+	proof, err := ac.deviceAsserts.SerialProof(nonce)
+	if err != nil {
+		return nil, err
+	}
+	return asserts.Encode(proof), nil
+}
+
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial assertion. It returns ErrNoSerial if the device serial is not yet initialized.
+func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, serial []byte, err error) {
+	if ac.deviceAsserts == nil {
+		return nil, nil, ErrNoSerial
+	}
+	req, ser, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
+	if err == state.ErrNoState {
+		return nil, nil, ErrNoSerial
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return asserts.Encode(req), asserts.Encode(ser), nil
 }

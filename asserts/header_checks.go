@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,18 @@ func checkNotEmptyString(headers map[string]interface{}, name string) (string, e
 	}
 	if len(s) == 0 {
 		return "", fmt.Errorf("%q header should not be empty", name)
+	}
+	return s, nil
+}
+
+func checkOptionalString(headers map[string]interface{}, name string) (string, error) {
+	value, ok := headers[name]
+	if !ok {
+		return "", nil
+	}
+	s, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%q header must be a string", name)
 	}
 	return s, nil
 }
@@ -165,4 +178,38 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 	}
 
 	return b, nil
+}
+
+func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
+	value, ok := headers[name]
+	if !ok {
+		return nil, nil
+	}
+	lst, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%q header must be a list of strings", name)
+	}
+	if len(lst) == 0 {
+		return nil, nil
+	}
+	res := make([]string, len(lst))
+	for i, v := range lst {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("%q header must be a list of strings", name)
+		}
+		res[i] = s
+	}
+	return res, nil
+}
+
+func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
+	s, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return "", err
+	}
+	if !pattern.MatchString(s) {
+		return "", fmt.Errorf("%q header contains invalid characters: %q", name, s)
+	}
+	return s, nil
 }

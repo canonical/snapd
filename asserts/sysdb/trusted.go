@@ -21,67 +21,99 @@ package sysdb
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/asserts"
 )
 
 const (
-	// TODO(matt): these are temporary asserts so tests start to pass. we need
-	// to generate and embed real ones.
 	encodedCanonicalAccount = `type: account
 authority-id: canonical
 account-id: canonical
 display-name: Canonical
-timestamp: 2016-08-11T18:35:58+02:00
+timestamp: 2016-04-01T00:00:00.0Z
 username: canonical
 validation: certified
-sign-key-sha3-384: X6havsrdOOwrut1RRbAJ8r0r28dbv-voCBat3kUTgY0Qs3eOsaNUVGugUfNYCzqn
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
 
-AcLBUgQAAQoABgUCV6ypbgAAaHwQAE8MVU3+dmv55oMCrIBAksheYNQZ9Yb92CL+gKFc2Vvo2gDM
-LTwy4VZJYL/NyedrFH6dkhdDVXFiwyLc/gxdChLOM0SGdKvjn4dNrxedltmL7+E/vtwMiTMuV2Be
-z48mT8eNVSHLgcGQMxlj08G1SmKNIqcL1U6nkC23ANAQfBMqR+QhFXIRbxq6l2DqWKeShwupRJVk
-MmYNjxy8IRndb5n7FN3j4bljTakPWiIrf87VbZ+Ogoy3uDOHTso2g95DJqUqGVt06i4vlOOrRAju
-ZTxwf/GH/Tft+3Xoq00Yc80MKnEKlqO5olJ/OyDkq4n1qWzU26upLZYCbSdxQ+4hTu9k9wZ+s0Om
-mwKuPnFPGgvwPyFygQC70L5nnK1NW+vYuECVmt8XHLaNmhW5ftOve92/ZoPAZGggBBjotKpfmr1m
-xIKX211lMwQSnxepWaAd9QMzOTe2axMnMl1yyMylcK2lL5aJDw5e6hT7m+qHVP88eGf/D0bKikfM
-zjoQNoKxU5VrBpzf7URky2of3Gvjst1Ird0kwC30/u8TbHhzRxRJHrO5zK0OBVd+opeF40Gf8MbC
-r66s+bqq9qEAXaf4jBhKqVDsucdErQmrsKFRbszYQdHfut8aXOJ1rWy8OvHRrdlAzvBZNu+RJV6O
-Kjgz1G+xXdopdFdqO1xPAXz4RNoR
+AcLDXAQAAQoABgUCV7UYzwAKCRDUpVvql9g3IK7uH/4udqNOurx5WYVknzXdwekp0ovHCQJ0iBPw
+TSFxEVr9faZSzb7eqJ1WicHsShf97PYS3ClRYAiluFsjRA8Y03kkSVJHjC+sIwGFubsnkmgflt6D
+WEmYIl0UBmeaEDS8uY4Xvp9NsLTzNEj2kvzy/52gKaTc1ZSl5RDL9ppMav+0V9iBYpiDPBWH2rJ+
+aDSD8Rkyygm0UscfAKyDKH4lrvZ0WkYyi1YVNPrjQ/AtBySh6Q4iJ3LifzKa9woIyAuJET/4/FPY
+oirqHAfuvNod36yNQIyNqEc20AvTvZNH0PSsg4rq3DLjIPzv5KbJO9lhsasNJK1OdL6x8Yqrdsbk
+ldZp4qkzfjV7VOMQKaadfcZPRaVVeJWOBnBiaukzkhoNlQi1sdCdkBB/AJHZF8QXw6c7vPDcfnCV
+1lW7ddQ2p8IsJbT6LzpJu3GW/P4xhNgCjtCJ1AJm9a9RqLwQYgdLZwwDa9iCRtqTbRXBlfy3apps
+1VjbQ3h5iCd0hNfwDBnGVm1rhLKHCD1DUdNE43oN2ZlE7XGyh0HFV6vKlpqoW3eoXCIxWu+HBY96
++LSl/jQgCkb0nxYyzEYK4Reb31D0mYw1Nji5W+MIF5E09+DYZoOT0UvR05YMwMEOeSdI/hLWg/5P
+k+GDK+/KopMmpd4D1+jjtF7ZvqDpmAV98jJGB2F88RyVb4gcjmFFyTi4Kv6vzz/oLpbm0qrizC0W
+HLGDN/ymGA5sHzEgEx7U540vz/q9VX60FKqL2YZr/DcyY9GKX5kCG4sNqIIHbcJneZ4frM99oVDu
+7Jv+DIx/Di6D1ULXol2XjxbbJLKHFtHksR97ceaFvcZwTogC61IYUBJCvvMoqdXAWMhEXCr0QfQ5
+Xbi31XW2d4/lF/zWlAkRnGTzufIXFni7+nEuOK0SQEzO3/WaRedK1SGOOtTDjB8/3OJeW96AUYK5
+oTIynkYkEyHWMNCXALg+WQW6L4/YO7aUjZ97zOWIugd7Xy63aT3r/EHafqaY2nacOhLfkeKZ830b
+o/ezjoZQAxbh6ce7JnXRgE9ELxjdAhBTpGjmmmN2sYrJ7zP9bOgly0BnEPXGSQfFA+NNNw1FADx1
+MUY8q9DBjmVtgqY+1KGTV5X8KvQCBMODZIf/XJPHdCRAHxMd8COypcwgL2vDIIXpOFbi1J/B0GF+
+eklxk9wzBA8AecBMCwCzIRHDNpD1oa2we38bVFrOug6e/VId1k1jYFJjiLyLCDmV8IMYwEllHSXp
+LQAdm3xZ7t4WnxYC8YSCk9mXf3CZg59SpmnV5Q5Z6A5Pl7Nc3sj7hcsMBZEsOMPzNC9dPsBnZvjs
+WpPUffJzEdhHBFhvYMuD4Vqj6ejUv9l3oTrjQWVC
 `
 
 	encodedCanonicalRootAccountKey = `type: account-key
 authority-id: canonical
-public-key-sha3-384: X6havsrdOOwrut1RRbAJ8r0r28dbv-voCBat3kUTgY0Qs3eOsaNUVGugUfNYCzqn
+revision: 2
+public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
 account-id: canonical
-since: 2016-08-11T18:35:58+02:00
-body-length: 717
-sign-key-sha3-384: X6havsrdOOwrut1RRbAJ8r0r28dbv-voCBat3kUTgY0Qs3eOsaNUVGugUfNYCzqn
+name: root
+since: 2016-04-01T00:00:00.0Z
+body-length: 1406
+sign-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk
 
-AcbBTQRWhcGAARAAzQYWcVYpvOkKM1YVOZ37wZ9PfpATafOa2Xm1QiwinrLozijkX33f6lGP7bNN
-zboCyWP3fMt8aPsfFKSuXkUI2ktsoVrIFWsYjuQjD7ngHGXHWlu6BND+rsnUm+4renZm8FZtiJPH
-d7rWsnmkl5wAIxCaPtrCm8NgMYPcD77J2b1hAYc1wviqevWmZ5+6aFcOlo1WBIe+bvZ8qJe88i/2
-RJ8r/82+zO012VMs98D7iOrtevAaejjRJZjUFF8MJg89zbk4Xz+te/hhj8jLkz/+r6Dp1Fv+0VpE
-FS8tolBJkRbJPtdgQj83YJSgLN57BYLNmGQQA+nJzd+2ev6FOB0CsDipHddk7w+UehXvQ8QQ4OMD
-De2A/SsRkBaygLVlLrxL0eZITI6ghIZTN+kGKc5eSoTrZx1tSS7b9jb4rtSbqFvqhpdJXNrlngVw
-GfqiG1bB6iYIRlWbgNJox0D1y1S+gTgv8VIIKyZzr4LC1Yx7ciDklW+D4vUyiDWKdDdD2N3/L3MK
-qbBRDeji3VAEyRBNIEVCc4E3dJ1O4ksKy4hjV9u7P+fuDQvRYK4vshy5wY38NcXPfUHBELz695II
-MlDUv6HVo7FZh046r3Y+LazxGaPmCYtjzJ8DZrbdOtxncBzNrU0bguGPBuE0RU+YeOhqQMPamteQ
-muzEQ3tXGtPPBlsAEQEAAQ==
+AcbDTQRWhcGAASAA4Zdo3CVpKmTecjd3VDBiFbZTKKhcG0UV3FXxyGIe2UsdnJIks4NkVYO+qYk0
+zW26Svpa5OIOJGO2NcgN9bpCYWZOufO1xTmC7jW/fEtqJpX8Kcq20+X5AarqJ5RBVnGLrlz+ZT99
+aHdRZ4YQ2XUZvhbelzWTdK5+2eMSXNrFjO6WwGh9NRekE/NIBNwvULAtJ5nv1KwZaSpZ+klJrstU
+EHPhs+NGGm1Aru01FFl3cWUm5Ao8i9y+pFcPoaRatgtpYU8mg9gP594lvyJqjFofXvHPwztmySqf
+FVAp4gLLfLvRxbXkOfPUz8guidqvg6r4DUD+kCBjKYoT44PjK6l51MzEL2IEy6jdnFTgjHbaYML8
+/5NpuPu8XiSjCpOTeNR+XKzXC2tHRU7j09Xd44vKRhPk0Hc4XsPNBWqfrcbdWmwsFhjfxFDJajOq
+hzWVoiRc5opB5socbRjLf+gYtncxe99oC2FDA2FcftlFoyztho0bAzeFer1IHJIMYWxKMESjvJUE
+pnMMKpIMYY0QfWEo5hXR0TaT+NxW2Z9Jqclgyw13y5iY72ZparHS66J+C7dxCEOswlw1ypNic6MM
+/OzpafIQ10yAT3HeRCJQQOOSSTaold+WpWsQweYCywPcu9S+wCo6CrPzJCCIxOAnXjLYv2ykTJje
+pNJ2+GZ1WH2UeJdJ5sR8fpxxRupqHuEKNRZ+2CqLmFC5kHNszoGolLEvGcK4BJciO4KihnKtxrdX
+dUJIOPBLktA8XiiHSOmLzs2CFjcvlDuPSpe64HIL5yCxO1/GRux4A1Kht1+DqTrL7DjyIW+vIPro
+A1PQwkcAJyScNRxT4bPpUj8geAXWd3n212W+7QVHuQEFezvXC5GbMyR+Xj47FOFcFcSZID1hTZEu
+uMD+AxaBHQKwPfBx1arVKE1OhkuKHeSFtZRP8K8l3qj5W0sIxxIW19W8aziu8ZeDMT+nIEJrJvhx
+zGEdxwCrp3k2/93oDV7g+nb1ZGfIhtmcrKziijghzPLaYaiM9LggqwTARelk3xSzd8+uk3LPXuVl
+fP8/xHApss6sCE3xk4+F3OGbL7HbGuCnoulf795XKLRTy+xU/78piOMNJJQu+G0lMZIO3cZrP6io
+MYDa+jDZw4V4fBRWce/FA3Ot1eIDxCq5v+vfKw+HfUlWcjm6VUQIFZYbK+Lzj6mpXn81BugG3d+M
+0WNFObXIrUbhnKcYkus3TSJ9M1oMEIMp0WfFGAVTd61u36fdi2e+/xbLN0kbYcFRZwd9CmtEeDZ0
+eYx/pvKKaNz/DfUr0piVCRwxuxQ0kVppklHPO4sOTFZUId8KLHg28LbszvupSsHP/nHlW8l5/VK6
+4+KxRV2XofsUnwARAQAB
 
-AcLBUgQAAQoABgUCV6ypbgAABuYQAHOvCrzhMlRh/QgwHt3szfKaWYr5Q7srE1iB+GRyu3iOuIUq
-qmnmmBFDoUCFXRPkXSaYZ/AvnkTORr6rwaW3jG0WrWEsubxnwAdfb/vsVT2Ng0ICTxdIMoJzAzto
-/xh/WrZxcOiOjk0IKZFUk7WZGXEgeVR50pYzDht5XhCnkZh4EAw6NbuR7YYTHOkLZXQqRK/aWkrz
-0fNpWpCl8k4NSAxLxpxoQMUnnpXf/X5ASzlEKlJ4nROSNcuoUGw5pLOhUPTaRmmZD9SDlMoH9xbY
-Ka0242VmZibCe7+YT/gG5XVkAQoFQA6Hg5LRAw3yEWx1X3c7UsiHfBK6PU4LhxmhvGpBNMJzqpix
-SZ/d2TmNt/E0MR8EsC/FoBMjJlw9x6eMHw19PBrNC+8zoBFTmXsw1GRtg75TlJton/BbQgbvjksS
-+kpNueSeSNUC/V5FwOWcVasXv/axhkutkppbNQD6fIKjRrAfR0F5KyYZMIXzsjz67KviIDiRTIot
-B0F1GemGY8W+FYc/qs8ohzNIaSXADpoP6CB5AW+2W2+St1uDRVTVDuQr9aYLt9Kxy5CAPnnGuHB1
-yx7Yflp/8bSN+gDnsQLjl5tvbhcD2jcyoSCT5tYyeQLsll21mtPpAlQSttOAKBNqGkfizZLic+uh
-H7YzXSE30X26wsgACbgyVMRAgxqP
+AcLDXAQAAQoABgUCV83kkgAKCRDUpVvql9g3IA9hIADAkn4VXnJIFblhMSBe6hbTy7z6AfOhZxXR
+Ds/mHsiWfFT6ifGi9SpZowhRX+ff57YvFCjlBqMYLKYE0NsFQYEUc5uBWiFZwC0ENydNhO23DV1B
+elTSs6mr9duPm1eJAozFrQETOD1kz5BIamqBUeaTczjM+9l5i485Ffknbc+EaGOrtMEap0GqjByQ
+u+ykZGvryVQ447avgjvFsMtA0quFi+SoW9PT/9D26e5rD7RIICYWG8mzFRn5Isqs/X4W1uAiKQe9
+pqHMbdNr/FCWX5ws0/nMaOq+b0z4EIIXIfT0JmIlFDQsAgFVnKwYw+zs32cTw4XuzvMhgMDtCowD
+YodhiO/5AOMsMMV0qBsYxbIPJIEz7b6gwTYEJoTVkqTit6o3UgWrAy+p4Y7t0ickYIHgwiuKRS9E
+fu0Ue+32NFp0XFqZElfXLK/U2yjto+fJXu6uAELsXesfFGIOp/nbRbNavUt9jAJeO7ftQczgf39T
+YfA0OKerP5gAOd4+aO3gATPUjfWPsJ9908XC7QqK2BwS1kh/fMrd95mxcmXdF1bBElszKwaToBVQ
+1m52EYp06kkPyOu+fGKFAoIMafcV/2Ztz1WMo/Vp0iP/r0WAtBDw6sDJyWOfRjUEvP7BBdEzraHV
+VblbSrKzhYeEGdMDi6kFC+KEzfPDPFJX1l3saPBkz9VDuESbktyObQp9VfkFKYBgBnw3msQJk+6k
+G4t0o3/DZ7qz/kTJXMogG26Z/FsMhPERsaLTbWRJ3WRyXX8COaTladSf8bG0Oib19outnjuvpjQ0
+qEV9eeGRBlx9mbidSYH95cj0zD2DKpeSZ83M5K1pFg+8RKToGElGTTk8vtdTfDVbmi3+QntfLq+z
+ZMgs2+SmCWrV/MPC04Dl00CXywdKPyf6toomqRP7A5fS7W8P9fdPn+a8JCblcleGj9nvJXBQjue7
+97rofCEszhKhoE9fMCIUcSoTU9YAm5Jr+qclSEbV1pzwTvZ8auMIXtzEZV5n4aK4WPDV+lYCadrL
+DlvJSJRuXRvIMbmvU9b8NxgG8AS88BkX3L9vlOpkMculwG1/iooQvxuFaJDargt370wAQo0lCpG3
+MxnsSusymwnYegvvvr7Xp/KBLZK1+8Djzm3fwAryp4qNo29ciVw3O9lFKmmuiIcxSY0bauXaK6kv
+pTnYkmx7XGPF7Ahb7Ov0/0FE2Lx3JZXSEKeW+VrCcpYQOY++t67b+jf0AV4rZExcLFJzP6MPMimP
+ZCd383NzlzkXK+vAdvTi40HPiM9FYOp6g8JTs5TTdx2/qs/SWFC8AkahIQmH0IpFBJep2JKl2kyr
+FZMvASkHA9bR/UuXDvbMzsUmT/xnERZosQaZgFEO
 `
 )
 
-var trustedAssertions []asserts.Assertion
+var (
+	trustedAssertions        []asserts.Assertion
+	trustedStagingAssertions []asserts.Assertion
+	trustedExtraAssertions   []asserts.Assertion
+)
 
 func init() {
 	canonicalAccount, err := asserts.Decode([]byte(encodedCanonicalAccount))
@@ -97,18 +129,25 @@ func init() {
 
 // Trusted returns a copy of the current set of trusted assertions as used by Open.
 func Trusted() []asserts.Assertion {
-	return append([]asserts.Assertion(nil), trustedAssertions...)
+	trusted := []asserts.Assertion(nil)
+	if os.Getenv("SNAPPY_USE_STAGING_STORE") != "1" {
+		trusted = append(trusted, trustedAssertions...)
+	} else {
+		trusted = append(trusted, trustedStagingAssertions...)
+	}
+	trusted = append(trusted, trustedExtraAssertions...)
+	return trusted
 }
 
 // InjectTrusted injects further assertions into the trusted set for Open.
 // Returns a restore function to reinstate the previous set. Useful
 // for tests or called globally without worrying about restoring.
 func InjectTrusted(extra []asserts.Assertion) (restore func()) {
-	prev := trustedAssertions
-	trustedAssertions = make([]asserts.Assertion, len(prev)+len(extra))
-	copy(trustedAssertions, prev)
-	copy(trustedAssertions[len(prev):], extra)
+	prev := trustedExtraAssertions
+	trustedExtraAssertions = make([]asserts.Assertion, len(prev)+len(extra))
+	copy(trustedExtraAssertions, prev)
+	copy(trustedExtraAssertions[len(prev):], extra)
 	return func() {
-		trustedAssertions = prev
+		trustedExtraAssertions = prev
 	}
 }
