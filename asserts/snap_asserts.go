@@ -388,7 +388,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 	if err != nil {
 		return err
 	}
-	// XXX find matching SnapRevision (series, snap-id, revision) ?
+	// XXX find matching SnapRevision (series, approved-snap-id, approved-revision) ?
 	return nil
 }
 
