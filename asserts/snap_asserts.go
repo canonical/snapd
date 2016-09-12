@@ -427,7 +427,7 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`"approved-snap-revision" header must be >=1: %d`, approvedSnapRevision)
 	}
 
-	_, err = checkNotEmptyString(assert.headers, "revoked")
+	_, err = checkOptionalString(assert.headers, "revoked")
 	if err != nil {
 		return nil, err
 	}
