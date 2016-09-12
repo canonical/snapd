@@ -213,53 +213,24 @@ $ snap remove bluez
           TPM Version:         01010000
           Manufacturer Info:   57454300
 
-# Test upower-observe interface with upower
+# Test fwupd interface with uefi-fw-tools
 
-1. Create a upower snap:
+1. Ensure your BIOS support UEFI firmware upgrading via UEFI capsule format
+2. Install the uefi-fw-tools snap from the store
+3. Ensure the 'fwupd' interface is connected
 
-    name: test-upower-observe
-    version: 0
-    summary: Test upower-observe interface
-    description: |
-     Test upower-observe interface on classic
-    architectures:
-    - amd64
-    confinement: strict
+ $ sudo snap connect uefi-fw-tools:fwupdmgr uefi-fw-tools:fwupd
 
-    apps:
-      test-upower-observe:
-        command: usr/bin/upower
-        plugs: [ upower-observe ]
+4. Check if the device support UEFI firmware updates
 
-    parts:
-      mypackages:
-        plugin: nil
-        stage-packages:
-        - upower
+ $ sudo uefi-fw-tools.fwupdmgr get-devices
 
-2. Install the snap:
+5. Get available UEFI firmware from the server
 
-    $ sudo snap install ./test-upower-observe_0_amd64.snap
+ $ sudo uefi-fw-tools.fwupdmgr refresh
 
-3. Dump upower information
+6. Download firmware
 
-    $ test-upower-observe -h
-    Usage:
-      upower [OPTION...] UPower tool
-    ...
-    $ test-upower-observe --dump # output here is from a VM
-    Device: /org/freedesktop/UPower/devices/DisplayDevice
-      power supply:         no
-      updated:              Tue Aug 30 15:48:04 2016 (63174 seconds ago)
-      has history:          no
-      has statistics:       no
-      unknown
-        warning-level:       none
-        icon-name:          ''
+ $ sudo uefi-fw-tools.fwupdmgr update
 
-    Daemon:
-      daemon-version:  0.99.4
-      on-battery:      no
-      lid-is-closed:   no
-      lid-is-present:  no
-      critical-action: HybridSleep
+7. Reboot and ensure it start the upgrading process

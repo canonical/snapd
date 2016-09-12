@@ -333,7 +333,7 @@ func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Check(string(jsonReq), Equals, `{"serial-assertion":"serial-assertion","serial-proof":"serial-proof"}`)
+		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","serial-assertion":"serial-assertion"}`)
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
 
 		io.WriteString(w, mockStoreReturnMacaroon)
@@ -341,7 +341,7 @@ func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "serial-proof", "")
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -350,7 +350,7 @@ func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
-		c.Check(string(jsonReq), Equals, `{"serial-assertion":"serial-assertion","serial-proof":"serial-proof"}`)
+		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","serial-assertion":"serial-assertion"}`)
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="previous-session"`)
 
 		io.WriteString(w, mockStoreReturnMacaroon)
@@ -358,7 +358,7 @@ func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "serial-proof", "previous-session")
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "previous-session")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -370,7 +370,7 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "serial-proof", "")
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, "cannot get device session from store: empty session returned")
 	c.Assert(macaroon, Equals, "")
 }
@@ -382,7 +382,7 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "serial-proof", "")
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, "cannot get device session from store: store server returned status 500")
 	c.Assert(macaroon, Equals, "")
 }

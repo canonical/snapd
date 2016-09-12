@@ -20,6 +20,8 @@
 package main_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -61,7 +63,7 @@ func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
 	storeSigning := assertstest.NewStoreStack("canonical", rootPrivKey, storePrivKey)
 	manager := asserts.NewGPGKeypairManager()
 	assertstest.NewAccount(storeSigning, "developer1", nil, "")
-	rest, err := snap.Parser().ParseArgs([]string{"export-key", "default", "--account=developer1"})
+	rest, err := snap.Parser().ParseArgs([]string{"export-key", "another", "--account=developer1"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	assertion, err := asserts.Decode(s.stdout.Bytes())
@@ -69,7 +71,13 @@ func (s *SnapKeysSuite) TestExportKeyAccount(c *C) {
 	c.Check(assertion.Type(), Equals, asserts.AccountKeyRequestType)
 	c.Check(assertion.Revision(), Equals, 0)
 	c.Check(assertion.HeaderString("account-id"), Equals, "developer1")
-	c.Check(assertion.HeaderString("public-key-sha3-384"), Equals, "g4Pks54W_US4pZuxhgG_RHNAf_UeZBBuZyGRLLmMj1Do3GkE_r_5A5BFjx24ZwVJ")
+	c.Check(assertion.HeaderString("name"), Equals, "another")
+	c.Check(assertion.HeaderString("public-key-sha3-384"), Equals, "DVQf1U4mIsuzlQqAebjjTPYtYJ-GEhJy0REuj3zvpQYTZ7EJj7adBxIXLJ7Vmk3L")
+	since, err := time.Parse(time.RFC3339, assertion.HeaderString("since"))
+	c.Assert(err, IsNil)
+	zone, offset := since.Zone()
+	c.Check(zone, Equals, "UTC")
+	c.Check(offset, Equals, 0)
 	c.Check(s.Stderr(), Equals, "")
 	privKey, err := manager.Get(assertion.HeaderString("public-key-sha3-384"))
 	c.Assert(err, IsNil)
