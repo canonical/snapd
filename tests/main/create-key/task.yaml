@@ -6,6 +6,12 @@ restore: |
     rm -rf $HOME/.snap/gnupg
 
 execute: |
+    # FIXME: port test to gpg2
+    if grep yakkety /etc/os-release; then
+        echo "SKIPPING TEST ON YAKKETY"
+        exit 0
+    fi
+
     echo "Checking passphrase mismatch error"
     expect -f passphrase_mismatch.exp
 
