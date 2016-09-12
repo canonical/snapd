@@ -1,0 +1,54 @@
+summary: Ensure that the upower-observe interface works.
+
+systems: [-ubuntu-core-16-64]
+
+summary: |
+    The upower-observe interface allows a snap to query UPower for power devices, history
+    and statistics.
+
+    A snap which defines the upower-observe plug must be shown in the interfaces list.
+    The plug must be autoconnected on install and, as usual, must be able to be reconnected.
+
+    The test uses a snap wrapping the upower command line utility, and checks that it can query
+    it without error while the plug is connected.
+
+prepare: |
+    echo "Given a snap declaring a plug on the upower-observe interface is installed"
+    snap install --edge test-snapd-upower-observe-consumer
+
+    apt install -y upower
+
+restore: |
+    rm -f upower.error
+    apt remove -y upower
+    apt autoremove -y
+
+execute: |
+    CONNECTED_PATTERN=":upower-observe +test-snapd-upower-observe-consumer"
+    DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-upower-observe-consumer:upower-observe"
+
+    echo "Then it is connected by default"
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "==================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect test-snapd-upower-observe-consumer:upower-observe ubuntu-core:upower-observe
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "Then the snap is not able to dump info about the upower devices"
+    if su -l -c "test-snapd-upower-observe-consumer.upower --dump 2>${PWD}/upower.error" test; then
+        echo "Expected permission error accessing upower info with disconnected plug"
+        exit 1
+    fi
+    grep -q "Permission denied" upower.error
+
+    echo "==================================="
+
+    echo "When the plug is connected"
+    snap connect test-snapd-upower-observe-consumer:upower-observe ubuntu-core:upower-observe
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the snap is able to dump info about the upower devices"
+    expected="(?s)Device: +/org/freedesktop/UPower/devices/DisplayDevice.*Daemon:.*"
+    su -l -c 'test-snapd-upower-observe-consumer.upower --dump' test | grep -Pqz "$expected"

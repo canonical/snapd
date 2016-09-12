@@ -61,7 +61,7 @@ func (x *cmdKnown) Execute(args []string) error {
 	for _, headerFilter := range x.KnownOptions.HeaderFilters {
 		parts := strings.SplitN(headerFilter, "=", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid header filter: %q (want key=value)", headerFilter)
+			return fmt.Errorf(i18n.G("invalid header filter: %q (want key=value)"), headerFilter)
 		}
 		headers[parts[0]] = parts[1]
 	}
