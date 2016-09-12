@@ -169,6 +169,12 @@ name: ubuntu-core
 version: 16.04
 type: os
 `
+const devmodeSnap = `
+name: devmode-snap
+version: 1.0
+type: app
+confinement: devmode
+`
 
 func (s *imageSuite) TestMissingModelAssertions(c *C) {
 	_, err := image.DecodeModelAssertion(&image.Options{})
@@ -263,8 +269,10 @@ func infoFromSnapYaml(c *C, snapYaml string, rev snap.Revision) *snap.Info {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
 
-	info.SnapID = info.Name() + "-Id"
-	info.Revision = rev
+	if !rev.Unset() {
+		info.SnapID = info.Name() + "-Id"
+		info.Revision = rev
+	}
 	return info
 }
 
@@ -497,4 +505,65 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	cv, err = s.bootloader.GetBootVar("snap_core")
 	c.Assert(err, IsNil)
 	c.Check(cv, Equals, "ubuntu-core_x1.snap")
+}
+
+func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	rootdir := filepath.Join(c.MkDir(), "imageroot")
+
+	// FIXME: bootstrapToRootDir needs an unpacked gadget yaml
+	gadgetUnpackDir := filepath.Join(c.MkDir(), "gadget")
+
+	err := os.MkdirAll(gadgetUnpackDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(gadgetUnpackDir, "grub.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	s.setupSnaps(c, gadgetUnpackDir)
+
+	s.downloadedSnaps["devmode-snap"] = snaptest.MakeTestSnapWithFiles(c, devmodeSnap, nil)
+	s.storeSnapInfo["devmode-snap"] = infoFromSnapYaml(c, devmodeSnap, snap.R(0))
+
+	// mock the mount cmds (for the extract kernel assets stuff)
+	c1 := testutil.MockCommand(c, "mount", "")
+	defer c1.Restore()
+	c2 := testutil.MockCommand(c, "umount", "")
+	defer c2.Restore()
+
+	opts := &image.Options{
+		Snaps: []string{s.downloadedSnaps["devmode-snap"]},
+
+		RootDir:         rootdir,
+		GadgetUnpackDir: gadgetUnpackDir,
+	}
+	local, err := image.LocalSnaps(opts)
+	c.Assert(err, IsNil)
+
+	err = image.BootstrapToRootDir(s, s.model, opts, local)
+	c.Assert(err, IsNil)
+
+	// check seed yaml
+	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
+	c.Assert(err, IsNil)
+
+	c.Check(seed.Snaps, HasLen, 4)
+
+	// check devmode-snap
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "devmode-snap",
+			Revision: snap.R("x1"),
+		},
+	}
+	fn := filepath.Base(info.MountFile())
+	p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
+	c.Check(osutil.FileExists(p), Equals, true)
+	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+		Name:       "devmode-snap",
+		File:       fn,
+		DevMode:    true,
+		Unasserted: true,
+	})
 }

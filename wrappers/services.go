@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"text/template"
 	"time"
 
@@ -32,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapenv"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
 )
@@ -223,7 +221,6 @@ X-Snappy=yes
 ExecStart={{.App.LauncherCommand}}
 Restart={{.Restart}}
 WorkingDirectory={{.App.Snap.DataDir}}
-Environment={{.EnvVars}}
 {{if .App.StopCommand}}ExecStop={{.App.LauncherStopCommand}}{{end}}
 {{if .App.PostStopCommand}}ExecStopPost={{.App.LauncherPostStopCommand}}{{end}}
 {{if .StopTimeout}}TimeoutStopSec={{.StopTimeout.Seconds}}{{end}}
@@ -271,9 +268,6 @@ WantedBy={{.ServiceTargetUnit}}
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
 	}
-	allVars := snapenv.Basic(appInfo.Snap)
-	allVars = append(allVars, snapenv.User(appInfo.Snap, "/root")...)
-	wrapperData.EnvVars = "\"" + strings.Join(allVars, "\" \"") + "\"" // allVars won't be empty
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
 		// this can never happen, except we forget a variable

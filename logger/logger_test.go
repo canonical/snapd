@@ -140,7 +140,7 @@ func (s *LogSuite) TestSyslogFails(c *C) {
 	// ensure a warning is displayed
 	l, err := NewConsoleLog(&logbuf, DefaultFlags)
 	c.Assert(err, IsNil)
-	c.Check(logbuf.String(), Matches, `(?m).*:\d+: WARNING: can not create syslog logger`)
+	c.Check(logbuf.String(), Matches, `(?m).*:\d+: WARNING: cannot create syslog logger`)
 
 	// ensure that even without a syslog the console log works and we
 	// do not crash

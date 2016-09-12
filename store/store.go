@@ -38,7 +38,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -88,7 +87,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.DeveloperID = d.DeveloperID
 	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	info.Channel = d.Channel
-	info.Sha512 = d.DownloadSha512
+	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
@@ -415,22 +414,17 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	serialAssertion, err := s.authContext.Serial()
-	if err != nil {
-		return err
-	}
-
 	nonce, err := RequestStoreDeviceNonce()
 	if err != nil {
 		return err
 	}
 
-	serialProof, err := s.authContext.SerialProof(nonce)
+	sessionRequest, serialAssertion, err := s.authContext.DeviceSessionRequest(nonce)
 	if err != nil {
 		return err
 	}
 
-	session, err := RequestDeviceSession(string(serialAssertion), string(serialProof), device.SessionMacaroon)
+	session, err := RequestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -544,11 +538,11 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		}
 		if device.SessionMacaroon == "" {
 			err = s.refreshDeviceSession(device)
-			if err == state.ErrNoState {
+			if err == auth.ErrNoSerial {
 				// missing serial assertion, log and continue without device authentication
 				logger.Debugf("cannot set device session: %v", err)
 			}
-			if err != nil && err != state.ErrNoState {
+			if err != nil && err != auth.ErrNoSerial {
 				return nil, err
 			}
 		}
@@ -1332,6 +1326,10 @@ type PaymentInformation struct {
 
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
+	if user == nil {
+		return nil, ErrInvalidCredentials
+	}
+
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    s.paymentMethodsURI,
@@ -1376,6 +1374,8 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 		}
 
 		return paymentMethods, nil
+	case http.StatusUnauthorized:
+		return nil, ErrInvalidCredentials
 	default:
 		var errorInfo buyError
 		dec := json.NewDecoder(resp.Body)
