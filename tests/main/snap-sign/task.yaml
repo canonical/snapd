@@ -1,0 +1,29 @@
+summary: Run snap sign to sign a model assertion
+
+execute: |
+    echo "Creating a new key without a password"
+    expect -f successful_default.exp
+
+    echo "Ensure we have the new key"
+    snap keys|grep default
+    key=$(snap keys|grep default|tr -s ' ' |cut -f2 -d' ')
+
+    echo "Create an example model assertion"
+    cat <<EOF >pi3-model.json
+    {
+      "type": "model",
+      "authority-id": "test",
+      "brand-id": "test",
+      "series": "16",
+      "model": "pi3",
+      "architecture": "armhf",
+      "gadget": "pi3",
+      "kernel": "pi2-kernel",
+      "timestamp": "$(date -Iseconds --utc)"
+    }
+    EOF
+    echo "Sign the model assertion with our key"
+    cat pi3-model.json | snap sign -k default &> pi3.model
+
+    echo "Verify that the resulting model assertion is signed"
+    grep "sign-key-sha3-384: $key" pi3.model
