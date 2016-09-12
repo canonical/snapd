@@ -56,7 +56,10 @@ func init() {
 		return &cmdBuy{}
 	}, map[string]string{
 		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
-	}, [][2]string{{"<snap>", i18n.G("snap name")}})
+	}, []argDesc{{
+		name: "<snap>",
+		desc: i18n.G("snap name"),
+	}})
 }
 
 func (x *cmdBuy) Execute(args []string) error {

@@ -48,6 +48,11 @@ type options struct {
 	Version func() `long:"version" description:"print the version and exit"`
 }
 
+type argDesc struct {
+	name string
+	desc string
+}
+
 var optionsData options
 
 // ErrExtraArgs is returned  if extra arguments to a command are found
@@ -59,7 +64,7 @@ type cmdInfo struct {
 	builder                   func() flags.Commander
 	hidden                    bool
 	optDescs                  map[string]string
-	argDescs                  [][2]string
+	argDescs                  []argDesc
 }
 
 // commands holds information about all non-experimental commands.
@@ -70,7 +75,7 @@ var experimentalCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
-func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs [][2]string) *cmdInfo {
+func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
@@ -171,8 +176,8 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 				logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
 			}
 			for i, arg := range args {
-				arg.Name = c.argDescs[i][0]
-				arg.Description = c.argDescs[i][1]
+				arg.Name = c.argDescs[i].name
+				arg.Description = c.argDescs[i].desc
 			}
 		}
 	}

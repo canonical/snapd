@@ -58,7 +58,10 @@ func init() {
 		return &cmdInterfaces{}
 	}, map[string]string{
 		"i": i18n.G("constrain listing to specific interfaces"),
-	}, [][2]string{{i18n.G("<snap>:<slot or plug>"), i18n.G("snap or snap:name")}})
+	}, []argDesc{{
+		name: i18n.G("<snap>:<slot or plug>"),
+		desc: i18n.G("snap or snap:name"),
+	}})
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {

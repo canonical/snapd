@@ -54,7 +54,11 @@ func init() {
 		longLoginHelp,
 		func() flags.Commander {
 			return &cmdLogin{}
-		}, nil, [][2]string{{i18n.G("email"), i18n.G("login.ubuntu.com email to login as")}})
+		}, nil, []argDesc{{
+			// TRANSLATORS: noun
+			name: i18n.G("email"),
+			desc: i18n.G("login.ubuntu.com email to login as"),
+		}})
 }
 
 func requestLoginWith2faRetry(username, password string) error {

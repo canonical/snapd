@@ -48,7 +48,10 @@ database.
 func init() {
 	addCommand("ack", shortAckHelp, longAckHelp, func() flags.Commander {
 		return &cmdAck{}
-	}, nil, [][2]string{{i18n.G("<assertion file>"), i18n.G("assertion file")}})
+	}, nil, []argDesc{{
+		name: i18n.G("<assertion file>"),
+		desc: i18n.G("assertion file"),
+	}})
 }
 
 func (x *cmdAck) Execute(args []string) error {

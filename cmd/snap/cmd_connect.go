@@ -58,9 +58,9 @@ proceeds as above.
 func init() {
 	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
 		return &cmdConnect{}
-	}, nil, [][2]string{
-		{i18n.G("<snap>:<plug>"), ""},
-		{i18n.G("<snap>:<slot>"), ""},
+	}, nil, []argDesc{
+		{name: i18n.G("<snap>:<plug>")},
+		{name: i18n.G("<snap>:<slot>")},
 	})
 }
 

@@ -42,9 +42,14 @@ type cmdSet struct {
 }
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, nil, [][2]string{
-		{i18n.G("<snap name>"), i18n.G("the snap to configure (e.g. hello-world)")},
-		{i18n.G("<conf value>"), i18n.G("configuration value (key=value)")},
+	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, nil, []argDesc{
+		{
+			name: i18n.G("<snap name>"),
+			desc: i18n.G("the snap to configure (e.g. hello-world)"),
+		}, {
+			name: i18n.G("<conf value>"),
+			desc: i18n.G("configuration value (key=value)"),
+		},
 	})
 }
 

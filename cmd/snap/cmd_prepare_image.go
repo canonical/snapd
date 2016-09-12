@@ -47,9 +47,14 @@ func init() {
 		}, map[string]string{
 			"extra-snaps": "extra snaps to be installed",
 			"channel":     "the channel to use",
-		}, [][2]string{
-			{i18n.G("model-assertion"), i18n.G("the model assertion name")},
-			{i18n.G("root-dir"), i18n.G("the output directory")},
+		}, []argDesc{
+			{
+				name: i18n.G("model-assertion"),
+				desc: i18n.G("the model assertion name"),
+			}, {
+				name: i18n.G("root-dir"),
+				desc: i18n.G("the output directory"),
+			},
 		})
 	cmd.hidden = true
 }

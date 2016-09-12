@@ -46,9 +46,14 @@ shown must also have the specified headers matching the provided values.
 func init() {
 	addCommand("known", shortKnownHelp, longKnownHelp, func() flags.Commander {
 		return &cmdKnown{}
-	}, nil, [][2]string{
-		{i18n.G("<assertion type>"), i18n.G("assertion type name")},
-		{i18n.G("<header filters>"), i18n.G("header=value")},
+	}, nil, []argDesc{
+		{
+			name: i18n.G("<assertion type>"),
+			desc: i18n.G("assertion type name"),
+		}, {
+			name: i18n.G("<header filters>"),
+			desc: i18n.G("header=value"),
+		},
 	})
 }
 
