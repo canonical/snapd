@@ -45,7 +45,7 @@ func init() {
 			return &cmdAbort{}
 		},
 		nil,
-		[]argDesc{{name: i18n.G("change-id")}},
+		[]argDesc{{name: i18n.G("<change-id>")}},
 	)
 }
 

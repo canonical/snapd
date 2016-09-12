@@ -49,10 +49,10 @@ func init() {
 			"channel":     "the channel to use",
 		}, []argDesc{
 			{
-				name: i18n.G("model-assertion"),
+				name: i18n.G("<model-assertion>"),
 				desc: i18n.G("the model assertion name"),
 			}, {
-				name: i18n.G("root-dir"),
+				name: i18n.G("<root-dir>"),
 				desc: i18n.G("the output directory"),
 			},
 		})

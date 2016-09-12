@@ -51,7 +51,7 @@ func init() {
 			name: i18n.G("<assertion type>"),
 			desc: i18n.G("assertion type name"),
 		}, {
-			name: i18n.G("<header filters>"),
+			name: i18n.G("<header filter>"),
 			desc: i18n.G("header=value"),
 		},
 	})
