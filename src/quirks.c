@@ -134,8 +134,8 @@ static void sc_quirk_create_writable_mimic(const char *mimic_dir,
 static void sc_setup_lxd_quirk()
 {
 	const char *hostfs_lxd_dir = SC_HOSTFS_DIR "/var/lib/lxd";
-	const char *lxd_dir = "/var/lib/lxd";
 	if (access(hostfs_lxd_dir, F_OK) == 0) {
+		const char *lxd_dir = "/var/lib/lxd";
 		debug("setting up quirk for LXD (see LP: #1613845)");
 		sc_quirk_mkdir_bind(hostfs_lxd_dir, lxd_dir,
 				    MS_REC | MS_SLAVE | MS_NODEV | MS_NOSUID |
