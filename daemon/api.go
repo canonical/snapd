@@ -1230,24 +1230,17 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
-	// Set this configuration so that the hook can obtain/modify it via snapctl
-	transaction := c.d.overlord.ConfigManager().NewTransaction()
-	for key, value := range patchValues {
-		err := transaction.Set(snapName, key, value)
-		if err != nil {
-			// Since the transaction hasn't committed, nothing has been saved.
-			return BadRequest("%s", err)
-		}
-	}
-
 	s := c.d.overlord.State()
 	s.Lock()
 	defer s.Unlock()
 
-	// Embed the configuration transaction in the hook task, so it can be used
-	// by the apply-config handler.
+	// Embed the configuration patch in the hook task, so it can be used by the
+	// apply-config handler.
+	initialContext := map[string]interface{}{
+		"patch": patchValues,
+	}
 	hookTaskSummary := fmt.Sprintf(i18n.G("Run apply-config hook for %s"), snapName)
-	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "apply-config", transaction)
+	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "apply-config", initialContext)
 	taskset := state.NewTaskSet(task)
 
 	change := s.NewChange("configure-snap", fmt.Sprintf("Setting config for %s", snapName))

@@ -40,7 +40,6 @@ import (
 
 	"gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
-	tomb "gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -50,7 +49,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -1805,19 +1803,9 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	d := s.daemon(c)
 	s.mockSnap(c, configYaml)
 
-	oldHookRunner := hookstate.HookRunner
-	defer func() { hookstate.HookRunner = oldHookRunner }()
-
 	// Mock the hook runner
-	var hookSnap string
-	var hookRevision snap.Revision
-	var hookName string
-	hookstate.HookRunner = func(snap string, revision snap.Revision, hook, _ string, _ *tomb.Tomb) ([]byte, error) {
-		hookSnap = snap
-		hookRevision = revision
-		hookName = hook
-		return nil, nil
-	}
+	hookRunner := testutil.MockCommand(c, "snap", "")
+	defer hookRunner.Restore()
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1854,9 +1842,9 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Check that the apply-config hook was run correctly
-	c.Check(hookSnap, check.Equals, "config-snap")
-	c.Check(hookRevision, check.Equals, snap.R(0))
-	c.Check(hookName, check.Equals, "apply-config")
+	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{[]string{
+		"snap", "run", "--hook", "apply-config", "-r", "unset", "config-snap",
+	}})
 }
 
 func (s *apiSuite) TestAppIconGet(c *check.C) {

@@ -69,11 +69,6 @@ func (c *Context) HookName() string {
 	return c.setup.Hook
 }
 
-// Payload returns the payload of the hook in this context (if any).
-func (c *Context) Payload() interface{} {
-	return c.setup.Payload
-}
-
 // ID returns the ID of the context.
 func (c *Context) ID() string {
 	return c.id

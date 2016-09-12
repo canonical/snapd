@@ -203,7 +203,7 @@ func (s *transactionSuite) TestUnmarshalTransaction(c *C) {
 	c.Check(err, IsNil)
 
 	// Now unmarshal into a new transaction
-	var newTransaction configstate.Transaction
+	newTransaction := configstate.NewTransaction(s.state)
 	err = json.Unmarshal(bytes, &newTransaction)
 	c.Check(err, IsNil)
 
@@ -213,4 +213,8 @@ func (s *transactionSuite) TestUnmarshalTransaction(c *C) {
 	c.Check(value, Equals, "bar")
 	c.Check(newTransaction.Get("test-snap", "baz", &value), IsNil)
 	c.Check(value, Equals, "qux")
+
+	// Also verify that it can still save changes
+	c.Check(newTransaction.Set("test-snap", "foo", "quux"), IsNil)
+	newTransaction.Commit()
 }

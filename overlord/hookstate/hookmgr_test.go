@@ -53,8 +53,12 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.manager = manager
 
+	initialContext := map[string]interface{}{
+		"test-key": "test-value",
+	}
+
 	s.state.Lock()
-	s.task = hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook", nil)
+	s.task = hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook", initialContext)
 	c.Assert(s.task, NotNil, Commentf("Expected HookTask to return a task"))
 
 	s.change = s.state.NewChange("kind", "summary")
@@ -107,6 +111,28 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestHookTaskInitializesContext(c *C) {
+	// Register a handler generator for the "test-hook" hook
+	var calledContext *hookstate.Context
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+		calledContext = context
+		return hooktest.NewMockHandler()
+	}
+
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var value string
+	c.Assert(calledContext, NotNil, Commentf("Expected handler generator to be called with a valid context"))
+	c.Check(calledContext.Get("test-key", &value), IsNil, Commentf("Expected context to be initialized"))
+	c.Check(value, Equals, "test-value")
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
