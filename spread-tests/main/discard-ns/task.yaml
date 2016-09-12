@@ -5,7 +5,7 @@ details: |
     The internal snap-discard-ns program is supposed to simply unmount
     whatever is mounted at /run/snapd/ns/$SNAP_NAME.mnt
 prepare: |
-    mkdir -d /run/snapd/ns/
+    mkdir -p /run/snapd/ns/
     mount --bind /run/snapd/ns /run/snapd/ns
     mount --make-private /run/snapd/ns
     unshare --mount=/run/snapd/ns/foo.mnt true
