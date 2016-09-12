@@ -35,7 +35,9 @@ var (
 	MyAppsMacaroonACLAPI = myappsAPIBase + "dev/api/acl/"
 	// MyAppsDeviceNonceAPI points to MyApps endpoint to get a nonce
 	MyAppsDeviceNonceAPI = myappsAPIBase + "identity/api/v1/nonces"
-	ubuntuoneAPIBase     = authURL()
+	// MyAppsDeviceSessionAPI points to MyApps endpoint to get a device session
+	MyAppsDeviceSessionAPI = myappsAPIBase + "identity/api/v1/sessions"
+	ubuntuoneAPIBase       = authURL()
 	// UbuntuoneLocation is the Ubuntuone location as defined in the store macaroon
 	UbuntuoneLocation = authLocation()
 	// UbuntuoneDischargeAPI points to SSO endpoint to discharge a macaroon
@@ -262,4 +264,53 @@ func RequestStoreDeviceNonce() (string, error) {
 		return "", fmt.Errorf(errorPrefix + "empty nonce returned")
 	}
 	return responseData.Nonce, nil
+}
+
+// RequestDeviceSession requests a device session macaroon from the store.
+func RequestDeviceSession(serialAssertion, sessionRequest, previousSession string) (string, error) {
+	const errorPrefix = "cannot get device session from store: "
+
+	data := map[string]string{
+		"serial-assertion":       serialAssertion,
+		"device-session-request": sessionRequest,
+	}
+	deviceJSONData, err := json.Marshal(data)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+
+	req, err := http.NewRequest("POST", MyAppsDeviceSessionAPI, bytes.NewReader(deviceJSONData))
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+	req.Header.Set("User-Agent", userAgent)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("Content-Type", "application/json")
+	if previousSession != "" {
+		req.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, previousSession))
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+	defer resp.Body.Close()
+
+	// check return code, error on anything !200
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+	}
+
+	dec := json.NewDecoder(resp.Body)
+	var responseData struct {
+		Macaroon string `json:"macaroon"`
+	}
+	if err := dec.Decode(&responseData); err != nil {
+		return "", fmt.Errorf(errorPrefix+"%v", err)
+	}
+
+	if responseData.Macaroon == "" {
+		return "", fmt.Errorf(errorPrefix + "empty session returned")
+	}
+	return responseData.Macaroon, nil
 }

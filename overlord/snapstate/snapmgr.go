@@ -160,36 +160,30 @@ func (snapst *SnapState) CurrentSideInfo() *snap.SideInfo {
 	if !snapst.HasCurrent() {
 		return nil
 	}
-	seq := snapst.Sequence
-	for i := len(seq) - 1; i >= 0; i-- {
-		if seq[i].Revision == snapst.Current {
-			return seq[i]
-		}
+	if idx := snapst.LastIndex(snapst.Current); idx >= 0 {
+		return snapst.Sequence[idx]
 	}
 	panic("cannot find snapst.Current in the snapst.Sequence")
 }
 
 func (snapst *SnapState) previousSideInfo() *snap.SideInfo {
-	if !snapst.HasCurrent() {
-		return nil
-	}
 	n := len(snapst.Sequence)
 	if n < 2 {
 		return nil
 	}
 	// find "current" and return the one before that
-	currentIndex := snapst.findIndex(snapst.Current)
-	if currentIndex == 0 {
+	currentIndex := snapst.LastIndex(snapst.Current)
+	if currentIndex <= 0 {
 		return nil
 	}
 	return snapst.Sequence[currentIndex-1]
 }
 
-// findIndex returns the index of the given revision rev in the
+// LastIndex returns the last index of the given revision in the
 // snapst.Sequence
-func (snapst *SnapState) findIndex(rev snap.Revision) int {
-	for i, si := range snapst.Sequence {
-		if si.Revision == rev {
+func (snapst *SnapState) LastIndex(revision snap.Revision) int {
+	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+		if snapst.Sequence[i].Revision == revision {
 			return i
 		}
 	}
@@ -200,7 +194,7 @@ func (snapst *SnapState) findIndex(rev snap.Revision) int {
 // computed from Sequence[currentRevisionIndex+1:].
 func (snapst *SnapState) Block() []snap.Revision {
 	// return revisions from Sequence[currentIndex:]
-	currentIndex := snapst.findIndex(snapst.Current)
+	currentIndex := snapst.LastIndex(snapst.Current)
 	if currentIndex < 0 || currentIndex+1 == len(snapst.Sequence) {
 		return nil
 	}
@@ -330,14 +324,14 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	return res[0], nil
 }
 
-func snapInfo(st *state.State, name, channel string, userID int, flags Flags) (*snap.Info, error) {
+func snapInfo(st *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	user, err := userFromUserID(st, userID)
 	if err != nil {
 		return nil, err
 	}
 	theStore := Store(st)
 	st.Unlock() // calls to the store should be done without holding the state lock
-	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), user)
+	snap, err := theStore.Snap(name, channel, flags.DevModeAllowed(), revision, user)
 	st.Lock()
 	return snap, err
 }
@@ -364,6 +358,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("unlink-current-snap", m.doUnlinkCurrentSnap, m.undoUnlinkCurrentSnap)
 	runner.AddHandler("copy-snap-data", m.doCopySnapData, m.undoCopySnapData)
 	runner.AddHandler("link-snap", m.doLinkSnap, m.undoLinkSnap)
+	runner.AddHandler("start-snap-services", m.startSnapServices, m.stopSnapServices)
 	// FIXME: port to native tasks and rename
 	//runner.AddHandler("garbage-collect", m.doGarbageCollect, nil)
 
@@ -372,6 +367,7 @@ func Manager(s *state.State) (*SnapManager, error) {
 	// with --devmode, set jailmode from snapstate).
 
 	// remove related
+	runner.AddHandler("stop-snap-services", m.stopSnapServices, m.startSnapServices)
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
@@ -487,7 +483,7 @@ func (m *SnapManager) doDownloadSnap(t *state.Task, _ *tomb.Tomb) error {
 		// COMPATIBILITY - this task was created from an older version
 		// of snapd that did not store the DownloadInfo in the state
 		// yet.
-		storeInfo, err := theStore.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), user)
+		storeInfo, err := theStore.Snap(ss.Name(), ss.Channel, ss.DevModeAllowed(), ss.Revision(), user)
 		if err != nil {
 			return err
 		}
@@ -771,6 +767,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// mark as active again
 	Set(st, ss.Name(), snapst)
+
 	return nil
 
 }
@@ -865,7 +862,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	m.backend.Candidate(cand)
 
 	hadCandidate := true
-	if snapst.findIndex(cand.Revision) < 0 {
+	if snapst.LastIndex(cand.Revision) < 0 {
 		snapst.Sequence = append(snapst.Sequence, cand)
 		hadCandidate = false
 	}
@@ -923,10 +920,16 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd
-	if newInfo.Type == snap.TypeOS && release.OnClassic {
-		t.Logf("Restarting snapd...")
+	if release.OnClassic && newInfo.Type == snap.TypeOS {
+		t.Logf("Requested daemon restart.")
 		st.Unlock()
-		st.RequestRestart()
+		st.RequestRestart(state.RestartDaemon)
+		st.Lock()
+	}
+	if !release.OnClassic && (newInfo.Type == snap.TypeOS || newInfo.Type == snap.TypeKernel) {
+		t.Logf("Requested system restart.")
+		st.Unlock()
+		st.RequestRestart(state.RestartSystem)
 		st.Lock()
 	}
 
@@ -976,7 +979,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// relinking of the old snap is done in the undo of unlink-current-snap
-	currentIndex := snapst.findIndex(snapst.Current)
+	currentIndex := snapst.LastIndex(snapst.Current)
 	if currentIndex < 0 {
 		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", ss.SideInfo.Revision, snapst.Sequence)
 	}
@@ -1008,4 +1011,51 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// Make sure if state commits and snapst is mutated we won't be rerun
 	t.SetStatus(state.UndoneStatus)
 	return nil
+}
+
+func (m *SnapManager) startSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	st.Unlock()
+	err = m.backend.StartSnapServices(currentInfo, pb)
+	st.Lock()
+	return err
+}
+
+func (m *SnapManager) stopSnapServices(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	_, snapst, err := snapSetupAndState(t)
+	if err != nil {
+		return err
+	}
+
+	currentInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return err
+	}
+
+	pb := &TaskProgressAdapter{task: t}
+	st.Unlock()
+	err = m.backend.StopSnapServices(currentInfo, pb)
+	st.Lock()
+
+	return err
 }

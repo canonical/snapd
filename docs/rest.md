@@ -286,7 +286,7 @@ Alter the collection searched:
 
 ##### Fields
 
-* `suggested-currency`: the suggested currency to use for presentation, 
+* `suggested-currency`: the suggested currency to use for presentation,
    derived by Geo IP lookup.
 
 ## /v2/snaps
@@ -407,6 +407,37 @@ field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `refresh`, `remove`, `revert`, `enable`, or `disable`.
 `channel`  | `install` `refresh` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
+
+## /v2/snaps/[name]/conf
+### GET
+
+* Description: Configuration details for an installed snap
+* Access: superuser only
+* Operation: sync
+* Return: JSON map of configuration keys and values
+
+#### Parameters
+
+##### `keys`
+
+Request the configuration values corresponding to the specific keys
+(comma-separated).
+
+### PUT
+
+* Description: Set the configuration details for an installed snap
+* Access: superuser only
+* Operation: async
+* Return: background operation or standard error
+
+#### Sample input
+
+```javascript
+{
+    "conf-key1": "conf-value1",
+    "conf-key2": "conf-value2"
+}
+```
 
 ## /v2/icons/[name]/icon
 
@@ -546,7 +577,7 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "price": "2.99",
+    "price": 2.99,
     "currency": "USD"
 }
 ```
@@ -557,7 +588,7 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "price": "2.99",
+    "price": 2.99,
     "currency": "USD",
     "backend-id": "credit_card",
     "method-id": 1

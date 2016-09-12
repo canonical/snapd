@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -29,9 +30,10 @@ import (
 )
 
 type cmdExportKey struct {
+	Account    string `long:"account" description:"format public key material as a request for an account-key for this account-id"`
 	Positional struct {
 		KeyName string `positional-arg-name:"<key-name>" description:"name of key to export"`
-	} `positional-args:"true" required:"true"`
+	} `positional-args:"true"`
 }
 
 func init() {
@@ -49,11 +51,40 @@ func (x *cmdExportKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	manager := asserts.NewGPGKeypairManager()
-	encoded, err := manager.Export(x.Positional.KeyName)
-	if err != nil {
-		return err
+	keyName := x.Positional.KeyName
+	if keyName == "" {
+		keyName = "default"
 	}
-	fmt.Fprintf(Stdout, "%s\n", encoded)
+
+	manager := asserts.NewGPGKeypairManager()
+	if x.Account != "" {
+		privKey, err := manager.GetByName(keyName)
+		if err != nil {
+			return err
+		}
+		pubKey := privKey.PublicKey()
+		headers := map[string]interface{}{
+			"account-id":          x.Account,
+			"name":                keyName,
+			"public-key-sha3-384": pubKey.ID(),
+			"since":               time.Now().UTC().Format(time.RFC3339),
+			// XXX: To support revocation, we need to check for matching known assertions and set a suitable revision if we find one.
+		}
+		body, err := asserts.EncodePublicKey(pubKey)
+		if err != nil {
+			return err
+		}
+		assertion, err := asserts.SignWithoutAuthority(asserts.AccountKeyRequestType, headers, body, privKey)
+		if err != nil {
+			return err
+		}
+		fmt.Fprint(Stdout, string(asserts.Encode(assertion)))
+	} else {
+		encoded, err := manager.Export(keyName)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stdout, "%s\n", encoded)
+	}
 	return nil
 }

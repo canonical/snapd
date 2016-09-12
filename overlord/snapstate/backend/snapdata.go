@@ -20,12 +20,11 @@
 package backend
 
 import (
-	"bytes"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -112,16 +111,13 @@ func copySnapData(oldSnap, newSnap *snap.Info) (err error) {
 func copySnapDataDirectory(oldPath, newPath string) (err error) {
 	if _, err := os.Stat(oldPath); err == nil {
 		if _, err := os.Stat(newPath); err != nil {
-			// there is no golang "CopyFile"
-			cmd := exec.Command("cp", "-a", oldPath, newPath)
-			if output, err := cmd.CombinedOutput(); err != nil {
-				output = bytes.TrimSpace(output)
-				if len(output) > 0 {
-					err = fmt.Errorf("%s", output)
-				}
-				return fmt.Errorf("cannot copy %s to %s: %v", oldPath, newPath, err)
+			if err := osutil.CopyFile(oldPath, newPath, osutil.CopyFlagPreserveAll|osutil.CopyFlagSync); err != nil {
+				return fmt.Errorf("cannot copy %q to %q: %v", oldPath, newPath, err)
 			}
 		}
+	} else if !os.IsNotExist(err) {
+		return err
 	}
+
 	return nil
 }

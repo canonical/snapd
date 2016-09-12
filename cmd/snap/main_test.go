@@ -30,6 +30,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd"
 	"github.com/snapcore/snapd/testutil"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -99,15 +100,25 @@ func EncodeResponseBody(c *C, w http.ResponseWriter, body interface{}) {
 	c.Assert(err, IsNil)
 }
 
+func mockArgs(args ...string) (restore func()) {
+	old := os.Args
+	os.Args = args
+	return func() { os.Args = old }
+}
+
+func mockVersion(v string) (restore func()) {
+	old := cmd.Version
+	cmd.Version = v
+	return func() { cmd.Version = old }
+}
+
 func (s *SnapSuite) TestErrorResult(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "cannot do something"}}`)
 	})
 
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-
-	os.Args = []string{"snap", "install", "foo"}
+	restore := mockArgs("snap", "install", "foo")
+	defer restore()
 
 	err := snap.RunMain()
 	c.Assert(err, ErrorMatches, `cannot do something`)
@@ -118,10 +129,8 @@ func (s *SnapSuite) TestAccessDeniedHint(c *C) {
 		fmt.Fprintln(w, `{"type": "error", "result": {"message": "access denied", "kind": "login-required"}, "status-code": 401}`)
 	})
 
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-
-	os.Args = []string{"snap", "install", "foo"}
+	restore := mockArgs("snap", "install", "foo")
+	defer restore()
 
 	err := snap.RunMain()
 	c.Assert(err, NotNil)
@@ -129,11 +138,37 @@ func (s *SnapSuite) TestAccessDeniedHint(c *C) {
 }
 
 func (s *SnapSuite) TestExtraArgs(c *C) {
-	origArgs := os.Args
-	defer func() { os.Args = origArgs }()
-
-	os.Args = []string{"snap", "abort", "1", "xxx", "zzz"}
+	restore := mockArgs("snap", "abort", "1", "xxx", "zzz")
+	defer restore()
 
 	err := snap.RunMain()
 	c.Assert(err, ErrorMatches, `too many arguments for command`)
+}
+
+func (s *SnapSuite) TestVersionOnClassic(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"on-classic":true,"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+	})
+	restore := mockArgs("snap", "--version")
+	defer restore()
+	restore = mockVersion("4.56")
+	defer restore()
+
+	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
+	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\nubuntu  12.34\n")
+	c.Assert(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestVersionOnAllSnap(c *C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{"type":"sync","status-code":200,"status":"OK","result":{"os-release":{"id":"ubuntu","version-id":"12.34"},"series":"56","version":"7.89"}}`)
+	})
+	restore := mockArgs("snap", "--version")
+	defer restore()
+	restore = mockVersion("4.56")
+	defer restore()
+
+	c.Assert(func() { snap.RunMain() }, PanicMatches, `internal error: exitStatus\{0\} .*`)
+	c.Assert(s.Stdout(), Equals, "snap    4.56\nsnapd   7.89\nseries  56\n")
+	c.Assert(s.Stderr(), Equals, "")
 }

@@ -673,7 +673,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"serial",
 		"validation",
 	}
-	c.Check(withAuthority, HasLen, asserts.NumAssertionType-2) // excluding serial-request, serial-proof
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-4) // excluding device-session-request, serial-request, serial-proof, account-key-request
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
 		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)
