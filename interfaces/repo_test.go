@@ -1244,12 +1244,12 @@ func makeLivepatchConnectionTestSnaps(c *C, name, developer string) (*Repository
 	repo := NewRepository()
 	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted", AutoConnectFlag: false})
 
-	plugSnap, err := snap.InfoFromSnapYaml([]byte(`
-name: ` + name + `
+	plugSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(`
+name: %s
 plugs:
   canonical-livepatch:
     interface: restricted
-`))
+`, name)))
 	c.Assert(err, IsNil)
 	slotSnap, err := snap.InfoFromSnapYaml([]byte(`
 name: ubuntu-core
@@ -1277,6 +1277,9 @@ func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "canonical-livepatch")
 	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.Developer, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "restricted")
 }
 
 func (s *RepositorySuite) TestAutoConnectLivepatchWrongDeveloper(c *C) {
