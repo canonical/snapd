@@ -29,6 +29,8 @@ static void test_cleanup_sanity()
 	}
 	{
 		int test __attribute__ ((cleanup(fn)));
+		test = 0;
+		test++;
 	}
 	g_assert_cmpint(called, ==, 1);
 }
