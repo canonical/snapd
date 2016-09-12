@@ -8,9 +8,13 @@ prepare: |
     mkdir -p /run/snapd/ns/
     mount --bind /run/snapd/ns /run/snapd/ns
     mount --make-private /run/snapd/ns
+    touch /run/snapd/ns/foo.mnt
     unshare --mount=/run/snapd/ns/foo.mnt true
 execute: |
     /usr/lib/snapd/snap-discard-ns foo
     ! grep foo.mnt /proc/self/mountinfo
 restore: |
+    umount /run/snapd/ns/foo.mnt || :
     umount /run/snapd/ns
+    rm /run/snapd/ns/foo.mnt
+    rmdir /run/snapd/ns
