@@ -1,0 +1,17 @@
+summary: Check that revert of a snap in devmode restores devmode
+
+environment:
+    STORE_TYPE/production: production
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    . $TESTSLIB/tasks/revert-devmode.sh
+    prepare
+
+restore: |
+    . $TESTSLIB/tasks/revert-devmode.sh
+    restore
+
+execute: |
+    . $TESTSLIB/tasks/revert-devmode.sh
+    execute

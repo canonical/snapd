@@ -1,0 +1,20 @@
+summary: Check that revert of a snap in devmode restores devmode
+
+systems: [-ubuntu-core-16-device]
+
+environment:
+    STORE_TYPE/fake: fake
+    STORE_TYPE/staging: staging
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    . $TESTSLIB/tasks/revert-devmode.sh
+    prepare
+
+restore: |
+    . $TESTSLIB/tasks/revert-devmode.sh
+    restore
+
+execute: |
+    . $TESTSLIB/tasks/revert-devmode.sh
+    execute

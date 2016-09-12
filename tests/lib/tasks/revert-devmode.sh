@@ -1,12 +1,6 @@
-summary: Check that revert of a snap in devmode restores devmode
+#!/bin/sh
 
-environment:
-    STORE_TYPE/fake: fake
-    STORE_TYPE/staging: staging
-    STORE_TYPE/production: production
-    BLOB_DIR: $(pwd)/fake-store-blobdir
-
-prepare: |
+prepare(){
     if [ "$STORE_TYPE" = "fake" ]; then
         echo "Given a snap is installed"
         snap install --devmode test-snapd-tools
@@ -19,12 +13,14 @@ prepare: |
         echo "And a new version of that snap put in the controlled store"
         fakestore -dir $BLOB_DIR -make-refreshable test-snapd-tools
     fi
+}
 
-restore: |
+restore(){
     . $TESTSLIB/store.sh
     teardown_store $STORE_TYPE $BLOB_DIR
+}
 
-execute: |
+execute(){
     echo "When a refresh is made"
     snap refresh --devmode --edge test-snapd-tools
 
@@ -50,3 +46,4 @@ execute: |
 
     echo "Then snap uses devmode"
     snap list|grep test-snapd-tools|grep -q devmode
+}

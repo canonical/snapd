@@ -42,7 +42,7 @@ reset_all_snap() {
     done
 }
 
-if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
