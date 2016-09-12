@@ -317,10 +317,10 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 	}, nil
 }
 
-// SnapValidation holds a validation assertion, describing that a combination of
-// (snap-id, snap-revision, approved-snap-id, approved-revision, series)
-// has been validated by testing.
-
+// Validation holds a validation assertion, describing that a combination of
+// (snap-id, approved-snap-id, approved-revision) has been validated for
+// the series, meaning updating to that revision of approved-snap-id
+// has been approved by the owner of the gating snap.
 type Validation struct {
 	assertionBase
 	valid     bool
@@ -332,7 +332,7 @@ func (validation *Validation) Series() string {
 	return validation.HeaderString("series")
 }
 
-// SnapId returns the ID of the gating snap.
+// SnapID returns the ID of the gating snap.
 func (validation *Validation) SnapID() string {
 	return validation.HeaderString("snap-id")
 }
@@ -347,12 +347,12 @@ func (validation *Validation) ApprovedSnapRevision() string {
 	return validation.HeaderString("approved-snap-revision")
 }
 
-// IsValid returns true if the validation is marked as valid
-func (validation *Validation) IsValid() bool {
-	return validation.valid
+// Revoked returns true if the validation has been revoked.
+func (validation *Validation) Revoked() bool {
+	return validation.revoked
 }
 
-// Timestamp returns the timestamp of assertion creation
+// Timestamp returns the time when the validation was issued.
 func (validation *Validation) Timestamp() time.Time {
 	return validation.timestamp
 }
@@ -369,8 +369,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		return err
 	}
 	_, err = db.Find(SnapDeclarationType, map[string]string{
-		// XXX: mediate getting current series through some context object? this gets the job done for now
-		"series":  release.Series,
+		"series":  validation.Series(),
 		"snap-id": validation.SnapID(),
 	})
 	if err == ErrNotFound {
@@ -380,8 +379,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		return err
 	}
 	_, err = db.Find(SnapDeclarationType, map[string]string{
-		// XXX: mediate getting current series through some context object? this gets the job done for now
-		"series":  release.Series,
+		"series":  validation.Series(),
 		"snap-id": validation.ApprovedSnapID(),
 	})
 	if err == ErrNotFound {
@@ -400,9 +398,8 @@ var _ consistencyChecker = (*Validation)(nil)
 // Prerequisites returns references to this validation's prerequisite assertions.
 func (validation *Validation) Prerequisites() []*Ref {
 	return []*Ref{
-		// XXX: mediate getting current series through some context object? this gets the job done for now
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, validation.SnapID()}},
-		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{release.Series, validation.ApprovedSnapID()}},
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.SnapID()}},
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.ApprovedSnapID()}},
 	}
 }
 
@@ -430,7 +427,7 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`"approved-snap-revision" header must be >=1: %d`, approvedSnapRevision)
 	}
 
-	_, err = checkNotEmptyString(assert.headers, "valid")
+	_, err = checkNotEmptyString(assert.headers, "revoked")
 	if err != nil {
 		return nil, err
 	}
