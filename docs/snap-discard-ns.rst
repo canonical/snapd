@@ -27,7 +27,7 @@ mount namespace of a particular snap.
 OPTIONS
 =======
 
-The `snap-confine` program does not support any options.
+The `snap-discard-ns` program does not support any options.
 
 ENVIRONMENT
 ===========
