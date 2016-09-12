@@ -23,4 +23,5 @@ import (
 	. "gopkg.in/check.v1"
 )
 
+// FIXME: drop once gpg2 is the default
 var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg2"})
