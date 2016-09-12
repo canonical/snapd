@@ -412,9 +412,9 @@ static char * __attribute__ ((used))
 	if (offset >= fulllen)
 		return NULL;
 
-	while (path[offset] != '\0' && offset < fulllen)
+	while (offset < fulllen && path[offset] != '\0')
 		offset++;
-	while (path[offset] == '\0' && offset < fulllen)
+	while (offset < fulllen && path[offset] == '\0')
 		offset++;
 
 	*offsetp = offset;
