@@ -1,7 +1,31 @@
-libexec_PROGRAMS = snap-confine
+libexec_PROGRAMS = snap-confine snap-discard-ns
 if WITH_UNIT_TESTS
 noinst_PROGRAMS = snap-confine-unit-tests
 endif
+
+snap_discard_ns_SOURCES = \
+	ns-support.c \
+	ns-support.h \
+	user-support.c \
+	user-support.h \
+	utils.c \
+	utils.h \
+	cleanup-funcs.c \
+	cleanup-funcs.h \
+	mountinfo.c \
+	mountinfo.h \
+	snap-discard-ns.c
+snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
+snap_discard_ns_LDADD =
+snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
+snap_discard_ns_LDADD += $(SECCOMP_LIBS)
+
+if APPARMOR
+snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
+snap_discard_ns_LDADD += $(APPARMOR_LIBS)
+endif
+
 snap_confine_SOURCES = \
 	main.c \
 	sc-main.c \
