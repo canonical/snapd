@@ -388,6 +388,17 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 	if err != nil {
 		return err
 	}
+	_, err = db.Find(SnapDeclarationType, map[string]string{
+		"series":  validation.Series(),
+		"snap-id": validation.SnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
+	}
+	if err != nil {
+		return err
+	}
+
 	// XXX find matching SnapRevision (series, approved-snap-id, approved-revision) ?
 	return nil
 }
