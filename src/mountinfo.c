@@ -161,6 +161,7 @@ struct mountinfo *parse_mountinfo(const char *fname)
 	}
 	FILE *f __attribute__ ((cleanup(cleanup_fclose))) = fopen(fname, "rt");
 	if (f == NULL) {
+		free(info);
 		return NULL;
 	}
 	char *line __attribute__ ((cleanup(cleanup_free))) = NULL;
