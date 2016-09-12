@@ -49,7 +49,7 @@ func (s *i18nTestSuite) SetUpTest(c *C) {
 	gettext.BindTextdomain("snappy-test", localeDir)
 	locale := gettext.SetLocale(gettext.LC_ALL, "en_DK.UTF-8")
 	if locale != "en_DK.UTF-8" {
-		c.Skip("can not init locale")
+		c.Skip("cannot init locale")
 	}
 	os.Setenv("LANGUAGE", "en_DK")
 

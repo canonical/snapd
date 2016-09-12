@@ -41,6 +41,9 @@ execute: |
     ls /snap/test-snapd-tools | grep -q current
     ls /var/snap/test-snapd-tools | grep -q current
 
+    echo "And the snap runs confined"
+    snap list|grep test-snapd-tools|grep -q "-"
+
     echo "And a new revert fails"
     if snap revert test-snapd-tools; then
         echo "A revert on an already reverted snap should fail"
