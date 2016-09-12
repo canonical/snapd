@@ -118,6 +118,19 @@ func (s *copydataSuite) TestCopyData(c *C) {
 	c.Assert(content, DeepEquals, canaryData)
 }
 
+func (s *copydataSuite) TestCopyDataBails(c *C) {
+	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
+	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
+
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	c.Assert(s.be.CopySnapData(v1, nil, &s.nullProgress), IsNil)
+	c.Assert(os.Chmod(v1.DataDir(), 0), IsNil)
+
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
+	c.Check(err, ErrorMatches, "cannot copy .*")
+}
+
 // ensure that even with no home dir there is no error and the
 // system data gets copied
 func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
@@ -152,7 +165,7 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 }
 
 func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/"+revision.String())
+	datadir := filepath.Join(dirs.SnapDataDir, "hello", revision.String())
 	subdir := filepath.Join(datadir, "random-subdir")
 	err := os.MkdirAll(subdir, 0755)
 	c.Assert(err, IsNil)
@@ -162,7 +175,7 @@ func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
 
 func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revision) (homedir string) {
 	homedir = filepath.Join(s.tempdir, "home", user, "snap")
-	homeData := filepath.Join(homedir, "hello/"+revision.String())
+	homeData := filepath.Join(homedir, "hello", revision.String())
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), nil, 0644)

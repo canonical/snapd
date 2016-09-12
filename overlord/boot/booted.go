@@ -94,7 +94,7 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 		for snapName, snapState := range installed {
 			if name == snapName {
 				if rev != snapState.Current {
-					ts, err := snapstate.RevertToRevision(st, name, rev)
+					ts, err := snapstate.RevertToRevision(st, name, rev, snapstate.Flags(0))
 					if err != nil {
 						return err
 					}

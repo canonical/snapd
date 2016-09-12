@@ -88,7 +88,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapCompatbility(c *C) {
 	s.snapmgr.Wait()
 
 	// the compat code called the store "Snap" endpoint
-	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:    "storesvc-snap",
 			name:  "foo",
@@ -141,7 +141,7 @@ func (s *downloadSnapSuite) TestDoDownloadSnapNormal(c *C) {
 	s.snapmgr.Wait()
 
 	// only the download endpoint of the store was hit
-	c.Assert(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:   "storesvc-download",
 			name: "foo",
