@@ -31,11 +31,14 @@ import (
 )
 
 type SnapKeysSuite struct {
-	GnupgCmd string
-
 	BaseSnapSuite
+
+	GnupgCmd string
 }
 
+// FIXME: Ideally we would just use gpg2 and remove the gnupg2_test.go file.
+//        However currently there is LP: #1621839 which prevents us from
+//        switching to gpg2 fully. Once this is resolved we should switch.
 var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg"})
 
 func (s *SnapKeysSuite) SetUpTest(c *C) {

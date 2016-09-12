@@ -190,12 +190,13 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		var privKey PrivateKey
 		// look for fpr:, uid: lines, order may vary and gpg2.1
 		// may springle additional lines in (like gpr:)
+	Loop:
 		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:"); k++ {
 			switch {
 			case strings.HasPrefix(lines[k], "fpr:"):
 				fprFields := strings.Split(lines[k], ":")
 				if len(fprFields) < 10 {
-					break
+					break Loop
 				}
 				fpr = fprFields[9]
 				if !strings.HasSuffix(fpr, keyID) {
@@ -207,9 +208,15 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 				}
 			case strings.HasPrefix(lines[k], "uid:"):
 				uidFields := strings.Split(lines[k], ":")
+				if len(uidFields) < 10 {
+					break Loop
+				}
 				uid = uidFields[9]
-				break
 			}
+		}
+		// sanity checking
+		if privKey == nil || uid == "" {
+			continue
 		}
 		// collected it all
 		err = consider(privKey, fpr, uid)
