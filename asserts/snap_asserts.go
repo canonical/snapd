@@ -337,7 +337,7 @@ func (validation *Validation) SnapID() string {
 	return validation.HeaderString("snap-id")
 }
 
-// ApprovedSnapId returns the ID of the gated snap.
+// ApprovedSnapID returns the ID of the gated snap.
 func (validation *Validation) ApprovedSnapID() string {
 	return validation.HeaderString("approved-snap-id")
 }
