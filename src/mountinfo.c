@@ -152,15 +152,15 @@ const char *mountinfo_entry_super_opts(struct mountinfo_entry *entry)
 
 struct mountinfo *parse_mountinfo(const char *fname)
 {
+	struct mountinfo *info = calloc(1, sizeof *info);
+	if (info == NULL) {
+		return NULL;
+	}
 	if (fname == NULL) {
 		fname = "/proc/self/mountinfo";
 	}
 	FILE *f __attribute__ ((cleanup(cleanup_fclose))) = fopen(fname, "rt");
 	if (f == NULL) {
-		return NULL;
-	}
-	struct mountinfo *info = calloc(1, sizeof *info);
-	if (info == NULL) {
 		return NULL;
 	}
 	char *line __attribute__ ((cleanup(cleanup_free))) = NULL;
