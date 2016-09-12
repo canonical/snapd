@@ -45,7 +45,7 @@ func init() {
 		func() flags.Commander {
 			return &cmdShell{}
 		}, nil, []argDesc{{
-			name: i18n.G("shell-type"),
+			name: i18n.G("<shell-type>"),
 			desc: i18n.G("The type of shell you want"),
 		}})
 }

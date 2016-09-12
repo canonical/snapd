@@ -52,7 +52,7 @@ func init() {
 			"sudoer": i18n.G("grant sudo access to the created user"),
 		}, []argDesc{{
 			// TRANSLATORS: noun
-			name: i18n.G("email"),
+			name: i18n.G("<email>"),
 			// TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
 			desc: i18n.G("an email of a user on login.ubuntu.com"),
 		}})

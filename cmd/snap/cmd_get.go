@@ -48,11 +48,11 @@ func init() {
 			"d": i18n.G("always return document, even with single key"),
 		}, []argDesc{
 			{
-				name: i18n.G("<snap-name>"),
+				name: "<snap>",
 				desc: i18n.G("the snap whose conf is being requested"),
 			},
 			{
-				name: i18n.G("keys"),
+				name: i18n.G("<key>"),
 				desc: i18n.G("key of interest within the configuration"),
 			},
 		})
