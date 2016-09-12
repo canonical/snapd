@@ -201,6 +201,9 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 				}
 			case strings.HasPrefix(lines[k], "uid:"):
 				uidFields := strings.Split(lines[k], ":")
+				if len(uidFields) < 10 {
+					break Loop
+				}
 				uid = uidFields[9]
 			}
 		}
