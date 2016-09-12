@@ -26,4 +26,4 @@ sudo systemctl daemon-reload
 
 export GOPATH=/tmp/go
 go get -u github.com/snapcore/spread/cmd/spread
-/tmp/go/bin/spread -v adhoc:
+/tmp/go/bin/spread -v autopkgtest:
