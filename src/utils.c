@@ -76,7 +76,7 @@ void write_string_to_file(const char *filepath, const char *buf)
 
 int must_snprintf(char *str, size_t size, const char *format, ...)
 {
-	int n = -1;
+	int n;
 
 	va_list va;
 	va_start(va, format);
