@@ -138,3 +138,100 @@ func (s *DockerInterfaceSuite) TestPermanentSlotSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(string(snippet), testutil.Contains, `pivot_root`)
 }
+
+
+func (s *DockerInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
+	err := s.iface.SanitizePlug(s.plug)
+	c.Assert(err, IsNil)
+}
+
+func (s *DockerInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
+	var mockSnapYaml = []byte(`name: docker-plug-snap
+version: 1.0
+plugs:
+ docker-plug:
+  interface: docker
+  daemon-privileged: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
+}
+
+func (s *DockerInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
+	var mockSnapYaml = []byte(`name: docker-plug-snap
+version: 1.0
+plugs:
+ docker-plug:
+  interface: docker
+  daemon-privileged: bad
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "docker plug requires bool with 'daemon-privileged'")
+}
+
+func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
+	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon apparmor policy`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon seccomp policy`)
+}
+
+func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c *C) {
+	var mockSnapYaml = []byte(`name: docker-plug-snap
+version: 1.0
+plugs:
+ docker-plug:
+  interface: docker
+  daemon-privileged: false
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon apparmor policy`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon seccomp policy`)
+}
+
+func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c *C) {
+	var mockSnapYaml = []byte(`name: docker-plug-snap
+version: 1.0
+plugs:
+ docker-plug:
+  interface: docker
+  daemon-privileged: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# TODO: privileged daemon apparmor policy`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `# TODO: privileged daemon seccomp policy`)
+}

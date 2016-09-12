@@ -20,6 +20,8 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 )
 
@@ -504,6 +506,14 @@ setsockopt
 bind
 `
 
+const daemonPrivilegedAppArmor = `
+# TODO: privileged daemon apparmor policy
+`
+
+const daemonPrivilegedSecComp = `
+# TODO: privileged daemon seccomp policy
+`
+
 type DockerInterface struct{}
 
 func (iface *DockerInterface) Name() string {
@@ -524,11 +534,21 @@ func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 }
 
 func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	daemonPrivileged, _ := plug.Attrs["daemon-privileged"].(bool)
+
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
-		return []byte(dockerConnectedPlugAppArmor), nil
+		snippet := []byte(dockerConnectedPlugAppArmor)
+		if daemonPrivileged {
+			snippet = append(snippet, daemonPrivilegedAppArmor...)
+		}
+		return snippet, nil
 	case interfaces.SecuritySecComp:
-		return []byte(dockerConnectedPlugSecComp), nil
+		snippet := []byte(dockerConnectedPlugSecComp)
+		if daemonPrivileged {
+			snippet = append(snippet, daemonPrivilegedSecComp...)
+		}
+		return snippet, nil
 	case interfaces.SecurityDBus,
 		interfaces.SecurityMount,
 		interfaces.SecurityUDev:
@@ -568,6 +588,18 @@ func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 }
 
 func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
+	if iface.Name() != plug.Interface {
+		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
+	}
+
+	// It's fine if daemon-privileged isn't specified, but if it is,
+	// it needs to be bool
+	if v, ok := plug.Attrs["daemon-privileged"]; ok {
+		if _, ok = v.(bool); !ok {
+			return fmt.Errorf("docker plug requires bool with 'daemon-privileged'")
+		}
+	}
+
 	return nil
 }
 
