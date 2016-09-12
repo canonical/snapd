@@ -618,7 +618,6 @@ func (vs *validationSuite) makeValidEncoded() string {
 		"snap-id: snap-id-1\n" +
 		"approved-snap-id: snap-id-2\n" +
 		"approved-snap-revision: 42\n" +
-		"valid: true\n" +
 		"revision: 1\n" +
 		vs.tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -633,7 +632,6 @@ func (vs *validationSuite) makeHeaders(overrides map[string]interface{}) map[str
 		"snap-id":                "snap-id-1",
 		"approved-snap-id":       "snap-id-2",
 		"approved-snap-revision": "42",
-		"valid":                  "true",
 		"revision":               "1",
 		"timestamp":              time.Now().Format(time.RFC3339),
 	}
@@ -655,7 +653,7 @@ func (vs *validationSuite) TestDecodeOK(c *C) {
 	c.Check(validation.SnapID(), Equals, "snap-id-1")
 	c.Check(validation.ApprovedSnapID(), Equals, "snap-id-2")
 	c.Check(validation.ApprovedSnapRevision(), Equals, "42")
-	c.Check(validation.IsValid(), Equals, true)
+	c.Check(validation.Revoked(), Equals, false)
 	c.Check(validation.Revision(), Equals, 1)
 }
 
@@ -677,8 +675,6 @@ func (vs *validationSuite) TestDecodeInvalid(c *C) {
 		{"approved-snap-revision: 42\n", "approved-snap-revision: \n", `"approved-snap-revision" header should not be empty`},
 		{"approved-snap-revision: 42\n", "approved-snap-revision: 0\n", `"approved-snap-revision" header must be >=1: 0`},
 		{"approved-snap-revision: 42\n", "approved-snap-revision: -1\n", `"approved-snap-revision" header must be >=1: -1`},
-		{"valid: true\n", "", `"valid" header is mandatory`},
-		{"valid: true\n", "valid: \n", `"valid" header should not be empty`},
 		{vs.tsLine, "", `"timestamp" header is mandatory`},
 		{vs.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{vs.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -718,6 +714,25 @@ func (vs *validationSuite) TestValidationCheck(c *C) {
 
 	err = db.Check(validation)
 	c.Assert(err, IsNil)
+}
+
+func (vs *validationSuite) TestRevocation(c *C) {
+	encoded := "type: validation\n" +
+		"authority-id: dev-id1\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"approved-snap-id: snap-id-2\n" +
+		"approved-snap-revision: 42\n" +
+		"revoked: true\n" +
+		"revision: 1\n" +
+		vs.tsLine +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	validation := a.(*asserts.Validation)
+	c.Check(validation.Revoked(), Equals, true)
 }
 
 func (vs *validationSuite) TestPrerequisites(c *C) {
