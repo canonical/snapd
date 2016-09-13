@@ -10,6 +10,13 @@ backends:
         systems:
             - ubuntu-16.04-64-grub
             # - ubuntu-16.04-32-grub
+    qemu:
+        systems:
+            - ubuntu-16.04:
+                username: ubuntu
+                password: ubuntu
+                environment:
+                    APT_PROXY: "$(HOST: echo $APT_PROXY)"
 
 path: /remote/path/
 
