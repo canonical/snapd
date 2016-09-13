@@ -1,8 +1,8 @@
 project: snap-confine
 
 environment:
-    REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PATH: /snap/bin:$PATH
+    REUSE_PROJECT: "$(HOST:echo $REUSE_PROJECT)"
+    PATH: "/snap/bin:$PATH"
 
 backends:
     linode:
