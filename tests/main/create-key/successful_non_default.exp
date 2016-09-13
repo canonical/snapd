@@ -28,7 +28,11 @@ if {[lindex $status 3] != 0} {
 
 spawn snap export-key --account=developer another
 
+# fun!
+# gpg1 asks for a passphrase on the terminal no matter what
+# gpg2 gets the passphrase via our fake pinentry
 expect {
+    "Enter passphrase: " {send "pass\n"; exp_continue}
     "account-id: developer" {}
     timeout { exit 1 }
     eof { exit 1 }
