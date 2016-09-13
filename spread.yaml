@@ -37,8 +37,8 @@ suites:
             # NOTE: before snapd discards namespaces on snap removal
             # we have to do it ourselves. All of the tests use one
             # snap so this is easier to work with.
-            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || :
+            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
     spread-tests/regression/:
         summary: Regression tests for past bug-fixes
         restore-each: |
-            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || :
+            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
