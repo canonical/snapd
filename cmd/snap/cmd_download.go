@@ -36,10 +36,10 @@ import (
 
 type cmdDownload struct {
 	channelMixin
-	Revision string `long:"revision" description:"Download the given revision of a snap, to which you must have developer access"`
+	Revision string `long:"revision"`
 
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>" description:"snap name"`
+		Snap string
 	} `positional-args:"true" required:"true"`
 }
 
@@ -51,7 +51,12 @@ The download command will download the given snap and its supporting assertions 
 func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
 		return &cmdDownload{}
-	})
+	}, channelDescs.also(map[string]string{
+		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
+	}), []argDesc{{
+		name: "<snap>",
+		desc: i18n.G("snap name"),
+	}})
 }
 
 func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info, dlOpts *image.DownloadOptions) error {

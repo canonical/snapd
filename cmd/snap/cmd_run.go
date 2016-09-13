@@ -40,10 +40,10 @@ var (
 )
 
 type cmdRun struct {
-	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
-	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
-	Revision string `short:"r" description:"use a specific snap revision when running hook" default:"unset" hidden:"yes"`
-	Shell    bool   `long:"shell" description:"run a shell instead of the command (useful for debugging)"`
+	Command  string `long:"command" hidden:"yes"`
+	Hook     string `long:"hook" hidden:"yes"`
+	Revision string `short:"r" default:"unset" hidden:"yes"`
+	Shell    bool   `long:"shell" `
 }
 
 func init() {
@@ -52,7 +52,12 @@ func init() {
 		i18n.G("Run the given snap command with the right confinement and environment"),
 		func() flags.Commander {
 			return &cmdRun{}
-		})
+		}, map[string]string{
+			"command": i18n.G("alternative command to run"),
+			"hook":    i18n.G("hook to run"),
+			"r":       i18n.G("use a specific snap revision when running hook"),
+			"shell":   i18n.G("run a shell instead of the command (useful for debugging)"),
+		}, nil)
 }
 
 func (x *cmdRun) Execute(args []string) error {

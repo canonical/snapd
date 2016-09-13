@@ -42,7 +42,7 @@ type cmdList struct {
 }
 
 func init() {
-	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} })
+	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} }, nil, nil)
 }
 
 type snapsByName []*client.Snap

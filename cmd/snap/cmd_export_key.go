@@ -30,9 +30,9 @@ import (
 )
 
 type cmdExportKey struct {
-	Account    string `long:"account" description:"format public key material as a request for an account-key for this account-id"`
+	Account    string `long:"account"`
 	Positional struct {
-		KeyName string `positional-arg-name:"<key-name>" description:"name of key to export"`
+		KeyName string
 	} `positional-args:"true"`
 }
 
@@ -42,7 +42,12 @@ func init() {
 		i18n.G("Export a public key assertion body that may be imported by other systems."),
 		func() flags.Commander {
 			return &cmdExportKey{}
-		})
+		}, map[string]string{
+			"account": i18n.G("format public key material as a request for an account-key for this account-id"),
+		}, []argDesc{{
+			name: i18n.G("<key-name>"),
+			desc: i18n.G("name of key to export"),
+		}})
 	cmd.hidden = true
 }
 
