@@ -32,6 +32,9 @@ backends:
                 image: ubuntu-16.04-64
                 username: ubuntu
                 password: ubuntu
+            - ubuntu-16.10-64:
+                username: ubuntu
+                password: ubuntu
     autopkgtest:
         type: adhoc
         allocate: |
