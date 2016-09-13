@@ -367,8 +367,8 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 	r.Header.Set("Authorization", buf.String())
 }
 
-// refreshMacaroon will request a refreshed discharge macaroon for the user
-func refreshMacaroon(user *auth.UserState) ([]string, error) {
+// refreshDischarges will request a refreshed discharge macaroon for the user
+func refreshDischarges(user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
 		discharge, err := MacaroonDeserialize(d)
@@ -391,7 +391,7 @@ func refreshMacaroon(user *auth.UserState) ([]string, error) {
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
-	newDischarges, err := refreshMacaroon(user)
+	newDischarges, err := refreshDischarges(user)
 	if err != nil {
 		return err
 	}
@@ -536,7 +536,11 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		if err != nil {
 			return nil, err
 		}
-		if device.SessionMacaroon == "" {
+		// we don't have a session yet but have a serial, try
+		// to get a session
+		// TODO: write a test for the Serial == "" skipping
+		// when we have simplified tests
+		if device.SessionMacaroon == "" && device.Serial != "" {
 			err = s.refreshDeviceSession(device)
 			if err == auth.ErrNoSerial {
 				// missing serial assertion, log and continue without device authentication
