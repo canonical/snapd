@@ -367,7 +367,7 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 	r.Header.Set("Authorization", buf.String())
 }
 
-// refreshDischarges will request a refreshed discharge macaroon for the user
+// refreshDischarges will request refreshed discharge macaroons for the user
 func refreshDischarges(user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
