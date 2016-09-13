@@ -1,4 +1,8 @@
-distro_archive=http://ftp.debian.org/debian
+if [ -n "${APT_PROXY:-}" ]; then
+    distro_archive=${APT_PROXY}/ftp.debian.org/debian
+else
+    distro_archive=http://ftp.debian.org/debian
+fi
 # NOTE: Debian packaging needs to be updated. I sent a mail to the
 # debian maintainer with instructions on what needs to happen and
 # how it fits into the CI system.
