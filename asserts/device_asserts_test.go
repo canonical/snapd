@@ -43,19 +43,18 @@ func (mods *modelSuite) SetUpSuite(c *C) {
 	mods.tsLine = "timestamp: " + mods.ts.Format(time.RFC3339) + "\n"
 }
 
+const reqSnaps = "required-snaps:\n  - foo\n  - bar\n"
+
 const modelExample = "type: model\n" +
 	"authority-id: brand-id1\n" +
 	"series: 16\n" +
 	"brand-id: brand-id1\n" +
 	"model: baz-3000\n" +
-	"core: core\n" +
 	"architecture: amd64\n" +
 	"gadget: brand-gadget\n" +
 	"kernel: baz-linux\n" +
 	"store: brand-store\n" +
-	"allowed-modes: \n" +
-	"required-snaps: foo, bar\n" +
-	"class: fixed\n" +
+	reqSnaps +
 	"TSLINE" +
 	"body-length: 0\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -73,14 +72,34 @@ func (mods *modelSuite) TestDecodeOK(c *C) {
 	c.Check(model.Series(), Equals, "16")
 	c.Check(model.BrandID(), Equals, "brand-id1")
 	c.Check(model.Model(), Equals, "baz-3000")
-	c.Check(model.Class(), Equals, "fixed")
-	c.Check(model.Core(), Equals, "core")
 	c.Check(model.Architecture(), Equals, "amd64")
 	c.Check(model.Gadget(), Equals, "brand-gadget")
 	c.Check(model.Kernel(), Equals, "baz-linux")
 	c.Check(model.Store(), Equals, "brand-store")
-	// XXX: these are empty atm
-	c.Check(model.AllowedModes(), HasLen, 0)
+	c.Check(model.RequiredSnaps(), DeepEquals, []string{"foo", "bar"})
+}
+
+func (mods *modelSuite) TestDecodeStoreIsOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, "store: brand-store\n", "store: \n", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+	c.Check(model.Store(), Equals, "")
+
+	encoded = strings.Replace(withTimestamp, "store: brand-store\n", "", 1)
+	a, err = asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model = a.(*asserts.Model)
+	c.Check(model.Store(), Equals, "")
+}
+
+func (mods *modelSuite) TestDecodeRequiredSnapsAreOptional(c *C) {
+	withTimestamp := strings.Replace(modelExample, "TSLINE", mods.tsLine, 1)
+	encoded := strings.Replace(withTimestamp, reqSnaps, "", 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
 	c.Check(model.RequiredSnaps(), HasLen, 0)
 }
 
@@ -100,21 +119,18 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: baz/3000\n", `"model" primary key header cannot contain '/'`},
-		{"core: core\n", "", `"core" header is mandatory`},
-		{"core: core\n", "core: \n", `"core" header should not be empty`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
 		{"gadget: brand-gadget\n", "gadget: \n", `"gadget" header should not be empty`},
 		{"kernel: baz-linux\n", "", `"kernel" header is mandatory`},
 		{"kernel: baz-linux\n", "kernel: \n", `"kernel" header should not be empty`},
-		{"store: brand-store\n", "", `"store" header is mandatory`},
-		{"store: brand-store\n", "store: \n", `"store" header should not be empty`},
-		{"class: fixed\n", "", `"class" header is mandatory`},
-		{"class: fixed\n", "class: \n", `"class" header should not be empty`},
+		{"store: brand-store\n", "store:\n  - xyz\n", `"store" header must be a string`},
 		{mods.tsLine, "", `"timestamp" header is mandatory`},
 		{mods.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{mods.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{reqSnaps, "required-snaps: foo\n", `"required-snaps" header must be a list of strings`},
+		{reqSnaps, "required-snaps:\n  -\n    - nested\n", `"required-snaps" header must be a list of strings`},
 	}
 
 	for _, test := range invalidTests {
@@ -206,9 +222,10 @@ func (ss *serialSuite) TestDecodeOK(c *C) {
 }
 
 const (
-	serialErrPrefix      = "assertion serial: "
-	serialProofErrPrefix = "assertion serial-proof: "
-	serialReqErrPrefix   = "assertion serial-request: "
+	deviceSessReqErrPrefix = "assertion device-session-request: "
+	serialErrPrefix        = "assertion serial: "
+	serialProofErrPrefix   = "assertion serial-proof: "
+	serialReqErrPrefix     = "assertion serial-request: "
 )
 
 func (ss *serialSuite) TestDecodeInvalid(c *C) {
@@ -361,5 +378,62 @@ func (ss *serialSuite) TestSerialProofDecodeInvalid(c *C) {
 		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, serialProofErrPrefix+test.expectedErr)
+	}
+}
+
+func (ss *serialSuite) TestDeviceSessionRequest(c *C) {
+	ts := time.Now().UTC().Round(time.Second)
+	sessReq, err := asserts.SignWithoutAuthority(asserts.DeviceSessionRequestType,
+		map[string]interface{}{
+			"brand-id":  "brand-id1",
+			"model":     "baz-3000",
+			"serial":    "99990",
+			"nonce":     "NONCE",
+			"timestamp": ts.Format(time.RFC3339),
+		}, nil, ss.deviceKey)
+	c.Assert(err, IsNil)
+
+	// roundtrip
+	a, err := asserts.Decode(asserts.Encode(sessReq))
+	c.Assert(err, IsNil)
+
+	sessReq2, ok := a.(*asserts.DeviceSessionRequest)
+	c.Assert(ok, Equals, true)
+
+	// standalone signature check
+	err = asserts.SignatureCheck(sessReq2, ss.deviceKey.PublicKey())
+	c.Check(err, IsNil)
+
+	c.Check(sessReq2.BrandID(), Equals, "brand-id1")
+	c.Check(sessReq2.Model(), Equals, "baz-3000")
+	c.Check(sessReq2.Serial(), Equals, "99990")
+	c.Check(sessReq2.Nonce(), Equals, "NONCE")
+	c.Check(sessReq2.Timestamp().Equal(ts), Equals, true)
+}
+
+func (ss *serialSuite) TestDeviceSessionRequestDecodeInvalid(c *C) {
+	tsLine := "timestamp: " + time.Now().Format(time.RFC3339) + "\n"
+	encoded := "type: device-session-request\n" +
+		"brand-id: brand-id1\n" +
+		"model: baz-3000\n" +
+		"serial: 99990\n" +
+		"nonce: NONCE\n" +
+		tsLine +
+		"body-length: 0\n" +
+		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
+		"AXNpZw=="
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"brand-id: brand-id1\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
+		{"serial: 99990\n", "", `"serial" header is mandatory`},
+		{"nonce: NONCE\n", "nonce: \n", `"nonce" header should not be empty`},
+		{tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, deviceSessReqErrPrefix+test.expectedErr)
 	}
 }

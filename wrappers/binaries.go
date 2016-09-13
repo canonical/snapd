@@ -21,72 +21,11 @@
 package wrappers
 
 import (
-	"bytes"
 	"os"
-	"strings"
-	"text/template"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/snapenv"
 )
-
-// Doesn't need to handle complications like internal quotes, just needs to
-// wrap right side of an env variable declaration with quotes for the shell.
-func quoteEnvVar(envVar string) string {
-	return "export " + strings.Replace(envVar, "=", "=\"", 1) + "\""
-}
-
-func generateSnapBinaryWrapper(app *snap.AppInfo) (string, error) {
-	wrapperTemplate := `#!/bin/sh
-set -e
-
-# snap info
-{{.EnvVars}}
-
-if [ ! -d "$SNAP_USER_DATA" ]; then
-   mkdir -p "$SNAP_USER_DATA"
-fi
-export HOME="$SNAP_USER_DATA"
-
-# Snap name is: {{.App.Snap.Name}}
-# App name is: {{.App.Name}}
-
-exec {{.App.LauncherCommand}} "$@"
-`
-
-	if err := snap.ValidateApp(app); err != nil {
-		return "", err
-	}
-
-	var templateOut bytes.Buffer
-	t := template.Must(template.New("wrapper").Parse(wrapperTemplate))
-	wrapperData := struct {
-		App     *snap.AppInfo
-		EnvVars string
-		Home    string
-	}{
-		App:  app,
-		Home: "$HOME",
-	}
-
-	envVars := []string{}
-	for _, envVar := range append(
-		snapenv.Basic(app.Snap),
-		snapenv.User(app.Snap, "$HOME")...) {
-		envVars = append(envVars, quoteEnvVar(envVar))
-	}
-	wrapperData.EnvVars = strings.Join(envVars, "\n")
-
-	if err := t.Execute(&templateOut, wrapperData); err != nil {
-		// this can never happen, except we forget a variable
-		logger.Panicf("Unable to execute template: %v", err)
-	}
-
-	return templateOut.String(), nil
-}
 
 // AddSnapBinaries writes the wrapper binaries for the applications from the snap which aren't services.
 func AddSnapBinaries(s *snap.Info) error {
@@ -99,12 +38,10 @@ func AddSnapBinaries(s *snap.Info) error {
 			continue
 		}
 
-		content, err := generateSnapBinaryWrapper(app)
-		if err != nil {
+		if err := os.Remove(app.WrapperPath()); err != nil && !os.IsNotExist(err) {
 			return err
 		}
-
-		if err := osutil.AtomicWriteFile(app.WrapperPath(), []byte(content), 0755, 0); err != nil {
+		if err := os.Symlink("/usr/bin/snap", app.WrapperPath()); err != nil {
 			return err
 		}
 	}

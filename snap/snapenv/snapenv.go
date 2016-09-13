@@ -21,6 +21,7 @@ package snapenv
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/snap"
@@ -40,6 +41,7 @@ func Basic(info *snap.Info) []string {
 		fmt.Sprintf("SNAP_REVISION=%s", info.Revision),
 		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
 		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
+		fmt.Sprintf("SNAP_REEXEC=%s", os.Getenv("SNAP_REEXEC")),
 	}
 }
 
@@ -49,6 +51,7 @@ func Basic(info *snap.Info) []string {
 // somewhere more reasonable like the snappy module.
 func User(info *snap.Info, home string) []string {
 	return []string{
+		fmt.Sprintf("HOME=%s", info.UserDataDir(home)),
 		fmt.Sprintf("SNAP_USER_COMMON=%s", info.UserCommonDataDir(home)),
 		fmt.Sprintf("SNAP_USER_DATA=%s", info.UserDataDir(home)),
 	}

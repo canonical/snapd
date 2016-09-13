@@ -45,17 +45,23 @@ func StampFirstBoot() error {
 	return osutil.AtomicWriteFile(dirs.SnapFirstBootStamp, []byte{}, 0644, 0)
 }
 
-var netplanConfigFile = "/etc/netplan/00-initial-config.yaml"
+var netplanConfigFile = "/etc/netplan/00-snapd-config.yaml"
 var enableConfig = []string{"netplan", "apply"}
 
 var netplanConfigData = `
+# This is the initial network config written by 'snap firstboot'.
+# It can be overwritten by cloud-init or console-conf.
 network:
- version: 2
- ethernets:
-   all:
-    match:
-     name: "*"
-    dhcp4: true
+    version: 2
+    ethernets:
+        all-en:
+            match:
+                name: "en*"
+            dhcp4: true
+        all-eth:
+            match:
+                name: "eth*"
+            dhcp4: true
 `
 
 // InitialNetworkConfig writes and applies a netplan config that

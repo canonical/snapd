@@ -29,6 +29,7 @@ var allInterfaces = []interfaces.Interface{
 	&BrowserSupportInterface{},
 	&ContentInterface{},
 	&GpioInterface{},
+	&HidrawInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&LxdSupportInterface{},
@@ -39,6 +40,8 @@ var allInterfaces = []interfaces.Interface{
 	&PppInterface{},
 	&SerialPortInterface{},
 	&PulseAudioInterface{},
+	&UDisks2Interface{},
+	&FwupdInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
 	NewHardwareObserveInterface(),
@@ -51,6 +54,8 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
 	NewProcessControlInterface(),
+	NewRemovableMediaInterface(),
+	NewScreenInhibitControlInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
 	NewSystemTraceInterface(),
@@ -58,6 +63,7 @@ var allInterfaces = []interfaces.Interface{
 	NewTimezoneControlInterface(),
 	NewTpmInterface(),
 	NewUnity7Interface(),
+	NewUPowerObserveInterface(),
 	NewX11Interface(),
 	NewOpenglInterface(),
 	NewCupsControlInterface(),
@@ -66,6 +72,7 @@ var allInterfaces = []interfaces.Interface{
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
 	NewFuseSupportInterface(),
+	NewLibvirtInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.

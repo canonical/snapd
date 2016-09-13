@@ -121,19 +121,30 @@ type TestOnlyNoAuthority struct {
 	assertionBase
 }
 
-func assembleTestOnlyFreeestanding(assert assertionBase) (Assertion, error) {
+func assembleTestOnlyNoAuthority(assert assertionBase) (Assertion, error) {
 	if _, err := checkNotEmptyString(assert.headers, "hdr"); err != nil {
 		return nil, err
 	}
 	return &TestOnlyNoAuthority{assert}, nil
 }
 
-var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, assembleTestOnlyFreeestanding, noAuthority}
+var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, assembleTestOnlyNoAuthority, noAuthority}
+
+type TestOnlyNoAuthorityPK struct {
+	assertionBase
+}
+
+func assembleTestOnlyNoAuthorityPK(assert assertionBase) (Assertion, error) {
+	return &TestOnlyNoAuthorityPK{assert}, nil
+}
+
+var TestOnlyNoAuthorityPKType = &AssertionType{"test-only-no-authority-pk", []string{"pk"}, assembleTestOnlyNoAuthorityPK, noAuthority}
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
 	typeRegistry[TestOnlyNoAuthorityType.Name] = TestOnlyNoAuthorityType
+	typeRegistry[TestOnlyNoAuthorityPKType.Name] = TestOnlyNoAuthorityPKType
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
@@ -158,3 +169,8 @@ var (
 	ParseHeaders = parseHeaders
 	AppendEntry  = appendEntry
 )
+
+// ParametersForGenerate exposes parametersForGenerate for tests.
+func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
+	return gkm.parametersForGenerate(passphrase, name)
+}
