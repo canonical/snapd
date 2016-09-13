@@ -735,6 +735,19 @@ func (vs *validationSuite) TestRevocation(c *C) {
 	c.Check(validation.Revoked(), Equals, true)
 }
 
+func (vs *validationSuite) TestMissingGatingDeclaration(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+
+	headers := vs.makeHeaders(nil)
+	a, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(a)
+	c.Assert(err, ErrorMatches, `validation assertion for snap-id "snap-id-1" does not have a matching snap-declaration assertion`)
+}
+
 func (vs *validationSuite) TestPrerequisites(c *C) {
 	encoded := vs.makeValidEncoded()
 	a, err := asserts.Decode([]byte(encoded))
