@@ -28,9 +28,6 @@ if {[lindex $status 3] != 0} {
 
 spawn snap export-key --account=developer another
 
-expect "Enter passphrase: "
-send "pass\n"
-
 expect {
     "account-id: developer" {}
     timeout { exit 1 }
