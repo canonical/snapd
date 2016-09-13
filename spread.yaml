@@ -38,7 +38,9 @@ suites:
             # we have to do it ourselves. All of the tests use one
             # snap so this is easier to work with.
             /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
+            test "$(dmesg | grep DENIED | wc -l)" -eq 0
     spread-tests/regression/:
         summary: Regression tests for past bug-fixes
         restore-each: |
             /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
+            test "$(dmesg | grep DENIED | wc -l)" -eq 0
