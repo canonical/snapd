@@ -3312,7 +3312,7 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 	var err error
 	if opts.revert {
 		chg = s.state.NewChange("revert", "revert a snap")
-		ts, err = snapstate.RevertToRevision(s.state, "some-snap", snap.R(opts.via))
+		ts, err = snapstate.RevertToRevision(s.state, "some-snap", snap.R(opts.via), snapstate.Flags(0))
 	} else {
 		chg = s.state.NewChange("refresh", "refresh a snap")
 		ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(opts.via), s.user.ID, 0)
