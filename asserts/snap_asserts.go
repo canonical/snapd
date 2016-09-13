@@ -360,31 +360,12 @@ func (validation *Validation) Timestamp() time.Time {
 
 // Implement further consistency checks.
 func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) error {
-	_, err := db.Find(AccountType, map[string]string{
-		"account-id": validation.AuthorityID(),
-	})
-	if err == ErrNotFound {
-		return fmt.Errorf("validation assertion for snap id %q does not have a matching account assertion for the developer %q", validation.SnapID(), validation.AuthorityID())
-	}
-	if err != nil {
-		return err
-	}
-	_, err = db.Find(SnapDeclarationType, map[string]string{
+	_, err := db.Find(SnapDeclarationType, map[string]string{
 		"series":  validation.Series(),
 		"snap-id": validation.SnapID(),
 	})
 	if err == ErrNotFound {
 		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
-	}
-	if err != nil {
-		return err
-	}
-	_, err = db.Find(SnapDeclarationType, map[string]string{
-		"series":  validation.Series(),
-		"snap-id": validation.ApprovedSnapID(),
-	})
-	if err == ErrNotFound {
-		return fmt.Errorf("validation assertion for approved-snap-id %q does not have a matching snap-declaration assertion", validation.ApprovedSnapID())
 	}
 	if err != nil {
 		return err
@@ -400,7 +381,6 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		return err
 	}
 
-	// XXX find matching SnapRevision (series, approved-snap-id, approved-revision) ?
 	return nil
 }
 
@@ -416,21 +396,6 @@ func (validation *Validation) Prerequisites() []*Ref {
 }
 
 func assembleValidation(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "series")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = checkNotEmptyString(assert.headers, "snap-id")
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = checkNotEmptyString(assert.headers, "approved-snap-id")
-	if err != nil {
-		return nil, err
-	}
-
 	approvedSnapRevision, err := checkInt(assert.headers, "approved-snap-revision")
 	if err != nil {
 		return nil, err
