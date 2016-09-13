@@ -72,6 +72,7 @@ execute: |
 
     if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket | grep "200 OK"; then
         echo "Expected snapd API to be available on the snapd socket"
+        echo "Got: $(curl -s --unix-socket /run/snapd.socket http:/v2/snaps)"
         exit 1
     fi
 
