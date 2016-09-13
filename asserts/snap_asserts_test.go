@@ -109,7 +109,7 @@ func (sds *snapDeclSuite) TestMissingRefreshControl(c *C) {
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	snapDecl := a.(*asserts.SnapDeclaration)
-	c.Check(snapDecl.RefreshControl(), DeepEquals, []string(nil))
+	c.Check(snapDecl.RefreshControl(), HasLen, 0)
 }
 
 const (
@@ -123,6 +123,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
+		"refresh-control:\n  - foo\n  - bar\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -137,6 +138,8 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"snap-name: first\n", "", `"snap-name" header is mandatory`},
 		{"publisher-id: dev-id1\n", "", `"publisher-id" header is mandatory`},
 		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
+		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control: foo\n", `"refresh-control" header must be a list of strings`},
+		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control:\n  -\n    - nested\n", `"refresh-control" header must be a list of strings`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
