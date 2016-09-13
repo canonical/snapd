@@ -1,8 +1,8 @@
 project: snap-confine
 
 environment:
-    REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PATH: /snap/bin:$PATH
+    REUSE_PROJECT: "$(HOST:echo $REUSE_PROJECT)"
+    PATH: "/snap/bin:$PATH"
 
 backends:
     linode:
@@ -10,6 +10,13 @@ backends:
         systems:
             - ubuntu-16.04-64-grub
             # - ubuntu-16.04-32-grub
+    qemu:
+        systems:
+            - ubuntu-16.04:
+                username: ubuntu
+                password: ubuntu
+                environment:
+                    APT_PROXY: "$(HOST: echo $APT_PROXY)"
 
 path: /remote/path/
 
@@ -20,11 +27,18 @@ exclude:
 
 prepare: |
     echo "Spread is running as $(id)"
-    [ "$REUSE_PROJECT" != 1 ] || exit 0
+    [ "${REUSE_PROJECT:-}" != 1 ] || exit 0
     ./spread-tests/spread-prepare.sh
 
 suites:
     spread-tests/main/:
         summary: Full-system tests for snap-confine
+        restore-each: |
+            # NOTE: before snapd discards namespaces on snap removal
+            # we have to do it ourselves. All of the tests use one
+            # snap so this is easier to work with.
+            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
     spread-tests/regression/:
         summary: Regression tests for past bug-fixes
+        restore-each: |
+            /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true

@@ -1,7 +1,31 @@
-libexec_PROGRAMS = snap-confine
+libexec_PROGRAMS = snap-confine snap-discard-ns
 if WITH_UNIT_TESTS
 noinst_PROGRAMS = snap-confine-unit-tests
 endif
+
+snap_discard_ns_SOURCES = \
+	ns-support.c \
+	ns-support.h \
+	user-support.c \
+	user-support.h \
+	utils.c \
+	utils.h \
+	cleanup-funcs.c \
+	cleanup-funcs.h \
+	mountinfo.c \
+	mountinfo.h \
+	snap-discard-ns.c
+snap_discard_ns_CFLAGS = -Wall -Werror $(AM_CFLAGS)
+snap_discard_ns_LDFLAGS = $(AM_LDFLAGS)
+snap_discard_ns_LDADD =
+snap_discard_ns_CFLAGS += $(SECCOMP_CFLAGS)
+snap_discard_ns_LDADD += $(SECCOMP_LIBS)
+
+if APPARMOR
+snap_discard_ns_CFLAGS += $(APPARMOR_CFLAGS)
+snap_discard_ns_LDADD += $(APPARMOR_LIBS)
+endif
+
 snap_confine_SOURCES = \
 	main.c \
 	sc-main.c \
@@ -25,7 +49,9 @@ snap_confine_SOURCES = \
 	quirks.c \
 	quirks.h \
 	mountinfo.c \
-	mountinfo.h
+	mountinfo.h \
+	ns-support.c \
+	ns-support.h
 
 snap_confine_CFLAGS = -Wall -Werror $(AM_CFLAGS)
 snap_confine_LDFLAGS = $(AM_LDFLAGS)
@@ -66,7 +92,8 @@ snap_confine_unit_tests_SOURCES = \
 	cleanup-funcs-test.c \
 	mount-support-test.c \
 	verify-executable-name-test.c \
-	mountinfo-test.c
+	mountinfo-test.c \
+	ns-support-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_LDFLAGS)
@@ -128,9 +155,14 @@ install-exec-local:
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
 	install -m 755 $(srcdir)/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
 
-# Ensure that snap-confine is +s (setuid)
 install-exec-hook:
+if CAPS_OVER_SETUID
+# Ensure that snap-confine has CAP_SYS_ADMIN capabilitiy
+	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
+else
+# Ensure that snap-confine is +s (setuid)
 	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+endif
 	install -d -m 755 $(DESTDIR)$(bindir)
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 

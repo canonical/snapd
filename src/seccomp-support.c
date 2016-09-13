@@ -99,7 +99,6 @@ static scmp_datum_t sc_map_search(char *s)
 	ENTRY e;
 	ENTRY *ep = NULL;
 	scmp_datum_t val = 0;
-	scmp_datum_t *val_p = NULL;
 	errno = 0;
 
 	e.key = s;
@@ -107,6 +106,7 @@ static scmp_datum_t sc_map_search(char *s)
 		die("hsearch_r failed");
 
 	if (ep != NULL) {
+		scmp_datum_t *val_p = NULL;
 		val_p = ep->data;
 		val = *val_p;
 	} else

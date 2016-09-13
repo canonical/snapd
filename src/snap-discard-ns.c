@@ -15,27 +15,18 @@
  *
  */
 
-#include "cleanup-funcs.h"
-#include "cleanup-funcs.c"
+#include "utils.h"
+#include "ns-support.h"
 
-#include <glib.h>
-
-// Test that cleanup functions are applied as expected
-static void test_cleanup_sanity()
+int main(int argc, char **argv)
 {
-	int called = 0;
-	void fn(int *ptr) {
-		called = 1;
-	}
-	{
-		int test __attribute__ ((cleanup(fn)));
-		test = 0;
-		test++;
-	}
-	g_assert_cmpint(called, ==, 1);
-}
-
-static void __attribute__ ((constructor)) init()
-{
-	g_test_add_func("/cleanup/sanity", test_cleanup_sanity);
+	if (argc != 2)
+		die("Usage: %s snap-name", argv[0]);
+	const char *snap_name = argv[1];
+	struct sc_ns_group *group = sc_open_ns_group(snap_name);
+	sc_lock_ns_mutex(group);
+	sc_discard_preserved_ns_group(group);
+	sc_unlock_ns_mutex(group);
+	sc_close_ns_group(group);
+	return 0;
 }
