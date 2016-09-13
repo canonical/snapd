@@ -578,15 +578,6 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func revs(seq []*snap.SideInfo) []int {
-	revs := make([]int, len(seq))
-	for i, si := range seq {
-		revs[i] = si.Revision.N
-	}
-
-	return revs
-}
-
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 

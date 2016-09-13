@@ -282,7 +282,7 @@ func (s *copydataSuite) TestCopyDataDoABA(c *C) {
 	s.populateData(c, snap.R(20))
 	c.Check(s.populatedData("20"), Equals, "20\n")
 
-	// and now we pretend to refresh back to 1
+	// and now we pretend to refresh back to v1 (r10)
 	c.Check(s.be.CopySnapData(v1, v2, &s.nullProgress), IsNil)
 
 	// so 10 now has 20's data
@@ -307,17 +307,17 @@ func (s *copydataSuite) TestCopyDataDoUndoABA(c *C) {
 	s.populateData(c, snap.R(20))
 	c.Check(s.populatedData("20"), Equals, "20\n")
 
-	// and now we pretend to refresh back to 1
+	// and now we pretend to refresh back to v1 (r10)
 	c.Check(s.be.CopySnapData(v1, v2, &s.nullProgress), IsNil)
 
-	// so 10 now has 20's data and we have trash
+	// so v1 (r10) now has v2 (r20)'s data and we have trash
 	c.Check(s.populatedData("10"), Equals, "20\n")
 	c.Check(s.populatedData("10.old"), Equals, "10\n")
 
 	// but oh no! we have to undo it!
 	c.Check(s.be.UndoCopySnapData(v1, v2, &s.nullProgress), IsNil)
 
-	// so now 10 has 10's data and 20 has 20's data and we have no trash
+	// so now v1 (r10) has v1 (r10)'s data and v2 (r20) has v2 (r20)'s data and we have no trash
 	c.Check(s.populatedData("10"), Equals, "10\n")
 	c.Check(s.populatedData("20"), Equals, "20\n")
 	c.Check(s.populatedData("10.old"), Equals, "")
