@@ -173,6 +173,9 @@
     @{HOMEDIRS}/.ecryptfs/*/.Private/ r,
     @{HOMEDIRS}/.ecryptfs/*/.Private/** mrixwlk,
 
+    # Allow snap-confine to move to the void
+    /var/lib/snapd/void/ r,
+
     # Support for the quirk system
     /var/ r,
     /var/lib/ r,
