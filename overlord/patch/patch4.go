@@ -20,27 +20,122 @@
 package patch
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
 func init() {
 	patches[4] = patch4
 }
 
+type patch4Flags int
+
+type patch4DownloadInfo struct {
+	AnonDownloadURL string `json:"anon-download-url,omitempty"`
+	DownloadURL     string `json:"download-url,omitempty"`
+
+	Size     int64  `json:"size,omitempty"`
+	Sha3_384 string `json:"sha3-384,omitempty"`
+}
+
+type patch4SideInfo struct {
+	RealName          string        `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID            string        `yaml:"snap-id" json:"snap-id"`
+	Revision          snap.Revision `yaml:"revision" json:"revision"`
+	Channel           string        `yaml:"channel,omitempty" json:"channel,omitempty"`
+	DeveloperID       string        `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
+	Developer         string        `yaml:"developer,omitempty" json:"developer,omitempty"`
+	EditedSummary     string        `yaml:"summary,omitempty" json:"summary,omitempty"`
+	EditedDescription string        `yaml:"description,omitempty" json:"description,omitempty"`
+	Private           bool          `yaml:"private,omitempty" json:"private,omitempty"`
+}
+
+type patch4SnapSetup struct {
+	Channel      string              `json:"channel,omitempty"`
+	UserID       int                 `json:"user-id,omitempty"`
+	Flags        patch4Flags         `json:"flags,omitempty"`
+	SnapPath     string              `json:"snap-path,omitempty"`
+	DownloadInfo *patch4DownloadInfo `json:"download-info,omitempty"`
+	SideInfo     *patch4SideInfo     `json:"side-info,omitempty"`
+}
+
+func (ss *patch4SnapSetup) Name() string {
+	if ss.SideInfo.RealName == "" {
+		panic("SnapSetup.SideInfo.RealName not set")
+	}
+	return ss.SideInfo.RealName
+}
+
+func (ss *patch4SnapSetup) Revision() snap.Revision {
+	return ss.SideInfo.Revision
+}
+
+type patch4SnapState struct {
+	SnapType string            `json:"type"` // Use Type and SetType
+	Sequence []*patch4SideInfo `json:"sequence"`
+	Active   bool              `json:"active,omitempty"`
+	Current  snap.Revision     `json:"current"`
+	Channel  string            `json:"channel,omitempty"`
+	Flags    patch4Flags       `json:"flags,omitempty"`
+}
+
+func (snapst *patch4SnapState) LastIndex(revision snap.Revision) int {
+	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
+		if snapst.Sequence[i].Revision == revision {
+			return i
+		}
+	}
+	return -1
+}
+
 type patch4T struct{} // for namespacing of the helpers
 
-func (patch4T) snapSetupAndState(task *state.Task) (*snapstate.SnapSetup, *snapstate.SnapState, error) {
-	var snapst snapstate.SnapState
+func (p4 patch4T) taskSnapSetup(task *state.Task) (*patch4SnapSetup, error) {
+	var ss patch4SnapSetup
 
-	ss, err := snapstate.TaskSnapSetup(task)
-	if err != nil {
-		return nil, nil, fmt.Errorf("cannot get snap setup from task %s (%s): %v", task.ID(), task.Kind(), err)
+	switch err := p4.get(task, "snap-setup", true, &ss); err {
+	case state.ErrNoState:
+		// continue below
+	case nil:
+		return &ss, nil
+	default:
+		return nil, err
 	}
 
-	err = snapstate.Get(task.State(), ss.Name(), &snapst)
+	var id string
+	if err := p4.get(task, "snap-setup-task", false, &id); err != nil {
+		return nil, err
+	}
+
+	if err := p4.get(task.State().Task(id), "snap-setup", false, &ss); err != nil {
+		return nil, err
+	}
+
+	return &ss, nil
+}
+
+func (p4 patch4T) snapSetupAndState(task *state.Task) (*patch4SnapSetup, *patch4SnapState, error) {
+	var snapst patch4SnapState
+
+	ss, err := p4.taskSnapSetup(task)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var snaps map[string]*json.RawMessage
+	err = task.State().Get("snaps", &snaps)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot get snaps state: %v", err)
+	}
+	raw, ok := snaps[ss.Name()]
+	if !ok {
+		return nil, nil, fmt.Errorf("cannot get snap state for %q: %v", ss.Name(), err)
+	}
+	err = json.Unmarshal([]byte(*raw), &snapst)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot get state for snap %q: %v", ss.Name(), err)
 	}
@@ -67,14 +162,9 @@ func (p4 patch4T) addCleanup(task *state.Task) error {
 		return nil
 	}
 
-	ss, snapst, err := p4.snapSetupAndState(task)
+	ss, err := p4.taskSnapSetup(task)
 	if err != nil {
 		return err
-	}
-	if !snapst.HasCurrent() {
-		// cleanup not added if no current (or if reverting, but
-		// copy-snap-data was not done if reverting)
-		return nil
 	}
 
 	var tid string
@@ -125,11 +215,11 @@ func (p4 patch4T) mangle(task *state.Task) error {
 }
 
 func (p4 patch4T) addRevertFlag(task *state.Task) error {
-	var ss snapstate.SnapSetup
+	var ss patch4SnapSetup
 	err := p4.get(task, "snap-setup", true, &ss)
 	switch err {
 	case nil:
-		ss.Flags |= snapstate.SnapSetupFlagRevert
+		ss.Flags |= patch4Flags(snapstate.SnapSetupFlagRevert)
 
 		// save it back
 		task.Set("snap-setup", &ss)
