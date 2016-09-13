@@ -336,6 +336,146 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
 }
 
+func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+		// check user authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		// check device authorization is set
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		io.WriteString(w, "response-data")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	defer response.Body.Close()
+	c.Assert(err, IsNil)
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
+}
+
+func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
+	refresh, err := makeTestRefreshDischargeResponse()
+	c.Assert(err, IsNil)
+	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
+
+	// mock refresh response
+	refreshDischargeEndpointHit := false
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
+		refreshDischargeEndpointHit = true
+	}))
+	defer mockSSOServer.Close()
+	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
+
+	// mock store response (requiring auth refresh)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		if t.user.StoreDischarges[0] == refresh {
+			io.WriteString(w, "response-data")
+		} else {
+			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
+			w.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	defer response.Body.Close()
+	c.Assert(err, IsNil)
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
+	c.Check(refreshDischargeEndpointHit, Equals, true)
+}
+
+func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
+	deviceSessionRequested := false
+	refreshSessionRequested := false
+	expiredAuth := `Macaroon root="expired-session-macaroon"`
+	// mock store response
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		switch r.URL.Path {
+		case "/":
+			authorization := r.Header.Get("X-Device-Authorization")
+			if authorization == "" {
+				c.Fatalf("device authentication missing")
+			} else if authorization == expiredAuth {
+				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
+				w.WriteHeader(http.StatusUnauthorized)
+			} else {
+				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
+				io.WriteString(w, "response-data")
+			}
+		case "/identity/api/v1/nonces":
+			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
+		case "/identity/api/v1/sessions":
+			authorization := r.Header.Get("X-Device-Authorization")
+			if authorization == "" {
+				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
+				deviceSessionRequested = true
+			} else {
+				c.Check(authorization, Equals, expiredAuth)
+				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
+				refreshSessionRequested = true
+			}
+		default:
+			c.Fatalf("unexpected path %q", r.URL.Path)
+		}
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+
+	// make sure device session is not set
+	t.device.SessionMacaroon = ""
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	defer response.Body.Close()
+	c.Assert(err, IsNil)
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
+	c.Check(deviceSessionRequested, Equals, true)
+	c.Check(refreshSessionRequested, Equals, true)
+}
+
 const (
 	funkyAppName      = "8nzc1x4iim2xj1g2ul64"
 	funkyAppDeveloper = "chipaca"
@@ -469,6 +609,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)
 
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
 		// no store ID by default
 		storeID := r.Header.Get("X-Ubuntu-Store")
 		c.Check(storeID, Equals, "")
@@ -497,7 +640,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	cfg := Config{
 		DetailsURI: detailsURI,
 	}
-	repo := New(&cfg, nil)
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
 	// the actual test
@@ -662,177 +806,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsDevmode(c *C) {
 	c.Check(snap.Validate(result), IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAuth(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// check user authorization is set
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		// check device authorization is set
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		io.WriteString(w, MockDetailsJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-		// check user authorization is set
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		// check device authorization is set
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
-		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
-		io.WriteString(w, mockPurchaseJSON)
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	detailsURI, err := url.Parse(mockServer.URL + "/details/")
-	c.Assert(err, IsNil)
-	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		DetailsURI:   detailsURI,
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
-	c.Assert(snap, NotNil)
-	c.Assert(err, IsNil)
-	c.Check(snap.MustBuy, Equals, false)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsRefreshesAuth(c *C) {
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
-	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
-
-	// mock refresh response
-	refreshDischargeEndpointHit := false
-	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
-		refreshDischargeEndpointHit = true
-	}))
-	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
-
-	// mock purchases response
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, mockPurchaseJSON)
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-
-	// mock store response (requiring auth refresh)
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		if t.user.StoreDischarges[0] == refresh {
-			io.WriteString(w, MockDetailsJSON)
-		} else {
-			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-	detailsURI, _ := url.Parse(mockServer.URL + "/details/")
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		DetailsURI:   detailsURI,
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
-	c.Assert(err, IsNil)
-	c.Check(refreshDischargeEndpointHit, Equals, true)
-	c.Assert(snap, NotNil)
-	c.Check(snap.MustBuy, Equals, false)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsSetsAndRefreshesDeviceAuth(c *C) {
-	// mock purchases response
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, mockPurchaseJSON)
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-
-	deviceSessionRequested := false
-	refreshSessionRequested := false
-	expiredAuth := `Macaroon root="expired-session-macaroon"`
-	// mock store response
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		switch r.URL.Path {
-		case "/details/hello-world":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				c.Fatalf("device authentication missing")
-			} else if authorization == expiredAuth {
-				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
-			} else {
-				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
-				io.WriteString(w, MockDetailsJSON)
-			}
-		case "/identity/api/v1/nonces":
-			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
-				deviceSessionRequested = true
-			} else {
-				c.Check(authorization, Equals, expiredAuth)
-				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
-				refreshSessionRequested = true
-			}
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
-	detailsURI, _ := url.Parse(mockServer.URL + "/details/")
-
-	// make sure device session is not set
-	t.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		DetailsURI:   detailsURI,
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
-	c.Assert(err, IsNil)
-	c.Assert(snap, NotNil)
-	c.Check(deviceSessionRequested, Equals, true)
-	c.Check(refreshSessionRequested, Equals, true)
-	c.Check(snap.MustBuy, Equals, false)
-}
-
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailsOopses(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
@@ -975,6 +948,9 @@ const MockSearchJSON = `{
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 	n := 0
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
 		query := r.URL.Query()
 
 		name := query.Get("name")
@@ -1005,7 +981,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindQueries(c *C) {
 		DetailsURI: detailsURI,
 		SearchURI:  searchURI,
 	}
-	repo := New(&cfg, nil)
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
 	for _, query := range []Search{
@@ -1143,193 +1120,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreFindBadBody(c *C) {
 	c.Check(snaps, HasLen, 0)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAuth(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-		// check user authorization is set
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		// check device authorization is set
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-		c.Check(r.URL.Query().Get("q"), Equals, "foo")
-		w.Header().Set("Content-Type", "application/hal+json")
-		io.WriteString(w, MockSearchJSON)
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		// check device authorization is set
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
-		c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
-		io.WriteString(w, mockPurchaseJSON)
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	var err error
-	searchURI, err := url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		SearchURI:    searchURI,
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
-	c.Assert(err, IsNil)
-	c.Assert(snaps, HasLen, 1)
-	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
-	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
-	c.Check(snaps[0].MustBuy, Equals, false)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindRefreshesAuth(c *C) {
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
-	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
-
-	// mock refresh response
-	refreshDischargeEndpointHit := false
-	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
-		refreshDischargeEndpointHit = true
-	}))
-	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
-
-	// mock purchases response
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-		io.WriteString(w, mockPurchaseJSON)
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-	c.Assert(err, IsNil)
-
-	// mock store response (requiring auth refresh)
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		if t.user.StoreDischarges[0] == refresh {
-			c.Check(r.URL.Query().Get("q"), Equals, "foo")
-			w.Header().Set("Content-Type", "application/hal+json")
-			w.WriteHeader(http.StatusOK)
-			io.WriteString(w, MockSearchJSON)
-		} else {
-			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	searchURI, _ := url.Parse(mockServer.URL)
-	cfg := Config{
-		SearchURI:    searchURI,
-		PurchasesURI: purchasesURI,
-	}
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
-	c.Assert(err, IsNil)
-	c.Check(refreshDischargeEndpointHit, Equals, true)
-	c.Assert(snaps, HasLen, 1)
-	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
-	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
-	c.Check(snaps[0].MustBuy, Equals, false)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreFindSetsAndRefreshesDeviceAuth(c *C) {
-	// mock purchases response
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-		io.WriteString(w, mockPurchaseJSON)
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	purchasesURI, err := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-	c.Assert(err, IsNil)
-
-	deviceSessionRequested := false
-	refreshSessionRequested := false
-	expiredAuth := `Macaroon root="expired-session-macaroon"`
-	// mock store response
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		switch r.URL.Path {
-		case "/":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				c.Fatalf("device authentication missing")
-			} else if authorization == expiredAuth {
-				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
-			} else {
-				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
-				c.Check(r.URL.Query().Get("q"), Equals, "foo")
-				w.Header().Set("Content-Type", "application/hal+json")
-				w.WriteHeader(http.StatusOK)
-				io.WriteString(w, MockSearchJSON)
-			}
-		case "/identity/api/v1/nonces":
-			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
-				deviceSessionRequested = true
-			} else {
-				c.Check(authorization, Equals, expiredAuth)
-				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
-				refreshSessionRequested = true
-			}
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
-	searchURI, _ := url.Parse(mockServer.URL)
-
-	cfg := Config{
-		SearchURI:    searchURI,
-		PurchasesURI: purchasesURI,
-	}
-	// make sure device session is not set
-	t.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	snaps, err := repo.Find(&Search{Query: "foo"}, t.user)
-	c.Assert(err, IsNil)
-	c.Check(deviceSessionRequested, Equals, true)
-	c.Check(refreshSessionRequested, Equals, true)
-	c.Assert(snaps, HasLen, 1)
-	c.Check(snaps[0].SnapID, Equals, helloWorldSnapID)
-	c.Check(snaps[0].Prices, DeepEquals, map[string]float64{"EUR": 2.99, "USD": 3.49})
-	c.Check(snaps[0].MustBuy, Equals, false)
-}
-
 func (t *remoteRepoTestSuite) TestUbuntuStoreFindAuthFailed(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// check authorization is set
@@ -1436,6 +1226,9 @@ var MockUpdatesJSON = `
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
 		jsonReq, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, IsNil)
 		var resp struct {
@@ -1468,7 +1261,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	cfg := Config{
 		BulkURI: bulkURI,
 	}
-	repo := New(&cfg, nil)
+	authContext := &testAuthContext{c: c, device: t.device}
+	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
 	results, err := repo.ListRefresh([]*RefreshCandidate{
@@ -1633,159 +1427,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c 
 	c.Assert(err, IsNil)
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAuth(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// check user authorization is set
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		// check device authorization is set
-		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-		io.WriteString(w, MockUpdatesJSON)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		BulkURI: bulkURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(1),
-			Epoch:    "0",
-			DevMode:  false,
-		},
-	}, t.user)
-	c.Assert(err, IsNil)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesRefreshesAuth(c *C) {
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
-	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
-
-	// mock refresh response
-	refreshDischargeEndpointHit := false
-	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
-		refreshDischargeEndpointHit = true
-	}))
-	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
-
-	// mock store response (requiring auth refresh)
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		if t.user.StoreDischarges[0] == refresh {
-			io.WriteString(w, MockUpdatesJSON)
-		} else {
-			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-	bulkURI, _ := url.Parse(mockServer.URL + "/updates/")
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		BulkURI: bulkURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	_, err = repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(1),
-			Epoch:    "0",
-			DevMode:  false,
-		},
-	}, t.user)
-	c.Assert(err, IsNil)
-	c.Check(refreshDischargeEndpointHit, Equals, true)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdatesSetsAndRefreshesDeviceAuth(c *C) {
-	deviceSessionRequested := false
-	refreshSessionRequested := false
-	expiredAuth := `Macaroon root="expired-session-macaroon"`
-	// mock store response
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		switch r.URL.Path {
-		case "/updates/":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				c.Fatalf("device authentication missing")
-			} else if authorization == expiredAuth {
-				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
-			} else {
-				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
-				io.WriteString(w, MockUpdatesJSON)
-			}
-		case "/identity/api/v1/nonces":
-			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
-				deviceSessionRequested = true
-			} else {
-				c.Check(authorization, Equals, expiredAuth)
-				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
-				refreshSessionRequested = true
-			}
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
-	bulkURI, _ := url.Parse(mockServer.URL + "/updates/")
-
-	// make sure device session is not set
-	t.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		BulkURI: bulkURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	_, err := repo.ListRefresh([]*RefreshCandidate{
-		{
-			SnapID:   helloWorldSnapID,
-			Channel:  "stable",
-			Revision: snap.R(1),
-			Epoch:    "0",
-			DevMode:  false,
-		},
-	}, t.user)
-	c.Assert(err, IsNil)
-	c.Check(deviceSessionRequested, Equals, true)
-	c.Check(refreshSessionRequested, Equals, true)
-}
-
 func (t *remoteRepoTestSuite) TestStructFieldsSurvivesNoTag(c *C) {
 	type s struct {
 		Foo int `json:"hello"`
@@ -1873,34 +1514,7 @@ xS4u9rVT6UY=`
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
-		c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
-		io.WriteString(w, testAssertion)
-	}))
-
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	var err error
-	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
-	c.Assert(err, IsNil)
-	cfg := Config{
-		AssertionsURI: assertionsURI,
-	}
-	repo := New(&cfg, nil)
-
-	a, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
-	c.Assert(err, IsNil)
-	c.Check(a, NotNil)
-	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionSetsAuth(c *C) {
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// check user authorization is set
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		// check device authorization is set
+		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 		c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
@@ -1914,116 +1528,16 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionSetsAuth(c *C) {
 	var err error
 	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
 	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
 	cfg := Config{
 		AssertionsURI: assertionsURI,
 	}
+	authContext := &testAuthContext{c: c, device: t.device}
 	repo := New(&cfg, authContext)
 
-	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
+	a, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, nil)
 	c.Assert(err, IsNil)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionRefreshesAuth(c *C) {
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
-	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
-
-	// mock refresh response
-	refreshDischargeEndpointHit := false
-	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
-		refreshDischargeEndpointHit = true
-	}))
-	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
-
-	// mock store response (requiring auth refresh)
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		if t.user.StoreDischarges[0] == refresh {
-			c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
-			c.Check(r.URL.Path, Equals, "/assertions/snap-declaration/16/snapidfoo")
-			io.WriteString(w, testAssertion)
-		} else {
-			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-	assertionsURI, _ := url.Parse(mockServer.URL + "/assertions/")
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		AssertionsURI: assertionsURI,
-	}
-	repo := New(&cfg, authContext)
-
-	_, err = repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
-	c.Assert(err, IsNil)
-	c.Check(refreshDischargeEndpointHit, Equals, true)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertionSetsAndRefreshesDeviceAuth(c *C) {
-	deviceSessionRequested := false
-	refreshSessionRequested := false
-	expiredAuth := `Macaroon root="expired-session-macaroon"`
-	// mock store response
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		switch r.URL.Path {
-		case "/assertions/snap-declaration/16/snapidfoo":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				c.Fatalf("device authentication missing")
-			} else if authorization == expiredAuth {
-				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
-			} else {
-				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
-				c.Check(r.Header.Get("Accept"), Equals, "application/x.ubuntu.assertion")
-				io.WriteString(w, testAssertion)
-			}
-		case "/identity/api/v1/nonces":
-			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
-				deviceSessionRequested = true
-			} else {
-				c.Check(authorization, Equals, expiredAuth)
-				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
-				refreshSessionRequested = true
-			}
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
-	assertionsURI, _ := url.Parse(mockServer.URL + "/assertions/")
-
-	// make sure device session is not set
-	t.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		AssertionsURI: assertionsURI,
-	}
-	repo := New(&cfg, authContext)
-
-	_, err := repo.Assertion(asserts.SnapDeclarationType, []string{"16", "snapidfoo"}, t.user)
-	c.Assert(err, IsNil)
-	c.Check(deviceSessionRequested, Equals, true)
-	c.Check(refreshSessionRequested, Equals, true)
+	c.Check(a, NotNil)
+	c.Check(a.Type(), Equals, asserts.SnapDeclarationType)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryNotFound(c *C) {
@@ -2096,8 +1610,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositorySuggestedCurrency(c *C) {
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+		// check device authorization is set, implicitly checking doRequest was used
 		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 		c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 		io.WriteString(w, mockPurchasesJSON)
 	}))
@@ -2135,147 +1651,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchases(c *C) {
 
 	err = repo.decoratePurchases(snaps, "edge", t.user)
 	c.Assert(err, IsNil)
-
-	c.Check(helloWorld.MustBuy, Equals, false)
-	c.Check(funkyApp.MustBuy, Equals, false)
-	c.Check(otherApp.MustBuy, Equals, true)
-	c.Check(otherApp2.MustBuy, Equals, false)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesRefreshesAuth(c *C) {
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
-	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
-
-	// mock refresh response
-	refreshDischargeEndpointHit := false
-	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
-		refreshDischargeEndpointHit = true
-	}))
-	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
-
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		if t.user.StoreDischarges[0] == refresh {
-			io.WriteString(w, mockPurchasesJSON)
-		} else {
-			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	helloWorld := &snap.Info{}
-	helloWorld.SnapID = helloWorldSnapID
-	helloWorld.Prices = map[string]float64{"USD": 1.23}
-
-	funkyApp := &snap.Info{}
-	funkyApp.SnapID = funkyAppSnapID
-	funkyApp.Prices = map[string]float64{"USD": 2.34}
-
-	otherApp := &snap.Info{}
-	otherApp.SnapID = "other"
-	otherApp.Prices = map[string]float64{"USD": 3.45}
-
-	otherApp2 := &snap.Info{}
-	otherApp2.SnapID = "other2"
-
-	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
-
-	err = repo.decoratePurchases(snaps, "edge", t.user)
-	c.Assert(err, IsNil)
-	c.Check(refreshDischargeEndpointHit, Equals, true)
-
-	c.Check(helloWorld.MustBuy, Equals, false)
-	c.Check(funkyApp.MustBuy, Equals, false)
-	c.Check(otherApp.MustBuy, Equals, true)
-	c.Check(otherApp2.MustBuy, Equals, false)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreDecoratePurchasesSetsAndRefreshesDeviceAuth(c *C) {
-	deviceSessionRequested := false
-	refreshSessionRequested := false
-	expiredAuth := `Macaroon root="expired-session-macaroon"`
-	// mock store response
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		switch r.URL.Path {
-		case "/dev/api/snap-purchases/":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				c.Fatalf("device authentication missing")
-			} else if authorization == expiredAuth {
-				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
-			} else {
-				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
-				io.WriteString(w, mockPurchasesJSON)
-			}
-		case "/identity/api/v1/nonces":
-			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
-				deviceSessionRequested = true
-			} else {
-				c.Check(authorization, Equals, expiredAuth)
-				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
-				refreshSessionRequested = true
-			}
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	MyAppsDeviceNonceAPI = mockPurchasesServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockPurchasesServer.URL + "/identity/api/v1/sessions"
-	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-
-	// make sure device session is not set
-	t.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	helloWorld := &snap.Info{}
-	helloWorld.SnapID = helloWorldSnapID
-	helloWorld.Prices = map[string]float64{"USD": 1.23}
-
-	funkyApp := &snap.Info{}
-	funkyApp.SnapID = funkyAppSnapID
-	funkyApp.Prices = map[string]float64{"USD": 2.34}
-
-	otherApp := &snap.Info{}
-	otherApp.SnapID = "other"
-	otherApp.Prices = map[string]float64{"USD": 3.45}
-
-	otherApp2 := &snap.Info{}
-	otherApp2.SnapID = "other2"
-
-	snaps := []*snap.Info{helloWorld, funkyApp, otherApp, otherApp2}
-
-	err := repo.decoratePurchases(snaps, "edge", t.user)
-	c.Assert(err, IsNil)
-	c.Check(deviceSessionRequested, Equals, true)
-	c.Check(refreshSessionRequested, Equals, true)
 
 	c.Check(helloWorld.MustBuy, Equals, false)
 	c.Check(funkyApp.MustBuy, Equals, false)
@@ -2559,15 +1934,19 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			// check device authorization is set, implicitly checking doRequest was used
 			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/"+helloWorldSnapID+"/")
 			c.Check(r.URL.Query().Get("include_item_purchases"), Equals, "true")
 			io.WriteString(w, "{}")
 			purchaseServerGetCalled = true
 		case "POST":
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			// check device authorization is set, implicitly checking doRequest was used
 			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 			c.Check(r.Header.Get("Content-Type"), Equals, "application/json")
 			c.Check(r.URL.Path, Equals, "/dev/api/snap-purchases/")
 			jsonReq, err := ioutil.ReadAll(r.Body)
@@ -2698,123 +2077,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyInteractive(c *C) {
 	c.Check(searchServerCalled, Equals, true)
 	c.Check(purchaseServerGetCalled, Equals, true)
 	c.Check(purchaseServerPostCalled, Equals, true)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuyRefreshesAuth(c *C) {
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
-	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
-
-	// mock refresh response
-	refreshDischargeEndpointHit := false
-	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
-		refreshDischargeEndpointHit = true
-	}))
-	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
-
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		if t.user.StoreDischarges[0] == refresh {
-			io.WriteString(w, mockSinglePurchaseJSON)
-		} else {
-			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-	cfg := Config{
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, nil)
-	c.Assert(repo, NotNil)
-
-	result, err := repo.Buy(&BuyOptions{
-		SnapID:   helloWorldSnapID,
-		SnapName: "hello-world",
-		Currency: "EUR",
-		Price:    0.99,
-
-		BackendID: "123",
-		MethodID:  234,
-	}, t.user)
-
-	c.Assert(result, NotNil)
-	c.Check(result.State, Equals, "Complete")
-	c.Check(refreshDischargeEndpointHit, Equals, true)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuySetsAndRefreshesDeviceAuth(c *C) {
-	deviceSessionRequested := false
-	refreshSessionRequested := false
-	expiredAuth := `Macaroon root="expired-session-macaroon"`
-	// mock store response
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		switch r.URL.Path {
-		case "/dev/api/snap-purchases/":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				c.Fatalf("device authentication missing")
-			} else if authorization == expiredAuth {
-				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
-			} else {
-				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
-				io.WriteString(w, mockSinglePurchaseJSON)
-			}
-		case "/identity/api/v1/nonces":
-			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
-				deviceSessionRequested = true
-			} else {
-				c.Check(authorization, Equals, expiredAuth)
-				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
-				refreshSessionRequested = true
-			}
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	MyAppsDeviceNonceAPI = mockPurchasesServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockPurchasesServer.URL + "/identity/api/v1/sessions"
-	purchasesURI, _ := url.Parse(mockPurchasesServer.URL + "/dev/api/snap-purchases/")
-
-	// make sure device session is not set
-	t.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		PurchasesURI: purchasesURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	result, err := repo.Buy(&BuyOptions{
-		SnapID:   helloWorldSnapID,
-		SnapName: "hello-world",
-		Currency: "EUR",
-		Price:    0.99,
-
-		BackendID: "123",
-		MethodID:  234,
-	}, t.user)
-
-	c.Assert(err, IsNil)
-	c.Assert(result, NotNil)
-	c.Check(result.State, Equals, "Complete")
-	c.Check(deviceSessionRequested, Equals, true)
-	c.Check(refreshSessionRequested, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
@@ -3075,8 +2337,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethods(c *C) {
 	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+			// check device authorization is set, implicitly checking doRequest was used
 			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
 			c.Check(r.URL.Path, Equals, "/api/2.0/click/paymentmethods/")
 			io.WriteString(w, paymentMethodsJson)
 			purchaseServerGetCalled++
@@ -3174,102 +2438,4 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsHandles401(c *C) {
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "invalid credentials")
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsRefreshesAuth(c *C) {
-	refresh, err := makeTestRefreshDischargeResponse()
-	c.Assert(err, IsNil)
-	c.Check(t.user.StoreDischarges[0], Not(Equals), refresh)
-
-	// mock refresh response
-	refreshDischargeEndpointHit := false
-	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, refresh))
-		refreshDischargeEndpointHit = true
-	}))
-	defer mockSSOServer.Close()
-	UbuntuoneRefreshDischargeAPI = mockSSOServer.URL + "/tokens/refresh"
-
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authorization := r.Header.Get("Authorization")
-		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
-		if t.user.StoreDischarges[0] == refresh {
-			io.WriteString(w, paymentMethodsJson)
-		} else {
-			w.Header().Set("WWW-Authenticate", "Macaroon needs_refresh=1")
-			w.WriteHeader(http.StatusUnauthorized)
-		}
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	paymentMethodsURI, _ := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
-	cfg := Config{
-		PaymentMethodsURI: paymentMethodsURI,
-	}
-	repo := New(&cfg, nil)
-	c.Assert(repo, NotNil)
-
-	result, err := repo.PaymentMethods(t.user)
-	c.Assert(err, IsNil)
-	c.Assert(result, NotNil)
-	c.Check(refreshDischargeEndpointHit, Equals, true)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsSetsAndRefreshesDeviceAuth(c *C) {
-	deviceSessionRequested := false
-	refreshSessionRequested := false
-	expiredAuth := `Macaroon root="expired-session-macaroon"`
-	// mock store response
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.UserAgent(), Equals, userAgent)
-
-		switch r.URL.Path {
-		case "/api/2.0/click/paymentmethods/":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				c.Fatalf("device authentication missing")
-			} else if authorization == expiredAuth {
-				w.Header().Set("WWW-Authenticate", "Macaroon refresh_device_session=1")
-				w.WriteHeader(http.StatusUnauthorized)
-			} else {
-				c.Check(authorization, Equals, `Macaroon root="refreshed-session-macaroon"`)
-				io.WriteString(w, paymentMethodsJson)
-			}
-		case "/identity/api/v1/nonces":
-			io.WriteString(w, `{"nonce": "1234567890:9876543210"}`)
-		case "/identity/api/v1/sessions":
-			authorization := r.Header.Get("X-Device-Authorization")
-			if authorization == "" {
-				io.WriteString(w, `{"macaroon": "expired-session-macaroon"}`)
-				deviceSessionRequested = true
-			} else {
-				c.Check(authorization, Equals, expiredAuth)
-				io.WriteString(w, `{"macaroon": "refreshed-session-macaroon"}`)
-				refreshSessionRequested = true
-			}
-		default:
-			c.Fatalf("unexpected path %q", r.URL.Path)
-		}
-	}))
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-	MyAppsDeviceNonceAPI = mockPurchasesServer.URL + "/identity/api/v1/nonces"
-	MyAppsDeviceSessionAPI = mockPurchasesServer.URL + "/identity/api/v1/sessions"
-	paymentMethodsURI, _ := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
-
-	// make sure device session is not set
-	t.device.SessionMacaroon = ""
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		PaymentMethodsURI: paymentMethodsURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	result, err := repo.PaymentMethods(t.user)
-	c.Assert(err, IsNil)
-	c.Assert(result, NotNil)
-	c.Check(deviceSessionRequested, Equals, true)
-	c.Check(refreshSessionRequested, Equals, true)
 }
