@@ -28,9 +28,9 @@ import (
 )
 
 type cmdInterfaces struct {
-	Interface   string `short:"i" description:"constrain listing to specific interfaces"`
+	Interface   string `short:"i"`
 	Positionals struct {
-		Query SnapAndName `positional-arg-name:"<snap>:<slot or plug>" description:"snap or snap:name" skip-help:"true"`
+		Query SnapAndName `skip-help:"true"`
 	} `positional-args:"true"`
 }
 
@@ -56,7 +56,12 @@ Filters the complete output so only plugs and/or slots matching the provided det
 func init() {
 	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
-	})
+	}, map[string]string{
+		"i": i18n.G("constrain listing to specific interfaces"),
+	}, []argDesc{{
+		name: i18n.G("<snap>:<slot or plug>"),
+		desc: i18n.G("snap or snap:name"),
+	}})
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
