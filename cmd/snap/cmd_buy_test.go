@@ -29,6 +29,10 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
+type BuySnapSuite struct {
+	SnapSuite
+}
+
 type expectedURL struct {
 	Body    string
 	Checker func(r *http.Request)
@@ -72,10 +76,15 @@ func (s *buyTestMockSnapServer) checkCounts() {
 	}
 }
 
-func (s *SnapSuite) TestBuyHelp(c *check.C) {
+func (s *BuySnapSuite) SetUpTest(c *check.C) {
 	s.Login(c)
-	defer s.Logout(c)
+}
 
+func (s *BuySnapSuite) TearDownTest(c *check.C) {
+	s.Logout(c)
+}
+
+func (s *BuySnapSuite) TestBuyHelp(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"buy"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "the required argument `<snap-name>` was not provided")
@@ -83,10 +92,7 @@ func (s *SnapSuite) TestBuyHelp(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuyInvalidCharacters(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuyInvalidCharacters(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"buy", "a:b"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "cannot buy snap \"a:b\": invalid characters in name")
@@ -131,10 +137,7 @@ const buyFreeSnapFailsFindJson = `
 }
 `
 
-func (s *SnapSuite) TestBuyFreeSnapFails(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuyFreeSnapFails(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -246,10 +249,7 @@ const buySnapJson = `
 }
 `
 
-func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -342,10 +342,7 @@ const buyMethodsSelectPaymentMethodJson = `
 }
 `
 
-func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -453,10 +450,7 @@ const buyMethodsSelectPaymentMethodWithDefaultJson = `
 }
 `
 
-func (s *SnapSuite) TestBuySnapSelectPaymentMethodWithDefault(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuySnapSelectPaymentMethodWithDefault(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -531,10 +525,7 @@ const buyNoPaymentMethodsJson = `
 }
 `
 
-func (s *SnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -557,10 +548,7 @@ func (s *SnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -590,10 +578,7 @@ Type a number to select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuySnapFailsEmptyMethodID(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuySnapFailsEmptyMethodID(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -623,10 +608,7 @@ Type a number to select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuySnapFailsOutOfRangeMethodID(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuySnapFailsOutOfRangeMethodID(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -656,10 +638,7 @@ Type a number to select payment method: `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuyCancel(c *check.C) {
-	s.Login(c)
-	defer s.Logout(c)
-
+func (s *BuySnapSuite) TestBuyCancel(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -683,8 +662,9 @@ func (s *SnapSuite) TestBuyCancel(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuyFailsWithoutLogin(c *check.C) {
+func (s *BuySnapSuite) TestBuyFailsWithoutLogin(c *check.C) {
 	// We don't login here
+	s.Logout(c)
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.NotNil)
