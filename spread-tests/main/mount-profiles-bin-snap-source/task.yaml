@@ -23,3 +23,4 @@ restore: |
     snap remove snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt
     rm -f /var/lib/snapd/mount/snap.snapd-hacker-toolbelt.busybox.fstab
+    dmesg -c

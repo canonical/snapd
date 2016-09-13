@@ -21,3 +21,5 @@ restore: |
     snap remove snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt
     rmdir /foo
+    # FIXME: remove this once apparmor profile allows accessing the-void to snap-confine
+    dmesg -c
