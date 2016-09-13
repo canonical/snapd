@@ -320,11 +320,12 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 // Validation holds a validation assertion, describing that a combination of
 // (snap-id, approved-snap-id, approved-revision) has been validated for
 // the series, meaning updating to that revision of approved-snap-id
-// has been approved by the owner of the gating snap.
+// has been approved by the owner of the gating snap with snap-id.
 type Validation struct {
 	assertionBase
-	revoked   bool
-	timestamp time.Time
+	revoked              bool
+	timestamp            time.Time
+	approvedSnapRevision int
 }
 
 // Series returns the series for which the validation holds.
@@ -343,8 +344,8 @@ func (validation *Validation) ApprovedSnapID() string {
 }
 
 // ApprovedSnapRevision returns the revision of the gated snap.
-func (validation *Validation) ApprovedSnapRevision() string {
-	return validation.HeaderString("approved-snap-revision")
+func (validation *Validation) ApprovedSnapRevision() int {
+	return validation.approvedSnapRevision
 }
 
 // Revoked returns true if the validation has been revoked.
@@ -450,8 +451,9 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 	}
 
 	return &Validation{
-		assertionBase: assert,
-		revoked:       revoked,
-		timestamp:     timestamp,
+		assertionBase:        assert,
+		revoked:              revoked,
+		timestamp:            timestamp,
+		approvedSnapRevision: approvedSnapRevision,
 	}, nil
 }
