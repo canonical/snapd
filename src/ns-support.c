@@ -45,6 +45,14 @@
 #include "mountinfo.h"
 #include "cleanup-funcs.h"
 
+/*!
+ * The void directory.
+ *
+ * Snap confine moves to that directory in case it cannot retain the current
+ * working directory across the pivot_root call.
+ **/
+#define SC_VOID_DIR "/var/lib/snapd/void"
+
 /**
  * Directory where snap-confine keeps namespace files.
  **/
@@ -267,6 +275,12 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		die("cannot perform fstatfs() on an mount namespace file descriptor");
 	}
 	if (buf.f_type == NSFS_MAGIC) {
+		char *vanilla_cwd __attribute__ ((cleanup(sc_cleanup_string))) =
+		    NULL;
+		vanilla_cwd = get_current_dir_name();
+		if (vanilla_cwd == NULL) {
+			die("cannot get the current working directory");
+		}
 		debug
 		    ("attempting to re-associate the mount namespace with the namespace group %s",
 		     group->name);
@@ -276,6 +290,18 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		debug
 		    ("successfully re-associated the mount namespace with the namespace group %s",
 		     group->name);
+		// Try to re-locate back to vanilla working directory. This can fail
+		// because that directory is no longer present.
+		if (chdir(vanilla_cwd) != 0) {
+			debug
+			    ("cannot remain in %s, moving to the void directory",
+			     vanilla_cwd);
+			if (chdir(SC_VOID_DIR) != 0) {
+				die("cannot change directory to %s",
+				    SC_VOID_DIR);
+			}
+			debug("successfully moved to %s", SC_VOID_DIR);
+		}
 		return;
 	}
 	debug("initializing new namespace group %s", group->name);
