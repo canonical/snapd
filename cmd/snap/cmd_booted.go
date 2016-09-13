@@ -39,7 +39,7 @@ func init() {
 		"internal",
 		func() flags.Commander {
 			return &cmdBooted{}
-		})
+		}, nil, nil)
 	cmd.hidden = true
 }
 

@@ -35,15 +35,27 @@ The get command prints the configuration for the given snap.`)
 
 type cmdGet struct {
 	Positional struct {
-		Snap string   `positional-arg-name:"<snap name>" description:"the snap whose conf is being requested"`
-		Keys []string `positional-arg-name:"<keys>" description:"key of interest within the confuration"`
+		Snap string
+		Keys []string
 	} `positional-args:"yes" required:"yes"`
 
-	Document bool `short:"d" description:"always return document, even with single key"`
+	Document bool `short:"d"`
 }
 
 func init() {
-	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} })
+	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
+		map[string]string{
+			"d": i18n.G("always return document, even with single key"),
+		}, []argDesc{
+			{
+				name: "<snap>",
+				desc: i18n.G("the snap whose conf is being requested"),
+			},
+			{
+				name: i18n.G("<key>"),
+				desc: i18n.G("key of interest within the configuration"),
+			},
+		})
 }
 
 func (x *cmdGet) Execute(args []string) error {

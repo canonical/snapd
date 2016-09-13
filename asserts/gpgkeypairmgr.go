@@ -200,6 +200,8 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 			switch {
 			case strings.HasPrefix(lines[k], "fpr:"):
 				fprFields := strings.Split(lines[k], ":")
+				// extract "Field 10 - User-ID"
+				// A FPR record stores the fingerprint here.
 				if len(fprFields) < 10 {
 					break Loop
 				}
@@ -213,6 +215,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 				}
 			case strings.HasPrefix(lines[k], "uid:"):
 				uidFields := strings.Split(lines[k], ":")
+				// extract "*** Field 10 - User-ID"
 				if len(uidFields) < 10 {
 					break Loop
 				}
