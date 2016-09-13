@@ -254,6 +254,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  /sys/devices/virtual/tty/{console,tty*}/active r,
   /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
