@@ -1,8 +1,8 @@
 project: snap-confine
 
 environment:
-    REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PATH: /snap/bin:$PATH
+    REUSE_PROJECT: "$(HOST:echo $REUSE_PROJECT)"
+    PATH: "/snap/bin:$PATH"
 
 backends:
     linode:
@@ -10,6 +10,13 @@ backends:
         systems:
             - ubuntu-16.04-64-grub
             # - ubuntu-16.04-32-grub
+    qemu:
+        systems:
+            - ubuntu-16.04:
+                username: ubuntu
+                password: ubuntu
+                environment:
+                    APT_PROXY: "$(HOST: echo $APT_PROXY)"
 
 path: /remote/path/
 
@@ -20,7 +27,7 @@ exclude:
 
 prepare: |
     echo "Spread is running as $(id)"
-    [ "$REUSE_PROJECT" != 1 ] || exit 0
+    [ "${REUSE_PROJECT:-}" != 1 ] || exit 0
     ./spread-tests/spread-prepare.sh
 
 suites:

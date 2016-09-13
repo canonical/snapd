@@ -155,9 +155,14 @@ install-exec-local:
 	install -d -m 755 $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
 	install -m 755 $(srcdir)/snappy-app-dev $(DESTDIR)$(shell pkg-config udev --variable=udevdir)
 
-# Ensure that snap-confine is +s (setuid)
 install-exec-hook:
+if CAPS_OVER_SETUID
+# Ensure that snap-confine has CAP_SYS_ADMIN capabilitiy
+	setcap cap_sys_admin=pe $(DESTDIR)$(libexecdir)/snap-confine
+else
+# Ensure that snap-confine is +s (setuid)
 	chmod 4755 $(DESTDIR)$(libexecdir)/snap-confine
+endif
 	install -d -m 755 $(DESTDIR)$(bindir)
 	ln -sf $(libexecdir)/snap-confine $(DESTDIR)$(bindir)/ubuntu-core-launcher
 
