@@ -21,6 +21,7 @@ package store
 
 import (
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 
@@ -59,19 +60,15 @@ const mockStore2faFailedResponse = `
 }
 `
 
-const mockStoreReturnMacaroon = `
-{
-    "macaroon": "the-root-macaroon-serialized-data"
-}
-`
+const mockStoreReturnMacaroon = `{"macaroon": "the-root-macaroon-serialized-data"}`
 
-const mockStoreReturnDischarge = `
-{
-    "discharge_macaroon": "the-discharge-macaroon-serialized-data"
-}
-`
+const mockStoreReturnDischarge = `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
 
 const mockStoreReturnNoMacaroon = `{}`
+
+const mockStoreReturnNonce = `{"nonce": "the-nonce"}`
+
+const mockStoreReturnNoNonce = `{}`
 
 func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -294,4 +291,98 @@ func (s *authTestSuite) TestLoginCaveatIDMacaroonMissingCaveat(c *C) {
 	caveat, err := LoginCaveatID(m)
 	c.Check(err, NotNil)
 	c.Check(caveat, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNonce)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := RequestStoreDeviceNonce()
+	c.Assert(err, IsNil)
+	c.Assert(nonce, Equals, "the-nonce")
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNoNonce)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := RequestStoreDeviceNonce()
+	c.Assert(err, ErrorMatches, "cannot get nonce from store: empty nonce returned")
+	c.Assert(nonce, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
+
+	nonce, err := RequestStoreDeviceNonce()
+	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
+	c.Assert(nonce, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestDeviceSession(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","serial-assertion":"serial-assertion"}`)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		io.WriteString(w, mockStoreReturnMacaroon)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
+	c.Assert(err, IsNil)
+	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
+}
+
+func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		c.Check(string(jsonReq), Equals, `{"device-session-request":"session-request","serial-assertion":"serial-assertion"}`)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="previous-session"`)
+
+		io.WriteString(w, mockStoreReturnMacaroon)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "previous-session")
+	c.Assert(err, IsNil)
+	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
+}
+
+func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, mockStoreReturnNoMacaroon)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
+	c.Assert(err, ErrorMatches, "cannot get device session from store: empty session returned")
+	c.Assert(macaroon, Equals, "")
+}
+
+func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(500)
+	}))
+	defer mockServer.Close()
+	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
+
+	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
+	c.Assert(err, ErrorMatches, "cannot get device session from store: store server returned status 500")
+	c.Assert(macaroon, Equals, "")
 }

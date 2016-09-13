@@ -1,3 +1,248 @@
+snapd (2.14.2~16.04) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - tests: use the spread tests with the adhoc interface inside
+      autopkgtest
+    - interfaces: add fwupd interface
+    - asserts,cmd/snap: add "name" header to account-key(-request)
+    - client,cmd/snap: display os-release data only on classic
+    - asserts/tool,cmd/snap: introduce hidden "snap sign"
+    - many: when installing snap file derive metadata from assertions
+      unless --force-dangerous
+    - osutil: tweak the createUserTests a bit and extract common code
+    - debian: umount --lazy before rm on snapd.postrm
+    - interfaces: updates to default policy, browser-support, and x11
+    - store: set initial device session
+    - interfaces: add upower-observe interface (LP: #1595813)
+    - tests: use beta u-d-f in test by default
+    - interfaces/builtin: allow writing on /dev/vhci in bluetooth-
+      control
+    - interfaces/builtin: allow /dev/vhci on bluetooth-control
+    - tests: port integration tests to spread
+    - snapstate: use umount --lazy when removing the mount units
+    - spread: enable halt-timeout, tweak image selection
+    - tests: fix firstboot-assertions to actually be runnable on classic
+      again
+    - asserts: introduce device-session-request
+    - interfaces: add screen-inhibit-control interface (LP: #1604880)
+    - firstboot: change location of netplan config
+    - overlord/devicestate: some cleanups and solving a couple todos
+    - daemon,overlord: add subcommand handling to snapctl
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 01 Sep 2016 18:52:05 +0200
+
+snapd (2.14.1) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - snap-exec: add support for commands with internal args in snap-
+      exec
+    - store: refresh expired device sessions
+    - debian: re-add ubuntu-core-snapd-units as a transitional package
+    - image: snap assertions into image
+    - overlord/assertstate,asserts/snapasserts: give snap assertions
+      helpers a package, introduce ReconstructSideInfo
+    - docs/interfaces: Add empty line after lxd-support title
+    - README: cover the new /run/snapd-snap.socket
+    - daemon: make socket split backward-compatible.
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 30 Aug 2016 16:43:29 +0200
+
+snapd (2.14) xenial; urgency=medium
+
+  * New upstream release: LP: #1618095
+    - cmd: enable SNAP_REEXEC only if it is set to SNAP_REEXEC=1
+    - osutil: fix create-user on classic
+    - firstboot: disable firstboot on classic for now
+    - cmd/snap: add export-key --account= option
+    - many: split public snapd REST API into separate socket.
+    - many: drop ubuntu-core-snapd-units package, use release.OnClassic
+      instead
+    - tests: add content-shareing binary test that excersises snap-
+      confine
+    - snap: use "up to date" instead of "up-to-date"
+    - asserts: add an account-key-request assertion
+    - asserts: fix GPG key generation parameters
+    - tests, integration-tests: implement the cups-control manual test
+      as a spread test
+    - many: clarify/tie down model assertion
+    - cmd/snap: add "snap download" command
+    - integration-tests: remove them in favour of the spread tests
+    - tests: test all snap ubuntu core upgrade
+    - many: support install and remove by revision
+    - overlord/state: prevent change ready => unready
+    - tests: fixes to make the ubuntu-core-16 image usable with
+      -keep/-reuse
+    - asserts: authority-id and brand-id of serial must match
+    - firstboot: generate netplan config rather than ifupdown
+    - store: request device session macaroon from store
+    - tests: add workaround for u-d-f to unblock all-snap image tests
+    - tests: the stable ubuntu-core snap has snap run support now
+    - many: use make StripGlobalRootDir public
+    - asserts: add some stricter checks around format
+    - many: have AuthContext expose device store-id, serial and serial-
+      proof signing to the store
+    - tests: fix "tests/main/ack" to not break if asserts are alreay
+      there
+    - tests/main/ack: fix test/style
+    - snap: add key management commands
+    - firstboot: add firstboot assertions importing
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 29 Aug 2016 17:07:20 +0200
+
+snapd (2.13) xenial; urgency=medium
+
+  * New upstream release: LP: #1616157
+    - many: respect dirs.SnapSnapsDir in tests
+    - tests: update listing test for latest stable image
+    - many: hook in start of code to fetch/check assertions when
+      installing snap from store
+    - boot: add missing udevadm mock to fix FTBFS
+    - interfaces: add lxd-support interface
+    - dirs,snap: handle empty root directory in SetRootDir
+    - dirs,snap: define methods for SNAP_USER_DATA and SNAP_USER_COMMON
+    - tests: spread all-snap test cleanup
+    - tests: add all-snap spread image tests
+    - store,tests: have just one envvar SNAPPY_USE_STAGING_STORE to
+      control talking to staging
+    - overlord/hookstate: use snap run posix parameters.
+    - interfaces/builtin: allow bind in the network interface
+    - asserts,overlord/devicestate: simplify private key/key pairs APIs,
+      they take just key ids
+    - dependencies: update godeps
+    - boot: add support for "devmode: {true,false}" in seed.yaml
+    - many: teach prepare-image to copy the model assertion (and
+      prereqs) into the seed area of the image
+    - tests: start teaching the fakestore about assertions
+    - asserts/sysdb: embed the new format official root/trusted
+      assertions
+    - overlord/devicestate: first pass at device registration logic
+    - tests: add process-control interface spread test
+    - tests: disable unity test
+    - tests: adapt to new spread version
+    - asserts: add serial-proof device assertion
+    - client, cmd/snap: use the new multi-refresh endpoint
+    - many: preparations for image code to fetch model prereqs
+    - debian: add extra checks when debian/snapd.postrm purge is run
+    - overlord/snapstate, daemon: support for multi-snap refresh
+    - tests: do not leave "squashfs-root" around
+    - snap-exec: Fix broken `snap run --shell` and add test
+    - overlord/snapstate: check changes to SnapState for conflicts also.
+    - docs/interfaces: change snappy command to snap
+    - tests: test `snap run --hook` using in-tree snap-exec.
+    - partition: ensure that snap_{kernel,core} is not overriden with an
+      empty value
+    - asserts,overlord/assertstate: introduce an assertstate task
+      handler to fetch snap assertions
+    - spread: disable re-exec to always test development tree.
+    - interfaces: implement a fuse interface
+    - interfaces/hardware-observe.go: re-add /run/udev/data
+    - overlord/assertstate,daemon: reorg how the assert manager exposes
+      the assertion db and adding to it
+    - release: Remove "UBUNTU_CODENAME" from the test data
+    - many: implement snapctl command.
+    - interfaces: mpris updates (fix unconfined introspection, add name
+      attribute)
+    - asserts: export DecodePublicKey
+    - asserts: introduce support for assertions with no authority,
+      implement serial-request
+    - interfaces: bluez: add a few more tests to verify interface
+      connection works
+    - interfaces: bluez: add missing mount security snippet case
+    - interfaces: add kernel-module interface for module insertion.
+    - integration-tests: look for ubuntu-device-flash on PATH before
+      calling sudo
+    - client, cmd, daemon, osutil: support --yaml and --sudoer flags for
+      create-user
+    - spread: use snap-confine from ppa:snappy-dev/image for the tests
+    - many: move to purely hash based key lookup and to new
+      key/signature format (v1)
+    - spread: Use /home/gopath in spread.yaml
+    - tests: base security spread tests
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 24 Aug 2016 14:48:28 +0200
+
+snapd (2.12) xenial; urgency=medium
+
+  * New upstream release: LP: #1612362
+    - many: do not require root for `snap prepare-image`
+    - tests: prevent restore error on test failure
+    - osutil: change escaping for create-user's sudoers
+    - docs: private flag doesn't exist on /v2/find (it's select)
+    - snap: do not sort the result of `snap find`
+    - interfaces/builtin: add gpio interface
+    - partition: fix cleaning of the boot variables on the second good
+      boot
+    - tests: add udev rules spread test
+    - docs: fix references to refresh action
+    - interfaces/udev,osutil: avoid doubled rules and put all in a per
+      snap file
+    - store: minor store improvements from previous reviews
+    - many: support interactive payments in snapd, filter from command
+      line
+    - docs/interfaces.md: improve interfaces documentation
+    - overlord,store: set store device authorization header
+    - store: add device nonce API support
+    - many: various fixes around the `create-user` command
+    - client, osutil: chown the auth file
+    - interfaces/builtin: add transitional browser-support interface
+    - snap: don't load unsupported implicit hooks.
+    - cmd/snap,cmd/snap-exec: support hooks again.
+    - interfaces/builtin: improve pulseaudio interface
+    - asserts: make account-key's `until` optional to represent a never-
+      expiring key
+    - store: refactor newRequest/doRequest to take requestOptions
+    - tests: allow-downgrades on upgrade test to prevent version errors
+    - daemon: stop using group membership as succedaneous of running
+      things with sudo
+    - interfaces: add bluetooth-control interfaces
+    - many: remove integration-test coverage metrics
+    - daemon,docs: drop license docs and error kind
+    - tests: add network-control interface spread test
+    - tests: add hardware-observe spread test
+    - interfaces: add system-trace interface LP: #1600085
+    - boot: use `cp -aLv` instead of `cp -a` (no symlinks on vfat)
+    - store: soft-refresh discharge macaroon from store when required
+    - partition: clear snap_try_{kernel,core} on success
+    - tests: add snapd-control interface spread test
+    - tests: add locale-control write spread test
+    - store: fix buy method after some refactoring broke it
+    - interfaces/builtin: read perms for network devices in network-
+      observe
+    - interfaces: also allow rfkill in network_control
+    - snapstate: remove artifacts from a snap try dir that vanished
+    - client, cmd/snap: better errors for empty snap list result
+    - wrappers: set BAMF_DESKTOP_FILE_HINT for unity
+    - many: cleanup/update rest.md; improve auth errors
+    - interfaces: miscelleneous policy updates for default, log-observe,
+      mount-observe, opengl, pulseaudio, system-observe and unity7
+    - interfaces: add process-control interface (LP: #1598225)
+    - osutil: support both "nobody" and "nogroup" for grpnam tests
+    - cmd: support defaulting to the user's preferred payment method
+    - overlord: actually run hooks.
+    - overlord/state,overlord/ifacestate: define basic infrastructure
+      for and then setting up serialising of interface mgr tasks
+    - asserts: add Assertion.Prerequisites and SigningKey, Ref and
+      FindTrusted
+    - overlord/snapstate: ensure calls to store are done without the
+      state lock held
+    - asserts,client: switch snap-build and snap-revision to be indexed
+      by snap-sha3-384
+    - many: make seed.yaml on firstboot mandatory and include sideInfo
+    - asserts,many: start supporting structured headers using the new
+      parseHeaders
+    - many: update code for the new snap_mode
+    - tests: added spread find private test
+    - store: deal with 404 froms the SSO store properly
+    - snap: remove meta/kernel.yaml again
+    - daemon: always mock release info in tests
+    - snapstate: drop revisions after "current" on refresh
+    - asserts: introduce new parseHeadersThis introduces the new
+      parseHeaders returning map[string]interface{} and capable of
+      accepting:
+    - asserts: remove/disable comma separated lists and their uses
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Thu, 11 Aug 2016 19:30:36 +0200
+
 snapd (2.11) xenial; urgency=medium
 
   * New upstream release: LP: #1605303

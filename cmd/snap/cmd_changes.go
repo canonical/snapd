@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 	"regexp"
 	"sort"
 	"time"
@@ -47,13 +46,13 @@ type cmdChanges struct {
 
 type cmdChange struct {
 	Positional struct {
-		Id string `positional-arg-name:"<id>" required:"yes"`
+		ID string `positional-arg-name:"<id>" required:"yes"`
 	} `positional-args:"yes"`
 }
 
 func init() {
-	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} })
-	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} })
+	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
+	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil)
 }
 
 type changesByTime []*client.Change
@@ -70,11 +69,12 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	if allDigits(c.Positional.Snap) {
-		return fmt.Errorf(`%s changes command expects a snap name, try: %[1]s change %s`, os.Args[0], c.Positional.Snap)
+		// TRANSLATORS: the %s is the argument given by the user to "snap changes"
+		return fmt.Errorf(i18n.G(`"snap changes" command expects a snap name, try: "snap change %s"`), c.Positional.Snap)
 	}
 
 	if c.Positional.Snap == "everything" {
-		fmt.Fprintln(Stdout, "Yes, yes it does.")
+		fmt.Fprintln(Stdout, i18n.G("Yes, yes it does."))
 		return nil
 	}
 
@@ -115,7 +115,7 @@ func (c *cmdChanges) Execute(args []string) error {
 
 func (c *cmdChange) Execute([]string) error {
 	cli := Client()
-	chg, err := cli.Change(c.Positional.Id)
+	chg, err := cli.Change(c.Positional.ID)
 	if err != nil {
 		return err
 	}

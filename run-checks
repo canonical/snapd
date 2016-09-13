@@ -29,11 +29,8 @@ case "${1:-all}" in
     --spread)
         SPREAD=1
         ;;
-    --integration)
-        DEPRECATED=1
-        ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread, or --integration."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
         exit 1
 esac
 
@@ -108,16 +105,6 @@ if [ "$STATIC" = 1 ]; then
         echo "$lint"
         # don't exit 1
     fi
-
-    # cmd/* test sources are tagged so they are not included in
-    # special integration test builds
-    echo Checking 'cmd/*/*_test.go' build tagging
-    nottagged=$(grep -r --include '*_test.go' --exclude integration_coverage_test.go -L '!integrationcoverage' cmd/*/)
-    if [ -n "${nottagged}" ] ; then
-        echo these test files miss the '!integrationcoverage' tag: ${nottagged}
-        exit 1
-    fi
-
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -129,54 +116,30 @@ if [ "$UNIT" = 1 ]; then
     echo "mode: set" > .coverage/coverage.out
 
     echo Building
-    go build -tags=excludeintegration -v github.com/snapcore/snapd/...
+    go build -v github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./... | grep -v integration-tests); do
-        $goctest -tags=excludeintegration -v -coverprofile=.coverage/profile.out $pkg
-        append_coverage .coverage/profile.out
-    done
-
-    echo Building the integration tests
-    TMP_INTEGRATION="$(mktemp)"
-    addtrap "rm -f \"$TMP_INTEGRATION\""
-    go build -v -o $TMP_INTEGRATION github.com/snapcore/snapd/integration-tests/
-
-    # the rabbit hole
-    echo Running the tests for the integration testutils
-    for pkg in $(go list ./integration-tests/testutils/...); do
+    for pkg in $(go list ./...); do
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
+
 fi
 
-if [ "$SPREAD" = 1 ]; then 
+if [ "$SPREAD" = 1 ]; then
     TMP_SPREAD="$(mktemp -d)"
     addtrap "rm -rf \"$TMP_SPREAD\""
 
     export PATH=$TMP_SPREAD:$PATH
     ( cd $TMP_SPREAD && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
 
-    spread -v
+    spread -v linode:
 fi
 
 if [ "$DEPRECATED" = 1 ]; then
     ./get-deps.sh
 
-    # deprecated integration suite in kvm
-    if which adt-run >/dev/null 2>&1; then
-        echo "Running integration tests on rolling edge"
-        result=0
-        go run integration-tests/main.go --snappy-from-branch || result=$?
-        # print the results.
-        if which subunit2pyunit >/dev/null 2>&1; then
-            subunit2pyunit /tmp/snappy-test/output/artifacts/results.subunit
-        fi
-        if [ "$result" -ne 0 ]; then
-            exit $result
-        fi
-    fi
 fi
 
 UNCLEAN="$(git status -s|grep ^??)" || true

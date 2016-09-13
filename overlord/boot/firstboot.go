@@ -22,15 +22,23 @@ package boot
 import (
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -40,7 +48,7 @@ var (
 	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
-func populateStateFromInstalled() error {
+func populateStateFromSeed() error {
 	if osutil.FileExists(dirs.SnapStateFile) {
 		return fmt.Errorf("cannot create state: state %q already exists", dirs.SnapStateFile)
 	}
@@ -51,6 +59,11 @@ func populateStateFromInstalled() error {
 	}
 	st := ovld.State()
 
+	// ack all initial assertions
+	if err := importAssertionsFromSeed(st); err != nil {
+		return err
+	}
+
 	seed, err := snap.ReadSeedYaml(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
 	if err != nil {
 		return err
@@ -60,8 +73,30 @@ func populateStateFromInstalled() error {
 	for i, sn := range seed.Snaps {
 		st.Lock()
 
+		flags := snapstate.Flags(0)
+		if sn.DevMode {
+			flags |= snapstate.DevMode
+		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, 0)
+
+		var sideInfo snap.SideInfo
+		if sn.Unasserted {
+			sideInfo.RealName = sn.Name
+		} else {
+			si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+			if err == asserts.ErrNotFound {
+				st.Unlock()
+				return fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+			}
+			if err != nil {
+				st.Unlock()
+				return err
+			}
+			sideInfo = *si
+			sideInfo.Private = sn.Private
+		}
+
+		ts, err := snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
@@ -70,24 +105,6 @@ func populateStateFromInstalled() error {
 		if err != nil {
 			return err
 		}
-
-		// XXX: this is a temporary hack until we have assertions
-		//      and do not need this anymore
-		st.Lock()
-		var ss snapstate.SnapSetup
-		tasks := ts.Tasks()
-		tasks[0].Get("snap-setup", &ss)
-		ss.SideInfo = &snap.SideInfo{
-			RealName:    sn.Name,
-			SnapID:      sn.SnapID,
-			Revision:    sn.Revision,
-			Channel:     sn.Channel,
-			DeveloperID: sn.DeveloperID,
-			Developer:   sn.Developer,
-			Private:     sn.Private,
-		}
-		tasks[0].Set("snap-setup", &ss)
-		st.Unlock()
 
 		tsAll = append(tsAll, ts)
 	}
@@ -122,20 +139,135 @@ func populateStateFromInstalled() error {
 	return ovld.Stop()
 }
 
+func readAsserts(fn string) (res []asserts.Assertion, err error) {
+	f, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := asserts.NewDecoder(f)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, a)
+	}
+	return res, nil
+}
+
+func importAssertionsFromSeed(st *state.State) error {
+	st.Lock()
+	defer st.Unlock()
+
+	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
+	dc, err := ioutil.ReadDir(assertSeedDir)
+	if err != nil {
+		return fmt.Errorf("cannot read assert seed dir: %s", err)
+	}
+
+	// FIXME: remove this check once asserts are mandatory
+	if len(dc) == 0 {
+		return nil
+	}
+
+	// collect
+	var modelAssertion *asserts.Model
+	modelUnique := ""
+	assertionsToAdd := make([]asserts.Assertion, 0, len(dc))
+	bs := asserts.NewMemoryBackstore()
+	for _, fi := range dc {
+		fn := filepath.Join(assertSeedDir, fi.Name())
+		assertions, err := readAsserts(fn)
+		if err != nil {
+			return fmt.Errorf("cannot read assertions: %s", err)
+		}
+		for _, as := range assertions {
+			if err := bs.Put(as.Type(), as); err != nil {
+				if revErr, ok := err.(*asserts.RevisionError); ok {
+					if revErr.Current >= as.Revision() {
+						// we already got something more recent
+						continue
+					}
+				}
+				return err
+			}
+			assertionsToAdd = append(assertionsToAdd, as)
+			if as.Type() == asserts.ModelType {
+				asUnique := as.Ref().Unique()
+				if modelUnique != "" && asUnique != modelUnique {
+					return fmt.Errorf("cannot add more than one model assertion")
+				}
+				modelUnique = asUnique
+				modelAssertion = as.(*asserts.Model)
+			}
+		}
+	}
+	// verify we have one model assertion
+	if modelAssertion == nil {
+		return fmt.Errorf("need a model assertion")
+	}
+
+	// create a fetcher that stores valid assertions into the system
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		as, err := bs.Get(ref.Type, ref.PrimaryKey)
+		if err != nil {
+			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
+		}
+		return as, nil
+	}
+	save := func(as asserts.Assertion) error {
+		return assertstate.Add(st, as)
+	}
+	fetcher := asserts.NewFetcher(assertstate.DB(st), retrieve, save)
+
+	// using the fetcher ensures that prerequisites are available etc
+	for _, as := range assertionsToAdd {
+		if err := fetcher.Save(as); err != nil {
+			return err
+		}
+	}
+
+	// set device,model from the model assertion
+	auth.SetDevice(st, &auth.DeviceState{
+		Brand: modelAssertion.BrandID(),
+		Model: modelAssertion.Model(),
+	})
+
+	return nil
+}
+
+var firstbootInitialNetworkConfig = firstboot.InitialNetworkConfig
+
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
+	// Disable firstboot on classic for now. In the long run we want
+	// classic to have a firstboot as well so that we can install
+	// snaps in a classic environment (LP: #1609903). However right
+	// now firstboot is under heavy development so until the dust
+	// settles we disable it.
+	if release.OnClassic {
+		return nil
+	}
+
 	if firstboot.HasRun() {
 		return ErrNotFirstBoot
 	}
-	if err := firstboot.EnableFirstEther(); err != nil {
-		logger.Noticef("Failed to bring up ethernet: %s", err)
+
+	// FIXME: the netplan config is static, we do not need to generate
+	//        it from snapd, we can just set it in e.g. ubuntu-core-config
+	if err := firstbootInitialNetworkConfig(); err != nil {
+		logger.Noticef("Failed during inital network configuration: %s", err)
 	}
 
 	// snappy will be in a very unhappy state if this happens,
-	// because populateStateFromInstalled will error if there
+	// because populateStateFromSeed will error if there
 	// is a state file already
-	if err := populateStateFromInstalled(); err != nil {
+	if err := populateStateFromSeed(); err != nil {
 		return err
 	}
 

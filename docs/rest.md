@@ -216,12 +216,6 @@ Alter the collection searched:
   public snaps). Can't be used with `name`, only `q` (for now at
   least).
 
-#### `private`
-
-A boolean flag that, if `true` (or `t` or `yes` or...), makes the search look
-in the user's private snaps. Requires that the user be authenticated. Only
-works with broad (`text`-prefix) search; defaults the prefix to `text`.
-
 #### Sample result:
 
 [//]: # (keep the fields sorted, both in the sample and its description below. Makes scanning easier)
@@ -292,7 +286,7 @@ works with broad (`text`-prefix) search; defaults the prefix to `text`.
 
 ##### Fields
 
-* `suggested-currency`: the suggested currency to use for presentation, 
+* `suggested-currency`: the suggested currency to use for presentation,
    derived by Geo IP lookup.
 
 ## /v2/snaps
@@ -364,16 +358,25 @@ furthermore, `download-size` and `price` cannot occur in the output of `/v2/snap
 
 ### POST
 
-* Description: Install an uploaded snap to the system.
+* Description: Install, refresh, revert, remove snaps
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
 
 #### Input
 
-The snap to install must be provided as part of the body of a
-`mutlipart/form-data` request. The form should have one file
-named "snap".
+This endpoint accepts an `application/json` request specifying the
+kind of operation, optional flags and a list of snaps, or a
+`multipart/form-data` request with one file named "snap".
+
+#### Sample JSON input
+
+```javascript
+{
+  "action": "refresh",
+  "snaps": [...] // for refresh an empty or absent snaps field means "refresh all"
+}
+```
 
 ## /v2/snaps/[name]
 ### GET
@@ -385,7 +388,7 @@ named "snap".
 
 ### POST
 
-* Description: Install, refresh, revert or remove
+* Description: Install, refresh, remove, revert, enable or disable
 * Access: trusted
 * Operation: async
 * Return: background operation or standard error
@@ -403,26 +406,36 @@ named "snap".
 field      | ignored except in action | description
 -----------|-------------------|------------
 `action`   |                   | Required; a string, one of `install`, `refresh`, `remove`, `revert`, `enable`, or `disable`.
-`channel`  | `install` `update` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
+`channel`  | `install` `refresh` | From which channel to pull the new package (and track henceforth). Channels are a means to discern the maturity of a package or the software it contains, although the exact meaning is left to the application developer. One of `edge`, `beta`, `candidate`, and `stable` which is the default.
 
-#### A note on licenses
+## /v2/snaps/[name]/conf
+### GET
 
-When requesting to install a snap that requires agreeing to a license before
-install succeeds, or when requesting an update to a snap with such an
-agreement that has an updated license version, the initial request will fail
-with an error, and the error object will contain the intro and license texts to
-present to the user for their approval. An example of the command's `output`
-field would be
+* Description: Configuration details for an installed snap
+* Access: superuser only
+* Operation: sync
+* Return: JSON map of configuration keys and values
+
+#### Parameters
+
+##### `keys`
+
+Request the configuration values corresponding to the specific keys
+(comma-separated).
+
+### PUT
+
+* Description: Set the configuration details for an installed snap
+* Access: superuser only
+* Operation: async
+* Return: background operation or standard error
+
+#### Sample input
 
 ```javascript
-"output": {
-    "value": {
-        "agreed": false,
-        "intro": "licensed requires that you accept the following license before continuing",
-        "license": "In order to use this software you must agree with us."
-    },
-    "kind": "license-required",
-    "message": "License agreement required."
+{
+    "conf-key1": "conf-value1",
+    "conf-key2": "conf-value2"
 }
 ```
 
@@ -522,8 +535,8 @@ Sample input:
 ```javascript
 {
     "action": "connect",
-    "slots": {{"snap": "canonical-pi2",   "slot": "pin-13"}},
-    "plugs": {{"snap": "keyboard-lights", "plug": "capslock-led"}}
+    "slots": [{"snap": "canonical-pi2",   "slot": "pin-13"}],
+    "plugs": [{"snap": "keyboard-lights", "plug": "capslock-led"}]
 }
 ```
 
@@ -564,7 +577,7 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "price": "2.99",
+    "price": 2.99,
     "currency": "USD"
 }
 ```
@@ -575,7 +588,7 @@ Generally the UUID of a background operation you are interested in.
 {
     "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
     "snap-name": "moon-buggy",
-    "price": "2.99",
+    "price": 2.99,
     "currency": "USD",
     "backend-id": "credit_card",
     "method-id": 1

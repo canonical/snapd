@@ -130,7 +130,11 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.summary = unmarshalled.Summary
 	t.status = unmarshalled.Status
 	t.progress = unmarshalled.Progress
-	t.data = unmarshalled.Data
+	custData := unmarshalled.Data
+	if custData == nil {
+		custData = make(customData)
+	}
+	t.data = custData
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
 	t.log = unmarshalled.Log

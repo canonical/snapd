@@ -37,10 +37,9 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
                       "macaroon": "the-root-macaroon",
                       "discharges": ["discharge-macaroon"]}}`
 
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	outfile := filepath.Join(c.MkDir(), "json")
+	os.Setenv(client.TestAuthFileEnvKey, outfile)
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	c.Assert(cs.cli.LoggedIn(), check.Equals, false)
 
@@ -52,9 +51,8 @@ func (cs *clientSuite) TestClientLogin(c *check.C) {
 
 	c.Assert(cs.cli.LoggedIn(), check.Equals, true)
 
-	outFile := filepath.Join(tmpdir, ".snap", "auth.json")
-	c.Check(osutil.FileExists(outFile), check.Equals, true)
-	content, err := ioutil.ReadFile(outFile)
+	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
 	c.Check(string(content), check.Equals, `{"macaroon":"the-root-macaroon","discharges":["discharge-macaroon"]}`)
 }
@@ -67,31 +65,26 @@ func (cs *clientSuite) TestClientLoginError(c *check.C) {
 		"type": "error"
 	}`
 
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	outfile := filepath.Join(c.MkDir(), "json")
+	os.Setenv(client.TestAuthFileEnvKey, outfile)
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
+
 	user, err := cs.cli.Login("username", "pass", "")
 
 	c.Check(user, check.IsNil)
 	c.Check(err, check.NotNil)
 
-	outFile := filepath.Join(tmpdir, ".snap", "auth.json")
-	c.Check(osutil.FileExists(outFile), check.Equals, false)
+	c.Check(osutil.FileExists(outfile), check.Equals, false)
 }
 
 func (cs *clientSuite) TestClientLogout(c *check.C) {
 	cs.rsp = `{"type": "sync", "result": {}}`
 
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	outfile := filepath.Join(c.MkDir(), "json")
+	os.Setenv(client.TestAuthFileEnvKey, outfile)
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
-	err := os.Mkdir(filepath.Join(tmpdir, ".snap"), 0700)
-	c.Assert(err, check.IsNil)
-	authPath := filepath.Join(tmpdir, ".snap", "auth.json")
-	err = ioutil.WriteFile(authPath, []byte(`{"macaroon":"macaroon","discharges":["discharged"]}`), 0600)
+	err := ioutil.WriteFile(outfile, []byte(`{"macaroon":"macaroon","discharges":["discharged"]}`), 0600)
 	c.Assert(err, check.IsNil)
 
 	err = cs.cli.Logout()
@@ -99,14 +92,13 @@ func (cs *clientSuite) TestClientLogout(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/logout"))
 
-	c.Check(osutil.FileExists(authPath), check.Equals, false)
+	c.Check(osutil.FileExists(outfile), check.Equals, false)
 }
 
 func (cs *clientSuite) TestWriteAuthData(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	outfile := filepath.Join(c.MkDir(), "json")
+	os.Setenv(client.TestAuthFileEnvKey, outfile)
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	authData := client.User{
 		Macaroon:   "macaroon",
@@ -115,18 +107,16 @@ func (cs *clientSuite) TestWriteAuthData(c *check.C) {
 	err := client.TestWriteAuth(authData)
 	c.Assert(err, check.IsNil)
 
-	outFile := filepath.Join(tmpdir, ".snap", "auth.json")
-	c.Check(osutil.FileExists(outFile), check.Equals, true)
-	content, err := ioutil.ReadFile(outFile)
+	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	content, err := ioutil.ReadFile(outfile)
 	c.Check(err, check.IsNil)
 	c.Check(string(content), check.Equals, `{"macaroon":"macaroon","discharges":["discharge"]}`)
 }
 
 func (cs *clientSuite) TestReadAuthData(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
+	outfile := filepath.Join(c.MkDir(), "json")
+	os.Setenv(client.TestAuthFileEnvKey, outfile)
+	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	authData := client.User{
 		Macaroon:   "macaroon",
@@ -138,28 +128,4 @@ func (cs *clientSuite) TestReadAuthData(c *check.C) {
 	readUser, err := client.TestReadAuth()
 	c.Assert(err, check.IsNil)
 	c.Check(readUser, check.DeepEquals, &authData)
-}
-
-func (cs *clientSuite) TestStoreAuthDataFilenameDefault(c *check.C) {
-	home := os.Getenv("HOME")
-	tmpdir := c.MkDir()
-	os.Setenv("HOME", tmpdir)
-	defer os.Setenv("HOME", home)
-
-	authFilename := client.TestStoreAuthFilename()
-
-	expectedFilename := filepath.Join(tmpdir, ".snap", "auth.json")
-	c.Check(authFilename, check.Equals, expectedFilename)
-}
-
-func (cs *clientSuite) TestStoreAuthDataFilenameViaEnv(c *check.C) {
-	authFilenameOrig := os.Getenv("SNAPPY_STORE_AUTH_DATA_FILENAME")
-	tmpdir := c.MkDir()
-	expectedAuthFilename := filepath.Join(tmpdir, "auth.json")
-	os.Setenv("SNAPPY_STORE_AUTH_DATA_FILENAME", expectedAuthFilename)
-	defer os.Setenv("SNAPPY_STORE_AUTH_DATA_FILENAME", authFilenameOrig)
-
-	authFilename := client.TestStoreAuthFilename()
-
-	c.Check(authFilename, check.Equals, expectedAuthFilename)
 }

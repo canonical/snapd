@@ -49,9 +49,10 @@ const accountExample = "type: account\n" +
 	"username: nice\n" +
 	"validation: certified\n" +
 	"TSLINE" +
-	"body-length: 0" +
+	"body-length: 0\n" +
+	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 	"\n\n" +
-	"openpgp c2ln"
+	"AXNpZw=="
 
 func (s *accountSuite) TestDecodeOK(c *C) {
 	encoded := strings.Replace(accountExample, "TSLINE", s.tsLine, 1)

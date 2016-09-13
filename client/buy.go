@@ -26,11 +26,7 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-type BuyResult struct {
-	State string `json:"state"`
-}
-
-func (client *Client) Buy(opts *store.BuyOptions) (*BuyResult, error) {
+func (client *Client) Buy(opts *store.BuyOptions) (*store.BuyResult, error) {
 	if opts == nil {
 		opts = &store.BuyOptions{}
 	}
@@ -40,7 +36,7 @@ func (client *Client) Buy(opts *store.BuyOptions) (*BuyResult, error) {
 		return nil, err
 	}
 
-	var result BuyResult
+	var result store.BuyResult
 	_, err := client.doSync("POST", "/v2/buy", nil, nil, &body, &result)
 
 	if err != nil {

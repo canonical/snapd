@@ -1,5 +1,7 @@
 summary: Check that the authentication errors are properly reported.
 
+systems: [-ubuntu-core-16-64]
+
 prepare: |
     mkdir -p /home/test/.snap
     echo -n "{\"macaroon\":\"yummy\",\"discharges\":[ \"some \"]}" > /home/test/.snap/auth.json
@@ -9,7 +11,7 @@ restore: |
 
 execute: |
     echo "An unauthenticated user cannot install snaps"
-    if sudo -i -u test /bin/sh -c "snap install test-snapd-tools 2>${PWD}/install.output"; then
+    if su - -c "snap install test-snapd-tools 2>${PWD}/install.output" test; then
         echo "Expected error installing snap from unauthenticated account"
         exit 1
     fi
@@ -17,7 +19,7 @@ execute: |
     [ "$(cat install.output)" = "$expected" ]
 
     echo "An unauthenticated user cannot connect plugs to slots"
-    if sudo -i -u test /bin/sh -c "snap connect foo:bar baz:fromp 2>${PWD}/connect.output"; then
+    if su - -c "snap connect foo:bar baz:fromp 2>${PWD}/connect.output" test; then
         echo "Expected error connecting plugs to slots from unauthenticated account"
         exit 1
     fi
