@@ -269,7 +269,7 @@ func (ac *authContext) Device() (*DeviceState, error) {
 
 // UpdateDeviceAuth updates the device auth details in state.
 // The last update wins but other device details are left unchanged.
-// It returns the actualized device state value.
+// It returns the updated device state value.
 func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon string) (actual *DeviceState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
@@ -290,7 +290,7 @@ func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon 
 
 // UpdateUserAuth updates the user auth details in state.
 // The last update wins but other user details are left unchanged.
-// It returns the actualized user state value.
+// It returns the updated user state value.
 func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (actual *UserState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
