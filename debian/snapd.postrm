@@ -47,7 +47,7 @@ if [ "$1" = "purge" ]; then
                 fi
             done
         fi
-        
+
         echo "Removing $unit"
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
@@ -56,3 +56,5 @@ if [ "$1" = "purge" ]; then
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
 fi
+
+#DEBHELPER#

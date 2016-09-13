@@ -48,6 +48,11 @@ type options struct {
 	Version func() `long:"version" description:"print the version and exit"`
 }
 
+type argDesc struct {
+	name string
+	desc string
+}
+
 var optionsData options
 
 // ErrExtraArgs is returned  if extra arguments to a command are found
@@ -58,6 +63,8 @@ type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
+	optDescs                  map[string]string
+	argDescs                  []argDesc
 }
 
 // commands holds information about all non-experimental commands.
@@ -68,12 +75,14 @@ var experimentalCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
-func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
+func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
+		optDescs:  optDescs,
+		argDescs:  argDescs,
 	}
 	commands = append(commands, info)
 	return info
@@ -143,6 +152,34 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+
+		if c.optDescs != nil {
+			opts := cmd.Options()
+			if len(opts) != len(c.optDescs) {
+				logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+			}
+			for _, opt := range opts {
+				desc, ok := c.optDescs[opt.LongName]
+				if !ok {
+					desc, ok = c.optDescs[string(opt.ShortName)]
+					if !ok {
+						logger.Panicf("%s missing description for %s", c.name, opt)
+					}
+				}
+				opt.Description = desc
+			}
+		}
+
+		if c.argDescs != nil {
+			args := cmd.Args()
+			if len(args) != len(c.argDescs) {
+				logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
+			}
+			for i, arg := range args {
+				arg.Name = c.argDescs[i].name
+				arg.Description = c.argDescs[i].desc
+			}
+		}
 	}
 	// Add the experimental command
 	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})

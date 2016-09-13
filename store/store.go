@@ -538,8 +538,6 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		}
 		// we don't have a session yet but have a serial, try
 		// to get a session
-		// TODO: write a test for the Serial == "" skipping
-		// when we have simplified tests
 		if device.SessionMacaroon == "" && device.Serial != "" {
 			err = s.refreshDeviceSession(device)
 			if err == auth.ErrNoSerial {

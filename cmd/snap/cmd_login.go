@@ -32,9 +32,7 @@ import (
 
 type cmdLogin struct {
 	Positional struct {
-		// FIXME: add support for translated descriptions
-		//        (see cmd/snappy/common.go:addOptionDescription)
-		UserName string `positional-arg-name:"email" description:"login.ubuntu.com email to login as"`
+		UserName string
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -56,7 +54,11 @@ func init() {
 		longLoginHelp,
 		func() flags.Commander {
 			return &cmdLogin{}
-		})
+		}, nil, []argDesc{{
+			// TRANSLATORS: noun
+			name: i18n.G("<email>"),
+			desc: i18n.G("login.ubuntu.com email to login as"),
+		}})
 }
 
 func requestLoginWith2faRetry(username, password string) error {
