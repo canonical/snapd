@@ -66,11 +66,13 @@ int sc_main(int argc, char **argv)
 	if (!verify_security_tag(security_tag))
 		die("security tag %s not allowed", security_tag);
 
+#ifndef CAPS_OVER_SETUID
 	// this code always needs to run as root for the cgroup/udev setup,
 	// however for the tests we allow it to run as non-root
 	if (geteuid() != 0 && secure_getenv("SNAP_CONFINE_NO_ROOT") == NULL) {
 		die("need to run as root or suid");
 	}
+#endif
 #ifdef HAVE_SECCOMP
 	scmp_filter_ctx seccomp_ctx
 	    __attribute__ ((cleanup(sc_cleanup_seccomp_release))) = NULL;
