@@ -70,6 +70,21 @@ apps:
 slots:
     iface:
 `
+const SambaYamlV1NoSlot = `
+name: samba
+version: 1
+developer: acme
+apps:
+    smbd:
+`
+const SambaYamlV1WithNmbdNoSlot = `
+name: samba
+version: 1
+developer: acme
+apps:
+    smbd:
+    nmbd:
+`
 const SambaYamlV2 = `
 name: samba
 version: 2
@@ -97,6 +112,20 @@ developer: acme
 hooks:
     apply-config:
 plugs:
+    iface:
+`
+const PlugNoAppsYaml = `
+name: foo
+version: 1
+developer: acme
+plugs:
+    iface:
+`
+const SlotNoAppsYaml = `
+name: foo
+version: 1
+developer: acme
+slots:
     iface:
 `
 

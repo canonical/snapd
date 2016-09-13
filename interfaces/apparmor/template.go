@@ -149,10 +149,12 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rmdir ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
+  /{,usr/}bin/shuf ixr,
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
+  /{,usr/}bin/stty ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -161,6 +163,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/tempfile ixr,
   /{,usr/}bin/tset ixr,
   /{,usr/}bin/touch ixr,
+  /{,usr/}bin/tput ixr,
   /{,usr/}bin/tr ixr,
   /{,usr/}bin/true ixr,
   /{,usr/}bin/uname ixr,
@@ -192,6 +195,15 @@ var defaultTemplate = []byte(`
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
 
+  # systemd native journal API (see sd_journal_print(4)). This should be in
+  # AppArmor's base abstraction, but until it is, include here.
+  /run/systemd/journal/socket w,
+
+  # snapctl and its requirements
+  /usr/bin/snapctl ixr,
+  @{PROC}/sys/net/core/somaxconn r,
+  /run/snapd-snap.socket rw,
+
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
   # information leak.
@@ -201,8 +213,6 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/ r,
   @{PROC}/@{pid}/fd/ r,
   owner @{PROC}/@{pid}/auxv r,
-  @{PROC}/@{pid}/version_signature r,
-  @{PROC}/@{pid}/version r,
   @{PROC}/sys/vm/zone_reclaim_mode r,
   /etc/lsb-release r,
   /sys/devices/**/read_ahead_kb r,
@@ -220,10 +230,13 @@ var defaultTemplate = []byte(`
   /etc/machine-id r,
   /etc/mime.types r,
   @{PROC}/ r,
+  @{PROC}/version r,
+  @{PROC}/version_signature r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
+  owner @{PROC}/@{pid}/limits r,
   @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,

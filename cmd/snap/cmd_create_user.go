@@ -20,8 +20,10 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 
 	"github.com/jessevdk/go-flags"
@@ -36,13 +38,24 @@ An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {
+	JSON       bool `long:"json"`
+	Sudoer     bool `long:"sudoer"`
 	Positional struct {
-		EMail string `positional-arg-name:"email"`
+		Email string
 	} `positional-args:"yes"`
 }
 
 func init() {
-	addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} })
+	addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} },
+		map[string]string{
+			"json":   i18n.G("output results in JSON format"),
+			"sudoer": i18n.G("grant sudo access to the created user"),
+		}, []argDesc{{
+			// TRANSLATORS: noun
+			name: i18n.G("<email>"),
+			// TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+			desc: i18n.G("an email of a user on login.ubuntu.com"),
+		}})
 }
 
 func (x *cmdCreateUser) Execute(args []string) error {
@@ -51,11 +64,25 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	}
 
 	cli := Client()
-	rsp, err := cli.CreateUser(x.Positional.EMail)
+
+	request := client.CreateUserRequest{
+		Email:  x.Positional.Email,
+		Sudoer: x.Sudoer,
+	}
+
+	rsp, err := cli.CreateUser(&request)
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, i18n.G("Created user %q\n"), rsp.Username)
+	if x.JSON {
+		y, err := json.Marshal(rsp)
+		if err != nil {
+			return nil
+		}
+		fmt.Fprintf(Stdout, "%s\n", y)
+	} else {
+		fmt.Fprintf(Stdout, i18n.G("Created user %q and imported SSH keys.\n"), rsp.Username)
+	}
 
 	return nil
 }

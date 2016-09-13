@@ -24,8 +24,10 @@ package hookstate
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
+	"sync"
 
 	"gopkg.in/tomb.v2"
 
@@ -34,6 +36,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// HookRunner is the hook runner. Exported here for use in tests.
+var HookRunner = runHookAndWait
+
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
@@ -41,6 +46,9 @@ type HookManager struct {
 	state      *state.State
 	runner     *state.TaskRunner
 	repository *repository
+
+	contextsMutex sync.RWMutex
+	contexts      map[string]*Context
 }
 
 // Handler is the interface a client must satify to handle hooks.
@@ -58,8 +66,8 @@ type Handler interface {
 // HandlerGenerator is the function signature required to register for hooks.
 type HandlerGenerator func(*Context) Handler
 
-// hookSetup is a reference to a hook within a specific snap.
-type hookSetup struct {
+// HookSetup is a reference to a hook within a specific snap.
+type HookSetup struct {
 	Snap     string        `json:"snap"`
 	Revision snap.Revision `json:"revision"`
 	Hook     string        `json:"hook"`
@@ -72,6 +80,7 @@ func Manager(s *state.State) (*HookManager, error) {
 		state:      s,
 		runner:     runner,
 		repository: newRepository(),
+		contexts:   make(map[string]*Context),
 	}
 
 	runner.AddHandler("run-hook", manager.doRunHook, nil)
@@ -82,7 +91,7 @@ func Manager(s *state.State) (*HookManager, error) {
 // HookTask returns a task that will run the specified hook.
 func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", hookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook-setup", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
 	return task
 }
 
@@ -113,14 +122,27 @@ func (m *HookManager) Stop() {
 	m.runner.Stop()
 }
 
+// Context obtains the context for the given context ID.
+func (m *HookManager) Context(contextID string) (*Context, error) {
+	m.contextsMutex.RLock()
+	defer m.contextsMutex.RUnlock()
+
+	context, ok := m.contexts[contextID]
+	if !ok {
+		return nil, fmt.Errorf("no context for ID: %q", contextID)
+	}
+
+	return context, nil
+}
+
 // doRunHook actually runs the hook that was requested.
 //
 // Note that this method is synchronous, as the task is already running in a
 // goroutine.
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
-	var setup hookSetup
-	err := task.Get("hook-setup", &setup)
+	setup := &HookSetup{}
+	err := task.Get("hook-setup", setup)
 	task.State().Unlock()
 
 	if err != nil {
@@ -140,14 +162,30 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	handler := handlers[0]
+	context, err := NewContext(task, setup, handler)
+	if err != nil {
+		return err
+	}
+
+	contextID := context.ID()
+
+	m.contextsMutex.Lock()
+	m.contexts[contextID] = context
+	m.contextsMutex.Unlock()
+
+	defer func() {
+		m.contextsMutex.Lock()
+		delete(m.contexts, contextID)
+		m.contextsMutex.Unlock()
+	}()
 
 	// About to run the hook-- notify the handler
-	if err := handler.Before(); err != nil {
+	if err = handler.Before(); err != nil {
 		return err
 	}
 
 	// Actually run the hook
-	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, tomb)
+	output, err := HookRunner(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
@@ -166,8 +204,12 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func runHookAndWait(snapName string, revision snap.Revision, hookName string, tomb *tomb.Tomb) ([]byte, error) {
-	command := exec.Command("snap", "run", snapName, "--hook", hookName, "-r", revision.String())
+func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {
+	command := exec.Command("snap", "run", "--hook", hookName, "-r", revision.String(), snapName)
+
+	// Make sure the hook has its context defined so it can communicate via the
+	// REST API.
+	command.Env = append(os.Environ(), fmt.Sprintf("SNAP_CONTEXT=%s", hookContext))
 
 	// Make sure we can obtain stdout and stderror. Same buffer so they're
 	// combined.

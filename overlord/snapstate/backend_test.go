@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -42,6 +43,37 @@ type fakeOp struct {
 	cand  store.RefreshCandidate
 
 	old string
+}
+
+type fakeOps []fakeOp
+
+func (ops fakeOps) Ops() []string {
+	opsOps := make([]string, len(ops))
+	for i, op := range ops {
+		opsOps[i] = op.op
+	}
+
+	return opsOps
+}
+
+func (ops fakeOps) Count(op string) int {
+	n := 0
+	for i := range ops {
+		if ops[i].op == op {
+			n++
+		}
+	}
+	return n
+}
+
+func (ops fakeOps) First(op string) *fakeOp {
+	for i := range ops {
+		if ops[i].op == op {
+			return &ops[i]
+		}
+	}
+
+	return nil
 }
 
 type fakeDownload struct {
@@ -64,12 +96,14 @@ func (f *fakeStore) pokeStateLock() {
 	f.state.Unlock()
 }
 
-func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	f.pokeStateLock()
 
-	revno := snap.R(11)
-	if channel == "channel-for-7" {
-		revno.N = 7
+	if revision.Unset() {
+		revision = snap.R(11)
+		if channel == "channel-for-7" {
+			revision.N = 7
+		}
 	}
 
 	info := &snap.Info{
@@ -77,14 +111,14 @@ func (f *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserStat
 			RealName: strings.Split(name, ".")[0],
 			Channel:  channel,
 			SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
-			Revision: revno,
+			Revision: revision,
 		},
 		Version: name,
 		DownloadInfo: snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
 		},
 	}
-	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revno})
+	f.fakeBackend.ops = append(f.fakeBackend.ops, fakeOp{op: "storesvc-snap", name: name, revno: revision})
 
 	return info, nil
 }
@@ -180,7 +214,7 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 	return "downloaded-snap-path", nil
 }
 
-func (f *fakeStore) Buy(options *store.BuyOptions) (*store.BuyResult, error) {
+func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
 	panic("Never expected fakeStore.Buy to be called")
 }
 
@@ -188,8 +222,12 @@ func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformat
 	panic("Never expected fakeStore.PaymentMethods to be called")
 }
 
+func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
+	panic("Never expected fakeStore.Assertion to be called")
+}
+
 type fakeSnappyBackend struct {
-	ops []fakeOp
+	ops fakeOps
 
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
@@ -280,6 +318,22 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 
 	f.ops = append(f.ops, fakeOp{
 		op:   "link-snap",
+		name: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "start-snap-services",
+		name: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) StopSnapServices(info *snap.Info, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "stop-snap-services",
 		name: info.MountDir(),
 	})
 	return nil

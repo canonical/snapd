@@ -34,11 +34,15 @@ import (
 	"github.com/snapcore/snapd/osutil"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/store"
 )
 
 var (
@@ -59,13 +63,17 @@ type Overlord struct {
 	ensureNext  time.Time
 	pruneTimer  *time.Timer
 	// restarts
-	restartHandler func()
+	restartHandler func(t state.RestartType)
 	// managers
 	snapMgr   *snapstate.SnapManager
 	assertMgr *assertstate.AssertManager
 	ifaceMgr  *ifacestate.InterfaceManager
 	hookMgr   *hookstate.HookManager
+	configMgr *configstate.ConfigManager
+	deviceMgr *devicestate.DeviceManager
 }
+
+var storeNew = store.New
 
 // New creates a new Overlord with all its state managers.
 func New() (*Overlord, error) {
@@ -112,6 +120,26 @@ func New() (*Overlord, error) {
 	}
 	o.hookMgr = hookMgr
 	o.stateEng.AddManager(o.hookMgr)
+
+	configMgr, err := configstate.Manager(s, hookMgr)
+	if err != nil {
+		return nil, err
+	}
+	o.configMgr = configMgr
+
+	deviceMgr, err := devicestate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.deviceMgr = deviceMgr
+	o.stateEng.AddManager(o.deviceMgr)
+
+	// setting up the store
+	authContext := auth.NewAuthContext(s, o.deviceMgr)
+	sto := storeNew(nil, authContext)
+	s.Lock()
+	snapstate.ReplaceStore(s, sto)
+	s.Unlock()
 
 	return o, nil
 }
@@ -179,16 +207,16 @@ func (o *Overlord) ensureBefore(d time.Duration) {
 	}
 }
 
-func (o *Overlord) requestRestart() {
+func (o *Overlord) requestRestart(t state.RestartType) {
 	if o.restartHandler == nil {
 		logger.Noticef("restart requested but no handler set")
 	} else {
-		o.restartHandler()
+		o.restartHandler(t)
 	}
 }
 
 // SetRestartHandler sets a handler to fulfill restart requests asynchronously.
-func (o *Overlord) SetRestartHandler(handleRestart func()) {
+func (o *Overlord) SetRestartHandler(handleRestart func(t state.RestartType)) {
 	o.restartHandler = handleRestart
 }
 
@@ -294,4 +322,9 @@ func (o *Overlord) InterfaceManager() *ifacestate.InterfaceManager {
 // overlord.
 func (o *Overlord) HookManager() *hookstate.HookManager {
 	return o.hookMgr
+}
+
+// DeviceManager returns the device manager responsible for the device identity and policies
+func (o *Overlord) DeviceManager() *devicestate.DeviceManager {
+	return o.deviceMgr
 }

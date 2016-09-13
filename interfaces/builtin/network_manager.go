@@ -75,6 +75,9 @@ network packet,
 # Needed for systemd's dhcp implementation
 /etc/machine-id r,
 
+# Needed to use resolvconf from core
+/sbin/resolvconf ixr,
+
 #include <abstractions/nameservice>
 
 # DBus accesses

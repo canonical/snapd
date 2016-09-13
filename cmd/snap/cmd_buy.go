@@ -44,17 +44,22 @@ var positiveResponse = map[string]bool{
 }
 
 type cmdBuy struct {
-	Currency string `long:"currency" description:"ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"`
+	Currency string `long:"currency"`
 
 	Positional struct {
-		SnapName string `positional-arg-name:"<snap-name>"`
+		SnapName string
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
 	addCommand("buy", shortBuyHelp, longBuyHelp, func() flags.Commander {
 		return &cmdBuy{}
-	})
+	}, map[string]string{
+		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
+	}, []argDesc{{
+		name: "<snap>",
+		desc: i18n.G("snap name"),
+	}})
 }
 
 func (x *cmdBuy) Execute(args []string) error {
@@ -99,7 +104,15 @@ func buySnap(opts *store.BuyOptions) error {
 		return err
 	}
 
-	if len(paymentInfo.Methods) == 0 {
+	// TODO Remove this payment method filter once interactive payment methods are supported on the CLI
+	var methods []*store.PaymentMethod
+	for _, method := range paymentInfo.Methods {
+		if !method.RequiresInteraction {
+			methods = append(methods, method)
+		}
+	}
+
+	if len(methods) == 0 {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: no payment methods registered"), opts.SnapName)
 	}
 
@@ -113,7 +126,7 @@ func buySnap(opts *store.BuyOptions) error {
 		index := -1
 
 		fmt.Fprintln(w, i18n.G("\tSelection\tDescription"))
-		for i, method := range paymentInfo.Methods {
+		for i, method := range methods {
 			preferred := ""
 			if method.Preferred {
 				preferred = "*"
@@ -144,13 +157,13 @@ func buySnap(opts *store.BuyOptions) error {
 				return fmt.Errorf(i18n.G("cannot buy snap %q: invalid payment method selection %q"), snap.Name, stringResponse)
 			}
 
-			if index <= 0 || index > len(paymentInfo.Methods) {
+			if index <= 0 || index > len(methods) {
 				return fmt.Errorf(i18n.G("cannot buy snap %q: unknown payment method selection %d"), snap.Name, index)
 			}
 		}
 
 		// Convert the payment selection to a zero-index
-		paymentMethod := paymentInfo.Methods[index-1]
+		paymentMethod := methods[index-1]
 		opts.BackendID = paymentMethod.BackendID
 		opts.MethodID = paymentMethod.ID
 	}
@@ -167,13 +180,18 @@ func buySnap(opts *store.BuyOptions) error {
 		return fmt.Errorf(i18n.G("aborting"))
 	}
 
-	// TODO Handle pay backends that require user interaction
-	_, err = cli.Buy(opts)
+	result, err := cli.Buy(opts)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(Stdout, "%s bought\n", opts.SnapName)
+	if result.State == "InProgress" {
+		// TODO Support interactive purchases on the CLI
+		return fmt.Errorf(i18n.G("cannot buy snap %q: the command line tools do not support interactive purchases"), snap.Name)
+	}
+
+	// TRANSLATORS: %s is a snap name
+	fmt.Fprintf(Stdout, i18n.G("%s bought\n"), opts.SnapName)
 
 	return nil
 }

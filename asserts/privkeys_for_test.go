@@ -20,24 +20,35 @@
 package asserts_test
 
 import (
+	"encoding/base64"
+
+	"golang.org/x/crypto/openpgp/packet"
+	"golang.org/x/crypto/sha3"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 )
 
 // private keys to use in tests
 var (
-	testPrivKey0 = genTestPrivKey()
-	testPrivKey1 = genTestPrivKey()
-	testPrivKey2 = genTestPrivKey()
-
-	testPrivKey1Pkt = asserts.PrivateKeyPacket(testPrivKey1)
-)
-
-func genTestPrivKey() asserts.PrivateKey {
 	// use a shorter key length here for test keys because otherwise
 	// they take too long to generate;
 	// the ones that care use pregenerated keys of the right length
 	// or use GenerateKey directly
-	opgpPrivKey, _ := assertstest.GenerateKey(752)
-	return opgpPrivKey
+	testPrivKey0, _               = assertstest.GenerateKey(752)
+	testPrivKey1, testPrivKey1RSA = assertstest.GenerateKey(752)
+	testPrivKey2, _               = assertstest.GenerateKey(752)
+
+	testPrivKey1SHA3_384 string
+)
+
+func init() {
+	pkt := packet.NewRSAPrivateKey(asserts.V1FixedTimestamp, testPrivKey1RSA)
+	h := sha3.New384()
+	h.Write([]byte{0x1})
+	err := pkt.PublicKey.Serialize(h)
+	if err != nil {
+		panic(err)
+	}
+	testPrivKey1SHA3_384 = base64.RawURLEncoding.EncodeToString(h.Sum(nil))
 }

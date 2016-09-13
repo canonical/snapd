@@ -22,16 +22,14 @@ package asserts
 import (
 	"io"
 	"time"
-
-	"golang.org/x/crypto/openpgp/packet"
 )
 
 // expose test-only things here
 
-// access internal openpgp lib packet
-func PrivateKeyPacket(pk PrivateKey) *packet.PrivateKey {
-	return pk.(openpgpPrivateKey).privk
-}
+var NumAssertionType = len(typeRegistry)
+
+// v1FixedTimestamp exposed for tests
+var V1FixedTimestamp = v1FixedTimestamp
 
 // assembleAndSign exposed for tests
 var AssembleAndSignInTest = assembleAndSign
@@ -73,10 +71,10 @@ func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYea
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]interface{}{
-				"type":          "account-key",
-				"authority-id":  authorityID,
-				"account-id":    authorityID,
-				"public-key-id": openPGPPubKey.ID(),
+				"type":                "account-key",
+				"authority-id":        authorityID,
+				"account-id":          authorityID,
+				"public-key-sha3-384": openPGPPubKey.ID(),
 			},
 		},
 		since:  time.Time{},
@@ -107,7 +105,7 @@ func assembleTestOnly(assert assertionBase) (Assertion, error) {
 	return &TestOnly{assert}, nil
 }
 
-var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly}
+var TestOnlyType = &AssertionType{"test-only", []string{"primary-key"}, assembleTestOnly, 0}
 
 type TestOnly2 struct {
 	assertionBase
@@ -117,11 +115,36 @@ func assembleTestOnly2(assert assertionBase) (Assertion, error) {
 	return &TestOnly2{assert}, nil
 }
 
-var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2}
+var TestOnly2Type = &AssertionType{"test-only-2", []string{"pk1", "pk2"}, assembleTestOnly2, 0}
+
+type TestOnlyNoAuthority struct {
+	assertionBase
+}
+
+func assembleTestOnlyNoAuthority(assert assertionBase) (Assertion, error) {
+	if _, err := checkNotEmptyString(assert.headers, "hdr"); err != nil {
+		return nil, err
+	}
+	return &TestOnlyNoAuthority{assert}, nil
+}
+
+var TestOnlyNoAuthorityType = &AssertionType{"test-only-no-authority", nil, assembleTestOnlyNoAuthority, noAuthority}
+
+type TestOnlyNoAuthorityPK struct {
+	assertionBase
+}
+
+func assembleTestOnlyNoAuthorityPK(assert assertionBase) (Assertion, error) {
+	return &TestOnlyNoAuthorityPK{assert}, nil
+}
+
+var TestOnlyNoAuthorityPKType = &AssertionType{"test-only-no-authority-pk", []string{"pk"}, assembleTestOnlyNoAuthorityPK, noAuthority}
 
 func init() {
 	typeRegistry[TestOnlyType.Name] = TestOnlyType
 	typeRegistry[TestOnly2Type.Name] = TestOnly2Type
+	typeRegistry[TestOnlyNoAuthorityType.Name] = TestOnlyNoAuthorityType
+	typeRegistry[TestOnlyNoAuthorityPKType.Name] = TestOnlyNoAuthorityPKType
 }
 
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
@@ -129,12 +152,12 @@ func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isKeyValidAt(when)
 }
 
-type GPGRunner func(homedir string, input []byte, args ...string) ([]byte, error)
+type GPGRunner func(input []byte, args ...string) ([]byte, error)
 
-func MockRunGPG(mock func(prev GPGRunner, homedir string, input []byte, args ...string) ([]byte, error)) (restore func()) {
+func MockRunGPG(mock func(prev GPGRunner, input []byte, args ...string) ([]byte, error)) (restore func()) {
 	prevRunGPG := runGPG
-	runGPG = func(homedir string, input []byte, args ...string) ([]byte, error) {
-		return mock(prevRunGPG, homedir, input, args...)
+	runGPG = func(input []byte, args ...string) ([]byte, error) {
+		return mock(prevRunGPG, input, args...)
 	}
 	return func() {
 		runGPG = prevRunGPG
@@ -146,3 +169,8 @@ var (
 	ParseHeaders = parseHeaders
 	AppendEntry  = appendEntry
 )
+
+// ParametersForGenerate exposes parametersForGenerate for tests.
+func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
+	return gkm.parametersForGenerate(passphrase, name)
+}

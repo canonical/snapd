@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -49,6 +50,18 @@ func checkNotEmptyString(headers map[string]interface{}, name string) (string, e
 	}
 	if len(s) == 0 {
 		return "", fmt.Errorf("%q header should not be empty", name)
+	}
+	return s, nil
+}
+
+func checkOptionalString(headers map[string]interface{}, name string) (string, error) {
+	value, ok := headers[name]
+	if !ok {
+		return "", nil
+	}
+	s, ok := value.(string)
+	if !ok {
+		return "", fmt.Errorf("%q header must be a string", name)
 	}
 	return s, nil
 }
@@ -122,6 +135,22 @@ func checkRFC3339Date(headers map[string]interface{}, name string) (time.Time, e
 	return date, nil
 }
 
+func checkRFC3339DateWithDefault(headers map[string]interface{}, name string, defl time.Time) (time.Time, error) {
+	value, ok := headers[name]
+	if !ok {
+		return defl, nil
+	}
+	dateStr, ok := value.(string)
+	if !ok {
+		return time.Time{}, fmt.Errorf("%q header must be a string", name)
+	}
+	date, err := time.Parse(time.RFC3339, dateStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%q header is not a RFC3339 date: %v", name, err)
+	}
+	return date, nil
+}
+
 func checkUint(headers map[string]interface{}, name string, bitSize int) (uint64, error) {
 	valueStr, err := checkNotEmptyString(headers, name)
 	if err != nil {
@@ -149,4 +178,38 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 	}
 
 	return b, nil
+}
+
+func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
+	value, ok := headers[name]
+	if !ok {
+		return nil, nil
+	}
+	lst, ok := value.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%q header must be a list of strings", name)
+	}
+	if len(lst) == 0 {
+		return nil, nil
+	}
+	res := make([]string, len(lst))
+	for i, v := range lst {
+		s, ok := v.(string)
+		if !ok {
+			return nil, fmt.Errorf("%q header must be a list of strings", name)
+		}
+		res[i] = s
+	}
+	return res, nil
+}
+
+func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
+	s, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return "", err
+	}
+	if !pattern.MatchString(s) {
+		return "", fmt.Errorf("%q header contains invalid characters: %q", name, s)
+	}
+	return s, nil
 }

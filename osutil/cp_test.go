@@ -30,6 +30,8 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/testutil"
 )
 
 type cpSuite struct {
@@ -196,17 +198,22 @@ func (mockstat) IsDir() bool        { return false }
 func (mockstat) Sys() interface{}   { return nil }
 
 func (s *cpSuite) TestCopySpecialFileSimple(c *C) {
+	sync := testutil.MockCommand(c, "sync", "")
+	defer sync.Restore()
+
 	src := filepath.Join(c.MkDir(), "fifo")
 	err := syscall.Mkfifo(src, 0644)
 	c.Assert(err, IsNil)
-	dst := filepath.Join(c.MkDir(), "copied-fifo")
+	dir := c.MkDir()
+	dst := filepath.Join(dir, "copied-fifo")
 
 	err = CopySpecialFile(src, dst)
 	c.Assert(err, IsNil)
 
 	st, err := os.Stat(dst)
 	c.Assert(err, IsNil)
-	c.Assert((st.Mode() & os.ModeNamedPipe), Equals, os.ModeNamedPipe)
+	c.Check((st.Mode() & os.ModeNamedPipe), Equals, os.ModeNamedPipe)
+	c.Check(sync.Calls(), DeepEquals, [][]string{{"sync", dir}})
 }
 
 func (s *cpSuite) TestCopySpecialFileErrors(c *C) {
@@ -240,4 +247,62 @@ func (s *cpSuite) TestCopyPreserveAll(c *C) {
 	st2, err := os.Stat(dst)
 	c.Assert(err, IsNil)
 	c.Assert(st1.ModTime(), Equals, st2.ModTime())
+}
+
+func (s *cpSuite) TestCopyPreserveAllSync(c *C) {
+	dir := c.MkDir()
+	mocked := testutil.MockCommand(c, "cp", "").Also("sync", "")
+	defer mocked.Restore()
+
+	src := filepath.Join(dir, "meep")
+	dst := filepath.Join(dir, "copied-meep")
+
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	c.Assert(err, IsNil)
+
+	c.Check(mocked.Calls(), DeepEquals, [][]string{
+		{"cp", "-av", src, dst},
+		{"sync"},
+	})
+}
+
+func (s *cpSuite) TestCopyPreserveAllSyncCpFailure(c *C) {
+	dir := c.MkDir()
+	mocked := testutil.MockCommand(c, "cp", "echo OUCH: cp failed.;exit 42").Also("sync", "")
+	defer mocked.Restore()
+
+	src := filepath.Join(dir, "meep")
+	dst := filepath.Join(dir, "copied-meep")
+
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	c.Assert(err, ErrorMatches, `failed to copy all: "OUCH: cp failed." \(42\)`)
+	c.Check(mocked.Calls(), DeepEquals, [][]string{
+		{"cp", "-av", src, dst},
+	})
+}
+
+func (s *cpSuite) TestCopyPreserveAllSyncSyncFailure(c *C) {
+	dir := c.MkDir()
+	mocked := testutil.MockCommand(c, "cp", "").Also("sync", "echo OUCH: sync failed.;exit 42")
+	defer mocked.Restore()
+
+	src := filepath.Join(dir, "meep")
+	dst := filepath.Join(dir, "copied-meep")
+
+	err := ioutil.WriteFile(src, []byte(nil), 0644)
+	c.Assert(err, IsNil)
+
+	err = CopyFile(src, dst, CopyFlagPreserveAll|CopyFlagSync)
+	c.Assert(err, ErrorMatches, `failed to sync: "OUCH: sync failed." \(42\)`)
+
+	c.Check(mocked.Calls(), DeepEquals, [][]string{
+		{"cp", "-av", src, dst},
+		{"sync"},
+	})
 }

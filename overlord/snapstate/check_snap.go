@@ -36,6 +36,8 @@ import (
 var featureSet = map[string]bool{
 	// Support for common data directory across revisions of a snap.
 	"common-data-dir": true,
+	// Support for the "Environment:" feature in snap.yaml
+	"snap-env": true,
 }
 
 func checkAssumes(s *snap.Info) error {
@@ -55,7 +57,7 @@ var openSnapFile = backend.OpenSnapFile
 
 // checkSnap ensures that the snap can be installed.
 func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
-	// XXX: actually verify snap before using content from it unless dev-mode
+	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, _, err := openSnapFile(snapFilePath, nil)
 	if err != nil {

@@ -46,6 +46,8 @@ import (
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
 
 const (
+	// halJsonContentType is the default accept value for store requests
+	halJsonContentType = "application/hal+json"
 	// UbuntuCoreWireProtocol is the protocol level we support when
 	// communicating with the store. History:
 	//  - "1": client supports squashfs snaps
@@ -85,7 +87,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.DeveloperID = d.DeveloperID
 	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	info.Channel = d.Channel
-	info.Sha512 = d.DownloadSha512
+	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
@@ -104,18 +106,29 @@ type Config struct {
 	AssertionsURI     *url.URL
 	PurchasesURI      *url.URL
 	PaymentMethodsURI *url.URL
-	DetailFields      []string
+
+	// StoreID is the store id used if we can't get one through the AuthContext.
+	StoreID string
+
+	Architecture string
+	Series       string
+
+	DetailFields []string
 }
 
 // Store represents the ubuntu snap store
 type Store struct {
-	storeID           string
 	searchURI         *url.URL
 	detailsURI        *url.URL
 	bulkURI           *url.URL
 	assertionsURI     *url.URL
 	purchasesURI      *url.URL
 	paymentMethodsURI *url.URL
+
+	architecture string
+	series       string
+
+	fallbackStoreID string
 
 	detailFields []string
 	// reused http client
@@ -155,8 +168,12 @@ func getStructFields(s interface{}) []string {
 	return fields
 }
 
+func useStaging() bool {
+	return os.Getenv("SNAPPY_USE_STAGING_STORE") == "1"
+}
+
 func cpiURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "https://search.apps.staging.ubuntu.com/api/v1/"
 	}
 	// FIXME: this will become a store-url assertion
@@ -168,7 +185,7 @@ func cpiURL() string {
 }
 
 func authLocation() string {
-	if os.Getenv("SNAPPY_USE_STAGING_CPI") != "" {
+	if useStaging() {
 		return "login.staging.ubuntu.com"
 	}
 	return "login.ubuntu.com"
@@ -182,7 +199,7 @@ func authURL() string {
 }
 
 func assertsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_SAS") != "" {
+	if useStaging() {
 		return "https://assertions.staging.ubuntu.com/v1/"
 	}
 
@@ -194,13 +211,19 @@ func assertsURL() string {
 }
 
 func myappsURL() string {
-	if os.Getenv("SNAPPY_USE_STAGING_MYAPPS") != "" {
+	if useStaging() {
 		return "https://myapps.developer.staging.ubuntu.com/"
 	}
 	return "https://myapps.developer.ubuntu.com/"
 }
 
 var defaultConfig = Config{}
+
+// DefaultConfig returns a copy of the default configuration ready to be adapted.
+func DefaultConfig() *Config {
+	cfg := defaultConfig
+	return &cfg
+}
 
 func init() {
 	storeBaseURI, err := url.Parse(cpiURL())
@@ -255,7 +278,7 @@ type searchResults struct {
 var detailFields = getStructFields(snapDetails{})
 
 // New creates a new Store with the given access configuration and for given the store id.
-func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
+func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if cfg == nil {
 		cfg = &defaultConfig
 	}
@@ -286,23 +309,35 @@ func New(cfg *Config, storeID string, authContext auth.AuthContext) *Store {
 		detailsURI = &uri
 	}
 
+	architecture := arch.UbuntuArchitecture()
+	if cfg.Architecture != "" {
+		architecture = cfg.Architecture
+	}
+
+	series := release.Series
+	if cfg.Series != "" {
+		series = cfg.Series
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
-		storeID:           storeID,
 		searchURI:         searchURI,
 		detailsURI:        detailsURI,
 		bulkURI:           cfg.BulkURI,
 		assertionsURI:     cfg.AssertionsURI,
 		purchasesURI:      cfg.PurchasesURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
+		series:            series,
+		architecture:      architecture,
+		fallbackStoreID:   cfg.StoreID,
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
 	}
 }
 
-// authenticate will add the store expected Authorization header for macaroons
-func authenticate(r *http.Request, user *auth.UserState) {
+// authenticateUser will add the store expected Macaroon Authorization header for user
+func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
 
@@ -332,26 +367,205 @@ func authenticate(r *http.Request, user *auth.UserState) {
 	r.Header.Set("Authorization", buf.String())
 }
 
-// build a new http.Request with headers for the store
-func (s *Store) newRequest(method, urlStr string, body io.Reader, user *auth.UserState) (*http.Request, error) {
-	req, err := http.NewRequest(method, urlStr, body)
+// refreshDischarges will request refreshed discharge macaroons for the user
+func refreshDischarges(user *auth.UserState) ([]string, error) {
+	newDischarges := make([]string, len(user.StoreDischarges))
+	for i, d := range user.StoreDischarges {
+		discharge, err := MacaroonDeserialize(d)
+		if err != nil {
+			return nil, err
+		}
+		if discharge.Location() != UbuntuoneLocation {
+			newDischarges[i] = d
+			continue
+		}
+
+		refreshedDischarge, err := RefreshDischargeMacaroon(d)
+		if err != nil {
+			return nil, err
+		}
+		newDischarges[i] = refreshedDischarge
+	}
+	return newDischarges, nil
+}
+
+// refreshUser will refresh user discharge macaroon and update state
+func (s *Store) refreshUser(user *auth.UserState) error {
+	newDischarges, err := refreshDischarges(user)
+	if err != nil {
+		return err
+	}
+
+	if s.authContext != nil {
+		curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
+		if err != nil {
+			return err
+		}
+		// update in place
+		*user = *curUser
+	}
+
+	return nil
+}
+
+// refreshDeviceSession will set or refresh the device session in the state
+func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
+	if s.authContext == nil {
+		return fmt.Errorf("internal error: no authContext")
+	}
+
+	nonce, err := RequestStoreDeviceNonce()
+	if err != nil {
+		return err
+	}
+
+	sessionRequest, serialAssertion, err := s.authContext.DeviceSessionRequest(nonce)
+	if err != nil {
+		return err
+	}
+
+	session, err := RequestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
+	if err != nil {
+		return err
+	}
+
+	curDevice, err := s.authContext.UpdateDeviceAuth(device, session)
+	if err != nil {
+		return err
+	}
+	// update in place
+	*device = *curDevice
+	return nil
+}
+
+// authenticateDevice will add the store expected Macaroon X-Device-Authorization header for device
+func authenticateDevice(r *http.Request, device *auth.DeviceState) {
+	if device.SessionMacaroon != "" {
+		r.Header.Set("X-Device-Authorization", fmt.Sprintf(`Macaroon root="%s"`, device.SessionMacaroon))
+	}
+}
+
+func (s *Store) setStoreID(r *http.Request) {
+	storeID := s.fallbackStoreID
+	if s.authContext != nil {
+		cand, err := s.authContext.StoreID(storeID)
+		if err != nil {
+			logger.Debugf("cannot get store ID from state: %v", err)
+		} else {
+			storeID = cand
+		}
+	}
+	if storeID != "" {
+		r.Header.Set("X-Ubuntu-Store", storeID)
+	}
+}
+
+// requestOptions specifies parameters for store requests.
+type requestOptions struct {
+	Method      string
+	URL         *url.URL
+	Accept      string
+	ContentType string
+	Data        []byte
+}
+
+// doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
+func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+	req, err := s.newRequest(reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
 
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	wwwAuth := resp.Header.Get("WWW-Authenticate")
+	if resp.StatusCode == 401 {
+		refreshed := false
+		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+			// refresh user
+			err = s.refreshUser(user)
+			if err != nil {
+				return nil, err
+			}
+			refreshed = true
+		}
+		if strings.Contains(wwwAuth, "refresh_device_session=1") {
+			// refresh device session
+			if s.authContext == nil {
+				return nil, fmt.Errorf("internal error: no authContext")
+			}
+			device, err := s.authContext.Device()
+			if err != nil {
+				return nil, err
+			}
+
+			err = s.refreshDeviceSession(device)
+			if err != nil {
+				return nil, err
+			}
+			refreshed = true
+		}
+		if refreshed {
+			// close previous response and retry
+			// TODO: make this non-recursive or add a recursion limit
+			resp.Body.Close()
+			return s.doRequest(client, reqOptions, user)
+		}
+	}
+
+	return resp, err
+}
+
+// build a new http.Request with headers for the store
+func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*http.Request, error) {
+	var body io.Reader
+	if reqOptions.Data != nil {
+		body = bytes.NewBuffer(reqOptions.Data)
+	}
+
+	req, err := http.NewRequest(reqOptions.Method, reqOptions.URL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	if s.authContext != nil {
+		device, err := s.authContext.Device()
+		if err != nil {
+			return nil, err
+		}
+		// we don't have a session yet but have a serial, try
+		// to get a session
+		if device.SessionMacaroon == "" && device.Serial != "" {
+			err = s.refreshDeviceSession(device)
+			if err == auth.ErrNoSerial {
+				// missing serial assertion, log and continue without device authentication
+				logger.Debugf("cannot set device session: %v", err)
+			}
+			if err != nil && err != auth.ErrNoSerial {
+				return nil, err
+			}
+		}
+		authenticateDevice(req, device)
+	}
+
 	if user != nil {
-		authenticate(req, user)
+		authenticateUser(req, user)
 	}
 
 	req.Header.Set("User-Agent", userAgent)
-	req.Header.Set("Accept", "application/hal+json")
-	req.Header.Set("X-Ubuntu-Architecture", string(arch.UbuntuArchitecture()))
-	req.Header.Set("X-Ubuntu-Series", release.Series)
+	req.Header.Set("Accept", reqOptions.Accept)
+	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
+	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
-	if s.storeID != "" {
-		req.Header.Set("X-Ubuntu-Store", s.storeID)
+	if reqOptions.ContentType != "" {
+		req.Header.Set("Content-Type", reqOptions.ContentType)
 	}
+
+	s.setStoreID(req)
 
 	return req, nil
 }
@@ -414,12 +628,12 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
 	}
 
-	req, err := s.newRequest("GET", url.String(), nil, user)
-	if err != nil {
-		return nil, err
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    url,
+		Accept: halJsonContentType,
 	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -530,14 +744,18 @@ func mustBuy(prices map[string]float64, purchases []*purchase) bool {
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
-func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error) {
 	u, err := s.detailsURI.Parse(name)
 	if err != nil {
 		return nil, err
 	}
 
 	query := u.Query()
-	if channel != "" {
+
+	if !revision.Unset() {
+		query.Set("revision", revision.String())
+		query.Set("channel", "") // sidestep the channel map
+	} else if channel != "" {
 		query.Set("channel", channel)
 	}
 
@@ -551,12 +769,12 @@ func (s *Store) Snap(name, channel string, devmode bool, user *auth.UserState) (
 
 	u.RawQuery = query.Encode()
 
-	req, err := s.newRequest("GET", u.String(), nil, user)
-	if err != nil {
-		return nil, err
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    u,
+		Accept: halJsonContentType,
 	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -646,12 +864,12 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 	q.Set("confinement", "strict")
 	u.RawQuery = q.Encode()
 
-	req, err := s.newRequest("GET", u.String(), nil, user)
-	if err != nil {
-		return nil, err
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    &u,
+		Accept: halJsonContentType,
 	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -661,15 +879,15 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		return nil, respToError(resp, "search")
 	}
 
-	if ct := resp.Header.Get("Content-Type"); ct != "application/hal+json" {
-		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, req.URL)
+	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {
+		return nil, fmt.Errorf("received an unexpected content type (%q) when trying to search via %q", ct, resp.Request.URL)
 	}
 
 	var searchData searchResults
 
 	dec := json.NewDecoder(resp.Body)
 	if err := dec.Decode(&searchData); err != nil {
-		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, req.URL)
+		return nil, fmt.Errorf("cannot decode reply (got %v) when trying to search via %q", err, resp.Request.URL)
 	}
 
 	snaps := make([]*snap.Info, len(searchData.Payload.Packages))
@@ -759,12 +977,14 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		return nil, err
 	}
 
-	req, err := s.newRequest("POST", s.bulkURI.String(), bytes.NewBuffer([]byte(jsonData)), user)
-	if err != nil {
-		return nil, err
+	reqOptions := &requestOptions{
+		Method:      "POST",
+		URL:         s.bulkURI,
+		Accept:      halJsonContentType,
+		ContentType: "application/json",
+		Data:        jsonData,
 	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -835,12 +1055,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		url = downloadInfo.DownloadURL
 	}
 
-	req, err := s.newRequest("GET", url, nil, user)
-	if err != nil {
-		return "", err
-	}
-
-	if err := download(name, w, req, pbar); err != nil {
+	if err := download(name, url, user, s, w, pbar); err != nil {
 		return "", err
 	}
 
@@ -848,17 +1063,26 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 }
 
 // download writes an http.Request showing a progress.Meter
-var download = func(name string, w io.Writer, req *http.Request, pbar progress.Meter) error {
+var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 	client := &http.Client{}
 
-	resp, err := client.Do(req)
+	storeURL, err := url.Parse(downloadURL)
+	if err != nil {
+		return err
+	}
+
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    storeURL,
+	}
+	resp, err := s.doRequest(client, reqOptions, user)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return &ErrDownload{Code: resp.StatusCode, URL: req.URL}
+		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
 
 	if pbar != nil {
@@ -887,27 +1111,27 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		return nil, err
 	}
 
-	req, err := s.newRequest("GET", url.String(), nil, user)
-	if err != nil {
-		return nil, err
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    url,
+		Accept: asserts.MediaType,
 	}
-	req.Header.Set("Accept", asserts.MediaType)
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		if resp.Header.Get("Content-Type") == "application/json" {
+		contentType := resp.Header.Get("Content-Type")
+		if contentType == "application/json" || contentType == "application/problem+json" {
 			var svcErr assertionSvcError
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&svcErr); err != nil {
 				return nil, fmt.Errorf("cannot decode assertion service error with HTTP status code %d: %v", resp.StatusCode, err)
 			}
 			if svcErr.Status == 404 {
-				return nil, ErrAssertionNotFound
+				return nil, &AssertionNotFoundError{&asserts.Ref{Type: assertType, PrimaryKey: primaryKey}}
 			}
 			return nil, fmt.Errorf("assertion service error: [%s] %q", svcErr.Title, svcErr.Detail)
 		}
@@ -933,11 +1157,10 @@ func (s *Store) SuggestedCurrency() string {
 // BuyOptions specifies parameters for store purchases.
 type BuyOptions struct {
 	// Required
-	SnapID   string          `json:"snap-id"`
-	SnapName string          `json:"snap-name"`
-	Price    float64         `json:"price"`
-	Currency string          `json:"currency"` // ISO 4217 code as string
-	User     *auth.UserState `json:"-"`
+	SnapID   string  `json:"snap-id"`
+	SnapName string  `json:"snap-name"`
+	Price    float64 `json:"price"`
+	Currency string  `json:"currency"` // ISO 4217 code as string
 
 	// Optional
 	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
@@ -947,9 +1170,9 @@ type BuyOptions struct {
 // BuyResult holds information required to complete the purchase when state
 // is "InProgress", in which case it requires user interaction to complete.
 type BuyResult struct {
-	State      string
-	RedirectTo string
-	PartnerID  string
+	State      string `json:"state,omitempty"`
+	RedirectTo string `json:"redirect-to,omitempty"`
+	PartnerID  string `json:"partner-id,omitempty"`
 }
 
 // purchaseInstruction holds data sent to the store for purchases.
@@ -980,7 +1203,7 @@ func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 
 // Buy sends a purchase request for the specified snap.
 // Returns the state of the purchase: Complete, Cancelled, InProgress or Pending.
-func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
+func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError(options, "snap ID missing")
 	}
@@ -993,7 +1216,7 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 	if options.Currency == "" {
 		return buyOptionError(options, "currency missing")
 	}
-	if options.User == nil {
+	if user == nil {
 		return buyOptionError(options, "authentication credentials missing")
 	}
 
@@ -1010,13 +1233,14 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 		return nil, err
 	}
 
-	req, err := s.newRequest("POST", s.purchasesURI.String(), bytes.NewBuffer(jsonData), options.User)
-	req.Header.Set("Content-Type", "application/json")
-	if err != nil {
-		return nil, err
+	reqOptions := &requestOptions{
+		Method:      "POST",
+		URL:         s.purchasesURI,
+		Accept:      halJsonContentType,
+		ContentType: "application/json",
+		Data:        jsonData,
 	}
-
-	resp, err := s.client.Do(req)
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1035,9 +1259,14 @@ func (s *Store) Buy(options *BuyOptions) (*BuyResult, error) {
 			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
 		}
 
+		redirectTo := ""
+		if purchaseDetails.RedirectTo != "" {
+			redirectTo = fmt.Sprintf("%s://%s%s", s.purchasesURI.Scheme, s.purchasesURI.Host, purchaseDetails.RedirectTo)
+		}
+
 		return &BuyResult{
 			State:      purchaseDetails.State,
-			RedirectTo: purchaseDetails.RedirectTo,
+			RedirectTo: redirectTo,
 			PartnerID:  resp.Header.Get("X-Partner-Id"),
 		}, nil
 	case http.StatusBadRequest:
@@ -1099,12 +1328,16 @@ type PaymentInformation struct {
 
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
-	req, err := s.newRequest("GET", s.paymentMethodsURI.String(), nil, user)
-	if err != nil {
-		return nil, err
+	if user == nil {
+		return nil, ErrInvalidCredentials
 	}
 
-	resp, err := s.client.Do(req)
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    s.paymentMethodsURI,
+		Accept: halJsonContentType,
+	}
+	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1143,6 +1376,8 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 		}
 
 		return paymentMethods, nil
+	case http.StatusUnauthorized:
+		return nil, ErrInvalidCredentials
 	default:
 		var errorInfo buyError
 		dec := json.NewDecoder(resp.Body)

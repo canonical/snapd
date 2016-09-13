@@ -48,6 +48,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 			{
 				RealName: snapInfo.Name(),
 				Revision: snapInfo.Revision,
+				SnapID:   "ididid",
 			},
 		},
 		Current: snapInfo.Revision,
@@ -67,6 +68,11 @@ func (s *apiSuite) mockIface(c *C, iface interfaces.Interface) {
 	err := s.d.overlord.InterfaceManager().Repository().AddInterface(iface)
 	c.Assert(err, IsNil)
 }
+
+var simpleYaml = `
+name: simple
+version: 1
+`
 
 var consumerYaml = `
 name: consumer
@@ -102,4 +108,9 @@ slots:
   interface: different
   key: value
   label: label
+`
+
+var configYaml = `
+name: config-snap
+version: 1
 `

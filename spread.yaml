@@ -1,25 +1,63 @@
 project: snapd
 
 environment:
-    REUSE_PROJECT: $(echo $REUSE_PROJECT)
-    PROJECT_PATH: /gopath/src/github.com/snapcore/snapd
-    GOPATH: /gopath
-    PATH: /gopath/bin:/snap/bin:$PATH
-    TESTSLIB: $[PROJECT_PATH]/tests/lib
+    GOPATH: /home/gopath
+    REUSE_PROJECT: "$(HOST: echo $REUSE_PROJECT)"
+    PROJECT_PATH: $GOPATH/src/github.com/snapcore/snapd
+    PATH: $GOPATH/bin:/snap/bin:$PATH
+    TESTSLIB: $PROJECT_PATH/tests/lib
+    SNAP_REEXEC: 0
+    SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
+    SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
+    LANG: "$(echo $LANG)"
 
 backends:
     linode:
-        key: $(echo $SPREAD_LINODE_KEY)
+        key: "$(HOST: echo $SPREAD_LINODE_KEY)"
+        halt-timeout: 2h
         systems:
-            - ubuntu-16.04-64-grub
-            - ubuntu-16.04-32-grub
+            - ubuntu-16.04-64:
+                kernel: GRUB 2
+            - ubuntu-16.04-32:
+                kernel: GRUB 2
+            - ubuntu-core-16-64:
+                kernel: Direct Disk
+                image: ubuntu-16.04-64
+    qemu:
+        systems:
+            - ubuntu-16.04-64:
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-core-16-64:
+                image: ubuntu-16.04-64
+                username: ubuntu
+                password: ubuntu
+            - ubuntu-16.10-64:
+                username: ubuntu
+                password: ubuntu
+    autopkgtest:
+        type: adhoc
+        allocate: |
+            echo "Allocating ad-hoc $SPREAD_SYSTEM"
+            if [ -z "${ADT_ARTIFACTS}" ]; then
+                FATAL "adhoc only works inside autopkgtest"
+                exit 1
+            fi
+            ADDRESS localhost:22
+        discard: |
+            echo "Discarding ad-hoc $SPREAD_SYSTEM"
+        systems:
+            - ubuntu-16.04-64:
+                username: ubuntu
+                password: ubuntu
 
-path: $[PROJECT_PATH]
+path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
 
 prepare: |
+    # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
 
     # apt update is hanging on security.ubuntu.com with IPv6.
@@ -29,7 +67,7 @@ prepare: |
     apt purge -y snapd || true
     apt update
     # utilities
-    apt install -y devscripts expect jq software-properties-common
+    apt install -y devscripts expect jq rng-tools software-properties-common
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
@@ -39,6 +77,10 @@ prepare: |
 
     apt build-dep -y ./
 
+    # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
+    #        hits xenial-updates
+    apt install -y snap-confine
+
     # and remove the image PPA again
     add-apt-repository --remove ppa:snappy-dev/image
 
@@ -46,8 +88,9 @@ prepare: |
     dch -i "testing build"
 
     test -d /home/test || adduser --quiet --disabled-password --gecos '' test
+    echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
-    sudo -i -u test /bin/sh -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip"
+    su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
 
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
@@ -55,7 +98,7 @@ prepare: |
     [Unit]
     StartLimitInterval=0
     [Service]
-    Environment=SNAPD_DEBUG_HTTP=7
+    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
     EOF
 
     # Build snapbuild.
@@ -64,37 +107,21 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
-
 suites:
     tests/main/:
         summary: Full-system tests for snapd
         prepare: |
-            apt install -y ${SPREAD_PATH}/../snapd_*.deb
-            # Snapshot the state including core.
-            if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
-                ! snap list | grep core || exit 1
-                snap install test-snapd-tools
-                snap list | grep core
-                snap remove test-snapd-tools
-                rmdir /snap/test-snapd-tools # Should be done by snapd.
-
-                systemctl stop snapd.service snapd.socket
-                systemctl daemon-reload
-                mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
-                services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
-                for unit in $services $mounts; do
-                    systemctl stop $unit
-                done
-                tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd /snap /etc/systemd/system/snap-*core*.mount
-                systemctl daemon-reload # Workaround for http://paste.ubuntu.com/17735820/
-                for unit in $mounts $services; do
-                    systemctl start $unit
-                done
-                systemctl start snapd.socket
+            . $TESTSLIB/prepare.sh
+            if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+                prepare_all_snap
+            else
+                prepare_classic
             fi
         restore: |
             $TESTSLIB/reset.sh
-            apt purge -y snapd || true
+            if [ "$SPREAD_SYSTEM" != "ubuntu-core-16-64" ]; then
+                apt purge -y snapd || true
+            fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
 

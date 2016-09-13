@@ -10,13 +10,13 @@ details: |
 
 environment:
     SNAP_NAME: log-observe-consumer
-    SNAP_FILE: "./$[SNAP_NAME]_1.0_all.snap"
+    SNAP_FILE: "${SNAP_NAME}_1.0_all.snap"
     PLUG: log-observe
 
 prepare: |
     echo "Given a snap declaring the $PLUG plug is installed"
     snapbuild $TESTSLIB/snaps/$SNAP_NAME .
-    snap install $SNAP_FILE
+    snap install --dangerous $SNAP_FILE
 
 restore: |
     rm -f $SNAP_FILE

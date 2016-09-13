@@ -20,8 +20,8 @@
 package main
 
 import (
+	"errors"
 	"fmt"
-	"sort"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
@@ -37,7 +37,8 @@ The find command queries the store for available packages.
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
 	// If there are no prices, then the snap is free
 	if len(prices) == 0 {
-		return 0, "", fmt.Errorf(i18n.G("snap is free"))
+		// TRANSLATORS: free as in gratis
+		return 0, "", errors.New(i18n.G("snap is free"))
 	}
 
 	// Look up the price by currency code
@@ -84,21 +85,27 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 }
 
 type cmdFind struct {
-	Private    bool `long:"private" description:"search private snaps"`
+	Private    bool `long:"private"`
 	Positional struct {
-		Query string `positional-arg-name:"<query>"`
+		Query string
 	} `positional-args:"yes"`
 }
 
 func init() {
 	addCommand("find", shortFindHelp, longFindHelp, func() flags.Commander {
 		return &cmdFind{}
-	})
+	}, map[string]string{
+		"private": i18n.G("search private snaps"),
+	}, []argDesc{{name: i18n.G("<query>")}})
 }
 
 func (x *cmdFind) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.Positional.Query == "" {
+		return errors.New(i18n.G("you need to specify a query. Try \"snap find hello-world\"."))
 	}
 
 	return findSnaps(&client.FindOptions{
@@ -115,10 +122,9 @@ func findSnaps(opts *client.FindOptions) error {
 	}
 
 	if len(snaps) == 0 {
-		return fmt.Errorf("no snaps found for %q", opts.Query)
+		// TRANSLATORS: the %q is the (quoted) query the user entered
+		return fmt.Errorf(i18n.G("no snaps found for %q"), opts.Query)
 	}
-
-	sort.Sort(snapsByName(snaps))
 
 	w := tabWriter()
 	defer w.Flush()

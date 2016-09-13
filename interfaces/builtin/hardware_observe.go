@@ -29,12 +29,22 @@ const hardwareObserveConnectedPlugAppArmor = `
 # from the system.  this is reserved because it allows reading potentially sensitive information.
 # Usage: reserved
 
+# used by lscpu
+capability sys_rawio,
+
 # files in /sys pertaining to hardware
-/sys/{block,bus,class,devices}/{,**} r,
+/sys/{block,bus,class,devices,firmware}/{,**} r,
 
 # DMI tables
 /sys/firmware/dmi/tables/DMI r,
 /sys/firmware/dmi/tables/smbios_entry_point r,
+
+# Needed for udevadm
+/run/udev/data/** r,
+
+# util-linux
+/{,usr/}bin/lscpu ixr,
+@{PROC}/bus/pci/devices r,
 `
 
 // NewHardwareObserveInterface returns a new "hardware-observe" interface.

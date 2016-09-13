@@ -15,3 +15,7 @@ apps:
         command: bin/head
     env:
         command: bin/env
+    sh:
+        command: bin/sh
+    cmd:
+        command: bin/cmd
