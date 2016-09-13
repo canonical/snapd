@@ -23,7 +23,7 @@ execute: |
     fi
 
     echo "Ensure sudo works without a password inside classic"
-    if [ "$(classic sudo id -u)" != "0" ]; then
+    if [ "$(classic sudo id -u|tr -d "\r")" != "0" ]; then
         echo "sudo inside classic  did not work as expected"
         exit 1
     fi
