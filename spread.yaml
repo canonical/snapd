@@ -27,7 +27,7 @@ exclude:
 
 prepare: |
     echo "Spread is running as $(id)"
-    [ "$REUSE_PROJECT" != 1 ] || exit 0
+    [ "${REUSE_PROJECT:-}" != 1 ] || exit 0
     ./spread-tests/spread-prepare.sh
 
 suites:
