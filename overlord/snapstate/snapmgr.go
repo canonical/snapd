@@ -1010,12 +1010,6 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: cannot find revision %d in %v for undoing the added revision", ss.SideInfo.Revision, snapst.Sequence)
 	}
 
-	if oldCandidateIndex >= 0 && !isRevert {
-		oldCand := snapst.Sequence[currentIndex]
-		copy(snapst.Sequence[oldCandidateIndex+1:], snapst.Sequence[oldCandidateIndex:])
-		snapst.Sequence[oldCandidateIndex] = oldCand
-	}
-
 	if oldCandidateIndex < 0 {
 		snapst.Sequence = append(snapst.Sequence[:currentIndex], snapst.Sequence[currentIndex+1:]...)
 	} else if !isRevert {

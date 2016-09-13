@@ -3282,6 +3282,7 @@ func revs(seq []*snap.SideInfo) []int {
 
 type opSeqOpts struct {
 	revert  bool
+	fail    bool
 	before  []int
 	current int
 	via     int
@@ -3318,6 +3319,13 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 		ts, err = snapstate.Update(s.state, "some-snap", "", snap.R(opts.via), s.user.ID, 0)
 	}
 	c.Assert(err, IsNil)
+	if opts.fail {
+		tasks := ts.Tasks()
+		last := tasks[len(tasks)-1]
+		terr := s.state.NewTask("error-trigger", "provoking total undo")
+		terr.WaitFor(last)
+		chg.AddTask(terr)
+	}
 	chg.AddAll(ts)
 
 	s.state.Unlock()
@@ -3371,6 +3379,27 @@ func (s *snapmgrTestSuite) testUpdateFailureSequence(c *C, opts *opSeqOpts) *sta
 	return ts
 }
 
+// testTotal*Failure fails *after* link-snap
+func (s *snapmgrTestSuite) testTotalUpdateFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	opts.revert = false
+	opts.fail = true
+	snapst, ts := s.testOpSequence(c, opts)
+	// a failed update will always end with current unchanged
+	c.Check(snapst.Current.N, Equals, opts.current)
+
+	ops := s.fakeBackend.ops
+	c.Check(ops.Count("copy-data"), Equals, 1)
+	do := ops.First("copy-data")
+
+	c.Check(ops.Count("undo-copy-snap-data"), Equals, 1)
+	undo := ops.First("undo-copy-snap-data")
+
+	do.op = undo.op
+	c.Check(do, DeepEquals, undo) // i.e. they only differed in the op
+
+	return ts
+}
+
 func (s *snapmgrTestSuite) testRevertSequence(c *C, opts *opSeqOpts) *state.TaskSet {
 	opts.revert = true
 	opts.after = opts.before
@@ -3397,46 +3426,107 @@ func (s *snapmgrTestSuite) testRevertFailureSequence(c *C, opts *opSeqOpts) *sta
 	return ts
 }
 
+func (s *snapmgrTestSuite) testTotalRevertFailureSequence(c *C, opts *opSeqOpts) *state.TaskSet {
+	opts.revert = true
+	opts.fail = true
+	opts.after = opts.before
+	snapst, ts := s.testOpSequence(c, opts)
+	// a failed revert will always end with current unchanged
+	c.Check(snapst.Current.N, Equals, opts.current)
+
+	c.Check(s.fakeBackend.ops.Count("copy-data"), Equals, 0)
+	c.Check(s.fakeBackend.ops.Count("undo-copy-snap-data"), Equals, 0)
+
+	return ts
+}
+
+// *** sequence tests ***
+
+// 1. a boring update
+// 1a. ... that works
 func (s *snapmgrTestSuite) TestSeqNormal(c *C) {
 	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 4, after: []int{2, 3, 4}})
 }
 
+// 1b. that fails during link
 func (s *snapmgrTestSuite) TestSeqNormalFailure(c *C) {
 	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 4})
 }
 
+// 1c. that fails after link
+func (s *snapmgrTestSuite) TestSeqTotalNormalFailure(c *C) {
+	// total updates are failures after sequence trimming => we lose a rev
+	s.testTotalUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 4, after: []int{2, 3}})
+}
+
+// 2. a boring revert
+// 2a. that works
 func (s *snapmgrTestSuite) TestSeqRevert(c *C) {
 	s.testRevertSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2})
 }
 
+// 2b. that fails during link
 func (s *snapmgrTestSuite) TestSeqRevertFailure(c *C) {
 	s.testRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2})
 }
 
+// 2c. that fails after link
+func (s *snapmgrTestSuite) TestSeqTotalRevertFailure(c *C) {
+	s.testTotalRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2})
+}
+
+// 3. a post-revert update
+// 3a. that works
 func (s *snapmgrTestSuite) TestSeqPostRevert(c *C) {
 	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 4, after: []int{1, 2, 4}})
 }
 
+// 3b. that fails during link
 func (s *snapmgrTestSuite) TestSeqPostRevertFailure(c *C) {
 	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 4})
 }
 
+// 3c. that fails after link
+func (s *snapmgrTestSuite) TestSeqTotalPostRevertFailure(c *C) {
+	// lose a rev here as well
+	s.testTotalUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 4, after: []int{1, 2}})
+}
+
+// 4. a post-revert revert
+// 4a. that works
 func (s *snapmgrTestSuite) TestSeqRevertPostRevert(c *C) {
 	s.testRevertSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 1})
 }
 
+// 4b. that fails during link
 func (s *snapmgrTestSuite) TestSeqRevertPostRevertFailure(c *C) {
 	s.testRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 1})
 }
 
+// 4c. taht fails after link
+func (s *snapmgrTestSuite) TestSeqTotalRevertPostRevertFailure(c *C) {
+	s.testTotalRevertFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 2, via: 1})
+}
+
+// 5. an update that missed a rev
+// 5a. that works
 func (s *snapmgrTestSuite) TestSeqMissedOne(c *C) {
 	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2}, current: 2, via: 4, after: []int{1, 2, 4}})
 }
 
+// 5b. that fails during link
 func (s *snapmgrTestSuite) TestSeqMissedOneFailure(c *C) {
 	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2}, current: 2, via: 4})
 }
 
+// 5c. that fails after link
+func (s *snapmgrTestSuite) TestSeqTotalMissedOneFailure(c *C) {
+	// we don't lose a rev here because len(Seq) < 3 going in
+	s.testTotalUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2}, current: 2, via: 4, after: []int{1, 2}})
+}
+
+// 6. an update that updates to a revision we already have ("ABA update")
+// 6a. that works
 func (s *snapmgrTestSuite) TestSeqABA(c *C) {
 	s.testUpdateSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2, after: []int{1, 3, 2}})
 	c.Check(s.fakeBackend.ops[len(s.fakeBackend.ops)-1], DeepEquals, fakeOp{
@@ -3446,9 +3536,28 @@ func (s *snapmgrTestSuite) TestSeqABA(c *C) {
 	})
 }
 
+// 6b. that fails during link
 func (s *snapmgrTestSuite) TestSeqABAFailure(c *C) {
 	s.testUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2})
 	c.Check(s.fakeBackend.ops.First("cleanup-trash"), IsNil)
+}
+
+// 6c that fails after link
+func (s *snapmgrTestSuite) TestSeqTotalABAFailure(c *C) {
+	// we don't lose a rev here because ABA
+	s.testTotalUpdateFailureSequence(c, &opSeqOpts{before: []int{1, 2, 3}, current: 3, via: 2, after: []int{1, 2, 3}})
+	// XXX: TODO: NOTE!! WARNING!! etc
+	//
+	// if this happens in real life, things will be weird. revno 2 will
+	// have data that has been copied from 3, instead of old 2's data,
+	// because the failure occurred *after* nuking the trash. This can
+	// happen when things are chained. Because of this, if it were to
+	// *actually* happen the correct end sequence would be [1, 3] and not
+	// [1, 2, 3]. IRL this scenario can happen if an update that works is
+	// chained to an update that fails. Detecting this case is rather hard,
+	// and the end result is not nice, and we want to move cleanup to a
+	// separate handler & status that will cope with this better (so trash
+	// gets nuked after all tasks succeeded).
 }
 
 func (s *snapmgrTestSuite) TestUpdateTasksWithOldCurrent(c *C) {
