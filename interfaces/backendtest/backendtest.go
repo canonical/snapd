@@ -114,6 +114,20 @@ hooks:
 plugs:
     iface:
 `
+const PlugNoAppsYaml = `
+name: foo
+version: 1
+developer: acme
+plugs:
+    iface:
+`
+const SlotNoAppsYaml = `
+name: foo
+version: 1
+developer: acme
+slots:
+    iface:
+`
 
 // Support code for tests
 

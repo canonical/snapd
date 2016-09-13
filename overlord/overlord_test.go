@@ -33,13 +33,12 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/testutil"
-
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/patch"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 func TestOverlord(t *testing.T) { TestingT(t) }
@@ -557,7 +556,7 @@ func (ovs *overlordSuite) TestRequestRestartNoHandler(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 
-	o.State().RequestRestart()
+	o.State().RequestRestart(state.RestartDaemon)
 }
 
 func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
@@ -566,11 +565,11 @@ func (ovs *overlordSuite) TestRequestRestartHandler(c *C) {
 
 	restartRequested := false
 
-	o.SetRestartHandler(func() {
+	o.SetRestartHandler(func(t state.RestartType) {
 		restartRequested = true
 	})
 
-	o.State().RequestRestart()
+	o.State().RequestRestart(state.RestartDaemon)
 
 	c.Check(restartRequested, Equals, true)
 }

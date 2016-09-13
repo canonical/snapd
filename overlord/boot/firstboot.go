@@ -22,10 +22,13 @@ package boot
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
@@ -35,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -74,7 +78,25 @@ func populateStateFromSeed() error {
 			flags |= snapstate.DevMode
 		}
 		path := filepath.Join(dirs.SnapSeedDir, "snaps", sn.File)
-		ts, err := snapstate.InstallPath(st, sn.Name, path, sn.Channel, flags)
+
+		var sideInfo snap.SideInfo
+		if sn.Unasserted {
+			sideInfo.RealName = sn.Name
+		} else {
+			si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
+			if err == asserts.ErrNotFound {
+				st.Unlock()
+				return fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+			}
+			if err != nil {
+				st.Unlock()
+				return err
+			}
+			sideInfo = *si
+			sideInfo.Private = sn.Private
+		}
+
+		ts, err := snapstate.InstallPath(st, &sideInfo, path, sn.Channel, flags)
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
@@ -83,24 +105,6 @@ func populateStateFromSeed() error {
 		if err != nil {
 			return err
 		}
-
-		// XXX: this is a temporary hack until we have assertions
-		//      and do not need this anymore
-		st.Lock()
-		var ss snapstate.SnapSetup
-		tasks := ts.Tasks()
-		tasks[0].Get("snap-setup", &ss)
-		ss.SideInfo = &snap.SideInfo{
-			RealName:    sn.Name,
-			SnapID:      sn.SnapID,
-			Revision:    sn.Revision,
-			Channel:     sn.Channel,
-			DeveloperID: sn.DeveloperID,
-			Developer:   sn.Developer,
-			Private:     sn.Private,
-		}
-		tasks[0].Set("snap-setup", &ss)
-		st.Unlock()
 
 		tsAll = append(tsAll, ts)
 	}
@@ -135,6 +139,26 @@ func populateStateFromSeed() error {
 	return ovld.Stop()
 }
 
+func readAsserts(fn string) (res []asserts.Assertion, err error) {
+	f, err := os.Open(fn)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	dec := asserts.NewDecoder(f)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		res = append(res, a)
+	}
+	return res, nil
+}
+
 func importAssertionsFromSeed(st *state.State) error {
 	st.Lock()
 	defer st.Unlock()
@@ -152,26 +176,34 @@ func importAssertionsFromSeed(st *state.State) error {
 
 	// collect
 	var modelAssertion *asserts.Model
-	assertionsToAdd := make([]asserts.Assertion, len(dc))
+	modelUnique := ""
+	assertionsToAdd := make([]asserts.Assertion, 0, len(dc))
 	bs := asserts.NewMemoryBackstore()
-	for i, fi := range dc {
-		content, err := ioutil.ReadFile(filepath.Join(assertSeedDir, fi.Name()))
+	for _, fi := range dc {
+		fn := filepath.Join(assertSeedDir, fi.Name())
+		assertions, err := readAsserts(fn)
 		if err != nil {
-			return fmt.Errorf("cannot read assertion: %s", err)
+			return fmt.Errorf("cannot read assertions: %s", err)
 		}
-		as, err := asserts.Decode(content)
-		if err != nil {
-			return fmt.Errorf("cannot decode assertion: %s", err)
-		}
-		if err := bs.Put(as.Type(), as); err != nil {
-			return err
-		}
-		assertionsToAdd[i] = as
-		if as.Type() == asserts.ModelType {
-			if modelAssertion != nil {
-				return fmt.Errorf("cannot add more than one model assertion")
+		for _, as := range assertions {
+			if err := bs.Put(as.Type(), as); err != nil {
+				if revErr, ok := err.(*asserts.RevisionError); ok {
+					if revErr.Current >= as.Revision() {
+						// we already got something more recent
+						continue
+					}
+				}
+				return err
 			}
-			modelAssertion = as.(*asserts.Model)
+			assertionsToAdd = append(assertionsToAdd, as)
+			if as.Type() == asserts.ModelType {
+				asUnique := as.Ref().Unique()
+				if modelUnique != "" && asUnique != modelUnique {
+					return fmt.Errorf("cannot add more than one model assertion")
+				}
+				modelUnique = asUnique
+				modelAssertion = as.(*asserts.Model)
+			}
 		}
 	}
 	// verify we have one model assertion
@@ -183,7 +215,7 @@ func importAssertionsFromSeed(st *state.State) error {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		as, err := bs.Get(ref.Type, ref.PrimaryKey)
 		if err != nil {
-			return nil, fmt.Errorf("cannot find %s: %s", ref.Unique(), err)
+			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
 		}
 		return as, nil
 	}
@@ -208,13 +240,27 @@ func importAssertionsFromSeed(st *state.State) error {
 	return nil
 }
 
+var firstbootInitialNetworkConfig = firstboot.InitialNetworkConfig
+
 // FirstBoot will do some initial boot setup and then sync the
 // state
 func FirstBoot() error {
+	// Disable firstboot on classic for now. In the long run we want
+	// classic to have a firstboot as well so that we can install
+	// snaps in a classic environment (LP: #1609903). However right
+	// now firstboot is under heavy development so until the dust
+	// settles we disable it.
+	if release.OnClassic {
+		return nil
+	}
+
 	if firstboot.HasRun() {
 		return ErrNotFirstBoot
 	}
-	if err := firstboot.InitialNetworkConfig(); err != nil {
+
+	// FIXME: the netplan config is static, we do not need to generate
+	//        it from snapd, we can just set it in e.g. ubuntu-core-config
+	if err := firstbootInitialNetworkConfig(); err != nil {
 		logger.Noticef("Failed during inital network configuration: %s", err)
 	}
 

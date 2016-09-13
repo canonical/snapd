@@ -54,7 +54,7 @@ func (b *stateBackend) EnsureBefore(d time.Duration) {
 	}
 }
 
-func (b *stateBackend) RequestRestart() {}
+func (b *stateBackend) RequestRestart(t state.RestartType) {}
 
 func ensureChange(c *C, r *state.TaskRunner, sb *stateBackend, chg *state.Change) {
 	for i := 0; i < 10; i++ {

@@ -45,6 +45,37 @@ type fakeOp struct {
 	old string
 }
 
+type fakeOps []fakeOp
+
+func (ops fakeOps) Ops() []string {
+	opsOps := make([]string, len(ops))
+	for i, op := range ops {
+		opsOps[i] = op.op
+	}
+
+	return opsOps
+}
+
+func (ops fakeOps) Count(op string) int {
+	n := 0
+	for i := range ops {
+		if ops[i].op == op {
+			n++
+		}
+	}
+	return n
+}
+
+func (ops fakeOps) First(op string) *fakeOp {
+	for i := range ops {
+		if ops[i].op == op {
+			return &ops[i]
+		}
+	}
+
+	return nil
+}
+
 type fakeDownload struct {
 	name     string
 	macaroon string
@@ -196,7 +227,7 @@ func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState)
 }
 
 type fakeSnappyBackend struct {
-	ops []fakeOp
+	ops fakeOps
 
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
@@ -287,6 +318,22 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info) error {
 
 	f.ops = append(f.ops, fakeOp{
 		op:   "link-snap",
+		name: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) StartSnapServices(info *snap.Info, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "start-snap-services",
+		name: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) StopSnapServices(info *snap.Info, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "stop-snap-services",
 		name: info.MountDir(),
 	})
 	return nil

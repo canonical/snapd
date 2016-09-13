@@ -59,7 +59,7 @@ func (x *cmdKeys) Execute(args []string) error {
 		fmt.Fprintln(w, i18n.G("Name\tSHA3-384"))
 		defer w.Flush()
 	}
-	var keys []Key
+	keys := []Key{}
 
 	manager := asserts.NewGPGKeypairManager()
 	display := func(privk asserts.PrivateKey, fpr string, uid string) error {

@@ -234,7 +234,7 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, 
 }
 
 type gpgKeypairInfo struct {
-	pubKey      PublicKey
+	privKey     PrivateKey
 	fingerprint string
 }
 
@@ -244,7 +244,7 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if uid == name {
 			hit = &gpgKeypairInfo{
-				pubKey:      privk.PublicKey(),
+				privKey:     privk,
 				fingerprint: fpr,
 			}
 			return stop
@@ -261,15 +261,31 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	return nil, fmt.Errorf("cannot find key named %q in GPG keyring", name)
 }
 
+// GetByName looks up a private key by name and returns it.
+func (gkm *GPGKeypairManager) GetByName(name string) (PrivateKey, error) {
+	keyInfo, err := gkm.findByName(name)
+	if err != nil {
+		return nil, err
+	}
+	return keyInfo.privKey, nil
+}
+
 var generateTemplate = `
 Key-Type: RSA
 Key-Length: 4096
-Subkey-Type: RSA
-Subkey-Length: 4096
 Name-Real: %s
-Creation-Date: %s
+Creation-Date: seconds=%d
 Preferences: SHA512
 `
+
+func (gkm *GPGKeypairManager) parametersForGenerate(passphrase string, name string) string {
+	fixedCreationTime := v1FixedTimestamp.Unix()
+	generateParams := fmt.Sprintf(generateTemplate, name, fixedCreationTime)
+	if passphrase != "" {
+		generateParams += "Passphrase: " + passphrase + "\n"
+	}
+	return generateParams
+}
 
 // Generate creates a new key with the given passphrase and name.
 func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
@@ -277,11 +293,7 @@ func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
 	if err == nil {
 		return fmt.Errorf("key named %q already exists in GPG keyring", name)
 	}
-	fixedCreationTime := v1FixedTimestamp.Format("20060102T030405")
-	generateParams := fmt.Sprintf(generateTemplate, name, fixedCreationTime)
-	if passphrase != "" {
-		generateParams += "Passphrase: " + passphrase + "\n"
-	}
+	generateParams := gkm.parametersForGenerate(passphrase, name)
 	_, err = gkm.gpg([]byte(generateParams), "--batch", "--gen-key")
 	if err != nil {
 		return err
@@ -295,11 +307,7 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	encoded, err := EncodePublicKey(keyInfo.pubKey)
-	if err != nil {
-		return nil, err
-	}
-	return encoded, nil
+	return EncodePublicKey(keyInfo.privKey.PublicKey())
 }
 
 // Delete removes the named key pair from GnuPG's storage.

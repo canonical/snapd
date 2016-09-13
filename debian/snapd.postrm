@@ -33,6 +33,7 @@ if [ "$1" = "purge" ]; then
             rm -f "/snap/bin/$snap"
             rm -f "/snap/bin/$snap".*
             # snap mount dir
+            umount --lazy "/snap/$snap/$rev" 2> /dev/null || true 
             rm -rf "/snap/$snap/$rev"
             rm -f "/snap/$snap/current"
             # snap data dir
@@ -46,7 +47,7 @@ if [ "$1" = "purge" ]; then
                 fi
             done
         fi
-        
+
         echo "Removing $unit"
         rm -f "/etc/systemd/system/$unit"
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
@@ -55,3 +56,5 @@ if [ "$1" = "purge" ]; then
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
 fi
+
+#DEBHELPER#
