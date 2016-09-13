@@ -1097,16 +1097,15 @@ func (m *SnapManager) cleanup(t *state.Task, _ *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	pb := &TaskProgressAdapter{task: t}
 	_, snapst, err := snapSetupAndState(t)
 	if err != nil {
-		pb.Notify(fmt.Sprintf("cannot clean up: %v", err))
+		t.Errorf("cannot clean up: %v", err)
 		return nil // cleanup should not return error
 	}
 
 	info, err := snapst.CurrentInfo()
 	if err != nil {
-		pb.Notify(fmt.Sprintf("cannot clean up: %v", err))
+		t.Errorf("cannot clean up: %v", err)
 		return nil
 	}
 
