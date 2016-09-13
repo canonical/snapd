@@ -19,4 +19,5 @@ execute: |
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -f /var/lib/lxd/canary
-    rmdir /var/lib/lxd
+    # When the host already has LXD installed we cannot just remove this
+    rmdir /var/lib/lxd || :
