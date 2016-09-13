@@ -112,6 +112,10 @@ esac
 # Install all the build dependencies
 case "$release_ID" in
     ubuntu|debian)
+        # treat APT_PROXY as a location of apt-cacher-ng to use
+        if [ -n "${APT_PROXY:-}" ]; then
+            printf 'Acquire::http::Proxy "%s";\n' "$APT_PROXY" > /etc/apt/apt.conf.d/00proxy
+        fi
         # trusty support is under development right now
         # we special-case the release until we have officially landed
         if [ "$release_ID" = "ubuntu" ] && [ "$release_VERSION_ID" = "14.04" ]; then
