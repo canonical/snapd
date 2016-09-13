@@ -1,7 +1,5 @@
 summary: Check that `snap run` can actually run hooks
 
-systems: [-ubuntu-core-16-64]
-
 prepare: |
     echo "Build test hooks package"
     snapbuild $TESTSLIB/snaps/basic-hooks .
@@ -14,7 +12,7 @@ prepare: |
     # First of all, unmount the core
     systemctl stop snapd.service
     core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
 
     # Now unpack the core, inject the new snap-exec into it, and repack it.
@@ -40,7 +38,7 @@ restore: |
     # Unmount the modified core snap, and put the old one back in place
     systemctl stop snapd.service
     core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
     mv "${snap}.orig" "$snap"
     mount "$snap" "$core"

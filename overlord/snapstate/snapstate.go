@@ -671,7 +671,7 @@ func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet
 
 // Revert returns a set of tasks for reverting to the pervious version of the snap.
 // Note that the state must be locked by the caller.
-func Revert(s *state.State, name string) (*state.TaskSet, error) {
+func Revert(s *state.State, name string, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -683,10 +683,10 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
 
-	return RevertToRevision(s, name, pi.Revision)
+	return RevertToRevision(s, name, pi.Revision, flags)
 }
 
-func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
+func RevertToRevision(s *state.State, name string, rev snap.Revision, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -706,6 +706,7 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	}
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
+		Flags:    SnapSetupFlags(flags),
 	}
 	return doInstall(s, &snapst, ss)
 }
