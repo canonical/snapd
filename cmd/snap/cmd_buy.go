@@ -71,6 +71,10 @@ func (x *cmdBuy) Execute(args []string) error {
 func buySnap(opts *store.BuyOptions) error {
 	cli := Client()
 
+	if !cli.LoggedIn() {
+		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run ‘snap login’ and try again."))
+	}
+
 	if strings.ContainsAny(opts.SnapName, ":*") {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)
 	}
