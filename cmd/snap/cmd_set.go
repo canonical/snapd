@@ -50,7 +50,7 @@ func (x *cmdSet) Execute(args []string) error {
 	for _, patchValue := range x.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid configuration: %q (want key=value)", patchValue)
+			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}
 		var value interface{}
 		err := json.Unmarshal([]byte(parts[1]), &value)
