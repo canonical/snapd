@@ -32,9 +32,14 @@ import (
 
 type SnapKeysSuite struct {
 	BaseSnapSuite
+
+	GnupgCmd string
 }
 
-var _ = Suite(&SnapKeysSuite{})
+// FIXME: Ideally we would just use gpg2 and remove the gnupg2_test.go file.
+//        However currently there is LP: #1621839 which prevents us from
+//        switching to gpg2 fully. Once this is resolved we should switch.
+var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg"})
 
 func (s *SnapKeysSuite) SetUpTest(c *C) {
 	s.BaseSnapSuite.SetUpTest(c)
@@ -47,10 +52,12 @@ func (s *SnapKeysSuite) SetUpTest(c *C) {
 		c.Assert(err, IsNil)
 	}
 	os.Setenv("SNAP_GNUPG_HOME", tempdir)
+	os.Setenv("SNAP_GNUPG_CMD", s.GnupgCmd)
 }
 
 func (s *SnapKeysSuite) TearDownTest(c *C) {
 	os.Unsetenv("SNAP_GNUPG_HOME")
+	os.Unsetenv("SNAP_GNUPG_CMD")
 	s.BaseSnapSuite.TearDownTest(c)
 }
 
