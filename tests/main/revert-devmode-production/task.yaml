@@ -1,7 +1,7 @@
 summary: Check that revert of a snap in devmode restores devmode
 
 environment:
-    STORE_TYPE/production: production
+    STORE_TYPE: production
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |

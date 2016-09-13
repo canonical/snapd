@@ -1,0 +1,20 @@
+summary: Check that revert works.
+
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
+
+environment:
+    STORE_TYPE/fake: fake
+    STORE_TYPE/staging: staging
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    . $TESTSLIB/tasks/revert.sh
+    prepare
+
+restore: |
+    . $TESTSLIB/tasks/revert.sh
+    restore
+
+execute: |
+    . $TESTSLIB/tasks/revert.sh
+    execute

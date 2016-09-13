@@ -1,5 +1,5 @@
 summary: Check that upgrade works
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
 restore: |
     rm -f /var/tmp/myevil.txt
 execute: |

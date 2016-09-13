@@ -1,0 +1,17 @@
+summary: Check that revert works.
+
+environment:
+    STORE_TYPE: production
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+
+prepare: |
+    . $TESTSLIB/tasks/revert.sh
+    prepare
+
+restore: |
+    . $TESTSLIB/tasks/revert.sh
+    restore
+
+execute: |
+    . $TESTSLIB/tasks/revert.sh
+    execute

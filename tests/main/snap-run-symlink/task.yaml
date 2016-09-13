@@ -1,6 +1,6 @@
 summary: Check that symlinks to /usr/bin/snap trigger `snap run`
 
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
 
 prepare: |
     echo Ensure we have a os snap with snap run
@@ -16,12 +16,12 @@ environment:
 execute: |
     echo Testing that replacing the wrapper with a symlink works
     $APP $SNAP/bin/cat
-    $APP $SNAP/bin/cat > orig.txt 2>&1 
+    $APP $SNAP/bin/cat > orig.txt 2>&1
 
     rm /snap/bin/$APP
     ln -s /usr/bin/snap /snap/bin/$APP
 
     $APP $SNAP/bin/cat
-    $APP $SNAP/bin/cat > new.txt 2>&1 
+    $APP $SNAP/bin/cat > new.txt 2>&1
 
     diff -u orig.txt new.txt

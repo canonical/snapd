@@ -1,5 +1,5 @@
 summary: Check that firstboot assertions are imported
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
 environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
@@ -9,7 +9,7 @@ prepare: |
     mkdir -p $SEED_DIR/assertions
     touch $SEED_DIR/seed.yaml
     # pretend to be not classic :)
-    mv /var/lib/dpkg/status /var/lib/dpkg/status.save 
+    mv /var/lib/dpkg/status /var/lib/dpkg/status.save
 restore: |
     mv /var/lib/dpkg/status.save /var/lib/dpkg/status
     systemctl start snapd.service
