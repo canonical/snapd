@@ -53,7 +53,7 @@ type managerBackend interface {
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
-	//
+	// cleanup
 	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove releated
