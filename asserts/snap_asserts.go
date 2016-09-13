@@ -84,7 +84,6 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 		return err
 	}
 
-	// FIXME check that snap-ids in refresh-control are valid?
 	return nil
 }
 
