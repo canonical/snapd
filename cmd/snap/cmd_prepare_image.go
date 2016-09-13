@@ -26,12 +26,13 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/image"
+	"github.com/snapcore/snapd/osutil"
 )
 
 type cmdPrepareImage struct {
 	Positional struct {
-		ModelAssertionFn string `positional-arg-name:"model-assertion" description:"the model assertion name"`
-		Rootdir          string `long:"root-dir" description:"the output directory" `
+		ModelAssertion string `positional-arg-name:"model-assertion" description:"the model assertion name"`
+		Rootdir        string `long:"root-dir" description:"the output directory" `
 	} `positional-args:"yes" required:"yes"`
 
 	ExtraSnaps []string `long:"extra-snaps" description:"extra snaps to be installed"`
@@ -49,8 +50,17 @@ func init() {
 }
 
 func (x *cmdPrepareImage) Execute(args []string) error {
+	var modelFile, modelRef string
+
+	if osutil.FileExists(x.Positional.ModelAssertion) {
+		modelFile = x.Positional.ModelAssertion
+	} else {
+		modelRef = x.Positional.ModelAssertion
+	}
+
 	opts := &image.Options{
-		ModelFile: x.Positional.ModelAssertionFn,
+		ModelFile: modelFile,
+		ModelRef:  modelRef,
 
 		RootDir:         filepath.Join(x.Positional.Rootdir, "image"),
 		GadgetUnpackDir: filepath.Join(x.Positional.Rootdir, "gadget"),
