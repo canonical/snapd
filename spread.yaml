@@ -10,8 +10,6 @@ environment:
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo $LANG)"
-    #SPREAD_ADHOC_UC_ADDRESS: "$(HOST: echo ${SPREAD_ADHOC_UC_ADDRES:-localhos})"
-    #SPREAD_ADHOC_UC_PORT: "$(HOST: echo ${SPREAD_ADHOC_UC_POR:-802})"
 
 backends:
     linode:
@@ -46,9 +44,18 @@ backends:
                 exit 1
             fi
             ADDRESS localhost:22
+        discard: |
+            echo "Discarding ad-hoc $SPREAD_SYSTEM"
+        systems:
+            - ubuntu-16.04-64:
+                username: ubuntu
+                password: ubuntu
 
     adhoc-ubuntu-core:
         type: adhoc
+        environment:
+            SPREAD_ADHOC_UC_ADDRESS: "$(HOST: echo ${SPREAD_ADHOC_UC_ADDRESS:-localhost})"
+            SPREAD_ADHOC_UC_PORT: "$(HOST: echo ${SPREAD_ADHOC_UC_PORT:-8022})"
         allocate: |
             echo "Allocating $SPREAD_SYSTEM..."
             ADDRESS $SPREAD_ADHOC_UC_ADDRESS:$SPREAD_ADHOC_UC_PORT
@@ -71,7 +78,7 @@ prepare: |
     # adhoc backend and ubuntu-core system, nothing to setup
     if [ "$SPREAD_BACKEND" = adhoc-ubuntu-core ]; then
         mkdir -p $GOPATH/bin
-        cp /home/fgimenez/{snapbuild,fakestore} $GOPATH/bin
+        cp /home/test/snapbuild $GOPATH/bin
         exit 0
     fi
 
