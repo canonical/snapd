@@ -102,17 +102,23 @@ type testAuthContext struct {
 }
 
 func (ac *testAuthContext) Device() (*auth.DeviceState, error) {
-	return ac.device, nil
+	freshDevice := *ac.device
+	return &freshDevice, nil
 }
 
-func (ac *testAuthContext) UpdateDevice(d *auth.DeviceState) error {
-	ac.device = d
-	return nil
+func (ac *testAuthContext) UpdateDeviceAuth(d *auth.DeviceState, newSessionMacaroon string) (*auth.DeviceState, error) {
+	ac.c.Assert(d, DeepEquals, ac.device)
+	updated := *ac.device
+	updated.SessionMacaroon = newSessionMacaroon
+	*ac.device = updated
+	return &updated, nil
 }
 
-func (ac *testAuthContext) UpdateUser(u *auth.UserState) error {
+func (ac *testAuthContext) UpdateUserAuth(u *auth.UserState, newDischarges []string) (*auth.UserState, error) {
 	ac.c.Assert(u, DeepEquals, ac.user)
-	return nil
+	updated := *ac.user
+	updated.StoreDischarges = newDischarges
+	return &updated, nil
 }
 
 func (ac *testAuthContext) StoreID(fallback string) (string, error) {
@@ -199,6 +205,7 @@ func createTestDevice() *auth.DeviceState {
 	return &auth.DeviceState{
 		Brand:           "some-brand",
 		SessionMacaroon: "device-macaroon",
+		Serial:          "9999",
 	}
 }
 
@@ -351,6 +358,40 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
+	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	defer response.Body.Close()
+	c.Assert(err, IsNil)
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
+}
+
+func (t *remoteRepoTestSuite) TestDoRequestAuthNoSerial(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+		// check user authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, t.expectedAuthorization(c, t.user))
+		// check device authorization was not set
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		io.WriteString(w, "response-data")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	// no serial and no device macaroon => no device auth
+	t.device.Serial = ""
+	t.device.SessionMacaroon = ""
 	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
 	repo := New(&Config{}, authContext)
 	c.Assert(repo, NotNil)
@@ -737,6 +778,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryStoreIDFromAuthContext(c 
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/dev/api/snap-purchases") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
 		c.Check(r.URL.Path, Equals, "/details/hello-world")
 		c.Check(r.URL.Query(), DeepEquals, url.Values{
 			"channel":  []string{""},
@@ -749,11 +794,12 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryRevision(c *C) {
 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
-
+	purchasesURI, err := url.Parse(mockServer.URL + "/dev/api/snap-purchases/")
 	detailsURI, err := url.Parse(mockServer.URL + "/details/")
 	c.Assert(err, IsNil)
 	cfg := DefaultConfig()
 	cfg.DetailsURI = detailsURI
+	cfg.PurchasesURI = purchasesURI
 	repo := New(cfg, nil)
 	c.Assert(repo, NotNil)
 
@@ -1528,6 +1574,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryAssertion(c *C) {
 	var err error
 	assertionsURI, err := url.Parse(mockServer.URL + "/assertions/")
 	c.Assert(err, IsNil)
+
 	cfg := Config{
 		AssertionsURI: assertionsURI,
 	}
