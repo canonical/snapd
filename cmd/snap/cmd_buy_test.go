@@ -688,7 +688,7 @@ func (s *SnapSuite) TestBuyFailsWithoutLogin(c *check.C) {
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "You need to be logged in to purchase software. Please run ‘snap login’ and try again.")
+	c.Check(err.Error(), check.Equals, "You need to be logged in to purchase software. Please run 'snap login' and try again.")
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
