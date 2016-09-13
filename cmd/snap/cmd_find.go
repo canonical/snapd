@@ -20,6 +20,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/snapcore/snapd/client"
@@ -36,7 +37,8 @@ The find command queries the store for available packages.
 func getPrice(prices map[string]float64, currency string) (float64, string, error) {
 	// If there are no prices, then the snap is free
 	if len(prices) == 0 {
-		return 0, "", fmt.Errorf(i18n.G("snap is free"))
+		// TRANSLATORS: free as in gratis
+		return 0, "", errors.New(i18n.G("snap is free"))
 	}
 
 	// Look up the price by currency code
@@ -100,6 +102,10 @@ func (x *cmdFind) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	if x.Positional.Query == "" {
+		return errors.New(i18n.G("you need to specify a query. Try \"snap find hello-world\"."))
+	}
+
 	return findSnaps(&client.FindOptions{
 		Private: x.Private,
 		Query:   x.Positional.Query,
@@ -114,7 +120,8 @@ func findSnaps(opts *client.FindOptions) error {
 	}
 
 	if len(snaps) == 0 {
-		return fmt.Errorf("no snaps found for %q", opts.Query)
+		// TRANSLATORS: the %q is the (quoted) query the user entered
+		return fmt.Errorf(i18n.G("no snaps found for %q"), opts.Query)
 	}
 
 	w := tabWriter()

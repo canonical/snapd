@@ -68,7 +68,8 @@ func (x *cmdSignBuild) Execute(args []string) error {
 	gkm := asserts.NewGPGKeypairManager()
 	privKey, err := gkm.GetByName(x.KeyName)
 	if err != nil {
-		return fmt.Errorf("cannot use %q key: %v", x.KeyName, err)
+		// TRANSLATORS: %q is the key name, %v the error message
+		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
 	}
 
 	pubKey := privKey.PublicKey()
@@ -88,12 +89,12 @@ func (x *cmdSignBuild) Execute(args []string) error {
 		KeypairManager: gkm,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot open the assertions database: %v", err)
+		return fmt.Errorf(i18n.G("cannot open the assertions database: %v"), err)
 	}
 
 	a, err := adb.Sign(asserts.SnapBuildType, headers, nil, pubKey.ID())
 	if err != nil {
-		return fmt.Errorf("cannot sign assertion: %v", err)
+		return fmt.Errorf(i18n.G("cannot sign assertion: %v"), err)
 	}
 
 	_, err = Stdout.Write(asserts.Encode(a))
