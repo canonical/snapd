@@ -668,7 +668,7 @@ apps:
 	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// now do the revert
-	ts, err := snapstate.Revert(st, "foo")
+	ts, err := snapstate.Revert(st, "foo", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)

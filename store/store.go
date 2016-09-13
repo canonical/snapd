@@ -87,7 +87,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.DeveloperID = d.DeveloperID
 	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	info.Channel = d.Channel
-	info.Sha512 = d.DownloadSha512
+	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
@@ -1316,6 +1316,10 @@ type PaymentInformation struct {
 
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
+	if user == nil {
+		return nil, ErrInvalidCredentials
+	}
+
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    s.paymentMethodsURI,
@@ -1360,6 +1364,8 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 		}
 
 		return paymentMethods, nil
+	case http.StatusUnauthorized:
+		return nil, ErrInvalidCredentials
 	default:
 		var errorInfo buyError
 		dec := json.NewDecoder(resp.Body)

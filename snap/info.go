@@ -110,8 +110,6 @@ type SideInfo struct {
 	Developer         string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Size              int64    `yaml:"size,omitempty" json:"size,omitempty"`
-	Sha512            string   `yaml:"sha512,omitempty" json:"sha512,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
 }
 
@@ -228,6 +226,9 @@ func (s *Info) NeedsDevMode() bool {
 type DownloadInfo struct {
 	AnonDownloadURL string `json:"anon-download-url,omitempty"`
 	DownloadURL     string `json:"download-url,omitempty"`
+
+	Size     int64  `json:"size,omitempty"`
+	Sha3_384 string `json:"sha3-384,omitempty"`
 }
 
 // sanity check that Info is a PlaceInfo
