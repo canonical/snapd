@@ -18,6 +18,7 @@
 #include "cleanup-funcs.h"
 
 #include <mntent.h>
+#include <unistd.h>
 
 void sc_cleanup_string(char **ptr)
 {
@@ -48,4 +49,9 @@ void sc_cleanup_closedir(DIR ** ptr)
 	if (*ptr != NULL) {
 		closedir(*ptr);
 	}
+}
+
+void sc_cleanup_close(int *ptr)
+{
+	close(*ptr);
 }

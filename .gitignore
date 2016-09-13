@@ -1,4 +1,5 @@
 src/snap-confine
+src/snap-discard-ns
 src/snap-confine-unit-tests
 src/snap-confine.apparmor
 *~
