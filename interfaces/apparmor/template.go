@@ -166,6 +166,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/tput ixr,
   /{,usr/}bin/tr ixr,
   /{,usr/}bin/true ixr,
+  /{,usr/}bin/tty ixr,
   /{,usr/}bin/uname ixr,
   /{,usr/}bin/uniq ixr,
   /{,usr/}bin/unlink ixr,
