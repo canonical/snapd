@@ -652,7 +652,7 @@ func (vs *validationSuite) TestDecodeOK(c *C) {
 	c.Check(validation.Series(), Equals, "16")
 	c.Check(validation.SnapID(), Equals, "snap-id-1")
 	c.Check(validation.ApprovedSnapID(), Equals, "snap-id-2")
-	c.Check(validation.ApprovedSnapRevision(), Equals, "42")
+	c.Check(validation.ApprovedSnapRevision(), Equals, 42)
 	c.Check(validation.Revoked(), Equals, false)
 	c.Check(validation.Revision(), Equals, 1)
 }
