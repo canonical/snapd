@@ -1,6 +1,6 @@
 summary: Checks for snap create-key
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
 
 restore: |
     rm -rf $HOME/.snap/gnupg

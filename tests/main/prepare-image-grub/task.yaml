@@ -1,5 +1,5 @@
 summary: Check that prepare-image works for grub-systems
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
 # TODO: use the real stores with proper assertions fully as well once possible
 environment:
     ROOT: /tmp/root
