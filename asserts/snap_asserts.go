@@ -362,7 +362,7 @@ func (validation *Validation) Timestamp() time.Time {
 func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) error {
 	_, err := db.Find(SnapDeclarationType, map[string]string{
 		"series":  validation.Series(),
-		"snap-id": validation.SnapID(),
+		"snap-id": validation.ApprovedSnapID(),
 	})
 	if err == ErrNotFound {
 		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
