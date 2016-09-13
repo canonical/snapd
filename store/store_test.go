@@ -208,6 +208,7 @@ func createTestDevice() *auth.DeviceState {
 	return &auth.DeviceState{
 		Brand:           "some-brand",
 		SessionMacaroon: "device-macaroon",
+		Serial:          "9999",
 	}
 }
 
