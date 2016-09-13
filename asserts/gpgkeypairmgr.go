@@ -66,6 +66,10 @@ func ensureGPGHomeDirectory() (string, error) {
 // test suite).  GnuPG 1 is still supported so it's reasonable to continue
 // using that for now.
 func findGPGCommand() (string, error) {
+	if path := os.Getenv("SNAP_GNUPG_CMD"); path != "" {
+		return path, nil
+	}
+
 	path, err := exec.LookPath("gpg1")
 	if err != nil {
 		path, err = exec.LookPath("gpg")
@@ -147,7 +151,7 @@ func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 // Walk iterates over all the RSA private keys in the local GPG setup calling the provided callback until this returns an error
 func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string, uid string) error) error {
 	// see GPG source doc/DETAILS
-	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
+	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons", "--fixed-list-mode")
 	if err != nil {
 		return err
 	}
@@ -161,6 +165,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 	}
 	lines = lines[:n]
 	for j := 0; j < n; j++ {
+		// sec: line
 		line := lines[j]
 		if !strings.HasPrefix(line, "sec:") {
 			continue
@@ -174,24 +179,42 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		}
 		keyID := secFields[4]
 		uid := ""
-		if len(secFields) >= 10 {
-			uid = secFields[9]
+		fpr := ""
+		var privKey PrivateKey
+		// look for fpr:, uid: lines, order may vary and gpg2.1
+		// may springle additional lines in (like gpr:)
+	Loop:
+		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:"); k++ {
+			switch {
+			case strings.HasPrefix(lines[k], "fpr:"):
+				fprFields := strings.Split(lines[k], ":")
+				// extract "Field 10 - User-ID"
+				// A FPR record stores the fingerprint here.
+				if len(fprFields) < 10 {
+					break Loop
+				}
+				fpr = fprFields[9]
+				if !strings.HasSuffix(fpr, keyID) {
+					break // strange, skip
+				}
+				privKey, err = gkm.retrieve(fpr)
+				if err != nil {
+					return err
+				}
+			case strings.HasPrefix(lines[k], "uid:"):
+				uidFields := strings.Split(lines[k], ":")
+				// extract "*** Field 10 - User-ID"
+				if len(uidFields) < 10 {
+					break Loop
+				}
+				uid = uidFields[9]
+			}
 		}
-		if j+1 >= n || !strings.HasPrefix(lines[j+1], "fpr:") {
+		// sanity checking
+		if privKey == nil || uid == "" {
 			continue
 		}
-		fprFields := strings.Split(lines[j+1], ":")
-		if len(fprFields) < 10 {
-			continue
-		}
-		fpr := fprFields[9]
-		if !strings.HasSuffix(fpr, keyID) {
-			continue // strange, skip
-		}
-		privKey, err := gkm.retrieve(fpr)
-		if err != nil {
-			return err
-		}
+		// collected it all
 		err = consider(privKey, fpr, uid)
 		if err != nil {
 			return err

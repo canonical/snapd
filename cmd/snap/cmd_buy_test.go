@@ -75,7 +75,7 @@ func (s *buyTestMockSnapServer) checkCounts() {
 func (s *SnapSuite) TestBuyHelp(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"buy"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "the required argument `<snap-name>` was not provided")
+	c.Check(err.Error(), check.Equals, "the required argument `<snap>` was not provided")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }

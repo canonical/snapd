@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2016 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,33 +17,11 @@
  *
  */
 
-package main
+package main_test
 
 import (
-	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/i18n"
+	. "gopkg.in/check.v1"
 )
 
-type cmdLogout struct{}
-
-var shortLogoutHelp = i18n.G("Log out of the store")
-
-var longLogoutHelp = i18n.G("This command logs the current user out of the store")
-
-func init() {
-	addCommand("logout",
-		shortLogoutHelp,
-		longLogoutHelp,
-		func() flags.Commander {
-			return &cmdLogout{}
-		}, nil, nil)
-}
-
-func (cmd *cmdLogout) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-
-	return Client().Logout()
-}
+// FIXME: drop once gpg2 is the default
+var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg2"})
