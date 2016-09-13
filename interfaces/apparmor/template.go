@@ -149,6 +149,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rmdir ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
+  /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
   /{,usr/}bin/shuf ixr,
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
