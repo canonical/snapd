@@ -5,13 +5,34 @@ systems: [-ubuntu-core-16-64]
 restore: |
     rm -rf $HOME/.snap/gnupg
 
-execute: |
-    # FIXME: port test to gpg2
-    if grep yakkety /etc/os-release; then
-        echo "SKIPPING TEST ON YAKKETY"
+prepare: |
+    echo "setup fake gpg pinentry environment"
+    cat > /tmp/pinentry-fake <<'EOF'
+    #!/bin/sh
+    set -e
+    echo "OK Pleased to meet you"
+    while true; do
+      read line
+      case $line in
+      GETPIN)
+        echo "D pass"
+        echo "OK"
+        ;;
+      BYE)
         exit 0
-    fi
+      ;;
+      *)
+        echo "OK I'm not very smart"
+        ;;
+    esac
+    done
+    EOF
+    chmod +x /tmp/pinentry-fake
+    mkdir -p /root/.snap/gnupg/
+    chmod 0700 /root/.snap/gnupg/
+    echo pinentry-program /tmp/pinentry-fake > /root/.snap/gnupg/gpg-agent.conf
 
+execute: |
     echo "Checking passphrase mismatch error"
     expect -f passphrase_mismatch.exp
 
