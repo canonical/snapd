@@ -1,6 +1,6 @@
 summary: Check that the refresh command works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
 
 details: |
     These tests exercise the refresh command using different store backends.

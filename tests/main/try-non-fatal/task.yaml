@@ -1,6 +1,6 @@
 summary: Checks that removing the base directory of a tried snap works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
 
 execute: |
     echo "Given a tried snap"

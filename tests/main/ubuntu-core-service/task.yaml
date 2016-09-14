@@ -1,5 +1,5 @@
 summary: Ensure that service keep working after a reboot
-systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64]
+systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64, ubuntu-core-16-device-arm]
 environment:
     # FIXME: use test-snapd-tools once it has a service
     SNAP: network-bind-consumer

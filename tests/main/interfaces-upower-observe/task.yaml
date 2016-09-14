@@ -1,6 +1,6 @@
 summary: Ensure that the upower-observe interface works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
 
 summary: |
     The upower-observe interface allows a snap to query UPower for power devices, history

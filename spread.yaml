@@ -65,6 +65,9 @@ backends:
             - ubuntu-core-16-device-amd64:
                 username: test
                 password: ubuntu
+            - ubuntu-core-16-device-arm:
+                username: test
+                password: ubuntu
 
 path: /home/gopath/src/github.com/snapcore/snapd
 

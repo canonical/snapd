@@ -1,5 +1,5 @@
 summary: Check snap ack
-systems: [-ubuntu-core-16-device-amd64]
+systems: [-ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
 environment:
     ASSERTD: /var/lib/snapd/assertions/asserts-v0/
 prepare: |
