@@ -392,7 +392,7 @@ func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
 
-func (s *SnapSuite) TestMainSymlinkRunEndToEndHappy(c *check.C) {
+func (s *SnapSuite) TestMainSymlinkRunEndToEnd(c *check.C) {
 	// mock installed snap
 	dirs.SetRootDir(c.MkDir())
 	defer func() { dirs.SetRootDir("/") }()
@@ -423,7 +423,17 @@ func (s *SnapSuite) TestMainSymlinkRunEndToEndHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	os.Args[0] = runSymlink
 
+	// happy case: all valid
 	err = snaprun.SnapRunSymlinkMagic()
 	c.Assert(err, check.IsNil)
 	c.Check(called, check.Equals, true)
+
+	// unhappy case: the symlink comes from a random directory
+	s.mockServer(c)
+	called = false
+	os.Args[0] = "/random/dir/snapname.app"
+	err = snaprun.SnapRunSymlinkMagic()
+	c.Check(err, check.ErrorMatches, `snap run symlink has invalid base directory: "/random/dir"`)
+	c.Check(called, check.Equals, false)
+
 }
