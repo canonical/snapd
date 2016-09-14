@@ -45,15 +45,15 @@ func init() {
 		func() flags.Commander {
 			return &cmdPrepareImage{}
 		}, map[string]string{
-			"extra-snaps": "extra snaps to be installed",
-			"channel":     "the channel to use",
+			"extra-snaps": "Extra snaps to be installed",
+			"channel":     "The channel to use",
 		}, []argDesc{
 			{
 				name: i18n.G("<model-assertion>"),
-				desc: i18n.G("the model assertion name"),
+				desc: i18n.G("The model assertion name"),
 			}, {
 				name: i18n.G("<root-dir>"),
-				desc: i18n.G("the output directory"),
+				desc: i18n.G("The output directory"),
 			},
 		})
 	cmd.hidden = true

@@ -627,11 +627,11 @@ func init() {
 		channelDescs.also(modeDescs).also(map[string]string{
 			"revision":        i18n.G("Install the given revision of a snap, to which you must have developer access"),
 			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
-			"force-dangerous": i18n.G("(deprecated) alias for --dangerous"),
+			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		channelDescs.also(modeDescs).also(map[string]string{
-			"list": i18n.G("show available snaps for refresh"),
+			"list": i18n.G("Show available snaps for refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, modeDescs, nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, nil, nil)

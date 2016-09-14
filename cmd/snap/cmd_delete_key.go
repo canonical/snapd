@@ -40,7 +40,7 @@ func init() {
 			return &cmdDeleteKey{}
 		}, nil, []argDesc{{
 			name: i18n.G("<key-name>"),
-			desc: i18n.G("name of key to delete"),
+			desc: i18n.G("Name of key to delete"),
 		}})
 	cmd.hidden = true
 }

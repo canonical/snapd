@@ -26,6 +26,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
@@ -106,6 +107,27 @@ type parserSetter interface {
 	setParser(*flags.Parser)
 }
 
+func lintDesc(cmdName, optName, desc, origDesc string) {
+	if len(optName) == 0 {
+		logger.Panicf("option on %q has no name", cmdName)
+	}
+	if len(origDesc) != 0 {
+		logger.Panicf("description of %s's %q of %q set from tag (=> no i18n)", cmdName, optName, origDesc)
+	}
+	if len(desc) > 0 {
+		if !unicode.IsUpper(([]rune)(desc)[0]) {
+			logger.Panicf("description of %s's %q not uppercase: %q", cmdName, optName, desc)
+		}
+	}
+}
+
+func lintArg(cmdName, optName, desc, origDesc string) {
+	lintDesc(cmdName, optName, desc, origDesc)
+	if optName[0] != '<' || optName[len(optName)-1] != '>' {
+		logger.Panicf("argument %q's %q should have <>s", cmdName, optName)
+	}
+}
+
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
@@ -153,32 +175,38 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 		}
 		cmd.Hidden = c.hidden
 
-		if c.optDescs != nil {
-			opts := cmd.Options()
-			if len(opts) != len(c.optDescs) {
-				logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+		opts := cmd.Options()
+		if c.optDescs != nil && len(opts) != len(c.optDescs) {
+			logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+		}
+		for _, opt := range opts {
+			name := opt.LongName
+			if name == "" {
+				name = string(opt.ShortName)
 			}
-			for _, opt := range opts {
-				desc, ok := c.optDescs[opt.LongName]
-				if !ok {
-					desc, ok = c.optDescs[string(opt.ShortName)]
-					if !ok {
-						logger.Panicf("%s missing description for %s", c.name, opt)
-					}
-				}
+			desc, ok := c.optDescs[name]
+			if !(c.optDescs == nil || ok) {
+				logger.Panicf("%s missing description for %s", c.name, name)
+			}
+			lintDesc(c.name, name, desc, opt.Description)
+			if desc != "" {
 				opt.Description = desc
 			}
 		}
 
-		if c.argDescs != nil {
-			args := cmd.Args()
-			if len(args) != len(c.argDescs) {
-				logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
+		args := cmd.Args()
+		if c.argDescs != nil && len(args) != len(c.argDescs) {
+			logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
+		}
+		for i, arg := range args {
+			name, desc := arg.Name, ""
+			if c.argDescs != nil {
+				name = c.argDescs[i].name
+				desc = c.argDescs[i].desc
 			}
-			for i, arg := range args {
-				arg.Name = c.argDescs[i].name
-				arg.Description = c.argDescs[i].desc
-			}
+			lintArg(c.name, name, desc, arg.Description)
+			arg.Name = name
+			arg.Description = desc
 		}
 	}
 	// Add the experimental command

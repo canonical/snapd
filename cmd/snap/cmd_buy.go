@@ -58,7 +58,7 @@ func init() {
 		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
 	}, []argDesc{{
 		name: "<snap>",
-		desc: i18n.G("snap name"),
+		desc: i18n.G("Snap name"),
 	}})
 }
 
