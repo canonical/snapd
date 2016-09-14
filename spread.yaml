@@ -10,6 +10,7 @@ environment:
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo $LANG)"
+    SNAP_IGNORE_SUDO_USER: 1
 
 backends:
     linode:
