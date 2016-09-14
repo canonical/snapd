@@ -91,13 +91,13 @@ static void __attribute__ ((used)) sc_enable_sanity_timeout()
  **/
 static void __attribute__ ((used)) sc_disable_sanity_timeout()
 {
+	if (sanity_timeout_expired) {
+		die("sanity timeout expired");
+	}
 	alarm(0);
 	struct sigaction act = { };
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
 		die("cannot uninstall signal handler for SIGALRM");
-	}
-	if (sanity_timeout_expired) {
-		die("sanity timeout expired");
 	}
 	debug("sanity timeout reset and disabled");
 }
