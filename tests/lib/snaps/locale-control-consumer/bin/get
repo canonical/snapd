@@ -4,11 +4,11 @@ import subprocess
 import sys
 
 def run(key):
+    prefix = key+'='
     with open('/etc/default/locale') as input_data:
         for line in input_data:
-            if key in line:
-                parts=line.split('=')
-                print(parts[1].replace('"', ''), end='')
+            if line.startswith(prefix):
+                print(line[len(prefix):].strip().strip('"'), end='')
 
 if __name__ == '__main__':
   sys.exit(run(sys.argv[1]))
