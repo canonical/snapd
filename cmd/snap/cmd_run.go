@@ -119,25 +119,6 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	return info, nil
 }
 
-// returns the environment that is important for the later stages of execution
-// (like SNAP_REVISION that snap-exec requires to work)
-func snapExecEnv(info *snap.Info) []string {
-	home := os.Getenv("HOME")
-	// HOME is not set for systemd services, so pull it out of passwd
-	if home == "" {
-		user, err := user.Current()
-		if err == nil {
-			home = user.HomeDir
-		}
-	}
-
-	env := snapenv.Basic(info)
-	if home != "" {
-		env = append(env, snapenv.User(info, home)...)
-	}
-	return env
-}
-
 func createUserDataDirs(info *snap.Info) error {
 	usr, err := userCurrent()
 	if err != nil {
@@ -193,29 +174,6 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
 }
 
-// FIXME: move to osutil?
-func envMap(env []string) map[string]string {
-	envMap := map[string]string{}
-	for _, kv := range env {
-		l := strings.SplitN(kv, "=", 2)
-		if len(l) < 2 {
-			continue // strange
-		}
-		k, v := l[0], l[1]
-		envMap[k] = v
-	}
-	return envMap
-}
-
-// FIXME: move to osutil?
-func envFromMap(em map[string]string) []string {
-	var out []string
-	for k, v := range em {
-		out = append(out, fmt.Sprintf("%s=%s", k, v))
-	}
-	return out
-}
-
 func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string, args []string) error {
 	if err := createUserDataDirs(info); err != nil {
 		logger.Noticef("WARNING: cannot create user data directory: %s", err)
@@ -240,13 +198,5 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	// merge environment and the snap environment, note that the
-	// snap environment overrides pre-existing env entries
-	env := envMap(os.Environ())
-	snapEnv := envMap(snapExecEnv(info))
-	for k, v := range snapEnv {
-		env[k] = v
-	}
-
-	return syscallExec(cmd[0], cmd, envFromMap(env))
+	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
 }
