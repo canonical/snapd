@@ -323,9 +323,26 @@ static void test_nsfs_fs_id()
 	g_assert_cmpint(buf.f_type, ==, NSFS_MAGIC);
 }
 
+static void test_sc_enable_sanity_timeout()
+{
+	if (g_test_subprocess()) {
+		sc_enable_sanity_timeout();
+		debug("waiting...");
+		usleep(4 * G_USEC_PER_SEC);
+		debug("woke up");
+		sc_disable_sanity_timeout();
+		return;
+	}
+	g_test_trap_subprocess(NULL, 5 * G_USEC_PER_SEC,
+			       G_TEST_SUBPROCESS_INHERIT_STDERR);
+	g_test_trap_assert_failed();
+}
+
 static void __attribute__ ((constructor)) init()
 {
 	g_test_add_func("/internal/rm_rf_tmp", test_rm_rf_tmp);
+	g_test_add_func("/ns/sc_enable_sanity_timeout",
+			test_sc_enable_sanity_timeout);
 	g_test_add_func("/ns/sc_alloc_ns_group", test_sc_alloc_ns_group);
 	g_test_add_func("/ns/sc_init_ns_group", test_sc_open_ns_group);
 	g_test_add_func("/ns/sc_lock_unlock_ns_mutex",
