@@ -19,20 +19,6 @@
 #define SNAP_MOUNT_SUPPORT_H
 
 /**
- * Unshare the mount namespace.
- *
- * Ensure we run in our own slave mount namespace, this will create a new mount
- * namespace and make it a slave of "/"
- *
- * Note that this means that no mount actions inside our namespace are
- * propagated to the main "/". We need this both for the private /tmp we create
- * and for the bind mounts we do on a classic distribution system.
- *
- * This also means you can't run an automount daemon under this launcher.
- **/
-void sc_unshare_mount_ns();
-
-/**
  * Assuming a new mountspace, populate it accordingly.
  *
  * This function performs many internal tasks:
