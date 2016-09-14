@@ -34,6 +34,9 @@ suites:
     spread-tests/main/:
         summary: Full-system tests for snap-confine
         restore-each: |
+            # Ensure that we don't have stranded processes around
+            test "$(pgrep ubuntu-core-launcher | wc -l)" -eq 0
+            test "$(pgrep snap-confine | wc -l)" -eq 0
             # NOTE: before snapd discards namespaces on snap removal
             # we have to do it ourselves. All of the tests use one
             # snap so this is easier to work with.
@@ -42,5 +45,9 @@ suites:
     spread-tests/regression/:
         summary: Regression tests for past bug-fixes
         restore-each: |
+            # Ensure that we don't have stranded processes around
+            test "$(pgrep ubuntu-core-launcher | wc -l)" -eq 0
+            test "$(pgrep snap-confine | wc -l)" -eq 0
+            # See the note above about discarding namespaces
             /usr/lib/snapd/snap-discard-ns snapd-hacker-toolbelt || true
             test "$(dmesg | grep DENIED | wc -l)" -eq 0
