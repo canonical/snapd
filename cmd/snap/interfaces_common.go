@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 // AttributePair contains a pair of key-value strings
@@ -38,7 +40,7 @@ func (ap *AttributePair) UnmarshalFlag(value string) error {
 	if len(parts) < 2 || parts[0] == "" {
 		ap.Key = ""
 		ap.Value = ""
-		return fmt.Errorf("invalid attribute: %q (want key=value)", value)
+		return fmt.Errorf(i18n.G("invalid attribute: %q (want key=value)"), value)
 	}
 	ap.Key = parts[0]
 	ap.Value = parts[1]
@@ -81,7 +83,7 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 		}
 	}
 	if sn.Snap == "" && sn.Name == "" {
-		return fmt.Errorf("invalid value: %q (want snap:name or snap)", value)
+		return fmt.Errorf(i18n.G("invalid value: %q (want snap:name or snap)"), value)
 	}
 	return nil
 }
