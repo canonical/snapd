@@ -405,12 +405,8 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	s.mockServer(c)
 
 	// redirect exec
-	execArg0 := ""
-	execArgs := []string{}
 	execEnv := []string{}
 	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
-		execArg0 = arg0
-		execArgs = args
 		execEnv = envv
 		return nil
 	})
