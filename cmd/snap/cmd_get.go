@@ -45,15 +45,15 @@ type cmdGet struct {
 func init() {
 	addCommand("get", shortGetHelp, longGetHelp, func() flags.Commander { return &cmdGet{} },
 		map[string]string{
-			"d": i18n.G("always return document, even with single key"),
+			"d": i18n.G("Always return document, even with single key"),
 		}, []argDesc{
 			{
 				name: "<snap>",
-				desc: i18n.G("the snap whose conf is being requested"),
+				desc: i18n.G("The snap whose conf is being requested"),
 			},
 			{
 				name: i18n.G("<key>"),
-				desc: i18n.G("key of interest within the configuration"),
+				desc: i18n.G("Key of interest within the configuration"),
 			},
 		})
 }

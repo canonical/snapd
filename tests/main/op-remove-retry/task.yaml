@@ -41,4 +41,4 @@ execute: |
 
     # cleanup umount blocker
     systemctl stop unmount-blocker
-    wait_for_service unmount-blocker inactive
+

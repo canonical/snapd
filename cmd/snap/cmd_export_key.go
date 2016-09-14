@@ -43,10 +43,10 @@ func init() {
 		func() flags.Commander {
 			return &cmdExportKey{}
 		}, map[string]string{
-			"account": i18n.G("format public key material as a request for an account-key for this account-id"),
+			"account": i18n.G("Format public key material as a request for an account-key for this account-id"),
 		}, []argDesc{{
 			name: i18n.G("<key-name>"),
-			desc: i18n.G("name of key to export"),
+			desc: i18n.G("Name of key to export"),
 		}})
 	cmd.hidden = true
 }
