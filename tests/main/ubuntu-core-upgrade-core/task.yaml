@@ -1,17 +1,17 @@
 summary: Ensure that a ubuntu-core refresh works
 
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64]
 
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot 
+        snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot
         echo "Ensure we are with the right sideloaded core"
         snap list |grep "ubuntu-core.*$(cat firstBoot)"
         grep "snap_core=ubuntu-core_$(cat firstBoot).snap" /proc/cmdline
 
         echo "Install a new ubuntu-core"
         snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
-        snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot 
+        snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot
         echo "Ensure we have next installed now"
         snap list |grep "ubuntu-core.*$(nextBoot)"
         if cmp firstBoot nextBoot; then

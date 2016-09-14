@@ -1,5 +1,5 @@
 summary: Ensure that service keep working after a reboot
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64]
 environment:
     # FIXME: use test-snapd-tools once it has a service
     SNAP: network-bind-consumer
@@ -18,4 +18,3 @@ execute: |
     if [ "$SPREAD_REBOOT" = "0" ]; then
         REBOOT
     fi
-    
