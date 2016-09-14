@@ -77,11 +77,13 @@ func (s *buyTestMockSnapServer) checkCounts() {
 }
 
 func (s *BuySnapSuite) SetUpTest(c *check.C) {
+	s.SnapSuite.SetUpTest(c)
 	s.Login(c)
 }
 
 func (s *BuySnapSuite) TearDownTest(c *check.C) {
 	s.Logout(c)
+	s.SnapSuite.TearDownTest(c)
 }
 
 func (s *BuySnapSuite) TestBuyHelp(c *check.C) {
