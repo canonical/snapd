@@ -99,7 +99,7 @@ static void __attribute__ ((used)) sc_disable_sanity_timeout()
 		die("sanity timeout expired");
 	}
 	alarm(0);
-	struct sigaction act = { };
+	struct sigaction act = {.sa_handler = SIG_DFL };
 	if (sigemptyset(&act.sa_mask) < 0)
 		die("cannot initialize POSIX signal set");
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
