@@ -67,7 +67,8 @@ static void sc_SIGALRM_handler(int signum)
  * are interrupted and a flag is set.
  *
  * The call should be paired with sc_disable_sanity_check_timeout() that
- * disabled the alarm and acts on the flag, aborting the process.
+ * disables the alarm and acts on the flag, aborting the process if the timeout
+ * gets exceeded.
  **/
 static void __attribute__ ((used)) sc_enable_sanity_timeout()
 {
