@@ -83,6 +83,18 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 		return nil, err
 	}
 
+	// Ensure the gpg-agent knows what tty to talk to to ask for
+	// the passphrase. This is needed because we drive gpg over
+	// a pipe and if the agent is not already started it will
+	// fail to be able to ask for a password.
+	if os.Getenv("GPG_TTY") == "" {
+		tty, err := os.Readlink("/proc/self/fd/0")
+		if err != nil {
+			return nil, err
+		}
+		os.Setenv("GPG_TTY", tty)
+	}
+
 	general := []string{"--homedir", homedir, "-q", "--no-auto-check-trustdb"}
 	allArgs := append(general, args...)
 

@@ -49,10 +49,10 @@ func init() {
 	}, nil, []argDesc{
 		{
 			name: i18n.G("<assertion type>"),
-			desc: i18n.G("assertion type name"),
+			desc: i18n.G("Assertion type name"),
 		}, {
 			name: i18n.G("<header filter>"),
-			desc: i18n.G("header=value"),
+			desc: i18n.G("Constrain listing to those matching header=value"),
 		},
 	})
 }

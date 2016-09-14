@@ -378,11 +378,12 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(500)
+		w.Write([]byte("error body"))
 	}))
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
 	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
-	c.Assert(err, ErrorMatches, "cannot get device session from store: store server returned status 500")
+	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
 	c.Assert(macaroon, Equals, "")
 }

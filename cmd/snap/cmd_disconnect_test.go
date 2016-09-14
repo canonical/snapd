@@ -48,7 +48,7 @@ $ snap disconnect <snap>
 Disconnects all plugs from the provided snap.
 
 Application Options:
-      --version            print the version and exit
+      --version            Print the version and exit
 
 Help Options:
   -h, --help               Show this help message
