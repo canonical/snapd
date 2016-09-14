@@ -53,7 +53,7 @@ first of these snaps that has a matching plug name is used and the command
 proceeds as above.
 
 Application Options:
-      --version            print the version and exit
+      --version            Print the version and exit
 
 Help Options:
   -h, --help               Show this help message

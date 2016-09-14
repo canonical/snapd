@@ -46,7 +46,7 @@ var (
 )
 
 type options struct {
-	Version func() `long:"version" description:"print the version and exit"`
+	Version func() `long:"version"`
 }
 
 type argDesc struct {
@@ -160,6 +160,7 @@ func Parser() *flags.Parser {
 	parser.LongDescription = i18n.G(`
 The snap tool interacts with the snapd daemon to control the snappy software platform.
 `)
+	parser.FindOptionByLongName("version").Description = i18n.G("Print the version and exit")
 
 	// Add all regular commands
 	for _, c := range commands {
