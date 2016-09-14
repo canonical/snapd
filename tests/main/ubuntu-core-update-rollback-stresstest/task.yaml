@@ -10,7 +10,9 @@ execute: |
         done
     }
     check_boot() {
-        grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+        if [ -f $(which grub-editenv) ]; then
+            grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+        fi
     }
     store_next_boot() {
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot
@@ -46,5 +48,7 @@ execute: |
     if [ "$SPREAD_REBOOT" = "4" ]; then
         wait_boot_ok
         check_boot
-        grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+        if [ -f $(which grub-editenv) ]; then
+            grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+        fi
     fi
