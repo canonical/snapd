@@ -317,6 +317,10 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		die("cannot create eventfd for mount namespace capture");
 	}
 	debug("forking support process for mount namespace capture");
+	// Store the PID of the "parent" process. This done instead of calls to
+	// getppid() because then we can reliably track the PID of the parent even
+	// if the child process is re-parented.
+	pid_t parent = getpid();
 	// Glibc defines pid as a signed 32bit integer. There's no standard way to
 	// print pid's portably so this is the best we can do.
 	pid_t pid = fork();
@@ -345,6 +349,22 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		if (prctl(PR_SET_PDEATHSIG, SIGINT, 0, 0, 0) < 0) {
 			die("cannot set parent process death notification signal to SIGINT");
 		}
+		// Check that parent process is still alive. If this is the case then
+		// we can *almost* reliably rely on the PR_SET_PDEATHSIG signal to wake
+		// us up from eventfd_read() below. In the rare case that the PID numbers
+		// overflow and the now-dead parent PID is recycled we will still hang
+		// forever on the read from eventfd below.
+		debug("ensuring that parent process is still alive");
+		if (kill(parent, 0) < 0) {
+			switch (errno) {
+			case ESRCH:
+				debug("parent process has already terminated");
+				abort();
+			default:
+				die("cannot ensure that parent process is still alive");
+				break;
+			}
+		}
 		if (fchdir(group->dir_fd) < 0) {
 			die("cannot move process for mount namespace capture to namespace group directory");
 		}
@@ -354,7 +374,6 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		if (eventfd_read(group->event_fd, &value) < 0) {
 			die("cannot read expected data from eventfd");
 		}
-		pid_t parent = getppid();
 		debug
 		    ("capturing mount namespace of process %d in namespace group %s",
 		     (int)parent, group->name);
