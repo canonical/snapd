@@ -758,6 +758,11 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 // isAutoConnectCandidate returns true if the plug is a candidate to
 // automatically connect to the given slot.
 func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
+	// check if this makes sense at all
+	if slot.Interface != plug.Interface {
+		return false
+	}
+
 	// content sharing auto connect candidates
 	if slot.Interface == "content" {
 		if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
@@ -767,13 +772,14 @@ func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
 		// any content later
 		return false
 	}
+
 	// OS snap auto connect candidates
-	if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
+	if slot.Snap.Type == snap.TypeOS {
 		return true
 	}
 
 	// FIXME: remove once we have assertions that provide this feature
-	if isSpecialAutoConnectSnap(plug.Snap) && slot.Interface == plug.Interface {
+	if isSpecialAutoConnectSnap(plug.Snap) {
 		return true
 	}
 
