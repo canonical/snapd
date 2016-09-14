@@ -343,7 +343,7 @@ func (validation *Validation) ApprovedSnapID() string {
 	return validation.HeaderString("approved-snap-id")
 }
 
-// ApprovedSnapRevision returns the revision of the gated snap.
+// ApprovedSnapRevision returns the approved revision of the gated snap.
 func (validation *Validation) ApprovedSnapRevision() int {
 	return validation.approvedSnapRevision
 }
@@ -365,7 +365,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"snap-id": validation.ApprovedSnapID(),
 	})
 	if err == ErrNotFound {
-		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
+		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion for it", validation.ApprovedSnapID())
 	}
 	if err != nil {
 		return err
@@ -375,7 +375,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"snap-id": validation.SnapID(),
 	})
 	if err == ErrNotFound {
-		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
+		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for it", validation.SnapID())
 	}
 	if err != nil {
 		return err
@@ -404,11 +404,10 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 		return nil, fmt.Errorf(`"approved-snap-revision" header must be >=1: %d`, approvedSnapRevision)
 	}
 
-	_, err = checkOptionalString(assert.headers, "revoked")
+	revoked, err := checkOptionalBool(assert.headers, "revoked")
 	if err != nil {
 		return nil, err
 	}
-	revoked := assert.headers["revoked"] == "true"
 
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
