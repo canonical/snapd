@@ -240,6 +240,8 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
+	// merge environment and the snap environment, note that the
+	// snap environment overrides pre-existing env entries
 	env := envMap(os.Environ())
 	snapEnv := envMap(snapExecEnv(info))
 	for k, v := range snapEnv {
