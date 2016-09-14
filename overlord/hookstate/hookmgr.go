@@ -36,9 +36,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// HookRunner is the hook runner. Exported here for use in tests.
-var HookRunner = runHookAndWait
-
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
@@ -88,10 +85,16 @@ func Manager(s *state.State) (*HookManager, error) {
 	return manager, nil
 }
 
-// HookTask returns a task that will run the specified hook.
-func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
+// HookTask returns a task that will run the specified hook. Note that the
+// initial context must properly marshal and unmarshal with encoding/json.
+func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string, initialContext map[string]interface{}) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook-setup", HookSetup{
+		Snap:     snapName,
+		Revision: revision,
+		Hook:     hookName,
+	})
+	task.Set("initial-context", initialContext)
 	return task
 }
 
@@ -142,11 +145,17 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	setup := &HookSetup{}
-	err := task.Get("hook-setup", setup)
+	hookSetupError := task.Get("hook-setup", setup)
+	var initialContext map[string]interface{}
+	initialContextError := task.Get("initial-context", &initialContext)
 	task.State().Unlock()
 
-	if err != nil {
-		return fmt.Errorf("cannot extract hook setup from task: %s", err)
+	if hookSetupError != nil {
+		return fmt.Errorf("cannot extract hook setup from task: %s", hookSetupError)
+	}
+
+	if initialContextError != nil {
+		return fmt.Errorf("cannot extract initial context from task: %s", initialContextError)
 	}
 
 	// Obtain a handler for this hook. The repository returns a list since it's
@@ -167,6 +176,13 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
+	// Initialize context as necessary
+	context.Lock()
+	for key, value := range initialContext {
+		context.Set(key, value)
+	}
+	context.Unlock()
+
 	contextID := context.ID()
 
 	m.contextsMutex.Lock()
@@ -185,7 +201,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// Actually run the hook
-	output, err := HookRunner(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
