@@ -154,6 +154,8 @@ const (
 	SecurityUDev SecuritySystem = "udev"
 	// SecurityMount identifies the mount security system.
 	SecurityMount SecuritySystem = "mount"
+	// SecurityKernelModule identifies the kernel modules security system
+	SecurityKernelModule SecuritySystem = "kernel_module"
 )
 
 var (
