@@ -45,6 +45,63 @@
 #include "mountinfo.h"
 #include "cleanup-funcs.h"
 
+/**
+ * Flag indicating that a sanity timeout has expired.
+ **/
+static volatile sig_atomic_t sanity_timeout_expired = 0;
+
+/**
+ * Signal handler for SIGALRM that sets sanity_timeout_expired flag to 1.
+ **/
+static void sc_SIGALRM_handler(int signum)
+{
+	sanity_timeout_expired = 1;
+}
+
+/**
+ * Enable a sanity-check timeout.
+ *
+ * The timeout is based on good-old alarm(2) and is intended to break a
+ * suspended system call, such as flock, after a few seconds. The built-in
+ * timeout is primed for three seconds. After that any sleeping system calls
+ * are interrupted and a flag is set.
+ *
+ * The call should be paired with sc_disable_sanity_check_timeout() that
+ * disabled the alarm and acts on the flag, aborting the process.
+ **/
+static void sc_enable_sanity_timeout()
+{
+	sanity_timeout_expired = 0;
+	struct sigaction act = {.sa_handler = sc_SIGALRM_handler };
+	// NOTE: we are using sigaction so that we can explicitly control signal
+	// flags and *not* pass the SA_RESTART flag. The intent is so that any
+	// system call we may be sleeping on to get interrupted.
+	if (sigaction(SIGALRM, &act, NULL) < 0) {
+		die("cannot install signal handler for SIGALRM");
+	}
+	alarm(3);
+	debug("initiated three second failure timer");
+}
+
+/**
+ * Disable sanity-check timeout and abort the process if it expired.
+ *
+ * This call has to be paired with sc_enable_sanity_timeout(), see the function
+ * description for more details.
+ **/
+static void sc_disable_sanity_timeout()
+{
+	alarm(0);
+	debug("reset and disabled the failure timer");
+	struct sigaction act = { };
+	if (sigaction(SIGALRM, &act, NULL) < 0) {
+		die("cannot uninstall signal handler for SIGALRM");
+	}
+	if (sanity_timeout_expired) {
+		die("sanity timeout expired");
+	}
+}
+
 /*!
  * The void directory.
  *
