@@ -27,11 +27,12 @@ import (
 var RunMain = run
 
 var (
-	SnapExecEnv        = snapExecEnv
-	CreateUserDataDirs = createUserDataDirs
-	SnapRunApp         = snapRunApp
-	SnapRunHook        = snapRunHook
-	Wait               = wait
+	SnapExecEnv         = snapExecEnv
+	CreateUserDataDirs  = createUserDataDirs
+	SnapRunApp          = snapRunApp
+	SnapRunHook         = snapRunHook
+	Wait                = wait
+	SnapRunSymlinkMagic = snapRunSymlinkMagic
 )
 
 func MockPollTime(d time.Duration) (restore func()) {

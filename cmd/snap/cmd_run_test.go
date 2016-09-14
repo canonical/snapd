@@ -391,3 +391,39 @@ func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--command=shell"})
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
+
+func (s *SnapSuite) TestMainSymlinkRunEndToEndHappy(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	// Only create revision 42
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockServer(c)
+
+	// redirect exec
+	called := false
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		called = true
+		return nil
+	})
+	defer restorer()
+
+	argv0 := os.Args[0]
+	defer func() { os.Args[0] = argv0 }()
+
+	runSymlink := filepath.Join(dirs.SnapBinariesDir, "snapname.app")
+	err := os.MkdirAll(filepath.Dir(runSymlink), 0755)
+	c.Assert(err, check.IsNil)
+	err = os.Symlink("/usr/bin/snap", runSymlink)
+	c.Assert(err, check.IsNil)
+	os.Args[0] = runSymlink
+
+	err = snaprun.SnapRunSymlinkMagic()
+	c.Assert(err, check.IsNil)
+	c.Check(called, check.Equals, true)
+}
