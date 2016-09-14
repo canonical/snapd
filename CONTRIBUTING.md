@@ -24,4 +24,4 @@ can be made on the solid base of a working system after the addition of the
 changes. If any tests need to be added for a PR to be merged it will be denoted
 during the review process.
 
-[1] http://www.ubuntu.com/legal/contributors
+[1]: http://www.ubuntu.com/legal/contributors
