@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -58,30 +57,28 @@ var mockSnapInfo = &snap.Info{
 
 func (ts *HTestSuite) TestBasic(c *C) {
 	env := basicEnv(mockSnapInfo)
-	sort.Strings(env)
 
-	c.Assert(env, DeepEquals, []string{
-		fmt.Sprintf("SNAP=%s/foo/17", dirs.SnapMountDir),
-		fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
-		"SNAP_COMMON=/var/snap/foo/common",
-		"SNAP_DATA=/var/snap/foo/17",
-		"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
-		"SNAP_NAME=foo",
-		"SNAP_REEXEC=",
-		"SNAP_REVISION=17",
-		"SNAP_VERSION=1.0",
+	c.Assert(env, DeepEquals, map[string]string{
+		"SNAP":              fmt.Sprintf("%s/foo/17", dirs.SnapMountDir),
+		"SNAP_ARCH":         arch.UbuntuArchitecture(),
+		"SNAP_COMMON":       "/var/snap/foo/common",
+		"SNAP_DATA":         "/var/snap/foo/17",
+		"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+		"SNAP_NAME":         "foo",
+		"SNAP_REEXEC":       "",
+		"SNAP_REVISION":     "17",
+		"SNAP_VERSION":      "1.0",
 	})
 
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
 	env := userEnv(mockSnapInfo, "/root")
-	sort.Strings(env)
 
-	c.Assert(env, DeepEquals, []string{
-		"HOME=/root/snap/foo/17",
-		"SNAP_USER_COMMON=/root/snap/foo/common",
-		"SNAP_USER_DATA=/root/snap/foo/17",
+	c.Assert(env, DeepEquals, map[string]string{
+		"HOME":             "/root/snap/foo/17",
+		"SNAP_USER_COMMON": "/root/snap/foo/common",
+		"SNAP_USER_DATA":   "/root/snap/foo/17",
 	})
 }
 
@@ -102,20 +99,19 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 		}
 
 		env := snapEnv(info)
-		sort.Strings(env)
-		c.Check(env, DeepEquals, []string{
-			fmt.Sprintf("HOME=%s/snap/snapname/42", usr.HomeDir),
-			fmt.Sprintf("SNAP=%s/snapname/42", dirs.SnapMountDir),
-			fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
-			"SNAP_COMMON=/var/snap/snapname/common",
-			"SNAP_DATA=/var/snap/snapname/42",
-			"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
-			"SNAP_NAME=snapname",
-			"SNAP_REEXEC=",
-			"SNAP_REVISION=42",
-			fmt.Sprintf("SNAP_USER_COMMON=%s/snap/snapname/common", usr.HomeDir),
-			fmt.Sprintf("SNAP_USER_DATA=%s/snap/snapname/42", usr.HomeDir),
-			"SNAP_VERSION=1.0",
+		c.Check(env, DeepEquals, map[string]string{
+			"HOME":              fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP":              fmt.Sprintf("%s/snapname/42", dirs.SnapMountDir),
+			"SNAP_ARCH":         arch.UbuntuArchitecture(),
+			"SNAP_COMMON":       "/var/snap/snapname/common",
+			"SNAP_DATA":         "/var/snap/snapname/42",
+			"SNAP_LIBRARY_PATH": "/var/lib/snapd/lib/gl:",
+			"SNAP_NAME":         "snapname",
+			"SNAP_REEXEC":       "",
+			"SNAP_REVISION":     "42",
+			"SNAP_USER_COMMON":  fmt.Sprintf("%s/snap/snapname/common", usr.HomeDir),
+			"SNAP_USER_DATA":    fmt.Sprintf("%s/snap/snapname/42", usr.HomeDir),
+			"SNAP_VERSION":      "1.0",
 		})
 	}
 }
