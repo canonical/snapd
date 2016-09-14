@@ -21,3 +21,5 @@ restore: |
     snap remove snapd-hacker-toolbelt
     rm -rf /var/snap/snapd-hacker-toolbelt
     rmdir /foo
+    # NOTE: snapd-hacker-toolbelt is blocked by apparmor from reading /var/lib/snapd/void
+    dmesg -c
