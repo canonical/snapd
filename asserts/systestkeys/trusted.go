@@ -113,6 +113,7 @@ C0QC8xuHSvOv3YRtzKna3smAfRlB
 authority-id: testrootorg
 public-key-sha3-384: hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR
 account-id: testrootorg
+name: test-root
 since: 2016-08-11T18:30:57+02:00
 body-length: 717
 sign-key-sha3-384: hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR
@@ -128,16 +129,16 @@ a1zzJoTKTqYWX9B+ZfENGKJUnhTP0x7Cm6lg3EUGay/b5hsA4DBoqShuf/N0jVLojdhxi3Ck/DBN
 lqCD0zy4uzvinjX+b4ay+LKBE3N15AsfEkWIwzI+1OdDlOWWqOxJkM6lrQ5hRQ1fHZoCiGjHbjeE
 1RIFO2TAw2tpyUcAEQEAAQ==
 
-AcLBUgQAAQoABgUCV6yoQQAAAaQQAJ+6saqG2DElfKZBbmthhlN8fHXSR8RX5LnbfE5zd4vTbthC
-//MjJtpUwq5vpM1/XB9p8cGZD1UlEdUa8l9N8oGSfJARZ+rAsPLlguzSoV4p6ph16HPlvBVt5npB
-DqK/Oxw+mtx2cnxn8X9Zw3wyz4mXp3cuu7PwSQvFSvcrxoNIOVkaHYEytQqqvZp8Lq1AirllGEL8
-EocRLOiG0O99P3BJytLWLYePRJ6qToiz58WuZEVj2lkC+HqrIoVrjgFAUlq100R15xgc4WtNFdWr
-hInauQxco+/vwHvCgxa/Ky+dABY/W+D9fuM7kjrhh/zqQiiIRGhfAndoi9I7Q/FISrECckZEN0yb
-N3ntOkTJpCnonTfGW6S0VDfGjQreekEU4nwYk3ewdCDY9n9N4zOPmylqU3u2lLJJNsi9rHWWYTOM
-9tXI1yocgrbKaQ8WQQeBQx0SVFdWOl+NvsGcKvs/7qm7SWr/pXo4F+MabqIzX1bb/WvgarpDiGYB
-p+ELFp1KRq+vS0qtP1fggrhyGmuQFeSf411cXKa21h870GcaBlmbZZMB/C1lD5fPG1WsrT7DO2Yu
-Uhf1Q4y+kAgxqL7zZUqJogpxNgw3He66uB7V7hf/UpOfFNeQZaZDCfSzbz/fNzNvNaqiMh6OUrbd
-k9v1ImHrPI6+o+xjCbMc2xdRcvM+
+AcLBXAQAAQoABgUCV8656QAKCRBMcZp594FxpNWlEADQgBlROdBTHpdZ3/9BbasxenUC3VXusMeK
+0DmnsHrsAsyVk6xiHQQ3hWxvXKWoDkDsOhUqcQTsDBcIaZ18+qwpQciyItd+w3d7SSJ+MKSUpwsB
+NOdgw1ykj7l1M/W7xAAPscFoV1xVSk9+rsLYFYDe23R+ecyotSmF+4QHj5b+hXeVIOUaqQTl5xPC
+h0zVYNIUWv42q4Z+hiBS8+8UJ0G+7z/27XORkGHY6TXCt0aph7s5egr8Lm+/jq7c95HVsa7DwSpv
+SqPajRnlyLiHFXUYAUPEU9oDgPwtLsqUkFfrv1WZ3ja1rDexgKBta+8BRyCAq3gPcMAjhiHXdjoW
+90p893l9N6K82RiEOO9ic0pEezjQldg97oU+ajXNm3ryns+HX6hRd39rpzIsrbVdbCqun4RwMbCM
+EVxgC/cuxMGcS40Co3O8wG3H/WIWOqcRQfolQTexmyzQljYt9WyWJdXmtPtaMzQGbOqE/dIjOK9j
+xvrghVU4kX6fJFwPi+azMrluHV+WGSVxPCuLW8o2aipjOd1/bUQCL5OwRuaEWuLCiV01J8H/JjWV
+hL4gGVqEM2KEPIDwY2yqX36jE7uN9O+mIPnS4Tdj0JQ5ZD1qh34wv+4QvhgNeyP120nuS1ykO9X0
+A806uPC5QK1+cgRMUz8zJ0afDNwE/DvpBQvE5CIi9A==
 `
 
 	TestStorePrivKey = `-----BEGIN PGP PRIVATE KEY BLOCK-----
@@ -199,11 +200,45 @@ o7ZSZ/h/bUY1EjE2
 `
 
 	TestStoreKeyID = "XCIC_Wvj9_hiAt0b10sDon74oGr3a6xGODkMZqrj63ZzNYUD5N87-ojjPoeN7f1Y"
+
+	encodedTestStoreAccountKey = `type: account-key
+authority-id: testrootorg
+public-key-sha3-384: XCIC_Wvj9_hiAt0b10sDon74oGr3a6xGODkMZqrj63ZzNYUD5N87-ojjPoeN7f1Y
+account-id: testrootorg
+name: test-store
+since: 2016-08-11T18:42:22+02:00
+body-length: 717
+sign-key-sha3-384: hIedp1AvrWlcDI4uS_qjoFLzjKl5enu4G2FYJpgB3Pj-tUzGlTQBxMBsBmi-tnJR
+
+AcbBTQRWhcGAARAAmJqmZvsS58INTs+UQ+jfo836vBS5tkU/hk7c0huZe3So2gc9kaJvjkjhZ6g0
+0/kGoidw3i2WkdMEp+JtvU9Ztfeu/Nn/OqkSc3Ap1KAmqL4OllPVII8H69w2zqvmo+PcqH0SvHAV
+EoOC2ToXP0wEHnAZsbVu56AKrwpHDppPEIvaS6glrsEX1AXpOeMHZLVRtfsBB6dlLXuula1UrSAL
+RFCEjXtqXqOto5Vo9C8p63lLBy19ifz4OriWAGBqZvFdItmo8VIPXSDdgMMHBlu2MSNJHVfo66yp
+buos5Qs6PlVARACLJgzgplI5sDbzXtVx5O9Q8YJjz4NfU0WOWYPWvmANXDeMNixWoWvuixYvsXaG
+x6mdD7Hh/gi8prkQmZ7gxW1MEOV9JThAqYjjs2ayGVD73EI2sKYxVwEg3iJToQ/cEz3O2U1HdmYj
+QfRDJiX3GEPBXXttDrbPM42SHElouldmJ+PkJDLdkGmA85xYUoEKHdEFIkjFStQcyO5CkyNZN7SH
+iAIwA4DpGMmFJ26maqVzJuiLvicri2FR/sJaSA24N8HbGne3gSS7WrSQS+jKe3IZPVy64NCoGvrW
+o/HvTeqsIfihKPEpXm8QVtjNhtkVn3RdIUgOaNWyAfnZ4dW1TVIATe+OHDw2TNyImTjE0x75nL6B
+1/Rrn+9VP9Swhv8AEQEAAQ==
+
+AcLBXAQAAQoABgUCV866kwAKCRBMcZp594FxpHWHD/9AaZXqyT/Zsmq/VzmAMpd9JvCH4PHQKtAP
+bXfP2Dnpa2wk2wuzQuSWunR8NDRyVh/aNVeTEZ9dFm/B8LR+U2O4rsHmFSeicmsTmo9u/HouRdEU
+zeSc6cbAxMPpfNSjr5J+URLjGRT6oX5fEBmRPx/OC9pEIScMx7uKmTKEnuyMzLRNN/6HiGWKrFCo
+nJdKkwRXrkCHyXWAOv1GumT7NDuyFcjAqt/UdHliTZkDBImKOsBmBVXMUjg7HCSS2uq/5WjStJ+B
+JHQ4GSsXBvVINs6BncNWcvV6mCQ73D57MzGhqo997Zb4tSrn7UNGWK7GLCzV3e/pFlG7pw6HbgnQ
++rxU2Oj/TPVw0tcnUiRl2ttKpm+nua0Cl+MD+Gx0KXLAVp0ZGOQ9yGyP9AePFzcOR8SlRIgxi0EI
+iJkSeYilqoKo3AJhnICRiqvAca2TGJoiJUryEgZ8jbTOElfaF2p+y0xvXGlWbKZm1gzGyvFM5fV5
+hJTlp/am+2uVn6U8wPACir4PrbuXYo7L4MIXww2OEO0ruBIaLARbc5IutSWmw6AEYQUxtsa9bdHV
+Zin7LGbEj6lZm8GycWQwh4B6Vnt6dJRIyPc/9G7uM8Ds/2Wa7+yAxhiPqm8DwlbOYh1npw4X4TLD
+IMGnTv5N3zllI+Xz4rqJzNTzEbvOIcrqWxCedQe79A==
+`
 )
 
 var (
 	TestRootAccount    asserts.Assertion
 	TestRootAccountKey asserts.Assertion
+	// here for convenience, does not need to be in the trusted set
+	TestStoreAccountKey asserts.Assertion
 )
 
 func init() {
@@ -215,9 +250,14 @@ func init() {
 	if err != nil {
 		panic(fmt.Sprintf("cannot decode trusted assertion: %v", err))
 	}
+	storeAccKey, err := asserts.Decode([]byte(encodedTestStoreAccountKey))
+	if err != nil {
+		panic(fmt.Sprintf("cannot decode test store assertion: %v", err))
+	}
 
 	TestRootAccount = acct
 	TestRootAccountKey = accKey
+	TestStoreAccountKey = storeAccKey
 }
 
 // Inject includes the test trusted assertions in the system trusted set.

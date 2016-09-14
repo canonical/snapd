@@ -26,6 +26,7 @@ import (
 
 	_ "golang.org/x/crypto/sha3" // expected for digests
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -34,7 +35,8 @@ import (
 // publisher and its other properties.
 type SnapDeclaration struct {
 	assertionBase
-	timestamp time.Time
+	refreshControl []string
+	timestamp      time.Time
 }
 
 // Series returns the series for which the snap is being declared.
@@ -62,6 +64,11 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
 
+// RefreshControl returns the ids of snaps whose updates are controlled by this declaration.
+func (mod *SnapDeclaration) RefreshControl() []string {
+	return mod.refreshControl
+}
+
 // Implement further consistency checks.
 func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
@@ -76,6 +83,7 @@ func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey
 	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -105,10 +113,31 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
+	refControl, err := checkStringList(assert.headers, "refresh-control")
+	if err != nil {
+		return nil, err
+	}
+
 	return &SnapDeclaration{
-		assertionBase: assert,
-		timestamp:     timestamp,
+		assertionBase:  assert,
+		timestamp:      timestamp,
+		refreshControl: refControl,
 	}, nil
+}
+
+// SnapFileSHA3_384 computes the SHA3-384 digest of the given snap file.
+// It also returns its size.
+func SnapFileSHA3_384(snapPath string) (digest string, size uint64, err error) {
+	sha3_384Dgst, size, err := osutil.FileDigest(snapPath, crypto.SHA3_384)
+	if err != nil {
+		return "", 0, fmt.Errorf("cannot compute snap %q digest: %v", snapPath, err)
+	}
+
+	sha3_384, err := EncodeDigest(crypto.SHA3_384, sha3_384Dgst)
+	if err != nil {
+		return "", 0, fmt.Errorf("cannot encode snap %q digest: %v", snapPath, err)
+	}
+	return sha3_384, size, nil
 }
 
 // SnapBuild holds a snap-build assertion, asserting the properties of a snap
@@ -298,5 +327,110 @@ func assembleSnapRevision(assert assertionBase) (Assertion, error) {
 		snapSize:      snapSize,
 		snapRevision:  snapRevision,
 		timestamp:     timestamp,
+	}, nil
+}
+
+// Validation holds a validation assertion, describing that a combination of
+// (snap-id, approved-snap-id, approved-revision) has been validated for
+// the series, meaning updating to that revision of approved-snap-id
+// has been approved by the owner of the gating snap with snap-id.
+type Validation struct {
+	assertionBase
+	revoked              bool
+	timestamp            time.Time
+	approvedSnapRevision int
+}
+
+// Series returns the series for which the validation holds.
+func (validation *Validation) Series() string {
+	return validation.HeaderString("series")
+}
+
+// SnapID returns the ID of the gating snap.
+func (validation *Validation) SnapID() string {
+	return validation.HeaderString("snap-id")
+}
+
+// ApprovedSnapID returns the ID of the gated snap.
+func (validation *Validation) ApprovedSnapID() string {
+	return validation.HeaderString("approved-snap-id")
+}
+
+// ApprovedSnapRevision returns the approved revision of the gated snap.
+func (validation *Validation) ApprovedSnapRevision() int {
+	return validation.approvedSnapRevision
+}
+
+// Revoked returns true if the validation has been revoked.
+func (validation *Validation) Revoked() bool {
+	return validation.revoked
+}
+
+// Timestamp returns the time when the validation was issued.
+func (validation *Validation) Timestamp() time.Time {
+	return validation.timestamp
+}
+
+// Implement further consistency checks.
+func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) error {
+	_, err := db.Find(SnapDeclarationType, map[string]string{
+		"series":  validation.Series(),
+		"snap-id": validation.ApprovedSnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for approved-snap-id %q", validation.SnapID(), validation.ApprovedSnapID())
+	}
+	if err != nil {
+		return err
+	}
+	_, err = db.Find(SnapDeclarationType, map[string]string{
+		"series":  validation.Series(),
+		"snap-id": validation.SnapID(),
+	})
+	if err == ErrNotFound {
+		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
+	}
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*Validation)(nil)
+
+// Prerequisites returns references to this validation's prerequisite assertions.
+func (validation *Validation) Prerequisites() []*Ref {
+	return []*Ref{
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.SnapID()}},
+		&Ref{Type: SnapDeclarationType, PrimaryKey: []string{validation.Series(), validation.ApprovedSnapID()}},
+	}
+}
+
+func assembleValidation(assert assertionBase) (Assertion, error) {
+	approvedSnapRevision, err := checkInt(assert.headers, "approved-snap-revision")
+	if err != nil {
+		return nil, err
+	}
+	if approvedSnapRevision < 1 {
+		return nil, fmt.Errorf(`"approved-snap-revision" header must be >=1: %d`, approvedSnapRevision)
+	}
+
+	revoked, err := checkOptionalBool(assert.headers, "revoked")
+	if err != nil {
+		return nil, err
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &Validation{
+		assertionBase:        assert,
+		revoked:              revoked,
+		timestamp:            timestamp,
+		approvedSnapRevision: approvedSnapRevision,
 	}, nil
 }

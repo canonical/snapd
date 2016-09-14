@@ -127,17 +127,28 @@ func snapExecApp(snapApp, revision, command string, args []string) error {
 		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
 	}
 
-	cmd, err := findCommand(app, command)
+	cmdAndArgs, err := findCommand(app, command)
 	if err != nil {
 		return err
 	}
+	// strings.Split() is ok here because we validate all app fields
+	// and the whitelist is pretty strict (see
+	// snap/validate.go:appContentWhitelist)
+	cmdArgv := strings.Split(cmdAndArgs, " ")
+	cmd := cmdArgv[0]
+	cmdArgs := cmdArgv[1:]
 
 	// build the environment from the yaml
 	env := append(os.Environ(), app.Env()...)
 
 	// run the command
 	fullCmd := filepath.Join(app.Snap.MountDir(), cmd)
+	if command == "shell" {
+		fullCmd = "/bin/bash"
+		cmdArgs = nil
+	}
 	fullCmdArgs := []string{fullCmd}
+	fullCmdArgs = append(fullCmdArgs, cmdArgs...)
 	fullCmdArgs = append(fullCmdArgs, args...)
 	if err := syscallExec(fullCmd, fullCmdArgs, env); err != nil {
 		return fmt.Errorf("cannot exec %q: %s", fullCmd, err)

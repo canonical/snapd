@@ -114,13 +114,40 @@ If a test hangs, you can enable verbose mode:
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
+### Running the spread tests
+
+To run the spread tests locally you need the latest version of spread
+from https://github.com/snapcore/spread. It can be installed via:
+
+    $ sudo apt install qemu-kvm autopkgtest
+    $ sudo snap install spread
+
+Then setup the environment via:
+
+    $ mkdir -p .spread/qemu
+    $ cd .spread/qemu
+    $ adt-buildvm-ubuntu-cloud
+    $ mv adt-xenial-amd64-cloud.img ubuntu-16.04.img
+
+And you can run the tests via:
+
+    $ spread -v qemu:
+
+For quick reuse you can use:
+
+    $ spread -keep qemu:
+
+It will print how to reuse the systems. Make sure to use
+`export REUSE_PROJECT=1` in your environment too.
+
+
 ### Testing snapd on a snappy system
 
 To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -l /run/snapd.socket ./snapd
+    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 This will stop the installed snapd and activate the new one. Once it's
 printed out something like `Listening on /run/snapd.socket as 3.` you
@@ -130,6 +157,10 @@ should then
 
 so the socket has the right permissions (otherwise you need `sudo` to
 connect).
+
+## Reporting bugs
+
+If you have found an issue with the application, please [file a bug](https://bugs.launchpad.net/snappy/+filebug) on the [bugs list on Launchpad](https://bugs.launchpad.net/snappy/).
 
 
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master

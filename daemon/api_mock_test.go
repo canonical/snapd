@@ -48,6 +48,7 @@ func (s *apiSuite) mockSnap(c *C, yamlText string) *snap.Info {
 			{
 				RealName: snapInfo.Name(),
 				Revision: snapInfo.Revision,
+				SnapID:   "ididid",
 			},
 		},
 		Current: snapInfo.Revision,
@@ -107,4 +108,9 @@ slots:
   interface: different
   key: value
   label: label
+`
+
+var configYaml = `
+name: config-snap
+version: 1
 `

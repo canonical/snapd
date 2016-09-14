@@ -11,11 +11,11 @@ details: |
 prepare: |
     echo "Given a snap declaring a content sharing slot is installed"
     snapbuild $TESTSLIB/snaps/content-slot .
-    snap install ./content-slot_1.0_all.snap
+    snap install --dangerous ./content-slot_1.0_all.snap
 
     echo "And a snap declaring a content sharing plug is installed"
     snapbuild $TESTSLIB/snaps/content-plug .
-    snap install ./content-plug_1.0_all.snap
+    snap install --dangerous ./content-plug_1.0_all.snap
 
 execute: |
     CONNECTED_PATTERN="content-slot:shared-content-slot +content-plug:shared-content-plug"
@@ -26,6 +26,9 @@ execute: |
 
     echo "And fstab files are created"
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
+
+    echo "And we can use the shared content"
+    content-plug | grep "Some shared content"
 
     echo "============================================"
 

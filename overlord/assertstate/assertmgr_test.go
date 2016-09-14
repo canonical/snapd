@@ -21,10 +21,8 @@ package assertstate_test
 
 import (
 	"crypto"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -53,6 +51,7 @@ type assertMgrSuite struct {
 	mgr   *assertstate.AssertManager
 
 	storeSigning *assertstest.StoreStack
+	dev1Acct     *asserts.Account
 
 	restore func()
 }
@@ -73,15 +72,15 @@ func (sto *fakeStore) pokeStateLock() {
 
 func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string, _ *auth.UserState) (asserts.Assertion, error) {
 	sto.pokeStateLock()
-	ref := &asserts.Ref{assertType, key}
+	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	a, err := ref.Resolve(sto.db.Find)
 	if err != nil {
-		return nil, fmt.Errorf("simulated remote assertion retrieve: %s", err)
+		return nil, &store.AssertionNotFoundError{Ref: ref}
 	}
 	return a, nil
 }
 
-func (sto *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (*fakeStore) Snap(string, string, bool, snap.Revision, *auth.UserState) (*snap.Info, error) {
 	panic("fakeStore.Snap not expected")
 }
 
@@ -117,6 +116,8 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
+	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+
 	s.state = state.New(nil)
 	mgr, err := assertstate.Manager(s.state)
 	c.Assert(err, IsNil)
@@ -143,8 +144,6 @@ func (s *assertMgrSuite) TestDB(c *C) {
 }
 
 func (s *assertMgrSuite) TestAdd(c *C) {
-	dev1Acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -152,12 +151,12 @@ func (s *assertMgrSuite) TestAdd(c *C) {
 	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	err = assertstate.Add(s.state, dev1Acct)
+	err = assertstate.Add(s.state, s.dev1Acct)
 	c.Assert(err, IsNil)
 
 	db := assertstate.DB(s.state)
 	devAcct, err := db.Find(asserts.AccountType, map[string]string{
-		"account-id": dev1Acct.AccountID(),
+		"account-id": s.dev1Acct.AccountID(),
 	})
 	c.Assert(err, IsNil)
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
@@ -181,21 +180,15 @@ func makeDigest(rev int) string {
 	return string(d)
 }
 
-func makeHexDigest(rev int) string {
-	return hex.EncodeToString(fakeHash(rev))
-}
-
 func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
-	dev1Acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	err := s.storeSigning.Add(dev1Acct)
+	err := s.storeSigning.Add(s.dev1Acct)
 	c.Assert(err, IsNil)
 
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
-		"publisher-id": dev1Acct.AccountID(),
-		"gates":        "",
+		"publisher-id": s.dev1Acct.AccountID(),
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
@@ -205,12 +198,11 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
 
 	for _, rev := range revisions {
 		headers = map[string]interface{}{
-			"series":        "16",
 			"snap-id":       "snap-id-1",
 			"snap-sha3-384": makeDigest(rev),
-			"snap-size":     "1000",
+			"snap-size":     fmt.Sprintf("%d", len(fakeSnap(rev))),
 			"snap-revision": fmt.Sprintf("%d", rev),
-			"developer-id":  dev1Acct.AccountID(),
+			"developer-id":  s.dev1Acct.AccountID(),
 			"timestamp":     time.Now().Format(time.RFC3339),
 		}
 		snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
@@ -274,22 +266,22 @@ func (s *assertMgrSuite) settle() {
 	}
 }
 
-func (s *assertMgrSuite) TestFetchSnapAssertions(c *C) {
+func (s *assertMgrSuite) TestValidateSnap(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
-	snapPath := snap.MinimalPlaceInfo("foo", snap.R(10)).MountFile()
-	err := os.MkdirAll(filepath.Dir(snapPath), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "foo.snap")
+	err := ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "...")
-	t := s.state.NewTask("fetch-snap-assertions", "Fetch snap assertions")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
 	ss := snapstate.SnapSetup{
-		UserID: 0,
+		SnapPath: snapPath,
+		UserID:   0,
 		SideInfo: &snap.SideInfo{
 			RealName: "foo",
 			SnapID:   "snap-id-1",
@@ -312,4 +304,68 @@ func (s *assertMgrSuite) TestFetchSnapAssertions(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(snapRev.(*asserts.SnapRevision).SnapRevision(), Equals, 10)
+}
+
+func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "foo.snap")
+	err := ioutil.WriteFile(snapPath, fakeSnap(33), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+	ss := snapstate.SnapSetup{
+		SnapPath: snapPath,
+		UserID:   0,
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			SnapID:   "snap-id-1",
+			Revision: snap.R(33),
+		},
+	}
+	t.Set("snap-setup", ss)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.mgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
+}
+
+func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
+	s.prereqSnapAssertions(c, 10)
+
+	tempdir := c.MkDir()
+	snapPath := filepath.Join(tempdir, "foo.snap")
+	err := ioutil.WriteFile(snapPath, fakeSnap(10), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install", "...")
+	t := s.state.NewTask("validate-snap", "Fetch and check snap assertions")
+	ss := snapstate.SnapSetup{
+		SnapPath: snapPath,
+		UserID:   0,
+		SideInfo: &snap.SideInfo{
+			RealName: "f",
+			SnapID:   "snap-id-1",
+			Revision: snap.R(10),
+		},
+	}
+	t.Set("snap-setup", ss)
+	chg.AddTask(t)
+
+	s.state.Unlock()
+	defer s.mgr.Stop()
+	s.settle()
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
 }
