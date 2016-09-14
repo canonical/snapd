@@ -9,7 +9,8 @@ environment:
     SNAP_REEXEC: 0
     SPREAD_STORE_USER: "$(HOST: echo $SPREAD_STORE_USER)"
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
-    LANG: "$(echo $LANG)"
+    LANG: "$(echo ${LANG:-C.UTF-8})"
+    LANGUAGE: "$(echo ${LANGUAGE:-en})"
     # important to ensure adhoc and linode/qemu behave the same
     SUDO_USER: ""
     SUDO_UID: ""
