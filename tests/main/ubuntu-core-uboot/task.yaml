@@ -1,0 +1,13 @@
+summary: Ensure we have no unpacked kernel.img/initrd.img on uboot systems
+systems: [ubuntu-core-16-device-arm]
+environment:
+    NAME/initrdimg: initrd.img*
+    NAME/kernelimg: kernel.img*
+    BASE_DIR: /boot/uboot/*-kernel_*.snap/
+
+execute: |
+    output=$(find "$BASE_DIR" -name "$NAME" )
+    if [ -z "$output" ]; then
+        echo "Not found expected file $NAME in $BASE_DIR"
+        exit 1
+    fi
