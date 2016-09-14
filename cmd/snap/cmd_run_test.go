@@ -391,3 +391,46 @@ func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--command=shell"})
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
 }
+
+func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockServer(c)
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// set a SNAP{,_*} variable in the environment
+	os.Setenv("SNAP_NAME", "something-else")
+	os.Setenv("SNAP_ARCH", "PDP-7")
+	defer os.Unsetenv("SNAP_NAME")
+	defer os.Unsetenv("SNAP_ARCH")
+	// but unreleated stuff is ok
+	os.Setenv("SNAP_THE_WORLD", "YES")
+	defer os.Unsetenv("SNAP_THE_WORLD")
+
+	// and ensure those SNAP_ vars get overriden
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_NAME=something-else")
+	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_ARCH=PDP-7")
+	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
+}
