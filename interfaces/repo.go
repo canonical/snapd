@@ -721,7 +721,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 // if the interfaces are not autoconnect and the snap is not an OS snap.
 // FIXME: remove once we have assertions that provide this feature
 func isSpecialAutoConnectSnap(snap *snap.Info) bool {
-	if snap.Name() == "canonical-livepatch" && snap.Developer == "canonical" {
+	if snap.Name() == "canonical-livepatch" && snap.DeveloperID == "canonical" {
 		return true
 	}
 	return false

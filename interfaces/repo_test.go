@@ -1260,8 +1260,8 @@ slots:
 `))
 	c.Assert(err, IsNil)
 
-	plugSnap.Developer = developer
-	slotSnap.Developer = "canonical"
+	plugSnap.DeveloperID = developer
+	slotSnap.DeveloperID = "canonical"
 	slotSnap.Type = snap.TypeOS
 
 	err = repo.AddSnap(plugSnap)
@@ -1278,7 +1278,7 @@ func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "canonical-livepatch")
 	c.Check(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
-	c.Check(candidateSlots[0].Snap.Developer, Equals, "canonical")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "restricted")
 }
 
