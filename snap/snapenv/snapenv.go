@@ -29,8 +29,11 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// ExecEnv returns the environment that is important for the later stages
-// of execution (like SNAP_REVISION that snap-exec requires to work)
+// ExecEnv returns the full environment that is required for
+// snap-{confine,exec}(like SNAP_{NAME,REVISION} etc are all set).
+//
+// It merges it with the existing os.Environ() and ensures the SNAP_*
+// overrides the any pre-existing environment variables.
 func ExecEnv(info *snap.Info) []string {
 	// merge environment and the snap environment, note that the
 	// snap environment overrides pre-existing env entries
@@ -42,8 +45,8 @@ func ExecEnv(info *snap.Info) []string {
 	return envFromMap(env)
 }
 
-// returns the environment that is important for the later stages of execution
-// (like SNAP_REVISION that snap-exec requires to work)
+// snapEnv returns the extra environment that is required for
+// snap-{confine,exec} to work.
 func snapEnv(info *snap.Info) map[string]string {
 	home := os.Getenv("HOME")
 	// HOME is not set for systemd services, so pull it out of passwd
