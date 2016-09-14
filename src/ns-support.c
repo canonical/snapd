@@ -69,7 +69,7 @@ static void sc_SIGALRM_handler(int signum)
  * The call should be paired with sc_disable_sanity_check_timeout() that
  * disabled the alarm and acts on the flag, aborting the process.
  **/
-static void sc_enable_sanity_timeout()
+static void __attribute__ ((used)) sc_enable_sanity_timeout()
 {
 	sanity_timeout_expired = 0;
 	struct sigaction act = {.sa_handler = sc_SIGALRM_handler };
@@ -89,7 +89,7 @@ static void sc_enable_sanity_timeout()
  * This call has to be paired with sc_enable_sanity_timeout(), see the function
  * description for more details.
  **/
-static void sc_disable_sanity_timeout()
+static void __attribute__ ((used)) sc_disable_sanity_timeout()
 {
 	alarm(0);
 	debug("reset and disabled the failure timer");
