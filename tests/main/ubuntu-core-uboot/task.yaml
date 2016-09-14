@@ -1,4 +1,4 @@
-summary: Ensure we have no unpacked kernel.img/initrd.img on uboot systems
+summary: Ensure we have unpacked kernel.img/initrd.img on uboot systems
 systems: [ubuntu-core-16-device-arm]
 environment:
     NAME/initrdimg: initrd.img*
