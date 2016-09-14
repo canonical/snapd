@@ -18,3 +18,6 @@ restore: |
     umount /run/snapd/ns
     rm /run/snapd/ns/foo.mnt
     rm /run/snapd/ns/foo.lock
+    # The removal is optional as the directory may contain other files
+    # that we don't want to touch here.
+    rmdir /run/snapd/ns || true
