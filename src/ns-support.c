@@ -80,7 +80,7 @@ static void __attribute__ ((used)) sc_enable_sanity_timeout()
 		die("cannot install signal handler for SIGALRM");
 	}
 	alarm(3);
-	debug("initiated three second failure timer");
+	debug("sanity timeout initialized and set for three seconds");
 }
 
 /**
@@ -92,7 +92,6 @@ static void __attribute__ ((used)) sc_enable_sanity_timeout()
 static void __attribute__ ((used)) sc_disable_sanity_timeout()
 {
 	alarm(0);
-	debug("reset and disabled the failure timer");
 	struct sigaction act = { };
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
 		die("cannot uninstall signal handler for SIGALRM");
@@ -100,6 +99,7 @@ static void __attribute__ ((used)) sc_disable_sanity_timeout()
 	if (sanity_timeout_expired) {
 		die("sanity timeout expired");
 	}
+	debug("sanity timeout reset and disabled");
 }
 
 /*!
