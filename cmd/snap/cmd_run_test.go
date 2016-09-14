@@ -25,11 +25,9 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"sort"
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -63,41 +61,6 @@ func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	invalidParameters = []string{"run", "--hook=apply-config", "foo", "bar", "snap-name"}
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"apply-config\": bar.*")
-}
-
-func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, check.IsNil)
-	info.SideInfo.Revision = snap.R(42)
-
-	usr, err := user.Current()
-	c.Assert(err, check.IsNil)
-
-	homeEnv := os.Getenv("HOME")
-	defer os.Setenv("HOME", homeEnv)
-
-	for _, withHomeEnv := range []bool{true, false} {
-		if !withHomeEnv {
-			os.Setenv("HOME", "")
-		}
-
-		env := snaprun.SnapExecEnv(info)
-		sort.Strings(env)
-		c.Check(env, check.DeepEquals, []string{
-			fmt.Sprintf("HOME=%s/snap/snapname/42", usr.HomeDir),
-			fmt.Sprintf("SNAP=%s/snapname/42", dirs.SnapMountDir),
-			fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
-			"SNAP_COMMON=/var/snap/snapname/common",
-			"SNAP_DATA=/var/snap/snapname/42",
-			"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
-			"SNAP_NAME=snapname",
-			"SNAP_REEXEC=",
-			"SNAP_REVISION=42",
-			fmt.Sprintf("SNAP_USER_COMMON=%s/snap/snapname/common", usr.HomeDir),
-			fmt.Sprintf("SNAP_USER_DATA=%s/snap/snapname/42", usr.HomeDir),
-			"SNAP_VERSION=1.0",
-		})
-	}
 }
 
 func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
