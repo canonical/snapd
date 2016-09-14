@@ -64,7 +64,7 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 	return snapdcl.timestamp
 }
 
-// RefreshControl return the snaps whose updates are controlled by this declaration
+// RefreshControl returns the ids of snaps whose updates are controlled by this declaration.
 func (mod *SnapDeclaration) RefreshControl() []string {
 	return mod.refreshControl
 }
