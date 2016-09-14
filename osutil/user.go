@@ -119,6 +119,14 @@ func RealUser() (*user.User, error) {
 		return nil, err
 	}
 
+	// allow overriding the SUDO_USER detection for the integration
+	// tests to ensure we do not get inconsitent result for
+	// the regular runs (which uses root) and the adhoc runs (which
+	// use sudo -i)
+	if os.Getenv("SNAP_IGNORE_SUDO_USER") == "1" {
+		return cur, nil
+	}
+
 	realName := os.Getenv("SUDO_USER")
 	if realName == "" {
 		// not sudo; current is correct
