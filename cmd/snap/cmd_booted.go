@@ -24,9 +24,11 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/partition"
+	"github.com/snapcore/snapd/release"
 )
 
 type cmdBooted struct{}
@@ -37,7 +39,7 @@ func init() {
 		"internal",
 		func() flags.Commander {
 			return &cmdBooted{}
-		})
+		}, nil, nil)
 	cmd.hidden = true
 }
 
@@ -46,9 +48,14 @@ func (x *cmdBooted) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
+	if release.OnClassic {
+		fmt.Fprintf(Stdout, i18n.G("Ignoring 'booted' on classic"))
+		return nil
+	}
+
 	bootloader, err := partition.FindBootloader()
 	if err != nil {
-		return fmt.Errorf("can not mark boot successful: %s", err)
+		return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 	}
 
 	if err := partition.MarkBootSuccessful(bootloader); err != nil {

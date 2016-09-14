@@ -710,11 +710,17 @@ func (s *interfaceManagerSuite) testUndoDicardConns(c *C, snapName string) {
 	// Run the discard-conns task and let it finish
 	change := s.addDiscardConnsChange(c, snapName)
 
+	// Add a dummy task just to hold the change not ready.
+	s.state.Lock()
+	dummy := s.state.NewTask("dummy", "")
+	change.AddTask(dummy)
+	s.state.Unlock()
+
 	mgr.Ensure()
 	mgr.Wait()
 
 	s.state.Lock()
-	c.Check(change.Status(), Equals, state.DoneStatus)
+	c.Check(change.Status(), Equals, state.DoStatus)
 	change.Abort()
 	s.state.Unlock()
 

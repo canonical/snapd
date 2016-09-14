@@ -1,3 +1,0 @@
-#!/bin/sh
-
-while :; do echo 'Service running'; sleep 10; done

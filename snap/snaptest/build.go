@@ -197,7 +197,7 @@ func copyToBuildDir(sourceDir, buildDir string) error {
 
 		// fail if its unsupported
 		if !info.Mode().IsRegular() {
-			return fmt.Errorf("can not handle type of file %s", path)
+			return fmt.Errorf("cannot handle type of file %s", path)
 		}
 
 		// it's a file. Maybe we can link it?

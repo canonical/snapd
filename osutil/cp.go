@@ -20,9 +20,11 @@
 package osutil
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
 
 // CopyFlag is used to tweak the behaviour of CopyFile
@@ -63,7 +65,13 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 		// Our native copy code does not preserve all attributes
 		// (yet). If the user needs this functionatlity we just
 		// fallback to use the system's "cp" binary to do the copy.
-		return runCpPreserveAll(src, dst)
+		if err := runCpPreserveAll(src, dst, "copy all"); err != nil {
+			return err
+		}
+		if flags&CopyFlagSync != 0 {
+			return runSync()
+		}
+		return nil
 	}
 
 	fin, err := openfile(src, os.O_RDONLY, 0)
@@ -109,16 +117,18 @@ func CopyFile(src, dst string, flags CopyFlag) (err error) {
 	return nil
 }
 
-func runCpPreserveAll(path, dest string) error {
-	cmd := exec.Command("cp", "-av", path, dest)
+func runCmd(cmd *exec.Cmd, errdesc string) error {
 	if output, err := cmd.CombinedOutput(); err != nil {
+		output = bytes.TrimSpace(output)
 		if exitCode, err := ExitCode(err); err == nil {
 			return &ErrCopySpecialFile{
+				desc:     errdesc,
 				exitCode: exitCode,
 				output:   output,
 			}
 		}
 		return &ErrCopySpecialFile{
+			desc:   errdesc,
 			err:    err,
 			output: output,
 		}
@@ -127,14 +137,26 @@ func runCpPreserveAll(path, dest string) error {
 	return nil
 }
 
+func runSync(args ...string) error {
+	return runCmd(exec.Command("sync", args...), "sync")
+}
+
+func runCpPreserveAll(path, dest, errdesc string) error {
+	return runCmd(exec.Command("cp", "-av", path, dest), errdesc)
+}
+
 // CopySpecialFile is used to copy all the things that are not files
 // (like device nodes, named pipes etc)
 func CopySpecialFile(path, dest string) error {
-	return runCpPreserveAll(path, dest)
+	if err := runCpPreserveAll(path, dest, "copy device node"); err != nil {
+		return err
+	}
+	return runSync(filepath.Dir(dest))
 }
 
 // ErrCopySpecialFile is returned if a special file copy fails
 type ErrCopySpecialFile struct {
+	desc     string
 	exitCode int
 	output   []byte
 	err      error
@@ -142,8 +164,8 @@ type ErrCopySpecialFile struct {
 
 func (e ErrCopySpecialFile) Error() string {
 	if e.err == nil {
-		return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.exitCode)
+		return fmt.Sprintf("failed to %s: %q (%v)", e.desc, e.output, e.exitCode)
 	}
 
-	return fmt.Sprintf("failed to copy device node: %q (%v)", e.output, e.err)
+	return fmt.Sprintf("failed to %s: %q (%v)", e.desc, e.output, e.err)
 }

@@ -20,7 +20,6 @@
 package firstboot
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -46,35 +45,43 @@ func StampFirstBoot() error {
 	return osutil.AtomicWriteFile(dirs.SnapFirstBootStamp, []byte{}, 0644, 0)
 }
 
-var globs = []string{"/sys/class/net/eth*", "/sys/class/net/en*"}
-var ethdir = "/etc/network/interfaces.d"
-var ifup = "/sbin/ifup"
+var netplanConfigFile = "/etc/netplan/00-snapd-config.yaml"
+var enableConfig = []string{"netplan", "apply"}
 
-func EnableFirstEther() error {
-	var eths []string
-	for _, glob := range globs {
-		eths, _ = filepath.Glob(glob)
-		if len(eths) != 0 {
-			break
-		}
-	}
-	if len(eths) == 0 {
+var netplanConfigData = `
+# This is the initial network config written by 'snap firstboot'.
+# It can be overwritten by cloud-init or console-conf.
+network:
+    version: 2
+    ethernets:
+        all-en:
+            match:
+                name: "en*"
+            dhcp4: true
+        all-eth:
+            match:
+                name: "eth*"
+            dhcp4: true
+`
+
+// InitialNetworkConfig writes and applies a netplan config that
+// enables dhcp on all wired interfaces. In the long run this should
+// be run as part of the config-changed hook and read the snap's
+// config to determine the netplan config to write.
+func InitialNetworkConfig() error {
+	// If the config is already present, don't overwrite it.  See
+	// https://bugs.launchpad.net/snappy/+bug/1623119.
+	if _, err := os.Stat(netplanConfigFile); err == nil {
 		return nil
 	}
-	eth := filepath.Base(eths[0])
-	ethfile := filepath.Join(ethdir, eth)
-	data := fmt.Sprintf("allow-hotplug %[1]s\niface %[1]s inet dhcp\n", eth)
 
-	if err := osutil.AtomicWriteFile(ethfile, []byte(data), 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(netplanConfigFile, []byte(netplanConfigData), 0644, 0); err != nil {
 		return err
 	}
 
-	ifup := exec.Command(ifup, eth)
-	ifup.Stdout = os.Stdout
-	ifup.Stderr = os.Stderr
-	if err := ifup.Run(); err != nil {
-		return err
-	}
+	enable := exec.Command(enableConfig[0], enableConfig[1:]...)
+	enable.Stdout = os.Stdout
+	enable.Stderr = os.Stderr
 
-	return nil
+	return enable.Run()
 }

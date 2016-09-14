@@ -8,6 +8,7 @@ Build-Depends: bash-completion,
                dh-systemd,
                fakeroot,
                gettext,
+               gnupg2,
                golang-check.v1-dev,
                golang-go,
                golang-go-flags-dev,
@@ -50,26 +51,13 @@ Description: snappy development go packages.
 Package: snapd
 Architecture: any
 Depends: ${misc:Depends}, ${shlibs:Depends}, adduser,
- squashfs-tools, gnupg, ubuntu-core-launcher (>= 1.0.23),
+ squashfs-tools, gnupg1 | gnupg, ubuntu-core-launcher (>= 1.0.23),
 Replaces: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Breaks: ubuntu-snappy (<< 1.9), ubuntu-snappy-cli (<< 1.9)
 Conflicts: snappy, snap (<< 2013-11-29-1ubuntu1)
 Built-Using: ${misc:Built-Using}
 Description: Tool to interact with Ubuntu Core Snappy.
  Manage an Ubuntu system with snappy.
-
-Package: ubuntu-core-snapd-units
-Architecture: any
-Depends: snapd, ${misc:Depends}
-Replaces: ubuntu-snappy (<< 1.9)
-Breaks: ubuntu-snappy (<< 1.9)
-Conflicts: snap (<< 2013-11-29-1ubuntu1)
-Built-Using: ${misc:Built-Using}
-Description: Scripts for snapd that should only run on ubuntu core systems.
- This package contains systemd services that need to run on ubuntu core
- systems.
- .
- This package should not be installed on a Desktop system.
 
 Package: ubuntu-snappy
 Architecture: all
@@ -79,6 +67,13 @@ Description: transitional dummy package
  This is a transitional dummy package. It can safely be removed.
 
 Package: ubuntu-snappy-cli
+Architecture: all
+Depends: snapd,  ${misc:Depends}
+Section: oldlibs
+Description: transitional dummy package
+ This is a transitional dummy package. It can safely be removed.
+
+Package: ubuntu-core-snapd-units
 Architecture: all
 Depends: snapd,  ${misc:Depends}
 Section: oldlibs

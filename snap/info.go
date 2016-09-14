@@ -65,7 +65,7 @@ func MinimalPlaceInfo(name string, revision Revision) PlaceInfo {
 
 // MountDir returns the base directory where it gets mounted of the snap with the given name and revision.
 func MountDir(name string, revision Revision) string {
-	return filepath.Join(dirs.SnapSnapsDir, name, revision.String())
+	return filepath.Join(dirs.SnapMountDir, name, revision.String())
 }
 
 // SecurityTag returns the snap-specific security tag.
@@ -81,6 +81,12 @@ func AppSecurityTag(snapName, appName string) string {
 // HookSecurityTag returns the hook-specific security tag.
 func HookSecurityTag(snapName, hookName string) string {
 	return fmt.Sprintf("%s.hook.%s", SecurityTag(snapName), hookName)
+}
+
+// NoneSecurityTag returns the security tag for interfaces that
+// are not associated to an app or hook in the snap.
+func NoneSecurityTag(snapName, uniqueName string) string {
+	return fmt.Sprintf("%s.none.%s", SecurityTag(snapName), uniqueName)
 }
 
 // SideInfo holds snap metadata that is crucial for the tracking of
@@ -104,8 +110,6 @@ type SideInfo struct {
 	Developer         string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Size              int64    `yaml:"size,omitempty" json:"size,omitempty"`
-	Sha512            string   `yaml:"sha512,omitempty" json:"sha512,omitempty"`
 	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
 }
 
@@ -187,6 +191,16 @@ func (s *Info) DataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), s.Revision.String())
 }
 
+// UserDataDir returns the user-specific data directory of the snap.
+func (s *Info) UserDataDir(home string) string {
+	return filepath.Join(home, "snap", s.Name(), s.Revision.String())
+}
+
+// UserCommonDataDir returns the user-specific data directory common across revision of the snap.
+func (s *Info) UserCommonDataDir(home string) string {
+	return filepath.Join(home, "snap", s.Name(), "common")
+}
+
 // CommonDataDir returns the data directory common across revisions of the snap.
 func (s *Info) CommonDataDir() string {
 	return filepath.Join(dirs.SnapDataDir, s.Name(), "common")
@@ -212,6 +226,9 @@ func (s *Info) NeedsDevMode() bool {
 type DownloadInfo struct {
 	AnonDownloadURL string `json:"anon-download-url,omitempty"`
 	DownloadURL     string `json:"download-url,omitempty"`
+
+	Size     int64  `json:"size,omitempty"`
+	Sha3_384 string `json:"sha3-384,omitempty"`
 }
 
 // sanity check that Info is a PlaceInfo
@@ -297,24 +314,28 @@ func (app *AppInfo) WrapperPath() string {
 }
 
 func (app *AppInfo) launcherCommand(command string) string {
-	securityTag := app.SecurityTag()
-	return fmt.Sprintf("/usr/bin/ubuntu-core-launcher %s %s %s", securityTag, securityTag, filepath.Join(app.Snap.MountDir(), command))
-
+	if command != "" {
+		command = " " + command
+	}
+	if app.Name == app.Snap.Name() {
+		return fmt.Sprintf("/usr/bin/snap run%s %s", command, app.Name)
+	}
+	return fmt.Sprintf("/usr/bin/snap run%s %s.%s", command, app.Snap.Name(), filepath.Base(app.Name))
 }
 
 // LauncherCommand returns the launcher command line to use when invoking the app binary.
 func (app *AppInfo) LauncherCommand() string {
-	return app.launcherCommand(app.Command)
+	return app.launcherCommand("")
 }
 
 // LauncherStopCommand returns the launcher command line to use when invoking the app stop command binary.
 func (app *AppInfo) LauncherStopCommand() string {
-	return app.launcherCommand(app.StopCommand)
+	return app.launcherCommand("--command=stop")
 }
 
 // LauncherPostStopCommand returns the launcher command line to use when invoking the app post-stop command binary.
 func (app *AppInfo) LauncherPostStopCommand() string {
-	return app.launcherCommand(app.PostStopCommand)
+	return app.launcherCommand("--command=post-stop")
 }
 
 // ServiceFile returns the systemd service file path for the daemon app.

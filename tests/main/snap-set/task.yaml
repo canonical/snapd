@@ -1,0 +1,74 @@
+summary: Check that `snap set` runs apply-config hook.
+
+prepare: |
+    echo "Build basic test package (without hooks)"
+    snapbuild $TESTSLIB/snaps/basic .
+    snap install --dangerous basic_1.0_all.snap
+
+    echo "Build basic hooks package"
+    snapbuild $TESTSLIB/snaps/basic-hooks .
+    snap install --dangerous basic-hooks_1.0_all.snap
+
+    echo "Build failing hooks package"
+    snapbuild $TESTSLIB/snaps/failing-config-hooks .
+    snap install --dangerous failing-config-hooks_1.0_all.snap
+
+    # We want to use the in-tree snap-exec, not the one in the core snap. To
+    # accomplish that, we'll just unpack the core we just grabbed, shove the new
+    # snap-exec in there, and repack it.
+
+    # First of all, unmount the core
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
+    umount "$core"
+
+    # Now unpack the core, inject the new snap-exec into it, and repack it.
+    unsquashfs "$snap"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    mv "$snap" "${snap}.orig"
+    mksquashfs squashfs-root "$snap" -comp xz
+    rm -rf squashfs-root
+
+    # Now mount the new core snap
+    mount "$snap" "$core"
+    systemctl start snapd.service
+
+    # Make sure we're running with the correct snap-exec
+    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
+        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
+restore: |
+    rm basic_1.0_all.snap
+    rm basic-hooks_1.0_all.snap
+    rm failing-config-hooks_1.0_all.snap
+
+    # Unmount the modified core snap, and put the old one back in place
+    systemctl stop snapd.service
+    core="$(realpath /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
+    umount "$core"
+    mv "${snap}.orig" "$snap"
+    mount "$snap" "$core"
+    systemctl start snapd.service
+
+execute: |
+    echo "Test that snap set executes successfully without apply-config hook"
+    if ! snap set basic foo=bar; then
+        echo "Expected snap set to succeed, even when apply-config hook is missing"
+        exit 1
+    fi
+
+    echo "Test that snap set executes successfully with apply-config hook"
+    if ! snap set basic-hooks foo=bar; then
+        echo "Expected snap set to succeed when apply-config hook exits successfully"
+        exit 1
+    fi
+
+    echo "Test that snap set fails when apply-config hook fails"
+    if snap set failing-config-hooks foo=bar; then
+        echo "Expected snap set to fail when apply-config hook fails"
+        exit 1
+    fi

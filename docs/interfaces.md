@@ -55,14 +55,14 @@ interface upon install:
     :log-observe         -
     -                    foo:log-observe
 
-You may manually connect using ``snappy connect``:
+You may manually connect using ``snap connect``:
 
     $ sudo snap connect foo:log-observe core:log-observe
     $ snap interfaces
     Slot                 Plug
     :log-observe         foo:log-observe
 
-and disconnect using ``snappy disconnect``:
+and disconnect using ``snap disconnect``:
 
     $ sudo snap disconnect foo:log-observe core:log-observe
     $ snap interfaces # shows they are disconnected
@@ -183,6 +183,18 @@ and media application. Recording not supported but will be in a future release.
 
 * Auto-Connect: yes
 
+### removable-media
+
+Can access files from removable media in /media and /run/media
+
+* Auto-Connect: no
+
+### screen-inhibit-control
+
+Can access desktop session manager screen inhibit and uninhibit functionality.
+
+* Auto-Connect: yes
+
 ### unity7
 
 Can access Unity7. Unity 7 runs on X and requires access to various DBus
@@ -258,17 +270,48 @@ Can mount fuse filesystems (as root only).
 
 * Auto-Connect: no
 
+### fwupd
+
+Can access snaps providing the fwupd interface which gives privileged access to update UEFI capsule format firmware.
+
+* Auto-Connect: no
+
 ### hardware-observe
 
 Can query hardware information from the system.
 
 * Auto-Connect: no
 
+### hidraw
+
+Can access hidraw devices. This is restricted because it provides privileged
+access to hardware devices.
+
+* Auto-Connect: no
+* Attributes:
+
+    Should specify a single path attribute:
+    * path (slot): path to hidraw device node e.g. /dev/hidraw0
+
+    Or three attributes:
+    * usb-vendor (slot): integer representing the USB Vendor ID, must be
+       in range 0 < vid <= 65535
+    * usb-product (slot): integer representing the USB Product ID, must be
+       in range 0 <= vid <= 65535
+    * path (slot): path where a symlink will be created to the device
+    e.g. /dev/hidraw-mydevice
+
 ### kernel-module-control
 
 Can insert kernel modules. This interface gives privileged access to the device.
 
 * Auto-Connect: no
+
+### libvirt
+
+Can access the libvirt control socket, which gives privileged access to control
+libvirtd on the host. This is commonly used to create and manage QEMU/KVM
+instances on the host.
 
 ### locale-control
 
@@ -295,6 +338,15 @@ privileged access to query location services.
 Can read system logs and set kernel log rate-limiting.
 
 * Auto-Connect: no
+
+### lxd-support
+
+Can access all resources and syscalls on the device for LXD to mediate
+access for its containers. This interface currently may only be
+established with the upstream LXD project.
+
+* Auto-Connect: yes
+* Transitional: yes
 
 ### modem-manager
 
@@ -351,7 +403,17 @@ access to configure serial port hardware.
 
 * Auto-Connect: no
 * Attributes:
-    * path (slot): path to serial device
+
+    Should specify a single path attribute:
+    * path (slot): path to serial device node e.g. /dev/ttyS1
+
+    Or three attributes:
+    * usb-vendor (slot): integer representing the USB Vendor ID, must be
+       in range 0 < vid <= 65535
+    * usb-product (slot): integer representing the USB Product ID, must be
+       in range 0 <= vid <= 65535
+    * path (slot): path where a symlink will be created to the device
+    e.g. /dev/serial-port-mydevice
 
 ### snapd-control
 
@@ -385,3 +447,16 @@ Can manage timeservers directly separate from ``config core``.
 Can access the tpm device /dev/tpm0.
 
 * Auto-Connect: no
+
+### udisks2
+
+Can access snaps providing the udisks2 interface which gives privileged access
+to storage on the device
+
+* Auto-Connect: no
+
+### upower-observe
+
+Can query UPower for power devices, history and statistics.
+
+* Auto-Connect: yes

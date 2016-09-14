@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"os/user"
-	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -41,10 +40,10 @@ var (
 )
 
 type cmdRun struct {
-	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
-	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
-	Revision string `short:"r" description:"use a specific snap revision when running hook" default:"unset" hidden:"yes"`
-	Shell    bool   `long:"shell" description:"run a shell instead of the command (useful for debugging)"`
+	Command  string `long:"command" hidden:"yes"`
+	Hook     string `long:"hook" hidden:"yes"`
+	Revision string `short:"r" default:"unset" hidden:"yes"`
+	Shell    bool   `long:"shell" `
 }
 
 func init() {
@@ -53,25 +52,31 @@ func init() {
 		i18n.G("Run the given snap command with the right confinement and environment"),
 		func() flags.Commander {
 			return &cmdRun{}
-		})
+		}, map[string]string{
+			"command": i18n.G("alternative command to run"),
+			"hook":    i18n.G("hook to run"),
+			"r":       i18n.G("use a specific snap revision when running hook"),
+			"shell":   i18n.G("run a shell instead of the command (useful for debugging)"),
+		}, nil)
 }
 
 func (x *cmdRun) Execute(args []string) error {
 	if len(args) == 0 {
-		return fmt.Errorf("need the application to run as argument")
+		return fmt.Errorf(i18n.G("need the application to run as argument"))
 	}
 	snapApp := args[0]
 	args = args[1:]
 
 	// Catch some invalid parameter combinations, provide helpful errors
 	if x.Hook != "" && x.Command != "" {
-		return fmt.Errorf("cannot use --hook and --command together")
+		return fmt.Errorf(i18n.G("cannot use --hook and --command together"))
 	}
 	if x.Revision != "unset" && x.Revision != "" && x.Hook == "" {
-		return fmt.Errorf("-r can only be used with --hook")
+		return fmt.Errorf(i18n.G("-r can only be used with --hook"))
 	}
 	if x.Hook != "" && len(args) > 0 {
-		return fmt.Errorf("too many arguments for hook %q: %s", x.Hook, strings.Join(args, " "))
+		// TRANSLATORS: %q is the hook name; %s a space-separated list of extra arguments
+		return fmt.Errorf(i18n.G("too many arguments for hook %q: %s"), x.Hook, strings.Join(args, " "))
 	}
 
 	// Now actually handle the dispatching
@@ -99,7 +104,7 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 			return nil, fmt.Errorf("cannot find snap %q", snapName)
 		}
 		if len(snaps) > 1 {
-			return nil, fmt.Errorf("multiple snaps for %q: %d", snapName, len(snaps))
+			return nil, fmt.Errorf(i18n.G("multiple snaps for %q: %d"), snapName, len(snaps))
 		}
 		revision = snaps[0].Revision
 	}
@@ -114,27 +119,19 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	return info, nil
 }
 
-// returns the environment that is important for the later stages of execution
-// (like SNAP_REVISION that snap-exec requires to work)
-func snapExecEnv(info *snap.Info) []string {
-	env := snapenv.Basic(info)
-	env = append(env, snapenv.User(info, os.Getenv("HOME"))...)
-	env = append(env, "PATH=${PATH}:/usr/lib/snapd")
-	return env
-}
-
 func createUserDataDirs(info *snap.Info) error {
 	usr, err := userCurrent()
 	if err != nil {
-		return fmt.Errorf("cannot get the current user: %s", err)
+		return fmt.Errorf(i18n.G("cannot get the current user: %v"), err)
 	}
 
 	// see snapenv.User
-	userData := filepath.Join(usr.HomeDir, info.MountDir())
-	commonUserData := filepath.Join(userData, "..", "common")
+	userData := info.UserDataDir(usr.HomeDir)
+	commonUserData := info.UserCommonDataDir(usr.HomeDir)
 	for _, d := range []string{userData, commonUserData} {
 		if err := os.MkdirAll(d, 0755); err != nil {
-			return fmt.Errorf("cannot create %q: %s", d, err)
+			// TRANSLATORS: %q is the directory whose creation failed, %v the error message
+			return fmt.Errorf(i18n.G("cannot create %q: %v"), d, err)
 		}
 	}
 	return nil
@@ -149,7 +146,7 @@ func snapRunApp(snapApp, command string, args []string) error {
 
 	app := info.Apps[appName]
 	if app == nil {
-		return fmt.Errorf("cannot find app %q in %q", appName, snapName)
+		return fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
 	}
 
 	return runSnapConfine(info, app.SecurityTag(), snapApp, command, "", args)
@@ -201,7 +198,5 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	env := append(os.Environ(), snapExecEnv(info)...)
-
-	return syscallExec(cmd[0], cmd, env)
+	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
 }

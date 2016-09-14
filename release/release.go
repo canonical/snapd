@@ -23,9 +23,9 @@ import (
 	"bufio"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/snapcore/snapd/osutil"
-	"unicode"
 )
 
 // Series holds the Ubuntu Core series for snapd to use.

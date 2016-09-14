@@ -29,7 +29,7 @@ import (
 
 // A StoreService can find, list available updates and download snaps.
 type StoreService interface {
-	Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error)
+	Snap(name, channel string, devmode bool, revision snap.Revision, user *auth.UserState) (*snap.Info, error)
 	Find(search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 	ListRefresh([]*store.RefreshCandidate, *auth.UserState) ([]*snap.Info, error)
 
@@ -47,6 +47,9 @@ type managerBackend interface {
 	SetupSnap(snapFilePath string, si *snap.SideInfo, meter progress.Meter) error
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info) error
+	StartSnapServices(info *snap.Info, meter progress.Meter) error
+	StopSnapServices(info *snap.Info, meter progress.Meter) error
+
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error

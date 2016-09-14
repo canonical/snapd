@@ -23,18 +23,17 @@
 package assertstate
 
 import (
-	"crypto"
 	"fmt"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/squashfs"
+	"github.com/snapcore/snapd/store"
 )
 
 // AssertManager is responsible for the enforcement of assertions in
@@ -49,8 +48,7 @@ type AssertManager struct {
 func Manager(s *state.State) (*AssertManager, error) {
 	runner := state.NewTaskRunner(s)
 
-	runner.AddHandler("fetch-snap-assertions", doFetchSnapAssertions, undoFetchSnapAssertions)
-	// TODO: check-snap-assertions handlers
+	runner.AddHandler("validate-snap", doValidateSnap, nil)
 
 	db, err := sysdb.Open()
 	if err != nil {
@@ -114,6 +112,14 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
+type assertionNotFoundError struct {
+	ref *asserts.Ref
+}
+
+func (e *assertionNotFoundError) Error() string {
+	return fmt.Sprintf("%s %v not found", e.ref.Type.Name, e.ref.PrimaryKey)
+}
+
 // fetch fetches or updates the referenced assertion and all its prerequisites from the store and adds them to the system assertion database. It does not fail if required assertions were already present.
 func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
@@ -124,7 +130,7 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	}
 
 	db := cachedDB(s)
-	store := snapstate.Store(s)
+	sto := snapstate.Store(s)
 
 	s.Unlock()
 	defer s.Lock()
@@ -133,7 +139,7 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?
-		return store.Assertion(ref.Type, ref.PrimaryKey, user)
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
 	}
 
 	save := func(a asserts.Assertion) error {
@@ -141,20 +147,14 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 		return nil
 	}
 
-	f := &fetcher{
-		retrieve: retrieve,
-		save:     save,
-	}
-	f.init(db)
+	f := asserts.NewFetcher(db, retrieve, save)
 
-	if err := f.doFetch(ref); err != nil {
+	if err := f.Fetch(ref); err != nil {
 		return err
 	}
 
 	s.Lock()
 	defer s.Unlock()
-
-	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
 
 	for _, a := range got {
 		err := db.Add(a)
@@ -165,6 +165,9 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 				continue
 			}
 		}
+		// TODO: trigger w. caller a global sanity check if a is revoked
+		// (but try to save as much possible still),
+		// or err is a check error
 		if err != nil {
 			return err
 		}
@@ -173,70 +176,8 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 	return nil
 }
 
-type fetchProgress int
-
-const (
-	fetchNotSeen fetchProgress = iota
-	fetchRetrieved
-	fetchSaved
-)
-
-// TODO: expose this for snap download etc, need those extra use cases to clarify the final interface
-type fetcher struct {
-	db asserts.RODatabase
-
-	retrieve func(*asserts.Ref) (asserts.Assertion, error) // can ignore errors as needed
-	save     func(asserts.Assertion) error
-
-	fetched map[string]fetchProgress
-}
-
-func (f *fetcher) init(db asserts.RODatabase) {
-	f.db = db
-	f.fetched = make(map[string]fetchProgress)
-}
-
-func (f *fetcher) doFetch(ref *asserts.Ref) error {
-	_, err := ref.Resolve(f.db.FindTrusted)
-	if err == nil {
-		return nil
-	}
-	if err != asserts.ErrNotFound {
-		return err
-	}
-	u := ref.Unique()
-	switch f.fetched[u] {
-	case fetchSaved:
-		return nil // nothing to do
-	case fetchRetrieved:
-		return fmt.Errorf("internal error: circular assertions are not expected: %s %v", ref.Type.Name, ref.PrimaryKey)
-	}
-	a, err := f.retrieve(ref)
-	if err != nil {
-		return err
-	}
-	f.fetched[u] = fetchRetrieved
-	for _, preref := range a.Prerequisites() {
-		if err := f.doFetch(preref); err != nil {
-			return err
-		}
-	}
-	keyRef := &asserts.Ref{
-		Type:       asserts.AccountKeyType,
-		PrimaryKey: []string{a.SignKeyID()},
-	}
-	if err := f.doFetch(keyRef); err != nil {
-		return err
-	}
-	if err := f.save(a); err != nil {
-		return err
-	}
-	f.fetched[u] = fetchSaved
-	return nil
-}
-
-// doFetchSnapAssertions fetches the relevant assertions for the snap being installed.
-func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
+// doValidateSnap fetches the relevant assertions for the snap being installed and cross checks them with the snap.
+func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	t.State().Lock()
 	defer t.State().Unlock()
 
@@ -245,30 +186,9 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 		return nil
 	}
 
-	// TODO: when we actually use this, snapPath might come from ss
-	// and switch likely to osutil.FileDigest and decide where/when
-	// to actually compute the hash
-	snapPath := snap.MinimalPlaceInfo(ss.Name(), ss.Revision()).MountFile()
-
-	snapf, err := snap.Open(snapPath)
+	sha3_384, snapSize, err := asserts.SnapFileSHA3_384(ss.SnapPath)
 	if err != nil {
 		return err
-	}
-
-	squashSnap, ok := snapf.(*squashfs.Snap)
-
-	if !ok {
-		return fmt.Errorf("internal error: cannot compute digest of non squashfs snap")
-	}
-
-	_, sha3_384Digest, err := squashSnap.HashDigest(crypto.SHA3_384)
-	if err != nil {
-		return fmt.Errorf("cannot compute snap %q digest: %v", ss.Name(), err)
-	}
-
-	sha3_384, err := asserts.EncodeDigest(crypto.SHA3_384, sha3_384Digest)
-	if err != nil {
-		return fmt.Errorf("cannot encode snap %q digest: %v", ss.Name(), err)
 	}
 
 	// for now starting from the snap-revision will get us all other relevant assertions
@@ -277,10 +197,27 @@ func doFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
 		PrimaryKey: []string{sha3_384},
 	}
 
-	return fetch(t.State(), ref, ss.UserID)
-}
+	err = fetch(t.State(), ref, ss.UserID)
+	if notFound, ok := err.(*store.AssertionNotFoundError); ok {
+		if notFound.Ref.Type == asserts.SnapRevisionType {
+			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
+		} else {
+			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
+		}
+	}
+	if err != nil {
+		return err
+	}
 
-func undoFetchSnapAssertions(t *state.Task, _ *tomb.Tomb) error {
-	// nothing to do, the assertions that were *actually* added are still true
+	db := DB(t.State())
+	err = snapasserts.CrossCheck(ss.Name(), sha3_384, snapSize, ss.SideInfo, db)
+	if err != nil {
+		// TODO: trigger a global sanity check
+		// that will generate the changes to deal with this
+		// for things like snap-decl revocation and renames?
+		return err
+	}
+
+	// TODO: set DeveloperID from assertions
 	return nil
 }

@@ -19,5 +19,7 @@
 
 package assertstate
 
-// expose Fetch for testing
-var Fetch = fetch
+// expose for testing
+var (
+	Fetch = fetch
+)

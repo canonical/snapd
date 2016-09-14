@@ -21,5 +21,5 @@ package cmd
 
 //go:generate mkversion.sh
 
-// will be overwritten at build-time via mkversion.sh
+// Version will be overwritten at build-time via mkversion.sh
 var Version = "unknown"
