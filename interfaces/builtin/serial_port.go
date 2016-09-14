@@ -50,12 +50,6 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[A-Z]{1,3}[0-9]{1,3}$
 // are also specified
 var serialUdevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
-// Strings used to build up the udev snippet
-const udevHeader string = `IMPORT{builtin}="usb_id"`
-const udevDevicePrefix string = `SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
-const udevSymlinkSuffix string = `, SYMLINK+="%s"`
-const udevTagSuffix string = `, TAG+="%s"`
-
 // SanitizeSlot checks validity of the defined slot
 func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Check slot is of right type
@@ -134,12 +128,7 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 		if !ok || path == "" {
 			return nil, nil
 		}
-		var udevSnippet bytes.Buffer
-		udevSnippet.WriteString(udevHeader + "\n")
-		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, usbVendor, usbProduct))
-		udevSnippet.WriteString(fmt.Sprintf(udevSymlinkSuffix, strings.TrimPrefix(path, "/dev/")))
-		udevSnippet.WriteString("\n")
-		return udevSnippet.Bytes(), nil
+		return udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
 	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount:
 		return nil, nil
 	default:
@@ -194,11 +183,9 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 			return nil, nil
 		}
 		var udevSnippet bytes.Buffer
-		udevSnippet.WriteString(udevHeader + "\n")
 		for appName := range plug.Apps {
-			udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, usbVendor, usbProduct))
 			tag := fmt.Sprintf("snap_%s_%s", plug.Snap.Name(), appName)
-			udevSnippet.WriteString(fmt.Sprintf(udevTagSuffix, tag) + "\n")
+			udevSnippet.Write(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
 		}
 		return udevSnippet.Bytes(), nil
 	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount:
