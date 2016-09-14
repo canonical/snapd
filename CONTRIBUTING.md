@@ -1,4 +1,4 @@
-Before contributing you should sign [Canonical's contributor agreement](http://www.ubuntu.com/legal/contributors),
+Before contributing you should sign the Canonical's contributor agreement [1],
 it’s the easiest way for you to give us permission to use your contributions.
 
 ## Pull Requests and tests
@@ -23,3 +23,5 @@ behaviour is explained and verified through the tests and the review process
 can be made on the solid base of a working system after the addition of the
 changes. If any tests need to be added for a PR to be merged it will be denoted
 during the review process.
+
+[1] http://www.ubuntu.com/legal/contributors
