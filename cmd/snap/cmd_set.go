@@ -45,10 +45,10 @@ func init() {
 	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, nil, []argDesc{
 		{
 			name: "<snap>",
-			desc: i18n.G("the snap to configure (e.g. hello-world)"),
+			desc: i18n.G("The snap to configure (e.g. hello-world)"),
 		}, {
 			name: i18n.G("<conf value>"),
-			desc: i18n.G("configuration value (key=value)"),
+			desc: i18n.G("Configuration value (key=value)"),
 		},
 	})
 }
