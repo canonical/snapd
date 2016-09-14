@@ -54,8 +54,12 @@
     # changing profile
     @{PROC}/[0-9]*/attr/exec w,
 
-    # don't allow changing profile to unconfined or profiles that start with
-    # '/'
+	# Don't allow changing profile to unconfined or profiles that start with
+	# '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
+	# the environment for determining the capabilities of the architecture.
+	# 'unsafe' is ok here because the kernel will have already cleared the
+	# environment as part of launching snap-confine with
+	# CAP_SYS_ADMIN.
     change_profile unsafe /** -> [^u/]**,
     change_profile unsafe /** -> u[^n]**,
     change_profile unsafe /** -> un[^c]**,
