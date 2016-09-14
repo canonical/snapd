@@ -300,6 +300,9 @@ type cmdInstall struct {
 	Revision string `long:"revision"`
 
 	Dangerous bool `long:"dangerous"`
+	// alias for --dangerous, deprecated but we need to support it
+	// because we released 2.14.2 with --force-dangerous
+	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
 
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
@@ -320,7 +323,8 @@ func (x *cmdInstall) Execute([]string) error {
 
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision, Dangerous: x.Dangerous}
+	dangerous := x.Dangerous || x.ForceDangerous
+	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision, Dangerous: dangerous}
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
 		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
@@ -621,8 +625,9 @@ func init() {
 		map[string]string{"revision": i18n.G("Remove only the given revision")}, nil)
 	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
 		channelDescs.also(modeDescs).also(map[string]string{
-			"revision":  i18n.G("Install the given revision of a snap, to which you must have developer access"),
-			"dangerous": i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
+			"revision":        i18n.G("Install the given revision of a snap, to which you must have developer access"),
+			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
+			"force-dangerous": i18n.G("(deprecated) alias for --dangerous"),
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		channelDescs.also(modeDescs).also(map[string]string{
