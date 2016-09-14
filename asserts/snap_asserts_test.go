@@ -735,7 +735,43 @@ func (vs *validationSuite) TestRevocation(c *C) {
 	c.Check(validation.Revoked(), Equals, true)
 }
 
-func (vs *validationSuite) TestMissingGatingDeclaration(c *C) {
+func (vs *validationSuite) TestRevokedFalse(c *C) {
+	encoded := "type: validation\n" +
+		"authority-id: dev-id1\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"approved-snap-id: snap-id-2\n" +
+		"approved-snap-revision: 42\n" +
+		"revoked: false\n" +
+		"revision: 1\n" +
+		vs.tsLine +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	validation := a.(*asserts.Validation)
+	c.Check(validation.Revoked(), Equals, false)
+}
+
+func (vs *validationSuite) TestRevokedInvalid(c *C) {
+	encoded := "type: validation\n" +
+		"authority-id: dev-id1\n" +
+		"series: 16\n" +
+		"snap-id: snap-id-1\n" +
+		"approved-snap-id: snap-id-2\n" +
+		"approved-snap-revision: 42\n" +
+		"revoked: foo\n" +
+		"revision: 1\n" +
+		vs.tsLine +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"AXNpZw=="
+	_, err := asserts.Decode([]byte(encoded))
+	c.Check(err, ErrorMatches, `.*: "revoked" header must be 'true' or 'false'`)
+}
+
+func (vs *validationSuite) TestMissingGatedSnapDeclaration(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
 
 	prereqDevAccount(c, storeDB, db)
@@ -745,7 +781,21 @@ func (vs *validationSuite) TestMissingGatingDeclaration(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(a)
-	c.Assert(err, ErrorMatches, `validation assertion for snap-id "snap-id-1" does not have a matching snap-declaration assertion`)
+	c.Assert(err, ErrorMatches, `validation assertion for snap-id "snap-id-2" does not have a matching snap-declaration assertion for it`)
+}
+
+func (vs *validationSuite) TestMissingGatingSnapDeclaration(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	prereqDevAccount(c, storeDB, db)
+	prereqSnapDecl2(c, storeDB, db)
+
+	headers := vs.makeHeaders(nil)
+	a, err := storeDB.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(a)
+	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion for it`)
 }
 
 func (vs *validationSuite) TestPrerequisites(c *C) {
