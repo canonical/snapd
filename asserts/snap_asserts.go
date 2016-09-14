@@ -365,7 +365,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"snap-id": validation.ApprovedSnapID(),
 	})
 	if err == ErrNotFound {
-		return fmt.Errorf("validation assertion for snap-id %q does not have a matching snap-declaration assertion for it", validation.ApprovedSnapID())
+		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for approved-snap-id %q", validation.SnapID(), validation.ApprovedSnapID())
 	}
 	if err != nil {
 		return err
@@ -375,7 +375,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 		"snap-id": validation.SnapID(),
 	})
 	if err == ErrNotFound {
-		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion for it", validation.SnapID())
+		return fmt.Errorf("validation assertion by snap-id %q does not have a matching snap-declaration assertion", validation.SnapID())
 	}
 	if err != nil {
 		return err

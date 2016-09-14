@@ -781,7 +781,7 @@ func (vs *validationSuite) TestMissingGatedSnapDeclaration(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(a)
-	c.Assert(err, ErrorMatches, `validation assertion for snap-id "snap-id-2" does not have a matching snap-declaration assertion for it`)
+	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion for approved-snap-id "snap-id-2"`)
 }
 
 func (vs *validationSuite) TestMissingGatingSnapDeclaration(c *C) {
@@ -795,7 +795,7 @@ func (vs *validationSuite) TestMissingGatingSnapDeclaration(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(a)
-	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion for it`)
+	c.Assert(err, ErrorMatches, `validation assertion by snap-id "snap-id-1" does not have a matching snap-declaration assertion`)
 }
 
 func (vs *validationSuite) TestPrerequisites(c *C) {
