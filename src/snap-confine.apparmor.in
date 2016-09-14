@@ -21,8 +21,6 @@
     /usr/lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libseccomp.so* mr,
 
-    @{PROC}/@{pid}/auxv r,
-
     @LIBEXECDIR@/snap-confine r,
 
     /dev/null rw,
