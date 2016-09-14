@@ -44,17 +44,22 @@ var positiveResponse = map[string]bool{
 }
 
 type cmdBuy struct {
-	Currency string `long:"currency" description:"ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"`
+	Currency string `long:"currency"`
 
 	Positional struct {
-		SnapName string `positional-arg-name:"<snap-name>"`
+		SnapName string
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
 	addCommand("buy", shortBuyHelp, longBuyHelp, func() flags.Commander {
 		return &cmdBuy{}
-	})
+	}, map[string]string{
+		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
+	}, []argDesc{{
+		name: "<snap>",
+		desc: i18n.G("snap name"),
+	}})
 }
 
 func (x *cmdBuy) Execute(args []string) error {
@@ -100,7 +105,7 @@ func buySnap(opts *store.BuyOptions) error {
 	}
 
 	// TODO Remove this payment method filter once interactive payment methods are supported on the CLI
-	methods := make([]*store.PaymentMethod, 0)
+	var methods []*store.PaymentMethod
 	for _, method := range paymentInfo.Methods {
 		if !method.RequiresInteraction {
 			methods = append(methods, method)
@@ -185,7 +190,8 @@ func buySnap(opts *store.BuyOptions) error {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: the command line tools do not support interactive purchases"), snap.Name)
 	}
 
-	fmt.Fprintf(Stdout, "%s bought\n", opts.SnapName)
+	// TRANSLATORS: %s is a snap name
+	fmt.Fprintf(Stdout, i18n.G("%s bought\n"), opts.SnapName)
 
 	return nil
 }

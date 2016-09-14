@@ -25,6 +25,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/release"
 )
 
 func (s *SnapKeysSuite) TestDeleteKeyRequiresName(c *C) {
@@ -44,6 +45,11 @@ func (s *SnapKeysSuite) TestDeleteKeyNonexistent(c *C) {
 }
 
 func (s *SnapKeysSuite) TestDeleteKey(c *C) {
+	// FIXME: remove once xenials gpg2 is fixed
+	if s.GnupgCmd == "/usr/bin/gpg2" && release.ReleaseInfo.VersionID == "16.04" {
+		c.Skip("gpg2 delete broken on xenial")
+	}
+
 	rest, err := snap.Parser().ParseArgs([]string{"delete-key", "another"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
