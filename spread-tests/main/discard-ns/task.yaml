@@ -18,4 +18,3 @@ restore: |
     umount /run/snapd/ns
     rm /run/snapd/ns/foo.mnt
     rm /run/snapd/ns/foo.lock
-    rmdir /run/snapd/ns
