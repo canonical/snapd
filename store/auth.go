@@ -24,7 +24,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 
 	"gopkg.in/macaroon.v1"
@@ -299,8 +298,9 @@ func RequestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
-		body, _ := ioutil.ReadAll(resp.Body) // do our best to read the body
-		return "", fmt.Errorf(errorPrefix+"store server returned status %d and body %q", resp.StatusCode, body)
+		body := make([]byte, 1e6)
+		n, _ := resp.Body.Read(body) // do our best to read the body
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d and body %q", resp.StatusCode, body[:n])
 	}
 
 	dec := json.NewDecoder(resp.Body)
