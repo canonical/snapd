@@ -79,6 +79,7 @@ static void __attribute__ ((used)) sc_enable_sanity_timeout()
 	// NOTE: we are using sigaction so that we can explicitly control signal
 	// flags and *not* pass the SA_RESTART flag. The intent is so that any
 	// system call we may be sleeping on to get interrupted.
+	act.sa_flags = 0;
 	if (sigaction(SIGALRM, &act, NULL) < 0) {
 		die("cannot install signal handler for SIGALRM");
 	}
