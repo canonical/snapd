@@ -350,8 +350,10 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 			die("cannot set parent process death notification signal to SIGINT");
 		}
 		// Check that parent process is still alive. If this is the case then
-		// we can reliably rely on the PR_SET_PDEATHSIG signal to wake us up
-		// from eventfd_read() below.
+		// we can *almost* reliably rely on the PR_SET_PDEATHSIG signal to wake
+		// us up from eventfd_read() below. In the rare case that the PID numbers
+		// overflow and the now-dead parent PID is recycled we will still hang
+		// forever on the read from eventfd below.
 		debug("ensuring that parent process is still alive");
 		if (kill(parent, 0) < 0) {
 			switch (errno) {
