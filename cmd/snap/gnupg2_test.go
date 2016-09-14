@@ -17,9 +17,11 @@
  *
  */
 
-package cmd
+package main_test
 
-//go:generate mkversion.sh
+import (
+	. "gopkg.in/check.v1"
+)
 
-// Version will be overwritten at build-time via mkversion.sh
-var Version = "unknown"
+// FIXME: drop once gpg2 is the default
+var _ = Suite(&SnapKeysSuite{GnupgCmd: "/usr/bin/gpg2"})

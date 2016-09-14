@@ -48,16 +48,23 @@ type options struct {
 	Version func() `long:"version" description:"print the version and exit"`
 }
 
+type argDesc struct {
+	name string
+	desc string
+}
+
 var optionsData options
 
 // ErrExtraArgs is returned  if extra arguments to a command are found
-var ErrExtraArgs = fmt.Errorf("too many arguments for command")
+var ErrExtraArgs = fmt.Errorf(i18n.G("too many arguments for command"))
 
 // cmdInfo holds information needed to call parser.AddCommand(...).
 type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
+	optDescs                  map[string]string
+	argDescs                  []argDesc
 }
 
 // commands holds information about all non-experimental commands.
@@ -68,12 +75,14 @@ var experimentalCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
-func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
+func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
+		optDescs:  optDescs,
+		argDescs:  argDescs,
 	}
 	commands = append(commands, info)
 	return info
@@ -125,10 +134,10 @@ func Parser() *flags.Parser {
 		panic(&exitStatus{0})
 	}
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)
-	parser.ShortDescription = "Tool to interact with snaps"
-	parser.LongDescription = `
+	parser.ShortDescription = i18n.G("Tool to interact with snaps")
+	parser.LongDescription = i18n.G(`
 The snap tool interacts with the snapd daemon to control the snappy software platform.
-`
+`)
 
 	// Add all regular commands
 	for _, c := range commands {
@@ -143,6 +152,34 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+
+		if c.optDescs != nil {
+			opts := cmd.Options()
+			if len(opts) != len(c.optDescs) {
+				logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+			}
+			for _, opt := range opts {
+				desc, ok := c.optDescs[opt.LongName]
+				if !ok {
+					desc, ok = c.optDescs[string(opt.ShortName)]
+					if !ok {
+						logger.Panicf("%s missing description for %s", c.name, opt)
+					}
+				}
+				opt.Description = desc
+			}
+		}
+
+		if c.argDescs != nil {
+			args := cmd.Args()
+			if len(args) != len(c.argDescs) {
+				logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
+			}
+			for i, arg := range args {
+				arg.Name = c.argDescs[i].name
+				arg.Description = c.argDescs[i].desc
+			}
+		}
 	}
 	// Add the experimental command
 	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
@@ -172,7 +209,7 @@ func Client() *client.Client {
 func init() {
 	err := logger.SimpleSetup()
 	if err != nil {
-		fmt.Fprintf(Stderr, "WARNING: failed to activate logging: %s\n", err)
+		fmt.Fprintf(Stderr, i18n.G("WARNING: failed to activate logging: %v\n"), err)
 	}
 }
 
@@ -189,7 +226,7 @@ func main() {
 		// *unless* there is an error, i.e. we setup a wrong
 		// symlink (or syscall.Exec() fails for strange reasons)
 		err := cmd.Execute(args)
-		fmt.Fprintf(Stderr, "internal error, please report: running %q failed: %s\n", snapApp, err)
+		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
 		os.Exit(46)
 	}
 
@@ -204,7 +241,7 @@ func main() {
 
 	// no magic /o\
 	if err := run(); err != nil {
-		fmt.Fprintf(Stderr, "error: %v\n", err)
+		fmt.Fprintf(Stderr, i18n.G("error: %v\n"), err)
 		os.Exit(1)
 	}
 }
@@ -232,11 +269,11 @@ func run() error {
 		if e, ok := err.(*client.Error); ok && e.Kind == client.ErrorKindLoginRequired {
 			u, _ := user.Current()
 			if u != nil && u.Username == "root" {
-				return fmt.Errorf(`%s (see "snap login --help")`, e.Message)
-			} else {
-				return fmt.Errorf(`%s (try with sudo)`, e.Message)
+				return fmt.Errorf(i18n.G(`%s (see "snap login --help")`), e.Message)
 			}
 
+			// TRANSLATORS: %s will be a message along the lines of "login required"
+			return fmt.Errorf(i18n.G(`%s (try with sudo)`), e.Message)
 		}
 	}
 

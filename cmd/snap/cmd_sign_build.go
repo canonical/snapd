@@ -33,13 +33,13 @@ import (
 
 type cmdSignBuild struct {
 	Positional struct {
-		Filename string `positional-arg-name:"<filename>" description:"filename of the snap you want to assert a build for"`
+		Filename string
 	} `positional-args:"yes" required:"yes"`
 
-	DeveloperID string `long:"developer-id" description:"identifier of the signer" required:"yes"`
-	SnapID      string `long:"snap-id" description:"identifier of the snap package associated with the build" required:"yes"`
-	KeyName     string `short:"k" default:"default" description:"name of the GnuPG key to use (defaults to 'default' as key name)"`
-	Grade       string `long:"grade" choice:"devel" choice:"stable" default:"stable" description:"grade states the build quality of the snap (defaults to 'stable')"`
+	DeveloperID string `long:"developer-id" required:"yes"`
+	SnapID      string `long:"snap-id" required:"yes"`
+	KeyName     string `short:"k" default:"default" `
+	Grade       string `long:"grade" choice:"devel" choice:"stable" default:"stable"`
 }
 
 var shortSignBuildHelp = i18n.G("Create snap build assertion")
@@ -51,7 +51,15 @@ func init() {
 		longSignBuildHelp,
 		func() flags.Commander {
 			return &cmdSignBuild{}
-		})
+		}, map[string]string{
+			"developer-id": i18n.G("identifier of the signer"),
+			"snap-id":      i18n.G("identifier of the snap package associated with the build"),
+			"k":            i18n.G("name of the GnuPG key to use (defaults to 'default' as key name)"),
+			"grade":        i18n.G("grade states the build quality of the snap (defaults to 'stable')"),
+		}, []argDesc{{
+			name: i18n.G("<filename>"),
+			desc: i18n.G("filename of the snap you want to assert a build for"),
+		}})
 	cmd.hidden = true
 }
 
@@ -68,7 +76,8 @@ func (x *cmdSignBuild) Execute(args []string) error {
 	gkm := asserts.NewGPGKeypairManager()
 	privKey, err := gkm.GetByName(x.KeyName)
 	if err != nil {
-		return fmt.Errorf("cannot use %q key: %v", x.KeyName, err)
+		// TRANSLATORS: %q is the key name, %v the error message
+		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
 	}
 
 	pubKey := privKey.PublicKey()
@@ -88,12 +97,12 @@ func (x *cmdSignBuild) Execute(args []string) error {
 		KeypairManager: gkm,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot open the assertions database: %v", err)
+		return fmt.Errorf(i18n.G("cannot open the assertions database: %v"), err)
 	}
 
 	a, err := adb.Sign(asserts.SnapBuildType, headers, nil, pubKey.ID())
 	if err != nil {
-		return fmt.Errorf("cannot sign assertion: %v", err)
+		return fmt.Errorf(i18n.G("cannot sign assertion: %v"), err)
 	}
 
 	_, err = Stdout.Write(asserts.Encode(a))
