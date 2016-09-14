@@ -695,7 +695,7 @@ func (vs *validationSuite) TestDecodeInvalid(c *C) {
 		{"approved-snap-id: snap-id-2\n", "", `"approved-snap-id" header is mandatory`},
 		{"approved-snap-id: snap-id-2\n", "approved-snap-id: \n", `"approved-snap-id" header should not be empty`},
 		{"approved-snap-revision: 42\n", "", `"approved-snap-revision" header is mandatory`},
-		{"approved-snap-revision: 42\n", "approved-snap-revision: \n", `"approved-snap-revision" header should not be empty`},
+		{"approved-snap-revision: 42\n", "approved-snap-revision: z\n", `"approved-snap-revision" header is not an integer: z`},
 		{"approved-snap-revision: 42\n", "approved-snap-revision: 0\n", `"approved-snap-revision" header must be >=1: 0`},
 		{"approved-snap-revision: 42\n", "approved-snap-revision: -1\n", `"approved-snap-revision" header must be >=1: -1`},
 		{vs.tsLine, "", `"timestamp" header is mandatory`},
