@@ -17,28 +17,26 @@
  *
  */
 
-package builtin
+package kmod
 
 import (
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
-const cameraConnectedPlugAppArmor = `
-# Until we have proper device assignment, allow access to all cameras
-/dev/video[0-9]* rw,
+// Backend is responsible for maintaining kernel modules
+type Backend struct{}
 
-# Allow detection of cameras. Leaks plugged in USB device info
-/sys/bus/usb/devices/ r,
-/sys/devices/pci**/usb*/**/idVendor r,
-/sys/devices/pci**/usb*/**/idProduct r,
-/run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
-`
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "kmod"
+}
 
-// NewCameraInterface returns a new "camera" interface.
-func NewCameraInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "camera",
-		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
-		reservedForOS:         true,
-	}
+func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+	// TODO: get snippets, load modules, create /etc/modules-load.d/snap.modules.conf file
+	return nil
+}
+
+func (b *Backend) Remove(snapName string) error {
+	return nil
 }

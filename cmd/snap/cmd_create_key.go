@@ -44,7 +44,7 @@ func init() {
 			return &cmdCreateKey{}
 		}, nil, []argDesc{{
 			name: i18n.G("<key-name>"),
-			desc: i18n.G("name of key to create; defaults to 'default'"),
+			desc: i18n.G("Name of key to create; defaults to 'default'"),
 		}})
 	cmd.hidden = true
 }

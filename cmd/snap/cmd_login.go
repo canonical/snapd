@@ -57,7 +57,7 @@ func init() {
 		}, nil, []argDesc{{
 			// TRANSLATORS: noun
 			name: i18n.G("<email>"),
-			desc: i18n.G("login.ubuntu.com email to login as"),
+			desc: i18n.G("The login.ubuntu.com email to login as"),
 		}})
 }
 

@@ -17,28 +17,4 @@
  *
  */
 
-package builtin
-
-import (
-	"github.com/snapcore/snapd/interfaces"
-)
-
-const cameraConnectedPlugAppArmor = `
-# Until we have proper device assignment, allow access to all cameras
-/dev/video[0-9]* rw,
-
-# Allow detection of cameras. Leaks plugged in USB device info
-/sys/bus/usb/devices/ r,
-/sys/devices/pci**/usb*/**/idVendor r,
-/sys/devices/pci**/usb*/**/idProduct r,
-/run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
-`
-
-// NewCameraInterface returns a new "camera" interface.
-func NewCameraInterface() interfaces.Interface {
-	return &commonInterface{
-		name: "camera",
-		connectedPlugAppArmor: cameraConnectedPlugAppArmor,
-		reservedForOS:         true,
-	}
-}
+package kmod
