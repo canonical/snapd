@@ -27,7 +27,9 @@ execute: |
             grub-editenv list | grep "snap_try_core=ubuntu-core_$(cat nextBoot).snap"
             grub-editenv list | grep 'snap_mode=try'
         else
-            [ $(fw_printenv snap_core | cut -d '=' -f 2) = "ubuntu-core_$(cat firstBoot).snap" ]
+            fw_printenv snap_core | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+            fw_printenv snap_try_core | grep "snap_try_core=ubuntu-core_$(cat nextBoot).snap"
+            fw_printenv snap_mode | grep 'snap_mode=try'
         fi
 
 
@@ -72,7 +74,9 @@ execute: |
             grub-editenv list | grep '^snap_try_core=$'
             grub-editenv list | grep '^snap_mode=$'
         else
-            [ $(fw_printenv snap_core | cut -d '=' -f 2) = "ubuntu-core_$(cat nextBoot).snap" ]
+            fw_printenv snap_core | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+            ! fw_printenv snap_try_core
+            ! fw_printenv snap_mode
         fi
         echo "Ensure the snap list contains our new ubuntu-core snap"
         snap list |grep "ubuntu-core.*$(cat nextBoot)"
