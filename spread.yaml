@@ -71,7 +71,7 @@ prepare: |
     apt-get purge -y snapd || true
     apt-get update
     # utilities
-    apt-get install -y devscripts expect jq rng-tools software-properties-common
+    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
