@@ -716,11 +716,11 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
-// isSpecialAutoConnectSnap checks special Name/Developer combinations to see
+// isLivePatchSnap checks special Name/Developer combinations to see
 // if this particular snap's connections should be automatically connected even
 // if the interfaces are not autoconnect and the snap is not an OS snap.
 // FIXME: remove once we have assertions that provide this feature
-func isSpecialAutoConnectSnap(snap *snap.Info) bool {
+func isLivePatchSnap(snap *snap.Info) bool {
 	if snap.Name() == "canonical-livepatch" && snap.DeveloperID == "canonical" {
 		return true
 	}
@@ -738,16 +738,10 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 		return nil
 	}
 
-	// FIXME: remove "isSpecialAutoConnectSnap()" once we have assertions
-	// that provide this feature
-	if !r.ifaces[plug.Interface].AutoConnect() && !isSpecialAutoConnectSnap(plug.Snap) {
-		return nil
-	}
-
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if isAutoConnectCandidate(plug, slot) {
+			if r.isAutoConnectCandidate(plug, slot) {
 				candidates = append(candidates, slot)
 			}
 		}
@@ -757,9 +751,17 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 
 // isAutoConnectCandidate returns true if the plug is a candidate to
 // automatically connect to the given slot.
-func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
-	// check if this makes sense at all
+func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
 	if slot.Interface != plug.Interface {
+		return false
+	}
+
+	// FIXME: remove once we have assertions that provide this feature
+	if isLivePatchSnap(plug.Snap) {
+		return true
+	}
+
+	if !r.ifaces[plug.Interface].AutoConnect() {
 		return false
 	}
 
@@ -775,11 +777,6 @@ func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
 
 	// OS snap auto connect candidates
 	if slot.Snap.Type == snap.TypeOS {
-		return true
-	}
-
-	// FIXME: remove once we have assertions that provide this feature
-	if isSpecialAutoConnectSnap(plug.Snap) {
 		return true
 	}
 
