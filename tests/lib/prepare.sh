@@ -3,7 +3,7 @@
 set -eux
 
 prepare_classic() {
-    apt install -y ${SPREAD_PATH}/../snapd_*.deb
+    dpkg -i ${SPREAD_PATH}/../snapd_*.deb || apt-get -f install -y
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
@@ -38,8 +38,8 @@ prepare_classic() {
 
 setup_reflash_magic() {
         # install the stuff we need
-        apt install -y kpartx busybox-static
-        apt install -y ${SPREAD_PATH}/../snapd_*.deb
+        apt-get install -y kpartx busybox-static
+        dpkg -i ${SPREAD_PATH}/../snapd_*.deb || apt-get -f install -y
 
         snap install --edge ubuntu-core
 
