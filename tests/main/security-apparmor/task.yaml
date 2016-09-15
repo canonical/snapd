@@ -11,7 +11,7 @@ restore: |
 execute: |
     echo "Then an unconfined action should succeed"
     test-snapd-tools.cmd touch /dev/shm/snap.test-snapd-tools.foo
-    expected="(?s)File: '/dev/shm/snap.test-snapd-tools.foo'.*?Size: 0"
+    expected="(?s)File: .*/dev/shm/snap.test-snapd-tools.foo.*.*?Size: 0"
     stat /dev/shm/snap.test-snapd-tools.foo | grep -Pqz "$expected"
 
     echo "Then a confined action should fail"
