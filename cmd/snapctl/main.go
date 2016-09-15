@@ -47,13 +47,8 @@ func main() {
 func run() (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
-	context := os.Getenv("SNAP_CONTEXT")
-	if context == "" {
-		return nil, nil, fmt.Errorf("snapctl requires SNAP_CONTEXT environment variable")
-	}
-
 	return cli.RunSnapctl(&client.SnapCtlOptions{
-		ContextID: context,
+		ContextID: os.Getenv("SNAP_CONTEXT"),
 		Args:      os.Args[1:],
 	})
 }
