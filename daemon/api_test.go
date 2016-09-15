@@ -1897,6 +1897,12 @@ func (s *apiSuite) TestAppIconGetNoApp(c *check.C) {
 	c.Check(rec.Code, check.Equals, 404)
 }
 
+func (s *apiSuite) TestNotInstalledSnapIcon(c *check.C) {
+	info := &snap.Info{SuggestedName: "notInstalledSnap", IconURL: "icon.svg"}
+	iconfile := snapIcon(info)
+	c.Check(iconfile, testutil.Contains, "icon.svg")
+}
+
 func (s *apiSuite) TestInstallOnNonDevModeDistro(c *check.C) {
 	s.testInstall(c, &release.OS{ID: "ubuntu"}, snapstate.Flags(0), snap.R(0))
 }
