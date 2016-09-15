@@ -48,13 +48,13 @@ type cmdCreateUser struct {
 func init() {
 	addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} },
 		map[string]string{
-			"json":   i18n.G("output results in JSON format"),
-			"sudoer": i18n.G("grant sudo access to the created user"),
+			"json":   i18n.G("Output results in JSON format"),
+			"sudoer": i18n.G("Grant sudo access to the created user"),
 		}, []argDesc{{
 			// TRANSLATORS: noun
 			name: i18n.G("<email>"),
 			// TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
-			desc: i18n.G("an email of a user on login.ubuntu.com"),
+			desc: i18n.G("An email of a user on login.ubuntu.com"),
 		}})
 }
 
