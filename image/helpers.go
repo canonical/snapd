@@ -86,7 +86,7 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 }
 
 // StoreAssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will save assertions in the given database and after that also call save for each of them.
-func StoreAssertionFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database, save func(asserts.Assertion) error) *asserts.Fetcher {
+func StoreAssertionFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return sto.Assertion(ref.Type, ref.PrimaryKey, dlOpts.User)
 	}
@@ -104,17 +104,14 @@ func StoreAssertionFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Datab
 	return asserts.NewFetcher(db, retrieve, save2)
 }
 
-// FetchSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database.
-func FetchSnapAssertions(snapPath string, info *snap.Info, f *asserts.Fetcher, db asserts.RODatabase) error {
+// FetchAndCheckSnapAssertions fetches and cross checks the snap assertions matching the given snap file using the provided asserts.Fetcher and assertion database.
+func FetchAndCheckSnapAssertions(snapPath string, info *snap.Info, f asserts.Fetcher, db asserts.RODatabase) error {
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapPath)
 	if err != nil {
 		return err
 	}
-	ref := &asserts.Ref{
-		Type:       asserts.SnapRevisionType,
-		PrimaryKey: []string{sha3_384},
-	}
-	if err := f.Fetch(ref); err != nil {
+
+	if err := snapasserts.FetchSnapAssertions(f, sha3_384); err != nil {
 		return fmt.Errorf("cannot fetch snap signatures/assertions: %v", err)
 	}
 

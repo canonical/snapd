@@ -126,3 +126,14 @@ func DeriveSideInfo(snapPath string, db asserts.RODatabase) (*snap.SideInfo, err
 		Developer:   devAcct.Username(),
 	}, nil
 }
+
+// FetchSnapAssertions fetches the assertions matching the snap file digest using the given fetcher.
+func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384 string) error {
+	// for now starting from the snap-revision will get us all other relevant assertions
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{snapSHA3_384},
+	}
+
+	return f.Fetch(ref)
+}
