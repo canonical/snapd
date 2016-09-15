@@ -1263,6 +1263,8 @@ type: os
 slots:
   restricted:
     interface: restricted
+  non-restricted:
+    interface: non-restricted
 `))
 	c.Assert(err, IsNil)
 
@@ -1278,7 +1280,7 @@ slots:
 	return repo, plugSnap, slotSnap
 }
 
-// test auto-connecting livepatch interfaces
+// test auto-connecting livepatch interfaces for special snaps
 func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "canonical-livepatch")
@@ -1286,6 +1288,26 @@ func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "restricted")
+}
+
+// test auto-connecting unrestricted (auto-connect) interfaces for special snaps
+func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
+}
+
+// test auto-connecting unrestricted (auto-connect) interfaces for non-special snaps
+func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "someone-else")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
 }
 
 func (s *RepositorySuite) TestAutoConnectLivepatchWrongDeveloper(c *C) {
