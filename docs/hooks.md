@@ -14,8 +14,8 @@ the upgrade hook executable would be `meta/hooks/upgrade`).
 As long as the file name of the executable corresponds to a supported hook name,
 that's all one needs to do in order to utilize a hook within their snap. Note
 that hooks, like apps, are executed within a confined environment. By default
-hooks will run with no plugs; if a hook needs more capabilities one can use the
-top-level attribute `hooks` in `snap.yaml`, like so:
+hooks will run with no plugs; if a hook needs more privileges one can use the
+top-level attribute `hooks` in `snap.yaml` to request plugs, like so:
 
     hooks: # Top-level YAML attribute, parallel to `apps`
 	    upgrade: # Hook name, corresponds to executable name
