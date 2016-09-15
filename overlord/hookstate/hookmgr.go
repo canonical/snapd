@@ -36,9 +36,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// HookRunner is the hook runner. Exported here for use in tests.
-var HookRunner = runHookAndWait
-
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
@@ -185,7 +182,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// Actually run the hook
-	output, err := HookRunner(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := handler.Error(err); handlerErr != nil {
