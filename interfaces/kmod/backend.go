@@ -17,30 +17,26 @@
  *
  */
 
-package backends
+package kmod
 
 import (
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/dbus"
-	"github.com/snapcore/snapd/interfaces/kmod"
-	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
-// append when a new security backend is added
-var All = []interfaces.SecurityBackend{
-	&seccomp.Backend{},
-	&dbus.Backend{},
-	&udev.Backend{},
-	&mount.Backend{},
-	&kmod.Backend{},
+// Backend is responsible for maintaining kernel modules
+type Backend struct{}
+
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "kmod"
 }
 
-func init() {
-	if !release.ReleaseInfo.ForceDevMode() {
-		All = append(All, &apparmor.Backend{})
-	}
+func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+	// TODO: get snippets, load modules, create /etc/modules-load.d/snap.modules.conf file
+	return nil
+}
+
+func (b *Backend) Remove(snapName string) error {
+	return nil
 }
