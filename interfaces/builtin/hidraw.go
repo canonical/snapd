@@ -129,7 +129,7 @@ func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 			return nil, nil
 		}
 		return udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -139,7 +139,7 @@ func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 // ConnectedSlotSnippet no extra permissions granted on connection
 func (iface *HidrawInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -149,7 +149,7 @@ func (iface *HidrawInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 // PermanentPlugSnippet no permissions provided to plug permanently
 func (iface *HidrawInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -188,7 +188,7 @@ func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 			udevSnippet.Write(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
 		}
 		return udevSnippet.Bytes(), nil
-	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

@@ -228,7 +228,7 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 
 func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -238,7 +238,7 @@ func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug
 func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -263,7 +263,7 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 			snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
 		}
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -272,7 +272,7 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 
 func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKernelModule:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
