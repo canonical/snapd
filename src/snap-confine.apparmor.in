@@ -251,8 +251,8 @@
         /run/snapd/ r,
         /run/snapd/ns/ r,
         /run/snapd/ns/*.mnt rw,
-        # mount options=(rw bind) /proc/*/ns/mnt/ -> /run/snapd/ns/*.mnt/,
-        mount options=(rw bind) -> /run/snapd/ns/*.mnt,
+        # NOTE: the source name is / even though we map /proc/123/ns/mnt
+        mount options=(rw bind) / -> /run/snapd/ns/*.mnt,
         # This is the SIGALRM that we send and receive if a timeout expires
         signal (send, receive) set=(alrm) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
         # Those two rules are exactly the same but we don't know if the parent process is still alive
