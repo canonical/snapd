@@ -1,0 +1,305 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
+/*
+ * Copyright (C) 2016 Canonical Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 3 as
+ * published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ */
+
+package patch_test
+
+import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/patch"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
+)
+
+type patch4Suite struct{}
+
+var _ = Suite(&patch4Suite{})
+
+var statePatch4JSON = []byte(`
+{
+	"last-task-id": 999,
+	"last-change-id": 99,
+
+	"data": {
+		"patch-level": 3,
+		"snaps": {
+			"a": {
+				"sequence": [
+					{"name": "", "revision": "1"},
+					{"name": "", "revision": "2"},
+					{"name": "", "revision": "3"}],
+				"current": "2"},
+			"b": {
+				"sequence": [
+					{"name": "", "revision": "1"},
+					{"name": "", "revision": "2"}],
+				"current": "2"}
+		}
+	},
+	"changes": {
+		"1": {
+			"id": "1",
+			"kind": "revert-snap",
+			"summary": "revert a snap",
+			"status": 0,
+			"data": {"snap-names": ["a"]},
+			"task-ids": ["1","2","3","4"]
+		},
+		"2": {
+			"id": "2",
+			"kind": "refresh-snap",
+			"summary": "refresh b snap",
+			"status": 0,
+			"data": {"snap-names": ["b"]},
+			"task-ids": ["10","11","12","13","14","15","16"]
+		}
+	},
+	"tasks": {
+		"1": {
+			"id": "1",
+			"kind": "prepare-snap",
+			"summary": "",
+			"status": 4,
+			"data": {
+			    "snap-setup": {
+				"side-info": {"revision": "2", "name": "a"}
+			    }
+			},
+			"halt-tasks": ["2"],
+			"change": "1"
+		},
+		"2": {
+			"id": "2",
+			"kind": "unlink-current-snap",
+			"summary": "",
+			"status": 4,
+			"data": {
+			    "snap-setup-task": "1"
+			},
+			"wait-tasks": ["1"],
+			"halt-tasks": ["3"],
+			"change": "1"
+		},
+		"3": {
+			"id": "3",
+			"kind": "setup-profiles",
+			"summary": "",
+			"status": 4,
+			"data": {
+			    "snap-setup-task": "1"
+			},
+			"wait-tasks": ["2"],
+			"halt-tasks": ["4"],
+			"change": "1"
+		},
+		"4": {
+			"id": "4",
+			"kind": "link-snap",
+			"summary": "make snap avaiblabla",
+			"status": 4,
+			"data": {
+			    "had-candidate": true,
+			    "snap-setup-task": "1"
+			},
+			"wait-tasks": ["3"],
+			"change": "1"
+		},
+
+		"10": {
+			"id": "10",
+			"kind": "download-snap",
+			"summary": "... download ...",
+			"status": 4,
+			"data": {"snap-setup": {"side-info": {"revision": "2", "name": "a"}}},
+			"halt-tasks": ["11"],
+			"change": "2"
+		}, "11": {
+			"id": "11",
+			"kind": "validate-snap",
+			"summary": "... check asserts...",
+			"status": 4,
+			"data": {"snap-setup-task": "10"},
+			"wait-tasks": ["10"],
+			"halt-tasks": ["12"],
+			"change": "2"
+		}, "12": {
+			"id": "12",
+			"kind": "mount-snap",
+			"summary": "... mount...",
+			"status": 4,
+			"data": {"snap-setup-task": "10", "snap-type": "app"},
+			"wait-tasks": ["11"],
+			"halt-tasks": ["13"],
+			"change": "2"
+		}, "13": {
+			"id": "13",
+			"kind": "unlink-current-snap",
+			"summary": "... unlink...",
+			"status": 4,
+			"data": {"snap-setup-task": "10"},
+			"wait-tasks": ["12"],
+			"halt-tasks": ["14"],
+			"change": "2"
+		}, "14": {
+			"id": "14",
+			"kind": "copy-snap-data",
+			"summary": "... copy...",
+			"status": 0,
+			"data": {"snap-setup-task": "10"},
+			"wait-tasks": ["13"],
+			"halt-tasks": ["15"],
+			"change": "2"
+		}, "15": {
+			"id": "15",
+			"kind": "setup-profiles",
+			"summary": "... set up profile...",
+			"status": 0,
+			"data": {"snap-setup-task": "10"},
+			"wait-tasks": ["14"],
+			"halt-tasks": ["16"],
+			"change": "2"
+		}, "16": {
+			"id": "16",
+			"kind": "link-snap",
+			"summary": "... link...",
+			"status": 0,
+			"data": {"snap-setup-task": "10", "had-candidate": false},
+			"wait-tasks": ["15"],
+			"change": "2"
+		}
+	}
+}
+`)
+
+func (s *patch4Suite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
+	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapStateFile, statePatch4JSON, 0644)
+	c.Assert(err, IsNil)
+}
+
+func (s *patch4Suite) TestPatch4OnReverts(c *C) {
+	restorer := patch.MockLevel(4)
+	defer restorer()
+
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	defer r.Close()
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+
+		task := st.Task("4")
+		c.Assert(task, NotNil)
+
+		ss, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		c.Check(ss.Flags.Revert(), Equals, false)
+
+		var had bool
+		var idx int
+		c.Check(task.Get("had-candidate", &had), IsNil)
+		c.Check(had, Equals, true)
+		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(len(task.Change().Tasks()), Equals, 4)
+	}()
+
+	// go from patch level 3 -> 4
+	err = patch.Apply(st)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.Task("4")
+	c.Assert(task, NotNil)
+
+	ss, err := snapstate.TaskSnapSetup(task)
+	c.Assert(err, IsNil)
+	c.Check(ss.Flags.Revert(), Equals, true)
+
+	var had bool
+	var idx int
+	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("old-candidate-index", &idx), IsNil)
+	c.Check(idx, Equals, 1)
+	c.Check(len(task.Change().Tasks()), Equals, 4)
+}
+
+func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
+	restorer := patch.MockLevel(4)
+	defer restorer()
+
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	defer r.Close()
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+
+		task := st.Task("16")
+		c.Assert(task, NotNil)
+
+		ss, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		c.Check(ss.Flags.Revert(), Equals, false)
+
+		var had bool
+		var idx int
+		c.Check(task.Get("had-candidate", &had), IsNil)
+		c.Check(had, Equals, false)
+		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(len(task.Change().Tasks()), Equals, 7)
+	}()
+
+	// go from patch level 3 -> 4
+	err = patch.Apply(st)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.Task("16")
+	c.Assert(task, NotNil)
+
+	ss, err := snapstate.TaskSnapSetup(task)
+	c.Assert(err, IsNil)
+	c.Check(ss.Flags.Revert(), Equals, false)
+
+	var had bool
+	var idx int
+	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("old-candidate-index", &idx), IsNil)
+	c.Check(idx, Equals, 1)
+	// we added cleanup
+	c.Check(len(task.Change().Tasks()), Equals, 7+1)
+}

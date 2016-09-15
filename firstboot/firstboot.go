@@ -69,6 +69,12 @@ network:
 // be run as part of the config-changed hook and read the snap's
 // config to determine the netplan config to write.
 func InitialNetworkConfig() error {
+	// If the config is already present, don't overwrite it.  See
+	// https://bugs.launchpad.net/snappy/+bug/1623119.
+	if _, err := os.Stat(netplanConfigFile); err == nil {
+		return nil
+	}
+
 	if err := osutil.AtomicWriteFile(netplanConfigFile, []byte(netplanConfigData), 0644, 0); err != nil {
 		return err
 	}
@@ -76,9 +82,6 @@ func InitialNetworkConfig() error {
 	enable := exec.Command(enableConfig[0], enableConfig[1:]...)
 	enable.Stdout = os.Stdout
 	enable.Stderr = os.Stderr
-	if err := enable.Run(); err != nil {
-		return err
-	}
 
-	return nil
+	return enable.Run()
 }
