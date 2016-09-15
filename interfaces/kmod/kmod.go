@@ -17,30 +17,4 @@
  *
  */
 
-package backends
-
-import (
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
-	"github.com/snapcore/snapd/interfaces/dbus"
-	"github.com/snapcore/snapd/interfaces/kmod"
-	"github.com/snapcore/snapd/interfaces/mount"
-	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
-	"github.com/snapcore/snapd/release"
-)
-
-// append when a new security backend is added
-var All = []interfaces.SecurityBackend{
-	&seccomp.Backend{},
-	&dbus.Backend{},
-	&udev.Backend{},
-	&mount.Backend{},
-	&kmod.Backend{},
-}
-
-func init() {
-	if !release.ReleaseInfo.ForceDevMode() {
-		All = append(All, &apparmor.Backend{})
-	}
-}
+package kmod
