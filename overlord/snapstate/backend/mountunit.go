@@ -61,7 +61,7 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 	if osutil.FileExists(unit) {
 		// use umount --lazy to ensure that even busy mount points
 		// can be unmounted
-		if output, err := exec.Command("umount", "--lazy", baseDir).CombinedOutput(); err != nil {
+		if output, err := exec.Command("umount", "-l", baseDir).CombinedOutput(); err != nil {
 			return osutil.OutputErr(output, err)
 		}
 
