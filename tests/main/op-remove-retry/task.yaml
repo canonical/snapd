@@ -26,7 +26,11 @@ execute: |
     # not that the dir is actually blocked yet
     MARKER=/var/snap/test-snapd-tools/current/block-running
     rm -f $MARKER
-    systemd-run --unit unmount-blocker $(which test-snapd-tools.block)
+
+    printf "[Unit]\nDescription=For testing purposes\n[Service]\nType=simple\nExecStart=%s" $(which test-snapd-tools.block) > /run/systemd/system/unmount-blocker.service
+    systemctl daemon-reload
+    systemctl start unmount-blocker
+    
     wait_for_service unmount-blocker active
     while [ ! -f $MARKER ]; do sleep 1; done
 

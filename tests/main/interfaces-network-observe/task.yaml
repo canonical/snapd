@@ -25,7 +25,11 @@ prepare: |
     echo "And a network service is up"
     printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
-    systemd-run --unit $SERVICE_NAME $SERVICE_FILE
+
+    printf "[Unit]\nDescription=For testing purposes\n[Service]\nType=simple\nExecStart=%s" $(readlink -f $SERVICE_FILE) > /run/systemd/system/$SERVICE_NAME.service
+    systemctl daemon-reload
+    systemctl start $SERVICE_NAME
+
     while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 
 restore: |
