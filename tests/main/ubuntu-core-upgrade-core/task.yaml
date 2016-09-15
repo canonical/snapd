@@ -1,6 +1,6 @@
 summary: Ensure that a ubuntu-core refresh works
 
-systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64, ubuntu-core-16-device-arm]
+systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64]
 
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
@@ -21,12 +21,10 @@ execute: |
             exit 1
         fi
 
-        if [ -f $(which grub-editenv) ]; then
-            echo "Ensure the bootloader is correct before reboot"
-            grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
-            grub-editenv list | grep "snap_try_core=ubuntu-core_$(cat nextBoot).snap"
-            grub-editenv list | grep 'snap_mode=try'
-        fi
+        echo "Ensure the bootloader is correct before reboot"
+        grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+        grub-editenv list | grep "snap_try_core=ubuntu-core_$(cat nextBoot).snap"
+        grub-editenv list | grep 'snap_mode=try'
 
         echo "Ensure the device is scheduled for auto-reboot"
         output=$(dbus-send --print-reply \
@@ -59,12 +57,10 @@ execute: |
         echo "Ensure we booted from the newly installed core snap"
         grep "snap_core=ubuntu-core_$(cat nextBoot).snap" /proc/cmdline
 
-        if [ -f $(which grub-editenv) ]; then
-            echo "Ensure the bootloader is correct after reboot"
-            grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
-            grub-editenv list | grep '^snap_try_core=$'
-            grub-editenv list | grep '^snap_mode=$'
-        fi
+        echo "Ensure the bootloader is correct after reboot"
+        grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+        grub-editenv list | grep '^snap_try_core=$'
+        grub-editenv list | grep '^snap_mode=$'
 
         echo "Ensure the snap list contains our new ubuntu-core snap"
         snap list |grep "ubuntu-core.*$(cat nextBoot)"
