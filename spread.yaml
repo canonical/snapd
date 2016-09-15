@@ -62,6 +62,9 @@ backends:
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
         systems:
+            - ubuntu-core-16.04-64:
+                username: test
+                password: ubuntu
             - ubuntu-core-16-device-amd64:
                 username: test
                 password: ubuntu
