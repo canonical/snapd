@@ -663,3 +663,29 @@ Generally the UUID of a background operation you are interested in.
     ]
   }
 ```
+
+## /v2/create-user
+
+### POST
+
+* Description: Create a local user
+* Access: trusted
+* Operation: sync
+* Return: an object with the created username and the amount of imported ssh keys
+
+Sample input:
+
+```javascript
+{
+  "email":"michael@example.com",
+  "sudoer": false
+}
+```
+
+Sample return:
+```javascript
+{
+  "username":"mvo",
+  "ssk-key-count": 2
+}
+```

@@ -57,10 +57,10 @@ func init() {
 	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
 	}, map[string]string{
-		"i": i18n.G("constrain listing to specific interfaces"),
+		"i": i18n.G("Constrain listing to specific interfaces"),
 	}, []argDesc{{
 		name: i18n.G("<snap>:<slot or plug>"),
-		desc: i18n.G("snap or snap:name"),
+		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
 	}})
 }
 

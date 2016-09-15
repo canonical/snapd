@@ -169,8 +169,19 @@ func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
 	subdir := filepath.Join(datadir, "random-subdir")
 	err := os.MkdirAll(subdir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), []byte(fmt.Sprintln(revision)), 0644)
 	c.Assert(err, IsNil)
+}
+
+func (s *copydataSuite) populatedData(d string) string {
+	bs, err := ioutil.ReadFile(filepath.Join(dirs.SnapDataDir, "hello", d, "random-subdir", "canary"))
+	if err == nil {
+		return string(bs)
+	}
+	if os.IsNotExist(err) {
+		return ""
+	}
+	panic(err)
 }
 
 func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revision) (homedir string) {
@@ -178,7 +189,7 @@ func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revisio
 	homeData := filepath.Join(homedir, "hello", revision.String())
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), []byte(fmt.Sprintln(revision)), 0644)
 	c.Assert(err, IsNil)
 	return
 }
@@ -258,6 +269,58 @@ func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
 	c.Check(os.IsNotExist(err), Equals, true)
 	_, err = os.Stat(v1.CommonDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *copydataSuite) TestCopyDataDoABA(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	s.populateData(c, snap.R(10))
+	c.Check(s.populatedData("10"), Equals, "10\n")
+
+	// pretend we install a new version
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+	// and write our own data to it
+	s.populateData(c, snap.R(20))
+	c.Check(s.populatedData("20"), Equals, "20\n")
+
+	// and now we pretend to refresh back to v1 (r10)
+	c.Check(s.be.CopySnapData(v1, v2, &s.nullProgress), IsNil)
+
+	// so 10 now has 20's data
+	c.Check(s.populatedData("10"), Equals, "20\n")
+
+	// but we still have the trash
+	c.Check(s.populatedData("10.old"), Equals, "10\n")
+
+	// but cleanup cleans it up, huzzah
+	s.be.ClearTrashedData(v1)
+	c.Check(s.populatedData("10.old"), Equals, "")
+}
+
+func (s *copydataSuite) TestCopyDataDoUndoABA(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	s.populateData(c, snap.R(10))
+	c.Check(s.populatedData("10"), Equals, "10\n")
+
+	// pretend we install a new version
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+	// and write our own data to it
+	s.populateData(c, snap.R(20))
+	c.Check(s.populatedData("20"), Equals, "20\n")
+
+	// and now we pretend to refresh back to v1 (r10)
+	c.Check(s.be.CopySnapData(v1, v2, &s.nullProgress), IsNil)
+
+	// so v1 (r10) now has v2 (r20)'s data and we have trash
+	c.Check(s.populatedData("10"), Equals, "20\n")
+	c.Check(s.populatedData("10.old"), Equals, "10\n")
+
+	// but oh no! we have to undo it!
+	c.Check(s.be.UndoCopySnapData(v1, v2, &s.nullProgress), IsNil)
+
+	// so now v1 (r10) has v1 (r10)'s data and v2 (r20) has v2 (r20)'s data and we have no trash
+	c.Check(s.populatedData("10"), Equals, "10\n")
+	c.Check(s.populatedData("20"), Equals, "20\n")
+	c.Check(s.populatedData("10.old"), Equals, "")
 }
 
 func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
