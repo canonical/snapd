@@ -212,7 +212,7 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
 	}
 }
 
-func (s *assertMgrSuite) TestFetch(c *C) {
+func (s *assertMgrSuite) TestDoFetch(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
 	s.state.Lock()
@@ -223,7 +223,9 @@ func (s *assertMgrSuite) TestFetch(c *C) {
 		PrimaryKey: []string{makeDigest(10)},
 	}
 
-	err := assertstate.Fetch(s.state, ref, 0)
+	err := assertstate.DoFetch(s.state, 0, func(f asserts.Fetcher) error {
+		return f.Fetch(ref)
+	})
 	c.Assert(err, IsNil)
 
 	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
@@ -241,8 +243,11 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		Type:       asserts.SnapRevisionType,
 		PrimaryKey: []string{makeDigest(10)},
 	}
+	fetching := func(f asserts.Fetcher) error {
+		return f.Fetch(ref)
+	}
 
-	err := assertstate.Fetch(s.state, ref, 0)
+	err := assertstate.DoFetch(s.state, 0, fetching)
 	c.Assert(err, IsNil)
 
 	ref = &asserts.Ref{
@@ -250,7 +255,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		PrimaryKey: []string{makeDigest(11)},
 	}
 
-	err = assertstate.Fetch(s.state, ref, 0)
+	err = assertstate.DoFetch(s.state, 0, fetching)
 	c.Assert(err, IsNil)
 
 	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
