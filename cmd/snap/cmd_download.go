@@ -55,7 +55,7 @@ func init() {
 		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
 	}), []argDesc{{
 		name: "<snap>",
-		desc: i18n.G("snap name"),
+		desc: i18n.G("Snap name"),
 	}})
 }
 

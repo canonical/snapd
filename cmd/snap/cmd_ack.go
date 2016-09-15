@@ -50,7 +50,7 @@ func init() {
 		return &cmdAck{}
 	}, nil, []argDesc{{
 		name: i18n.G("<assertion file>"),
-		desc: i18n.G("assertion file"),
+		desc: i18n.G("Assertion file"),
 	}})
 }
 

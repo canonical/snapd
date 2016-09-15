@@ -39,7 +39,7 @@ func init() {
 		i18n.G("List cryptographic keys that can be used for signing assertions."),
 		func() flags.Commander {
 			return &cmdKeys{}
-		}, map[string]string{"json": i18n.G("output results in JSON format")}, nil)
+		}, map[string]string{"json": i18n.G("Output results in JSON format")}, nil)
 	cmd.hidden = true
 }
 
