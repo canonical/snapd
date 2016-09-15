@@ -1243,12 +1243,18 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 func makeLivepatchConnectionTestSnaps(c *C, name, developer string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
 	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted", AutoConnectFlag: false})
+	c.Assert(err, IsNil)
+
+	err = repo.AddInterface(&TestInterface{InterfaceName: "non-restricted", AutoConnectFlag: true})
+	c.Assert(err, IsNil)
 
 	plugSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(`
 name: %s
 plugs:
   canonical-livepatch:
     interface: restricted
+  non-restricted:
+    interface: non-restricted
 `, name)))
 	c.Assert(err, IsNil)
 	slotSnap, err := snap.InfoFromSnapYaml([]byte(`
