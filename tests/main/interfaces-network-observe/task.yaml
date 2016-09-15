@@ -34,6 +34,9 @@ prepare: |
 
 restore: |
     systemctl stop $SERVICE_NAME
+    rm /run/systemd/system/$SERVICE_NAME.service
+    systemctl daemon-reload
+
     rm -f network-observe-consumer_1.0_all.snap net-query.output $SERVICE_FILE
 
 execute: |

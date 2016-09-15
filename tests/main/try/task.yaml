@@ -19,6 +19,8 @@ prepare: |
 
 restore: |
     systemctl stop $SERVICE_NAME
+    rm /run/systemd/system/$SERVICE_NAME.service
+    systemctl daemon-reload
     rm -f $SERVICE_FILE $READABLE_FILE
 
 execute: |
