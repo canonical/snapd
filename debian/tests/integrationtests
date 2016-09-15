@@ -16,6 +16,9 @@ if [ "$http_proxy" != "" ]; then
 Environment=http_proxy=$http_proxy
 Environment=https_proxy=$http_proxy
 EOF
+
+    # ensure environment is updated
+    echo "http_proxy=$http_proxy" >> /etc/environment
 fi
 systemctl daemon-reload
 
