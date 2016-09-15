@@ -1,5 +1,5 @@
 summary: Check that revert of a snap in devmode restores devmode
-
+systems: [-ubuntu-core-16-64]
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/staging: staging

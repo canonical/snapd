@@ -1,5 +1,5 @@
 summary: Check that revert works.
-
+systems: [-ubuntu-core-16-64]
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/staging: staging
