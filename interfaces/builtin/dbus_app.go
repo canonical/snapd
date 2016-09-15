@@ -29,7 +29,7 @@ import (
 )
 
 // Split this out since we only need these rules once per app
-var dbusAppPermanentSlotAppArmorShared = []byte(`
+const dbusAppPermanentSlotAppArmorShared = `
 # Description: Allow owning a name on DBus public bus
 
 #include <abstractions/###DBUS_BIND_ABSTRACTION###>
@@ -48,10 +48,10 @@ dbus (send)
     interface=org.freedesktop.DBus
     member="GetConnectionUnix{ProcessID,User}"
     peer=(name=org.freedesktop.DBus, label=unconfined),
-`)
+`
 
 // These rules are needed for each well-known name for the app
-var dbusAppPermanentSlotAppArmorIndividual = []byte(`
+const dbusAppPermanentSlotAppArmorIndividual = `
 # bind to a well-known DBus name: ###DBUS_BIND_NAME###
 dbus (bind)
     bus=###DBUS_BIND_BUS###
@@ -67,24 +67,23 @@ dbus (send)
     path=###DBUS_BIND_PATH###
     interface=org.freedesktop.DBus.Properties
     peer=(name=org.freedesktop.DBus, label=unconfined),
-`)
+`
 
-var dbusAppPermanentSlotAppArmorIndividualClassic = []byte(`
+const dbusAppPermanentSlotAppArmorIndividualClassic = `
 # allow unconfined clients talk to ###DBUS_BIND_NAME### on classic
 dbus (receive)
     bus=###DBUS_BIND_BUS###
     path=###DBUS_BIND_PATH###
     peer=(label=unconfined),
-`)
+`
 
-var dbusAppPermanentSlotSecComp = []byte(`
+const dbusAppPermanentSlotSecComp = `
 # Description: Allow owning a name on DBus public bus
-
 getsockname
 recvmsg
 sendmsg
 sendto
-`)
+`
 
 type DbusAppInterface struct{}
 
@@ -127,18 +126,18 @@ func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 			}
 			old := []byte("###DBUS_BIND_ABSTRACTION###")
 			new := []byte(abstraction)
-			snippet := bytes.Replace(dbusAppPermanentSlotAppArmorShared, old, new, -1)
+			snippet := bytes.Replace([]byte(dbusAppPermanentSlotAppArmorShared), old, new, -1)
 			snippets.Write(snippet)
 
 			for _, name := range names {
 				// well-known DBus name-specific permanent slot
 				// policy
-				snippet := getAppArmorIndividualSnippet(dbusAppPermanentSlotAppArmorIndividual, bus, name)
+				snippet := getAppArmorIndividualSnippet([]byte(dbusAppPermanentSlotAppArmorIndividual), bus, name)
 				snippets.Write(snippet)
 
 				if release.OnClassic {
 					// classic-only policy
-					snippet := getAppArmorIndividualSnippet(dbusAppPermanentSlotAppArmorIndividualClassic, bus, name)
+					snippet := getAppArmorIndividualSnippet([]byte(dbusAppPermanentSlotAppArmorIndividualClassic), bus, name)
 					snippets.Write(snippet)
 				}
 			}
@@ -146,7 +145,7 @@ func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 		//fmt.Printf("DEBUG - PERMANENT SLOT:\n %s\n", snippets.Bytes())
 		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
-		return dbusAppPermanentSlotSecComp, nil
+		return []byte(dbusAppPermanentSlotSecComp), nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
 	default:
