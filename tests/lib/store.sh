@@ -41,6 +41,8 @@ teardown_store(){
     local top_dir=$2
     if [ "$store_type" = "fake" ]; then
         systemctl stop fakestore
+	rm /run/systemd/system/fakestore.service
+	systemctl daemon-reload
     fi
 
     systemctl stop snapd.socket

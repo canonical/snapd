@@ -45,4 +45,5 @@ execute: |
 
     # cleanup umount blocker
     systemctl stop unmount-blocker
-
+    rm /run/systemd/system/unmount-blocker.service
+    systemctl daemon-reload
