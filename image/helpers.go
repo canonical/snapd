@@ -85,7 +85,7 @@ func DownloadSnap(sto Store, name string, revision snap.Revision, opts *Download
 	return targetPath, snap, nil
 }
 
-// StoreAssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will save assertions in the given database and after that also call save for each of them.
+// StoreAssertionFetcher creates an asserts.Fetcher for assertions against the given store using dlOpts for authorization, the fetcher will add assertions in the given database and after that also call save for each of them.
 func StoreAssertionFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database, save func(asserts.Assertion) error) asserts.Fetcher {
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return sto.Assertion(ref.Type, ref.PrimaryKey, dlOpts.User)
