@@ -262,9 +262,11 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	}
 
 	snaps := []string{}
-	snaps = append(snaps, local.PreferLocal(model.Gadget()))
+	// core,kernel,gadget first
 	snaps = append(snaps, local.PreferLocal(defaultCore))
 	snaps = append(snaps, local.PreferLocal(model.Kernel()))
+	snaps = append(snaps, local.PreferLocal(model.Gadget()))
+	// then required and the user requested stuff
 	snaps = append(snaps, model.RequiredSnaps()...)
 	snaps = append(snaps, opts.Snaps...)
 
