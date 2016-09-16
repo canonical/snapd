@@ -304,7 +304,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 			"snap-id": gatingID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q (id: %s): err", snapName, gatingID)
+			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q (id %q): err", snapName, gatingID)
 		}
 		decl := a.(*asserts.SnapDeclaration)
 		control := decl.RefreshControl()
