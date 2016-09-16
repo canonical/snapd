@@ -173,6 +173,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	snapstateInstall = snapstate.Install
 	snapstateGet = snapstate.Get
 	snapstateInstallPath = snapstate.InstallPath
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
 	ensureStateSoon = ensureStateSoonImpl
 	dirs.SetRootDir("")
@@ -397,6 +398,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateGet",
 		"snapstateUpdateMany",
 		"snapstateRefreshCandidates",
+		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
 		"storeUserInfo",
@@ -1969,6 +1971,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	calledFlags := snapstate.Flags(42)
 	calledUserID := 0
 	installQueue := []string{}
+	assertstateCalledUserID := 0
 
 	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
 		// we have ubuntu-core
@@ -1981,6 +1984,10 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		assertstateCalledUserID = userID
+		return nil
 	}
 
 	d := s.daemon(c)
@@ -1996,6 +2003,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	summary, _, err := inst.dispatch()(inst, st)
 	c.Check(err, check.IsNil)
 
+	c.Check(assertstateCalledUserID, check.Equals, 17)
 	c.Check(calledFlags, check.Equals, snapstate.Flags(0))
 	c.Check(calledUserID, check.Equals, 17)
 	c.Check(err, check.IsNil)
@@ -2019,6 +2027,9 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 
 		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
 		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
 	}
 
 	d := s.daemon(c)
@@ -2073,6 +2084,12 @@ func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 }
 
 func (s *apiSuite) TestRefreshAll(c *check.C) {
+	refreshSnapDecls := false
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		refreshSnapDecls = true
+		return assertstate.RefreshSnapDeclarations(s, userID)
+	}
+
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
@@ -2087,9 +2104,16 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, "Refresh all snaps in the system")
+	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
 func (s *apiSuite) TestRefreshMany(c *check.C) {
+	refreshSnapDecls := false
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		refreshSnapDecls = true
+		return nil
+	}
+
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
@@ -2105,9 +2129,16 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, `Refresh snaps "foo", "bar"`)
 	c.Check(updates, check.DeepEquals, inst.Snaps)
+	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
 func (s *apiSuite) TestRefreshMany1(c *check.C) {
+	refreshSnapDecls := false
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		refreshSnapDecls = true
+		return nil
+	}
+
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 1)
 		t := s.NewTask("fake-refresh-1", "Refreshing one")
@@ -2123,6 +2154,7 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(summary, check.Equals, `Refresh snap "foo"`)
 	c.Check(updates, check.DeepEquals, inst.Snaps)
+	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
