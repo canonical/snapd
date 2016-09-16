@@ -2,7 +2,7 @@ summary: Check that revert works.
 systems: [-ubuntu-core-16-64]
 environment:
     STORE_TYPE/fake: fake
-    STORE_TYPE/staging: staging
+#    STORE_TYPE/staging: staging
     STORE_TYPE/production: production
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
