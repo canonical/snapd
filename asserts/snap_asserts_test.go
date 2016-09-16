@@ -172,7 +172,6 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheck(c *C) {
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "dev-id1",
-		"gates":        "",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
@@ -192,7 +191,6 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckUntrustedAuthority(c *C) {
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "dev-id1",
-		"gates":        "",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	snapDecl, err := otherDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
@@ -365,7 +363,9 @@ func makeStoreAndCheckDB(c *C) (storeDB *assertstest.SigningDB, checkDB *asserts
 func setup3rdPartySigning(c *C, username string, storeDB *assertstest.SigningDB, checkDB *asserts.Database) (signingDB *assertstest.SigningDB) {
 	privKey := testPrivKey2
 
-	acct := assertstest.NewAccount(storeDB, username, nil, "")
+	acct := assertstest.NewAccount(storeDB, username, map[string]interface{}{
+		"account-id": username,
+	}, "")
 	accKey := assertstest.NewAccountKey(storeDB, acct, nil, privKey.PublicKey(), "")
 
 	err := checkDB.Add(acct)
@@ -381,7 +381,7 @@ func (sbs *snapBuildSuite) TestSnapBuildCheck(c *C) {
 	devDB := setup3rdPartySigning(c, "devel1", storeDB, db)
 
 	headers := map[string]interface{}{
-		"authority-id":  devDB.AuthorityID,
+		"authority-id":  "devel1",
 		"snap-sha3-384": blobSHA3_384,
 		"snap-id":       "snap-id-1",
 		"grade":         "devel",
@@ -726,6 +726,21 @@ func prereqSnapDecl2(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
 
 func (vs *validationSuite) TestValidationCheck(c *C) {
 	storeDB, db := makeStoreAndCheckDB(c)
+	devDB := setup3rdPartySigning(c, "dev-id1", storeDB, db)
+
+	prereqSnapDecl(c, storeDB, db)
+	prereqSnapDecl2(c, storeDB, db)
+
+	headers := vs.makeHeaders(nil)
+	validation, err := devDB.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(validation)
+	c.Assert(err, IsNil)
+}
+
+func (vs *validationSuite) TestValidationCheckWrongAuthority(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
 
 	prereqDevAccount(c, storeDB, db)
 	prereqSnapDecl(c, storeDB, db)
@@ -736,7 +751,7 @@ func (vs *validationSuite) TestValidationCheck(c *C) {
 	c.Assert(err, IsNil)
 
 	err = db.Check(validation)
-	c.Assert(err, IsNil)
+	c.Assert(err, ErrorMatches, `validation assertion by snap "foo" \(id "snap-id-1"\) not signed by its publisher`)
 }
 
 func (vs *validationSuite) TestRevocation(c *C) {
