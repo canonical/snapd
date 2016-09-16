@@ -1239,3 +1239,85 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
 	c.Check(candidateSlots, HasLen, 0)
 }
+
+func makeLivepatchConnectionTestSnaps(c *C, name, developer string) (*Repository, *snap.Info, *snap.Info) {
+	repo := NewRepository()
+	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted", AutoConnectFlag: false})
+	c.Assert(err, IsNil)
+
+	err = repo.AddInterface(&TestInterface{InterfaceName: "non-restricted", AutoConnectFlag: true})
+	c.Assert(err, IsNil)
+
+	plugSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(`
+name: %s
+plugs:
+  restricted:
+    interface: restricted
+  non-restricted:
+    interface: non-restricted
+`, name)))
+	c.Assert(err, IsNil)
+	slotSnap, err := snap.InfoFromSnapYaml([]byte(`
+name: ubuntu-core
+type: os
+slots:
+  restricted:
+    interface: restricted
+  non-restricted:
+    interface: non-restricted
+`))
+	c.Assert(err, IsNil)
+
+	plugSnap.DeveloperID = developer
+	slotSnap.DeveloperID = "canonical"
+	slotSnap.Type = snap.TypeOS
+
+	err = repo.AddSnap(plugSnap)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(slotSnap)
+	c.Assert(err, IsNil)
+
+	return repo, plugSnap, slotSnap
+}
+
+// test auto-connecting livepatch interfaces for special snaps
+func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "restricted")
+}
+
+// test auto-connecting unrestricted (auto-connect) interfaces for special snaps
+func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
+}
+
+// test auto-connecting unrestricted (auto-connect) interfaces for non-special snaps
+func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "someone-else")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
+}
+
+func (s *RepositorySuite) TestAutoConnectLivepatchWrongDeveloper(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "somebody")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
+	c.Check(candidateSlots, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAutoConnectLivepatchWrongName(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "something", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
+	c.Check(candidateSlots, HasLen, 0)
+}
