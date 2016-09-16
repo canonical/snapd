@@ -68,6 +68,8 @@ type mgrsSuite struct {
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
 
+	devAcct *asserts.Account
+
 	o *overlord.Overlord
 
 	serveSnapPath string
@@ -84,6 +86,8 @@ var (
 	storePrivKey, _ = assertstest.GenerateKey(752)
 
 	brandPrivKey, _ = assertstest.GenerateKey(752)
+
+	develPrivKey, _ = assertstest.GenerateKey(752)
 
 	deviceKey, _ = assertstest.GenerateKey(752)
 )
@@ -109,6 +113,12 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
+
+	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevev", map[string]interface{}{
+		"account-id": "devdevdev",
+	}, "")
+	err = ms.storeSigning.Add(ms.devAcct)
+	c.Assert(err, IsNil)
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -241,12 +251,6 @@ const (
 )
 
 func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
-	devAcct := assertstest.NewAccount(ms.storeSigning, "devdevev", map[string]interface{}{
-		"account-id": "devdevdev",
-	}, "")
-	err := ms.storeSigning.Add(devAcct)
-	c.Assert(err, IsNil)
-
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      fooSnapID,
@@ -450,7 +454,7 @@ apps:
 	snapPath, digest = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, 0)
+	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, 0, assertstate.ValidateRefreshes)
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -593,12 +597,61 @@ version: @VERSION@
 
 	// Refresh
 
+	// Setup refresh-control
+
+	headers := map[string]interface{}{
+		"series":          "16",
+		"snap-id":         "bar-id",
+		"snap-name":       "bar",
+		"publisher-id":    "devdevdev",
+		"refresh-control": []interface{}{fooSnapID},
+		"timestamp":       time.Now().Format(time.RFC3339),
+	}
+	snapDeclBar, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = ms.storeSigning.Add(snapDeclBar)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDeclBar)
+	c.Assert(err, IsNil)
+
+	snapstate.Set(st, "bar", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+
+	develSigning := assertstest.NewSigningDB("devdevdev", develPrivKey)
+
+	develAccKey := assertstest.NewAccountKey(ms.storeSigning, ms.devAcct, nil, develPrivKey.PublicKey(), "")
+	err = ms.storeSigning.Add(develAccKey)
+	c.Assert(err, IsNil)
+
 	ver = "2.0"
 	revno = "50"
 	snapPath, _ = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	updated, tss, err := snapstate.UpdateMany(st, nil, 0)
+	updated, tss, err := snapstate.UpdateMany(st, []string{"foo"}, 0, assertstate.ValidateRefreshes)
+	// no validation we, get an error
+	c.Check(err, ErrorMatches, `(?s).*cannot validate refresh for "foo" \(50\).*`)
+
+	// setup validation
+	headers = map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "bar-id",
+		"approved-snap-id":       fooSnapID,
+		"approved-snap-revision": "50",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	barValidation, err := develSigning.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = ms.storeSigning.Add(barValidation)
+	c.Assert(err, IsNil)
+
+	// ... and try again
+	updated, tss, err = snapstate.UpdateMany(st, []string{"foo"}, 0, assertstate.ValidateRefreshes)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
