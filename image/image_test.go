@@ -442,7 +442,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	c.Check(seed.Snaps, HasLen, 3)
 
 	// check the files are in place
-	for i, name := range []string{"ubuntu-core_x1.snap", "pc", "pc-kernel"} {
+	for i, name := range []string{"pc", "pc-kernel", "ubuntu-core_x1.snap"} {
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
@@ -560,7 +560,10 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	fn := filepath.Base(info.MountFile())
 	p := filepath.Join(rootdir, "var/lib/snapd/seed/snaps", fn)
 	c.Check(osutil.FileExists(p), Equals, true)
-	c.Check(seed.Snaps[0], DeepEquals, &snap.SeedSnap{
+
+	// ensure local snaps are put last in seed.yaml
+	last := len(seed.Snaps) - 1
+	c.Check(seed.Snaps[last], DeepEquals, &snap.SeedSnap{
 		Name:       "devmode-snap",
 		File:       fn,
 		DevMode:    true,
