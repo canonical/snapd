@@ -21,5 +21,5 @@ package assertstate
 
 // expose for testing
 var (
-	Fetch = fetch
+	DoFetch = doFetch
 )
