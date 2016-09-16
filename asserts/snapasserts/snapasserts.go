@@ -137,3 +137,13 @@ func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384 string) error {
 
 	return f.Fetch(ref)
 }
+
+// FetchSnapDeclaration fetches the snap declaration and its prerequisites for the given snap id using the given fetcher.
+func FetchSnapDeclaration(f asserts.Fetcher, snapID string) error {
+	ref := &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{release.Series, snapID},
+	}
+
+	return f.Fetch(ref)
+}

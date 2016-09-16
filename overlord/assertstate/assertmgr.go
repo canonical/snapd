@@ -239,3 +239,27 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	// TODO: set DeveloperID from assertions
 	return nil
 }
+
+// RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
+func RefreshSnapDeclarations(s *state.State, userID int) error {
+	snapStates, err := snapstate.All(s)
+	if err != nil {
+		return nil
+	}
+	fetching := func(f asserts.Fetcher) error {
+		for _, snapState := range snapStates {
+			info, err := snapState.CurrentInfo()
+			if err != nil {
+				return err
+			}
+			if info.SnapID == "" {
+				continue
+			}
+			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
+				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.Name(), err)
+			}
+		}
+		return nil
+	}
+	return doFetch(s, userID, fetching)
+}
