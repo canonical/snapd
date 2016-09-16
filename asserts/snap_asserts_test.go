@@ -208,7 +208,6 @@ func (sds *snapDeclSuite) TestSnapDeclarationCheckMissingPublisherAccount(c *C) 
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "dev-id1",
-		"gates":        "",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	snapDecl, err := storeDB.Sign(asserts.SnapDeclarationType, headers, nil, "")
@@ -249,7 +248,6 @@ func (sds *snapDeclSuite) TestPrerequisites(c *C) {
 		"snap-id: snap-id-1\n" +
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
-		"gates: snap-id-3,snap-id-4\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -517,7 +515,6 @@ func prereqSnapDecl(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
 		"snap-id":      "snap-id-1",
 		"snap-name":    "foo",
 		"publisher-id": "dev-id1",
-		"gates":        "",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
@@ -716,7 +713,6 @@ func prereqSnapDecl2(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
 		"snap-id":      "snap-id-2",
 		"snap-name":    "bar",
 		"publisher-id": "dev-id1",
-		"gates":        "",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
