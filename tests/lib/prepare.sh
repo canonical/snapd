@@ -200,9 +200,10 @@ prepare_all_snap() {
     fi
 
     echo "Ensure fundamental snaps are still present"
-    . $TESTSLIB/gadget.sh
+    . $TESTSLIB/fundamental-snaps.sh
     gadget_name=$(get_gadget_name)
-    for name in $gadget_name ${gadget_name}-kernel ubuntu-core; do
+    kernel_name=$(get_kernel_name)
+    for name in $gadget_name ${kernel_name} ubuntu-core; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -212,7 +213,7 @@ prepare_all_snap() {
     done
 
     echo "Kernel has a store revision"
-    snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
+    snap list|grep ^${kernel_name}|grep -E " [0-9]+\s+canonical"
 
     # Snapshot the fresh state
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then

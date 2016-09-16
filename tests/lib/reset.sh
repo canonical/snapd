@@ -33,10 +33,11 @@ reset_classic() {
 
 reset_all_snap() {
     # remove all leftover snaps
-    . $TESTSLIB/gadget.sh
+    . $TESTSLIB/fundamental-snaps.sh
     gadget_name=$(get_gadget_name)
+    kernel_name=$(get_kernel_name)
     for snap in $(ls /snap); do
-        if [ "$snap" = "bin" ] || [ "$snap" = "$gadget_name" ] ||  [ "$snap" = "${gadget_name}-kernel" ] || [ "$snap" = "ubuntu-core" ]; then
+        if [ "$snap" = "bin" ] || [ "$snap" = "$gadget_name" ] ||  [ "$snap" = "${kernel_name}" ] || [ "$snap" = "ubuntu-core" ]; then
             continue
         fi
         snap remove $snap
