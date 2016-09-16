@@ -453,21 +453,6 @@ static bool __attribute__ ((used))
 	return false;
 }
 
-void sc_unshare_mount_ns()
-{
-	// NOTE: unshare() and CLONE_NEWNS require linux >= 2.6.16 and glibc >=
-	// 2.14 if using an older glibc, you'd need -D_BSD_SOURCE or
-	// -D_SVID_SORUCE.
-	if (unshare(CLONE_NEWNS) < 0) {
-		die("unable to set up mount namespace");
-	}
-	// Make our "/" a rslave of the real "/". this means that mounts from the
-	// host "/" get propagated to our namespace (i.e. we see new media mounts).
-	if (mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL) != 0) {
-		die("can not make make / rslave");
-	}
-}
-
 void sc_populate_mount_ns(const char *security_tag)
 {
 	// Get the current working directory before we start fiddling with
@@ -477,6 +462,11 @@ void sc_populate_mount_ns(const char *security_tag)
 	vanilla_cwd = get_current_dir_name();
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
+	}
+	// Make our "/" a rslave of the real "/". this means that mounts from the
+	// host "/" get propagated to our namespace (i.e. we see new media mounts).
+	if (mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL) != 0) {
+		die("can not make make / rslave");
 	}
 	// do the mounting if run on a non-native snappy system
 	if (is_running_on_classic_distribution()) {
