@@ -1,6 +1,8 @@
 #!/bin/sh
 STORE_CONFIG=/etc/systemd/system/snapd.service.d/store.conf
 
+. $TESTSLIB/systemd.sh
+
 _configure_store_backends(){
     systemctl stop snapd.service snapd.socket
     mkdir -p $(dirname $STORE_CONFIG)
