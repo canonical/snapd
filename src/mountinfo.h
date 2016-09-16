@@ -66,13 +66,13 @@ struct mountinfo_entry *next_mountinfo_entry(struct mountinfo_entry
     __attribute__ ((nonnull(1)));
 
 /**
- * Get the moint identifier of a given mount entry.
+ * Get the mount identifier of a given mount entry.
  **/
 int mountinfo_entry_mount_id(struct mountinfo_entry *entry)
     __attribute__ ((nonnull(1)));
 
 /**
- * Get the parent moint identifier of a given mount entry.
+ * Get the parent mount identifier of a given mount entry.
  **/
 int mountinfo_entry_parent_id(struct mountinfo_entry *entry)
     __attribute__ ((nonnull(1)));

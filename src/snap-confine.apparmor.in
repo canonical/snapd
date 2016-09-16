@@ -197,4 +197,83 @@
     mount options=(rw rbind nodev nosuid noexec) /var/lib/snapd/hostfs/var/lib/lxd/ -> /var/lib/lxd/,
     /var/lib/lxd/ w,
     /var/lib/snapd/hostfs/var/lib/lxd r,
+
+    # support for the mount namespace sharing
+    mount options=(rw rbind) /run/snapd/ns/ -> /run/snapd/ns/,
+    mount options=(private) -> /run/snapd/ns/,
+    / rw,
+    /run/ rw,
+    /run/snapd/ rw,
+    /run/snapd/ns/ rw,
+    /run/snapd/ns/*.lock rwk,
+    /run/snapd/ns/*.mnt rw,
+    ptrace (tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+    owner @{PROC}/*/mountinfo r,
+    capability sys_chroot,
+    capability sys_admin,
+    signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
+    signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+    signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
+    signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+
+    ^mount-namespace-capture-helper (attach_disconnected) {
+        # We run privileged, so be fanatical about what we include and don't use
+        # any abstractions
+        /etc/ld.so.cache r,
+        /lib/@{multiarch}/ld-*.so mr,
+        # libc, you are funny
+        /lib/@{multiarch}/libc{,-[0-9]*}.so* mr,
+        /lib/@{multiarch}/libpthread{,-[0-9]*}.so* mr,
+        /lib/@{multiarch}/librt{,-[0-9]*}.so* mr,
+        /lib/@{multiarch}/libgcc_s.so* mr,
+        # normal libs in order
+        /lib/@{multiarch}/libapparmor.so* mr,
+        /lib/@{multiarch}/libcgmanager.so* mr,
+        /lib/@{multiarch}/libnih.so* mr,
+        /lib/@{multiarch}/libnih-dbus.so* mr,
+        /lib/@{multiarch}/libdbus-1.so* mr,
+        /lib/@{multiarch}/libudev.so* mr,
+        /usr/lib/@{multiarch}/libseccomp.so* mr,
+        /lib/@{multiarch}/libseccomp.so* mr,
+
+        @LIBEXECDIR@/snap-confine r,
+
+        /dev/null rw,
+        /dev/full rw,
+        /dev/zero rw,
+        /dev/random r,
+        /dev/urandom r,
+
+        capability sys_ptrace,
+        capability sys_admin,
+        # This allows us to read and bind mount the namespace file
+        / r,
+        @{PROC}/ r,
+        @{PROC}/*/ r,
+        @{PROC}/*/ns/ r,
+        @{PROC}/*/ns/mnt r,
+        /run/ r,
+        /run/snapd/ r,
+        /run/snapd/ns/ r,
+        /run/snapd/ns/*.mnt rw,
+        # NOTE: the source name is / even though we map /proc/123/ns/mnt
+        mount options=(rw bind) / -> /run/snapd/ns/*.mnt,
+        # This is the SIGALRM that we send and receive if a timeout expires
+        signal (send, receive) set=(alrm) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+        # Those two rules are exactly the same but we don't know if the parent process is still alive
+        # and hence has the appropriate label or is already dead and hence has no label.
+        signal (send) set=(exists) peer=@LIBEXECDIR@/snap-confine,
+        signal (send) set=(exists) peer=unconfined,
+        # This is so that we can abort
+        signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+        #  This is the signal we get if snap-confine dies (we subscribe to it with prctl)
+        signal (receive) set=(int) peer=@LIBEXECDIR@/snap-confine,
+        # This allows snap-confine to be killed from the outside.
+        signal (receive) peer=unconfined,
+        # This allows snap-confine to wait for us
+        ptrace (trace, tracedby) peer=@LIBEXECDIR@/snap-confine,
+    }
+
+    # Allow snap-confine to be killed
+    signal (receive) peer=unconfined,
 }
