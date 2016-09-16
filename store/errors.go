@@ -49,6 +49,8 @@ var (
 
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
+
+	ErrTosNotAccepted = errors.New("TOS not accepted")
 )
 
 // ErrDownload represents a download error

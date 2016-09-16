@@ -39,6 +39,7 @@ type StoreService interface {
 
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
+	// TODO Remove once the CLI is using the new /buy/ready endpoint
 	PaymentMethods(*auth.UserState) (*store.PaymentInformation, error)
 }
 
