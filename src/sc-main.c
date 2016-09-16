@@ -36,6 +36,7 @@
 #include "udev-support.h"
 #include "cleanup-funcs.h"
 #include "user-support.h"
+#include "ns-support.h"
 #include "quirks.h"
 
 int sc_main(int argc, char **argv)
@@ -80,8 +81,21 @@ int sc_main(int argc, char **argv)
 #endif				// ifdef HAVE_SECCOMP
 
 	if (geteuid() == 0) {
-		sc_unshare_mount_ns();
-		sc_populate_mount_ns(security_tag);
+		const char *group_name = getenv("SNAP_NAME");
+		if (group_name == NULL) {
+			die("SNAP_NAME is not set");
+		}
+		sc_initialize_ns_groups();
+		struct sc_ns_group *group = NULL;
+		group = sc_open_ns_group(group_name);
+		sc_lock_ns_mutex(group);
+		sc_create_or_join_ns_group(group);
+		if (sc_should_populate_ns_group(group)) {
+			sc_populate_mount_ns(security_tag);
+			sc_preserve_populated_ns_group(group);
+		}
+		sc_unlock_ns_mutex(group);
+		sc_close_ns_group(group);
 		struct snappy_udev udev_s;
 		if (snappy_udev_init(security_tag, &udev_s) == 0)
 			setup_devices_cgroup(security_tag, &udev_s);
