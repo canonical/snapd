@@ -66,6 +66,13 @@ func (li *localInfos) Name(pathOrName string) string {
 	return pathOrName
 }
 
+func (li *localInfos) PreferLocal(name string) string {
+	if path := li.Path(name); path != "" {
+		return path
+	}
+	return name
+}
+
 func (li *localInfos) Path(name string) string {
 	return li.nameToPath[name]
 }
@@ -255,18 +262,11 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 	}
 
 	snaps := []string{}
-	// only add snaps if they are not overriden by a local snap
-	if local.Info(model.Gadget()) == nil {
-		snaps = append(snaps, model.Gadget())
-	}
-	if local.Info(defaultCore) == nil {
-		snaps = append(snaps, defaultCore)
-	}
-	if local.Info(model.Kernel()) == nil {
-		snaps = append(snaps, model.Kernel())
-	}
-	snaps = append(snaps, opts.Snaps...)
+	snaps = append(snaps, local.PreferLocal(model.Gadget()))
+	snaps = append(snaps, local.PreferLocal(defaultCore))
+	snaps = append(snaps, local.PreferLocal(model.Kernel()))
 	snaps = append(snaps, model.RequiredSnaps()...)
+	snaps = append(snaps, opts.Snaps...)
 
 	seen := make(map[string]bool)
 	downloadedSnapsInfo := map[string]*snap.Info{}

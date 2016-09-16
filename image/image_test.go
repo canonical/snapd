@@ -442,7 +442,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	c.Check(seed.Snaps, HasLen, 3)
 
 	// check the files are in place
-	for i, name := range []string{"pc", "pc-kernel", "ubuntu-core_x1.snap"} {
+	for i, name := range []string{"pc", "ubuntu-core_x1.snap", "pc-kernel"} {
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
