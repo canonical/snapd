@@ -248,21 +248,25 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		DevMode:   false, // XXX: should this be true?
 	}
 
-	snaps := []string{}
-	// opts.Snaps need to be considered first to support local overrides
-	// of snaps mentioned in the model assertion whose fetching
-	// from the store will be then skipped
-	snaps = append(snaps, opts.Snaps...)
-	snaps = append(snaps, model.Gadget())
-	snaps = append(snaps, defaultCore)
-	snaps = append(snaps, model.Kernel())
-	snaps = append(snaps, model.RequiredSnaps()...)
-
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
 	}
+
+	snaps := []string{}
+	// only add snaps if they are not overriden by a local snap
+	if local.Info(model.Gadget()) == nil {
+		snaps = append(snaps, model.Gadget())
+	}
+	if local.Info(defaultCore) == nil {
+		snaps = append(snaps, defaultCore)
+	}
+	if local.Info(model.Kernel()) == nil {
+		snaps = append(snaps, model.Kernel())
+	}
+	snaps = append(snaps, opts.Snaps...)
+	snaps = append(snaps, model.RequiredSnaps()...)
 
 	seen := make(map[string]bool)
 	downloadedSnapsInfo := map[string]*snap.Info{}
