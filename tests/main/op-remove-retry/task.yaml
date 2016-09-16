@@ -2,7 +2,7 @@ summary: Check that a remove operation is working even if the mount point is bus
 
 restore: |
     . $TESTSLIB/systemd.sh
-    systemd_stop_and_destroy_unit umount-blocker
+    systemd_stop_and_destroy_unit unmount-blocker
     rm -f test-snapd-tools_1.0_all.snap
     kill %1 || true
 
@@ -31,7 +31,7 @@ execute: |
     MARKER=/var/snap/test-snapd-tools/current/block-running
     rm -f $MARKER
 
-    systemd_create_and_start_unit umount-blocker "$(which test-snapd-tools.block)"
+    systemd_create_and_start_unit unmount-blocker "$(which test-snapd-tools.block)"
 
     wait_for_service unmount-blocker active
     while [ ! -f $MARKER ]; do sleep 1; done
