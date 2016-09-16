@@ -48,6 +48,8 @@ import (
 const (
 	// halJsonContentType is the default accept value for store requests
 	halJsonContentType = "application/hal+json"
+	// jsonContentType is for store enpoints that don't support HAL
+	jsonContentType = "application/json"
 	// UbuntuCoreWireProtocol is the protocol level we support when
 	// communicating with the store. History:
 	//  - "1": client supports squashfs snaps
@@ -105,6 +107,7 @@ type Config struct {
 	BulkURI           *url.URL
 	AssertionsURI     *url.URL
 	PurchasesURI      *url.URL
+	CustomersMeURI    *url.URL
 	PaymentMethodsURI *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
@@ -123,6 +126,7 @@ type Store struct {
 	bulkURI           *url.URL
 	assertionsURI     *url.URL
 	purchasesURI      *url.URL
+	customersMeURI    *url.URL
 	paymentMethodsURI *url.URL
 
 	architecture string
@@ -262,6 +266,11 @@ func init() {
 		panic(err)
 	}
 
+	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/customers/me")
+	if err != nil {
+		panic(err)
+	}
+
 	defaultConfig.PaymentMethodsURI, err = url.Parse(myappsURL() + "api/2.0/click/paymentmethods/")
 	if err != nil {
 		panic(err)
@@ -326,6 +335,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		bulkURI:           cfg.BulkURI,
 		assertionsURI:     cfg.AssertionsURI,
 		purchasesURI:      cfg.PurchasesURI,
+		customersMeURI:    cfg.CustomersMeURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
 		series:            series,
 		architecture:      architecture,
@@ -1190,6 +1200,15 @@ type buyError struct {
 	ErrorMessage string `json:"error_message"`
 }
 
+type storeError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+type storeErrors struct {
+	Errors []*storeError `json:"error_list"`
+}
+
 func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 	identifier := ""
 	if options.SnapName != "" {
@@ -1326,7 +1345,62 @@ type PaymentInformation struct {
 	Methods                []*PaymentMethod `json:"methods"`
 }
 
+type storeCustomer struct {
+	LatestTosDate     string `json:"latest_tos_date"`
+	AcceptedTosDate   string `json:"accepted_tos_date"`
+	LatestTosAccepted bool   `json:"latest_tos_accepted"`
+}
+
+// ReadyToBuy returns a bool to show if the user's account has accepted T&Cs and has a payment method registered
+func (s *Store) ReadyToBuy(user *auth.UserState) (bool, error) {
+	if user == nil {
+		return false, ErrInvalidCredentials
+	}
+
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    s.customersMeURI,
+		Accept: jsonContentType,
+	}
+	resp, err := s.doRequest(s.client, reqOptions, user)
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var customer storeCustomer
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&customer); err != nil {
+			return false, err
+		}
+		if !customer.LatestTosAccepted {
+			return false, ErrTosNotAccepted
+		}
+		// TODO Check if the user has a payment method registered (once the store API provides this info)
+		return true, nil
+	case http.StatusNotFound:
+		// Likely because user has no account registered on the pay server
+		return false, fmt.Errorf("cannot get customer details: server says no account exists")
+	case http.StatusUnauthorized:
+		return false, ErrInvalidCredentials
+	default:
+		var errors storeErrors
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&errors); err != nil {
+			return false, err
+		}
+		details := ""
+		if len(errors.Errors) > 0 && errors.Errors[0].Message != "" {
+			details = ": " + errors.Errors[0].Message
+		}
+		return false, fmt.Errorf("cannot get customer details: unexpected HTTP code %d%s", resp.StatusCode, details)
+	}
+}
+
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
+// TODO Remove once the CLI is using the new /buy/ready endpoint
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
 	if user == nil {
 		return nil, ErrInvalidCredentials
