@@ -161,5 +161,15 @@ AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
     AC_DEFINE([CAPS_OVER_SETUID], [1],
         [Use capabilities rather than setuid bit])])
 
+AC_CHECK_FUNCS([secure_getenv], [], [
+    AC_MSG_WARN([
+    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+    X                                              X
+    X secure_getenv missing; suid binaries at risk X
+    X                                              X
+    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX])
+    AC_DEFINE([secure_getenv], [getenv],
+        [Fallback for missing secure_getenv])])
+
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile docs/Makefile])
 AC_OUTPUT
