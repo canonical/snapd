@@ -70,7 +70,7 @@ static void sc_SIGALRM_handler(int signum)
  * disables the alarm and acts on the flag, aborting the process if the timeout
  * gets exceeded.
  **/
-static void __attribute__ ((used)) sc_enable_sanity_timeout()
+static void sc_enable_sanity_timeout()
 {
 	sanity_timeout_expired = 0;
 	struct sigaction act = {.sa_handler = sc_SIGALRM_handler };
@@ -94,7 +94,7 @@ static void __attribute__ ((used)) sc_enable_sanity_timeout()
  * This call has to be paired with sc_enable_sanity_timeout(), see the function
  * description for more details.
  **/
-static void __attribute__ ((used)) sc_disable_sanity_timeout()
+static void sc_disable_sanity_timeout()
 {
 	if (sanity_timeout_expired) {
 		die("sanity timeout expired");
@@ -191,9 +191,11 @@ void sc_initialize_ns_groups()
 		die("cannot open lock file for namespace group directory");
 	}
 	debug("locking the namespace group directory");
+	sc_enable_sanity_timeout();
 	if (flock(lock_fd, LOCK_EX) < 0) {
 		die("cannot acquire exclusive lock for namespace group directory");
 	}
+	sc_disable_sanity_timeout();
 	if (!sc_is_ns_group_dir_private()) {
 		debug
 		    ("bind mounting the namespace group directory over itself");
@@ -292,10 +294,12 @@ void sc_lock_ns_mutex(struct sc_ns_group *group)
 		die("precondition failed: we don't have an open file descriptor for the mutex file");
 	}
 	debug("acquiring exclusive lock for namespace group %s", group->name);
+	sc_enable_sanity_timeout();
 	if (flock(group->lock_fd, LOCK_EX) < 0) {
 		die("cannot acquire exclusive lock for namespace group %s",
 		    group->name);
 	}
+	sc_disable_sanity_timeout();
 	debug("acquired exclusive lock for namespace group %s", group->name);
 }
 
@@ -436,9 +440,11 @@ void sc_create_or_join_ns_group(struct sc_ns_group *group)
 		debug
 		    ("waiting for a eventfd data from the parent process to continue");
 		eventfd_t value = 0;
+		sc_enable_sanity_timeout();
 		if (eventfd_read(group->event_fd, &value) < 0) {
 			die("cannot read expected data from eventfd");
 		}
+		sc_disable_sanity_timeout();
 		debug
 		    ("capturing mount namespace of process %d in namespace group %s",
 		     (int)parent, group->name);
