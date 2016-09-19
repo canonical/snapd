@@ -86,6 +86,7 @@ var defaultTemplate = []byte(`
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
   /etc/profile r,
+  /etc/environment r,
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
@@ -149,10 +150,13 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rmdir ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
+  /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
+  /{,usr/}bin/shuf ixr,
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
   /{,usr/}bin/stat ixr,
   /{,usr/}bin/stdbuf ixr,
+  /{,usr/}bin/stty ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -161,8 +165,10 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/tempfile ixr,
   /{,usr/}bin/tset ixr,
   /{,usr/}bin/touch ixr,
+  /{,usr/}bin/tput ixr,
   /{,usr/}bin/tr ixr,
   /{,usr/}bin/true ixr,
+  /{,usr/}bin/tty ixr,
   /{,usr/}bin/uname ixr,
   /{,usr/}bin/uniq ixr,
   /{,usr/}bin/unlink ixr,
@@ -191,6 +197,10 @@ var defaultTemplate = []byte(`
   /usr/bin/lsb_release ixr,
   /usr/bin/ r,
   /usr/share/distro-info/*.csv r,
+
+  # systemd native journal API (see sd_journal_print(4)). This should be in
+  # AppArmor's base abstraction, but until it is, include here.
+  /run/systemd/journal/socket w,
 
   # snapctl and its requirements
   /usr/bin/snapctl ixr,
@@ -229,6 +239,7 @@ var defaultTemplate = []byte(`
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
   @{PROC}/@{pid}/io r,
+  owner @{PROC}/@{pid}/limits r,
   @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
@@ -244,6 +255,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  /sys/devices/virtual/tty/{console,tty*}/active r,
   /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe

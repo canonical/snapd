@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !excludeintegration
 
 /*
  * Copyright (C) 2014-2015 Canonical Ltd
@@ -55,7 +54,7 @@ func (s *storeTestSuite) SetUpTest(c *C) {
 	topdir := c.MkDir()
 	err := os.Mkdir(filepath.Join(topdir, "asserts"), 0755)
 	c.Assert(err, IsNil)
-	s.store = NewStore(topdir, defaultAddr)
+	s.store = NewStore(topdir, defaultAddr, false)
 	err = s.store.Start()
 	c.Assert(err, IsNil)
 

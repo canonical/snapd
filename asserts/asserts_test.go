@@ -50,6 +50,41 @@ func (as *assertsSuite) TestRef(c *C) {
 	c.Check(ref.Unique(), Equals, "test-only-2/abc/xyz")
 }
 
+func (as *assertsSuite) TestRefString(c *C) {
+	ref := &asserts.Ref{
+		Type:       asserts.AccountType,
+		PrimaryKey: []string{"canonical"},
+	}
+
+	c.Check(ref.String(), Equals, "account (canonical)")
+
+	ref = &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{"18", "SNAPID"},
+	}
+
+	c.Check(ref.String(), Equals, "snap-declaration (SNAPID; series:18)")
+
+	ref = &asserts.Ref{
+		Type:       asserts.ModelType,
+		PrimaryKey: []string{"18", "BRAND", "baz-3000"},
+	}
+
+	c.Check(ref.String(), Equals, "model (baz-3000; series:18 brand-id:BRAND)")
+
+	// broken primary key
+	ref = &asserts.Ref{
+		Type:       asserts.ModelType,
+		PrimaryKey: []string{"18"},
+	}
+	c.Check(ref.String(), Equals, "model (???)")
+
+	ref = &asserts.Ref{
+		Type: asserts.TestOnlyNoAuthorityType,
+	}
+	c.Check(ref.String(), Equals, "test-only-no-authority (-)")
+}
+
 func (as *assertsSuite) TestRefResolveError(c *C) {
 	ref := &asserts.Ref{
 		Type:       asserts.TestOnly2Type,
@@ -671,8 +706,9 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 		"snap-revision",
 		"model",
 		"serial",
+		"validation",
 	}
-	c.Check(withAuthority, HasLen, asserts.NumAssertionType-3) // excluding serial-request, serial-proof, account-key-request
+	c.Check(withAuthority, HasLen, asserts.NumAssertionType-4) // excluding device-session-request, serial-request, serial-proof, account-key-request
 	for _, name := range withAuthority {
 		typ := asserts.Type(name)
 		_, err := asserts.AssembleAndSignInTest(typ, nil, nil, testPrivKey1)

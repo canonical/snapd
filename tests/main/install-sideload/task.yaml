@@ -16,15 +16,19 @@ execute: |
     echo "Sideloaded snap shows status"
     expected="(?s)basic 1.0 installed\n\
     .*"
-    snap install ./basic_1.0_all.snap | grep -Pzq "$expected"
+    snap install --dangerous ./basic_1.0_all.snap | grep -Pzq "$expected"
 
+    echo "Sideloaded snap with (deprecated) --force-dangerous option"
+    snap remove basic
+    snap install --force-dangerous ./basic_1.0_all.snap | grep -Pzq "$expected"
+    
     echo "Sideloaded snap executes commands"
-    snap install ./test-snapd-tools_1.0_all.snap
+    snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
     [ "$(test-snapd-tools.echo Hello World)" = "Hello World" ]
 
     echo "Sideload desktop snap"
-    snap install ./basic-desktop_1.0_all.snap
+    snap install --dangerous ./basic-desktop_1.0_all.snap
     expected="\[Desktop Entry\]\n\
     Name=Echo\n\
     Comment=It echos stuff\n\
@@ -33,7 +37,7 @@ execute: |
 
     echo "Sideload devmode snap fails without flags"
     expected="requires devmode or confinement override"
-    ( snap install ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
+    ( snap install --dangerous ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
     echo "Sideload devmode snap succeeds with --devmode"
     expected="basic-devmode 1.0 installed"
@@ -43,7 +47,7 @@ execute: |
 
     echo "Sideload devmode snap succeeds with --jailmode"
     expected="basic-devmode 1.0 installed"
-    snap install --jailmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
+    snap install --dangerous --jailmode ./basic-devmode_1.0_all.snap | grep -Pq "$expected"
     expected="^basic-devmode +.* +jailmode"
     snap list | grep -Pq  "$expected"
 
@@ -52,7 +56,7 @@ execute: |
     ( snap install --devmode --jailmode ./basic-devmode_1.0_all.snap 2>&1 || true ) | grep -Pzq "$expected"
 
     echo "Sideload a second time succeeds"
-    snap install ./test-snapd-tools_1.0_all.snap
+    snap install --dangerous ./test-snapd-tools_1.0_all.snap
     test-snapd-tools.success
 
     # TODO: check we copy the data directory over

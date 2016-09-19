@@ -10,7 +10,7 @@ execute: |
         grep "snap_core=ubuntu-core_$(cat firstBoot).snap" /proc/cmdline
 
         echo "Install a new ubuntu-core"
-        snap install /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
+        snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot 
         echo "Ensure we have next installed now"
         snap list |grep "ubuntu-core.*$(nextBoot)"
@@ -26,6 +26,19 @@ execute: |
         grub-editenv list | grep "snap_try_core=ubuntu-core_$(cat nextBoot).snap"
         grub-editenv list | grep 'snap_mode=try'
 
+        echo "Ensure the device is scheduled for auto-reboot"
+        output=$(dbus-send --print-reply \
+            --type=method_call \
+            --system \
+            --dest=org.freedesktop.login1 \
+            /org/freedesktop/login1 \
+            org.freedesktop.DBus.Properties.Get \
+            string:org.freedesktop.login1.Manager string:ScheduledShutdown)
+        if ! echo $output|grep 'string "reboot"'; then
+            echo "Failed to detect scheduled reboot in logind output:"
+            echo "$output"
+            exit 1
+        fi
         REBOOT
     fi
 

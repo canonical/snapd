@@ -51,16 +51,16 @@ Filters the complete output so only plugs and/or slots matching the provided
 details are listed.
 
 Application Options:
-      --version                    print the version and exit
+      --version                    Print the version and exit
 
 Help Options:
   -h, --help                       Show this help message
 
 [interfaces command options]
-      -i=                          constrain listing to specific interfaces
+      -i=                          Constrain listing to specific interfaces
 
 [interfaces command arguments]
-  <snap>:<slot or plug>:           snap or snap:name
+  <snap>:<slot or plug>:           Constrain listing to a specific snap or snap:name
 `
 	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
 	c.Assert(err.Error(), Equals, msg)

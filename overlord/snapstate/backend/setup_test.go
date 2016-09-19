@@ -35,12 +35,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type setupSuite struct {
 	be           backend.Backend
 	nullProgress progress.NullProgress
 	prevctlCmd   func(...string) ([]byte, error)
+	umount       *testutil.MockCmd
 }
 
 var _ = Suite(&setupSuite{})
@@ -55,12 +57,14 @@ func (s *setupSuite) SetUpTest(c *C) {
 	systemd.SystemctlCmd = func(cmd ...string) ([]byte, error) {
 		return []byte("ActiveState=inactive\n"), nil
 	}
+	s.umount = testutil.MockCommand(c, "umount", "")
 }
 
 func (s *setupSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 	systemd.SystemctlCmd = s.prevctlCmd
+	s.umount.Restore()
 }
 
 func (s *setupSuite) TestSetupDoUndoSimple(c *C) {

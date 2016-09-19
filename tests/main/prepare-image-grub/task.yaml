@@ -1,5 +1,6 @@
 summary: Check that prepare-image works for grub-systems
 systems: [-ubuntu-core-16-64]
+backends: [-autopkgtest]
 # TODO: use the real stores with proper assertions fully as well once possible
 environment:
     ROOT: /tmp/root
@@ -41,7 +42,7 @@ execute: |
     ls -lR $GADGET
     ls $GADGET/meta/snap.yaml
 
-    echo Verify that we have valid looking seed.yaml
+    echo "Verify that we have valid looking seed.yaml"
     cat $IMAGE/var/lib/snapd/seed/seed.yaml
     # snap-id of ubuntu-core
     grep -q "snap-id: b8X2psL1ryVrPt5WEmpYiqfr5emixTd7" $IMAGE/var/lib/snapd/seed/seed.yaml

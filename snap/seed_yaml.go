@@ -29,20 +29,25 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// SeedSnap points to a snap in the seed to install, together with
+// assertions (or alone if unasserted is true) it will be used to
+// drive the installation and ultimately set SideInfo/SnapState for it.
 type SeedSnap struct {
-	// XXX: this will all go away once we have assertions
-	// yaml needs to be in sync with SideInfo
-	Name        string   `yaml:"name" json:"name"`
-	SnapID      string   `yaml:"snap-id" json:"snap-id"`
-	Revision    Revision `yaml:"revision" json:"revision"`
-	Channel     string   `yaml:"channel,omitempty" json:"channel,omitempty"`
-	DeveloperID string   `yaml:"developer-id,omitempty" json:"developer-id,omitempty"`
-	Developer   string   `yaml:"developer,omitempty" json:"developer,omitempty"` // XXX: obsolete, will be retired after full backfilling of DeveloperID
-	Private     bool     `yaml:"private,omitempty" json:"private,omitempty"`
+	Name string `yaml:"name"`
 
-	// not in side-info
-	File    string `yaml:"file"`
-	DevMode bool   `yaml:"devmode"`
+	// cross-reference/audit
+	SnapID string `yaml:"snap-id,omitempty"`
+
+	// bits that are orthongonal/not in assertions
+	Channel string `yaml:"channel,omitempty"`
+	DevMode bool   `yaml:"devmode,omitempty"`
+
+	Private bool `yaml:"private,omitempty"`
+
+	// no assertions are available in the seed for this snap
+	Unasserted bool `yaml:"unasserted,omitempty"`
+
+	File string `yaml:"file"`
 }
 
 type Seed struct {
