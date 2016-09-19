@@ -46,6 +46,13 @@ dbus (send)
     interface=org.freedesktop.DBus.Properties
     peer=(label=unconfined),
 
+dbus (send)
+    bus=session
+    path=/org/freedesktop/DBus
+    interface=org.freedesktop.DBus
+    member=GetConnectionCredentials
+    peer=(name=org.freedesktop.DBus),
+
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=session
