@@ -30,7 +30,7 @@ AC_FUNC_CHOWN
 AC_FUNC_ERROR_AT_LINE
 AC_FUNC_FORK
 AC_FUNC_STRNLEN
-AC_CHECK_FUNCS([mkdir regcomp setenv strdup strerror])
+AC_CHECK_FUNCS([mkdir regcomp setenv strdup strerror secure_getenv])
 
 AC_ARG_WITH([unit-tests],
     AC_HELP_STRING([--without-unit-tests], [do not build unit test programs]),
@@ -160,16 +160,6 @@ AM_CONDITIONAL([CAPS_OVER_SETUID], [test "x$enable_caps_over_setuid" = "xyes"])
 AS_IF([test "x$enable_caps_over_setuid" = "xyes"], [
     AC_DEFINE([CAPS_OVER_SETUID], [1],
         [Use capabilities rather than setuid bit])])
-
-AC_CHECK_FUNCS([secure_getenv], [], [
-    AC_MSG_WARN([
-    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
-    X                                              X
-    X secure_getenv missing; suid binaries at risk X
-    X                                              X
-    XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX])
-    AC_DEFINE([secure_getenv], [getenv],
-        [Fallback for missing secure_getenv])])
 
 AC_CONFIG_FILES([Makefile src/Makefile tests/Makefile docs/Makefile])
 AC_OUTPUT
