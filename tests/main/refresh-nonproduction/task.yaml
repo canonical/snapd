@@ -16,7 +16,6 @@ environment:
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
     BLOB_DIR: $(pwd)/fake-store-blobdir
     STORE_TYPE/fake: fake
-    STORE_TYPE/staging: staging
 
 prepare: |
     . $TESTSLIB/tasks/refresh.sh

@@ -4,7 +4,6 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-devi
 
 environment:
     STORE_TYPE/fake: fake
-    STORE_TYPE/staging: staging
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
