@@ -32,6 +32,8 @@ type persistentState struct {
 	modules map[string][][]byte
 }
 
+// KModDb maintains a map of snaps and their use of kernel modules.
+// Access to KModDb instance must be synchronized via Lock() and Unlock().
 type KModDb struct {
 	persistentState
 	mu             sync.Mutex
