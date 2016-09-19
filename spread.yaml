@@ -65,6 +65,8 @@ backends:
             ADDRESS $SPREAD_ADHOC_UC_ADDRESS:$SPREAD_ADHOC_UC_PORT
         discard: |
             echo "Discarding ad-hoc $SPREAD_SYSTEM"
+        restore: |
+            rm -rf $GOPATH/src
         systems:
             - ubuntu-core-16.04-64:
                 username: test
