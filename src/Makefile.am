@@ -10,6 +10,8 @@ snap_discard_ns_SOURCES = \
 	user-support.h \
 	utils.c \
 	utils.h \
+	secure-getenv.c \
+	secure-getenv.h \
 	cleanup-funcs.c \
 	cleanup-funcs.h \
 	mountinfo.c \
@@ -32,6 +34,8 @@ snap_confine_SOURCES = \
 	sc-main.h \
 	utils.c \
 	utils.h \
+	secure-getenv.c \
+	secure-getenv.h \
 	snap.c \
 	snap.h \
 	classic.c \
