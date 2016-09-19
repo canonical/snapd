@@ -40,7 +40,7 @@ var _ = Suite(&DockerInterfaceSuite{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
 				SuggestedName: "docker",
-				SideInfo:      snap.SideInfo{Developer: "canonical"},
+				SideInfo:      snap.SideInfo{Developer: "docker"},
 			},
 			Name:      "docker-daemon",
 			Interface: "docker",
@@ -48,7 +48,10 @@ var _ = Suite(&DockerInterfaceSuite{
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap:      &snap.Info{SuggestedName: "docker"},
+			Snap: &snap.Info{
+				SuggestedName: "docker",
+				SideInfo:      snap.SideInfo{Developer: "docker"},
+			},
 			Name:      "docker-client",
 			Interface: "docker",
 		},
@@ -142,42 +145,209 @@ func (s *DockerInterfaceSuite) TestPermanentSlotSnippet(c *C) {
 	c.Assert(string(snippet), testutil.Contains, `pivot_root`)
 }
 
+func (s *DockerInterfaceSuite) TestSanitizeSlotDockerDev(c *C) {
+	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "docker",
+			SideInfo:      snap.SideInfo{Developer: "docker"},
+		},
+		Name:      "docker",
+		Interface: "docker",
+	}})
+	c.Assert(err, IsNil)
+}
+
+func (s *DockerInterfaceSuite) TestSanitizeSlotCanonicalDev(c *C) {
+	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "docker",
+			SideInfo:      snap.SideInfo{Developer: "canonical"},
+		},
+		Name:      "docker",
+		Interface: "docker",
+	}})
+	c.Assert(err, IsNil)
+}
+
+func (s *DockerInterfaceSuite) TestSanitizeSlotOtherDev(c *C) {
+	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "docker",
+			SideInfo:      snap.SideInfo{Developer: "notdocker"},
+		},
+		Name:      "docker",
+		Interface: "docker",
+	}})
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+}
+
+func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerDockerDev(c *C) {
+	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "notdocker",
+			SideInfo:      snap.SideInfo{Developer: "docker"},
+		},
+		Name:      "notdocker",
+		Interface: "docker",
+	}})
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+}
+
+func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerCanonicalDev(c *C) {
+	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "notdocker",
+			SideInfo:      snap.SideInfo{Developer: "canonical"},
+		},
+		Name:      "notdocker",
+		Interface: "docker",
+	}})
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+}
+
+func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerOtherDev(c *C) {
+	err := s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
+		Snap: &snap.Info{
+			SuggestedName: "notdocker",
+			SideInfo:      snap.SideInfo{Developer: "notdocker"},
+		},
+		Name:      "notdocker",
+		Interface: "docker",
+	}})
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+}
 
 func (s *DockerInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *DockerInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
-	var mockSnapYaml = []byte(`name: docker-plug-snap
+func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribCanonicalDev(c *C) {
+	var mockSnapYaml = []byte(`name: docker
 version: 1.0
 plugs:
- docker-plug:
+ docker-privileged:
   interface: docker
   daemon-privileged: true
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "canonical"}
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *DockerInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
-	var mockSnapYaml = []byte(`name: docker-plug-snap
+func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribDockerDev(c *C) {
+	var mockSnapYaml = []byte(`name: docker
 version: 1.0
 plugs:
- docker-plug:
+ docker-privileged:
+  interface: docker
+  daemon-privileged: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "docker"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
+}
+
+func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribNotDockerCanonicalDev(c *C) {
+	var mockSnapYaml = []byte(`name: notdocker
+version: 1.0
+plugs:
+ docker-privileged:
+  interface: docker
+  daemon-privileged: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "canonical"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+}
+
+func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribNotDockerDockerDev(c *C) {
+	var mockSnapYaml = []byte(`name: notdocker
+version: 1.0
+plugs:
+ docker-privileged:
+  interface: docker
+  daemon-privileged: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "canonical"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+}
+
+func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribOtherDev(c *C) {
+	var mockSnapYaml = []byte(`name: docker
+version: 1.0
+plugs:
+ docker-privileged:
+  interface: docker
+  daemon-privileged: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "notdocker"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+}
+
+func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribNotDockerOtherDev(c *C) {
+	var mockSnapYaml = []byte(`name: notdocker
+version: 1.0
+plugs:
+ docker-privileged:
+  interface: docker
+  daemon-privileged: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "notdocker"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+}
+
+func (s *DockerInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
+	var mockSnapYaml = []byte(`name: docker
+version: 1.0
+plugs:
+ docker-privileged:
   interface: docker
   daemon-privileged: bad
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "canonical"}
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "docker plug requires bool with 'daemon-privileged'")
@@ -194,18 +364,19 @@ func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c *C) {
-	var mockSnapYaml = []byte(`name: docker-plug-snap
+	var mockSnapYaml = []byte(`name: docker
 version: 1.0
 plugs:
- docker-plug:
+ docker-privileged:
   interface: docker
   daemon-privileged: false
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "canonical"}
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -217,18 +388,19 @@ plugs:
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c *C) {
-	var mockSnapYaml = []byte(`name: docker-plug-snap
+	var mockSnapYaml = []byte(`name: docker
 version: 1.0
 plugs:
- docker-plug:
+ docker-privileged:
   interface: docker
   daemon-privileged: true
 `)
 
 	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
 	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "canonical"}
 
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-plug"]}
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
