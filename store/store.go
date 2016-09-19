@@ -1352,7 +1352,7 @@ type storeCustomer struct {
 	HasPaymentMethod  bool   `json:"has_payment_method"`
 }
 
-// ReadyToBuy returns a bool to show if the user's account has accepted T&Cs and has a payment method registered
+// ReadyToBuy returns nil if the user's account has accepted T&Cs and has a payment method registered, and an error otherwise
 func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	if user == nil {
 		return ErrInvalidCredentials
@@ -1380,7 +1380,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return ErrTosNotAccepted
 		}
 		if !customer.HasPaymentMethod {
-			return ErrNoPaymentMethod
+			return ErrNoValidPaymentMethod
 		}
 		// TODO Check if the user has a payment method registered (once the store API provides this info)
 		return nil
