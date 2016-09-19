@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -35,7 +36,17 @@ type Backend struct {
 }
 
 func NewKModBackend(statefile string) (b *Backend) {
-	return nil
+	b = &Backend{
+		kmoddb: &KModDb{},
+	}
+	if osutil.FileExists(dirs.SnapKModStateFile) {
+		var err error
+		b.kmoddb, err = b.loadState(dirs.SnapKModStateFile)
+		if err != nil {
+			panic(fmt.Errorf("Failed to load KMod state: %v", err))
+		}
+	}
+	return b
 }
 
 // Name returns the name of the backend.
@@ -51,16 +62,22 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 		return fmt.Errorf("cannot obtain kmod security snippets for snap %q: %s", snapName, err)
 	}
 
-	var candidateModules []byte
+	var candidateModules [][]byte
 	candidateModules, err = b.processSnipets(snapInfo, snippets)
 
 	b.kmoddb.Lock()
 	defer b.kmoddb.Unlock()
 	b.kmoddb.AddModules(snapName, candidateModules)
-	//b.kmoddb.WriteDb(w)
+	err = b.kmoddb.WriteDb(dirs.SnapKModStateFile)
+	if err != nil {
+		return err
+	}
 
 	modules := b.kmoddb.GetUniqueModulesList()
-	writeModulesFile(modules, dirs.SnapKModModulesFile)
+	err = writeModulesFile(modules, dirs.SnapKModModulesFile)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -69,7 +86,7 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (candidateModules []byte, err error) {
+func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (candidateModules [][]byte, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		for _, snippet := range snippets[appInfo.SecurityTag()] {
 			individualLines := bytes.Split(snippet, []byte{'\n'})
