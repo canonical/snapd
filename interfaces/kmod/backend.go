@@ -67,6 +67,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 
 	b.kmoddb.Lock()
 	defer b.kmoddb.Unlock()
+
 	b.kmoddb.AddModules(snapName, candidateModules)
 	err = b.kmoddb.WriteDb(dirs.SnapKModStateFile)
 	if err != nil {
@@ -82,16 +83,28 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 }
 
 func (b *Backend) Remove(snapName string) error {
-	b.kmoddb.Remove(snapName)
-	return nil
+	b.kmoddb.Lock()
+	defer b.kmoddb.Unlock()
+
+	if err := b.kmoddb.Remove(snapName); err != nil {
+		return err
+	}
+	err := b.kmoddb.WriteDb(dirs.SnapKModStateFile)
+	if err != nil {
+		return err
+	}
+	modules := b.kmoddb.GetUniqueModulesList()
+	return writeModulesFile(modules, dirs.SnapKModModulesFile)
 }
 
 func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (candidateModules [][]byte, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		for _, snippet := range snippets[appInfo.SecurityTag()] {
+			// split snippet by newline to get the list of modules
 			individualLines := bytes.Split(snippet, []byte{'\n'})
 			for _, line := range individualLines {
 				l := bytes.Trim(line, " \r")
+				// ignore empty lines and comments
 				if len(l) > 0 && l[0] != '#' {
 					candidateModules = append(candidateModules, line)
 				}
