@@ -603,17 +603,31 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	}
 
 	// It's fine if daemon-privileged isn't specified, but if it is,
-	// it needs to be bool
+	// it needs to be bool and it may only by used with the docker project
+	// and Canonical
 	if v, ok := plug.Attrs["daemon-privileged"]; ok {
 		if _, ok = v.(bool); !ok {
 			return fmt.Errorf("docker plug requires bool with 'daemon-privileged'")
 		}
+		snapName := plug.Snap.Name()
+		devName := plug.Snap.Developer
+		if snapName != "docker" || (devName != "canonical" && devName != "docker") {
+			return fmt.Errorf("daemon-privileged attribute is reserved for the Docker project and Canonical")
+		}
+	return nil
 	}
 
 	return nil
 }
 
 func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
+	snapName := slot.Snap.Name()
+	devName := slot.Snap.Developer
+	// The docker slot may only by used with the docker project and
+	// Canonical
+	if snapName != "docker" || (devName != "canonical" && devName != "docker") {
+		return fmt.Errorf("docker interface is reserved for the Docker project and Canonical")
+	}
 	return nil
 }
 
