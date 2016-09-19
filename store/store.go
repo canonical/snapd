@@ -1353,9 +1353,9 @@ type storeCustomer struct {
 }
 
 // ReadyToBuy returns a bool to show if the user's account has accepted T&Cs and has a payment method registered
-func (s *Store) ReadyToBuy(user *auth.UserState) (bool, error) {
+func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	if user == nil {
-		return false, ErrInvalidCredentials
+		return ErrInvalidCredentials
 	}
 
 	reqOptions := &requestOptions{
@@ -1365,7 +1365,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) (bool, error) {
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
-		return false, err
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -1374,32 +1374,32 @@ func (s *Store) ReadyToBuy(user *auth.UserState) (bool, error) {
 		var customer storeCustomer
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&customer); err != nil {
-			return false, err
+			return err
 		}
 		if !customer.LatestTosAccepted {
-			return false, ErrTosNotAccepted
+			return ErrTosNotAccepted
 		}
 		if !customer.HasPaymentMethod {
-			return false, ErrNoPaymentMethod
+			return ErrNoPaymentMethod
 		}
 		// TODO Check if the user has a payment method registered (once the store API provides this info)
-		return true, nil
+		return nil
 	case http.StatusNotFound:
 		// Likely because user has no account registered on the pay server
-		return false, fmt.Errorf("cannot get customer details: server says no account exists")
+		return fmt.Errorf("cannot get customer details: server says no account exists")
 	case http.StatusUnauthorized:
-		return false, ErrInvalidCredentials
+		return ErrInvalidCredentials
 	default:
 		var errors storeErrors
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errors); err != nil {
-			return false, err
+			return err
 		}
 		details := ""
 		if len(errors.Errors) > 0 && errors.Errors[0].Message != "" {
 			details = ": " + errors.Errors[0].Message
 		}
-		return false, fmt.Errorf("cannot get customer details: unexpected HTTP code %d%s", resp.StatusCode, details)
+		return fmt.Errorf("cannot get customer details: unexpected HTTP code %d%s", resp.StatusCode, details)
 	}
 }
 

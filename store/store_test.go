@@ -2526,8 +2526,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	ready, err := repo.ReadyToBuy(t.user)
-	c.Check(ready, Equals, true)
+	err = repo.ReadyToBuy(t.user)
 	c.Check(err, IsNil)
 	c.Check(purchaseServerGetCalled, Equals, 1)
 }
@@ -2571,8 +2570,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNotAcceptedTos(c *C) {
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	ready, err := repo.ReadyToBuy(t.user)
-	c.Check(ready, Equals, false)
+	err = repo.ReadyToBuy(t.user)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "terms of service not accepted")
 	c.Check(purchaseServerGetCalled, Equals, 1)
@@ -2617,8 +2615,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoPaymentMethod(c *C) {
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	ready, err := repo.ReadyToBuy(t.user)
-	c.Check(ready, Equals, false)
+	err = repo.ReadyToBuy(t.user)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "no valid payment methods")
 	c.Check(purchaseServerGetCalled, Equals, 1)
@@ -2655,8 +2652,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoAccount(c *C) {
 	repo := New(&cfg, authContext)
 	c.Assert(repo, NotNil)
 
-	ready, err := repo.ReadyToBuy(t.user)
-	c.Check(ready, Equals, false)
+	err = repo.ReadyToBuy(t.user)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "cannot get customer details: server says no account exists")
 	c.Check(purchaseServerGetCalled, Equals, 1)
