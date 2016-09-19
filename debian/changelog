@@ -1,3 +1,13 @@
+snapd (2.15.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - image: ensure local snaps are put last in seed.yaml
+    - asserts: revert change that made the account-key's name mandatory.
+    - many: refresh all snap decls
+    - interfaces/apparmor: allow reading /etc/environment
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 19 Sep 2016 09:19:44 +0200
+
 snapd (2.15) xenial; urgency=medium
 
   * New upstream release, LP: #1623579
