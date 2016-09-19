@@ -36,6 +36,15 @@ type MockCmd struct {
 	logFile string
 }
 
+var scriptTpl = `#!/bin/sh
+echo "$(basename "$0")" >> %[1]q
+for arg in "$@"; do
+    echo "$arg" >> %[1]q
+done
+echo >> %[1]q
+%s
+`
+
 // MockCommand adds a mocked command to PATH.
 //
 // The command logs all invocations to a dedicated log file. If script is
@@ -46,19 +55,23 @@ func MockCommand(c *check.C, basename, script string) *MockCmd {
 	binDir := c.MkDir()
 	exeFile := path.Join(binDir, basename)
 	logFile := path.Join(binDir, basename+".log")
-	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(""+
-		"#!/bin/sh\n"+
-		"echo \"$(basename \"$0\")\" >> %[1]q\n"+
-		"for arg in \"$@\"; do\n"+
-		"    echo \"$arg\" >> %[1]q\n"+
-		"done\n"+
-		"printf \"\\n\" >> %[1]q\n"+
-		"%s\n", logFile, script)), 0700)
+	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, logFile, script)), 0700)
 	if err != nil {
 		panic(err)
 	}
 	os.Setenv("PATH", binDir+":"+os.Getenv("PATH"))
 	return &MockCmd{binDir: binDir, exeFile: exeFile, logFile: logFile}
+}
+
+// Also mock this command, using the same bindir and log
+// Useful when you want to check the ordering of things.
+func (cmd *MockCmd) Also(basename, script string) *MockCmd {
+	exeFile := path.Join(cmd.binDir, basename)
+	err := ioutil.WriteFile(exeFile, []byte(fmt.Sprintf(scriptTpl, cmd.logFile, script)), 0700)
+	if err != nil {
+		panic(err)
+	}
+	return &MockCmd{binDir: cmd.binDir, exeFile: exeFile, logFile: cmd.logFile}
 }
 
 // Restore removes the mocked command from PATH

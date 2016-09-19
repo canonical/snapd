@@ -24,6 +24,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 
 	"gopkg.in/macaroon.v1"
@@ -267,12 +269,12 @@ func RequestStoreDeviceNonce() (string, error) {
 }
 
 // RequestDeviceSession requests a device session macaroon from the store.
-func RequestDeviceSession(serialAssertion, serialProof, previousSession string) (string, error) {
+func RequestDeviceSession(serialAssertion, sessionRequest, previousSession string) (string, error) {
 	const errorPrefix = "cannot get device session from store: "
 
 	data := map[string]string{
-		"serial-assertion": serialAssertion,
-		"serial-proof":     serialProof,
+		"serial-assertion":       serialAssertion,
+		"device-session-request": sessionRequest,
 	}
 	deviceJSONData, err := json.Marshal(data)
 	if err != nil {
@@ -298,7 +300,8 @@ func RequestDeviceSession(serialAssertion, serialProof, previousSession string) 
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d and body %q", resp.StatusCode, body)
 	}
 
 	dec := json.NewDecoder(resp.Body)

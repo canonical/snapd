@@ -42,7 +42,7 @@ type cmdList struct {
 }
 
 func init() {
-	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} })
+	addCommand("list", shortListHelp, longListHelp, func() flags.Commander { return &cmdList{} }, nil, nil)
 }
 
 type snapsByName []*client.Snap
@@ -64,7 +64,7 @@ func listSnaps(names []string) error {
 	snaps, err := cli.List(names)
 	if err != nil {
 		if err == client.ErrNoSnapsInstalled {
-			fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try 'snap install hello-world'."))
+			fmt.Fprintln(Stderr, i18n.G("No snaps are installed yet. Try \"snap install hello-world\"."))
 			return nil
 		}
 		return err

@@ -156,7 +156,7 @@ apps:
 	// ensure that the binary wrapper file got generated with the right
 	// name
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
+	c.Assert(osutil.IsSymlink(binaryWrapper), Equals, true)
 
 	// data dirs
 	c.Assert(osutil.IsDirectory(snap.DataDir()), Equals, true)
@@ -424,7 +424,7 @@ apps:
 	snapR, err = os.Open(snapPath)
 	c.Assert(err, IsNil)
 
-	ts, err = snapstate.Update(st, "foo", "stable", 0, 0)
+	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -453,14 +453,14 @@ apps:
 	c.Check(snapRev50.(*asserts.SnapRevision).SnapRevision(), Equals, 50)
 
 	// check udpated wrapper
-	content, err := ioutil.ReadFile(info.Apps["bar"].WrapperPath())
+	symlinkTarget, err := os.Readlink(info.Apps["bar"].WrapperPath())
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "/"+revno+"/bin/bar"), Equals, true)
+	c.Assert(symlinkTarget, Equals, "/usr/bin/snap")
 
 	// check updated service file
-	content, err = ioutil.ReadFile(svcFile)
+	content, err := ioutil.ReadFile(svcFile)
 	c.Assert(err, IsNil)
-	c.Assert(strings.Contains(string(content), "/"+revno+"/svc"), Equals, true)
+	c.Assert(strings.Contains(string(content), "/var/snap/foo/"+revno), Equals, true)
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstallWithStoreMetadata(c *C) {
@@ -506,7 +506,7 @@ apps:
 	// ensure that the binary wrapper file got generated with the right
 	// name
 	binaryWrapper := filepath.Join(dirs.SnapBinariesDir, "foo.bar")
-	c.Assert(osutil.FileExists(binaryWrapper), Equals, true)
+	c.Assert(osutil.IsSymlink(binaryWrapper), Equals, true)
 
 	// data dirs
 	c.Assert(osutil.IsDirectory(info.DataDir()), Equals, true)
@@ -662,11 +662,13 @@ apps:
 	ms.installLocalTestSnap(c, x2Yaml)
 
 	// ensure we are on x2
-	c.Assert(osutil.FileExists(x2binary), Equals, true)
-	c.Assert(osutil.FileExists(x1binary), Equals, false)
+	_, err := os.Lstat(x2binary)
+	c.Assert(err, IsNil)
+	_, err = os.Lstat(x1binary)
+	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// now do the revert
-	ts, err := snapstate.Revert(st, "foo")
+	ts, err := snapstate.Revert(st, "foo", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)
@@ -679,8 +681,10 @@ apps:
 	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("revert-snap change failed with: %v", chg.Err()))
 
 	// ensure that we use x1 now
-	c.Assert(osutil.FileExists(x1binary), Equals, true)
-	c.Assert(osutil.FileExists(x2binary), Equals, false)
+	_, err = os.Lstat(x1binary)
+	c.Assert(err, IsNil)
+	_, err = os.Lstat(x2binary)
+	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// ensure that x1,x2 is still there, revert just moves the "current"
 	// pointer
