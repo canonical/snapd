@@ -29,6 +29,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"sort"
 	"strings"
 	"testing"
 
@@ -1293,7 +1294,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			"epoch":       "0",
 			"confinement": "strict",
 		})
-		c.Assert(resp.Fields, DeepEquals, detailFields)
+		c.Assert(resp.Fields, DeepEquals, getDefaultDetailFields())
 
 		io.WriteString(w, MockUpdatesJSON)
 	}))
@@ -1327,6 +1328,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 	c.Assert(results[0].Version, Equals, "6.1")
 	c.Assert(results[0].SnapID, Equals, helloWorldSnapID)
 	c.Assert(results[0].DeveloperID, Equals, helloWorldDeveloperID)
+	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipCurrent(c *C) {
@@ -1425,6 +1427,246 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailFieldsDefault(c *C) {
+	// deltas are not included in the repo's detailFields, nor
+	// are they included for ListRefresh requests when the env
+	// var is not set.
+	orig_delta_formats := os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS")
+	defer os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", orig_delta_formats)
+	c.Assert(os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", ""), IsNil)
+
+	repo := New(nil, nil)
+
+	c.Assert(repo.detailFields, DeepEquals, repo.listRefreshFields())
+	allDetailFields := getStructFields(snapDetails{})
+	c.Assert(len(allDetailFields), Equals, len(repo.detailFields)+1)
+	// The difference between the two lists is just the missing
+	// "deltas" from the repo's detailFields.
+	detailFieldsPlusDeltas := append(repo.detailFields, "deltas")
+	sort.Strings(detailFieldsPlusDeltas)
+	c.Assert(allDetailFields, DeepEquals, detailFieldsPlusDeltas)
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailListRefresh(c *C) {
+	// deltas are not included in the repo's detailFields, but are
+	// included for ListRefresh requests when the env var is set.
+	orig_delta_formats := os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS")
+	defer os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", orig_delta_formats)
+	c.Assert(os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", "xdelta"), IsNil)
+
+	repo := New(nil, nil)
+
+	allDetailFields := getStructFields(snapDetails{})
+	c.Assert(allDetailFields, DeepEquals, repo.listRefreshFields())
+	c.Assert(len(allDetailFields), Equals, len(repo.detailFields)+1)
+	// The difference between the two lists is just the missing
+	// "deltas" from the repo's detailFields.
+	detailFieldsPlusDeltas := append(repo.detailFields, "deltas")
+	sort.Strings(detailFieldsPlusDeltas)
+	c.Assert(allDetailFields, DeepEquals, detailFieldsPlusDeltas)
+}
+
+/* XXX Currently this is just MockUpdatesJSON with the deltas that we're
+planning to add to the stores /api/v1/snaps/metadata response.
+*/
+var MockUpdatesWithDeltasJSON = `
+{
+    "_embedded": {
+        "clickindex:package": [
+            {
+                "_links": {
+                    "self": {
+                        "href": "https://search.apps.ubuntu.com/api/v1/package/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ"
+                    }
+                },
+                "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+                "architecture": [
+                    "all"
+                ],
+                "binary_filesize": 20480,
+                "channel": "stable",
+                "confinement": "strict",
+                "content": "application",
+                "description": "This is a simple hello world example.",
+                "developer_id": "canonical",
+                "download_sha512": "345f33c06373f799b64c497a778ef58931810dd7ae85279d6917d8b4f43d38abaf37e68239cb85914db276cb566a0ef83ea02b6f2fd064b54f9f2508fa4ca1f1",
+                "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_26.snap",
+                "icon_url": "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/hello.svg_NZLfWbh.png",
+                "last_updated": "2016-05-31T07:02:32.586839Z",
+                "origin": "canonical",
+                "package_name": "hello-world",
+                "prices": {},
+                "publisher": "Canonical",
+                "ratings_average": 0.0,
+                "revision": 26,
+                "snap_id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+                "summary": "Hello world example",
+                "support_url": "mailto:snappy-devel@lists.ubuntu.com",
+                "title": "hello-world",
+                "version": "6.1",
+                "deltas": [{
+                    "from_revision": 24,
+                    "to_revision": 25,
+                    "format": "xdelta",
+                    "binary_filesize": 204,
+                    "download_sha3_384": "sha3_384_hash",
+                    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta",
+                    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta"
+                }, {
+                    "from_revision": 25,
+                    "to_revision": 26,
+                    "format": "xdelta",
+                    "binary_filesize": 206,
+                    "download_sha3_384": "sha3_384_hash",
+                    "anon_download_url": "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta",
+                    "download_url": "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta"
+                }]
+            }
+        ]
+    },
+    "_links": {
+        "curies": [
+            {
+                "href": "https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex#reltype_{rel}",
+                "name": "clickindex",
+                "templated": true
+            }
+        ]
+    }
+}
+`
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
+	orig_delta_formats := os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS")
+	defer os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", orig_delta_formats)
+	c.Assert(os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", "xdelta"), IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, `xdelta`)
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var resp struct {
+			Snaps  []map[string]interface{} `json:"snaps"`
+			Fields []string                 `json:"fields"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"revision":    float64(24),
+			"epoch":       "0",
+			"confinement": "strict",
+		})
+		c.Assert(resp.Fields, DeepEquals, getStructFields(snapDetails{}))
+
+		io.WriteString(w, MockUpdatesWithDeltasJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	results, err := repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(24),
+			Epoch:    "0",
+			DevMode:  false,
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Deltas, HasLen, 2)
+	c.Assert(results[0].Deltas[0], Equals, snap.DeltaInfo{
+		FromRevision:    24,
+		ToRevision:      25,
+		Format:          "xdelta",
+		AnonDownloadURL: "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta",
+		DownloadURL:     "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_24_25_xdelta.delta",
+		Size:            204,
+		Sha3_384:        "sha3_384_hash",
+	})
+	c.Assert(results[0].Deltas[1], Equals, snap.DeltaInfo{
+		FromRevision:    25,
+		ToRevision:      26,
+		Format:          "xdelta",
+		AnonDownloadURL: "https://public.apps.ubuntu.com/anon/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta",
+		DownloadURL:     "https://public.apps.ubuntu.com/download-snap/buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ_25_26_xdelta.delta",
+		Size:            206,
+		Sha3_384:        "sha3_384_hash",
+	})
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C) {
+	// Verify the X-Delta-Format header is not set.
+	orig_delta_formats := os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS")
+	defer os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", orig_delta_formats)
+	c.Assert(os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", ""), IsNil)
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, ``)
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var resp struct {
+			Snaps  []map[string]interface{} `json:"snaps"`
+			Fields []string                 `json:"fields"`
+		}
+
+		err = json.Unmarshal(jsonReq, &resp)
+		c.Assert(err, IsNil)
+
+		c.Assert(resp.Snaps, HasLen, 1)
+		c.Assert(resp.Snaps[0], DeepEquals, map[string]interface{}{
+			"snap_id":     helloWorldSnapID,
+			"channel":     "stable",
+			"revision":    float64(24),
+			"epoch":       "0",
+			"confinement": "strict",
+		})
+		c.Assert(resp.Fields, DeepEquals, getDefaultDetailFields())
+
+		io.WriteString(w, MockUpdatesJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	var err error
+	bulkURI, err := url.Parse(mockServer.URL + "/updates/")
+	c.Assert(err, IsNil)
+	cfg := Config{
+		BulkURI: bulkURI,
+	}
+	repo := New(&cfg, nil)
+	c.Assert(repo, NotNil)
+
+	results, err := repo.ListRefresh([]*RefreshCandidate{
+		{
+			SnapID:   helloWorldSnapID,
+			Channel:  "stable",
+			Revision: snap.R(24),
+			Epoch:    "0",
+			DevMode:  false,
+		},
+	}, nil)
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].Deltas, HasLen, 0)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryUpdateNotSendLocalRevs(c *C) {

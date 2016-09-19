@@ -140,6 +140,7 @@ type Info struct {
 
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
+	Deltas []DeltaInfo
 
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
@@ -229,6 +230,18 @@ type DownloadInfo struct {
 
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
+}
+
+// DeltaInfo contains the information to download a delta
+// from one revision to another.
+type DeltaInfo struct {
+	FromRevision    int    `json:"from-revision,omitempty"`
+	ToRevision      int    `json:"to-revision,omitempty"`
+	Format          string `json:"format,omitempty"`
+	AnonDownloadURL string `json:"anon-download-url,omitempty"`
+	DownloadURL     string `json:"download-url,omitempty"`
+	Size            int64  `json:"size,omitempty"`
+	Sha3_384        string `json:"sha3-384,omitempty"`
 }
 
 // sanity check that Info is a PlaceInfo

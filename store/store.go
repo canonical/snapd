@@ -31,6 +31,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 
@@ -95,6 +96,21 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+
+	deltas := make([]snap.DeltaInfo, len(d.Deltas))
+	for i, d := range d.Deltas {
+		deltas[i] = snap.DeltaInfo{
+			FromRevision:    d.FromRevision,
+			ToRevision:      d.ToRevision,
+			Format:          d.Format,
+			AnonDownloadURL: d.AnonDownloadURL,
+			DownloadURL:     d.DownloadURL,
+			Size:            d.Size,
+			Sha3_384:        d.Sha3_384,
+		}
+	}
+	info.Deltas = deltas
+
 	return info
 }
 
@@ -165,6 +181,7 @@ func getStructFields(s interface{}) []string {
 		}
 	}
 
+	sort.Strings(fields)
 	return fields
 }
 
@@ -274,9 +291,6 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
-// The fields we are interested in
-var detailFields = getStructFields(snapDetails{})
-
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if cfg == nil {
@@ -285,7 +299,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	fields := cfg.DetailFields
 	if fields == nil {
-		fields = detailFields
+		fields = getDefaultDetailFields()
 	}
 
 	rawQuery := ""
@@ -560,6 +574,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS") != "" {
+		req.Header.Set("X-Ubuntu-Delta-Formats", os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS"))
+	}
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
@@ -971,7 +989,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,
-		Fields: s.detailFields,
+		Fields: s.listRefreshFields(),
 	})
 	if err != nil {
 		return nil, err
@@ -1390,4 +1408,13 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 		}
 		return nil, fmt.Errorf("cannot get payment methods: unexpected HTTP code %d%s", resp.StatusCode, details)
 	}
+}
+
+func (s *Store) listRefreshFields() []string {
+	fields := append([]string{}, s.detailFields...)
+	if os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS") != "" {
+		fields = append(fields, "deltas")
+		sort.Strings(fields)
+	}
+	return fields
 }
