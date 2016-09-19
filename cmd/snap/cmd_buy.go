@@ -44,17 +44,22 @@ var positiveResponse = map[string]bool{
 }
 
 type cmdBuy struct {
-	Currency string `long:"currency" description:"ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"`
+	Currency string `long:"currency"`
 
 	Positional struct {
-		SnapName string `positional-arg-name:"<snap-name>"`
+		SnapName string
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
 	addCommand("buy", shortBuyHelp, longBuyHelp, func() flags.Commander {
 		return &cmdBuy{}
-	})
+	}, map[string]string{
+		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
+	}, []argDesc{{
+		name: "<snap>",
+		desc: i18n.G("Snap name"),
+	}})
 }
 
 func (x *cmdBuy) Execute(args []string) error {
@@ -70,6 +75,10 @@ func (x *cmdBuy) Execute(args []string) error {
 
 func buySnap(opts *store.BuyOptions) error {
 	cli := Client()
+
+	if !cli.LoggedIn() {
+		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
+	}
 
 	if strings.ContainsAny(opts.SnapName, ":*") {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)

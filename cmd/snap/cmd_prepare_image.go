@@ -30,12 +30,12 @@ import (
 
 type cmdPrepareImage struct {
 	Positional struct {
-		ModelAssertionFn string `positional-arg-name:"model-assertion" description:"the model assertion name"`
-		Rootdir          string `long:"root-dir" description:"the output directory" `
+		ModelAssertionFn string
+		Rootdir          string
 	} `positional-args:"yes" required:"yes"`
 
-	ExtraSnaps []string `long:"extra-snaps" description:"extra snaps to be installed"`
-	Channel    string   `long:"channel" description:"the channel to use"`
+	ExtraSnaps []string `long:"extra-snaps"`
+	Channel    string   `long:"channel"`
 }
 
 func init() {
@@ -44,6 +44,17 @@ func init() {
 		i18n.G("Prepare a snappy image"),
 		func() flags.Commander {
 			return &cmdPrepareImage{}
+		}, map[string]string{
+			"extra-snaps": "Extra snaps to be installed",
+			"channel":     "The channel to use",
+		}, []argDesc{
+			{
+				name: i18n.G("<model-assertion>"),
+				desc: i18n.G("The model assertion name"),
+			}, {
+				name: i18n.G("<root-dir>"),
+				desc: i18n.G("The output directory"),
+			},
 		})
 	cmd.hidden = true
 }

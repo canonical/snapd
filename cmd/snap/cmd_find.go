@@ -85,16 +85,18 @@ func getPriceString(prices map[string]float64, suggestedCurrency, status string)
 }
 
 type cmdFind struct {
-	Private    bool `long:"private" description:"search private snaps"`
+	Private    bool `long:"private"`
 	Positional struct {
-		Query string `positional-arg-name:"<query>"`
+		Query string
 	} `positional-args:"yes"`
 }
 
 func init() {
 	addCommand("find", shortFindHelp, longFindHelp, func() flags.Commander {
 		return &cmdFind{}
-	})
+	}, map[string]string{
+		"private": i18n.G("Search private snaps"),
+	}, []argDesc{{name: i18n.G("<query>")}})
 }
 
 func (x *cmdFind) Execute(args []string) error {
