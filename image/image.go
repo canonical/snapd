@@ -192,7 +192,7 @@ func acquireSnap(sto Store, name string, dlOpts *DownloadOptions, local *localIn
 }
 
 type addingFetcher struct {
-	*asserts.Fetcher
+	asserts.Fetcher
 	addedRefs []*asserts.Ref
 }
 
@@ -299,7 +299,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		// TODO: support somehow including available assertions
 		// also for local snaps
 		if info.SnapID != "" {
-			err = FetchSnapAssertions(fn, info, f.Fetcher, db)
+			err = FetchAndCheckSnapAssertions(fn, info, f, db)
 			if err != nil {
 				return err
 			}
