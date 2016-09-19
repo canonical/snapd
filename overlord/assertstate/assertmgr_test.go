@@ -610,3 +610,68 @@ func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
 }
+
+func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
+	snapDeclBaz := s.snapDecl(c, "baz", []interface{}{"foo-id"})
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
+	s.stateFromDecl(snapDeclBaz, snap.R(1))
+	snapstate.Set(s.state, "local", &snapstate.SnapState{
+		Active: false,
+		Sequence: []*snap.SideInfo{
+			{RealName: "local", Revision: snap.R(-1)},
+		},
+		Current: snap.R(-1),
+	})
+
+	// validation by bar
+	headers := map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "bar-id",
+		"approved-snap-id":       "foo-id",
+		"approved-snap-revision": "9",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	barValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(barValidation)
+	c.Assert(err, IsNil)
+
+	// revoked validation by baz
+	headers = map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "baz-id",
+		"approved-snap-id":       "foo-id",
+		"approved-snap-revision": "9",
+		"revoked":                "true",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	bazValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(bazValidation)
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBaz)
+	c.Assert(err, IsNil)
+
+	fooRefresh := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
+	}
+
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	c.Assert(err, ErrorMatches, `(?s).*cannot validate refresh for "foo" \(9\): validation by "baz" \(id "baz-id"\) revoked.*`)
+	c.Check(validated, HasLen, 0)
+}
