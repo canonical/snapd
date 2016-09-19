@@ -278,7 +278,7 @@ func (e *refreshControlError) Error() string {
 	return fmt.Sprintf("refresh control errors:%s", strings.Join(l, "\n - "))
 }
 
-// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh-control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated.
+// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated.
 func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (validated []*snap.Info, err error) {
 	// maps gated snap-ids to gating snap-ids
 	controlled := make(map[string][]string)
@@ -326,15 +326,19 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 			continue
 		}
 
+		var validationRefs []*asserts.Ref
+
 		fetching := func(f asserts.Fetcher) error {
 			for _, gatingID := range gating {
-				err := f.Fetch(&asserts.Ref{
+				valref := &asserts.Ref{
 					Type:       asserts.ValidationType,
 					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
-				})
+				}
+				err := f.Fetch(valref)
 				if err != nil {
 					return fmt.Errorf("cannot find validation by %q: %v", gatingNames[gatingID], err)
 				}
+				validationRefs = append(validationRefs, valref)
 			}
 			return nil
 		}
@@ -343,7 +347,22 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 			errs = append(errs, fmt.Errorf("cannot validate refresh for %q (%s): %v", candInfo.Name(), candInfo.Revision, err))
 			continue
 		}
-		// XXX: check the validations are not revoked
+
+		var revoked *asserts.Validation
+		for _, valref := range validationRefs {
+			a, err := valref.Resolve(db.Find)
+			if err != nil {
+				return nil, fmt.Errorf("internal error: cannot find just fetched %v: %v", valref, err)
+			}
+			if val := a.(*asserts.Validation); val.Revoked() {
+				revoked = val
+				break
+			}
+		}
+		if revoked != nil {
+			errs = append(errs, fmt.Errorf("cannot validate refresh for %q (%s): validation by %q (id %q) revoked", candInfo.Name(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
+			continue
+		}
 
 		validated = append(validated, candInfo)
 	}

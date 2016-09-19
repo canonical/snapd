@@ -597,7 +597,7 @@ version: @VERSION@
 
 	// Refresh
 
-	// Setup refresh-control
+	// Setup refresh control
 
 	headers := map[string]interface{}{
 		"series":          "16",
