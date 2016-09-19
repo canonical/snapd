@@ -620,7 +620,7 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 		if snapName != "docker" || (devName != "canonical" && devName != "docker") {
 			return fmt.Errorf("daemon-privileged attribute is reserved for the Docker project and Canonical")
 		}
-	return nil
+		return nil
 	}
 
 	return nil
