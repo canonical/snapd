@@ -86,6 +86,7 @@ var defaultTemplate = []byte(`
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
   /etc/profile r,
+  /etc/environment r,
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
