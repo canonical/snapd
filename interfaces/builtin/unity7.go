@@ -62,10 +62,6 @@ const unity7ConnectedPlugAppArmor = `
 /usr/share/thumbnailer/icons/**            r,
 /usr/share/themes/**                       r,
 
-#owner @{HOME}/.themes/                r,
-#owner @{HOME}/.themes/**              r,
-
-
 # input methods (ibus)
 # subset of ibus abstraction
 /usr/lib/@{multiarch}/gtk-2.0/[0-9]*/immodules/im-ibus.so mr,
