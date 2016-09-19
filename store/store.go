@@ -1349,6 +1349,7 @@ type storeCustomer struct {
 	LatestTosDate     string `json:"latest_tos_date"`
 	AcceptedTosDate   string `json:"accepted_tos_date"`
 	LatestTosAccepted bool   `json:"latest_tos_accepted"`
+	HasPaymentMethod  bool   `json:"has_payment_method"`
 }
 
 // ReadyToBuy returns a bool to show if the user's account has accepted T&Cs and has a payment method registered
@@ -1377,6 +1378,9 @@ func (s *Store) ReadyToBuy(user *auth.UserState) (bool, error) {
 		}
 		if !customer.LatestTosAccepted {
 			return false, ErrTosNotAccepted
+		}
+		if !customer.HasPaymentMethod {
+			return false, ErrNoPaymentMethod
 		}
 		// TODO Check if the user has a payment method registered (once the store API provides this info)
 		return true, nil
