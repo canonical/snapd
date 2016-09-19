@@ -12,6 +12,14 @@ prepare_classic() {
         snap install --candidate ubuntu-core
         snap list | grep core
 
+        echo "Ensure that the grub-editenv list output is empty on classic"
+        output=$(grub-editenv list)
+        if [ -n "$output" ]; then
+            echo "Expected empty grub environment, got:"
+            echo "$output"
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
@@ -205,4 +213,11 @@ prepare_all_snap() {
 
     echo "Kernel has a store revision"
     snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
+
+    # Snapshot the fresh state
+    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        systemctl stop snapd.service snapd.socket
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        systemctl start snapd.socket
+    fi
 }

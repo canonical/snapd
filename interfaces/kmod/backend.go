@@ -17,9 +17,26 @@
  *
  */
 
-package assertstate
+package kmod
 
-// expose for testing
-var (
-	DoFetch = doFetch
+import (
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
+
+// Backend is responsible for maintaining kernel modules
+type Backend struct{}
+
+// Name returns the name of the backend.
+func (b *Backend) Name() string {
+	return "kmod"
+}
+
+func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
+	// TODO: get snippets, load modules, create /etc/modules-load.d/snap.modules.conf file
+	return nil
+}
+
+func (b *Backend) Remove(snapName string) error {
+	return nil
+}
