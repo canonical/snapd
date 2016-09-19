@@ -38,7 +38,10 @@ var _ = Suite(&DockerInterfaceSuite{
 	iface: &builtin.DockerInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "docker"},
+			Snap: &snap.Info{
+				SuggestedName: "docker",
+				SideInfo:      snap.SideInfo{Developer: "canonical"},
+			},
 			Name:      "docker-daemon",
 			Interface: "docker",
 		},
@@ -183,11 +186,11 @@ plugs:
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon apparmor policy`)
+	c.Assert(string(snippet), Not(testutil.Contains), `change_profile -> *,`)
 
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon seccomp policy`)
+	c.Assert(string(snippet), Not(testutil.Contains), `@unrestriced`)
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c *C) {
@@ -206,11 +209,11 @@ plugs:
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon apparmor policy`)
+	c.Assert(string(snippet), Not(testutil.Contains), `change_profile -> *,`)
 
 	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), Not(testutil.Contains), `# TODO: privileged daemon seccomp policy`)
+	c.Assert(string(snippet), Not(testutil.Contains), `@unrestricted`)
 }
 
 func (s *DockerInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c *C) {
@@ -229,9 +232,9 @@ plugs:
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `# TODO: privileged daemon apparmor policy`)
+	c.Assert(string(snippet), testutil.Contains, `change_profile -> *,`)
 
 	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
-	c.Assert(string(snippet), testutil.Contains, `# TODO: privileged daemon seccomp policy`)
+	c.Assert(string(snippet), testutil.Contains, `@unrestricted`)
 }
