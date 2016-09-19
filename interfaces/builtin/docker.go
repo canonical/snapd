@@ -507,11 +507,21 @@ bind
 `
 
 const daemonPrivilegedAppArmor = `
-# TODO: privileged daemon apparmor policy
+# Description: allow docker daemon to run containers invoked with
+# docker --privileged. This gives full access to all resources on the system
+# and thus gives device ownership to connected snaps.
+change_profile -> *,
+signal (send) peer=unconfined,
+ptrace (read, trace) peer=unconfined,
+/dev/** mrwkl,
+@{PROC}/** mrwkl,
 `
 
 const daemonPrivilegedSecComp = `
-# TODO: privileged daemon seccomp policy
+# Description: allow docker daemon to run containers invoked with
+# docker --privileged. This gives full access to all resources on the system
+# and thus gives device ownership to connected snaps.
+@unrestricted
 `
 
 type DockerInterface struct{}
