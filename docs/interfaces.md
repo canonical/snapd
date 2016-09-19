@@ -258,6 +258,19 @@ printing.
 
 * Auto-Connect: no
 
+### docker
+
+Can access snaps providing the docker interface which gives privileged access
+to the system. Providing snaps can access resources and syscalls necessary to
+run Docker application containers. Providing snaps can access resources to
+run privileged Docker application containers when specifying
+``privileged: true``. This interface currently may only be established with the
+Docker project.
+
+* Auto-Connect: no
+* Attributes:
+    * privileged (slot): true|false (defaults to ``false``)
+
 ### firewall-control
 
 Can configure network firewalling giving privileged access to networking.
