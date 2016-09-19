@@ -51,7 +51,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 		return fmt.Errorf("cannot obtain kmod security snippets for snap %q: %s", snapName, err)
 	}
 
-	var candidateModules []string
+	var candidateModules []byte
 	candidateModules, err = b.processSnipets(snapInfo, snippets)
 
 	b.kmoddb.Lock()
@@ -69,14 +69,14 @@ func (b *Backend) Remove(snapName string) error {
 	return nil
 }
 
-func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (candidateModules []string, err error) {
+func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (candidateModules []byte, err error) {
 	for _, appInfo := range snapInfo.Apps {
 		for _, snippet := range snippets[appInfo.SecurityTag()] {
 			individualLines := bytes.Split(snippet, []byte{'\n'})
 			for _, line := range individualLines {
 				l := bytes.Trim(line, " \r")
 				if len(l) > 0 && l[0] != '#' {
-					candidateModules = append(candidateModules, string(line))
+					candidateModules = append(candidateModules, line)
 				}
 			}
 		}
