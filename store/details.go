@@ -74,6 +74,6 @@ func getDefaultDetailFields() []string {
 	// Don't include deltas in the default DetailFields. Instead they'll
 	// be requested explicitly in ListRefresh only.
 	i := sort.SearchStrings(fields, "deltas")
-	fields = append(fields[:i], fields[i+1:]...)
-	return fields
+	fields[i] = fields[len(fields)-1]
+	return fields[:len(fields)-1]
 }
