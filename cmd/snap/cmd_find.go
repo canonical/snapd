@@ -95,7 +95,7 @@ func init() {
 	addCommand("find", shortFindHelp, longFindHelp, func() flags.Commander {
 		return &cmdFind{}
 	}, map[string]string{
-		"private": i18n.G("search private snaps"),
+		"private": i18n.G("Search private snaps"),
 	}, []argDesc{{name: i18n.G("<query>")}})
 }
 

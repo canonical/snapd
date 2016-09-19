@@ -10,7 +10,7 @@ prepare: |
 
     # First of all, unmount the core
     systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
+    core="$(readlink -f /snap/ubuntu-core/current)"
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
 
@@ -44,7 +44,7 @@ restore: |
 
     # Unmount the modified core snap, and put the old one back in place
     systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
+    core="$(readlink -f /snap/ubuntu-core/current)"
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
     mv "${snap}.orig" "$snap"

@@ -53,10 +53,10 @@ func init() {
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command": i18n.G("alternative command to run"),
-			"hook":    i18n.G("hook to run"),
-			"r":       i18n.G("use a specific snap revision when running hook"),
-			"shell":   i18n.G("run a shell instead of the command (useful for debugging)"),
+			"command": i18n.G("Alternative command to run"),
+			"hook":    i18n.G("Hook to run"),
+			"r":       i18n.G("Use a specific snap revision when running hook"),
+			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
 		}, nil)
 }
 

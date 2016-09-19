@@ -82,6 +82,25 @@ func (ts *taskSuite) TestGetSet(c *C) {
 	c.Check(v, Equals, 1)
 }
 
+func (ts *taskSuite) TestClear(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	t.Set("a", 1)
+
+	var v int
+	err := t.Get("a", &v)
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 1)
+
+	t.Clear("a")
+
+	c.Check(t.Get("a", &v), Equals, state.ErrNoState)
+}
+
 func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	st := state.New(nil)
 	st.Lock()
