@@ -7,9 +7,9 @@ snap files and the snapd application.
 
 ## Development
 
-See
-[HACKING.md](https://github.com/snapcore/snapd/blob/master/HACKING.md)
-for in-depth details how to hack on snapd.
+To get started with development off the snapd code itself, please check
+out [HACKING.md](https://github.com/snapcore/snapd/blob/master/HACKING.md)
+for in-depth details.
 
 ## Reporting bugs
 
