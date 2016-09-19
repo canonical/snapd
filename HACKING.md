@@ -11,7 +11,7 @@ integration test framework for the integration/system level tests.
 When working with the source of Go programs, you should define a path within
 your home directory (or other workspace) which will be your `GOPATH`. `GOPATH`
 is similar to Java's `CLASSPATH` or Python's `~/.local`. `GOPATH` is documented
-[http://golang.org/pkg/go/build/](online) and inside the go tool itself
+[online](http://golang.org/pkg/go/build/) and inside the go tool itself
 
     go help gopath
 
@@ -33,20 +33,21 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 
     PATH="$PATH:$GOPATH/bin"
 
-### Getting the snappy sources
+### Getting the snapd sources
 
-The easiest way to get the source for `snappy` is to use the `go get` command.
+The easiest way to get the source for `snapd` is to use the `go get` command.
 
     go get -d -v github.com/snapcore/snapd/...
 
-This command will checkout the source of `snappy` and inspect it for any unmet
+This command will checkout the source of `snapd` and inspect it for any unmet
 Go package dependencies, downloading those as well. `go get` will also build
-and install `snappy` and its dependencies. To checkout without installing, use
-the `-d` flag. More details on the `go get` flags are available using
+and install `snapd` and its dependencies. To also build and install `snapd`
+itself into `$GOPATH/bin`, omit the `-d` flag. More details on the `go get`
+flags are available using
 
     go help get
 
-At this point you will have the git local repository of the `snappy` source at
+At this point you will have the git local repository of the `snapd` source at
 `$GOPATH/github.com/snapcore/snapd`. The source for any
 dependent packages will also be available inside `$GOPATH`.
 
@@ -56,13 +57,14 @@ To generate dependencies.tsv you need `godeps`, so
 
     go get launchpad.net/godeps
 
-To obtain the correct dependencies for the project, run:
+To obtain the correct dependencies for the project, run (from the
+projects root directory):
 
     godeps -t -u dependencies.tsv
 
 You can use the script `get-deps.sh` to run the two previous steps.
 
-If the dependencies need updating
+If the dependencies need updating, run (from the projects root directory):
 
     godeps -t ./... > dependencies.tsv
 
@@ -85,13 +87,13 @@ Contributions are always welcome! Please make sure that you sign the
 Canonical contributor licence agreement at
 http://www.ubuntu.com/legal/contributors
 
-Snappy can be found on Github, so in order to fork the source and contribute,
+Snapd can be found on Github, so in order to fork the source and contribute,
 go to https://github.com/snapcore/snapd. Check out [Github's help
 pages](https://help.github.com/) to find out how to set up your local branch,
 commit changes and create pull requests.
 
 We value good tests, so when you fix a bug or add a new feature we highly
-encourage you to create a test in $source_testing.go. See also the section
+encourage you to create a test in `$source_test.go`. See also the section
 about Testing.
 
 ### Testing
@@ -100,8 +102,8 @@ To run the various tests that we have to ensure a high quality source just run:
 
     ./run-checks
 
-This will check if the source format is consistent, that it build, all tests
-work as expected and that "go vet" and "golint" have nothing to complain.
+This will check if the source format is consistent, that it builds, all tests
+work as expected and that "go vet" has nothing to complain.
 
 You can run individual test for a sub-package by changing into that directory and:
 
@@ -121,7 +123,7 @@ To run the spread tests locally you need the latest version of spread
 from https://github.com/snapcore/spread. It can be installed via:
 
     $ sudo apt install qemu-kvm autopkgtest
-    $ sudo snap install spread
+    $ sudo snap install --devmode spread
 
 Then setup the environment via:
 
@@ -142,19 +144,19 @@ It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
 
 
-### Testing snapd on a snappy system
+### Testing snapd
 
 To test the `snapd` REST API daemon on a snappy system you need to
 transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
-    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
+    sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 This will stop the installed snapd and activate the new one. Once it's
 printed out something like `Listening on /run/snapd.socket as 3.` you
 should then
 
-    sudo chmod 0666 /run/snapd.socket
+    sudo chmod 0666 /run/snapd*.socket
 
 so the socket has the right permissions (otherwise you need `sudo` to
 connect).
