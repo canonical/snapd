@@ -517,6 +517,83 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Check(refreshSessionRequested, Equals, true)
 }
 
+func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
+	macaroon, err := makeTestMacaroon()
+	c.Assert(err, IsNil)
+	serializedMacaroon, err := MacaroonSerialize(macaroon)
+	c.Assert(err, IsNil)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, fmt.Sprintf(`{"macaroon": "%s"}`, serializedMacaroon))
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+
+	discharge, err := makeTestDischarge()
+	c.Assert(err, IsNil)
+	serializedDischarge, err := MacaroonSerialize(discharge)
+	c.Assert(err, IsNil)
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, fmt.Sprintf(`{"discharge_macaroon": "%s"}`, serializedDischarge))
+	}))
+	c.Assert(mockSSOServer, NotNil)
+	defer mockSSOServer.Close()
+	UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
+
+	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
+
+	c.Assert(err, IsNil)
+	c.Check(userMacaroon, Equals, serializedMacaroon)
+	c.Check(userDischarge, Equals, serializedDischarge)
+}
+
+func (t *remoteRepoTestSuite) TestLoginUserMyAppsError(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, "{}")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+
+	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
+
+	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: .*")
+	c.Check(userMacaroon, Equals, "")
+	c.Check(userDischarge, Equals, "")
+}
+
+func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
+	macaroon, err := makeTestMacaroon()
+	c.Assert(err, IsNil)
+	serializedMacaroon, err := MacaroonSerialize(macaroon)
+	c.Assert(err, IsNil)
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		io.WriteString(w, fmt.Sprintf(`{"macaroon": "%s"}`, serializedMacaroon))
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
+
+	errorResponse := `{"code": "some-error"}`
+	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(401)
+		io.WriteString(w, errorResponse)
+	}))
+	c.Assert(mockSSOServer, NotNil)
+	defer mockSSOServer.Close()
+	UbuntuoneDischargeAPI = mockSSOServer.URL + "/tokens/discharge"
+
+	userMacaroon, userDischarge, err := LoginUser("username", "password", "otp")
+
+	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: .*")
+	c.Check(userMacaroon, Equals, "")
+	c.Check(userDischarge, Equals, "")
+}
+
 const (
 	funkyAppName      = "8nzc1x4iim2xj1g2ul64"
 	funkyAppDeveloper = "chipaca"
