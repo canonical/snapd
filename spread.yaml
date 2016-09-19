@@ -87,8 +87,14 @@ prepare: |
 
     # adhoc backend and ubuntu-core system, nothing to setup
     if [ "$SPREAD_BACKEND" = adhoc-ubuntu-core ]; then
-        mkdir -p $GOPATH/bin
-        cp /home/test/snapbuild $GOPATH/bin
+        # build test binaries
+        if [ ! -f $GOPATH/bin/snapbuild ]; then
+            mkdir -p $GOPATH/bin
+            snap install --devmode --edge classic
+            classic "sudo apt update && apt install -y git golang-go"
+            classic "GOPATH=$GOPATH go get ..${PROJECT_PATH}/tests/lib/snapbuild"
+            snap remove classic
+        fi
         exit 0
     fi
 
