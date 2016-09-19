@@ -7,7 +7,7 @@ internal tool for discarding preserved namespaces of snappy applications
 ------------------------------------------------------------------------
 
 :Author: zygmunt.krynicki@canonical.com
-:Date:   2016-09-12
+:Date:   2016-09-19
 :Copyright: Canonical Ltd.
 :Version: 1.0.41
 :Manual section: 5
