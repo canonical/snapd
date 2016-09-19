@@ -40,6 +40,8 @@ var (
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
+	SnapKModModulesFile       string
+	SnapKModStateFile         string
 	LocaleDir                 string
 	SnapMetaDir               string
 	SnapdSocket               string
@@ -133,6 +135,9 @@ func SetRootDir(rootdir string) {
 	CloudMetaDataFile = filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net/meta-data")
 
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
+
+	SnapKModModulesFile = filepath.Join(rootdir, "/etc/modules-load.d/snapd-modules.conf")
+	SnapKModStateFile = filepath.Join(rootdir, snappyDir, "kmod-state.json")
 
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")

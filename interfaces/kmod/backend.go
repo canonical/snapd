@@ -20,12 +20,23 @@
 package kmod
 
 import (
+	"bytes"
+	"fmt"
+	"os"
+
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
 
 // Backend is responsible for maintaining kernel modules
-type Backend struct{}
+type Backend struct {
+	kmoddb *KModDb
+}
+
+func NewKModBackend(statefile string) (b *Backend) {
+	return nil
+}
 
 // Name returns the name of the backend.
 func (b *Backend) Name() string {
@@ -33,10 +44,53 @@ func (b *Backend) Name() string {
 }
 
 func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
-	// TODO: get snippets, load modules, create /etc/modules-load.d/snap.modules.conf file
+	snapName := snapInfo.Name()
+	// Get the snippets that apply to this snap
+	snippets, err := repo.SecuritySnippetsForSnap(snapInfo.Name(), interfaces.SecurityKMod)
+	if err != nil {
+		return fmt.Errorf("cannot obtain kmod security snippets for snap %q: %s", snapName, err)
+	}
+
+	var candidateModules []string
+	candidateModules, err = b.processSnipets(snapInfo, snippets)
+
+	b.kmoddb.Lock()
+	defer b.kmoddb.Unlock()
+	b.kmoddb.AddModules(snapName, candidateModules)
+	//b.kmoddb.WriteDb(w)
+
+	modules := b.kmoddb.GetUniqueModulesList()
+	writeModulesFile(modules, dirs.SnapKModModulesFile)
 	return nil
 }
 
 func (b *Backend) Remove(snapName string) error {
+	b.kmoddb.Remove(snapName)
 	return nil
+}
+
+func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (candidateModules []string, err error) {
+	for _, appInfo := range snapInfo.Apps {
+		for _, snippet := range snippets[appInfo.SecurityTag()] {
+			individualLines := bytes.Split(snippet, []byte{'\n'})
+			for _, line := range individualLines {
+				l := bytes.Trim(line, " \r")
+				if len(l) > 0 && l[0] != '#' {
+					candidateModules = append(candidateModules, string(line))
+				}
+			}
+		}
+	}
+	return candidateModules, nil
+}
+
+func (b *Backend) loadState(statefile string) (s *KModDb, err error) {
+	r, err := os.Open(statefile)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read the state file: %s", err)
+	}
+	defer r.Close()
+
+	s, err = ReadDb(r)
+	return s, err
 }
