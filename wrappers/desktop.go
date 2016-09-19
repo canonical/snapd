@@ -61,6 +61,7 @@ var validDesktopFilePrefixes = []string{
 	"Keywords=",
 	"StartupNotify=",
 	"StartupWMClass=",
+	"X-Snap-Exec=",
 }
 
 // name desktop file keys are localized as key[LOCALE]=:
@@ -135,6 +136,7 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 	newContent := []string{}
 
 	scanner := bufio.NewScanner(bytes.NewReader(rawcontent))
+	var execOverride string
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -157,10 +159,33 @@ func sanitizeDesktopFile(s *snap.Info, desktopFile string, rawcontent []byte) []
 				continue
 			}
 		}
+		if strings.HasPrefix(line, "X-Snap-Exec=") {
+			l := strings.SplitN(line, "=", 2)
+			if len(l) > 1 {
+				execOverride = l[1]
+			}
+		}
 
 		// do variable substitution
 		line = strings.Replace(line, "${SNAP}", s.MountDir(), -1)
 		newContent = append(newContent, line)
+	}
+
+	// see if we need to override the Exec= line
+	if execOverride != "" {
+		newLine, err := rewriteExecLine(s, desktopFile, fmt.Sprintf("Exec=%s", execOverride))
+		if err == nil {
+			found := false
+			for _, line := range newContent {
+				if strings.HasPrefix(line, "Exec=") {
+					line = newLine
+					found = true
+				}
+			}
+			if !found {
+				newContent = append(newContent, newLine)
+			}
+		}
 	}
 
 	return []byte(strings.Join(newContent, "\n"))
