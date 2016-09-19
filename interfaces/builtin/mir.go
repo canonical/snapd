@@ -36,6 +36,8 @@ network netlink raw,
 /run/mir_socket rw,
 #NOTE: this allows reading and inserting all input events
 /dev/input/* rw,
+/run/udev/data/c13:[0-9]* r,
+/run/udev/data/+input:input[0-9]* r,
 `)
 
 var mirPermanentSlotSecComp = []byte(`
