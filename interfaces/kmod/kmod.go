@@ -17,9 +17,4 @@
  *
  */
 
-package assertstate
-
-// expose for testing
-var (
-	DoFetch = doFetch
-)
+package kmod
