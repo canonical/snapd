@@ -1,3 +1,13 @@
+snapd (2.15.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - asserts: define a bit less terse Ref.String
+    - interfaces: disable auto-connect in libvirt interface
+    - asserts: check that validation assertions are signed by the
+      publisher of the gating snap
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 19 Sep 2016 10:42:29 +0200
+
 snapd (2.15.1) xenial; urgency=medium
 
   * New upstream release, LP: #1623579
