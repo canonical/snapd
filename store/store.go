@@ -266,7 +266,7 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/customers/me")
+	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
 	if err != nil {
 		panic(err)
 	}

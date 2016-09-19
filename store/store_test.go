@@ -2505,7 +2505,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/customers/me")
+			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
 			io.WriteString(w, customerJsonTosAccepted)
 			purchaseServerGetCalled++
 		default:
@@ -2516,7 +2516,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/customers/me")
+	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
 	c.Assert(err, IsNil)
 
 	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
@@ -2549,7 +2549,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNotAcceptedTos(c *C) {
 			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/customers/me")
+			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
 			io.WriteString(w, customerJsonTosNotAccepted)
 			purchaseServerGetCalled++
 		default:
@@ -2560,7 +2560,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNotAcceptedTos(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/customers/me")
+	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
 	c.Assert(err, IsNil)
 
 	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
@@ -2594,7 +2594,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoPaymentMethod(c *C) {
 			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/customers/me")
+			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
 			io.WriteString(w, customerJsonNoPaymentMethod)
 			purchaseServerGetCalled++
 		default:
@@ -2605,7 +2605,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoPaymentMethod(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/customers/me")
+	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
 	c.Assert(err, IsNil)
 
 	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
@@ -2630,7 +2630,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoAccount(c *C) {
 			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
 			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/customers/me")
+			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
 			w.WriteHeader(http.StatusNotFound)
 			io.WriteString(w, "{}")
 			purchaseServerGetCalled++
@@ -2642,7 +2642,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoAccount(c *C) {
 	c.Assert(mockPurchasesServer, NotNil)
 	defer mockPurchasesServer.Close()
 
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/customers/me")
+	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
 	c.Assert(err, IsNil)
 
 	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
