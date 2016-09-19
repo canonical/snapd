@@ -3,7 +3,7 @@ summary: Check that revert works.
 systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
 
 environment:
-    STORE_TYPE/fake: fake
+    STORE_TYPE: fake
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |

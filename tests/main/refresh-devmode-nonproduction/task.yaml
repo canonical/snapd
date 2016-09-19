@@ -15,9 +15,7 @@ environment:
     SNAP_NAME: test-snapd-tools
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
     BLOB_DIR: $(pwd)/fake-store-blobdir
-    STORE_TYPE/fake: fake
-    STORE_TYPE/staging: staging
-    STORE_TYPE/production: production
+    STORE_TYPE: fake
 
 prepare: |
     . $TESTSLIB/tasks/refresh.sh
