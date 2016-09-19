@@ -20,6 +20,7 @@
 package backends
 
 import (
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
@@ -36,7 +37,7 @@ var All = []interfaces.SecurityBackend{
 	&dbus.Backend{},
 	&udev.Backend{},
 	&mount.Backend{},
-	&kmod.Backend{},
+	kmod.NewKModBackend(dirs.SnapKModStateFile),
 }
 
 func init() {
