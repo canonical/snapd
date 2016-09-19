@@ -3,6 +3,7 @@
 set -eux
 
 prepare_classic() {
+    # relying on dpkg as apt(-get) does not support installation from local files in trusty.
     dpkg -i ${SPREAD_PATH}/../snapd_*.deb || apt-get -f install -y
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
@@ -39,6 +40,7 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
+        # relying on dpkg as apt(-get) does not support installation from local files in trusty.
         dpkg -i ${SPREAD_PATH}/../snapd_*.deb || apt-get -f install -y
 
         snap install --edge ubuntu-core
