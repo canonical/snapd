@@ -26,12 +26,14 @@ import (
 )
 
 const dockerPermanentSlotAppArmor = `
-# Description: allow operating as the Docker daemon. This policy is intentionally
-#  not restrictive and is here to help guard against programming errors and not
-#  for security confinement. The Docker daemon by design requires extensive
-#  access to the system and cannot be effectively confined against malicious
-#  activity.
+# Description: allow operating as the Docker daemon. This policy is
+# intentionally not restrictive and is here to help guard against programming
+# errors and not for security confinement. The Docker daemon by design requires
+# extensive access to the system and cannot be effectively confined against
+# malicious activity.
 # Usage: reserved
+
+#include <abstractions/dbus-strict>
 
 # Allow sockets
 /{,var/}run/docker.sock rw,
@@ -51,6 +53,7 @@ const dockerPermanentSlotAppArmor = `
 /sys/fs/cgroup/cpuset/cpuset.cpus r,
 /sys/fs/cgroup/cpuset/cpuset.mems r,
 /sys/module/apparmor/parameters/enabled r,
+
 # Limit cgroup writes a bit (Docker uses a "docker" sub-group)
 /sys/fs/cgroup/*/docker/   rw,
 /sys/fs/cgroup/*/docker/** rw,
@@ -79,8 +82,8 @@ pivot_root,
 # file descriptors in the container show up here due to attach_disconnected
 /[0-9]* rw,
 
-# Docker needs to be able to create and load the profile it applies to containers ("docker-default")
-# XXX We might be able to get rid of this if we generate and load docker-default ourselves and make docker not do it.
+# Docker needs to be able to create and load the profile it applies to
+# containers ("docker-default")
 /sbin/apparmor_parser ixr,
 /etc/apparmor.d/cache/ r,
 /etc/apparmor.d/cache/.features r,
@@ -89,9 +92,8 @@ pivot_root,
 /etc/apparmor/subdomain.conf r,
 /sys/kernel/security/apparmor/.replace rw,
 /sys/kernel/security/apparmor/{,**} r,
-#include <abstractions/dbus-strict>
 
-# We'll want to adjust this to support --security-opts...
+# Use 'daemon-privileged: true' to support --security-opts
 change_profile -> docker-default,
 signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
@@ -105,26 +107,17 @@ ptrace (read, trace) peer=docker-default,
 / r,
 `
 
-const dockerConnectedPlugAppArmor = `
-# Description: allow access to the Docker daemon socket. This gives
-#  privileged access to the system via Docker's socket API.
+const dockerPermanentSlotSecComp = `
+# Description: allow operating as the Docker daemon. This policy is
+# intentionally not restrictive and is here to help guard against programming
+# errors and not for security confinement. The Docker daemon by design requires
+# extensive access to the system and cannot be effectively confined against
+# malicious activity.
 # Usage: reserved
 
-# Allow talking to the docker daemon
-/{,var/}run/docker.sock rw,
-`
-
-const dockerPermanentSlotSecComp = `
-# Description: allow operating as the Docker daemon. This policy is intentionally
-#  not restrictive and is here to help guard against programming errors and not
-#  for security confinement. The Docker daemon by design requires extensive
-#  access to the system and cannot be effectively confined against malicious
-#  activity.
-
-# Because seccomp may only go more strict, we must allow all
-# all syscalls to Docker that it expects to give to containers
-# in addition to what it needs to run and trust that docker daemon
-# only gives out reasonable syscalls to containers.
+# Because seccomp may only go more strict, we must allow all syscalls to Docker
+# that it expects to give to containers in addition to what it needs to run and
+# trust that docker daemon # only gives out reasonable syscalls to containers.
 
 # Docker includes these in the default container whitelist, but they're
 # potentially dangerous.
@@ -144,7 +137,8 @@ const dockerPermanentSlotSecComp = `
 # /snap/docker/VERSION/bin/docker-runc
 #   "do not inherit the parent's session keyring"
 #   "make session keyring searcheable"
-# runC uses this to ensure the container doesn't have access to the host keyring
+# runC uses this to ensure the container doesn't have access to the host
+# keyring
 keyctl
 
 # /snap/docker/VERSION/bin/docker-runc
@@ -498,9 +492,19 @@ write
 writev
 `
 
+const dockerConnectedPlugAppArmor = `
+# Description: allow access to the Docker daemon socket. This gives privileged
+# access to the system via Docker's socket API.
+# Usage: reserved
+
+# Allow talking to the docker daemon
+/{,var/}run/docker.sock rw,
+`
+
 const dockerConnectedPlugSecComp = `
-# Description: allow access to the Docker daemon socket. This gives
-#  privileged access to the system via Docker's socket API.
+# Description: allow access to the Docker daemon socket. This gives privileged
+# access to the system via Docker's socket API.
+# Usage: reserved
 
 setsockopt
 bind
@@ -584,7 +588,9 @@ func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 }
 
 func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// The docker socket is a named socket and therefore mediated by AppArmor file rules and we can't currently limit connecting clients by their security label
+	// The docker socket is a named socket and therefore mediated by
+	// AppArmor file rules. As such, there is no additional ConnectedSlot
+	// policy to add.
 	switch securitySystem {
 	case interfaces.SecurityAppArmor,
 		interfaces.SecurityDBus,
@@ -603,7 +609,7 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	}
 
 	// It's fine if daemon-privileged isn't specified, but if it is,
-	// it needs to be bool and it may only by used with the docker project
+	// it needs to be bool and it can only by used with the docker project
 	// and Canonical
 	if v, ok := plug.Attrs["daemon-privileged"]; ok {
 		if _, ok = v.(bool); !ok {
@@ -623,7 +629,7 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	snapName := slot.Snap.Name()
 	devName := slot.Snap.Developer
-	// The docker slot may only by used with the docker project and
+	// The docker slot can only by used with the docker project and
 	// Canonical
 	if snapName != "docker" || (devName != "canonical" && devName != "docker") {
 		return fmt.Errorf("docker interface is reserved for the Docker project and Canonical")
