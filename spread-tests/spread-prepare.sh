@@ -124,13 +124,13 @@ case "$release_ID" in
             add-apt-repository ppa:thomas-voss/trusty
         fi
         apt-get update
+        apt-get dist-upgrade -y
         if [ "$release_ID" = "ubuntu" ] && [ "$release_VERSION_ID" = "14.04" ]; then
             apt-get install -y systemd
             # starting systemd manually is working around
             # systemd not running as PID 1 on trusty systems.
             service systemd start
         fi
-        apt-get update
         # On Debian and derivatives we need the following things:
         # - sbuild -- to build the binary package with extra hygiene
         # - devscripts -- to modify the changelog automatically
