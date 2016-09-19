@@ -250,18 +250,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	serializedMacaroon, err := store.RequestStoreMacaroon()
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	macaroon, err := store.MacaroonDeserialize(serializedMacaroon)
-
-	// get SSO 3rd party caveat, and request discharge
-	loginCaveat, err := store.LoginCaveatID(macaroon)
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	discharge, err := store.DischargeAuthCaveat(loginCaveat, loginData.Username, loginData.Password, loginData.Otp)
+	macaroon, discharge, err := store.LoginUser(loginData.Username, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -301,14 +290,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, serializedMacaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
 	result := loginResponseData{
-		Macaroon:   serializedMacaroon,
+		Macaroon:   macaroon,
 		Discharges: []string{discharge},
 	}
 	return SyncResponse(result, nil)
