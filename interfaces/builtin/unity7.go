@@ -62,6 +62,12 @@ const unity7ConnectedPlugAppArmor = `
 /usr/share/thumbnailer/icons/**            r,
 /usr/share/themes/**                       r,
 
+# Snappy's 'xdg-open' talks to the snapd-xdg-open service which currently works
+# only in environments supporting dbus-send (eg, X11). In the future once
+# snappy's xdg-open supports all snaps images, this access may move to another
+# interface.
+/usr/local/bin/xdg-open ixr,
+
 # input methods (ibus)
 # subset of ibus abstraction
 /usr/lib/@{multiarch}/gtk-2.0/[0-9]*/immodules/im-ibus.so mr,
