@@ -37,6 +37,7 @@ type commonInterface struct {
 	name                  string
 	connectedPlugAppArmor string
 	connectedPlugSecComp  string
+	connectedPlugKMod     string
 	reservedForOS         bool
 	autoConnect           bool
 }
@@ -95,8 +96,10 @@ func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		return []byte(iface.connectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(iface.connectedPlugSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
 		return nil, nil
+	case interfaces.SecurityKMod:
+		return []byte(iface.connectedPlugKMod), nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
