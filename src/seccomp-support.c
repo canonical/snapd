@@ -36,6 +36,7 @@
 #include <seccomp.h>
 
 #include "utils.h"
+#include "secure-getenv.h"
 
 #define sc_map_add(X) sc_map_add_kvp(#X, X)
 

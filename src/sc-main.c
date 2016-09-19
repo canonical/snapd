@@ -38,6 +38,7 @@
 #include "user-support.h"
 #include "ns-support.h"
 #include "quirks.h"
+#include "secure-getenv.h"
 
 int sc_main(int argc, char **argv)
 {
