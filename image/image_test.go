@@ -91,14 +91,15 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.storeSigning.Add(brandAccKey)
 
 	model, err := s.brandSigning.Sign(asserts.ModelType, map[string]interface{}{
-		"series":       "16",
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"model":        "my-model",
-		"architecture": "amd64",
-		"gadget":       "pc",
-		"kernel":       "pc-kernel",
-		"timestamp":    time.Now().Format(time.RFC3339),
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	s.model = model.(*asserts.Model)
@@ -169,11 +170,17 @@ name: ubuntu-core
 version: 16.04
 type: os
 `
+
 const devmodeSnap = `
 name: devmode-snap
 version: 1.0
 type: app
 confinement: devmode
+`
+
+const requiredSnap1 = `
+name: required-snap1
+version: 1.0
 `
 
 func (s *imageSuite) TestMissingModelAssertions(c *C) {
@@ -322,6 +329,10 @@ func (s *imageSuite) setupSnaps(c *C, gadgetUnpackDir string) {
 	s.downloadedSnaps["ubuntu-core"] = snaptest.MakeTestSnapWithFiles(c, packageCore, nil)
 	s.storeSnapInfo["ubuntu-core"] = infoFromSnapYaml(c, packageCore, snap.R(3))
 	s.addSystemSnapAssertions(c, "ubuntu-core")
+
+	s.downloadedSnaps["required-snap1"] = snaptest.MakeTestSnapWithFiles(c, requiredSnap1, nil)
+	s.storeSnapInfo["required-snap1"] = infoFromSnapYaml(c, requiredSnap1, snap.R(3))
+	s.addSystemSnapAssertions(c, "required-snap1")
 }
 
 func (s *imageSuite) TestBootstrapToRootDir(c *C) {
@@ -355,7 +366,7 @@ func (s *imageSuite) TestBootstrapToRootDir(c *C) {
 	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
 	c.Assert(err, IsNil)
 
-	c.Check(seed.Snaps, HasLen, 3)
+	c.Check(seed.Snaps, HasLen, 4)
 
 	// check the files are in place
 	for i, name := range []string{"ubuntu-core", "pc-kernel", "pc"} {
@@ -425,7 +436,10 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	defer c2.Restore()
 
 	opts := &image.Options{
-		Snaps:           []string{s.downloadedSnaps["ubuntu-core"]},
+		Snaps: []string{
+			s.downloadedSnaps["ubuntu-core"],
+			s.downloadedSnaps["required-snap1"],
+		},
 		RootDir:         rootdir,
 		GadgetUnpackDir: gadgetUnpackDir,
 	}
@@ -439,21 +453,31 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
 	c.Assert(err, IsNil)
 
-	c.Check(seed.Snaps, HasLen, 3)
+	c.Check(seed.Snaps, HasLen, 4)
 
 	// check the files are in place
-	for i, name := range []string{"ubuntu-core_x1.snap", "pc-kernel", "pc"} {
+	for i, name := range []string{"ubuntu-core_x1.snap", "pc-kernel", "pc", "required-snap1_x1.snap"} {
 		unasserted := false
 		info := s.storeSnapInfo[name]
 		if info == nil {
-			// ubuntu-core
-			info = &snap.Info{
-				SideInfo: snap.SideInfo{
-					RealName: "ubuntu-core",
-					Revision: snap.R("x1"),
-				},
+			switch name {
+			case "ubuntu-core_x1.snap":
+				info = &snap.Info{
+					SideInfo: snap.SideInfo{
+						RealName: "ubuntu-core",
+						Revision: snap.R("x1"),
+					},
+				}
+				unasserted = true
+			case "required-snap1_x1.snap":
+				info = &snap.Info{
+					SideInfo: snap.SideInfo{
+						RealName: "required-snap1",
+						Revision: snap.R("x1"),
+					},
+				}
+				unasserted = true
 			}
-			unasserted = true
 		}
 
 		fn := filepath.Base(info.MountFile())
@@ -470,7 +494,7 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 
 	l, err := ioutil.ReadDir(filepath.Join(rootdir, "var/lib/snapd/seed/snaps"))
 	c.Assert(err, IsNil)
-	c.Check(l, HasLen, 3)
+	c.Check(l, HasLen, 4)
 
 	storeAccountKey := s.storeSigning.StoreAccountKey("")
 	brandPubKey, err := s.brandSigning.PublicKey("")
@@ -548,7 +572,7 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 	seed, err := snap.ReadSeedYaml(filepath.Join(rootdir, "var/lib/snapd/seed/seed.yaml"))
 	c.Assert(err, IsNil)
 
-	c.Check(seed.Snaps, HasLen, 4)
+	c.Check(seed.Snaps, HasLen, 5)
 
 	// check devmode-snap
 	info := &snap.Info{
