@@ -99,7 +99,7 @@ type Ref struct {
 }
 
 func (ref *Ref) String() string {
-	pkStr := ""
+	pkStr := "-"
 	n := len(ref.Type.PrimaryKey)
 	if n != len(ref.PrimaryKey) {
 		pkStr = "???"
