@@ -53,20 +53,19 @@ dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
 
-To generate dependencies.tsv you need `godeps`, so
+Dependencies are handled via `govendor`. Get it via:
 
-    go get launchpad.net/godeps
+    go get -u github.com/kardianos/govendor
 
-To obtain the correct dependencies for the project, run (from the
-projects root directory):
+After a fresh checkout, run:
 
-    godeps -t -u dependencies.tsv
+    govendor sync
 
 You can use the script `get-deps.sh` to run the two previous steps.
 
-If the dependencies need updating, run (from the projects root directory):
+If a dependency need updating
 
-    godeps -t ./... > dependencies.tsv
+    govendor fetch github.com/path/of/dependency
 
 ### Building
 

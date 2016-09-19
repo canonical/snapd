@@ -81,30 +81,26 @@ if [ "$STATIC" = 1 ]; then
     ./mdlint.py docs/*.md
 
     echo Checking formatting
-    fmt=$(gofmt -l .)
+    fmt=""
+    for pkg in $(go list ./... | grep -v '/vendor/' ); do
+        s="$(gofmt -l $GOPATH/src/$pkg)"
+        if [ -n "$s" ]; then
+            fmt="$s\n$fmt"
+        fi
+    done
 
     if [ -n "$fmt" ]; then
-        echo "Formatting wrong in following files"
+        echo "Formatting wrong in following files:"
         echo "$fmt"
         exit 1
     fi
 
     # go vet
     echo Running vet
-    go vet ./...
+    for pkg in $(go list ./... | grep -v '/vendor/' ); do
+        go vet $pkg
+    done
 
-    # golint
-    echo Install golint
-    go get github.com/golang/lint/golint
-    export PATH=$PATH:$GOPATH/bin
-
-    echo Running lint
-    lint=$(golint ./...)
-    if [ -n "$lint" ]; then
-        echo "Lint complains:"
-        echo "$lint"
-        # don't exit 1
-    fi
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -120,7 +116,7 @@ if [ "$UNIT" = 1 ]; then
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./...); do
+    for pkg in $(go list ./... | grep -v '/vendor/' ); do    
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
