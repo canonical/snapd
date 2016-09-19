@@ -89,6 +89,8 @@ override_dh_auto_install: snap.8
 	rm -rf ${CURDIR}/debian/snapd/usr/share/gocode
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# no uboot-go
+	rm -f ${CURDIR}/debian/tmp/usr/bin/uboot-go
 
 snap.8:
 	$(CURDIR)/_build/bin/snap help --man > $@
