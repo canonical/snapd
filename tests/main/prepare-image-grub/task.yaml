@@ -11,7 +11,7 @@ environment:
     UBUNTU_IMAGE_SKIP_COPY_UNVERIFIED_SNAPS: 1
 prepare: |
     . $TESTSLIB/store.sh
-    setup_store fake-w-assert-fallback $STORE_DIR
+    setup_store fake $STORE_DIR
 restore: |
     . $TESTSLIB/store.sh
     teardown_store fake $STORE_DIR
