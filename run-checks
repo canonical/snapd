@@ -30,7 +30,7 @@ case "${1:-all}" in
         SPREAD=1
         ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread, or --integration."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
         exit 1
 esac
 
@@ -112,12 +112,12 @@ if [ "$UNIT" = 1 ]; then
     echo "mode: set" > .coverage/coverage.out
 
     echo Building
-    go build -tags=excludeintegration -v github.com/snapcore/snapd/...
+    go build -v github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./... | grep -v '/vendor/' ); do
-        $goctest -tags=excludeintegration -v -coverprofile=.coverage/profile.out $pkg
+    for pkg in $(go list ./... | grep -v '/vendor/' ); do    
+        $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
 

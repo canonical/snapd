@@ -187,7 +187,11 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.kind = unmarshalled.Kind
 	c.summary = unmarshalled.Summary
 	c.status = unmarshalled.Status
-	c.data = unmarshalled.Data
+	custData := unmarshalled.Data
+	if custData == nil {
+		custData = make(customData)
+	}
+	c.data = custData
 	c.taskIDs = unmarshalled.TaskIDs
 	c.ready = make(chan struct{})
 	c.spawnTime = unmarshalled.SpawnTime

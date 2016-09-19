@@ -797,6 +797,9 @@ ATTRS{idVendor}=="0216", ATTRS{idProduct}=="0051", ENV{ID_MM_DEVICE_IGNORE}="1"
 # Bluegiga BLE112B
 ATTRS{idVendor}=="2458", ATTRS{idProduct}=="0001", ENV{ID_MM_DEVICE_IGNORE}="1"
 
+# Analog Devices BLIP camera
+ATTRS{idVendor}=="064b", ATTRS{idProduct}=="7823", ENV{ID_MM_DEVICE_IGNORE}="1"
+
 # MediaTek GPS chip (HOLUX M-1200E, GlobalTop Gms-d1, etc)
 ATTRS{idVendor}=="0e8d", ATTRS{idProduct}=="3329", ENV{ID_MM_DEVICE_IGNORE}="1"
 
@@ -1149,7 +1152,7 @@ func (iface *ModemManagerInterface) Name() string {
 
 func (iface *ModemManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -1174,7 +1177,7 @@ func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, 
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return modemManagerConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -1191,7 +1194,7 @@ func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, 
 		return modemManagerPermanentSlotUdev, nil
 	case interfaces.SecurityDBus:
 		return modemManagerPermanentSlotDBus, nil
-	case interfaces.SecurityMount:
+	case interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -1205,7 +1208,7 @@ func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, 
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

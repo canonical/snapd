@@ -212,3 +212,25 @@ $ snap remove bluez
           Vendor Specific data: 0000
           TPM Version:         01010000
           Manufacturer Info:   57454300
+
+# Test fwupd interface with uefi-fw-tools
+
+1. Ensure your BIOS support UEFI firmware upgrading via UEFI capsule format
+2. Install the uefi-fw-tools snap from the store
+3. Ensure the 'fwupd' interface is connected
+
+ $ sudo snap connect uefi-fw-tools:fwupdmgr uefi-fw-tools:fwupd
+
+4. Check if the device support UEFI firmware updates
+
+ $ sudo uefi-fw-tools.fwupdmgr get-devices
+
+5. Get available UEFI firmware from the server
+
+ $ sudo uefi-fw-tools.fwupdmgr refresh
+
+6. Download firmware
+
+ $ sudo uefi-fw-tools.fwupdmgr update
+
+7. Reboot and ensure it start the upgrading process

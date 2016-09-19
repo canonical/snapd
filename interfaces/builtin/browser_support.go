@@ -43,8 +43,8 @@ owner /var/tmp/etilqs_* rw,
 
 # Chrome/Chromium should be modified to use snap.$SNAP_NAME.* or the snap
 # packaging adjusted to use LD_PRELOAD technique from LP: #1577514
-owner /dev/shm/.org.chromium.Chromium.* rw,
-owner /dev/shm/.com.google.Chrome.* rw,
+owner /{dev,run}/shm/{,.}org.chromium.Chromium.* rw,
+owner /{dev,run}/shm/{,.}com.google.Chrome.* rw,
 
 # Chrome/Chromium should be adjusted to not use gconf. It is only used with
 # legacy systems that don't have snapd
@@ -72,6 +72,69 @@ const browserSupportConnectedPlugAppArmorWithSandbox = `
 /etc/mailcap r,
 /usr/share/applications/{,*} r,
 /var/lib/snapd/desktop/applications/{,*} r,
+
+# Various files in /run/udev/data needed by Chrome Settings. Leaks device
+# information.
+# input
+/run/udev/data/c1:[0-9]* r,   # /dev/psaux
+/run/udev/data/c10:[0-9]* r,  # /dev/adbmouse
+/run/udev/data/c13:[0-9]* r,  # /dev/input/*
+/run/udev/data/c180:[0-9]* r, # /dev/vrbuttons
+/run/udev/data/c4:[0-9]* r,   # /dev/tty*, /dev/ttyS*
+/run/udev/data/c5:[0-9]* r,   # /dev/tty, /dev/console, etc
+/run/udev/data/c7:[0-9]* r,   # /dev/vcs*
+/run/udev/data/+hid:* r,
+/run/udev/data/+input:input[0-9]* r,
+
+# screen
+/run/udev/data/c29:[0-9]* r,  # /dev/fb*
+/run/udev/data/+backlight:* r,
+/run/udev/data/+leds:* r,
+
+# sound
+/run/udev/data/c116:[0-9]* r, # alsa
+/run/udev/data/+sound:card[0-9]* r,
+
+# miscellaneous
+/run/udev/data/c108:[0-9]* r, # /dev/ppp
+/run/udev/data/c189:[0-9]* r, # USB serial converters
+/run/udev/data/c89:[0-9]* r,  # /dev/i2c-*
+/run/udev/data/c81:[0-9]* r, # video4linux (/dev/video*, etc)
+/run/udev/data/+acpi:* r,
+/run/udev/data/+hwmon:hwmon[0-9]* r,
+/run/udev/data/+i2c:* r,
+/run/udev/data/+platform:* r,
+/sys/devices/**/bConfigurationValue r,
+/sys/devices/**/descriptors r,
+/sys/devices/**/manufacturer r,
+/sys/devices/**/product r,
+/sys/devices/**/serial r,
+
+# networking
+/run/udev/data/n[0-9]* r,
+/run/udev/data/+bluetooth:hci[0-9]* r,
+/run/udev/data/+rfkill:rfkill[0-9]* r,
+
+# storage
+/run/udev/data/b1:[0-9]* r,   # /dev/ram*
+/run/udev/data/b7:[0-9]* r,   # /dev/loop*
+/run/udev/data/b8:[0-9]* r,   # /dev/sd*
+/run/udev/data/c21:[0-9]* r,  # /dev/sg*
+/run/udev/data/+usb:[0-9]* r,
+
+# experimental
+/run/udev/data/c245:[0-9]* r,
+/run/udev/data/c246:[0-9]* r,
+/run/udev/data/c248:[0-9]* r,
+/run/udev/data/c249:[0-9]* r,
+/run/udev/data/c251:[0-9]* r,
+
+/sys/bus/**/devices/ r,
+
+# Google Cloud Print
+unix (bind)
+     type=stream
+     addr="@[0-9A-F]*._service_*",
 
 # Policy needed only when using the chrome/chromium setuid sandbox
 ptrace (trace) peer=snap.@{SNAP_NAME}.**,
@@ -117,6 +180,7 @@ const browserSupportConnectedPlugSecComp = `
 # for anonymous sockets
 bind
 listen
+accept
 
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
@@ -164,7 +228,7 @@ func (iface *BrowserSupportInterface) SanitizePlug(plug *interfaces.Plug) error 
 
 func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -174,7 +238,7 @@ func (iface *BrowserSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug
 func (iface *BrowserSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -199,7 +263,7 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 			snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
 		}
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -208,7 +272,7 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 
 func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

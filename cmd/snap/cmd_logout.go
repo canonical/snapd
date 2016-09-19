@@ -37,7 +37,7 @@ func init() {
 		longLogoutHelp,
 		func() flags.Commander {
 			return &cmdLogout{}
-		})
+		}, nil, nil)
 }
 
 func (cmd *cmdLogout) Execute(args []string) error {

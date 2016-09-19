@@ -474,6 +474,17 @@ func (safs *signAddFindSuite) TestAddNoAuthorityNoPrimaryKey(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: assertion type "test-only-no-authority" has no primary key`)
 }
 
+func (safs *signAddFindSuite) TestAddNoAuthorityButPrimaryKey(c *C) {
+	headers := map[string]interface{}{
+		"pk": "primary",
+	}
+	a, err := asserts.SignWithoutAuthority(asserts.TestOnlyNoAuthorityPKType, headers, nil, testPrivKey0)
+	c.Assert(err, IsNil)
+
+	err = safs.db.Add(a)
+	c.Assert(err, ErrorMatches, `cannot check no-authority assertion type "test-only-no-authority-pk"`)
+}
+
 func (safs *signAddFindSuite) TestFindNotFound(c *C) {
 	headers := map[string]interface{}{
 		"authority-id": "canonical",
@@ -660,6 +671,7 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 		"authority-id":        "canonical",
 		"account-id":          "canonical",
 		"public-key-sha3-384": safs.signingKeyID,
+		"name":                "default",
 		"since":               now.Format(time.RFC3339),
 		"until":               now.AddDate(1, 0, 0).Format(time.RFC3339),
 	}
