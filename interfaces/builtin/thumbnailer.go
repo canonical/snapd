@@ -32,7 +32,7 @@ var thumbnailerServicePermanentSlotAppArmor = []byte(`
 # Usage: reserved
 
 # DBus accesses
-#include <abstractions/dbus-strict>
+#include <abstractions/dbus-session-strict>
 dbus (send)
     bus=session
     path=/org/freedesktop/DBus
