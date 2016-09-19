@@ -82,7 +82,7 @@ func (as *assertsSuite) TestRefString(c *C) {
 	ref = &asserts.Ref{
 		Type: asserts.TestOnlyNoAuthorityType,
 	}
-	c.Check(ref.String(), Equals, "test-only-no-authority ()")
+	c.Check(ref.String(), Equals, "test-only-no-authority (-)")
 }
 
 func (as *assertsSuite) TestRefResolveError(c *C) {
