@@ -90,8 +90,12 @@ Desktop Entry Specification version 1.1 with some exceptions listed
 below. If there is a line with an unknown key or an unofficial key
 that line is silently removed from the desktop file on install.
 
-Only `Exec=` lines that start with `Exec=$snap.$app` are valid, but
-arguments may be passed. E.g. for a snap like:
+It is possible to specific the application to launch via the
+`X-Snap-Exec=` line or via the traditional `Exec=` line.
+
+Only `X-Snap-Exec=` or `Exec=` lines that start with `X-Snap-Exec=` or
+`Exec=$snap.$app` are valid, but arguments may be passed. E.g. for a
+snap like:
 ```
 name: http
 version: 1.0
@@ -109,6 +113,9 @@ Exec=http.GET %U
 
 The `Exec=` line is valid because it starts with `Exec=http.GET` (the
 snap is called "http" and the app is called "GET").
+
+The `X-Snap-Exec=` line is useful when the `Exec=` line is used by
+e.g. autotools or similar.
 
 
 ### Unsupported desktop keys

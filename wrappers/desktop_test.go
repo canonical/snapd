@@ -277,3 +277,25 @@ func (s *sanitizeDesktopFileSuite) TestTrimLang(c *C) {
 		c.Assert(wrappers.TrimLang(t.in), Equals, t.out)
 	}
 }
+
+func (s *sanitizeDesktopFileSuite) TestSanitizeXSnapExec(c *C) {
+	snap, err := snap.InfoFromSnapYaml([]byte(`
+name: snap
+version: 1.0
+apps:
+ app:
+  command: cmd
+`))
+	c.Assert(err, IsNil)
+	desktopContent := []byte(`[Desktop Entry]
+Name=foo
+Exec=upstream-exec-line
+X-Snap-Exec=snap.app %U
+`)
+
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, `[Desktop Entry]
+Name=foo
+X-Snap-Exec=snap.app %U
+Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop /snap/bin/snap.app %U`)
+}
