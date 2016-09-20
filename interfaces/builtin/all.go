@@ -39,6 +39,7 @@ var allInterfaces = []interfaces.Interface{
 	&NetworkManagerInterface{},
 	&PppInterface{},
 	&SerialPortInterface{},
+	&ThumbnailerInterface{},
 	&PulseAudioInterface{},
 	&UDisks2Interface{},
 	&FwupdInterface{},

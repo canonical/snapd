@@ -195,6 +195,12 @@ Can access desktop session manager screen inhibit and uninhibit functionality.
 
 * Auto-Connect: yes
 
+### thumbnailer
+
+Can access the thumbnailer service to retrieve thumbnails.
+
+* Auto-Connect: no
+
 ### unity7
 
 Can access Unity7. Unity 7 runs on X and requires access to various DBus

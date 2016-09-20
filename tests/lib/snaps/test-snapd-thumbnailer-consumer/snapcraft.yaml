@@ -1,0 +1,18 @@
+name: test-snapd-thumbnailer-consumer
+version: 1.0
+summary: Basic thumbnailer consumer snap
+description: A basic snap declaring a plug on thumbnailer
+
+apps:
+    test-snapd-thumbnailer-consumer:
+        command: gdbus call --session --dest com.canonical.Thumbnailer  --object-path /com/canonical/Thumbnailer --method com.canonical.Thumbnailer.GetThumbnail
+        plugs: [thumbnailer]
+parts:
+    gdbus:
+        plugin: nil
+        stage-packages: [libglib2.0-bin]
+    testimage:
+        plugin: dump
+        source: .
+        snap:
+          - test.png

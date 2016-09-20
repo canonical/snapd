@@ -1,0 +1,87 @@
+summary: Check that the thumbnailer interface works.
+
+systems: [-ubuntu-core-16-64]
+
+details: |
+    The thumbnailer interface allows a snap to access the thumbnailer service.
+
+    A snap which defines the thumbnailer plug must be shown in the interfaces list.
+    The plug must not be autoconnected on install and, as usual, must be able to be
+    reconnected.
+
+    A snap declaring a plug on this interface must be able to talk to the thumbnailer service
+    via D-Bus.
+    The test snap used calls a D-Bus method of the thumbnailer service.
+    The test checks that the method calls returns successfully.
+
+environment:
+    SNAP_NAME: test-snapd-thumbnailer-consumer
+    PLUG: thumbnailer
+    TEST_IMAGE: /snap/${SNAP_NAME}/current/test.png
+    DISPLAY: ":99.0"
+
+prepare: |
+    echo "Install thumbnailer service"
+    apt install -y thumbnailer-service
+    echo "Given a snap declaring the $PLUG plug is installed"
+    snap install $SNAP_NAME
+
+restore: |
+    apt remove -y thumbnailer-service
+    apt autoremove -y
+    snap remove $SNAP_NAME
+
+execute: |
+    echo "Start D-Bus session bus"
+    DBUS_SESSION_BUS_ADDRESS=$(dbus-daemon --print-address --session --fork)
+    MACHINE_ID=$(LANGUAGE=C hostnamectl|grep 'Machine ID:'| sed 's/^.*: //')
+    XDISPLAY=$(echo $DISPLAY|sed 's/^.*:\([0-9]\+\)\(\.[0-9]\+\)*$/\1/')
+    DBUS_SESSION_FOLDER=/var/snap/test-snapd-thumbnailer-consumer/current/.dbus/session-bus
+    DBUS_SESSION_FILE="$DBUS_SESSION_FOLDER/$MACHINE_ID-$XDISPLAY"
+    mkdir -p $DBUS_SESSION_FOLDER
+    echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" > $DBUS_SESSION_FILE
+
+    CONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    :$PLUG +$SNAP_NAME"
+    DISCONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    - +$SNAP_NAME:$PLUG"
+
+    echo "Then it is not shown as connected"
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "===================================="
+
+    echo "When the plug is connected"
+    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "Then the plug can be disconnected again"
+    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+    echo "============================================"
+
+    echo "When the plug is connected"
+    snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    echo "And the thumbnailer service is running"
+    su -l -c '/usr/lib/*/thumbnailer/thumbnailer-service &' test
+
+    echo "Then the snap command exits with a success code"
+    su -l -c '$SNAP_NAME $TEST_IMAGE \"(16,16)\"' test
+
+    echo "===================================="
+
+    echo "When the plug is disconnected"
+    snap disconnect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
+    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+
+
+    echo "Then the snap command is not able to print files"
+    if $SNAP_NAME 2>print.error; then
+        echo "Expected error with plug disconnected"
+        exit 1
+    fi

@@ -52,6 +52,7 @@ var implicitSlots = []string{
 	"timezone-control",
 	"tpm",
 	"kernel-module-control",
+	"thumbnailer",
 }
 
 var implicitClassicSlots = []string{
@@ -65,6 +66,7 @@ var implicitClassicSlots = []string{
 	"optical-drive",
 	"pulseaudio",
 	"screen-inhibit-control",
+	"thumbnailer",
 	"unity7",
 	"upower-observe",
 	"x11",
