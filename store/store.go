@@ -95,6 +95,21 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+
+	deltas := make([]snap.DeltaInfo, len(d.Deltas))
+	for i, d := range d.Deltas {
+		deltas[i] = snap.DeltaInfo{
+			FromRevision:    d.FromRevision,
+			ToRevision:      d.ToRevision,
+			Format:          d.Format,
+			AnonDownloadURL: d.AnonDownloadURL,
+			DownloadURL:     d.DownloadURL,
+			Size:            d.Size,
+			Sha3_384:        d.Sha3_384,
+		}
+	}
+	info.Deltas = deltas
+
 	return info
 }
 
@@ -114,6 +129,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
+	DeltaFormats []string
 }
 
 // Store represents the ubuntu snap store
@@ -131,6 +147,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
+	deltaFormats []string
 	// reused http client
 	client *http.Client
 
@@ -277,6 +294,9 @@ type searchResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
+// The default delta formats if none are configured.
+var defaultSupportedDeltaFormats = []string{"xdelta"}
+
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if cfg == nil {
@@ -319,6 +339,11 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		series = cfg.Series
 	}
 
+	deltaFormats := cfg.DeltaFormats
+	if deltaFormats == nil {
+		deltaFormats = defaultSupportedDeltaFormats
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
 		searchURI:         searchURI,
@@ -333,7 +358,33 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
+		deltaFormats:      deltaFormats,
 	}
+}
+
+// LoginUser logs user in the store and returns the authentication macaroons.
+func LoginUser(username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon()
+	if err != nil {
+		return "", "", err
+	}
+	deserializedMacaroon, err := MacaroonDeserialize(macaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	// get SSO 3rd party caveat, and request discharge
+	loginCaveat, err := loginCaveatID(deserializedMacaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	discharge, err := dischargeAuthCaveat(loginCaveat, username, password, otp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return macaroon, discharge, nil
 }
 
 // authenticateUser will add the store expected Macaroon Authorization header for user
@@ -380,7 +431,7 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 			continue
 		}
 
-		refreshedDischarge, err := RefreshDischargeMacaroon(d)
+		refreshedDischarge, err := refreshDischargeMacaroon(d)
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +465,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := RequestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce()
 	if err != nil {
 		return err
 	}
@@ -424,7 +475,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := RequestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
+	session, err := requestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -560,6 +611,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+		req.Header.Set("X-Ubuntu-Delta-Formats", strings.Join(s.deltaFormats, ","))
+	}
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
