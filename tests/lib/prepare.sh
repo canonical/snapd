@@ -2,6 +2,41 @@
 
 set -eux
 
+update_core_snap_with_snap_exec_snapctl() {
+    # We want to use the in-tree snap-exec and snapctl, not the ones in the core
+    # snap. To accomplish that, we'll just unpack the core we just grabbed,
+    # shove the new snap-exec and snapctl in there, and repack it.
+
+    # First of all, unmount the core
+    core="$(readlink -f /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
+    umount "$core"
+
+    # Now unpack the core, inject the new snap-exec and snapctl into it, and
+    # repack it.
+    unsquashfs "$snap"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    mv "$snap" "${snap}.orig"
+    mksquashfs squashfs-root "$snap" -comp xz
+    rm -rf squashfs-root
+
+    # Now mount the new core snap
+    mount "$snap" "$core"
+
+    # Make sure we're running with the correct snap-exec
+    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
+        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
+    # Make sure we're running with the correct snapctl
+    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
+        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
+        exit 1
+    fi
+}
+
 prepare_classic() {
     apt install -y ${SPREAD_PATH}/../snapd_*.deb
     # Snapshot the state including core.
@@ -21,6 +56,9 @@ prepare_classic() {
         fi
 
         systemctl stop snapd.service snapd.socket
+
+        update_core_snap_with_snap_exec_snapctl
+
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
