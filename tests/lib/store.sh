@@ -19,7 +19,9 @@ setup_fake_store(){
     # debugging
     systemctl status fakestore || true
     echo "Given a controlled store service is up"
-    systemd-run --unit fakestore $(which fakestore) -start -dir $top_dir -addr localhost:11028 $@
+    https_proxy=${https_proxy:-direct}
+    http_proxy=${http_proxy:-direct}
+    systemd-run --setenv https_proxy="$https_proxy" --setenv http_proxy="$http_proxy" --unit fakestore $(which fakestore) -start -dir $top_dir -addr localhost:11028 $@
 
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_CPI_URL=http://localhost:11028" "SNAPPY_FORCE_SAS_URL=http://localhost:11028"
