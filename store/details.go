@@ -20,8 +20,6 @@
 package store
 
 import (
-	"sort"
-
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -67,13 +65,4 @@ type snapDeltaDetail struct {
 	DownloadURL     string `json:"download_url,omitempty"`
 	Size            int64  `json:"binary_filesize,omitempty"`
 	Sha3_384        string `json:"download_sha3_384,omitempty"`
-}
-
-func getDefaultDetailFields() []string {
-	fields := getStructFields(snapDetails{})
-	// Don't include deltas in the default DetailFields. Instead they'll
-	// be requested explicitly in ListRefresh only.
-	i := sort.SearchStrings(fields, "deltas")
-	fields[i] = fields[len(fields)-1]
-	return fields[:len(fields)-1]
 }

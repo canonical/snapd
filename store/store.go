@@ -31,7 +31,6 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"sort"
 	"strings"
 	"sync"
 
@@ -181,7 +180,6 @@ func getStructFields(s interface{}) []string {
 		}
 	}
 
-	sort.Strings(fields)
 	return fields
 }
 
@@ -291,6 +289,9 @@ type searchResults struct {
 	} `json:"_embedded"`
 }
 
+// The fields we are interested in
+var detailFields = getStructFields(snapDetails{})
+
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if cfg == nil {
@@ -299,7 +300,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	fields := cfg.DetailFields
 	if fields == nil {
-		fields = getDefaultDetailFields()
+		fields = detailFields
 	}
 
 	rawQuery := ""
@@ -989,7 +990,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 	// build input for the updates endpoint
 	jsonData, err := json.Marshal(metadataWrapper{
 		Snaps:  currentSnaps,
-		Fields: s.listRefreshFields(),
+		Fields: s.detailFields,
 	})
 	if err != nil {
 		return nil, err
@@ -1408,13 +1409,4 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 		}
 		return nil, fmt.Errorf("cannot get payment methods: unexpected HTTP code %d%s", resp.StatusCode, details)
 	}
-}
-
-func (s *Store) listRefreshFields() []string {
-	fields := append([]string{}, s.detailFields...)
-	if os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS") != "" {
-		fields = append(fields, "deltas")
-		sort.Strings(fields)
-	}
-	return fields
 }

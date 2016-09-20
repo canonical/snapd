@@ -29,7 +29,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"sort"
 	"strings"
 	"testing"
 
@@ -1294,7 +1293,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefresh(c *C) {
 			"epoch":       "0",
 			"confinement": "strict",
 		})
-		c.Assert(resp.Fields, DeepEquals, getDefaultDetailFields())
+		c.Assert(resp.Fields, DeepEquals, detailFields)
 
 		io.WriteString(w, MockUpdatesJSON)
 	}))
@@ -1427,45 +1426,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshSkipBlocked(c 
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(results, HasLen, 0)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailFieldsDefault(c *C) {
-	// deltas are not included in the repo's detailFields, nor
-	// are they included for ListRefresh requests when the env
-	// var is not set.
-	orig_delta_formats := os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS")
-	defer os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", orig_delta_formats)
-	c.Assert(os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", ""), IsNil)
-
-	repo := New(nil, nil)
-
-	c.Assert(repo.detailFields, DeepEquals, repo.listRefreshFields())
-	allDetailFields := getStructFields(snapDetails{})
-	c.Assert(len(allDetailFields), Equals, len(repo.detailFields)+1)
-	// The difference between the two lists is just the missing
-	// "deltas" from the repo's detailFields.
-	detailFieldsPlusDeltas := append(repo.detailFields, "deltas")
-	sort.Strings(detailFieldsPlusDeltas)
-	c.Assert(allDetailFields, DeepEquals, detailFieldsPlusDeltas)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetailListRefresh(c *C) {
-	// deltas are not included in the repo's detailFields, but are
-	// included for ListRefresh requests when the env var is set.
-	orig_delta_formats := os.Getenv("SNAPPY_DELTA_DOWNLOAD_FORMATS")
-	defer os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", orig_delta_formats)
-	c.Assert(os.Setenv("SNAPPY_DELTA_DOWNLOAD_FORMATS", "xdelta"), IsNil)
-
-	repo := New(nil, nil)
-
-	allDetailFields := getStructFields(snapDetails{})
-	c.Assert(allDetailFields, DeepEquals, repo.listRefreshFields())
-	c.Assert(len(allDetailFields), Equals, len(repo.detailFields)+1)
-	// The difference between the two lists is just the missing
-	// "deltas" from the repo's detailFields.
-	detailFieldsPlusDeltas := append(repo.detailFields, "deltas")
-	sort.Strings(detailFieldsPlusDeltas)
-	c.Assert(allDetailFields, DeepEquals, detailFieldsPlusDeltas)
 }
 
 /* XXX Currently this is just MockUpdatesJSON with the deltas that we're
@@ -1638,7 +1598,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(
 			"epoch":       "0",
 			"confinement": "strict",
 		})
-		c.Assert(resp.Fields, DeepEquals, getDefaultDetailFields())
+		c.Assert(resp.Fields, DeepEquals, detailFields)
 
 		io.WriteString(w, MockUpdatesJSON)
 	}))
