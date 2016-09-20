@@ -93,7 +93,7 @@ pivot_root,
 /sys/kernel/security/apparmor/.replace rw,
 /sys/kernel/security/apparmor/{,**} r,
 
-# Use 'daemon-privileged: true' to support --security-opts
+# --security-opts not supported at this time
 change_profile -> docker-default,
 signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
@@ -510,24 +510,6 @@ setsockopt
 bind
 `
 
-const daemonPrivilegedAppArmor = `
-# Description: allow docker daemon to run containers invoked with
-# docker --privileged. This gives full access to all resources on the system
-# and thus gives device ownership to connected snaps.
-change_profile -> *,
-signal (send) peer=unconfined,
-ptrace (read, trace) peer=unconfined,
-/dev/** mrwkl,
-@{PROC}/** mrwkl,
-`
-
-const daemonPrivilegedSecComp = `
-# Description: allow docker daemon to run containers invoked with
-# docker --privileged. This gives full access to all resources on the system
-# and thus gives device ownership to connected snaps.
-@unrestricted
-`
-
 type DockerInterface struct{}
 
 func (iface *DockerInterface) Name() string {
@@ -548,20 +530,12 @@ func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securi
 }
 
 func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	daemonPrivileged, _ := plug.Attrs["daemon-privileged"].(bool)
-
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		snippet := []byte(dockerConnectedPlugAppArmor)
-		if daemonPrivileged {
-			snippet = append(snippet, daemonPrivilegedAppArmor...)
-		}
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		snippet := []byte(dockerConnectedPlugSecComp)
-		if daemonPrivileged {
-			snippet = append(snippet, daemonPrivilegedSecComp...)
-		}
 		return snippet, nil
 	case interfaces.SecurityDBus,
 		interfaces.SecurityMount,
@@ -607,22 +581,6 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	if iface.Name() != plug.Interface {
 		panic(fmt.Sprintf("plug is not of interface %q", iface.Name()))
 	}
-
-	// It's fine if daemon-privileged isn't specified, but if it is,
-	// it needs to be bool and it can only by used with the docker project
-	// and Canonical
-	if v, ok := plug.Attrs["daemon-privileged"]; ok {
-		if _, ok = v.(bool); !ok {
-			return fmt.Errorf("docker plug requires bool with 'daemon-privileged'")
-		}
-		snapName := plug.Snap.Name()
-		devName := plug.Snap.Developer
-		if snapName != "docker" || (devName != "canonical" && devName != "docker") {
-			return fmt.Errorf("daemon-privileged attribute is reserved for the upstream docker project")
-		}
-		return nil
-	}
-
 	return nil
 }
 
