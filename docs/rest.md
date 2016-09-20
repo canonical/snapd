@@ -246,6 +246,7 @@ Alter the collection searched:
       "name": "http",
       "resource": "/v2/snaps/http",
       "revision": 14,
+      "screenshots": [{url: "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/10/screenshot.png", width: 800, height: 1280}],
       "status": "available",
       "summary": "HTTPie in a snap",
       "type": "app",
@@ -269,6 +270,7 @@ Alter the collection searched:
 * `private`: true if this snap is only available to its author.
 * `resource`: HTTP resource for this snap.
 * `revision`: a number representing the revision.
+* `screenshots`: JSON array of the screenshots for this snap. Each screenshot has a `url` field for the image and optionally `width` and `height` (in pixels).
 * `status`: can be either `available`, or `priced` (i.e. needs to be bought to become available).
 * `summary`: one-line summary.
 * `type`: the type of snap; one of `app`, `kernel`, `gadget`, or `os`.
@@ -354,7 +356,7 @@ In addition to the fields described in `/v2/find`:
 * `status`: can be either `installed` or `active` (i.e. is current).
 * `trymode`: true if the app was installed in try mode.
 
-furthermore, `download-size` and `price` cannot occur in the output of `/v2/snaps`.
+furthermore, `download-size`, `screenshots` and `prices` cannot occur in the output of `/v2/snaps`.
 
 ### POST
 

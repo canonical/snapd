@@ -851,6 +851,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
+	c.Check(snaps[0]["screenshots"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
@@ -1013,6 +1014,48 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 	c.Check(snap["status"], check.Equals, "priced")
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "GBP")
+}
+
+func (s *apiSuite) TestFindScreenshotted(c *check.C) {
+	s.rsnaps = []*snap.Info{{
+		Type:    snap.TypeApp,
+		Version: "v2",
+		Screenshots: []snap.ScreenshotInfo{
+			snap.ScreenshotInfo{
+				URL:    "http://example.com/screenshot.png",
+				Width:  800,
+				Height: 1280,
+			},
+			snap.ScreenshotInfo{
+				URL: "http://example.com/screenshot2.png",
+			},
+		},
+		MustBuy: true,
+		SideInfo: snap.SideInfo{
+			RealName:  "test-screenshot",
+			Developer: "foo",
+		},
+	}}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
+	c.Assert(err, check.IsNil)
+	rsp, ok := searchStore(findCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+
+	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
+	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"url":    "http://example.com/screenshot.png",
+			"width":  800,
+			"height": 1280,
+		},
+		map[string]interface{}{
+			"url": "http://example.com/screenshot2.png",
+		},
+	})
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
