@@ -246,10 +246,16 @@ func init() {
 func snapRunSymlinkMagic() error {
 	snapApp := filepath.Base(os.Args[0])
 	if osutil.IsSymlink(filepath.Join(dirs.SnapBinariesDir, snapApp)) {
-		// sanity check
-		if filepath.Dir(os.Args[0]) != dirs.SnapBinariesDir {
+		// sanity check that the symlinks comes from the right
+		// base directory
+		d, err := filepath.Abs(filepath.Dir(os.Args[0]))
+		if err != nil {
+			return fmt.Errorf("snap run symlink base directory invalid: %s", err)
+		}
+		if d != dirs.SnapBinariesDir {
 			return fmt.Errorf("snap run symlink has invalid base directory: %q", filepath.Dir(os.Args[0]))
 		}
+		// run it!
 		cmd := &cmdRun{}
 		args := []string{snapApp}
 		args = append(args, os.Args[1:]...)
