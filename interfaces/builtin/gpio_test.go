@@ -132,6 +132,6 @@ func (s *GpioInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.gadgetPlug)
 	c.Assert(err, IsNil)
 
-	// It is impossible to use "bool-file" interface to sanitize plugs of different interface.
+	// It is impossible to use "gpio" interface to sanitize plugs of different interface.
 	c.Assert(func() { s.iface.SanitizePlug(s.gadgetBadInterfacePlug) }, PanicMatches, `plug is not of interface "gpio"`)
 }
