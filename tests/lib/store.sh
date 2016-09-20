@@ -52,8 +52,6 @@ setup_store(){
     local store_type=$1
     local top_dir=$2
     if [ "$store_type" = "fake" ]; then
-        setup_fake_store $top_dir
-    elif [ "$store_type" = "fake-w-assert-fallback" ]; then
         setup_fake_store $top_dir -assert-fallback
     else
         if [ "$store_type" = "staging" ]; then

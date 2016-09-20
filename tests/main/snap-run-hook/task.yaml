@@ -2,6 +2,14 @@ summary: Check that `snap run` can actually run hooks
 
 systems: [-ubuntu-core-16-64]
 
+prepare: |
+    echo "Build test hooks package"
+    snapbuild $TESTSLIB/snaps/basic-hooks .
+    snap install --dangerous basic-hooks_1.0_all.snap
+
+restore: |
+    rm basic-hooks_1.0_all.snap
+
 execute: |
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we
     # check the output instead.

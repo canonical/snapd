@@ -172,7 +172,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 
 	// tried to cleanup
-	c.Check(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:    "candidate",
 			sinfo: *si,

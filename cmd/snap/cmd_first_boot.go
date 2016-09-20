@@ -32,7 +32,7 @@ func init() {
 		"internal",
 		"internal", func() flags.Commander {
 			return &cmdInternalFirstBoot{}
-		})
+		}, nil, nil)
 	cmd.hidden = true
 }
 
