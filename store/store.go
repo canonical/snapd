@@ -293,6 +293,7 @@ type searchResults struct {
 
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
+
 // The default delta formats if none are configured.
 var defaultSupportedDeltaFormats = []string{"xdelta"}
 
