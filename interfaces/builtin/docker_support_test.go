@@ -139,7 +139,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugDockerDev(c *C) {
 			SideInfo:      snap.SideInfo{Developer: "docker"},
 		},
 		Name:      "docker",
-		Interface: "docker",
+		Interface: "docker-support",
 	}})
 	c.Assert(err, IsNil)
 }
@@ -151,7 +151,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugCanonicalDev(c *C) {
 			SideInfo:      snap.SideInfo{Developer: "canonical"},
 		},
 		Name:      "docker",
-		Interface: "docker",
+		Interface: "docker-support",
 	}})
 	c.Assert(err, IsNil)
 }
@@ -163,7 +163,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugOtherDev(c *C) {
 			SideInfo:      snap.SideInfo{Developer: "notdocker"},
 		},
 		Name:      "docker",
-		Interface: "docker",
+		Interface: "docker-support",
 	}})
 	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
 }
@@ -175,7 +175,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugNotDockerDockerDev(c *C) {
 			SideInfo:      snap.SideInfo{Developer: "docker"},
 		},
 		Name:      "notdocker",
-		Interface: "docker",
+		Interface: "docker-support",
 	}})
 	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
 }
@@ -187,7 +187,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugNotDockerCanonicalDev(c *C
 			SideInfo:      snap.SideInfo{Developer: "canonical"},
 		},
 		Name:      "notdocker",
-		Interface: "docker",
+		Interface: "docker-support",
 	}})
 	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
 }
@@ -199,7 +199,7 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugNotDockerOtherDev(c *C) {
 			SideInfo:      snap.SideInfo{Developer: "notdocker"},
 		},
 		Name:      "notdocker",
-		Interface: "docker",
+		Interface: "docker-support",
 	}})
 	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
 }
