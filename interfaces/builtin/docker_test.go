@@ -48,7 +48,7 @@ var _ = Suite(&DockerInterfaceSuite{
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
-			Snap: &snap.Info{SuggestedName: "docker"},
+			Snap:      &snap.Info{SuggestedName: "docker"},
 			Name:      "docker-client",
 			Interface: "docker",
 		},

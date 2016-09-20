@@ -493,9 +493,9 @@ writev
 `
 
 const dockerSupportPrivilegedAppArmor = `
-# Description: allow docker daemon to run containers invoked with
-# docker --privileged. This gives full access to all resources on the system
-# and thus gives device ownership to connected snaps.
+# Description: allow docker daemon to run privileged containers. This gives
+# full access to all resources on the system and thus gives device ownership to
+# connected snaps.
 change_profile -> *,
 signal (send) peer=unconfined,
 ptrace (read, trace) peer=unconfined,
@@ -504,9 +504,9 @@ ptrace (read, trace) peer=unconfined,
 `
 
 const dockerSupportPrivilegedSecComp = `
-# Description: allow docker daemon to run containers invoked with
-# docker --privileged. This gives full access to all resources on the system
-# and thus gives device ownership to connected snaps.
+# Description: allow docker daemon to run privileged containers. This gives
+# full access to all resources on the system and thus gives device ownership to
+# connected snaps.
 @unrestricted
 `
 
