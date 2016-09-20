@@ -1409,7 +1409,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return err
 		}
 		if len(errors.Errors) == 0 {
-			fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
 		return &errors
 	}
