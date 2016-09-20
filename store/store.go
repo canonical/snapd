@@ -87,7 +87,7 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.DeveloperID = d.DeveloperID
 	info.Developer = d.Developer // XXX: obsolete, will be retired after full backfilling of DeveloperID
 	info.Channel = d.Channel
-	info.Sha512 = d.DownloadSha512
+	info.Sha3_384 = d.DownloadSha3_384
 	info.Size = d.DownloadSize
 	info.IconURL = d.IconURL
 	info.AnonDownloadURL = d.AnonDownloadURL
@@ -336,6 +336,31 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	}
 }
 
+// LoginUser logs user in the store and returns the authentication macaroons.
+func LoginUser(username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon()
+	if err != nil {
+		return "", "", err
+	}
+	deserializedMacaroon, err := MacaroonDeserialize(macaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	// get SSO 3rd party caveat, and request discharge
+	loginCaveat, err := loginCaveatID(deserializedMacaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	discharge, err := dischargeAuthCaveat(loginCaveat, username, password, otp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return macaroon, discharge, nil
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
@@ -367,53 +392,54 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 	r.Header.Set("Authorization", buf.String())
 }
 
-// refreshMacaroon will request a refreshed discharge macaroon for the user
-func refreshMacaroon(user *auth.UserState) error {
+// refreshDischarges will request refreshed discharge macaroons for the user
+func refreshDischarges(user *auth.UserState) ([]string, error) {
+	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
 		discharge, err := MacaroonDeserialize(d)
 		if err != nil {
-			return err
+			return nil, err
 		}
-		if discharge.Location() == UbuntuoneLocation {
-			refreshedDischarge, err := RefreshDischargeMacaroon(d)
-			if err != nil {
-				return err
-			}
-			user.StoreDischarges[i] = refreshedDischarge
+		if discharge.Location() != UbuntuoneLocation {
+			newDischarges[i] = d
+			continue
 		}
+
+		refreshedDischarge, err := refreshDischargeMacaroon(d)
+		if err != nil {
+			return nil, err
+		}
+		newDischarges[i] = refreshedDischarge
 	}
-	return nil
+	return newDischarges, nil
 }
 
 // refreshUser will refresh user discharge macaroon and update state
 func (s *Store) refreshUser(user *auth.UserState) error {
-	err := refreshMacaroon(user)
+	newDischarges, err := refreshDischarges(user)
 	if err != nil {
 		return err
 	}
 
 	if s.authContext != nil {
-		err = s.authContext.UpdateUser(user)
+		curUser, err := s.authContext.UpdateUserAuth(user, newDischarges)
 		if err != nil {
 			return err
 		}
+		// update in place
+		*user = *curUser
 	}
 
 	return nil
 }
 
 // refreshDeviceSession will set or refresh the device session in the state
-func (s *Store) refreshDeviceSession() error {
+func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 	if s.authContext == nil {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	device, err := s.authContext.Device()
-	if err != nil {
-		return err
-	}
-
-	nonce, err := RequestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce()
 	if err != nil {
 		return err
 	}
@@ -423,16 +449,17 @@ func (s *Store) refreshDeviceSession() error {
 		return err
 	}
 
-	session, err := RequestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
+	session, err := requestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
 
-	device.SessionMacaroon = session
-	err = s.authContext.UpdateDevice(device)
+	curDevice, err := s.authContext.UpdateDeviceAuth(device, session)
 	if err != nil {
 		return err
 	}
+	// update in place
+	*device = *curDevice
 	return nil
 }
 
@@ -492,7 +519,15 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 		}
 		if strings.Contains(wwwAuth, "refresh_device_session=1") {
 			// refresh device session
-			err = s.refreshDeviceSession()
+			if s.authContext == nil {
+				return nil, fmt.Errorf("internal error: no authContext")
+			}
+			device, err := s.authContext.Device()
+			if err != nil {
+				return nil, err
+			}
+
+			err = s.refreshDeviceSession(device)
 			if err != nil {
 				return nil, err
 			}
@@ -526,8 +561,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		if err != nil {
 			return nil, err
 		}
-		if device.SessionMacaroon == "" {
-			err = s.refreshDeviceSession()
+		// we don't have a session yet but have a serial, try
+		// to get a session
+		if device.SessionMacaroon == "" && device.Serial != "" {
+			err = s.refreshDeviceSession(device)
 			if err == auth.ErrNoSerial {
 				// missing serial assertion, log and continue without device authentication
 				logger.Debugf("cannot set device session: %v", err)
@@ -1316,6 +1353,10 @@ type PaymentInformation struct {
 
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
+	if user == nil {
+		return nil, ErrInvalidCredentials
+	}
+
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    s.paymentMethodsURI,
@@ -1360,6 +1401,8 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 		}
 
 		return paymentMethods, nil
+	case http.StatusUnauthorized:
+		return nil, ErrInvalidCredentials
 	default:
 		var errorInfo buyError
 		dec := json.NewDecoder(resp.Body)

@@ -1,7 +1,5 @@
 summary: Check that `snapctl` can be run from within hooks
 
-systems: [-ubuntu-core-16-64]
-
 prepare: |
     snapbuild $TESTSLIB/snaps/snapctl-hooks .
     snap install --dangerous snapctl-hooks_1.0_all.snap
@@ -12,8 +10,8 @@ prepare: |
 
     # First of all, unmount the core
     systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
+    core="$(readlink -f /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
 
     # Now unpack the core, inject the new snap-exec and snapctl into it, and
@@ -46,8 +44,8 @@ restore: |
 
     # Unmount the modified core snap, and put the old one back in place
     systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
+    core="$(readlink -f /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
     mv "${snap}.orig" "$snap"
     mount "$snap" "$core"
@@ -72,12 +70,13 @@ execute: |
 
     echo "Verify that the snapd API is only available via the snapd socket"
 
-    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snaps | grep status-code\":\s*200; then
+    if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket | grep "200 OK"; then
         echo "Expected snapd API to be available on the snapd socket"
+        echo "Got: $(curl -s --unix-socket /run/snapd.socket http:/v2/snaps)"
         exit 1
     fi
 
-    if ! curl -s --unix-socket /run/snapd-snap.socket http:/v2/snaps | grep status-code\":\s*401; then
+    if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd-snap.socket | grep "401 Unauthorized"; then
         echo "Expected snapd API to be unauthorized on the snap socket"
         exit 1
     fi

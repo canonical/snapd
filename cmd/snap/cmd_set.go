@@ -36,13 +36,21 @@ accepts a number of key=value pairs of parameters.`)
 
 type cmdSet struct {
 	Positional struct {
-		Snap       string   `positional-arg-name:"<snap name>" description:"the snap to configure (e.g. hello-world)"`
-		ConfValues []string `positional-arg-name:"<conf value>" description:"configuration value (key=value)" required:"1"`
+		Snap       string
+		ConfValues []string `required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} })
+	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, nil, []argDesc{
+		{
+			name: "<snap>",
+			desc: i18n.G("The snap to configure (e.g. hello-world)"),
+		}, {
+			name: i18n.G("<conf value>"),
+			desc: i18n.G("Configuration value (key=value)"),
+		},
+	})
 }
 
 func (x *cmdSet) Execute(args []string) error {
@@ -50,7 +58,7 @@ func (x *cmdSet) Execute(args []string) error {
 	for _, patchValue := range x.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf("invalid configuration: %q (want key=value)", patchValue)
+			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}
 		var value interface{}
 		err := json.Unmarshal([]byte(parts[1]), &value)

@@ -30,7 +30,7 @@ import (
 )
 
 type cmdKeys struct {
-	JSON bool `long:"json" description:"output results in JSON format"`
+	JSON bool `long:"json"`
 }
 
 func init() {
@@ -39,7 +39,7 @@ func init() {
 		i18n.G("List cryptographic keys that can be used for signing assertions."),
 		func() flags.Commander {
 			return &cmdKeys{}
-		})
+		}, map[string]string{"json": i18n.G("Output results in JSON format")}, nil)
 	cmd.hidden = true
 }
 
@@ -59,7 +59,7 @@ func (x *cmdKeys) Execute(args []string) error {
 		fmt.Fprintln(w, i18n.G("Name\tSHA3-384"))
 		defer w.Flush()
 	}
-	var keys []Key
+	keys := []Key{}
 
 	manager := asserts.NewGPGKeypairManager()
 	display := func(privk asserts.PrivateKey, fpr string, uid string) error {

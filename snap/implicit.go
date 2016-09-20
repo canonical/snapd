@@ -60,6 +60,7 @@ var implicitClassicSlots = []string{
 	"camera",
 	"cups-control",
 	"gsettings",
+	"libvirt",
 	"modem-manager",
 	"network-manager",
 	"optical-drive",

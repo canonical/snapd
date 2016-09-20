@@ -12,6 +12,14 @@ prepare_classic() {
         snap install --candidate ubuntu-core
         snap list | grep core
 
+        echo "Ensure that the grub-editenv list output is empty on classic"
+        output=$(grub-editenv list)
+        if [ -n "$output" ]; then
+            echo "Expected empty grub environment, got:"
+            echo "$output"
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
@@ -32,15 +40,11 @@ setup_reflash_magic() {
         # install the stuff we need
         apt install -y kpartx busybox-static
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
-        
+
         snap install --edge ubuntu-core
 
-        # install special u-d-f
-        apt install -y bzr git
-        export GOPATH=/tmp/go
-        mkdir -p $GOPATH/src/launchpad.net/
-        ln -s $GOPATH/src/launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/  $GOPATH/src/launchpad.net/goget-ubuntu-touch
-        go get -insecure -u launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/ubuntu-device-flash
+        # install ubuntu-image
+        snap install --devmode --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
@@ -65,7 +69,7 @@ setup_reflash_magic() {
         if [ -e /.spread.yaml ]; then
             cp -av /.spread.yaml $UNPACKD
         fi
-        
+
         # we need the test user in the image
         chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
 
@@ -76,7 +80,7 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
-        
+
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 
@@ -107,14 +111,21 @@ EOF
 
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
         IMAGE=all-snap-amd64.img
-        /tmp/go/bin/ubuntu-device-flash core 16 $IMAGE_HOME/pc.model --channel edge --install snapweb --install $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+
+        # ensure that ubuntu-image is using our test-build of snapd with the
+        # test keys and not the bundled version of usr/bin/snap from the snap.
+        # Note that we can not put it into /usr/bin as '/usr' is different
+        # when the snap uses confinement.
+        cp /usr/bin/snap $IMAGE_HOME
+        export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
-        mount /dev/mapper/loop1p3 /mnt
+        mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -avr /home/gopath /mnt/user-data/
+        cp -ar /home/gopath /mnt/user-data/
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
@@ -140,10 +151,10 @@ EOF
 [Unit]
 StartLimitInterval=0
 EOF
-    
+
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
-    
+
         # the reflash magic
         # FIXME: ideally in initrd, but this is good enough for now
         cat > $IMAGE_HOME/reflash.sh << EOF
@@ -189,7 +200,9 @@ prepare_all_snap() {
     fi
 
     echo "Ensure fundamental snaps are still present"
-    for name in pc pc-kernel ubuntu-core; do
+    . $TESTSLIB/gadget.sh
+    gadget_name=$(get_gadget_name)
+    for name in $gadget_name ${gadget_name}-kernel ubuntu-core; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -199,6 +212,12 @@ prepare_all_snap() {
     done
 
     echo "Kernel has a store revision"
-    snap list|grep ^pc-kernel|grep -E " [0-9]+\s+canonical"
-}
+    snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
 
+    # Snapshot the fresh state
+    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        systemctl stop snapd.service snapd.socket
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        systemctl start snapd.socket
+    fi
+}
