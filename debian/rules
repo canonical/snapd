@@ -24,6 +24,7 @@ TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
 endif
+endif
 
 %:
 	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
