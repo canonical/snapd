@@ -178,7 +178,7 @@ func (s *DockerInterfaceSuite) TestSanitizeSlotOtherDev(c *C) {
 		Name:      "docker",
 		Interface: "docker",
 	}})
-	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerDockerDev(c *C) {
@@ -190,7 +190,7 @@ func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerDockerDev(c *C) {
 		Name:      "notdocker",
 		Interface: "docker",
 	}})
-	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerCanonicalDev(c *C) {
@@ -202,7 +202,7 @@ func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerCanonicalDev(c *C) {
 		Name:      "notdocker",
 		Interface: "docker",
 	}})
-	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerOtherDev(c *C) {
@@ -214,7 +214,7 @@ func (s *DockerInterfaceSuite) TestSanitizeSlotNotDockerOtherDev(c *C) {
 		Name:      "notdocker",
 		Interface: "docker",
 	}})
-	c.Assert(err, ErrorMatches, "docker interface is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "docker interface is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
@@ -274,7 +274,7 @@ plugs:
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribNotDockerDockerDev(c *C) {
@@ -293,7 +293,7 @@ plugs:
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribOtherDev(c *C) {
@@ -312,7 +312,7 @@ plugs:
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlugWithAttribNotDockerOtherDev(c *C) {
@@ -331,7 +331,7 @@ plugs:
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["docker-privileged"]}
 	err = s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
-	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the Docker project and Canonical")
+	c.Assert(err, ErrorMatches, "daemon-privileged attribute is reserved for the upstream docker project")
 }
 
 func (s *DockerInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
