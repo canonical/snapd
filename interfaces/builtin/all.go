@@ -29,6 +29,7 @@ var allInterfaces = []interfaces.Interface{
 	&BrowserSupportInterface{},
 	&ContentInterface{},
 	&DockerInterface{},
+	&DockerSupportInterface{},
 	&GpioInterface{},
 	&HidrawInterface{},
 	&LocationControlInterface{},
