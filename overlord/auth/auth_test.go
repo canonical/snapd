@@ -283,16 +283,15 @@ func (as *authSuite) TestSetDevice(c *C) {
 	c.Check(device, DeepEquals, &auth.DeviceState{Brand: "some-brand"})
 }
 
-func (as *authSuite) TestAuthContextUpdateUser(c *C) {
+func (as *authSuite) TestAuthContextUpdateUserAuth(c *C) {
 	as.state.Lock()
 	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
-	user.Username = "different"
-	user.StoreDischarges = []string{"updated-discharge"}
+	newDischarges := []string{"updated-discharge"}
 
 	authContext := auth.NewAuthContext(as.state, nil)
-	err := authContext.UpdateUser(user)
+	user, err := authContext.UpdateUserAuth(user, newDischarges)
 	c.Check(err, IsNil)
 
 	as.state.Lock()
@@ -300,9 +299,43 @@ func (as *authSuite) TestAuthContextUpdateUser(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(userFromState, DeepEquals, user)
+	c.Check(userFromState.Discharges, DeepEquals, []string{"discharge"})
+	c.Check(user.StoreDischarges, DeepEquals, newDischarges)
 }
 
-func (as *authSuite) TestAuthContextUpdateUserInvalid(c *C) {
+func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
+	as.state.Lock()
+	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	otherUpdateUser := *user
+	otherUpdateUser.Macaroon = "macaroon2"
+	otherUpdateUser.StoreDischarges = []string{"other-discharges"}
+	err := auth.UpdateUser(as.state, &otherUpdateUser)
+	as.state.Unlock()
+	c.Assert(err, IsNil)
+
+	newDischarges := []string{"updated-discharge"}
+
+	authContext := auth.NewAuthContext(as.state, nil)
+	// last discharges win
+	curUser, err := authContext.UpdateUserAuth(user, newDischarges)
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	userFromState, err := auth.User(as.state, user.ID)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(userFromState, DeepEquals, curUser)
+	c.Check(curUser, DeepEquals, &auth.UserState{
+		ID:              user.ID,
+		Username:        "username",
+		Macaroon:        "macaroon2",
+		Discharges:      []string{"discharge"},
+		StoreMacaroon:   "macaroon",
+		StoreDischarges: newDischarges,
+	})
+}
+
+func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
 	as.state.Lock()
 	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
 	as.state.Unlock()
@@ -314,7 +347,7 @@ func (as *authSuite) TestAuthContextUpdateUserInvalid(c *C) {
 	}
 
 	authContext := auth.NewAuthContext(as.state, nil)
-	err := authContext.UpdateUser(user)
+	_, err := authContext.UpdateUserAuth(user, nil)
 	c.Assert(err, ErrorMatches, "invalid user")
 }
 
@@ -340,21 +373,50 @@ func (as *authSuite) TestAuthContextDevice(c *C) {
 	c.Check(deviceFromState, DeepEquals, device)
 }
 
-func (as *authSuite) TestAuthContextUpdateDevice(c *C) {
+func (as *authSuite) TestAuthContextUpdateDeviceAuth(c *C) {
 	as.state.Lock()
 	device, err := auth.Device(as.state)
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(device, DeepEquals, &auth.DeviceState{})
 
+	sessionMacaroon := "the-device-macaroon"
+
 	authContext := auth.NewAuthContext(as.state, nil)
-	device.SessionMacaroon = "the-device-macaroon"
-	err = authContext.UpdateDevice(device)
+	device, err = authContext.UpdateDeviceAuth(device, sessionMacaroon)
 	c.Check(err, IsNil)
 
 	deviceFromState, err := authContext.Device()
 	c.Check(err, IsNil)
 	c.Check(deviceFromState, DeepEquals, device)
+	c.Check(deviceFromState.SessionMacaroon, DeepEquals, sessionMacaroon)
+}
+
+func (as *authSuite) TestAuthContextUpdateDeviceAuthOtherUpdate(c *C) {
+	as.state.Lock()
+	device, _ := auth.Device(as.state)
+	otherUpdateDevice := *device
+	otherUpdateDevice.SessionMacaroon = "othe-session-macaroon"
+	otherUpdateDevice.KeyID = "KEYID"
+	err := auth.SetDevice(as.state, &otherUpdateDevice)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+
+	sessionMacaroon := "the-device-macaroon"
+
+	authContext := auth.NewAuthContext(as.state, nil)
+	curDevice, err := authContext.UpdateDeviceAuth(device, sessionMacaroon)
+	c.Assert(err, IsNil)
+
+	as.state.Lock()
+	deviceFromState, err := auth.Device(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(deviceFromState, DeepEquals, curDevice)
+	c.Check(curDevice, DeepEquals, &auth.DeviceState{
+		KeyID:           "KEYID",
+		SessionMacaroon: sessionMacaroon,
+	})
 }
 
 func (as *authSuite) TestAuthContextStoreIDFallback(c *C) {

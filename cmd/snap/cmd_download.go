@@ -36,10 +36,10 @@ import (
 
 type cmdDownload struct {
 	channelMixin
-	Revision string `long:"revision" description:"Download the given revision of a snap, to which you must have developer access"`
+	Revision string `long:"revision"`
 
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>" description:"snap name"`
+		Snap string
 	} `positional-args:"true" required:"true"`
 }
 
@@ -51,7 +51,12 @@ The download command will download the given snap and its supporting assertions 
 func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
 		return &cmdDownload{}
-	})
+	}, channelDescs.also(map[string]string{
+		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
+	}), []argDesc{{
+		name: "<snap>",
+		desc: i18n.G("Snap name"),
+	}})
 }
 
 func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info, dlOpts *image.DownloadOptions) error {
@@ -65,7 +70,7 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 
 	w, err := os.Create(snapPath + ".assertions")
 	if err != nil {
-		return fmt.Errorf("cannot create assertions file: %v", err)
+		return fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
 	}
 	defer w.Close()
 
@@ -75,7 +80,7 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 	}
 	f := image.StoreAssertionFetcher(sto, dlOpts, db, save)
 
-	return image.FetchSnapAssertions(snapPath, snapInfo, f, db)
+	return image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
 }
 
 func (x *cmdDownload) Execute(args []string) error {
@@ -115,13 +120,13 @@ func (x *cmdDownload) Execute(args []string) error {
 		User:      user,
 	}
 
-	fmt.Fprintf(Stderr, "Fetching snap %s\n", snapName)
+	fmt.Fprintf(Stderr, i18n.G("Fetching snap %q\n"), snapName)
 	snapPath, snapInfo, err := image.DownloadSnap(sto, snapName, revision, &dlOpts)
 	if err != nil {
 		return err
 	}
 
-	fmt.Fprintf(Stderr, "Fetching assertions for %s\n", snapName)
+	fmt.Fprintf(Stderr, i18n.G("Fetching assertions for %q\n"), snapName)
 	err = fetchSnapAssertions(sto, snapPath, snapInfo, &dlOpts)
 	if err != nil {
 		return err
