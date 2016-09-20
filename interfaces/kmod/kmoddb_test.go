@@ -51,7 +51,36 @@ func (s *kmodDbSuite) TestEmpty(c *C) {
 
 func (s *kmodDbSuite) TestAddModules(c *C) {
 	s.kmoddb.AddModules("foo-snap", [][]byte{
-		[]byte("aaa"),
-		[]byte("aaa"),
+		[]byte("mod1"),
+		[]byte("mod2"),
 	})
+
+	mods := s.kmoddb.GetUniqueModulesList()
+	c.Assert(mods, HasLen, 2)
+
+	s.kmoddb.AddModules("bar-snap", [][]byte{
+		[]byte("mod1"),
+		[]byte("mod3"),
+	})
+
+	mods = s.kmoddb.GetUniqueModulesList()
+	c.Assert(mods, HasLen, 3)
+}
+
+func (s *kmodDbSuite) TestRemove(c *C) {
+	s.kmoddb.AddModules("foo-snap", [][]byte{
+		[]byte("mod1"),
+	})
+	s.kmoddb.AddModules("bar-snap", [][]byte{
+		[]byte("mod1"),
+		[]byte("mod3"),
+	})
+
+	status := s.kmoddb.Remove("foo-snap")
+	mods := s.kmoddb.GetUniqueModulesList()
+	c.Assert(mods, HasLen, 2)
+
+	status = s.kmoddb.Remove("bar-snap")
+	mods = s.kmoddb.GetUniqueModulesList()
+	c.Assert(mods, HasLen, 0)
 }
