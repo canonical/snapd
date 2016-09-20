@@ -2487,173 +2487,133 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsHandles401(c *C) {
 	c.Check(err.Error(), Equals, "invalid credentials")
 }
 
-const customerJsonTosAccepted = `
+type readyToBuyTest struct {
+	Input func(w http.ResponseWriter)
+	Test  func(c *C, err error)
+}
+
+var readyToBuyTests = []readyToBuyTest{
+	{
+		// A user account the is ready for purchasing
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
 {
   "latest_tos_date": "2016-09-14T00:00:00+00:00",
   "accepted_tos_date": "2016-09-14T15:56:49+00:00",
   "latest_tos_accepted": true,
   "has_payment_method": true
 }
-`
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
-	purchaseServerGetCalled := 0
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			// check device authorization is set, implicitly checking doRequest was used
-			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
-			io.WriteString(w, customerJsonTosAccepted)
-			purchaseServerGetCalled++
-		default:
-			c.Error("Unexpected request method: ", r.Method)
-		}
-	}))
-
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		CustomersMeURI: customersMeURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	err = repo.ReadyToBuy(t.user)
-	c.Check(err, IsNil)
-	c.Check(purchaseServerGetCalled, Equals, 1)
-}
-
-const customerJsonTosNotAccepted = `
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Check(err, IsNil)
+		},
+	},
+	{
+		// A user account that hasn't accepted the TOS
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
 {
   "latest_tos_date": "2016-10-14T00:00:00+00:00",
   "accepted_tos_date": "2016-09-14T15:56:49+00:00",
   "latest_tos_accepted": false,
   "has_payment_method": true
 }
-`
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNotAcceptedTos(c *C) {
-	purchaseServerGetCalled := 0
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			// check device authorization is set, implicitly checking doRequest was used
-			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
-			io.WriteString(w, customerJsonTosNotAccepted)
-			purchaseServerGetCalled++
-		default:
-			c.Error("Unexpected request method: ", r.Method)
-		}
-	}))
-
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		CustomersMeURI: customersMeURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	err = repo.ReadyToBuy(t.user)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "terms of service not accepted")
-	c.Check(purchaseServerGetCalled, Equals, 1)
-}
-
-const customerJsonNoPaymentMethod = `
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "terms of service not accepted")
+		},
+	},
+	{
+		// A user account that has no payment method
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
 {
   "latest_tos_date": "2016-10-14T00:00:00+00:00",
   "accepted_tos_date": "2016-09-14T15:56:49+00:00",
   "latest_tos_accepted": true,
   "has_payment_method": false
 }
-`
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoPaymentMethod(c *C) {
-	purchaseServerGetCalled := 0
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			// check device authorization is set, implicitly checking doRequest was used
-			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
-			io.WriteString(w, customerJsonNoPaymentMethod)
-			purchaseServerGetCalled++
-		default:
-			c.Error("Unexpected request method: ", r.Method)
-		}
-	}))
-
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		CustomersMeURI: customersMeURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	err = repo.ReadyToBuy(t.user)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "no valid payment methods")
-	c.Check(purchaseServerGetCalled, Equals, 1)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuyNoAccount(c *C) {
-	purchaseServerGetCalled := 0
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			// check device authorization is set, implicitly checking doRequest was used
-			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "no payment methods")
+		},
+	},
+	{
+		// No user account exists
+		Input: func(w http.ResponseWriter) {
 			w.WriteHeader(http.StatusNotFound)
 			io.WriteString(w, "{}")
-			purchaseServerGetCalled++
-		default:
-			c.Error("Unexpected request method: ", r.Method)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "cannot get customer details: server says no account exists")
+		},
+	},
+	{
+		// An unknown set of errors occurs
+		Input: func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `
+{
+	"error_list": [
+		{
+			"code": "code 1",
+			"message": "message 1"
+		},
+		{
+			"code": "code 2",
+			"message": "message 2"
 		}
-	}))
+	]
+}`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, `message 1
+message 2
+`)
+		},
+	},
+}
 
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
+func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
+	for _, test := range readyToBuyTests {
+		purchaseServerGetCalled := 0
+		mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				// check device authorization is set, implicitly checking doRequest was used
+				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
 
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
-	c.Assert(err, IsNil)
+				c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+				c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
+				test.Input(w)
+				purchaseServerGetCalled++
+			default:
+				c.Error("Unexpected request method: ", r.Method)
+			}
+		}))
 
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		CustomersMeURI: customersMeURI,
+		c.Assert(mockPurchasesServer, NotNil)
+		defer mockPurchasesServer.Close()
+
+		customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
+		c.Assert(err, IsNil)
+
+		authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+		cfg := Config{
+			CustomersMeURI: customersMeURI,
+		}
+		repo := New(&cfg, authContext)
+		c.Assert(repo, NotNil)
+
+		err = repo.ReadyToBuy(t.user)
+		test.Test(c, err)
+		c.Check(purchaseServerGetCalled, Equals, 1)
 	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	err = repo.ReadyToBuy(t.user)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot get customer details: server says no account exists")
-	c.Check(purchaseServerGetCalled, Equals, 1)
 }

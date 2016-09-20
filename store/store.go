@@ -1205,8 +1205,22 @@ type storeError struct {
 	Message string `json:"message"`
 }
 
+func (s *storeError) Error() string {
+	return s.Message
+}
+
 type storeErrors struct {
 	Errors []*storeError `json:"error_list"`
+}
+
+func (s *storeErrors) Error() string {
+	message := ""
+
+	for _, e := range s.Errors {
+		message = message + e.Error() + "\n"
+	}
+
+	return message
 }
 
 func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
@@ -1380,9 +1394,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return ErrTosNotAccepted
 		}
 		if !customer.HasPaymentMethod {
-			return ErrNoValidPaymentMethod
+			return ErrNoPaymentMethod
 		}
-		// TODO Check if the user has a payment method registered (once the store API provides this info)
 		return nil
 	case http.StatusNotFound:
 		// Likely because user has no account registered on the pay server
@@ -1395,11 +1408,10 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		if err := dec.Decode(&errors); err != nil {
 			return err
 		}
-		details := ""
-		if len(errors.Errors) > 0 && errors.Errors[0].Message != "" {
-			details = ": " + errors.Errors[0].Message
+		if len(errors.Errors) == 0 {
+			fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
-		return fmt.Errorf("cannot get customer details: unexpected HTTP code %d%s", resp.StatusCode, details)
+		return &errors
 	}
 }
 
