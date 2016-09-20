@@ -496,9 +496,15 @@ const dockerSupportPrivilegedAppArmor = `
 # Description: allow docker daemon to run privileged containers. This gives
 # full access to all resources on the system and thus gives device ownership to
 # connected snaps.
+
+# These rules are here to allow Docker to launch unconfined containers but
+# allow the docker daemon itself to go unconfined. Since it runs as root, this
+# grants device ownership.
 change_profile -> *,
 signal (send) peer=unconfined,
 ptrace (read, trace) peer=unconfined,
+
+# This grants raw access to device files and thus device ownership
 /dev/** mrwkl,
 @{PROC}/** mrwkl,
 `
@@ -507,6 +513,9 @@ const dockerSupportPrivilegedSecComp = `
 # Description: allow docker daemon to run privileged containers. This gives
 # full access to all resources on the system and thus gives device ownership to
 # connected snaps.
+
+# This grants, among other things, kernel module loading and therefore device
+# ownership.
 @unrestricted
 `
 
