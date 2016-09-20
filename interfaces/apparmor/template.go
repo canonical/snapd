@@ -86,6 +86,7 @@ var defaultTemplate = []byte(`
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
   /etc/profile r,
+  /etc/environment r,
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
@@ -149,6 +150,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rmdir ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
+  /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
   /{,usr/}bin/shuf ixr,
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
@@ -166,6 +168,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/tput ixr,
   /{,usr/}bin/tr ixr,
   /{,usr/}bin/true ixr,
+  /{,usr/}bin/tty ixr,
   /{,usr/}bin/uname ixr,
   /{,usr/}bin/uniq ixr,
   /{,usr/}bin/unlink ixr,
@@ -252,6 +255,7 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  /sys/devices/virtual/tty/{console,tty*}/active r,
   /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe

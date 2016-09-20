@@ -53,10 +53,10 @@ func init() {
 		func() flags.Commander {
 			return &cmdRun{}
 		}, map[string]string{
-			"command": i18n.G("alternative command to run"),
-			"hook":    i18n.G("hook to run"),
-			"r":       i18n.G("use a specific snap revision when running hook"),
-			"shell":   i18n.G("run a shell instead of the command (useful for debugging)"),
+			"command": i18n.G("Alternative command to run"),
+			"hook":    i18n.G("Hook to run"),
+			"r":       i18n.G("Use a specific snap revision when running hook"),
+			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
 		}, nil)
 }
 
@@ -117,23 +117,6 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	}
 
 	return info, nil
-}
-
-// returns the environment that is important for the later stages of execution
-// (like SNAP_REVISION that snap-exec requires to work)
-func snapExecEnv(info *snap.Info) []string {
-	var home string
-
-	usr, err := user.Current()
-	if err == nil {
-		home = usr.HomeDir
-	}
-
-	env := snapenv.Basic(info)
-	if home != "" {
-		env = append(env, snapenv.User(info, home)...)
-	}
-	return env
 }
 
 func createUserDataDirs(info *snap.Info) error {
@@ -215,7 +198,5 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	env := append(os.Environ(), snapExecEnv(info)...)
-
-	return syscallExec(cmd[0], cmd, env)
+	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
 }

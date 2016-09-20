@@ -277,6 +277,14 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 	return info, nil
 }
 
+func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
+	f.ops = append(f.ops, fakeOp{
+		op:    "cleanup-trash",
+		name:  si.Name(),
+		revno: si.Revision,
+	})
+}
+
 func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
 	return f.ReadInfo(name, &snap.SideInfo{
 		RealName: name,

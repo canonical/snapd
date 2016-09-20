@@ -336,6 +336,31 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 	}
 }
 
+// LoginUser logs user in the store and returns the authentication macaroons.
+func LoginUser(username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon()
+	if err != nil {
+		return "", "", err
+	}
+	deserializedMacaroon, err := MacaroonDeserialize(macaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	// get SSO 3rd party caveat, and request discharge
+	loginCaveat, err := loginCaveatID(deserializedMacaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	discharge, err := dischargeAuthCaveat(loginCaveat, username, password, otp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return macaroon, discharge, nil
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
@@ -380,7 +405,7 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 			continue
 		}
 
-		refreshedDischarge, err := RefreshDischargeMacaroon(d)
+		refreshedDischarge, err := refreshDischargeMacaroon(d)
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +439,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := RequestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce()
 	if err != nil {
 		return err
 	}
@@ -424,7 +449,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := RequestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
+	session, err := requestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
