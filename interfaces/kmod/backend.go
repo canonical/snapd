@@ -61,6 +61,9 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	if err != nil {
 		return fmt.Errorf("cannot obtain kmod security snippets for snap %q: %s", snapName, err)
 	}
+	if len(snippets) == 0 {
+		return nil
+	}
 
 	var candidateModules [][]byte
 	candidateModules, err = b.processSnipets(snapInfo, snippets)
@@ -86,15 +89,14 @@ func (b *Backend) Remove(snapName string) error {
 	b.kmoddb.Lock()
 	defer b.kmoddb.Unlock()
 
-	if err := b.kmoddb.Remove(snapName); err != nil {
-		return err
+	if removed := b.kmoddb.Remove(snapName); removed {
+		if err := b.kmoddb.WriteDb(dirs.SnapKModStateFile); err != nil {
+			return err
+		}
+		modules := b.kmoddb.GetUniqueModulesList()
+		return writeModulesFile(modules, dirs.SnapKModModulesFile)
 	}
-	err := b.kmoddb.WriteDb(dirs.SnapKModStateFile)
-	if err != nil {
-		return err
-	}
-	modules := b.kmoddb.GetUniqueModulesList()
-	return writeModulesFile(modules, dirs.SnapKModModulesFile)
+	return nil
 }
 
 func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (candidateModules [][]byte, err error) {
