@@ -126,15 +126,12 @@ sendto
 `)
 
 var thumbnailerServicePermanentSlotDBus = []byte(`
-<policy user="root">
+<policy context="default">
     <allow own="com.canonical.Thumbnailer"/>
     <allow send_destination="com.canonical.Thumbnailer"/>
     <allow send_interface="com.canonical.Thumbnailer"/>
     <allow send_interface="org.freedesktop.DBus.ObjectManager"/>
     <allow send_interface="org.freedesktop.DBus.Properties"/>
-</policy>
-<policy context="default">
-    <deny send_destination="com.canonical.Thumbnailer"/>
 </policy>
 `)
 
