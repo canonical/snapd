@@ -671,6 +671,7 @@ func (safs *signAddFindSuite) TestDontLetAddConfusinglyAssertionClashingWithTrus
 		"authority-id":        "canonical",
 		"account-id":          "canonical",
 		"public-key-sha3-384": safs.signingKeyID,
+		"name":                "default",
 		"since":               now.Format(time.RFC3339),
 		"until":               now.AddDate(1, 0, 0).Format(time.RFC3339),
 	}
