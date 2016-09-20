@@ -618,7 +618,7 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 		snapName := plug.Snap.Name()
 		devName := plug.Snap.Developer
 		if snapName != "docker" || (devName != "canonical" && devName != "docker") {
-			return fmt.Errorf("daemon-privileged attribute is reserved for the Docker project and Canonical")
+			return fmt.Errorf("daemon-privileged attribute is reserved for the upstream docker project")
 		}
 		return nil
 	}
@@ -632,7 +632,7 @@ func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// The docker slot can only by used with the docker project and
 	// Canonical
 	if snapName != "docker" || (devName != "canonical" && devName != "docker") {
-		return fmt.Errorf("docker interface is reserved for the Docker project and Canonical")
+		return fmt.Errorf("docker interface is reserved for the upstream docker project")
 	}
 	return nil
 }
