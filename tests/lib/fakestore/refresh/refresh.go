@@ -30,6 +30,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/dirs"
@@ -54,7 +55,7 @@ func MakeFakeRefreshForSnaps(snaps []string, blobDir string) error {
 	// XXX: ideally for consistency we should talk to the local snapd
 	// but this allows us to go working until snapd itself
 	// start being fully assertion using
-	sto := store.New(nil, "", nil)
+	sto := store.New(nil, nil)
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
 	}
@@ -85,7 +86,7 @@ func writeAssert(a asserts.Assertion, targetDir string) error {
 	return ioutil.WriteFile(filepath.Join(targetDir, "asserts", fn), asserts.Encode(a), 0644)
 }
 
-func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f *asserts.Fetcher) error {
+func makeFakeRefreshForSnap(snap, targetDir string, db *asserts.Database, f asserts.Fetcher) error {
 	// make a fake update snap in /var/tmp (which is not a tempfs)
 	fakeUpdateDir, err := ioutil.TempDir("/var/tmp", "snap-build-")
 	if err != nil {
@@ -198,11 +199,8 @@ func buildSnap(snapDir, targetDir string) (*info, error) {
 	return &info{digest: newDigest, size: size}, nil
 }
 
-func copySnapAsserts(info *info, f *asserts.Fetcher) error {
-	return f.Fetch(&asserts.Ref{
-		Type:       asserts.SnapRevisionType,
-		PrimaryKey: []string{info.digest},
-	})
+func copySnapAsserts(info *info, f asserts.Fetcher) error {
+	return snapasserts.FetchSnapAssertions(f, info.digest)
 }
 
 func makeNewSnapRevision(orig, new *info, targetDir string, db *asserts.Database) error {

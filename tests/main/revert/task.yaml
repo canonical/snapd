@@ -1,8 +1,8 @@
 summary: Check that revert works.
-
+systems: [-ubuntu-core-16-64]
 environment:
     STORE_TYPE/fake: fake
-    STORE_TYPE/staging: staging
+#    STORE_TYPE/staging: staging
     STORE_TYPE/production: production
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
@@ -40,6 +40,9 @@ execute: |
     echo "And the data directories are present"
     ls /snap/test-snapd-tools | grep -q current
     ls /var/snap/test-snapd-tools | grep -q current
+
+    echo "And the snap runs confined"
+    snap list|grep test-snapd-tools|grep -q "-"
 
     echo "And a new revert fails"
     if snap revert test-snapd-tools; then

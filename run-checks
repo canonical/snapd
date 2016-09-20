@@ -29,11 +29,8 @@ case "${1:-all}" in
     --spread)
         SPREAD=1
         ;;
-    --integration)
-        DEPRECATED=1
-        ;;
     *)
-        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread, or --integration."
+        echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
         exit 1
 esac
 
@@ -119,26 +116,15 @@ if [ "$UNIT" = 1 ]; then
     echo "mode: set" > .coverage/coverage.out
 
     echo Building
-    go build -tags=excludeintegration -v github.com/snapcore/snapd/...
+    go build -v github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./... | grep -v integration-tests); do
-        $goctest -tags=excludeintegration -v -coverprofile=.coverage/profile.out $pkg
-        append_coverage .coverage/profile.out
-    done
-
-    echo Building the integration tests
-    TMP_INTEGRATION="$(mktemp)"
-    addtrap "rm -f \"$TMP_INTEGRATION\""
-    go build -v -o $TMP_INTEGRATION github.com/snapcore/snapd/integration-tests/
-
-    # the rabbit hole
-    echo Running the tests for the integration testutils
-    for pkg in $(go list ./integration-tests/testutils/...); do
+    for pkg in $(go list ./...); do
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
+
 fi
 
 if [ "$SPREAD" = 1 ]; then
@@ -154,19 +140,6 @@ fi
 if [ "$DEPRECATED" = 1 ]; then
     ./get-deps.sh
 
-    # deprecated integration suite in kvm
-    if which adt-run >/dev/null 2>&1; then
-        echo "Running integration tests on rolling edge"
-        result=0
-        go run integration-tests/main.go --snappy-from-branch || result=$?
-        # print the results.
-        if which subunit2pyunit >/dev/null 2>&1; then
-            subunit2pyunit /tmp/snappy-test/output/artifacts/results.subunit
-        fi
-        if [ "$result" -ne 0 ]; then
-            exit $result
-        fi
-    fi
 fi
 
 UNCLEAN="$(git status -s|grep ^??)" || true

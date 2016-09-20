@@ -2,7 +2,7 @@ summary: Check snap search
 
 execute: |
     echo "Try to list all snaps"
-    ( snap find 2>&1 || echo FAILED ) | grep -Pzq "(?ms)empty query.*FAILED"
+    ( snap find 2>&1 || echo FAILED ) | grep -Pzq "(?ms)you need to specify a query.*FAILED"
 
     echo "Exact matches"
     for snapName in test-snapd-tools xkcd-webserver

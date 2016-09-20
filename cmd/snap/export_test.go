@@ -27,7 +27,6 @@ import (
 var RunMain = run
 
 var (
-	SnapExecEnv        = snapExecEnv
 	CreateUserDataDirs = createUserDataDirs
 	SnapRunApp         = snapRunApp
 	SnapRunHook        = snapRunHook

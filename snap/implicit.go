@@ -44,6 +44,7 @@ var implicitSlots = []string{
 	"opengl",
 	"ppp",
 	"process-control",
+	"removable-media",
 	"snapd-control",
 	"system-observe",
 	"system-trace",
@@ -58,11 +59,14 @@ var implicitClassicSlots = []string{
 	"camera",
 	"cups-control",
 	"gsettings",
+	"libvirt",
 	"modem-manager",
 	"network-manager",
 	"optical-drive",
 	"pulseaudio",
+	"screen-inhibit-control",
 	"unity7",
+	"upower-observe",
 	"x11",
 }
 
