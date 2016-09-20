@@ -22,6 +22,7 @@ GOARCH := $(shell go env GOARCH)
 GOOS := $(shell go env GOOS)
 
 GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
+export DH_GOLANG_GO_GENERATE=0
 endif
 
 # check if we need to include the testkeys in the binary
