@@ -1,10 +1,10 @@
 spawn snap create-key
 
 expect "Passphrase: "
-send "\n"
+send "pass\n"
 
 expect "Confirm passphrase: "
-send "\n"
+send "pass\n"
 
 set status [wait]
 if {[lindex $status 3] != 0} {
