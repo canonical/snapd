@@ -4,6 +4,9 @@ prepare: |
     snapbuild $TESTSLIB/snaps/snapctl-hooks .
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
+restore: |
+    rm snapctl-hooks_1.0_all.snap
+
 execute: |
     echo "Run the hook that calls snapctl"
 

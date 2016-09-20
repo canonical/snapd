@@ -8,7 +8,7 @@ update_core_snap_with_snap_exec_snapctl() {
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
-    core="$(realpath /snap/ubuntu-core/current)"
+    core="$(readlink -f /snap/ubuntu-core/current)"
     snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
 
