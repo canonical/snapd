@@ -1,7 +1,5 @@
 summary: Check that `snap run` can actually run hooks
 
-systems: [-ubuntu-core-16-64]
-
 prepare: |
     echo "Build test hooks package"
     snapbuild $TESTSLIB/snaps/basic-hooks .
