@@ -26,6 +26,7 @@ import (
 	"os/user"
 	"path/filepath"
 	"strings"
+	"unicode"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/cmd"
@@ -45,7 +46,12 @@ var (
 )
 
 type options struct {
-	Version func() `long:"version" description:"print the version and exit"`
+	Version func() `long:"version"`
+}
+
+type argDesc struct {
+	name string
+	desc string
 }
 
 var optionsData options
@@ -58,6 +64,8 @@ type cmdInfo struct {
 	name, shortHelp, longHelp string
 	builder                   func() flags.Commander
 	hidden                    bool
+	optDescs                  map[string]string
+	argDescs                  []argDesc
 }
 
 // commands holds information about all non-experimental commands.
@@ -68,12 +76,14 @@ var experimentalCommands []*cmdInfo
 
 // addCommand replaces parser.addCommand() in a way that is compatible with
 // re-constructing a pristine parser.
-func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander) *cmdInfo {
+func addCommand(name, shortHelp, longHelp string, builder func() flags.Commander, optDescs map[string]string, argDescs []argDesc) *cmdInfo {
 	info := &cmdInfo{
 		name:      name,
 		shortHelp: shortHelp,
 		longHelp:  longHelp,
 		builder:   builder,
+		optDescs:  optDescs,
+		argDescs:  argDescs,
 	}
 	commands = append(commands, info)
 	return info
@@ -95,6 +105,27 @@ func addExperimentalCommand(name, shortHelp, longHelp string, builder func() fla
 
 type parserSetter interface {
 	setParser(*flags.Parser)
+}
+
+func lintDesc(cmdName, optName, desc, origDesc string) {
+	if len(optName) == 0 {
+		logger.Panicf("option on %q has no name", cmdName)
+	}
+	if len(origDesc) != 0 {
+		logger.Panicf("description of %s's %q of %q set from tag (=> no i18n)", cmdName, optName, origDesc)
+	}
+	if len(desc) > 0 {
+		if !unicode.IsUpper(([]rune)(desc)[0]) {
+			logger.Panicf("description of %s's %q not uppercase: %q", cmdName, optName, desc)
+		}
+	}
+}
+
+func lintArg(cmdName, optName, desc, origDesc string) {
+	lintDesc(cmdName, optName, desc, origDesc)
+	if optName[0] != '<' || optName[len(optName)-1] != '>' {
+		logger.Panicf("argument %q's %q should have <>s", cmdName, optName)
+	}
 }
 
 // Parser creates and populates a fresh parser.
@@ -129,6 +160,7 @@ func Parser() *flags.Parser {
 	parser.LongDescription = i18n.G(`
 The snap tool interacts with the snapd daemon to control the snappy software platform.
 `)
+	parser.FindOptionByLongName("version").Description = i18n.G("Print the version and exit")
 
 	// Add all regular commands
 	for _, c := range commands {
@@ -143,6 +175,40 @@ The snap tool interacts with the snapd daemon to control the snappy software pla
 			logger.Panicf("cannot add command %q: %v", c.name, err)
 		}
 		cmd.Hidden = c.hidden
+
+		opts := cmd.Options()
+		if c.optDescs != nil && len(opts) != len(c.optDescs) {
+			logger.Panicf("wrong number of option descriptions for %s: expected %d, got %d", c.name, len(opts), len(c.optDescs))
+		}
+		for _, opt := range opts {
+			name := opt.LongName
+			if name == "" {
+				name = string(opt.ShortName)
+			}
+			desc, ok := c.optDescs[name]
+			if !(c.optDescs == nil || ok) {
+				logger.Panicf("%s missing description for %s", c.name, name)
+			}
+			lintDesc(c.name, name, desc, opt.Description)
+			if desc != "" {
+				opt.Description = desc
+			}
+		}
+
+		args := cmd.Args()
+		if c.argDescs != nil && len(args) != len(c.argDescs) {
+			logger.Panicf("wrong number of argument descriptions for %s: expected %d, got %d", c.name, len(args), len(c.argDescs))
+		}
+		for i, arg := range args {
+			name, desc := arg.Name, ""
+			if c.argDescs != nil {
+				name = c.argDescs[i].name
+				desc = c.argDescs[i].desc
+			}
+			lintArg(c.name, name, desc, arg.Description)
+			arg.Name = name
+			arg.Description = desc
+		}
 	}
 	// Add the experimental command
 	experimentalCommand, err := parser.AddCommand("experimental", shortExperimentalHelp, longExperimentalHelp, &cmdExperimental{})
