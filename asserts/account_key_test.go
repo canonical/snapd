@@ -85,6 +85,27 @@ func (aks *accountKeySuite) TestDecodeOK(c *C) {
 	c.Check(accKey.Since(), Equals, aks.since)
 }
 
+func (aks *accountKeySuite) TestDecodeNoName(c *C) {
+	// XXX: remove this test once name is mandatory
+	encoded := "type: account-key\n" +
+		"authority-id: canonical\n" +
+		"account-id: acc-id1\n" +
+		"public-key-sha3-384: " + aks.keyID + "\n" +
+		aks.sinceLine +
+		fmt.Sprintf("body-length: %v", len(aks.pubKeyBody)) + "\n" +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" + "\n\n" +
+		aks.pubKeyBody + "\n\n" +
+		"AXNpZw=="
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	c.Check(a.Type(), Equals, asserts.AccountKeyType)
+	accKey := a.(*asserts.AccountKey)
+	c.Check(accKey.AccountID(), Equals, "acc-id1")
+	c.Check(accKey.Name(), Equals, "")
+	c.Check(accKey.PublicKeyID(), Equals, aks.keyID)
+	c.Check(accKey.Since(), Equals, aks.since)
+}
+
 func (aks *accountKeySuite) TestUntil(c *C) {
 
 	untilSinceLine := "until: " + aks.since.Format(time.RFC3339) + "\n"
@@ -143,7 +164,8 @@ func (aks *accountKeySuite) TestDecodeInvalidHeaders(c *C) {
 	invalidHeaderTests := []struct{ original, invalid, expectedErr string }{
 		{"account-id: acc-id1\n", "", `"account-id" header is mandatory`},
 		{"account-id: acc-id1\n", "account-id: \n", `"account-id" header should not be empty`},
-		{"name: default\n", "", `"name" header is mandatory`},
+		// XXX: enable this once name is mandatory
+		// {"name: default\n", "", `"name" header is mandatory`},
 		{"name: default\n", "name: \n", `"name" header should not be empty`},
 		{"name: default\n", "name: a b\n", `"name" header contains invalid characters: "a b"`},
 		{"name: default\n", "name: -default\n", `"name" header contains invalid characters: "-default"`},

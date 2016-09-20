@@ -206,7 +206,7 @@ func (p4 patch4T) mangle(task *state.Task) error {
 	}
 
 	var hadCandidate bool
-	if err := p4.get(task, "had-candidate", &hadCandidate); err != nil {
+	if err := p4.getMaybe(task, "had-candidate", &hadCandidate); err != nil && err != state.ErrNoState {
 		return err
 	}
 
@@ -245,6 +245,11 @@ func (p4 patch4T) addRevertFlag(task *state.Task) error {
 func patch4(s *state.State) error {
 	p4 := patch4T{}
 	for _, change := range s.Changes() {
+		// change is full done, take it easy
+		if change.Status().Ready() {
+			continue
+		}
+
 		if change.Kind() != "revert-snap" {
 			continue
 		}
@@ -256,6 +261,11 @@ func patch4(s *state.State) error {
 	}
 
 	for _, task := range s.Tasks() {
+		// change is full done, take it easy
+		if task.Change().Status().Ready() {
+			continue
+		}
+
 		switch task.Kind() {
 		case "link-snap":
 			if err := p4.mangle(task); err != nil {
