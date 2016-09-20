@@ -52,13 +52,13 @@ func init() {
 		func() flags.Commander {
 			return &cmdSignBuild{}
 		}, map[string]string{
-			"developer-id": i18n.G("identifier of the signer"),
-			"snap-id":      i18n.G("identifier of the snap package associated with the build"),
-			"k":            i18n.G("name of the GnuPG key to use (defaults to 'default' as key name)"),
-			"grade":        i18n.G("grade states the build quality of the snap (defaults to 'stable')"),
+			"developer-id": i18n.G("Identifier of the signer"),
+			"snap-id":      i18n.G("Identifier of the snap package associated with the build"),
+			"k":            i18n.G("Name of the GnuPG key to use (defaults to 'default' as key name)"),
+			"grade":        i18n.G("Grade states the build quality of the snap (defaults to 'stable')"),
 		}, []argDesc{{
 			name: i18n.G("<filename>"),
-			desc: i18n.G("filename of the snap you want to assert a build for"),
+			desc: i18n.G("Filename of the snap you want to assert a build for"),
 		}})
 	cmd.hidden = true
 }
