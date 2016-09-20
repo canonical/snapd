@@ -20,6 +20,7 @@
 package auth
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -218,21 +219,33 @@ type DeviceAssertions interface {
 	Model() (*asserts.Model, error)
 	// Serial returns the device model assertion.
 	Serial() (*asserts.Serial, error)
-	// SerialProof produces a serial-proof with the given nonce.
+
+	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
+	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error)
+
+	// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
 	SerialProof(nonce string) (*asserts.SerialProof, error)
 }
+
+var (
+	// ErrNoSerial indicates that a device serial is not set yet.
+	ErrNoSerial = errors.New("no device serial yet")
+)
 
 // An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
 	Device() (*DeviceState, error)
-	UpdateDevice(device *DeviceState) error
 
-	UpdateUser(user *UserState) error
+	UpdateDeviceAuth(device *DeviceState, sessionMacaroon string) (actual *DeviceState, err error)
+
+	UpdateUserAuth(user *UserState, discharges []string) (actual *UserState, err error)
 
 	StoreID(fallback string) (string, error)
 
-	Serial() ([]byte, error)
-	SerialProof(nonce string) ([]byte, error)
+	Serial() ([]byte, error)                  // DEPRECATED
+	SerialProof(nonce string) ([]byte, error) // DEPRECATED
+
+	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, err error)
 }
 
 // authContext helps keeping track of auth data in the state and exposing it.
@@ -254,20 +267,46 @@ func (ac *authContext) Device() (*DeviceState, error) {
 	return Device(ac.state)
 }
 
-// UpdateDevice updates device in state.
-func (ac *authContext) UpdateDevice(device *DeviceState) error {
+// UpdateDeviceAuth updates the device auth details in state.
+// The last update wins but other device details are left unchanged.
+// It returns the updated device state value.
+func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon string) (actual *DeviceState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
 
-	return SetDevice(ac.state, device)
+	cur, err := Device(ac.state)
+	if err != nil {
+		return nil, err
+	}
+
+	// just do it, last update wins
+	cur.SessionMacaroon = newSessionMacaroon
+	if err := SetDevice(ac.state, cur); err != nil {
+		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
+	}
+
+	return cur, nil
 }
 
-// UpdateUser updates user in state.
-func (ac *authContext) UpdateUser(user *UserState) error {
+// UpdateUserAuth updates the user auth details in state.
+// The last update wins but other user details are left unchanged.
+// It returns the updated user state value.
+func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (actual *UserState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
 
-	return UpdateUser(ac.state, user)
+	cur, err := User(ac.state, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// just do it, last update wins
+	cur.StoreDischarges = newDischarges
+	if err := UpdateUser(ac.state, cur); err != nil {
+		return nil, fmt.Errorf("internal error: cannot update just read user state: %v", err)
+	}
+
+	return cur, nil
 }
 
 // StoreID returns the store id according to system state or
@@ -314,4 +353,19 @@ func (ac *authContext) SerialProof(nonce string) ([]byte, error) {
 		return nil, err
 	}
 	return asserts.Encode(proof), nil
+}
+
+// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial assertion. It returns ErrNoSerial if the device serial is not yet initialized.
+func (ac *authContext) DeviceSessionRequest(nonce string) (deviceSessionRequest []byte, serial []byte, err error) {
+	if ac.deviceAsserts == nil {
+		return nil, nil, ErrNoSerial
+	}
+	req, ser, err := ac.deviceAsserts.DeviceSessionRequest(nonce)
+	if err == state.ErrNoState {
+		return nil, nil, ErrNoSerial
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+	return asserts.Encode(req), asserts.Encode(ser), nil
 }

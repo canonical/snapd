@@ -23,6 +23,7 @@ import (
 	"crypto"
 	"encoding/base64"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -200,4 +201,27 @@ func checkStringList(headers map[string]interface{}, name string) ([]string, err
 		res[i] = s
 	}
 	return res, nil
+}
+
+func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
+	s, err := checkNotEmptyString(headers, name)
+	if err != nil {
+		return "", err
+	}
+	if !pattern.MatchString(s) {
+		return "", fmt.Errorf("%q header contains invalid characters: %q", name, s)
+	}
+	return s, nil
+}
+
+func checkOptionalBool(headers map[string]interface{}, name string) (bool, error) {
+	value, ok := headers[name]
+	if !ok {
+		return false, nil
+	}
+	s, ok := value.(string)
+	if !ok || (s != "true" && s != "false") {
+		return false, fmt.Errorf("%q header must be 'true' or 'false'", name)
+	}
+	return s == "true", nil
 }

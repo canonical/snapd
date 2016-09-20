@@ -125,7 +125,7 @@ func (s *mountSnapSuite) TestDoUndoMountSnap(c *C) {
 	s.state.Lock()
 
 	// ensure undo was called the right way
-	c.Check(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:  "current",
 			old: "/snap/core/1",

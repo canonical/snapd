@@ -21,8 +21,11 @@ package asserts
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 )
+
+var validAccountKeyName = regexp.MustCompile(`^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$`)
 
 // AccountKey holds an account-key assertion, asserting a public key
 // belonging to the account.
@@ -36,6 +39,15 @@ type AccountKey struct {
 // AccountID returns the account-id of this account-key.
 func (ak *AccountKey) AccountID() string {
 	return ak.HeaderString("account-id")
+}
+
+// Name returns the name of the account key.
+func (ak *AccountKey) Name() string {
+	return ak.HeaderString("name")
+}
+
+func IsValidAccountKeyName(name string) bool {
+	return validAccountKeyName.MatchString(name)
 }
 
 // Since returns the time when the account key starts being valid.
@@ -96,6 +108,27 @@ func (ak *AccountKey) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if err != nil {
 		return err
 	}
+	// XXX: Make this unconditional once account-key assertions are required to have a name.
+	if ak.Name() != "" {
+		// Check that we don't end up with multiple keys with
+		// different IDs but the same account-id and name.
+		// Note that this is a non-transactional check-then-add, so
+		// is not a hard guarantee.  Backstores that can implement a
+		// unique constraint should do so.
+		assertions, err := db.FindMany(AccountKeyType, map[string]string{
+			"account-id": ak.AccountID(),
+			"name":       ak.Name(),
+		})
+		if err != nil && err != ErrNotFound {
+			return err
+		}
+		for _, assertion := range assertions {
+			existingAccKey := assertion.(*AccountKey)
+			if ak.PublicKeyID() != existingAccKey.PublicKeyID() {
+				return fmt.Errorf("account-key assertion for %q with ID %q has the same name %q as existing ID %q", ak.AccountID(), ak.PublicKeyID(), ak.Name(), existingAccKey.PublicKeyID())
+			}
+		}
+	}
 	return nil
 }
 
@@ -113,6 +146,15 @@ func assembleAccountKey(assert assertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "account-id")
 	if err != nil {
 		return nil, err
+	}
+
+	// XXX: We should require name to be present after backfilling existing assertions.
+	_, ok := assert.headers["name"]
+	if ok {
+		_, err = checkStringMatches(assert.headers, "name", validAccountKeyName)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	since, err := checkRFC3339Date(assert.headers, "since")
@@ -155,6 +197,11 @@ func (akr *AccountKeyRequest) AccountID() string {
 	return akr.HeaderString("account-id")
 }
 
+// Name returns the name of the account key.
+func (akr *AccountKeyRequest) Name() string {
+	return akr.HeaderString("name")
+}
+
 // Since returns the time when the requested account key starts being valid.
 func (akr *AccountKeyRequest) Since() time.Time {
 	return akr.since
@@ -165,8 +212,13 @@ func (akr *AccountKeyRequest) Until() time.Time {
 	return akr.until
 }
 
-// PublicKey returns the underlying public key of the requested account key.
-func (akr *AccountKeyRequest) PublicKey() PublicKey {
+// PublicKeyID returns the underlying public key ID of the requested account key.
+func (akr *AccountKeyRequest) PublicKeyID() string {
+	return akr.pubKey.ID()
+}
+
+// signKey returns the underlying public key of the requested account key.
+func (akr *AccountKeyRequest) signKey() PublicKey {
 	return akr.pubKey
 }
 
@@ -185,7 +237,10 @@ func (akr *AccountKeyRequest) checkConsistency(db RODatabase, acck *AccountKey) 
 }
 
 // sanity
-var _ consistencyChecker = (*AccountKeyRequest)(nil)
+var (
+	_ consistencyChecker = (*AccountKeyRequest)(nil)
+	_ customSigner       = (*AccountKeyRequest)(nil)
+)
 
 // Prerequisites returns references to this account-key-request's prerequisite assertions.
 func (akr *AccountKeyRequest) Prerequisites() []*Ref {
@@ -196,6 +251,11 @@ func (akr *AccountKeyRequest) Prerequisites() []*Ref {
 
 func assembleAccountKeyRequest(assert assertionBase) (Assertion, error) {
 	_, err := checkNotEmptyString(assert.headers, "account-id")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkStringMatches(assert.headers, "name", validAccountKeyName)
 	if err != nil {
 		return nil, err
 	}

@@ -130,7 +130,11 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.summary = unmarshalled.Summary
 	t.status = unmarshalled.Status
 	t.progress = unmarshalled.Progress
-	t.data = unmarshalled.Data
+	custData := unmarshalled.Data
+	if custData == nil {
+		custData = make(customData)
+	}
+	t.data = custData
 	t.waitTasks = unmarshalled.WaitTasks
 	t.haltTasks = unmarshalled.HaltTasks
 	t.log = unmarshalled.Log
@@ -309,6 +313,12 @@ func (t *Task) Set(key string, value interface{}) {
 func (t *Task) Get(key string, value interface{}) error {
 	t.state.reading()
 	return t.data.get(key, value)
+}
+
+// Clear disassociates the value from key.
+func (t *Task) Clear(key string) {
+	t.state.writing()
+	delete(t.data, key)
 }
 
 func addOnce(set []string, s string) []string {

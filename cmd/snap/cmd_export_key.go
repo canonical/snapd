@@ -30,9 +30,9 @@ import (
 )
 
 type cmdExportKey struct {
-	Account    string `long:"account" description:"format public key material as a request for an account-key for this account-id"`
+	Account    string `long:"account"`
 	Positional struct {
-		KeyName string `positional-arg-name:"<key-name>" description:"name of key to export"`
+		KeyName string
 	} `positional-args:"true"`
 }
 
@@ -42,7 +42,12 @@ func init() {
 		i18n.G("Export a public key assertion body that may be imported by other systems."),
 		func() flags.Commander {
 			return &cmdExportKey{}
-		})
+		}, map[string]string{
+			"account": i18n.G("Format public key material as a request for an account-key for this account-id"),
+		}, []argDesc{{
+			name: i18n.G("<key-name>"),
+			desc: i18n.G("Name of key to export"),
+		}})
 	cmd.hidden = true
 }
 
@@ -65,8 +70,9 @@ func (x *cmdExportKey) Execute(args []string) error {
 		pubKey := privKey.PublicKey()
 		headers := map[string]interface{}{
 			"account-id":          x.Account,
+			"name":                keyName,
 			"public-key-sha3-384": pubKey.ID(),
-			"since":               time.Now().Format(time.RFC3339),
+			"since":               time.Now().UTC().Format(time.RFC3339),
 			// XXX: To support revocation, we need to check for matching known assertions and set a suitable revision if we find one.
 		}
 		body, err := asserts.EncodePublicKey(pubKey)

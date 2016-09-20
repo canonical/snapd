@@ -6,19 +6,32 @@ execute: |
     wait_boot_ok() {
         echo "Waiting for boot-ok to finish"
         while ! systemctl status snapd.boot-ok|grep SUCCESS; do
+            # debug output
+            systemctl status snapd.boot-ok || true
             sleep 1
         done
     }
     check_boot() {
+        # debug output
+        grub-editenv list
         grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
     }
     store_next_boot() {
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot
+        # debug output
+        snap list
+        echo "nextBoot:"
+        cat nextBoot
     }
     echo "Install/revert a couple of times and see if stuff breaks"
     if [ "$SPREAD_REBOOT" = "0" ]; then
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot
-        snap install --force-dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
+        # debug output
+        snap list
+        echo "firstBoot:"
+        cat firstBoot
+        echo "Install new ubuntu-core"
+        snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
         store_next_boot
         REBOOT
     fi
@@ -32,7 +45,7 @@ execute: |
     if [ "$SPREAD_REBOOT" = "2" ]; then
         wait_boot_ok
         check_boot
-        snap install --force-dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
+        snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
         store_next_boot
         REBOOT
     fi

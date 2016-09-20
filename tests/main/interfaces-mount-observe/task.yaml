@@ -14,7 +14,7 @@ details: |
 prepare: |
     echo "Given a snap declaring a plug on the mount-observe interface is installed"
     snapbuild $TESTSLIB/snaps/mount-observe-consumer .
-    snap install --force-dangerous mount-observe-consumer_1.0_all.snap
+    snap install --dangerous mount-observe-consumer_1.0_all.snap
 
 restore: |
     rm -f mount-observe-consumer_1.0_all.snap
@@ -34,7 +34,7 @@ execute: |
 
     echo "Then the mount info is reachable"
     expected="/snap/mount-observe-consumer"
-    sudo -i -u test /bin/sh -c "mount-observe-consumer" | grep -Pq "$expected"
+    su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 
     echo "========================================="
 
@@ -43,7 +43,7 @@ execute: |
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the mount info is not reachable"
-    if sudo -i -u test /bin/sh -c "mount-observe-consumer"; then
+    if su -l -c "mount-observe-consumer" test; then
         echo "Expected error accessing mount info with disconnected plug"
         exit 1
     fi
@@ -59,4 +59,4 @@ execute: |
 
     echo "Then the new mount info is reachable"
     expected="/snap/test-snapd-tools"
-    sudo -i -u test /bin/sh -c "mount-observe-consumer" | grep -Pq "$expected"
+    su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
