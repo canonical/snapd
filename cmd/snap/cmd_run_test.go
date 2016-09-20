@@ -393,3 +393,48 @@ func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
 	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_ARCH=PDP-7")
 	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }
+
+func (s *SnapSuite) TestMainSymlinkRunEndToEnd(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	// Only create revision 42
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockServer(c)
+
+	// redirect exec
+	called := false
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		called = true
+		return nil
+	})
+	defer restorer()
+
+	argv0 := os.Args[0]
+	defer func() { os.Args[0] = argv0 }()
+
+	runSymlink := filepath.Join(dirs.SnapBinariesDir, "snapname.app")
+	err := os.MkdirAll(filepath.Dir(runSymlink), 0755)
+	c.Assert(err, check.IsNil)
+	err = os.Symlink("/usr/bin/snap", runSymlink)
+	c.Assert(err, check.IsNil)
+	os.Args[0] = runSymlink
+
+	// happy case: all valid
+	err = snaprun.SnapRunSymlinkMagic()
+	c.Assert(err, check.IsNil)
+	c.Check(called, check.Equals, true)
+
+	// unhappy case: the symlink comes from a random directory
+	s.mockServer(c)
+	called = false
+	os.Args[0] = "/random/dir/snapname.app"
+	err = snaprun.SnapRunSymlinkMagic()
+	c.Check(err, check.ErrorMatches, `snap run symlink has invalid base directory: "/random/dir"`)
+	c.Check(called, check.Equals, false)
+}
