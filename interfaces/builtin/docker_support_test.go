@@ -38,9 +38,9 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 	iface: &builtin.DockerSupportInterface{},
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{
-					SuggestedName: "ubuntu-core",
-					Type: snap.TypeOS},
+			Snap: &snap.Info{
+				SuggestedName: "ubuntu-core",
+				Type:          snap.TypeOS},
 			Name:      "docker-support",
 			Interface: "docker-support",
 		},
