@@ -55,19 +55,16 @@ backends:
                 username: ubuntu
                 password: ubuntu
 
-    adhoc-ubuntu-core:
+    external-ubuntu-core:
         type: adhoc
         environment:
-            SPREAD_ADHOC_UC_ADDRESS: "$(HOST: echo ${SPREAD_ADHOC_UC_ADDRESS:-localhost})"
-            SPREAD_ADHOC_UC_PORT: "$(HOST: echo ${SPREAD_ADHOC_UC_PORT:-8022})"
+            SPREAD_ADHOC_UC_ADDRESS: "$(HOST: echo ${SPREAD_ADHOC_UC_ADDRESS:-localhost:8022})"
         allocate: |
-            echo "Allocating $SPREAD_SYSTEM..."
-            ADDRESS $SPREAD_ADHOC_UC_ADDRESS:$SPREAD_ADHOC_UC_PORT
-        discard: |
-            echo "Discarding ad-hoc $SPREAD_SYSTEM"
+            ADDRESS $SPREAD_ADHOC_UC_ADDRESS
         restore: |
             rm -rf $GOPATH/src
         systems:
+            # FIXME: remove the ubuntu-core-16.04-64 dummy system once the runner handles tasks without systems assigned
             - ubuntu-core-16.04-64:
                 username: test
                 password: ubuntu
@@ -97,7 +94,7 @@ prepare: |
     EOF
 
     # adhoc backend and ubuntu-core system, nothing to setup
-    if [ "$SPREAD_BACKEND" = adhoc-ubuntu-core ]; then
+    if [ "$SPREAD_BACKEND" = external-ubuntu-core ]; then
         # build test binaries
         if [ ! -f $GOPATH/bin/snapbuild ]; then
             mkdir -p $GOPATH/bin

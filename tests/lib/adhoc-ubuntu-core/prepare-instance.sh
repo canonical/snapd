@@ -10,5 +10,5 @@ execute_remote(){
 }
 
 execute_remote "sudo adduser --extrausers --quiet --disabled-password --gecos '' test"
-execute_remote "(echo test:ubuntu | sudo chpasswd)"
-execute_remote "(echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test)"
+execute_remote "echo test:ubuntu | sudo chpasswd"
+execute_remote "echo 'test ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-test"
