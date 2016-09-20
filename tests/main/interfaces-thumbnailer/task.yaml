@@ -68,10 +68,10 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "And the thumbnailer service is running"
-    /usr/lib/*/thumbnailer/thumbnailer-service &
+    su -l -c '/usr/lib/*/thumbnailer/thumbnailer-service &' test
 
     echo "Then the snap command exits with a success code"
-    $SNAP_NAME $TEST_IMAGE "(16,16)"
+    su -l -c '$SNAP_NAME $TEST_IMAGE \"(16,16)\"' test
 
     echo "===================================="
 
