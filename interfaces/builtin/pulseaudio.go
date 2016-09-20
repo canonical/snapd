@@ -27,7 +27,7 @@ import (
 )
 
 const pulseaudioConnectedPlugAppArmor = `
-/{run,dev}/shm/pulse-shm-* rwk,
+/{run,dev}/shm/pulse-shm-* rwkm,
 
 owner /{,var/}run/pulse/ r,
 owner /{,var/}run/pulse/native rwk,
