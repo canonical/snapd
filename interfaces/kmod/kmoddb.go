@@ -57,7 +57,7 @@ func (db *KModDb) AddModules(snapName string, modules [][]byte) {
 	}
 }
 
-func (db *KModDb) Remove(snapName string) error {
+func (db *KModDb) Remove(snapName string) bool {
 	if mods, ok := db.modules[snapName]; ok {
 		for _, mod := range mods {
 			if db.moduleUseCount[string(mod)] <= 1 {
@@ -65,9 +65,9 @@ func (db *KModDb) Remove(snapName string) error {
 			}
 		}
 		delete(db.modules, snapName)
-		return nil
+		return true
 	}
-	return fmt.Errorf("Unknown snap: %s", snapName)
+	return false
 }
 
 // This method returns the list of kernel modules needed by all snaps, deduplicated.
@@ -82,6 +82,7 @@ func (db *KModDb) GetUniqueModulesList() (mods [][]byte) {
 func NewKModDb() *KModDb {
 	return &KModDb{
 		persistentState: persistentState{make(map[string][][]byte)},
+		moduleUseCount:  make(map[string]int),
 	}
 }
 
