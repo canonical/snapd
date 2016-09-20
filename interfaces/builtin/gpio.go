@@ -91,6 +91,8 @@ func (iface *GpioInterface) PermanentPlugSnippet(plug *interfaces.Plug, security
 	}
 }
 
+var reallyExportGPIOsToUserspace = true
+
 // ConnectedPlugSnippet returns security snippets for plug at connection
 func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
@@ -98,15 +100,20 @@ func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 		return nil, nil
 	case interfaces.SecurityAppArmor:
 		path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
-		// Entries in /sys/class/gpio for single GPIO's are just symlinks
-		// to their correct device part in the sysfs tree. Given AppArmor
-		// requires symlinks to be dereferenced, evaluate the GPIO
-		// path and add the correct absolute path to the AppArmor snippet.
-		dereferencedPath, err := evalSymlinks(path)
-		if err != nil {
-			return nil, err
+		if reallyExportGPIOsToUserspace {
+			// Entries in /sys/class/gpio for single GPIO's are just symlinks
+			// to their correct device part in the sysfs tree. Given AppArmor
+			// requires symlinks to be dereferenced, evaluate the GPIO
+			// path and add the correct absolute path to the AppArmor snippet.
+			var err error
+			path, err = evalSymlinks(path)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			path = "/fake/path/to/gpio"
 		}
-		return []byte(fmt.Sprintf("%s/* rwk,\n", dereferencedPath)), nil
+		return []byte(fmt.Sprintf("%s/* rwk,\n", path)), nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
@@ -122,6 +129,24 @@ func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, security
 	}
 }
 
+func (iface *GpioInterface) exportToUserspace(gpioNum int) error {
+	// Check if the gpio symlink is present, if not it needs exporting. Attempting
+	// to export a gpio again will cause an error on the Write() call
+	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, gpioNum)); os.IsNotExist(err) {
+		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
+		if err != nil {
+			return err
+		}
+		defer fileExport.Close()
+		numBytes := []byte(strconv.Itoa(gpioNum))
+		_, err = fileExport.Write(numBytes)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ConnectedSlotSnippet - no slot snippets provided
 func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// We need to export the GPIO so that it becomes as entry in sysfs
@@ -130,26 +155,16 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	if !ok {
 		return nil, fmt.Errorf("gpio slot has invalid number attribute")
 	}
-	numBytes := []byte(strconv.Itoa(numInt))
-
-	// Check if the gpio symlink is present, if not it needs exporting. Attempting
-	// to export a gpio again will cause an error on the Write() call
-	if _, err := os.Stat(fmt.Sprint(gpioSysfsGpioBase, numInt)); os.IsNotExist(err) {
-		fileExport, err := os.OpenFile(gpioSysfsExport, os.O_WRONLY, 0200)
-		if err != nil {
+	if reallyExportGPIOsToUserspace {
+		if err := iface.exportToUserspace(numInt); err != nil {
 			return nil, err
 		}
-		defer fileExport.Close()
-		_, err = fileExport.Write(numBytes)
-		if err != nil {
-			return nil, err
-		}
+	} else {
+		msg := []byte(fmt.Sprintf("# GPIO %d mock-exposed to userspace\n", numInt))
+		return msg, nil
 	}
-
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	case interfaces.SecurityAppArmor:
+	case interfaces.SecurityAppArmor, interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
