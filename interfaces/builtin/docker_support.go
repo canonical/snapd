@@ -93,7 +93,7 @@ pivot_root,
 /sys/kernel/security/apparmor/.replace rw,
 /sys/kernel/security/apparmor/{,**} r,
 
-# --security-opts not supported at this time
+# use 'privileged-containers: true' to support --security-opts
 change_profile -> docker-default,
 signal (send) peer=docker-default,
 ptrace (read, trace) peer=docker-default,
@@ -492,6 +492,24 @@ write
 writev
 `
 
+const dockerSupportPrivilegedAppArmor = `
+# Description: allow docker daemon to run containers invoked with
+# docker --privileged. This gives full access to all resources on the system
+# and thus gives device ownership to connected snaps.
+change_profile -> *,
+signal (send) peer=unconfined,
+ptrace (read, trace) peer=unconfined,
+/dev/** mrwkl,
+@{PROC}/** mrwkl,
+`
+
+const dockerSupportPrivilegedSecComp = `
+# Description: allow docker daemon to run containers invoked with
+# docker --privileged. This gives full access to all resources on the system
+# and thus gives device ownership to connected snaps.
+@unrestricted
+`
+
 type DockerSupportInterface struct{}
 
 func (iface *DockerSupportInterface) Name() string {
@@ -512,12 +530,19 @@ func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug,
 }
 
 func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	privileged, _ := plug.Attrs["privileged-containers"].(bool)
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		snippet := []byte(dockerSupportConnectedPlugAppArmor)
+		if privileged {
+			snippet = append(snippet, dockerSupportPrivilegedAppArmor...)
+		}
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		snippet := []byte(dockerSupportConnectedPlugSecComp)
+		if privileged {
+			snippet = append(snippet, dockerSupportPrivilegedSecComp...)
+		}
 		return snippet, nil
 	case interfaces.SecurityDBus,
 		interfaces.SecurityMount,
@@ -563,11 +588,17 @@ func (iface *DockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 
 func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	snapName := plug.Snap.Name()
-	//devName := plug.Snap.Developer
+	devName := plug.Snap.Developer
 	// The docker-support interface can only by used with the docker
 	// project and Canonical
-	if snapName != "docker" { // || (devName != "canonical" && devName != "docker") {
+	if snapName != "docker" || (devName != "canonical" && devName != "docker") {
 		return fmt.Errorf("docker-support interface is reserved for the upstream docker project")
+	}
+
+	if v, ok := plug.Attrs["privileged-containers"]; ok {
+		if _, ok = v.(bool); !ok {
+			return fmt.Errorf("docker-support plug requires bool with 'privileged-containers'")
+		}
 	}
 	return nil
 }
