@@ -67,6 +67,9 @@ execute: |
     snap connect $SNAP_NAME:$PLUG ubuntu-core:$PLUG
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
+    echo "And the thumbnailer service is running"
+    /usr/lib/*/thumbnailer/thumbnailer-service &
+
     echo "Then the snap command exits with a success code"
     $SNAP_NAME $TEST_IMAGE "(16,16)"
 
