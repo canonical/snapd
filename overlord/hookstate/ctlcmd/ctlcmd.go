@@ -75,26 +75,36 @@ type command interface {
 	Execute(args []string) error
 }
 
-var commandGenerators = make(map[string]func() command)
+type commandInfo struct {
+	shortHelp string
+	longHelp  string
+	generator func() command
+}
 
-func addCommand(name string, generator func() command) {
-	commandGenerators[name] = generator
+var commands = make(map[string]*commandInfo)
+
+func addCommand(name, shortHelp, longHelp string, generator func() command) {
+	commands[name] = &commandInfo{
+		shortHelp: shortHelp,
+		longHelp:  longHelp,
+		generator: generator,
+	}
 }
 
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string) (stdout, stderr []byte, err error) {
-	parser := flags.NewParser(nil, flags.PassDoubleDash)
+	parser := flags.NewParser(nil, flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
-	for name, generator := range commandGenerators {
-		cmd := generator()
+	for name, cmdInfo := range commands {
+		cmd := cmdInfo.generator()
 		cmd.setStdout(&stdoutBuffer)
 		cmd.setStderr(&stderrBuffer)
 		cmd.setContext(context)
 
-		_, err = parser.AddCommand(name, "", "", cmd)
+		_, err = parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
 		}
