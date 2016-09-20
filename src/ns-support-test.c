@@ -22,6 +22,7 @@
 
 #include <errno.h>
 #include <linux/magic.h>	// for NSFS_MAGIC
+#include <sys/utsname.h>
 #include <sys/vfs.h>
 
 #include <glib.h>
@@ -317,6 +318,22 @@ static void test_sc_initialize_ns_groups()
 // expect, aka NSFS_MAGIC.
 static void test_nsfs_fs_id()
 {
+	struct utsname uts;
+	if (uname(&uts) < 0) {
+		g_test_message("cannot use uname(2)");
+		g_test_fail();
+		return;
+	}
+	int major, minor;
+	if (sscanf(uts.release, "%d.%d", &major, &minor) != 2) {
+		g_test_message("cannot use sscanf(2) to parse kernel release");
+		g_test_fail();
+		return;
+	}
+	if (major < 3 || (major == 3 && minor < 19)) {
+		g_test_skip("this test needs kernel 3.19+");
+		return;
+	}
 	struct statfs buf;
 	int err = statfs("/proc/self/ns/mnt", &buf);
 	g_assert_cmpint(err, ==, 0);
