@@ -16,14 +16,18 @@ RELEASE = $(shell lsb_release -c -s)
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
+GCCGOFLAGS=
 ifeq ($(GCCGO),yes)
 GOARCH := $(shell go env GOARCH)
 GOOS := $(shell go env GOOS)
 
+GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
+endif
+
+# check if we need to include the testkeys in the binary
 TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
-endif
 endif
 
 %:
@@ -32,11 +36,11 @@ endif
 override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
-	dh_auto_build -- $(TAGS) -- -gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
+	dh_auto_build -- $(TAGS) $(GCCGOFLAGS)
 
 
 override_dh_auto_test:
-	dh_auto_test -- -gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
+	dh_auto_test -- $(GCCGOFLAGS)
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-key is included
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
