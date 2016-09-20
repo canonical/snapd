@@ -1,6 +1,10 @@
 summary: Ensure classic dimension works correctly
 systems: [ubuntu-core-16-64]
 environment:
+    # We need to set the SUDO_USER here to simulate the real
+    # behavior. I.e. when entering classic it happens via
+    # `sudo classic` and the user gets a user shell inside
+    # the classic environment that has sudo support.
     SUDO_USER: test
 prepare: |
     echo "test ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/create-test
@@ -23,8 +27,12 @@ execute: |
     fi
 
     echo "Ensure sudo works without a password inside classic"
+    # classic uses "script" to work around the issue that
+    # tty reports "no tty" inside snaps (LP: #1611493)
+    #
+    # "script" adds extra \r into the output that we need to filter here
     if [ "$(classic sudo id -u|tr -d "\r")" != "0" ]; then
-        echo "sudo inside classic  did not work as expected"
+        echo "sudo inside classic did not work as expected"
         exit 1
     fi
 
