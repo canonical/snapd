@@ -46,10 +46,6 @@ const (
 	// JailMode is set when the user has requested confinement
 	// always be enforcing, even if the snap requests otherwise.
 	JailMode
-
-	// if we need flags for just SnapSetup it may be easier
-	// to start a new sequence from the other end with:
-	// 0x40000000 >> iota
 )
 
 func (f Flags) DevModeAllowed() bool {
@@ -79,7 +75,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	}
 
 	// check if we already have the revision locally (alters tasks)
-	revisionIsLocal := snapst.findIndex(ss.Revision()) >= 0
+	revisionIsLocal := snapst.LastIndex(ss.Revision()) >= 0
 
 	var prepare, prev *state.Task
 	fromStore := false
@@ -126,7 +122,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	}
 
 	// copy-data (needs stopped services by unlink)
-	if !revisionIsLocal {
+	if !ss.Flags.Revert() {
 		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name()))
 		addTask(copyData)
 		prev = copyData
@@ -148,9 +144,9 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
-	if snapst.HasCurrent() && !revisionIsLocal {
+	if snapst.HasCurrent() && !ss.Flags.Revert() {
 		seq := snapst.Sequence
-		currentIndex := snapst.findIndex(snapst.Current)
+		currentIndex := snapst.LastIndex(snapst.Current)
 
 		// discard everything after "current" (we may have reverted to
 		// a previous versions earlier)
@@ -162,6 +158,19 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			prev = tasks[len(tasks)-1]
 		}
 
+		// make sure we're not scheduling the removal of the target
+		// revision in the case where the target revision is already in
+		// the sequence.
+		for i := 0; i < currentIndex; i++ {
+			si := seq[i]
+			if si.Revision == ss.Revision() {
+				// we do *not* want to removeInactiveRevision of this one
+				copy(seq[i:], seq[i+1:])
+				seq = seq[:len(seq)-1]
+				currentIndex--
+			}
+		}
+
 		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
@@ -170,6 +179,8 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
 		}
+
+		addTask(s.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", ss.Name(), revisionStr)))
 	}
 
 	return state.NewTaskSet(tasks...), nil
@@ -411,7 +422,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
+func Update(s *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -431,11 +442,8 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		channel = snapst.Channel
 	}
 
-	updateInfo, err := updateInfo(s, &snapst, channel, userID, flags)
+	info, err := infoForUpdate(s, &snapst, name, channel, revision, userID, flags)
 	if err != nil {
-		return nil, err
-	}
-	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
 		return nil, err
 	}
 
@@ -443,11 +451,32 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		Channel:      channel,
 		UserID:       userID,
 		Flags:        SnapSetupFlags(flags),
-		DownloadInfo: &updateInfo.DownloadInfo,
-		SideInfo:     &updateInfo.SideInfo,
+		DownloadInfo: &info.DownloadInfo,
+		SideInfo:     &info.SideInfo,
 	}
 
 	return doInstall(s, &snapst, ss)
+}
+
+func infoForUpdate(s *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
+	if revision.Unset() {
+		// good ol' refresh
+		return updateInfo(s, snapst, channel, userID, flags)
+	}
+	var sideInfo *snap.SideInfo
+	for _, si := range snapst.Sequence {
+		if si.Revision == revision {
+			sideInfo = si
+			break
+		}
+	}
+	if sideInfo == nil {
+		// refresh from given revision from store
+		return snapInfo(s, name, channel, revision, userID, flags)
+	}
+
+	// refresh-to-local
+	return readInfo(name, sideInfo)
 }
 
 // Enable sets a snap to the active state
@@ -671,7 +700,7 @@ func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet
 
 // Revert returns a set of tasks for reverting to the pervious version of the snap.
 // Note that the state must be locked by the caller.
-func Revert(s *state.State, name string) (*state.TaskSet, error) {
+func Revert(s *state.State, name string, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -683,10 +712,10 @@ func Revert(s *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("no revision to revert to")
 	}
 
-	return RevertToRevision(s, name, pi.Revision)
+	return RevertToRevision(s, name, pi.Revision, flags)
 }
 
-func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.TaskSet, error) {
+func RevertToRevision(s *state.State, name string, rev snap.Revision, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -700,12 +729,13 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision) (*state.Ta
 	if !snapst.Active {
 		return nil, fmt.Errorf("cannot revert inactive snaps")
 	}
-	i := snapst.findIndex(rev)
+	i := snapst.LastIndex(rev)
 	if i < 0 {
 		return nil, fmt.Errorf("cannot find revision %s for snap %q", rev, name)
 	}
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
+		Flags:    SnapSetupFlags(flags) | SnapSetupFlagRevert,
 	}
 	return doInstall(s, &snapst, ss)
 }

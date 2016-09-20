@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -66,8 +67,7 @@ var api = []*Command{
 	findCmd,
 	snapsCmd,
 	snapCmd,
-	//FIXME: renenable config for GA
-	//snapConfigCmd,
+	snapConfCmd,
 	interfacesCmd,
 	assertsCmd,
 	assertsFindManyCmd,
@@ -129,14 +129,12 @@ var (
 		GET:    getSnapInfo,
 		POST:   postSnap,
 	}
-	//FIXME: renenable config for GA
-	/*
-		snapConfigCmd = &Command{
-			Path: "/v2/snaps/{name}/config",
-			GET:  snapConfig,
-			PUT:  snapConfig,
-		}
-	*/
+
+	snapConfCmd = &Command{
+		Path: "/v2/snaps/{name}/conf",
+		GET:  getSnapConf,
+		PUT:  setSnapConf,
+	}
 
 	interfacesCmd = &Command{
 		Path:   "/v2/interfaces",
@@ -662,6 +660,8 @@ var (
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
 	snapstateUpdateMany        = snapstate.UpdateMany
+
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
 
 func ensureStateSoonImpl(st *state.State) {
@@ -733,6 +733,11 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
+	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
+	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+		return "", nil, nil, err
+	}
+
 	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
@@ -787,7 +792,12 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.userID, flags)
+	// we need refreshed snap-declarations to enforce refresh-control as best as we can
+	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+		return "", nil, err
+	}
+
+	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -811,8 +821,18 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
-	// TODO: bail if revision is given (and != current), or revert to that revision?
-	ts, err := snapstate.Revert(st, inst.Snaps[0])
+	var ts *state.TaskSet
+
+	flags, err := modeFlags(inst.DevMode, inst.JailMode)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if inst.Revision.Unset() {
+		ts, err = snapstate.Revert(st, inst.Snaps[0], flags)
+	} else {
+		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -1192,6 +1212,39 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 	name := vars["name"]
 
 	return iconGet(c.d.overlord.State(), name)
+}
+
+func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
+	// TODO: Get configuration values from configmanager
+	return SyncResponse(nil, nil)
+}
+
+func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
+	vars := muxVars(r)
+	snapName := vars["name"]
+
+	var patchValues map[string]interface{}
+	decoder := json.NewDecoder(r.Body)
+	if err := decoder.Decode(&patchValues); err != nil {
+		return BadRequest("cannot decode request body into patch values: %v", err)
+	}
+
+	// TODO: Add patch values to configmanager
+
+	s := c.d.overlord.State()
+	s.Lock()
+	defer s.Unlock()
+
+	hookTaskSummary := fmt.Sprintf(i18n.G("Run apply-config hook for %s"), snapName)
+	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "apply-config")
+	taskset := state.NewTaskSet(task)
+
+	change := s.NewChange("configure-snap", fmt.Sprintf("Setting config for %s", snapName))
+	change.AddAll(taskset)
+
+	s.EnsureBefore(0)
+
+	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
 
 // getInterfaces returns all plugs and slots.

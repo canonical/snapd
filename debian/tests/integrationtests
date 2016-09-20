@@ -1,29 +1,33 @@
 #!/bin/sh
 
-NEEDS_REBOOT=/tmp/needs-reboot
-
 set -ex
 
 # for these tests, run snap and snapd from outside of the core snap
-sudo mkdir -p /etc/systemd/system/snapd.service.d/
-cat <<EOF | sudo tee /etc/systemd/system/snapd.service.d/no-reexec.conf
+mkdir -p /etc/systemd/system/snapd.service.d/
+cat <<EOF | tee /etc/systemd/system/snapd.service.d/no-reexec.conf
 [Service]
 Environment=SNAP_REEXEC=0
 EOF
 
 # required for the debian adt host
 if [ "$http_proxy" != "" ]; then
-    cat <<EOF | sudo tee /etc/systemd/system/snapd.service.d/proxy.conf
+    cat <<EOF | tee /etc/systemd/system/snapd.service.d/proxy.conf
 [Service]
 Environment=http_proxy=$http_proxy
 Environment=https_proxy=$http_proxy
 EOF
+
+    # ensure environment is updated
+    echo "http_proxy=$http_proxy" >> /etc/environment
 fi
-sudo systemctl daemon-reload
+systemctl daemon-reload
 
-# ensure our PATH is right
-. /etc/profile.d/apps-bin-path.sh
+# ensure we can do a connect to localhost
+echo ubuntu:ubuntu|chpasswd
+sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' /etc/ssh/sshd_config
+systemctl reload sshd.service
 
+# and now run spread against localhost
 export GOPATH=/tmp/go
 go get -u github.com/snapcore/spread/cmd/spread
-/tmp/go/bin/spread -v adhoc:
+/tmp/go/bin/spread -v autopkgtest:

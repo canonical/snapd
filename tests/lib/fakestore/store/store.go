@@ -164,7 +164,7 @@ var errInfo = errors.New("cannot get info")
 func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Backstore) (*essentialInfo, error) {
 	snapFile, err := snap.Open(fn)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can not read: %v: %v", fn, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot read: %v: %v", fn, err), http.StatusBadRequest)
 		return nil, errInfo
 	}
 
@@ -282,7 +282,7 @@ func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
 	// should look nice
 	out, err := json.MarshalIndent(details, "", "    ")
 	if err != nil {
-		http.Error(w, fmt.Sprintf("can't marshal: %v: %v", details, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot marshal: %v: %v", details, err), http.StatusBadRequest)
 		return
 	}
 	w.Write(out)
@@ -343,7 +343,7 @@ func (s *Store) bulkEndpoint(w http.ResponseWriter, req *http.Request) {
 
 	decoder := json.NewDecoder(req.Body)
 	if err := decoder.Decode(&pkgs); err != nil {
-		http.Error(w, fmt.Sprintf("can't decode request body: %v", err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("cannot decode request body: %v", err), http.StatusBadRequest)
 		return
 	}
 

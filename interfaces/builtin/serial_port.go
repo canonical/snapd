@@ -50,12 +50,6 @@ var serialDeviceNodePattern = regexp.MustCompile("^/dev/tty[A-Z]{1,3}[0-9]{1,3}$
 // are also specified
 var serialUdevSymlinkPattern = regexp.MustCompile("^/dev/serial-port-[a-z0-9]+$")
 
-// Strings used to build up the udev snippet
-const udevHeader string = `IMPORT{builtin}="usb_id"`
-const udevDevicePrefix string = `SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="%04x", ATTRS{idProduct}=="%04x"`
-const udevSymlinkSuffix string = `, SYMLINK+="%s"`
-const udevTagSuffix string = `, TAG+="%s"`
-
 // SanitizeSlot checks validity of the defined slot
 func (iface *SerialPortInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	// Check slot is of right type
@@ -134,13 +128,8 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 		if !ok || path == "" {
 			return nil, nil
 		}
-		var udevSnippet bytes.Buffer
-		udevSnippet.WriteString(udevHeader + "\n")
-		udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, usbVendor, usbProduct))
-		udevSnippet.WriteString(fmt.Sprintf(udevSymlinkSuffix, strings.TrimPrefix(path, "/dev/")))
-		udevSnippet.WriteString("\n")
-		return udevSnippet.Bytes(), nil
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount:
+		return udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -150,7 +139,7 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 // ConnectedSlotSnippet no extra permissions granted on connection
 func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -160,7 +149,7 @@ func (iface *SerialPortInterface) ConnectedSlotSnippet(plug *interfaces.Plug, sl
 // PermanentPlugSnippet no permissions provided to plug permanently
 func (iface *SerialPortInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -194,14 +183,12 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 			return nil, nil
 		}
 		var udevSnippet bytes.Buffer
-		udevSnippet.WriteString(udevHeader + "\n")
 		for appName := range plug.Apps {
-			udevSnippet.WriteString(fmt.Sprintf(udevDevicePrefix, usbVendor, usbProduct))
 			tag := fmt.Sprintf("snap_%s_%s", plug.Snap.Name(), appName)
-			udevSnippet.WriteString(fmt.Sprintf(udevTagSuffix, tag) + "\n")
+			udevSnippet.Write(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
 		}
 		return udevSnippet.Bytes(), nil
-	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount:
+	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

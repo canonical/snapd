@@ -424,7 +424,7 @@ apps:
 	snapR, err = os.Open(snapPath)
 	c.Assert(err, IsNil)
 
-	ts, err = snapstate.Update(st, "foo", "stable", 0, 0)
+	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -668,7 +668,7 @@ apps:
 	c.Assert(err, ErrorMatches, ".*no such file.*")
 
 	// now do the revert
-	ts, err := snapstate.Revert(st, "foo")
+	ts, err := snapstate.Revert(st, "foo", snapstate.Flags(0))
 	c.Assert(err, IsNil)
 	chg := st.NewChange("revert-snap", "...")
 	chg.AddAll(ts)

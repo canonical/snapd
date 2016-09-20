@@ -45,6 +45,37 @@ type fakeOp struct {
 	old string
 }
 
+type fakeOps []fakeOp
+
+func (ops fakeOps) Ops() []string {
+	opsOps := make([]string, len(ops))
+	for i, op := range ops {
+		opsOps[i] = op.op
+	}
+
+	return opsOps
+}
+
+func (ops fakeOps) Count(op string) int {
+	n := 0
+	for i := range ops {
+		if ops[i].op == op {
+			n++
+		}
+	}
+	return n
+}
+
+func (ops fakeOps) First(op string) *fakeOp {
+	for i := range ops {
+		if ops[i].op == op {
+			return &ops[i]
+		}
+	}
+
+	return nil
+}
+
 type fakeDownload struct {
 	name     string
 	macaroon string
@@ -196,7 +227,7 @@ func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState)
 }
 
 type fakeSnappyBackend struct {
-	ops []fakeOp
+	ops fakeOps
 
 	linkSnapFailTrigger     string
 	copySnapDataFailTrigger string
@@ -244,6 +275,14 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Type = snap.TypeOS
 	}
 	return info, nil
+}
+
+func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
+	f.ops = append(f.ops, fakeOp{
+		op:    "cleanup-trash",
+		name:  si.Name(),
+		revno: si.Revision,
+	})
 }
 
 func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
