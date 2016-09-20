@@ -58,7 +58,7 @@ func init() {
 		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
 	}, []argDesc{{
 		name: "<snap>",
-		desc: i18n.G("snap name"),
+		desc: i18n.G("Snap name"),
 	}})
 }
 
@@ -75,6 +75,10 @@ func (x *cmdBuy) Execute(args []string) error {
 
 func buySnap(opts *store.BuyOptions) error {
 	cli := Client()
+
+	if !cli.LoggedIn() {
+		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
+	}
 
 	if strings.ContainsAny(opts.SnapName, ":*") {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)

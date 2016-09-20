@@ -38,7 +38,7 @@ func snapIcon(info *snap.Info) string {
 	// XXX: copy of snap.Snap.Icon which will go away
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return ""
+		return info.IconURL
 	}
 
 	return found[0]
