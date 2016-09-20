@@ -31,9 +31,11 @@ import (
 )
 
 type SnapOptions struct {
-	Channel  string `json:"channel,omitempty"`
-	DevMode  bool   `json:"devmode,omitempty"`
-	JailMode bool   `json:"jailmode,omitempty"`
+	Channel   string `json:"channel,omitempty"`
+	Revision  string `json:"revision,omitempty"`
+	DevMode   bool   `json:"devmode,omitempty"`
+	JailMode  bool   `json:"jailmode,omitempty"`
+	Dangerous bool   `json:"dangerous,omitempty"`
 }
 
 type actionData struct {
@@ -179,6 +181,7 @@ func sendSnapFile(snapPath string, snapFile *os.File, pw *io.PipeWriter, mw *mul
 		mw.WriteField("channel", action.Channel),
 		mw.WriteField("devmode", strconv.FormatBool(action.DevMode)),
 		mw.WriteField("jailmode", strconv.FormatBool(action.JailMode)),
+		mw.WriteField("dangerous", strconv.FormatBool(action.Dangerous)),
 	}
 	for _, err := range errs {
 		if err != nil {

@@ -51,7 +51,7 @@ func (b *witnessRestartReqStateBackend) Checkpoint([]byte) error {
 	return nil
 }
 
-func (b *witnessRestartReqStateBackend) RequestRestart() {
+func (b *witnessRestartReqStateBackend) RequestRestart(t state.RestartType) {
 	b.restartRequested = true
 }
 
@@ -172,7 +172,7 @@ func (s *linkSnapSuite) TestDoLinkSnapTryToCleanupOnError(c *C) {
 	c.Assert(err, Equals, state.ErrNoState)
 
 	// tried to cleanup
-	c.Check(s.fakeBackend.ops, DeepEquals, []fakeOp{
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{
 		{
 			op:    "candidate",
 			sinfo: *si,
@@ -222,7 +222,7 @@ func (s *linkSnapSuite) TestDoLinkSnapSuccessCoreRestarts(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.stateBackend.restartRequested, Equals, true)
 	c.Check(t.Log(), HasLen, 1)
-	c.Check(t.Log()[0], Matches, `.*INFO Restarting snapd\.\.\.`)
+	c.Check(t.Log()[0], Matches, `.*INFO Requested daemon restart\.`)
 }
 
 func (s *linkSnapSuite) TestDoUndoLinkSnapSequenceDidNotHaveCandidate(c *C) {

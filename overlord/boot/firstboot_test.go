@@ -40,6 +40,8 @@ import (
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -126,16 +128,67 @@ version: 1.0`
 	err := os.Rename(mockSnapFile, targetSnapFile)
 	c.Assert(err, IsNil)
 
+	// put a firstboot local snap into the SnapBlobDir
+	snapYaml = `name: local
+version: 1.0`
+	mockSnapFile = snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+	targetSnapFile2 := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
+	err = os.Rename(mockSnapFile, targetSnapFile2)
+	c.Assert(err, IsNil)
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+	devAcctFn := filepath.Join(dirs.SnapSeedDir, "assertions", "developer.account")
+	err = ioutil.WriteFile(devAcctFn, asserts.Encode(devAcct), 0644)
+	c.Assert(err, IsNil)
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "snapidsnapid",
+		"publisher-id": "developerid",
+		"snap-name":    "foo",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	declFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-declaration")
+	err = ioutil.WriteFile(declFn, asserts.Encode(snapDecl), 0644)
+	c.Assert(err, IsNil)
+
+	sha3_384, size, err := asserts.SnapFileSHA3_384(targetSnapFile)
+	c.Assert(err, IsNil)
+
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": sha3_384,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       "snapidsnapid",
+		"developer-id":  "developerid",
+		"snap-revision": "128",
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	revFn := filepath.Join(dirs.SnapSeedDir, "assertions", "foo.snap-revision")
+	err = ioutil.WriteFile(revFn, asserts.Encode(snapRev), 0644)
+	c.Assert(err, IsNil)
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c)
+	for i, as := range assertsChain {
+		fn := filepath.Join(dirs.SnapSeedDir, "assertions", strconv.Itoa(i))
+		err := ioutil.WriteFile(fn, asserts.Encode(as), 0644)
+		c.Assert(err, IsNil)
+	}
+
 	// create a seed.yaml
 	content := []byte(fmt.Sprintf(`
 snaps:
  - name: foo
-   revision: 128
-   snap-id: snapidsnapid
-   developer-id: developerid
    file: %s
    devmode: true
-`, filepath.Base(targetSnapFile)))
+ - name: local
+   unasserted: true
+   file: %s
+`, filepath.Base(targetSnapFile), filepath.Base(targetSnapFile2)))
 	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
@@ -146,6 +199,8 @@ snaps:
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
 
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "local", "x1", "meta", "snap.yaml")), Equals, true)
+
 	// verify
 	r, err := os.Open(dirs.SnapStateFile)
 	c.Assert(err, IsNil)
@@ -154,15 +209,157 @@ snaps:
 
 	state.Lock()
 	defer state.Unlock()
+	// check foo
 	info, err := snapstate.CurrentInfo(state, "foo")
 	c.Assert(err, IsNil)
-	c.Assert(info.SideInfo.SnapID, Equals, "snapidsnapid")
-	c.Assert(info.SideInfo.DeveloperID, Equals, "developerid")
+	c.Assert(info.SnapID, Equals, "snapidsnapid")
+	c.Assert(info.Revision, Equals, snap.R(128))
+	c.Assert(info.DeveloperID, Equals, "developerid")
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(state, "foo", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.DevMode(), Equals, true)
+
+	// check local
+	info, err = snapstate.CurrentInfo(state, "local")
+	c.Assert(err, IsNil)
+	c.Assert(info.SnapID, Equals, "")
+	c.Assert(info.Revision, Equals, snap.R("x1"))
+	c.Assert(info.DeveloperID, Equals, "")
+}
+
+func writeAssertionsToFile(fn string, assertions []asserts.Assertion) {
+	multifn := filepath.Join(dirs.SnapSeedDir, "assertions", fn)
+	f, err := os.Create(multifn)
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	enc := asserts.NewEncoder(f)
+	for _, a := range assertions {
+		err := enc.Encode(a)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func (s *FirstBootTestSuite) TestPopulateFromSeedHappyMultiAssertsFiles(c *C) {
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml := `name: foo
+version: 1.0`
+	mockSnapFile := snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+	fooSnapFile := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
+	err := os.Rename(mockSnapFile, fooSnapFile)
+	c.Assert(err, IsNil)
+
+	// put a 2nd firstboot snap into the SnapBlobDir
+	snapYaml = `name: bar
+version: 1.0`
+	mockSnapFile = snaptest.MakeTestSnapWithFiles(c, snapYaml, nil)
+	barSnapFile := filepath.Join(dirs.SnapSeedDir, "snaps", filepath.Base(mockSnapFile))
+	err = os.Rename(mockSnapFile, barSnapFile)
+	c.Assert(err, IsNil)
+
+	devAcct := assertstest.NewAccount(s.storeSigning, "developer", map[string]interface{}{
+		"account-id": "developerid",
+	}, "")
+
+	snapDeclFoo, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foosnapidsnapid",
+		"publisher-id": "developerid",
+		"snap-name":    "foo",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	sha3_384, size, err := asserts.SnapFileSHA3_384(fooSnapFile)
+	c.Assert(err, IsNil)
+
+	snapRevFoo, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": sha3_384,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       "foosnapidsnapid",
+		"developer-id":  "developerid",
+		"snap-revision": "128",
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	writeAssertionsToFile("foo.asserts", []asserts.Assertion{devAcct, snapRevFoo, snapDeclFoo})
+
+	snapDeclBar, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "barsnapidsnapid",
+		"publisher-id": "developerid",
+		"snap-name":    "bar",
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	sha3_384, size, err = asserts.SnapFileSHA3_384(barSnapFile)
+	c.Assert(err, IsNil)
+
+	snapRevBar, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": sha3_384,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       "barsnapidsnapid",
+		"developer-id":  "developerid",
+		"snap-revision": "65",
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	writeAssertionsToFile("bar.asserts", []asserts.Assertion{devAcct, snapDeclBar, snapRevBar})
+
+	// add a model assertion and its chain
+	assertsChain := s.makeModelAssertionChain(c)
+	writeAssertionsToFile("model.asserts", assertsChain)
+
+	// create a seed.yaml
+	content := []byte(fmt.Sprintf(`
+snaps:
+ - name: foo
+   file: %s
+ - name: bar
+   file: %s
+`, filepath.Base(fooSnapFile), filepath.Base(barSnapFile)))
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
+	c.Assert(err, IsNil)
+
+	// run the firstboot stuff
+	err = boot.PopulateStateFromSeed()
+	c.Assert(err, IsNil)
+
+	// and check the snap got correctly installed
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
+
+	// and check the snap got correctly installed
+	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "bar", "65", "meta", "snap.yaml")), Equals, true)
+
+	// verify
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	state, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	state.Lock()
+	defer state.Unlock()
+	// check foo
+	info, err := snapstate.CurrentInfo(state, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(info.SnapID, Equals, "foosnapidsnapid")
+	c.Assert(info.Revision, Equals, snap.R(128))
+	c.Assert(info.DeveloperID, Equals, "developerid")
+
+	// check bar
+	info, err = snapstate.CurrentInfo(state, "bar")
+	c.Assert(err, IsNil)
+	c.Assert(info.SnapID, Equals, "barsnapidsnapid")
+	c.Assert(info.Revision, Equals, snap.R(65))
+	c.Assert(info.DeveloperID, Equals, "developerid")
 }
 
 func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.Model {
@@ -171,12 +368,10 @@ func (s *FirstBootTestSuite) makeModelAssertion(c *C, modelStr string) *asserts.
 		"authority-id": "my-brand",
 		"brand-id":     "my-brand",
 		"model":        modelStr,
-		"class":        "my-class",
 		"architecture": "amd64",
 		"store":        "canonical",
 		"gadget":       "pc",
 		"kernel":       "pc-kernel",
-		"core":         "core",
 		"timestamp":    time.Now().Format(time.RFC3339),
 	}
 	model, err := s.brandSigning.Sign(asserts.ModelType, headers, nil, "")
@@ -259,7 +454,7 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 	// try import and verify that its rejects because other assertions are
 	// missing
 	err = boot.ImportAssertionsFromSeed(st)
-	c.Assert(err, ErrorMatches, "cannot find account-key/.*: assertion not found")
+	c.Assert(err, ErrorMatches, "cannot find account-key .*: assertion not found")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
@@ -303,4 +498,30 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 	// missing
 	err = boot.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "need a model assertion")
+}
+
+func (s *FirstBootTestSuite) TestFirstBootOnClassicNoEnableEther(c *C) {
+	release.MockOnClassic(true)
+	firstBootEnableFirstEtherRun := false
+	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
+		firstBootEnableFirstEtherRun = true
+		return nil
+	})
+	defer restore()
+
+	c.Assert(boot.FirstBoot(), IsNil)
+	c.Assert(firstBootEnableFirstEtherRun, Equals, false)
+}
+
+func (s *FirstBootTestSuite) TestFirstBootnableEther(c *C) {
+	release.MockOnClassic(false)
+	firstBootEnableFirstEtherRun := false
+	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
+		firstBootEnableFirstEtherRun = true
+		return nil
+	})
+	defer restore()
+
+	c.Assert(boot.FirstBoot(), IsNil)
+	c.Assert(firstBootEnableFirstEtherRun, Equals, true)
 }

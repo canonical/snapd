@@ -28,6 +28,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 type typeFlags int
@@ -57,14 +58,17 @@ var (
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
+	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
 
 // ...
 )
 
 // Assertion types without a definite authority set (on the wire and/or self-signed).
 var (
-	SerialProofType   = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
-	SerialRequestType = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	DeviceSessionRequestType = &AssertionType{"device-session-request", []string{"brand-id", "model", "serial"}, assembleDeviceSessionRequest, noAuthority}
+	SerialProofType          = &AssertionType{"serial-proof", nil, assembleSerialProof, noAuthority}
+	SerialRequestType        = &AssertionType{"serial-request", nil, assembleSerialRequest, noAuthority}
+	AccountKeyRequestType    = &AssertionType{"account-key-request", []string{"public-key-sha3-384"}, assembleAccountKeyRequest, noAuthority}
 )
 
 var typeRegistry = map[string]*AssertionType{
@@ -75,9 +79,12 @@ var typeRegistry = map[string]*AssertionType{
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
+	ValidationType.Name:      ValidationType,
 	// no authority
-	SerialProofType.Name:   SerialProofType,
-	SerialRequestType.Name: SerialRequestType,
+	DeviceSessionRequestType.Name: DeviceSessionRequestType,
+	SerialProofType.Name:          SerialProofType,
+	SerialRequestType.Name:        SerialRequestType,
+	AccountKeyRequestType.Name:    AccountKeyRequestType,
 }
 
 // Type returns the AssertionType with name or nil
@@ -89,6 +96,24 @@ func Type(name string) *AssertionType {
 type Ref struct {
 	Type       *AssertionType
 	PrimaryKey []string
+}
+
+func (ref *Ref) String() string {
+	pkStr := "-"
+	n := len(ref.Type.PrimaryKey)
+	if n != len(ref.PrimaryKey) {
+		pkStr = "???"
+	} else if n > 0 {
+		pkStr = ref.PrimaryKey[n-1]
+		if n > 1 {
+			sfx := []string{pkStr + ";"}
+			for i, k := range ref.Type.PrimaryKey[:n-1] {
+				sfx = append(sfx, fmt.Sprintf("%s:%s", k, ref.PrimaryKey[i]))
+			}
+			pkStr = strings.Join(sfx, " ")
+		}
+	}
+	return fmt.Sprintf("%s (%s)", ref.Type.Name, pkStr)
 }
 
 // Unique returns a unique string representing the reference that can be used as a key in maps.
@@ -140,6 +165,12 @@ type Assertion interface {
 
 	// Ref returns a reference representing this assertion.
 	Ref() *Ref
+}
+
+// customSigner represents an assertion with special arrangements for its signing key (e.g. self-signed), rather than the usual case where an assertion is signed by its authority.
+type customSigner interface {
+	// signKey returns the public key material for the key that signed this assertion.  See also SignKeyID.
+	signKey() PublicKey
 }
 
 // MediaType is the media type for encoded assertions on the wire.
@@ -512,6 +543,10 @@ func assemble(headers map[string]interface{}, body, content, signature []byte) (
 		return nil, fmt.Errorf("assertion body length and declared body-length don't match: %v != %v", len(body), length)
 	}
 
+	if !utf8.Valid(body) {
+		return nil, fmt.Errorf("body is not utf8")
+	}
+
 	if _, err := checkDigest(headers, "sign-key-sha3-384", crypto.SHA3_384); err != nil {
 		return nil, fmt.Errorf("assertion: %v", err)
 	}
@@ -579,6 +614,12 @@ func assembleAndSign(assertType *AssertionType, headers map[string]interface{}, 
 	err = checkHeaders(headers)
 	if err != nil {
 		return nil, err
+	}
+
+	// there's no hint at all that we will need non-textual bodies,
+	// make sure we actually enforce that
+	if !utf8.Valid(body) {
+		return nil, fmt.Errorf("assertion body is not utf8")
 	}
 
 	finalHeaders := copyHeaders(headers)

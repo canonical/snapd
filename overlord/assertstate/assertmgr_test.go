@@ -21,7 +21,6 @@ package assertstate_test
 
 import (
 	"crypto"
-	"encoding/hex"
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
@@ -76,12 +75,12 @@ func (sto *fakeStore) Assertion(assertType *asserts.AssertionType, key []string,
 	ref := &asserts.Ref{Type: assertType, PrimaryKey: key}
 	a, err := ref.Resolve(sto.db.Find)
 	if err != nil {
-		return nil, store.ErrAssertionNotFound
+		return nil, &store.AssertionNotFoundError{Ref: ref}
 	}
 	return a, nil
 }
 
-func (sto *fakeStore) Snap(name, channel string, devmode bool, user *auth.UserState) (*snap.Info, error) {
+func (*fakeStore) Snap(string, string, bool, snap.Revision, *auth.UserState) (*snap.Info, error) {
 	panic("fakeStore.Snap not expected")
 }
 
@@ -181,10 +180,6 @@ func makeDigest(rev int) string {
 	return string(d)
 }
 
-func makeHexDigest(rev int) string {
-	return hex.EncodeToString(fakeHash(rev))
-}
-
 func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
 	err := s.storeSigning.Add(s.dev1Acct)
 	c.Assert(err, IsNil)
@@ -217,7 +212,7 @@ func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
 	}
 }
 
-func (s *assertMgrSuite) TestFetch(c *C) {
+func (s *assertMgrSuite) TestDoFetch(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
 	s.state.Lock()
@@ -228,7 +223,9 @@ func (s *assertMgrSuite) TestFetch(c *C) {
 		PrimaryKey: []string{makeDigest(10)},
 	}
 
-	err := assertstate.Fetch(s.state, ref, 0)
+	err := assertstate.DoFetch(s.state, 0, func(f asserts.Fetcher) error {
+		return f.Fetch(ref)
+	})
 	c.Assert(err, IsNil)
 
 	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
@@ -246,8 +243,11 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		Type:       asserts.SnapRevisionType,
 		PrimaryKey: []string{makeDigest(10)},
 	}
+	fetching := func(f asserts.Fetcher) error {
+		return f.Fetch(ref)
+	}
 
-	err := assertstate.Fetch(s.state, ref, 0)
+	err := assertstate.DoFetch(s.state, 0, fetching)
 	c.Assert(err, IsNil)
 
 	ref = &asserts.Ref{
@@ -255,7 +255,7 @@ func (s *assertMgrSuite) TestFetchIdempotent(c *C) {
 		PrimaryKey: []string{makeDigest(11)},
 	}
 
-	err = assertstate.Fetch(s.state, ref, 0)
+	err = assertstate.DoFetch(s.state, 0, fetching)
 	c.Assert(err, IsNil)
 
 	snapRev, err := ref.Resolve(assertstate.DB(s.state).Find)
@@ -342,119 +342,6 @@ func (s *assertMgrSuite) TestValidateSnapNotFound(c *C) {
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot verify snap "foo", no matching signatures found.*`)
 }
 
-func (s *assertMgrSuite) TestCrossCheckSnapErrors(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// add in prereqs assertions
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-
-	headers := map[string]interface{}{
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-name":    "foo",
-		"publisher-id": s.dev1Acct.AccountID(),
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDecl)
-	c.Assert(err, IsNil)
-
-	digest := makeDigest(12)
-	size := uint64(len(fakeSnap(12)))
-	headers = map[string]interface{}{
-		"snap-id":       "snap-id-1",
-		"snap-sha3-384": digest,
-		"snap-size":     fmt.Sprintf("%d", size),
-		"snap-revision": "12",
-		"developer-id":  s.dev1Acct.AccountID(),
-		"timestamp":     time.Now().Format(time.RFC3339),
-	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapRev)
-	c.Assert(err, IsNil)
-
-	si := &snap.SideInfo{
-		SnapID:   "snap-id-1",
-		Revision: snap.R(12),
-	}
-
-	// different size
-	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size+1, si)
-	c.Check(err, ErrorMatches, fmt.Sprintf(`snap "foo" file does not have expected size according to signatures \(download is broken or tampered\): %d != %d`, size+1, size))
-
-	// mismatched revision vs what we got from store original info
-	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, &snap.SideInfo{
-		SnapID:   "snap-id-1",
-		Revision: snap.R(21),
-	})
-	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 21 / snap-id-1 != 12 / snap-id-1`)
-
-	// mismatched snap id vs what we got from store original info
-	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, &snap.SideInfo{
-		SnapID:   "snap-id-other",
-		Revision: snap.R(12),
-	})
-	c.Check(err, ErrorMatches, `snap "foo" does not have expected ID or revision according to assertions \(metadata is broken or tampered\): 12 / snap-id-other != 12 / snap-id-1`)
-
-	// changed name
-	err = assertstate.CrossCheckSnap(s.state, "baz", digest, size, si)
-	c.Check(err, ErrorMatches, `cannot install snap "baz" that is undergoing a rename to "foo"`)
-
-}
-
-func (s *assertMgrSuite) TestCrossCheckSnapRevokedSnapDecl(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	// add in prereqs assertions
-	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, s.dev1Acct)
-	c.Assert(err, IsNil)
-
-	// revoked snap declaration (snap-name=="") !
-	headers := map[string]interface{}{
-		"series":       "16",
-		"snap-id":      "snap-id-1",
-		"snap-name":    "",
-		"publisher-id": s.dev1Acct.AccountID(),
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapDecl)
-	c.Assert(err, IsNil)
-
-	digest := makeDigest(12)
-	size := uint64(len(fakeSnap(12)))
-	headers = map[string]interface{}{
-		"snap-id":       "snap-id-1",
-		"snap-sha3-384": digest,
-		"snap-size":     fmt.Sprintf("%d", size),
-		"snap-revision": "12",
-		"developer-id":  s.dev1Acct.AccountID(),
-		"timestamp":     time.Now().Format(time.RFC3339),
-	}
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(s.state, snapRev)
-	c.Assert(err, IsNil)
-
-	si := &snap.SideInfo{
-		SnapID:   "snap-id-1",
-		Revision: snap.R(12),
-	}
-
-	err = assertstate.CrossCheckSnap(s.state, "foo", digest, size, si)
-	c.Check(err, ErrorMatches, `cannot install snap "foo" with a revoked snap declaration`)
-}
-
 func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.prereqSnapAssertions(c, 10)
 
@@ -486,4 +373,111 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	s.state.Lock()
 
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
+}
+
+func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := s.storeSigning.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "foo",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDeclFoo, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "bar-id",
+		"snap-name":    "bar",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	snapDeclBar, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclBar)
+	c.Assert(err, IsNil)
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", SnapID: "foo-id", Revision: snap.R(7)},
+		},
+		Current: snap.R(7),
+	})
+	snapstate.Set(s.state, "bar", &snapstate.SnapState{
+		Active: false,
+		Sequence: []*snap.SideInfo{
+			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(3)},
+		},
+		Current: snap.R(3),
+	})
+	snapstate.Set(s.state, "local", &snapstate.SnapState{
+		Active: false,
+		Sequence: []*snap.SideInfo{
+			{RealName: "local", Revision: snap.R(-1)},
+		},
+		Current: snap.R(-1),
+	})
+
+	// previous state
+	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+
+	// one changed assertion
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "fo-o",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo1)
+	c.Assert(err, IsNil)
+
+	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+
+	// another one
+	// one changed assertion
+	headers = s.dev1Acct.Headers()
+	headers["display-name"] = "Dev 1 edited display-name"
+	headers["revision"] = "1"
+	dev1Acct1, err := s.storeSigning.Sign(asserts.AccountType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(dev1Acct1)
+	c.Assert(err, IsNil)
+
+	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err = assertstate.DB(s.state).Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.Account).DisplayName(), Equals, "Dev 1 edited display-name")
 }

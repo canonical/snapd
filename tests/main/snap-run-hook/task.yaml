@@ -1,13 +1,9 @@
 summary: Check that `snap run` can actually run hooks
 
-systems: [-ubuntu-core-16-64]
-
 prepare: |
-    echo "Ensure we have a core snap with snap run"
-    $SPREAD_PATH/tests/lib/reset.sh
-    snap install --channel=candidate ubuntu-core
+    echo "Build test hooks package"
     snapbuild $TESTSLIB/snaps/basic-hooks .
-    snap install basic-hooks_1.0_all.snap
+    snap install --dangerous basic-hooks_1.0_all.snap
 
     # We want to use the in-tree snap-exec, not the one in the core snap. To
     # accomplish that, we'll just unpack the core we just grabbed, shove the new
@@ -15,8 +11,8 @@ prepare: |
 
     # First of all, unmount the core
     systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
+    core="$(readlink -f /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
 
     # Now unpack the core, inject the new snap-exec into it, and repack it.
@@ -24,6 +20,7 @@ prepare: |
     cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
     mv "$snap" "${snap}.orig"
     mksquashfs squashfs-root "$snap" -comp xz
+    rm -rf squashfs-root
 
     # Now mount the new core snap
     mount "$snap" "$core"
@@ -40,15 +37,12 @@ restore: |
 
     # Unmount the modified core snap, and put the old one back in place
     systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
+    core="$(readlink -f /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
     umount "$core"
     mv "${snap}.orig" "$snap"
     mount "$snap" "$core"
     systemctl start snapd.service
-
-    # do not leave a mess around
-    rm -rf squashfs-root
 
 execute: |
     # Note that `snap run` doesn't exit non-zero if the hook is missing, so we

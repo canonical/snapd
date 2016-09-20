@@ -12,7 +12,7 @@ summary: |
 prepare: |
     echo "Given a snap declaring a plug on the hardware-observe interface is installed"
     snapbuild $TESTSLIB/snaps/hardware-observe-consumer .
-    snap install hardware-observe-consumer_1.0_all.snap
+    snap install --dangerous hardware-observe-consumer_1.0_all.snap
 
 restore: |
     rm -f hardware-observe-consumer_1.0_all.snap hw.error

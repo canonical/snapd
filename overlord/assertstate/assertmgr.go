@@ -24,16 +24,16 @@ package assertstate
 
 import (
 	"fmt"
+	"strings"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -113,56 +113,51 @@ func userFromUserID(st *state.State, userID int) (*auth.UserState, error) {
 	return auth.User(st, userID)
 }
 
-type assertionNotFoundError struct {
-	ref *asserts.Ref
+type fetcher struct {
+	db *asserts.Database
+	asserts.Fetcher
+	fetched []asserts.Assertion
 }
 
-func (e *assertionNotFoundError) Error() string {
-	return fmt.Sprintf("%s %v not found", e.ref.Type.Name, e.ref.PrimaryKey)
-}
-
-// fetch fetches or updates the referenced assertion and all its prerequisites from the store and adds them to the system assertion database. It does not fail if required assertions were already present.
-func fetch(s *state.State, ref *asserts.Ref, userID int) error {
-	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
-
-	user, err := userFromUserID(s, userID)
-	if err != nil {
-		return err
-	}
-
+// newFetches creates a fetcher used to retrieve assertions from the store and later commit them to the system database in one go.
+func newFetcher(s *state.State, user *auth.UserState) *fetcher {
 	db := cachedDB(s)
 	sto := snapstate.Store(s)
 
-	s.Unlock()
-	defer s.Lock()
-
-	got := []asserts.Assertion{}
+	f := &fetcher{db: db}
 
 	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
 		// TODO: ignore errors if already in db?
-		a, err := sto.Assertion(ref.Type, ref.PrimaryKey, user)
-		if err == store.ErrAssertionNotFound {
-			return nil, &assertionNotFoundError{ref}
-		}
-		return a, err
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
 	}
 
 	save := func(a asserts.Assertion) error {
-		got = append(got, a)
+		f.fetched = append(f.fetched, a)
 		return nil
 	}
 
-	f := asserts.NewFetcher(db, retrieve, save)
+	f.Fetcher = asserts.NewFetcher(db, retrieve, save)
 
-	if err := f.Fetch(ref); err != nil {
-		return err
+	return f
+}
+
+type commitError struct {
+	errs []error
+}
+
+func (e *commitError) Error() string {
+	l := []string{""}
+	for _, e := range e.errs {
+		l = append(l, e.Error())
 	}
+	return fmt.Sprintf("cannot add some assertions to the system database:%s", strings.Join(l, "\n - "))
+}
 
-	s.Lock()
-	defer s.Unlock()
-
-	for _, a := range got {
-		err := db.Add(a)
+// commit does a best effort of adding all the fetched assertions to the system database.
+func (f *fetcher) commit() error {
+	var errs []error
+	for _, a := range f.fetched {
+		err := f.db.Add(a)
 		if revErr, ok := err.(*asserts.RevisionError); ok {
 			if revErr.Current >= a.Revision() {
 				// be idempotent
@@ -170,15 +165,37 @@ func fetch(s *state.State, ref *asserts.Ref, userID int) error {
 				continue
 			}
 		}
-		// TODO: trigger w. caller a global sanity check if a is revoked
-		// (but try to save as much possible still),
-		// or err is a check error
 		if err != nil {
-			return err
+			errs = append(errs, err)
 		}
 	}
-
+	if len(errs) != 0 {
+		return &commitError{errs: errs}
+	}
 	return nil
+}
+
+func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) error {
+	// TODO: once we have a bulk assertion retrieval endpoint this approach will change
+
+	user, err := userFromUserID(s, userID)
+	if err != nil {
+		return err
+	}
+
+	f := newFetcher(s, user)
+
+	s.Unlock()
+	err = fetching(f)
+	s.Lock()
+	if err != nil {
+		return err
+	}
+
+	// TODO: trigger w. caller a global sanity check if a is revoked
+	// (but try to save as much possible still),
+	// or err is a check error
+	return f.commit()
 }
 
 // doValidateSnap fetches the relevant assertions for the snap being installed and cross checks them with the snap.
@@ -196,15 +213,11 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// for now starting from the snap-revision will get us all other relevant assertions
-	ref := &asserts.Ref{
-		Type:       asserts.SnapRevisionType,
-		PrimaryKey: []string{sha3_384},
-	}
-
-	err = fetch(t.State(), ref, ss.UserID)
-	if notFound, ok := err.(*assertionNotFoundError); ok {
-		if notFound.ref.Type == asserts.SnapRevisionType {
+	err = doFetch(t.State(), ss.UserID, func(f asserts.Fetcher) error {
+		return snapasserts.FetchSnapAssertions(f, sha3_384)
+	})
+	if notFound, ok := err.(*store.AssertionNotFoundError); ok {
+		if notFound.Ref.Type == asserts.SnapRevisionType {
 			return fmt.Errorf("cannot verify snap %q, no matching signatures found", ss.Name())
 		} else {
 			return fmt.Errorf("cannot find signatures to verify snap %q and its hash (%v)", ss.Name(), notFound)
@@ -214,8 +227,12 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = crossCheckSnap(t.State(), ss.Name(), sha3_384, snapSize, ss.SideInfo)
+	db := DB(t.State())
+	err = snapasserts.CrossCheck(ss.Name(), sha3_384, snapSize, ss.SideInfo, db)
 	if err != nil {
+		// TODO: trigger a global sanity check
+		// that will generate the changes to deal with this
+		// for things like snap-decl revocation and renames?
 		return err
 	}
 
@@ -223,53 +240,26 @@ func doValidateSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func crossCheckSnap(st *state.State, name, snapSHA3_384 string, snapSize uint64, si *snap.SideInfo) error {
-	// get relevant assertions and do cross checks
-	db := DB(st)
-
-	a, err := db.Find(asserts.SnapRevisionType, map[string]string{
-		"snap-sha3-384": snapSHA3_384,
-	})
+// RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
+func RefreshSnapDeclarations(s *state.State, userID int) error {
+	snapStates, err := snapstate.All(s)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot find just fetched snap-revision assertion for %q: %s", name, snapSHA3_384)
+		return nil
 	}
-	snapRev := a.(*asserts.SnapRevision)
-
-	if snapRev.SnapSize() != snapSize {
-		return fmt.Errorf("snap %q file does not have expected size according to signatures (download is broken or tampered): %d != %d", name, snapSize, snapRev.SnapSize())
+	fetching := func(f asserts.Fetcher) error {
+		for _, snapState := range snapStates {
+			info, err := snapState.CurrentInfo()
+			if err != nil {
+				return err
+			}
+			if info.SnapID == "" {
+				continue
+			}
+			if err := snapasserts.FetchSnapDeclaration(f, info.SnapID); err != nil {
+				return fmt.Errorf("cannot refresh snap-declaration for %q: %v", info.Name(), err)
+			}
+		}
+		return nil
 	}
-
-	snapID := si.SnapID
-
-	if snapRev.SnapID() != snapID || snapRev.SnapRevision() != si.Revision.N {
-		// we have at least 2 cases here, what's the best message?
-		// - an unsuccesufl MITM
-		// - broken store metadata resulting into broken assertions
-		//   (more likely if it is snap-revision not matching)
-		//   people would need to report this
-		return fmt.Errorf("snap %q does not have expected ID or revision according to assertions (metadata is broken or tampered): %s / %s != %d / %s", name, si.Revision, snapID, snapRev.SnapRevision(), snapRev.SnapID())
-	}
-
-	a, err = db.Find(asserts.SnapDeclarationType, map[string]string{
-		"series":  release.Series,
-		"snap-id": snapID,
-	})
-	if err != nil {
-		return fmt.Errorf("internal error: cannot find just fetched snap declaration for %q: %s", name, snapID)
-	}
-	snapDecl := a.(*asserts.SnapDeclaration)
-
-	if snapDecl.SnapName() == "" {
-		// TODO: trigger a global sanity check
-		// that will generate the changes to deal with this
-		return fmt.Errorf("cannot install snap %q with a revoked snap declaration", name)
-	}
-
-	if snapDecl.SnapName() != name {
-		// TODO: trigger a global sanity check
-		// that will generate the changes to deal with this
-		return fmt.Errorf("cannot install snap %q that is undergoing a rename to %q", name, snapDecl.SnapName())
-	}
-
-	return nil
+	return doFetch(s, userID, fetching)
 }

@@ -66,6 +66,10 @@ func ensureGPGHomeDirectory() (string, error) {
 // test suite).  GnuPG 1 is still supported so it's reasonable to continue
 // using that for now.
 func findGPGCommand() (string, error) {
+	if path := os.Getenv("SNAP_GNUPG_CMD"); path != "" {
+		return path, nil
+	}
+
 	path, err := exec.LookPath("gpg1")
 	if err != nil {
 		path, err = exec.LookPath("gpg")
@@ -77,6 +81,18 @@ func runGPGImpl(input []byte, args ...string) ([]byte, error) {
 	homedir, err := ensureGPGHomeDirectory()
 	if err != nil {
 		return nil, err
+	}
+
+	// Ensure the gpg-agent knows what tty to talk to to ask for
+	// the passphrase. This is needed because we drive gpg over
+	// a pipe and if the agent is not already started it will
+	// fail to be able to ask for a password.
+	if os.Getenv("GPG_TTY") == "" {
+		tty, err := os.Readlink("/proc/self/fd/0")
+		if err != nil {
+			return nil, err
+		}
+		os.Setenv("GPG_TTY", tty)
 	}
 
 	general := []string{"--homedir", homedir, "-q", "--no-auto-check-trustdb"}
@@ -147,7 +163,7 @@ func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 // Walk iterates over all the RSA private keys in the local GPG setup calling the provided callback until this returns an error
 func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint string, uid string) error) error {
 	// see GPG source doc/DETAILS
-	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons")
+	out, err := gkm.gpg(nil, "--batch", "--list-secret-keys", "--fingerprint", "--with-colons", "--fixed-list-mode")
 	if err != nil {
 		return err
 	}
@@ -161,6 +177,7 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 	}
 	lines = lines[:n]
 	for j := 0; j < n; j++ {
+		// sec: line
 		line := lines[j]
 		if !strings.HasPrefix(line, "sec:") {
 			continue
@@ -174,24 +191,42 @@ func (gkm *GPGKeypairManager) Walk(consider func(privk PrivateKey, fingerprint s
 		}
 		keyID := secFields[4]
 		uid := ""
-		if len(secFields) >= 10 {
-			uid = secFields[9]
+		fpr := ""
+		var privKey PrivateKey
+		// look for fpr:, uid: lines, order may vary and gpg2.1
+		// may springle additional lines in (like gpr:)
+	Loop:
+		for k := j + 1; k < n && !strings.HasPrefix(lines[k], "sec:"); k++ {
+			switch {
+			case strings.HasPrefix(lines[k], "fpr:"):
+				fprFields := strings.Split(lines[k], ":")
+				// extract "Field 10 - User-ID"
+				// A FPR record stores the fingerprint here.
+				if len(fprFields) < 10 {
+					break Loop
+				}
+				fpr = fprFields[9]
+				if !strings.HasSuffix(fpr, keyID) {
+					break // strange, skip
+				}
+				privKey, err = gkm.retrieve(fpr)
+				if err != nil {
+					return err
+				}
+			case strings.HasPrefix(lines[k], "uid:"):
+				uidFields := strings.Split(lines[k], ":")
+				// extract "*** Field 10 - User-ID"
+				if len(uidFields) < 10 {
+					break Loop
+				}
+				uid = uidFields[9]
+			}
 		}
-		if j+1 >= n || !strings.HasPrefix(lines[j+1], "fpr:") {
+		// sanity checking
+		if privKey == nil || uid == "" {
 			continue
 		}
-		fprFields := strings.Split(lines[j+1], ":")
-		if len(fprFields) < 10 {
-			continue
-		}
-		fpr := fprFields[9]
-		if !strings.HasSuffix(fpr, keyID) {
-			continue // strange, skip
-		}
-		privKey, err := gkm.retrieve(fpr)
-		if err != nil {
-			return err
-		}
+		// collected it all
 		err = consider(privKey, fpr, uid)
 		if err != nil {
 			return err
@@ -234,7 +269,7 @@ func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, 
 }
 
 type gpgKeypairInfo struct {
-	pubKey      PublicKey
+	privKey     PrivateKey
 	fingerprint string
 }
 
@@ -244,7 +279,7 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	match := func(privk PrivateKey, fpr string, uid string) error {
 		if uid == name {
 			hit = &gpgKeypairInfo{
-				pubKey:      privk.PublicKey(),
+				privKey:     privk,
 				fingerprint: fpr,
 			}
 			return stop
@@ -261,15 +296,31 @@ func (gkm *GPGKeypairManager) findByName(name string) (*gpgKeypairInfo, error) {
 	return nil, fmt.Errorf("cannot find key named %q in GPG keyring", name)
 }
 
+// GetByName looks up a private key by name and returns it.
+func (gkm *GPGKeypairManager) GetByName(name string) (PrivateKey, error) {
+	keyInfo, err := gkm.findByName(name)
+	if err != nil {
+		return nil, err
+	}
+	return keyInfo.privKey, nil
+}
+
 var generateTemplate = `
 Key-Type: RSA
 Key-Length: 4096
-Subkey-Type: RSA
-Subkey-Length: 4096
 Name-Real: %s
-Creation-Date: %s
+Creation-Date: seconds=%d
 Preferences: SHA512
 `
+
+func (gkm *GPGKeypairManager) parametersForGenerate(passphrase string, name string) string {
+	fixedCreationTime := v1FixedTimestamp.Unix()
+	generateParams := fmt.Sprintf(generateTemplate, name, fixedCreationTime)
+	if passphrase != "" {
+		generateParams += "Passphrase: " + passphrase + "\n"
+	}
+	return generateParams
+}
 
 // Generate creates a new key with the given passphrase and name.
 func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
@@ -277,11 +328,7 @@ func (gkm *GPGKeypairManager) Generate(passphrase string, name string) error {
 	if err == nil {
 		return fmt.Errorf("key named %q already exists in GPG keyring", name)
 	}
-	fixedCreationTime := v1FixedTimestamp.Format("20060102T030405")
-	generateParams := fmt.Sprintf(generateTemplate, name, fixedCreationTime)
-	if passphrase != "" {
-		generateParams += "Passphrase: " + passphrase + "\n"
-	}
+	generateParams := gkm.parametersForGenerate(passphrase, name)
 	_, err = gkm.gpg([]byte(generateParams), "--batch", "--gen-key")
 	if err != nil {
 		return err
@@ -295,11 +342,7 @@ func (gkm *GPGKeypairManager) Export(name string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	encoded, err := EncodePublicKey(keyInfo.pubKey)
-	if err != nil {
-		return nil, err
-	}
-	return encoded, nil
+	return EncodePublicKey(keyInfo.privKey.PublicKey())
 }
 
 // Delete removes the named key pair from GnuPG's storage.
