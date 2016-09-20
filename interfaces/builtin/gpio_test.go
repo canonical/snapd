@@ -100,7 +100,7 @@ func (s *GpioInterfaceSuite) TestName(c *C) {
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
-	// gpio slot on gadget accepeted
+	// gpio slot on gadget accepted
 	err := s.iface.SanitizeSlot(s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 
@@ -108,7 +108,7 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 	err = s.iface.SanitizeSlot(s.gadgetMissingNumberSlot)
 	c.Assert(err, ErrorMatches, "gpio slot must have a number attribute")
 
-	// slots with number attribute that isnt a number
+	// slots with number attribute that isn't a number
 	err = s.iface.SanitizeSlot(s.gadgetBadNumberSlot)
 	c.Assert(err, ErrorMatches, "gpio slot number attribute must be an int")
 
@@ -117,7 +117,7 @@ func (s *GpioInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 }
 
 func (s *GpioInterfaceSuite) TestSanitizeSlotOsSnap(c *C) {
-	// gpio slot on OS accepeted
+	// gpio slot on OS accepted
 	err := s.iface.SanitizeSlot(s.osGpioSlot)
 	c.Assert(err, IsNil)
 }
