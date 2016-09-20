@@ -203,3 +203,74 @@ func (s *DockerSupportInterfaceSuite) TestSanitizePlugNotDockerOtherDev(c *C) {
 	}})
 	c.Assert(err, ErrorMatches, "docker-support interface is reserved for the upstream docker project")
 }
+
+func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedTrue(c *C) {
+	var mockSnapYaml = []byte(`name: docker
+version: 1.0
+plugs:
+ privileged:
+  interface: docker-support
+  privileged-containers: true
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "docker"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
+
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `change_profile -> *,`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), testutil.Contains, `@unrestricted`)
+}
+
+func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedFalse(c *C) {
+	var mockSnapYaml = []byte(`name: docker
+version: 1.0
+plugs:
+ privileged:
+  interface: docker-support
+  privileged-containers: false
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "docker"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, IsNil)
+
+	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), Not(testutil.Contains), `change_profile -> *,`)
+
+	snippet, err = s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecuritySecComp)
+	c.Assert(err, IsNil)
+	c.Assert(string(snippet), Not(testutil.Contains), `@unrestricted`)
+}
+
+func (s *DockerSupportInterfaceSuite) TestSanitizePlugWithPrivilegedBad(c *C) {
+	var mockSnapYaml = []byte(`name: docker
+version: 1.0
+plugs:
+ privileged:
+  interface: docker-support
+  privileged-containers: bad
+`)
+
+	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
+	c.Assert(err, IsNil)
+	info.SideInfo = snap.SideInfo{Developer: "docker"}
+
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["privileged"]}
+	err = s.iface.SanitizePlug(plug)
+	c.Assert(err, Not(IsNil))
+	c.Assert(err, ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
+}

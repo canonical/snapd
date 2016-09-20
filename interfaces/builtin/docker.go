@@ -118,10 +118,10 @@ func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	snapName := slot.Snap.Name()
-	//devName := slot.Snap.Developer
+	devName := slot.Snap.Developer
 	// The docker slot interface can only by used with the docker project
 	// and Canonical
-	if snapName != "docker" { // || (devName != "canonical" && devName != "docker") {
+	if snapName != "docker" || (devName != "canonical" && devName != "docker") {
 		return fmt.Errorf("docker slot interface is reserved for the upstream docker project")
 	}
 	return nil
