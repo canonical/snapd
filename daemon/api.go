@@ -738,7 +738,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 		return "", nil, nil, err
 	}
 
-	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID, assertstate.ValidateRefreshes)
+	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -797,7 +797,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags, assertstate.ValidateRefreshes)
+	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}

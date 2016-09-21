@@ -454,7 +454,7 @@ apps:
 	snapPath, digest = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, 0, assertstate.ValidateRefreshes)
+	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
 	chg = st.NewChange("upgrade-snap", "...")
 	chg.AddAll(ts)
@@ -633,9 +633,9 @@ version: @VERSION@
 	snapPath, _ = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
 	ms.serveSnap(snapPath, revno)
 
-	updated, tss, err := snapstate.UpdateMany(st, []string{"foo"}, 0, assertstate.ValidateRefreshes)
+	updated, tss, err := snapstate.UpdateMany(st, []string{"foo"}, 0)
 	// no validation we, get an error
-	c.Check(err, ErrorMatches, `(?s).*cannot validate refresh for "foo" \(50\).*`)
+	c.Check(err, ErrorMatches, `cannot refresh "foo" to revision 50: no validation by "bar"`)
 
 	// setup validation
 	headers = map[string]interface{}{
@@ -651,7 +651,7 @@ version: @VERSION@
 	c.Assert(err, IsNil)
 
 	// ... and try again
-	updated, tss, err = snapstate.UpdateMany(st, []string{"foo"}, 0, assertstate.ValidateRefreshes)
+	updated, tss, err = snapstate.UpdateMany(st, []string{"foo"}, 0)
 	c.Assert(err, IsNil)
 	c.Assert(updated, DeepEquals, []string{"foo"})
 	c.Assert(tss, HasLen, 1)
