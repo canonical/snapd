@@ -28,8 +28,9 @@ import (
 )
 
 type progress struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+	Info  string `json:"info"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
 }
 
 // Task represents an individual operation to be performed
@@ -201,19 +202,19 @@ func (t *Task) Change() *Change {
 // Progress returns the current progress for the task.
 // If progress is not explicitly set, it returns
 // (0, 1) if the status is DoStatus and (1, 1) otherwise.
-func (t *Task) Progress() (done, total int) {
+func (t *Task) Progress() (info string, done, total int) {
 	t.state.reading()
 	if t.progress == nil {
 		if t.Status() == DoStatus {
-			return 0, 1
+			return "", 0, 1
 		}
-		return 1, 1
+		return "", 1, 1
 	}
-	return t.progress.Done, t.progress.Total
+	return t.progress.Info, t.progress.Done, t.progress.Total
 }
 
 // SetProgress sets the task progress to cur out of total steps.
-func (t *Task) SetProgress(done, total int) {
+func (t *Task) SetProgress(info string, done, total int) {
 	// Only mark state for checkpointing if progress is final.
 	if total > 0 && done == total {
 		t.state.writing()
@@ -224,7 +225,7 @@ func (t *Task) SetProgress(done, total int) {
 		// Doing math wrong is easy. Be conservative.
 		t.progress = nil
 	} else {
-		t.progress = &progress{Done: done, Total: total}
+		t.progress = &progress{Info: info, Done: done, Total: total}
 	}
 }
 

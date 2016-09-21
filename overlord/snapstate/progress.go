@@ -27,12 +27,14 @@ import (
 // until we have native install/update/remove.
 type TaskProgressAdapter struct {
 	task    *state.Task
+	info    string
 	total   float64
 	current float64
 }
 
 // Start sets total
 func (t *TaskProgressAdapter) Start(pkg string, total float64) {
+	t.info = pkg
 	t.total = total
 }
 
@@ -40,7 +42,7 @@ func (t *TaskProgressAdapter) Start(pkg string, total float64) {
 func (t *TaskProgressAdapter) Set(current float64) {
 	t.task.State().Lock()
 	defer t.task.State().Unlock()
-	t.task.SetProgress(int(current), int(t.total))
+	t.task.SetProgress(t.info, int(current), int(t.total))
 }
 
 // SetTotal sets tht maximum progress
@@ -52,16 +54,16 @@ func (t *TaskProgressAdapter) SetTotal(total float64) {
 func (t *TaskProgressAdapter) Finished() {
 	t.task.State().Lock()
 	defer t.task.State().Unlock()
-	t.task.SetProgress(int(t.total), int(t.total))
+	t.task.SetProgress(t.info, int(t.total), int(t.total))
 }
 
-// Write does nothing
+// Write sets the current write progress
 func (t *TaskProgressAdapter) Write(p []byte) (n int, err error) {
 	t.task.State().Lock()
 	defer t.task.State().Unlock()
 
 	t.current += float64(len(p))
-	t.task.SetProgress(int(t.current), int(t.total))
+	t.task.SetProgress(t.info, int(t.current), int(t.total))
 	return len(p), nil
 }
 
