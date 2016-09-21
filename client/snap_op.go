@@ -65,6 +65,10 @@ func (client *Client) Remove(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("remove", name, options)
 }
 
+func (client *Client) RemoveMany(names []string) (changeID string, err error) {
+	return client.doMultiSnapAction("remove", names, nil)
+}
+
 // Refresh refreshes the snap with the given name (switching it to track
 // the given channel if given).
 func (client *Client) Refresh(name string, options *SnapOptions) (changeID string, err error) {
