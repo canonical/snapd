@@ -96,8 +96,13 @@ func (s *snapctlSuite) TestSnapctlWithArgs(c *C) {
 	c.Check(string(stderr), Equals, "test stderr")
 }
 
-func (s *snapctlSuite) TestSnapctlWithoutContextShouldError(c *C) {
+func (s *snapctlSuite) TestSnapctlHelp(c *C) {
 	os.Unsetenv("SNAP_CONTEXT")
+	s.expectedContextID = ""
+
+	os.Args = []string{"snapctl", "-h"}
+	s.expectedArgs = []string{"-h"}
+
 	_, _, err := run()
-	c.Check(err, ErrorMatches, ".*requires SNAP_CONTEXT.*")
+	c.Check(err, IsNil)
 }
