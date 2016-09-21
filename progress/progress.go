@@ -99,12 +99,13 @@ func NewTextProgress() *TextProgress {
 }
 
 // Start starts showing progress
-func (t *TextProgress) Start(pkg string, total float64) {
+func (t *TextProgress) Start(info string, total float64) {
 	// TODO go to New64 once we update the pb package.
 	t.pbar = pb.New(0)
 	t.pbar.Total = int64(total)
 	t.pbar.ShowSpeed = true
 	t.pbar.Units = pb.U_BYTES
+	t.pbar.Prefix(info)
 	t.pbar.Start()
 }
 
