@@ -29,7 +29,7 @@ execute: |
     ! udevadm info $UDEVADM_PATH | grep -Pq "E: TAGS=.*?snap_test-snapd-tools_env"
 
     echo "And the device is not shown in the snap device list"
-    ! grep -q $DEVICE_ID /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
+    ! grep -q "$DEVICE_ID" /sys/fs/cgroup/devices/snap.test-snapd-tools.env/devices.list
 
     echo "================================================="
 
