@@ -92,21 +92,11 @@ func (iface *DbusAppInterface) Name() string {
 }
 
 func (iface *DbusAppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DbusAppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -146,20 +136,12 @@ func (iface *DbusAppInterface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 		return snippets.Bytes(), nil
 	case interfaces.SecuritySecComp:
 		return []byte(dbusAppPermanentSlotSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *DbusAppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // Obtain yaml-specified DBus well-known names by bus
