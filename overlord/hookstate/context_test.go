@@ -104,3 +104,27 @@ func (s *contextSuite) TestGetIsolatedFromTask(c *C) {
 	var output string
 	c.Check(s.context.Get("foo", &output), NotNil, Commentf("Expected context data to be isolated from task"))
 }
+
+func (s *contextSuite) TestCache(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	c.Check(s.context.Cached("foo"), IsNil)
+
+	s.context.Cache("foo", "bar")
+	c.Check(s.context.Cached("foo"), Equals, "bar")
+
+	// Test another non-existing key, but after the context cache was created.
+	c.Check(s.context.Cached("baz"), IsNil)
+}
+
+func (s *contextSuite) TestDone(c *C) {
+	called := false
+	s.context.OnDone(func() error {
+		called = true
+		return nil
+	})
+
+	s.context.done()
+	c.Check(called, Equals, true, Commentf("Expected finalizer to be called"))
+}
