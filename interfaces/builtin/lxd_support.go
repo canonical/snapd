@@ -49,7 +49,7 @@ func (iface *LxdSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, se
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
+		interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -63,7 +63,7 @@ func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	case interfaces.SecuritySecComp:
 		return []byte(lxdSupportConnectedPlugSecComp), nil
 	case interfaces.SecurityDBus, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
+		interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -74,7 +74,7 @@ func (iface *LxdSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
+		interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -85,7 +85,7 @@ func (iface *LxdSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, sl
 	switch securitySystem {
 	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
+		interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

@@ -356,7 +356,7 @@ func (iface *UDisks2Interface) Name() string {
 
 func (iface *UDisks2Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -374,7 +374,7 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		return []byte(udisks2ConnectedPlugDBus), nil
 	case interfaces.SecuritySecComp:
 		return []byte(udisks2ConnectedPlugSecComp), nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -391,7 +391,7 @@ func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 		return []byte(udisks2PermanentSlotSecComp), nil
 	case interfaces.SecurityUDev:
 		return []byte(udisks2PermanentSlotUDev), nil
-	case interfaces.SecurityMount:
+	case interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -405,7 +405,7 @@ func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
+	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity

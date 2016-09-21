@@ -32,6 +32,7 @@ reset_classic() {
 }
 
 reset_all_snap() {
+    # remove all leftover snaps
     . $TESTSLIB/gadget.sh
     gadget_name=$(get_gadget_name)
     for snap in $(ls /snap); do
@@ -40,6 +41,12 @@ reset_all_snap() {
         fi
         snap remove $snap
     done
+
+    # ensure we have the same state as initially
+    systemctl stop snapd.service snapd.socket
+    $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
+    rm -rf /root/.snap
+    systemctl start snapd.service snapd.socket
 }
 
 if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then

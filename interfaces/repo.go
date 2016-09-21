@@ -716,6 +716,17 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
+// isLivePatchSnap checks special Name/Developer combinations to see
+// if this particular snap's connections should be automatically connected even
+// if the interfaces are not autoconnect and the snap is not an OS snap.
+// FIXME: remove once we have assertions that provide this feature
+func isLivePatchSnap(snap *snap.Info) bool {
+	if snap.Name() == "canonical-livepatch" && snap.DeveloperID == "canonical" {
+		return true
+	}
+	return false
+}
+
 // AutoConnectCandidates finds and returns viable auto-connection candidates
 // for a given plug.
 func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slot {
@@ -726,13 +737,11 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 	if plug == nil {
 		return nil
 	}
-	if r.ifaces[plug.Interface].AutoConnect() == false {
-		return nil
-	}
+
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if isAutoConnectCandidate(plug, slot) {
+			if r.isAutoConnectCandidate(plug, slot) {
 				candidates = append(candidates, slot)
 			}
 		}
@@ -742,7 +751,20 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 
 // isAutoConnectCandidate returns true if the plug is a candidate to
 // automatically connect to the given slot.
-func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
+func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
+	if slot.Interface != plug.Interface {
+		return false
+	}
+
+	// FIXME: remove once we have assertions that provide this feature
+	if isLivePatchSnap(plug.Snap) {
+		return true
+	}
+
+	if !r.ifaces[plug.Interface].AutoConnect() {
+		return false
+	}
+
 	// content sharing auto connect candidates
 	if slot.Interface == "content" {
 		if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
@@ -754,7 +776,7 @@ func isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
 	}
 
 	// OS snap auto connect candidates
-	if slot.Snap.Type == snap.TypeOS && slot.Interface == plug.Interface {
+	if slot.Snap.Type == snap.TypeOS {
 		return true
 	}
 

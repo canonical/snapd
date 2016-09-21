@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/dbus"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -35,6 +36,7 @@ var All = []interfaces.SecurityBackend{
 	&dbus.Backend{},
 	&udev.Backend{},
 	&mount.Backend{},
+	&kmod.Backend{},
 }
 
 func init() {
