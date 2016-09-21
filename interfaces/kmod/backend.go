@@ -35,6 +35,11 @@ func (b *Backend) Name() string {
 	return "kmod"
 }
 
+// Setup creates a conf file with list of kernel modules required by given snap,
+// writes it in /etc/modules-load.d/ directory and immediately loads the modules
+// using /sbin/modprobe. The devMode is ignored.
+//
+// If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repository) error {
 	snapName := snapInfo.Name()
 	// Get the snippets that apply to this snap
@@ -58,12 +63,20 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	return nil
 }
 
+// Remove removes modules config file specific to a given snap.
+//
+// This method should be called after removing a snap.
+//
+// If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
 	removeModulesFile(snapName)
 	return nil
 }
 
+// processSnipets combines security snippets collected from all the interfaces
+// affecting a given snap into a de-duplicated list of kernel modules.
 func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (modules [][]byte) {
+	// we need to de-duplicate the modules, as some interfaces may contain overlapping modules.
 	modulesDedup := make(map[string]struct{})
 	for _, appInfo := range snapInfo.Apps {
 		for _, snippet := range snippets[appInfo.SecurityTag()] {
