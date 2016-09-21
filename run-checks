@@ -80,8 +80,11 @@ if [ "$STATIC" = 1 ]; then
     echo Checking docs
     ./mdlint.py docs/*.md
 
+    dirs=$(find . -mindepth 1 -maxdepth 1 -type d|grep -v -E "vendor|\.git")
+    pkgs=$(go list ./...|grep -v /vendor/)
+
     echo Checking formatting
-    fmt=$(gofmt -l .)
+    fmt=$(gofmt -l $dirs)
 
     if [ -n "$fmt" ]; then
         echo "Formatting wrong in following files"
@@ -91,7 +94,7 @@ if [ "$STATIC" = 1 ]; then
 
     # go vet
     echo Running vet
-    go vet ./...
+    go vet $pkgs
 
     # golint
     echo Install golint
@@ -99,12 +102,18 @@ if [ "$STATIC" = 1 ]; then
     export PATH=$PATH:$GOPATH/bin
 
     echo Running lint
-    lint=$(golint ./...)
-    if [ -n "$lint" ]; then
-        echo "Lint complains:"
-        echo "$lint"
-        # don't exit 1
-    fi
+    complaints=0
+    for pkg in $pkgs ; do
+        lint=$(golint $pkg)
+        if [ -n "$lint" ]; then
+            if [ $complaints -eq 0 ] ; then
+                echo "Lint complains:"
+                complaints=1
+            fi
+            echo "$lint"
+            # don't exit 1
+        fi
+    done
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -120,7 +129,7 @@ if [ "$UNIT" = 1 ]; then
 
     # tests
     echo Running tests from $(pwd)
-    for pkg in $(go list ./...); do
+    for pkg in $(go list ./...|grep -v /vendor/); do
         $goctest -v -coverprofile=.coverage/profile.out $pkg
         append_coverage .coverage/profile.out
     done
