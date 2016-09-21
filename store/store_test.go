@@ -2574,9 +2574,7 @@ var readyToBuyTests = []readyToBuyTest{
 		},
 		Test: func(c *C, err error) {
 			c.Assert(err, NotNil)
-			c.Check(err.Error(), Equals, `message 1
-message 2
-`)
+			c.Check(err.Error(), Equals, `store reported an error: message 1`)
 		},
 	},
 }

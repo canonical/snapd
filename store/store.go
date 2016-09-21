@@ -1214,13 +1214,10 @@ type storeErrors struct {
 }
 
 func (s *storeErrors) Error() string {
-	message := ""
-
-	for _, e := range s.Errors {
-		message = message + e.Error() + "\n"
+	if len(s.Errors) == 0 {
+		return "internal error: empty store error used as an actual error"
 	}
-
-	return message
+	return "store reported an error: " + s.Errors[0].Error()
 }
 
 func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
@@ -1394,7 +1391,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return ErrTosNotAccepted
 		}
 		if !customer.HasPaymentMethod {
-			return ErrNoPaymentMethod
+			return ErrNoPaymentMethods
 		}
 		return nil
 	case http.StatusNotFound:
