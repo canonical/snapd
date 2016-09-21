@@ -893,3 +893,20 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 
 	return installed, tasksets, nil
 }
+
+// RemoveMany removes everything from the given list of names.
+// Note that the state must be locked by the caller.
+func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	removed := make([]string, 0, len(names))
+	tasksets := make([]*state.TaskSet, 0, len(names))
+	for _, name := range names {
+		ts, err := Remove(st, name, snap.R(0))
+		if err != nil {
+			return nil, nil, err
+		}
+		removed = append(removed, name)
+		tasksets = append(tasksets, ts)
+	}
+
+	return removed, tasksets, nil
+}

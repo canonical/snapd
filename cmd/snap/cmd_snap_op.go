@@ -161,14 +161,17 @@ and the snap can easily be enabled again.
 type cmdRemove struct {
 	Revision   string `long:"revision"`
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdRemove) Execute([]string) error {
+func (x *cmdRemove) removeOne() error {
+	name := x.Positional.Snaps[0]
+
 	cli := Client()
-	name := x.Positional.Snap
-	changeID, err := cli.Remove(name, &client.SnapOptions{Revision: x.Revision})
+	changeID, err := cli.Remove(name, &client.SnapOptions{
+		Revision: x.Revision},
+	)
 	if err != nil {
 		return err
 	}
@@ -179,6 +182,41 @@ func (x *cmdRemove) Execute([]string) error {
 
 	fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
 	return nil
+}
+
+func (x *cmdRemove) removeMany() error {
+	names := x.Positional.Snaps
+
+	cli := Client()
+	changeID, err := cli.RemoveMany(names)
+	if err != nil {
+		return err
+	}
+
+	chg, err := wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	var removed []string
+	if err := chg.Get("snap-names", &removed); err != nil && err != client.ErrNoData {
+		return err
+	}
+
+	if len(removed) > 0 {
+		return showDone(removed, "remove")
+	}
+
+	return nil
+
+}
+
+func (x *cmdRemove) Execute([]string) error {
+	if len(x.Positional.Snaps) == 1 {
+		return x.removeOne()
+	}
+
+	return x.removeMany()
 }
 
 type channelMixin struct {

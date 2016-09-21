@@ -651,6 +651,7 @@ var (
 	snapstateUpdate            = snapstate.Update
 	snapstateUpdateMany        = snapstate.UpdateMany
 	snapstateInstallMany       = snapstate.InstallMany
+	snapstateRemoveMany        = snapstate.RemoveMany
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -752,8 +753,8 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	return msg, updated, tasksets, nil
 }
 
-func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
-	updated, tasksets, err = snapstateInstallMany(st, inst.Snaps, inst.userID)
+func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, installed []string, tasksets []*state.TaskSet, err error) {
+	installed, tasksets, err = snapstateInstallMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
 	}
@@ -772,7 +773,7 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, update
 		msg = fmt.Sprintf(i18n.G("Install snaps %s"), strings.Join(quoted, ", "))
 	}
 
-	return msg, updated, tasksets, nil
+	return msg, installed, tasksets, nil
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -822,6 +823,29 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed []string, tasksets []*state.TaskSet, err error) {
+	removed, tasksets, err = snapstateRemoveMany(st, inst.Snaps)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		return "", nil, nil, fmt.Errorf("cannot remove zero snaps")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, removed, tasksets, nil
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -1013,8 +1037,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 
-	if inst.Action != "refresh" && inst.Action != "install" {
-		return BadRequest("only refresh/install supported for multi-snap operation right now")
+	if inst.Action != "refresh" && inst.Action != "install" && inst.Action != "remove" {
+		return BadRequest("only refresh/install/remove supported for multi-snap operation right now")
 	}
 
 	st := c.d.overlord.State()
@@ -1034,6 +1058,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		msg, affected, tsets, err = snapUpdateMany(&inst, st)
 	case "install":
 		msg, affected, tsets, err = snapInstallMany(&inst, st)
+	case "remove":
+		msg, affected, tsets, err = snapRemoveMany(&inst, st)
 	}
 	if err != nil {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
