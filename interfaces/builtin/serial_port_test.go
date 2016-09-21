@@ -24,7 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -60,7 +60,7 @@ var _ = Suite(&SerialPortInterfaceSuite{
 })
 
 func (s *SerialPortInterfaceSuite) SetUpTest(c *C) {
-	osSnapInfo, err := snap.InfoFromSnapYaml([]byte(`
+	osSnapInfo := snaptest.MockInfo(c, `
 name: ubuntu-core
 type: os
 slots:
@@ -87,8 +87,7 @@ slots:
         interface: serial-port
         path: /dev/ttyUSB9271
     bad-interface: other-interface
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	s.testSlot1 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-1"]}
 	s.testSlot2 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-2"]}
 	s.testSlot3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["test-port-3"]}
@@ -99,7 +98,7 @@ slots:
 	s.badPathSlot3 = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-path-3"]}
 	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: osSnapInfo.Slots["bad-interface"]}
 
-	gadgetSnapInfo, err := snap.InfoFromSnapYaml([]byte(`
+	gadgetSnapInfo := snaptest.MockInfo(c, `
 name: some-device
 type: gadget
 slots:
@@ -128,15 +127,14 @@ slots:
       usb-vendor: 0x789a
       usb-product: 0x4321
       path: /dev/my-device
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	s.testUdev1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-1"]}
 	s.testUdev2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-2"]}
 	s.testUdevBadValue1 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-1"]}
 	s.testUdevBadValue2 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-2"]}
 	s.testUdevBadValue3 = &interfaces.Slot{SlotInfo: gadgetSnapInfo.Slots["test-udev-bad-value-3"]}
 
-	consumingSnapInfo, err := snap.InfoFromSnapYaml([]byte(`
+	consumingSnapInfo := snaptest.MockInfo(c, `
 name: client-snap
 plugs:
     plug-for-port-1:
@@ -151,8 +149,7 @@ apps:
     app-accessing-2-ports:
         command: bar
         plugs: [plug-for-port-1, plug-for-port-2]
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	s.testPlugPort1 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-1"]}
 	s.testPlugPort2 = &interfaces.Plug{PlugInfo: consumingSnapInfo.Plugs["plug-for-port-2"]}
 }

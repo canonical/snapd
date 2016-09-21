@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -67,36 +68,32 @@ func (s *BrowserSupportInterfaceSuite) TestSanitizePlugNoAttrib(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithAttrib(c *C) {
-	var mockSnapYaml = []byte(`name: browser-support-plug-snap
+	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: true
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
-	err = s.iface.SanitizePlug(plug)
+	err := s.iface.SanitizePlug(plug)
 	c.Assert(err, IsNil)
 }
 
 func (s *BrowserSupportInterfaceSuite) TestSanitizePlugWithBadAttrib(c *C) {
-	var mockSnapYaml = []byte(`name: browser-support-plug-snap
+	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: bad
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
-	err = s.iface.SanitizePlug(plug)
+	err := s.iface.SanitizePlug(plug)
 	c.Assert(err, Not(IsNil))
 	c.Assert(err, ErrorMatches, "browser-support plug requires bool with 'allow-sandbox'")
 }
@@ -115,17 +112,15 @@ func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithoutAttrib(c *
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribFalse(c *C) {
-	var mockSnapYaml = []byte(`name: browser-support-plug-snap
+	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: false
-`)
+`
 
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
@@ -141,17 +136,14 @@ plugs:
 }
 
 func (s *BrowserSupportInterfaceSuite) TestConnectedPlugSnippetWithAttribTrue(c *C) {
-	var mockSnapYaml = []byte(`name: browser-support-plug-snap
+	const mockSnapYaml = `name: browser-support-plug-snap
 version: 1.0
 plugs:
  browser-support-plug:
   interface: browser-support
   allow-sandbox: true
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	plug := &interfaces.Plug{PlugInfo: info.Plugs["browser-support-plug"]}
 
 	snippet, err := s.iface.ConnectedPlugSnippet(plug, s.slot, interfaces.SecurityAppArmor)
