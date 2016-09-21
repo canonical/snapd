@@ -79,22 +79,3 @@ func (s *hooktestSuite) TestErrorError(c *C) {
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
 	c.Check(s.mockHandler.Err, Equals, err)
 }
-
-func (s *hooktestSuite) TestSetConfSingleCall(c *C) {
-	c.Check(s.mockHandler.SetConfCalls, IsNil)
-	s.mockHandler.SetConf("test-key", "test-value")
-	c.Check(s.mockHandler.SetConfCalls, HasLen, 1)
-	c.Check(s.mockHandler.SetConfCalls[0].Key, Equals, "test-key")
-	c.Check(s.mockHandler.SetConfCalls[0].Value, Equals, "test-value")
-}
-
-func (s *hooktestSuite) TestSetConfMultipleCalls(c *C) {
-	c.Check(s.mockHandler.SetConfCalls, IsNil)
-	s.mockHandler.SetConf("test-key1", "test-value1")
-	s.mockHandler.SetConf("test-key2", "test-value2")
-	c.Check(s.mockHandler.SetConfCalls, HasLen, 2)
-	c.Check(s.mockHandler.SetConfCalls[0].Key, Equals, "test-key1")
-	c.Check(s.mockHandler.SetConfCalls[0].Value, Equals, "test-value1")
-	c.Check(s.mockHandler.SetConfCalls[1].Key, Equals, "test-key2")
-	c.Check(s.mockHandler.SetConfCalls[1].Value, Equals, "test-value2")
-}

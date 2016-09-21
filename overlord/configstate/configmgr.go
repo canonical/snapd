@@ -40,20 +40,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager
 		state: s,
 	}
 
-	hookManager.Register(regexp.MustCompile("^apply-config$"), manager.newApplyConfigHandler)
+	hookManager.Register(regexp.MustCompile("^apply-config$"), newApplyConfigHandler)
 
 	return manager, nil
-}
-
-// NewTransaction returns a getter/setter for snap configs that runs all
-// operations on a copy of the system configuration until committed.
-func (m *ConfigManager) NewTransaction() *Transaction {
-	return newTransaction(m.state)
-}
-
-func (m *ConfigManager) newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
-	return &applyConfigHandler{
-		context:     context,
-		transaction: m.NewTransaction(),
-	}
 }

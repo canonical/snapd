@@ -17,7 +17,7 @@
  *
  */
 
-package configstate_test
+package transaction_test
 
 import (
 	"encoding/json"
@@ -25,40 +25,40 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/configstate/transaction"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func TestConfigstate(t *testing.T) { TestingT(t) }
+func TestTransaction(t *testing.T) { TestingT(t) }
 
 type transactionSuite struct {
-	state       *state.State
-	transaction *configstate.Transaction
+	state *state.State
+	t     *transaction.Transaction
 }
 
 var _ = Suite(&transactionSuite{})
 
 func (s *transactionSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
-	s.transaction = configstate.NewTransaction(s.state)
+	s.t = transaction.New(s.state)
 }
 
 func (s *transactionSuite) TestSetDoesNotTouchState(c *C) {
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
 
 	// Create a new transaction to grab a new snapshot of the state
-	transaction := configstate.NewTransaction(s.state)
+	transaction := transaction.New(s.state)
 	var value string
 	err := transaction.Get("test-snap", "foo", &value)
 	c.Check(err, NotNil, Commentf("Expected config set by first transaction to not be saved"))
 }
 
 func (s *transactionSuite) TestCommit(c *C) {
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
+	s.t.Commit()
 
 	// Create a new transaction to grab a new snapshot of the state
-	transaction := configstate.NewTransaction(s.state)
+	transaction := transaction.New(s.state)
 	var value string
 	err := transaction.Get("test-snap", "foo", &value)
 	c.Check(err, IsNil, Commentf("Expected config set by first transaction to be saved"))
@@ -67,12 +67,12 @@ func (s *transactionSuite) TestCommit(c *C) {
 
 func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 	// Set the initial config
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
+	s.t.Commit()
 
 	// Create two new transactions
-	transaction1 := configstate.NewTransaction(s.state)
-	transaction2 := configstate.NewTransaction(s.state)
+	transaction1 := transaction.New(s.state)
+	transaction2 := transaction.New(s.state)
 
 	// transaction1 will change the configuration item that is already present.
 	c.Check(transaction1.Set("test-snap", "foo", "baz"), IsNil)
@@ -85,7 +85,7 @@ func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 	// Now verify that the change made by both transactions actually took place
 	// (i.e. transaction1's change was not overridden by the old data in
 	// transaction2).
-	transaction := configstate.NewTransaction(s.state)
+	transaction := transaction.New(s.state)
 
 	var value string
 	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
@@ -97,25 +97,25 @@ func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 
 func (s *transactionSuite) TestGetNothing(c *C) {
 	var value string
-	err := s.transaction.Get("test-snap", "foo", &value)
+	err := s.t.Get("test-snap", "foo", &value)
 	c.Check(err, NotNil, Commentf("Expected Get to fail if key not set"))
 }
 
 func (s *transactionSuite) TestGetCachedWrites(c *C) {
 	// Get() should read the cached writes, even without a Commit()
-	s.transaction.Set("test-snap", "foo", "bar")
+	s.t.Set("test-snap", "foo", "bar")
 	var value string
-	err := s.transaction.Get("test-snap", "foo", &value)
+	err := s.t.Get("test-snap", "foo", &value)
 	c.Check(err, IsNil, Commentf("Expected 'test-snap' config to contain 'foo'"))
 	c.Check(value, Equals, "bar")
 }
 
 func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
 	// Set the initial config
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
+	s.t.Commit()
 
-	transaction := configstate.NewTransaction(s.state)
+	transaction := transaction.New(s.state)
 	c.Check(transaction.Set("test-snap", "baz", "qux"), IsNil)
 
 	// Now get both the cached write as well as the initial config
@@ -128,12 +128,12 @@ func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
 
 func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
 	// Set the initial config
-	c.Check(s.transaction.Set("test-snap", "foo", "initial"), IsNil)
-	s.transaction.Commit()
+	c.Check(s.t.Set("test-snap", "foo", "initial"), IsNil)
+	s.t.Commit()
 
 	// Create two new transactions
-	transaction1 := configstate.NewTransaction(s.state)
-	transaction2 := configstate.NewTransaction(s.state)
+	transaction1 := transaction.New(s.state)
+	transaction2 := transaction.New(s.state)
 
 	// Change the config in one
 	c.Check(transaction1.Set("test-snap", "foo", "updated"), IsNil)
@@ -146,24 +146,24 @@ func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
 }
 
 func (s *transactionSuite) TestSetUnmarshalable(c *C) {
-	err := s.transaction.Set("test-snap", "foo", func() {})
+	err := s.t.Set("test-snap", "foo", func() {})
 	c.Check(err, ErrorMatches, ".*cannot marshal snap.*config value.*")
 }
 
 func (s *transactionSuite) TestMarshalTransactionConfigOnly(c *C) {
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
+	s.t.Commit()
 
-	bytes, err := json.Marshal(s.transaction)
+	bytes, err := json.Marshal(s.t)
 	c.Check(err, IsNil)
 	c.Check(string(bytes), Equals,
 		"{\"config\":{\"test-snap\":{\"foo\":\"bar\"}},\"write-cache\":{}}")
 }
 
 func (s *transactionSuite) TestMarshalTransactionCacheOnly(c *C) {
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
 
-	bytes, err := json.Marshal(s.transaction)
+	bytes, err := json.Marshal(s.t)
 	c.Check(err, IsNil)
 	c.Check(string(bytes), Equals,
 		"{\"config\":{},\"write-cache\":{\"test-snap\":{\"foo\":\"bar\"}}}")
@@ -171,10 +171,10 @@ func (s *transactionSuite) TestMarshalTransactionCacheOnly(c *C) {
 
 func (s *transactionSuite) TestMarshalTransactionConfigAndCache(c *C) {
 	// Set an initial config
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
+	s.t.Commit()
 
-	transaction := configstate.NewTransaction(s.state)
+	transaction := transaction.New(s.state)
 
 	// Make another, uncommitted change
 	c.Check(transaction.Set("test-snap", "baz", "qux"), IsNil)
@@ -189,21 +189,21 @@ func (s *transactionSuite) TestMarshalTransactionConfigAndCache(c *C) {
 
 func (s *transactionSuite) TestUnmarshalTransaction(c *C) {
 	// Set an initial config
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
+	s.t.Commit()
 
-	transaction := configstate.NewTransaction(s.state)
+	t := transaction.New(s.state)
 
 	// Make another, uncommitted change
-	c.Check(transaction.Set("test-snap", "baz", "qux"), IsNil)
+	c.Check(t.Set("test-snap", "baz", "qux"), IsNil)
 
 	// Now marshal the transaction, and expect to see the initial config along
 	// with the write cache.
-	bytes, err := json.Marshal(transaction)
+	bytes, err := json.Marshal(t)
 	c.Check(err, IsNil)
 
 	// Now unmarshal into a new transaction
-	newTransaction := configstate.NewTransaction(s.state)
+	newTransaction := transaction.New(s.state)
 	err = json.Unmarshal(bytes, &newTransaction)
 	c.Check(err, IsNil)
 
