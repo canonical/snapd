@@ -31,10 +31,11 @@ import (
 
 // Context represents the context under which a given hook is running.
 type Context struct {
-	task    *state.Task
-	setup   *HookSetup
-	id      string
-	handler Handler
+	task      *state.Task
+	setup     *HookSetup
+	id        string
+	handler   Handler
+	finalizer func() error
 }
 
 // NewContext returns a new Context.
@@ -89,8 +90,8 @@ func (c *Context) Unlock() {
 	c.task.State().Unlock()
 }
 
-// Set associates value with key.
-// The provided value must properly marshal and unmarshal with encoding/json.
+// Set associates value with key. The provided value must properly marshal and
+// unmarshal with encoding/json.
 func (c *Context) Set(key string, value interface{}) {
 	var data map[string]*json.RawMessage
 	if err := c.task.Get("hook-context", &data); err != nil {
@@ -125,5 +126,42 @@ func (c *Context) Get(key string, value interface{}) error {
 		return fmt.Errorf("cannot unmarshal context value for %q: %s", key, err)
 	}
 
+	return nil
+}
+
+// Cached returns the cached value associated with the provided key.
+// It returns nil if there is no entry for key.
+func (c *Context) Cached(key interface{}) interface{} {
+	contextCache := c.task.State().Cached("hook-context")
+	cache, ok := contextCache.(map[interface{}]interface{})
+	if !ok {
+		return nil
+	}
+
+	return cache[key]
+}
+
+// Cache associates value with key. The cached value is not persisted.
+func (c *Context) Cache(key, value interface{}) {
+	contextCache := c.task.State().Cached("hook-context")
+	cache, ok := contextCache.(map[interface{}]interface{})
+	if !ok {
+		cache = make(map[interface{}]interface{})
+	}
+	cache[key] = value
+	c.task.State().Cache("hook-context", cache)
+}
+
+// OnDone requests the provided finalizer to be run once the context knows it's
+// complete.
+func (c *Context) OnDone(finalizer func() error) {
+	c.finalizer = finalizer
+}
+
+// done is called to notify the context that its hook has exited successfully.
+func (c *Context) done() error {
+	if c.finalizer != nil {
+		return c.finalizer()
+	}
 	return nil
 }
