@@ -103,6 +103,11 @@ prepare: |
             classic "GOPATH=$GOPATH go get ..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
+        mkdir -p /etc/systemd/system/snapd.socket.d
+        cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    EOF
         exit 0
     fi
 
