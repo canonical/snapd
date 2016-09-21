@@ -134,9 +134,8 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		}
 	case interfaces.SecuritySecComp:
 		return []byte(pulseaudioConnectedPlugSecComp), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -145,9 +144,8 @@ func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 		return []byte(pulseaudioPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(pulseaudioPermanentSlotSecComp), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

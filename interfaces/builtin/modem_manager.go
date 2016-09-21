@@ -1172,9 +1172,8 @@ func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, 
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return modemManagerConnectedPlugSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -1187,9 +1186,8 @@ func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, 
 		return modemManagerPermanentSlotUdev, nil
 	case interfaces.SecurityDBus:
 		return modemManagerPermanentSlotDBus, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -1199,9 +1197,8 @@ func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, 
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *ModemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {

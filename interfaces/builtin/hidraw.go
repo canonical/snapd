@@ -129,9 +129,8 @@ func (iface *HidrawInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 			return nil, nil
 		}
 		return udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // ConnectedSlotSnippet no extra permissions granted on connection
@@ -176,9 +175,8 @@ func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 			udevSnippet.Write(udevUsbDeviceSnippet("hidraw", usbVendor, usbProduct, "TAG", tag))
 		}
 		return udevSnippet.Bytes(), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // AutoConnect indicates whether this type of interface should allow autoconnect

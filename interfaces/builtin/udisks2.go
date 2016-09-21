@@ -369,9 +369,8 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		return []byte(udisks2ConnectedPlugDBus), nil
 	case interfaces.SecuritySecComp:
 		return []byte(udisks2ConnectedPlugSecComp), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -384,9 +383,8 @@ func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 		return []byte(udisks2PermanentSlotSecComp), nil
 	case interfaces.SecurityUDev:
 		return []byte(udisks2PermanentSlotUDev), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -396,9 +394,8 @@ func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *UDisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
