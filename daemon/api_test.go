@@ -1049,8 +1049,8 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
 		map[string]interface{}{
 			"url":    "http://example.com/screenshot.png",
-			"width":  800,
-			"height": 1280,
+			"width":  float64(800),
+			"height": float64(1280),
 		},
 		map[string]interface{}{
 			"url": "http://example.com/screenshot2.png",
