@@ -128,29 +128,6 @@ func (s *NetworkManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLab
 	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
 
-func (s *NetworkManagerInterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityDBus,
-		interfaces.SecurityUDev}
-	for _, system := range systems {
-		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-}
-
 func (s *NetworkManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}

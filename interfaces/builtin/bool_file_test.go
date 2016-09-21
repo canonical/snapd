@@ -238,40 +238,6 @@ func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetPanicksOnUnsanitizedSlo
 	}, PanicMatches, "slot is not sanitized")
 }
 
-func (s *BoolFileInterfaceSuite) TestConnectedSlotSnippetUnusedSecuritySystems(c *C) {
-	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
-		// No extra seccomp permissions for slot
-		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecuritySecComp)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for slot
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityDBus)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for slot
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-}
-
-func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c *C) {
-	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
-		// No extra seccomp permissions for slot
-		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecuritySecComp)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for slot
-		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityDBus)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for slot
-		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-}
-
 func (s *BoolFileInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, false)
 }
