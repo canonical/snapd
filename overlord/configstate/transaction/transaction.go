@@ -17,7 +17,9 @@
  *
  */
 
-package configstate
+// Package transaction contains the transactional get/set logic for snap
+// configurations.
+package transaction
 
 import (
 	"encoding/json"
@@ -45,7 +47,8 @@ type Transaction struct {
 type snapConfig map[string]*json.RawMessage
 type systemConfig map[string]snapConfig
 
-func newTransaction(state *state.State) *Transaction {
+// New creates a new config transaction initialized with the given state.
+func New(state *state.State) *Transaction {
 	state.Lock()
 	defer state.Unlock()
 
@@ -135,10 +138,12 @@ func (t *Transaction) Commit() {
 	t.data.WriteCache = make(systemConfig)
 }
 
+// MarshalJSON marshals this transaction into JSON bytes.
 func (t *Transaction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(t.data)
 }
 
+// UnmarshalJSON unmarshals the JSON bytes into a transaction.
 func (t *Transaction) UnmarshalJSON(bytes []byte) error {
 	return json.Unmarshal(bytes, &t.data)
 }

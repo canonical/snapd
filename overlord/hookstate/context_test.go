@@ -125,6 +125,6 @@ func (s *contextSuite) TestDone(c *C) {
 		return nil
 	})
 
-	s.context.done()
+	s.context.Done()
 	c.Check(called, Equals, true, Commentf("Expected finalizer to be called"))
 }

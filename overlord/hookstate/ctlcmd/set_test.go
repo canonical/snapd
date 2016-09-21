@@ -57,29 +57,50 @@ func (s *setSuite) TestInvalidArguments(c *C) {
 }
 
 func (s *setSuite) TestCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar"})
-	c.Check(err, IsNil)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-
-	// Verify that the handler's SetConf function was called appropriately
-	c.Assert(s.mockHandler.SetConfCalls, HasLen, 1)
-	c.Check(s.mockHandler.SetConfCalls[0].Key, Equals, "foo")
-	c.Check(s.mockHandler.SetConfCalls[0].Value, Equals, "bar")
-}
-
-func (s *setSuite) TestCommandMultipleValues(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar", "baz=qux"})
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 
-	// Verify that the handler's SetConf function was called appropriately
-	c.Assert(s.mockHandler.SetConfCalls, HasLen, 2)
-	c.Check(s.mockHandler.SetConfCalls[0].Key, Equals, "foo")
-	c.Check(s.mockHandler.SetConfCalls[0].Value, Equals, "bar")
-	c.Check(s.mockHandler.SetConfCalls[1].Key, Equals, "baz")
-	c.Check(s.mockHandler.SetConfCalls[1].Value, Equals, "qux")
+	// Verify that the previous set doesn't modify the global state
+	t := s.mockContext.NewTransaction()
+	var value string
+	c.Check(t.Get("test-snap", "foo", &value), ErrorMatches, ".*no config available.*")
+	c.Check(t.Get("test-snap", "baz", &value), ErrorMatches, ".*no config available.*")
+
+	// Notify the context that we're done. This should save the config.
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	t = s.mockContext.NewTransaction()
+	c.Check(t.Get("test-snap", "foo", &value), IsNil)
+	c.Check(value, Equals, "bar")
+	c.Check(t.Get("test-snap", "baz", &value), IsNil)
+	c.Check(value, Equals, "qux")
+}
+
+func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
+	// Setup an initial configuration
+	t := s.mockContext.NewTransaction()
+	t.Set("test-snap", "test-key1", "test-value1")
+	t.Set("test-snap", "test-key2", "test-value2")
+	t.Commit()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key2=test-value3"})
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated, but only test-key2
+	t = s.mockContext.NewTransaction()
+	var value string
+	c.Check(t.Get("test-snap", "test-key1", &value), IsNil)
+	c.Check(value, Equals, "test-value1")
+	c.Check(t.Get("test-snap", "test-key2", &value), IsNil)
+	c.Check(value, Equals, "test-value3")
 }
 
 func (s *setSuite) TestCommandWithoutContext(c *C) {

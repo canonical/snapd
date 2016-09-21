@@ -23,8 +23,11 @@ import "github.com/snapcore/snapd/overlord/hookstate"
 
 // applyConfigHandler is the handler for the apply-config hook.
 type applyConfigHandler struct {
-	context     *hookstate.Context
-	transaction *Transaction
+	context *hookstate.Context
+}
+
+func newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
+	return &applyConfigHandler{context: context}
 }
 
 // Before is called by the HookManager before the apply-config hook is run.
@@ -35,22 +38,11 @@ func (h *applyConfigHandler) Before() error {
 // Done is called by the HookManager after the apply-config hook has exited
 // successfully.
 func (h *applyConfigHandler) Done() error {
-	// Save any configurations changes the hook may have made
-	h.transaction.Commit()
 	return nil
 }
 
 // Error is called by the HookManager after the apply-config hook has exited
 // non-zero, and includes the error.
 func (h *applyConfigHandler) Error(err error) error {
-	// Note that in this case, Done() is not called, which means any
-	// configuration changes made by the hook are dropped.
 	return nil
-}
-
-// SetConf is called by `snapctl set` to associate the value with the key in
-// the snap's configuration.
-func (h *applyConfigHandler) SetConf(key string, value interface{}) {
-	// Set this in the transaction, but don't commit it (wait until Done())
-	h.transaction.Set(h.context.SnapName(), key, value)
 }

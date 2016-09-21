@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/overlord/configstate/transaction"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
@@ -158,10 +159,16 @@ func (c *Context) OnDone(finalizer func() error) {
 	c.finalizer = finalizer
 }
 
-// done is called to notify the context that its hook has exited successfully.
-func (c *Context) done() error {
+// Done is called to notify the context that its hook has exited successfully.
+func (c *Context) Done() error {
 	if c.finalizer != nil {
 		return c.finalizer()
 	}
 	return nil
+}
+
+// NewTransaction returns a getter/setter for snap configs that runs all
+// operations on a copy of the system configuration until committed.
+func (c *Context) NewTransaction() *transaction.Transaction {
+	return transaction.New(c.task.State())
 }

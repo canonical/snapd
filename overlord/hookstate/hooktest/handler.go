@@ -32,13 +32,6 @@ type MockHandler struct {
 	ErrorCalled bool
 	ErrorError  bool
 	Err         error
-
-	SetConfCalls []confParameters
-}
-
-type confParameters struct {
-	Key   string
-	Value interface{}
 }
 
 // NewMockHandler returns a new MockHandler.
@@ -72,9 +65,4 @@ func (h *MockHandler) Error(err error) error {
 		return fmt.Errorf("Error failed at user request")
 	}
 	return nil
-}
-
-// SetConf satisfies hookstate.Handler.SetConf
-func (h *MockHandler) SetConf(key string, value interface{}) {
-	h.SetConfCalls = append(h.SetConfCalls, confParameters{Key: key, Value: value})
 }
