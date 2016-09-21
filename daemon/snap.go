@@ -167,13 +167,13 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		confinement = snap.StrictConfinement
 	}
 
-	screenshots := make([]screenshotJSON, 0, len(remoteSnap.Screenshots))
-	for _, screenshot := range remoteSnap.Screenshots {
-		screenshots = append(screenshots, screenshotJSON{
+	screenshots := make([]screenshotJSON, len(remoteSnap.Screenshots))
+	for i, screenshot := range remoteSnap.Screenshots {
+		screenshots[i] = screenshotJSON{
 			URL:    screenshot.URL,
 			Width:  screenshot.Width,
 			Height: screenshot.Height,
-		})
+		}
 	}
 
 	result := map[string]interface{}{
