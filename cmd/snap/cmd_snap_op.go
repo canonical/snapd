@@ -378,7 +378,7 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 		name = snapName
 	}
 
-	return showDone(x.Positional.Snaps, "install")
+	return showDone([]string{name}, "install")
 }
 
 func (x *cmdInstall) installMany(names []string) error {

@@ -395,6 +395,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"snapstateUpdateMany",
+		"snapstateInstallMany",
+		"snapstateRemoveMany",
 		"snapstateRefreshCandidates",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
