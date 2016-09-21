@@ -70,10 +70,10 @@ slots:
     parent-dir-path:
         interface: bool-file
         path: "/sys/class/gpio/../value"
-    bad-interface: other-interface
+    bad-interface-slot: other-interface
 plugs:
     plug: bool-file
-    bad-interface: other-interface
+    bad-interface-plug: other-interface
 `))
 	c.Assert(err, IsNil)
 	s.gpioSlot = &interfaces.Slot{SlotInfo: info.Slots["gpio"]}
@@ -81,9 +81,9 @@ plugs:
 	s.missingPathSlot = &interfaces.Slot{SlotInfo: info.Slots["missing-path"]}
 	s.badPathSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-path"]}
 	s.parentDirPathSlot = &interfaces.Slot{SlotInfo: info.Slots["parent-dir-path"]}
-	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface"]}
+	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface-slot"]}
 	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["plug"]}
-	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface"]}
+	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface-plug"]}
 }
 
 func (s *BoolFileInterfaceSuite) TestName(c *C) {

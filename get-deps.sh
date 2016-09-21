@@ -2,9 +2,9 @@
 
 set -eu
 
-echo Installing godeps
-go get launchpad.net/godeps
+echo Installing govendor
+go get -u github.com/kardianos/govendor
 export PATH=$PATH:$GOPATH/bin
 
 echo Obtaining dependencies
-godeps -u dependencies.tsv
+govendor sync

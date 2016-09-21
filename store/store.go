@@ -95,6 +95,21 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+
+	deltas := make([]snap.DeltaInfo, len(d.Deltas))
+	for i, d := range d.Deltas {
+		deltas[i] = snap.DeltaInfo{
+			FromRevision:    d.FromRevision,
+			ToRevision:      d.ToRevision,
+			Format:          d.Format,
+			AnonDownloadURL: d.AnonDownloadURL,
+			DownloadURL:     d.DownloadURL,
+			Size:            d.Size,
+			Sha3_384:        d.Sha3_384,
+		}
+	}
+	info.Deltas = deltas
+
 	return info
 }
 
@@ -114,6 +129,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
+	DeltaFormats []string
 }
 
 // Store represents the ubuntu snap store
@@ -131,6 +147,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
+	deltaFormats []string
 	// reused http client
 	client *http.Client
 
@@ -277,6 +294,9 @@ type searchResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
+// The default delta formats if none are configured.
+var defaultSupportedDeltaFormats = []string{"xdelta"}
+
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if cfg == nil {
@@ -319,6 +339,11 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		series = cfg.Series
 	}
 
+	deltaFormats := cfg.DeltaFormats
+	if deltaFormats == nil {
+		deltaFormats = defaultSupportedDeltaFormats
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
 		searchURI:         searchURI,
@@ -333,6 +358,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
+		deltaFormats:      deltaFormats,
 	}
 }
 
@@ -487,11 +513,12 @@ func (s *Store) setStoreID(r *http.Request) {
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
-	Method      string
-	URL         *url.URL
-	Accept      string
-	ContentType string
-	Data        []byte
+	Method       string
+	URL          *url.URL
+	Accept       string
+	ContentType  string
+	ExtraHeaders map[string]string
+	Data         []byte
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -588,6 +615,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
+	}
+
+	for header, value := range reqOptions.ExtraHeaders {
+		req.Header.Set(header, value)
 	}
 
 	s.setStoreID(req)
@@ -1009,6 +1040,13 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
+
+	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+		reqOptions.ExtraHeaders = map[string]string{
+			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
+		}
+	}
+
 	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err

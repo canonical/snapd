@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -1677,24 +1678,20 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if snapctlOptions.ContextID == "" {
-		return BadRequest("snapctl cannot run without context ID")
-	}
-
 	if len(snapctlOptions.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
 	// Right now snapctl is only used for hooks. If at some point it grows
 	// beyond that, this probably shouldn't go straight to the HookManager.
-	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	if err != nil {
-		return BadRequest("cannot run snapctl: %s", err)
-	}
-
+	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
 	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
-		return BadRequest("error running snapctl: %s", err)
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			stdout = []byte(e.Error())
+		} else {
+			return BadRequest("error running snapctl: %s", err)
+		}
 	}
 
 	result := map[string]string{
