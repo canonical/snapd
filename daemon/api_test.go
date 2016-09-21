@@ -1971,7 +1971,7 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags, _ snapstate.ValidateRefreshesFunc) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
 		installQueue = append(installQueue, name)
@@ -2014,7 +2014,7 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 		// we have ubuntu-core
 		return nil
 	}
-	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags, _ snapstate.ValidateRefreshesFunc) (*state.TaskSet, error) {
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
 		calledUserID = userID
 		installQueue = append(installQueue, name)
@@ -2048,7 +2048,7 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 }
 
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
-	snapstateUpdateMany = func(s *state.State, names []string, userID int, _ snapstate.ValidateRefreshesFunc) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -2084,7 +2084,7 @@ func (s *apiSuite) TestRefreshAll(c *check.C) {
 		return assertstate.RefreshSnapDeclarations(s, userID)
 	}
 
-	snapstateUpdateMany = func(s *state.State, names []string, userID int, _ snapstate.ValidateRefreshesFunc) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
 		t := s.NewTask("fake-refresh-all", "Refreshing everything")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -2108,7 +2108,7 @@ func (s *apiSuite) TestRefreshMany(c *check.C) {
 		return nil
 	}
 
-	snapstateUpdateMany = func(s *state.State, names []string, userID int, _ snapstate.ValidateRefreshesFunc) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 2)
 		t := s.NewTask("fake-refresh-2", "Refreshing two")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
@@ -2133,7 +2133,7 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 		return nil
 	}
 
-	snapstateUpdateMany = func(s *state.State, names []string, userID int, _ snapstate.ValidateRefreshesFunc) ([]string, []*state.TaskSet, error) {
+	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 1)
 		t := s.NewTask("fake-refresh-1", "Refreshing one")
 		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil

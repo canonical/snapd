@@ -379,3 +379,8 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 
 	return validated, nil
 }
+
+func init() {
+	// hook validation of refreshes into snapstate logic
+	snapstate.ValidateRefreshes = ValidateRefreshes
+}
