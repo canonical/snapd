@@ -48,6 +48,8 @@ import (
 const (
 	// halJsonContentType is the default accept value for store requests
 	halJsonContentType = "application/hal+json"
+	// jsonContentType is for store enpoints that don't support HAL
+	jsonContentType = "application/json"
 	// UbuntuCoreWireProtocol is the protocol level we support when
 	// communicating with the store. History:
 	//  - "1": client supports squashfs snaps
@@ -120,6 +122,7 @@ type Config struct {
 	BulkURI           *url.URL
 	AssertionsURI     *url.URL
 	PurchasesURI      *url.URL
+	CustomersMeURI    *url.URL
 	PaymentMethodsURI *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
@@ -139,6 +142,7 @@ type Store struct {
 	bulkURI           *url.URL
 	assertionsURI     *url.URL
 	purchasesURI      *url.URL
+	customersMeURI    *url.URL
 	paymentMethodsURI *url.URL
 
 	architecture string
@@ -279,6 +283,11 @@ func init() {
 		panic(err)
 	}
 
+	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
+	if err != nil {
+		panic(err)
+	}
+
 	defaultConfig.PaymentMethodsURI, err = url.Parse(myappsURL() + "api/2.0/click/paymentmethods/")
 	if err != nil {
 		panic(err)
@@ -351,6 +360,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		bulkURI:           cfg.BulkURI,
 		assertionsURI:     cfg.AssertionsURI,
 		purchasesURI:      cfg.PurchasesURI,
+		customersMeURI:    cfg.CustomersMeURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
 		series:            series,
 		architecture:      architecture,
@@ -513,11 +523,12 @@ func (s *Store) setStoreID(r *http.Request) {
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
-	Method      string
-	URL         *url.URL
-	Accept      string
-	ContentType string
-	Data        []byte
+	Method       string
+	URL          *url.URL
+	Accept       string
+	ContentType  string
+	ExtraHeaders map[string]string
+	Data         []byte
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -612,12 +623,12 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
-	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
-		req.Header.Set("X-Ubuntu-Delta-Formats", strings.Join(s.deltaFormats, ","))
-	}
-
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
+	}
+
+	for header, value := range reqOptions.ExtraHeaders {
+		req.Header.Set(header, value)
 	}
 
 	s.setStoreID(req)
@@ -1039,6 +1050,13 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
+
+	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+		reqOptions.ExtraHeaders = map[string]string{
+			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
+		}
+	}
+
 	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
@@ -1245,6 +1263,26 @@ type buyError struct {
 	ErrorMessage string `json:"error_message"`
 }
 
+type storeError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (s *storeError) Error() string {
+	return s.Message
+}
+
+type storeErrors struct {
+	Errors []*storeError `json:"error_list"`
+}
+
+func (s *storeErrors) Error() string {
+	if len(s.Errors) == 0 {
+		return "internal error: empty store error used as an actual error"
+	}
+	return "store reported an error: " + s.Errors[0].Error()
+}
+
 func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 	identifier := ""
 	if options.SnapName != "" {
@@ -1381,7 +1419,64 @@ type PaymentInformation struct {
 	Methods                []*PaymentMethod `json:"methods"`
 }
 
+type storeCustomer struct {
+	LatestTosDate     string `json:"latest_tos_date"`
+	AcceptedTosDate   string `json:"accepted_tos_date"`
+	LatestTosAccepted bool   `json:"latest_tos_accepted"`
+	HasPaymentMethod  bool   `json:"has_payment_method"`
+}
+
+// ReadyToBuy returns nil if the user's account has accepted T&Cs and has a payment method registered, and an error otherwise
+func (s *Store) ReadyToBuy(user *auth.UserState) error {
+	if user == nil {
+		return ErrInvalidCredentials
+	}
+
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    s.customersMeURI,
+		Accept: jsonContentType,
+	}
+	resp, err := s.doRequest(s.client, reqOptions, user)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var customer storeCustomer
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&customer); err != nil {
+			return err
+		}
+		if !customer.LatestTosAccepted {
+			return ErrTosNotAccepted
+		}
+		if !customer.HasPaymentMethod {
+			return ErrNoPaymentMethods
+		}
+		return nil
+	case http.StatusNotFound:
+		// Likely because user has no account registered on the pay server
+		return fmt.Errorf("cannot get customer details: server says no account exists")
+	case http.StatusUnauthorized:
+		return ErrInvalidCredentials
+	default:
+		var errors storeErrors
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&errors); err != nil {
+			return err
+		}
+		if len(errors.Errors) == 0 {
+			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+		}
+		return &errors
+	}
+}
+
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
+// TODO Remove once the CLI is using the new /buy/ready endpoint
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
 	if user == nil {
 		return nil, ErrInvalidCredentials
