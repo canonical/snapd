@@ -71,7 +71,7 @@ prepare: |
     apt-get purge -y snapd || true
     apt-get update
     # utilities
-    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common
+    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
@@ -80,6 +80,10 @@ prepare: |
     apt-get update
 
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+
+    # update vendoring
+    go get -u github.com/kardianos/govendor
+    govendor sync
 
     # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
     #        hits xenial-updates
