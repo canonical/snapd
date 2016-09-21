@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -54,7 +55,7 @@ var _ = Suite(&BoolFileInterfaceSuite{
 })
 
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := snaptest.MockInfo(c, `
 name: ubuntu-core
 slots:
     gpio:
@@ -74,8 +75,7 @@ slots:
 plugs:
     plug: bool-file
     bad-interface-plug: other-interface
-`))
-	c.Assert(err, IsNil)
+`, &snap.SideInfo{})
 	s.gpioSlot = &interfaces.Slot{SlotInfo: info.Slots["gpio"]}
 	s.ledSlot = &interfaces.Slot{SlotInfo: info.Slots["led"]}
 	s.missingPathSlot = &interfaces.Slot{SlotInfo: info.Slots["missing-path"]}

@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -58,17 +59,14 @@ func (s *MprisInterfaceSuite) TestName(c *C) {
 }
 
 func (s *MprisInterfaceSuite) TestGetName(c *C) {
-	var mockSnapYaml = []byte(`name: mpris-client
+	const mockSnapYaml = `name: mpris-client
 version: 1.0
 slots:
  mpris-slot:
   interface: mpris
   name: foo
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
 	name, err := builtin.MprisGetName(iface, slot.Attrs)
@@ -77,16 +75,13 @@ slots:
 }
 
 func (s *MprisInterfaceSuite) TestGetNameMissing(c *C) {
-	var mockSnapYaml = []byte(`name: mpris-client
+	const mockSnapYaml = `name: mpris-client
 version: 1.0
 slots:
  mpris-slot:
   interface: mpris
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
 	name, err := builtin.MprisGetName(iface, slot.Attrs)
@@ -94,17 +89,14 @@ slots:
 	c.Assert(name, Equals, "@{SNAP_NAME}")
 }
 func (s *MprisInterfaceSuite) TestGetNameBadDot(c *C) {
-	var mockSnapYaml = []byte(`name: mpris-client
+	const mockSnapYaml = `name: mpris-client
 version: 1.0
 slots:
  mpris-slot:
   interface: mpris
   name: foo.bar
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
 	name, err := builtin.MprisGetName(iface, slot.Attrs)
@@ -114,18 +106,15 @@ slots:
 }
 
 func (s *MprisInterfaceSuite) TestGetNameBadList(c *C) {
-	var mockSnapYaml = []byte(`name: mpris-client
+	const mockSnapYaml = `name: mpris-client
 version: 1.0
 slots:
  mpris-slot:
   interface: mpris
   name:
   - foo
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
 	name, err := builtin.MprisGetName(iface, slot.Attrs)
@@ -135,17 +124,14 @@ slots:
 }
 
 func (s *MprisInterfaceSuite) TestGetNameUnknownAttribute(c *C) {
-	var mockSnapYaml = []byte(`name: mpris-client
+	const mockSnapYaml = `name: mpris-client
 version: 1.0
 slots:
  mpris-slot:
   interface: mpris
   unknown: foo
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
 	name, err := builtin.MprisGetName(iface, slot.Attrs)
@@ -292,17 +278,14 @@ func (s *MprisInterfaceSuite) TestPermanentSlotAppArmor(c *C) {
 }
 
 func (s *MprisInterfaceSuite) TestPermanentSlotAppArmorWithName(c *C) {
-	var mockSnapYaml = []byte(`name: mpris-client
+	const mockSnapYaml = `name: mpris-client
 version: 1.0
 slots:
  mpris-slot:
   interface: mpris
   name: foo
-`)
-
-	info, err := snap.InfoFromSnapYaml(mockSnapYaml)
-	c.Assert(err, IsNil)
-
+`
+	info := snaptest.MockInfo(c, mockSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["mpris-slot"]}
 	iface := &builtin.MprisInterface{}
 	snippet, err := iface.PermanentSlotSnippet(slot, interfaces.SecurityAppArmor)
