@@ -119,12 +119,7 @@ func (iface *PulseAudioInterface) Name() string {
 }
 
 func (iface *PulseAudioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -139,10 +134,8 @@ func (iface *PulseAudioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		}
 	case interfaces.SecuritySecComp:
 		return []byte(pulseaudioConnectedPlugSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
@@ -152,20 +145,13 @@ func (iface *PulseAudioInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 		return []byte(pulseaudioPermanentSlotAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(pulseaudioPermanentSlotSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
 func (iface *PulseAudioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PulseAudioInterface) SanitizePlug(slot *interfaces.Plug) error {

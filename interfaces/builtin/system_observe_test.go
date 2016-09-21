@@ -112,21 +112,6 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *SystemObserveInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-}
-
 func (s *SystemObserveInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, false)
 }

@@ -55,51 +55,24 @@ func (iface *PppInterface) Name() string {
 }
 
 func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return nil, nil
 	case interfaces.SecurityAppArmor:
 		return pppConnectedPlugAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return nil, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
 func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return nil, nil
-	case interfaces.SecuritySecComp:
-		return nil, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	case interfaces.SecurityDBus:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
