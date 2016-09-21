@@ -513,11 +513,12 @@ func (s *Store) setStoreID(r *http.Request) {
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
-	Method      string
-	URL         *url.URL
-	Accept      string
-	ContentType string
-	Data        []byte
+	Method       string
+	URL          *url.URL
+	Accept       string
+	ContentType  string
+	ExtraHeaders map[string]string
+	Data         []byte
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -612,12 +613,12 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
 
-	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
-		req.Header.Set("X-Ubuntu-Delta-Formats", strings.Join(s.deltaFormats, ","))
-	}
-
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
+	}
+
+	for header, value := range reqOptions.ExtraHeaders {
+		req.Header.Set(header, value)
 	}
 
 	s.setStoreID(req)
@@ -1039,6 +1040,13 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
+
+	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+		reqOptions.ExtraHeaders = map[string]string{
+			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
+		}
+	}
+
 	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
