@@ -22,7 +22,8 @@ top-level attribute `hooks` in `snap.yaml` to request plugs, like so:
 		  plugs: [network] # Or any other plugs required by this hook
 
 Note that hooks will be called with no parameters. If they need more information
-from snapd they can utilize the `snapctl` command.
+from snapd (or need to provide information to snapd) they can utilize the
+`snapctl` command (for more information on `snapctl`, see `snapctl -h`).
 
 
 ## Supported Hooks
