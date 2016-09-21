@@ -95,6 +95,21 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+
+	deltas := make([]snap.DeltaInfo, len(d.Deltas))
+	for i, d := range d.Deltas {
+		deltas[i] = snap.DeltaInfo{
+			FromRevision:    d.FromRevision,
+			ToRevision:      d.ToRevision,
+			Format:          d.Format,
+			AnonDownloadURL: d.AnonDownloadURL,
+			DownloadURL:     d.DownloadURL,
+			Size:            d.Size,
+			Sha3_384:        d.Sha3_384,
+		}
+	}
+	info.Deltas = deltas
+
 	return info
 }
 
@@ -114,6 +129,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
+	DeltaFormats []string
 }
 
 // Store represents the ubuntu snap store
@@ -131,6 +147,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
+	deltaFormats []string
 	// reused http client
 	client *http.Client
 
@@ -277,6 +294,9 @@ type searchResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
+// The default delta formats if none are configured.
+var defaultSupportedDeltaFormats = []string{"xdelta"}
+
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
 	if cfg == nil {
@@ -319,6 +339,11 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		series = cfg.Series
 	}
 
+	deltaFormats := cfg.DeltaFormats
+	if deltaFormats == nil {
+		deltaFormats = defaultSupportedDeltaFormats
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
 		searchURI:         searchURI,
@@ -333,6 +358,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
+		deltaFormats:      deltaFormats,
 	}
 }
 
@@ -585,6 +611,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	req.Header.Set("X-Ubuntu-Architecture", s.architecture)
 	req.Header.Set("X-Ubuntu-Series", s.series)
 	req.Header.Set("X-Ubuntu-Wire-Protocol", UbuntuCoreWireProtocol)
+
+	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+		req.Header.Set("X-Ubuntu-Delta-Formats", strings.Join(s.deltaFormats, ","))
+	}
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
