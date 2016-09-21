@@ -3,7 +3,6 @@ systems: [-ubuntu-core-16-64]
 restore: |
     rm -f /var/tmp/myevil.txt
 execute: |
-    # pull in apt helpers
     . $TESTSLIB/apt.sh
 
     echo Install previous version...
@@ -22,7 +21,7 @@ execute: |
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
     if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
-        apt_install_local_packages ${SPREAD_PATH}/../snapd*.deb
+        apt_install_local_package ${SPREAD_PATH}/../snapd*.deb
     else
         apt install -y --allow-downgrades ${SPREAD_PATH}/../snapd*.deb
     fi
