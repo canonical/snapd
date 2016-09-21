@@ -741,25 +741,25 @@ var testInterface = &TestInterface{
 		if securitySystem == testSecurity {
 			return []byte(`static plug snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 	PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`connection-specific plug snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 	PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`static slot snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 	SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`connection-specific slot snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 }
 
