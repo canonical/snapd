@@ -110,6 +110,10 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	// connected plugs have a non-nil security snippet for kmod
+	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityKMod)
+	c.Assert(err, IsNil)
+	c.Assert(snippet, Not(IsNil))
 }
 
 func (s *FirewallControlInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
