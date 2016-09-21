@@ -412,7 +412,18 @@ func (safs *signAddFindSuite) TestSignHeadersCheck(c *C) {
 		"extra":        []interface{}{1, 2},
 	}
 	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
-	c.Check(err, ErrorMatches, `header "extra": header values must be strings or nested lists with strings as the only scalars: 1`)
+	c.Check(err, ErrorMatches, `header "extra": header values must be strings or nested lists or maps with strings as the only scalars: 1`)
+	c.Check(a1, IsNil)
+}
+
+func (safs *signAddFindSuite) TestSignHeadersCheckMap(c *C) {
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "a",
+		"extra":        map[string]interface{}{"a": "a", "b": 1},
+	}
+	a1, err := safs.signingDB.Sign(asserts.TestOnlyType, headers, nil, safs.signingKeyID)
+	c.Check(err, ErrorMatches, `header "extra": header values must be strings or nested lists or maps with strings as the only scalars: 1`)
 	c.Check(a1, IsNil)
 }
 
