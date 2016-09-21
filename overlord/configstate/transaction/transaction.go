@@ -24,6 +24,7 @@ package transaction
 import (
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/snapcore/snapd/overlord/state"
 )
@@ -33,15 +34,13 @@ import (
 // doesn't affect the overall system config. Change it, query it, and if you
 // really want to get any changes saved back into the config, Commit() it.
 //
-// Note that Transactions are not safe to access concurrently-- don't share it
-// between goroutines.
+// Note that Transactions are safe to access concurrently.
 type Transaction struct {
-	state *state.State
-
-	data struct {
-		Config     systemConfig `json:"config"`
-		WriteCache systemConfig `json:"write-cache"`
-	}
+	state           *state.State
+	config          systemConfig
+	configMutex     sync.RWMutex
+	writeCache      systemConfig
+	writeCacheMutex sync.RWMutex
 }
 
 type snapConfig map[string]*json.RawMessage
@@ -53,12 +52,12 @@ func New(state *state.State) *Transaction {
 	defer state.Unlock()
 
 	transaction := &Transaction{state: state}
-	transaction.data.WriteCache = make(systemConfig)
+	transaction.writeCache = make(systemConfig)
 
 	// Record the current state of the map containing the config of every snap
 	// in the system. We'll use it for this transaction.
-	if err := state.Get("config", &transaction.data.Config); err != nil {
-		transaction.data.Config = make(systemConfig)
+	if err := state.Get("config", &transaction.config); err != nil {
+		transaction.config = make(systemConfig)
 	}
 
 	return transaction
@@ -69,7 +68,10 @@ func New(state *state.State) *Transaction {
 // the changes have no effect. Also note that the value must properly marshal
 // and unmarshal with encoding/json.
 func (t *Transaction) Set(snapName, key string, value interface{}) error {
-	config, ok := t.data.WriteCache[snapName]
+	t.writeCacheMutex.Lock()
+	defer t.writeCacheMutex.Unlock()
+
+	config, ok := t.writeCache[snapName]
 	if !ok {
 		config = make(snapConfig)
 	}
@@ -83,7 +85,7 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 	config[key] = &raw
 
 	// Put that config into the write cache
-	t.data.WriteCache[snapName] = config
+	t.writeCache[snapName] = config
 
 	return nil
 }
@@ -94,8 +96,12 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 func (t *Transaction) Get(snapName, key string, value interface{}) error {
 	// Extract the config for this specific snap. Check the cache first; if it's
 	// not there, check the config from the state
-	if err := t.get(t.data.WriteCache, snapName, key, value); err != nil {
-		return t.get(t.data.Config, snapName, key, value)
+	t.writeCacheMutex.RLock()
+	defer t.writeCacheMutex.RUnlock()
+	if err := t.get(t.writeCache, snapName, key, value); err != nil {
+		t.configMutex.RLock()
+		defer t.configMutex.RUnlock()
+		return t.get(t.config, snapName, key, value)
 	}
 
 	return nil
@@ -104,23 +110,29 @@ func (t *Transaction) Get(snapName, key string, value interface{}) error {
 // Commit actually saves the changes made to the config in the transaction to
 // the state.
 func (t *Transaction) Commit() {
+	t.writeCacheMutex.Lock()
+	defer t.writeCacheMutex.Unlock()
+
 	// Do nothing if there's nothing to commit.
-	if len(t.data.WriteCache) == 0 {
+	if len(t.writeCache) == 0 {
 		return
 	}
 
 	t.state.Lock()
 	defer t.state.Unlock()
 
+	t.configMutex.Lock()
+	defer t.configMutex.Unlock()
+
 	// Update our copy of the config with the most recent one from the state.
-	if err := t.state.Get("config", &t.data.Config); err != nil {
+	if err := t.state.Get("config", &t.config); err != nil {
 		// Make sure it's still a valid map, in case Get() modified it.
-		t.data.Config = make(systemConfig)
+		t.config = make(systemConfig)
 	}
 
 	// Iterate through the write cache and save each item.
-	for snapName, snapConfigToWrite := range t.data.WriteCache {
-		newSnapConfig, ok := t.data.Config[snapName]
+	for snapName, snapConfigToWrite := range t.writeCache {
+		newSnapConfig, ok := t.config[snapName]
 		if !ok {
 			newSnapConfig = make(snapConfig)
 		}
@@ -129,23 +141,13 @@ func (t *Transaction) Commit() {
 			newSnapConfig[key] = value
 		}
 
-		t.data.Config[snapName] = newSnapConfig
+		t.config[snapName] = newSnapConfig
 	}
 
-	t.state.Set("config", t.data.Config)
+	t.state.Set("config", t.config)
 
 	// The cache has been flushed-- reset it
-	t.data.WriteCache = make(systemConfig)
-}
-
-// MarshalJSON marshals this transaction into JSON bytes.
-func (t *Transaction) MarshalJSON() ([]byte, error) {
-	return json.Marshal(t.data)
-}
-
-// UnmarshalJSON unmarshals the JSON bytes into a transaction.
-func (t *Transaction) UnmarshalJSON(bytes []byte) error {
-	return json.Unmarshal(bytes, &t.data)
+	t.writeCache = make(systemConfig)
 }
 
 func (t *Transaction) get(config systemConfig, snapName, key string, value interface{}) error {

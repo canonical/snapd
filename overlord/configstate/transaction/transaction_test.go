@@ -20,7 +20,6 @@
 package transaction_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -143,78 +142,4 @@ func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
 	var value string
 	c.Check(transaction2.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "initial", Commentf("Expected transaction2 to be isolated from transaction1"))
-}
-
-func (s *transactionSuite) TestSetUnmarshalable(c *C) {
-	err := s.t.Set("test-snap", "foo", func() {})
-	c.Check(err, ErrorMatches, ".*cannot marshal snap.*config value.*")
-}
-
-func (s *transactionSuite) TestMarshalTransactionConfigOnly(c *C) {
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
-	s.t.Commit()
-
-	bytes, err := json.Marshal(s.t)
-	c.Check(err, IsNil)
-	c.Check(string(bytes), Equals,
-		"{\"config\":{\"test-snap\":{\"foo\":\"bar\"}},\"write-cache\":{}}")
-}
-
-func (s *transactionSuite) TestMarshalTransactionCacheOnly(c *C) {
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
-
-	bytes, err := json.Marshal(s.t)
-	c.Check(err, IsNil)
-	c.Check(string(bytes), Equals,
-		"{\"config\":{},\"write-cache\":{\"test-snap\":{\"foo\":\"bar\"}}}")
-}
-
-func (s *transactionSuite) TestMarshalTransactionConfigAndCache(c *C) {
-	// Set an initial config
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
-	s.t.Commit()
-
-	transaction := transaction.New(s.state)
-
-	// Make another, uncommitted change
-	c.Check(transaction.Set("test-snap", "baz", "qux"), IsNil)
-
-	// Now marshal the transaction, and expect to see the initial config along
-	// with the write cache.
-	bytes, err := json.Marshal(transaction)
-	c.Check(err, IsNil)
-	c.Check(string(bytes), Equals,
-		"{\"config\":{\"test-snap\":{\"foo\":\"bar\"}},\"write-cache\":{\"test-snap\":{\"baz\":\"qux\"}}}")
-}
-
-func (s *transactionSuite) TestUnmarshalTransaction(c *C) {
-	// Set an initial config
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
-	s.t.Commit()
-
-	t := transaction.New(s.state)
-
-	// Make another, uncommitted change
-	c.Check(t.Set("test-snap", "baz", "qux"), IsNil)
-
-	// Now marshal the transaction, and expect to see the initial config along
-	// with the write cache.
-	bytes, err := json.Marshal(t)
-	c.Check(err, IsNil)
-
-	// Now unmarshal into a new transaction
-	newTransaction := transaction.New(s.state)
-	err = json.Unmarshal(bytes, &newTransaction)
-	c.Check(err, IsNil)
-
-	// Verify that it unmarshaled as expected
-	var value string
-	c.Check(newTransaction.Get("test-snap", "foo", &value), IsNil)
-	c.Check(value, Equals, "bar")
-	c.Check(newTransaction.Get("test-snap", "baz", &value), IsNil)
-	c.Check(value, Equals, "qux")
-
-	// Also verify that it can still save changes
-	c.Check(newTransaction.Set("test-snap", "foo", "quux"), IsNil)
-	newTransaction.Commit()
 }
