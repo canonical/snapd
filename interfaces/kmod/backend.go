@@ -49,13 +49,13 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	}
 	if len(snippets) == 0 {
 		// Make sure that the modules conf file gets removed when we don't have any content
-		return removeModulesFile(snapName)
+		return RemoveModulesFile(snapName)
 	}
 
 	modules := b.processSnipets(snapInfo, snippets)
-	err = loadModules(modules)
+	err = LoadModules(modules)
 	if err == nil {
-		err = writeModulesFile(modules, snapName)
+		err = WriteModulesFile(modules, snapName)
 	}
 	if err != nil {
 		return err
@@ -69,7 +69,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
-	removeModulesFile(snapName)
+	RemoveModulesFile(snapName)
 	return nil
 }
 
