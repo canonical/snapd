@@ -543,7 +543,7 @@ func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
 	}
 
 	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
-	c.Assert(err, ErrorMatches, `(?s).*cannot validate refresh for "foo" \(9\): cannot find validation by "bar":.*`)
+	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
 	c.Check(validated, HasLen, 0)
 }
 
@@ -672,6 +672,6 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	}
 
 	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
-	c.Assert(err, ErrorMatches, `(?s).*cannot validate refresh for "foo" \(9\): validation by "baz" \(id "baz-id"\) revoked.*`)
+	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
 }

@@ -271,6 +271,9 @@ type refreshControlError struct {
 }
 
 func (e *refreshControlError) Error() string {
+	if len(e.errs) == 1 {
+		return e.errs[0].Error()
+	}
 	l := []string{""}
 	for _, e := range e.errs {
 		l = append(l, e.Error())
@@ -335,6 +338,9 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
 				}
 				err := f.Fetch(valref)
+				if notFound, ok := err.(*store.AssertionNotFoundError); ok && notFound.Ref.Type == asserts.ValidationType {
+					return fmt.Errorf("no validation by %q", gatingNames[gatingID])
+				}
 				if err != nil {
 					return fmt.Errorf("cannot find validation by %q: %v", gatingNames[gatingID], err)
 				}
@@ -344,7 +350,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 		}
 		err := doFetch(s, userID, fetching)
 		if err != nil {
-			errs = append(errs, fmt.Errorf("cannot validate refresh for %q (%s): %v", candInfo.Name(), candInfo.Revision, err))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.Name(), candInfo.Revision, err))
 			continue
 		}
 
@@ -360,7 +366,7 @@ func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (vali
 			}
 		}
 		if revoked != nil {
-			errs = append(errs, fmt.Errorf("cannot validate refresh for %q (%s): validation by %q (id %q) revoked", candInfo.Name(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.Name(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
 			continue
 		}
 
