@@ -2,6 +2,41 @@
 
 set -eux
 
+update_core_snap_with_snap_exec_snapctl() {
+    # We want to use the in-tree snap-exec and snapctl, not the ones in the core
+    # snap. To accomplish that, we'll just unpack the core we just grabbed,
+    # shove the new snap-exec and snapctl in there, and repack it.
+
+    # First of all, unmount the core
+    core="$(readlink -f /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
+    umount "$core"
+
+    # Now unpack the core, inject the new snap-exec and snapctl into it, and
+    # repack it.
+    unsquashfs "$snap"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    mv "$snap" "${snap}.orig"
+    mksquashfs squashfs-root "$snap" -comp xz
+    rm -rf squashfs-root
+
+    # Now mount the new core snap
+    mount "$snap" "$core"
+
+    # Make sure we're running with the correct snap-exec
+    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
+        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
+    # Make sure we're running with the correct snapctl
+    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
+        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
+        exit 1
+    fi
+}
+
 prepare_classic() {
     apt install -y ${SPREAD_PATH}/../snapd_*.deb
     # Snapshot the state including core.
@@ -12,7 +47,18 @@ prepare_classic() {
         snap install --candidate ubuntu-core
         snap list | grep core
 
+        echo "Ensure that the grub-editenv list output is empty on classic"
+        output=$(grub-editenv list)
+        if [ -n "$output" ]; then
+            echo "Expected empty grub environment, got:"
+            echo "$output"
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
+
+        update_core_snap_with_snap_exec_snapctl
+
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
@@ -64,6 +110,7 @@ setup_reflash_magic() {
 
         # we need the test user in the image
         chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
+        echo 'test ALL=(ALL) NOPASSWD:ALL' >> $UNPACKD/etc/sudoers.d/99-test-user
 
         # modify sshd so that we can connect as root
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
@@ -205,4 +252,11 @@ prepare_all_snap() {
 
     echo "Kernel has a store revision"
     snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
+
+    # Snapshot the fresh state
+    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        systemctl stop snapd.service snapd.socket
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        systemctl start snapd.socket
+    fi
 }

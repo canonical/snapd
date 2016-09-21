@@ -55,7 +55,7 @@ func init() {
 		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
 	}), []argDesc{{
 		name: "<snap>",
-		desc: i18n.G("snap name"),
+		desc: i18n.G("Snap name"),
 	}})
 }
 
@@ -80,7 +80,7 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 	}
 	f := image.StoreAssertionFetcher(sto, dlOpts, db, save)
 
-	return image.FetchSnapAssertions(snapPath, snapInfo, f, db)
+	return image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
 }
 
 func (x *cmdDownload) Execute(args []string) error {
