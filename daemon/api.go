@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -185,6 +186,7 @@ var (
 		POST:   postBuy,
 	}
 
+	// TODO Remove once the CLI is using the new /buy/ready endpoint
 	paymentMethodsCmd = &Command{
 		Path:   "/v2/buy/methods",
 		UserOK: false,
@@ -250,18 +252,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	serializedMacaroon, err := store.RequestStoreMacaroon()
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	macaroon, err := store.MacaroonDeserialize(serializedMacaroon)
-
-	// get SSO 3rd party caveat, and request discharge
-	loginCaveat, err := store.LoginCaveatID(macaroon)
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	discharge, err := store.DischargeAuthCaveat(loginCaveat, loginData.Username, loginData.Password, loginData.Otp)
+	macaroon, discharge, err := store.LoginUser(loginData.Username, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -301,14 +292,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, serializedMacaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
 	result := loginResponseData{
-		Macaroon:   serializedMacaroon,
+		Macaroon:   macaroon,
 		Discharges: []string{discharge},
 	}
 	return SyncResponse(result, nil)
@@ -660,6 +651,8 @@ var (
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
 	snapstateUpdateMany        = snapstate.UpdateMany
+
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
 
 func ensureStateSoonImpl(st *state.State) {
@@ -731,6 +724,11 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
+	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
+	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+		return "", nil, nil, err
+	}
+
 	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
@@ -785,7 +783,12 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
-	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.userID, flags)
+	// we need refreshed snap-declarations to enforce refresh-control as best as we can
+	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+		return "", nil, err
+	}
+
+	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	if err != nil {
 		return "", nil, err
 	}
@@ -809,13 +812,18 @@ func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 }
 
 func snapRevert(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
+	var ts *state.TaskSet
+
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
 	}
 
-	// TODO: bail if revision is given (and != current), or revert to that revision?
-	ts, err := snapstate.Revert(st, inst.Snaps[0], flags)
+	if inst.Revision.Unset() {
+		ts, err = snapstate.Revert(st, inst.Snaps[0], flags)
+	} else {
+		ts, err = snapstate.RevertToRevision(st, inst.Snaps[0], inst.Revision, flags)
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -1647,6 +1655,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(buyResult, nil)
 }
 
+// TODO Remove once the CLI is using the new /buy/ready endpoint
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
 	s := getStore(c)
 
@@ -1671,24 +1680,20 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode snapctl request: %s", err)
 	}
 
-	if snapctlOptions.ContextID == "" {
-		return BadRequest("snapctl cannot run without context ID")
-	}
-
 	if len(snapctlOptions.Args) == 0 {
 		return BadRequest("snapctl cannot run without args")
 	}
 
 	// Right now snapctl is only used for hooks. If at some point it grows
 	// beyond that, this probably shouldn't go straight to the HookManager.
-	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	if err != nil {
-		return BadRequest("cannot run snapctl: %s", err)
-	}
-
+	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
 	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
-		return BadRequest("error running snapctl: %s", err)
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			stdout = []byte(e.Error())
+		} else {
+			return BadRequest("error running snapctl: %s", err)
+		}
 	}
 
 	result := map[string]string{

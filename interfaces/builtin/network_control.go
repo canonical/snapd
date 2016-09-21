@@ -114,6 +114,9 @@ capability setuid,
 
 # route
 /etc/networks r,
+
+# TUN/TAP
+/dev/net/tun rw,
 `
 
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/seccomp/policygroups/ubuntu-core/16.04/network-control

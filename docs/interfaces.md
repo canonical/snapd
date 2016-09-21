@@ -275,6 +275,23 @@ Example slot yaml:
         interface: dbus-app
         session:
         - org.some.name
+### docker
+
+Can access snaps providing the docker interface which gives privileged access
+to the system.
+
+* Auto-Connect: no
+
+### docker-support
+
+Can access resources and syscalls necessary to run Docker application
+containers. The ``privileged-containers`` attribute may be used to give the
+necessary access to run privileged containers. Providing snaps specifying this
+interface currently may only be established with the Docker project.
+
+* Auto-Connect: no
+* Attributes:
+    * privileged-containers (plug): true|false (defaults to ``false``)
 
 ### firewall-control
 
@@ -330,6 +347,8 @@ Can insert kernel modules. This interface gives privileged access to the device.
 Can access the libvirt control socket, which gives privileged access to control
 libvirtd on the host. This is commonly used to create and manage QEMU/KVM
 instances on the host.
+
+* Auto-Connect: no
 
 ### locale-control
 

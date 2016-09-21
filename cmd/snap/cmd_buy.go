@@ -58,7 +58,7 @@ func init() {
 		"currency": i18n.G("ISO 4217 code for currency (https://en.wikipedia.org/wiki/ISO_4217)"),
 	}, []argDesc{{
 		name: "<snap>",
-		desc: i18n.G("snap name"),
+		desc: i18n.G("Snap name"),
 	}})
 }
 
@@ -75,6 +75,10 @@ func (x *cmdBuy) Execute(args []string) error {
 
 func buySnap(opts *store.BuyOptions) error {
 	cli := Client()
+
+	if !cli.LoggedIn() {
+		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))
+	}
 
 	if strings.ContainsAny(opts.SnapName, ":*") {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: invalid characters in name"), opts.SnapName)
@@ -99,12 +103,12 @@ func buySnap(opts *store.BuyOptions) error {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: it has already been bought"), opts.SnapName)
 	}
 
+	// TODO Change to use the new /buy/ready endpoint instead of checking payment methods
 	paymentInfo, err := cli.PaymentMethods()
 	if err != nil {
 		return err
 	}
 
-	// TODO Remove this payment method filter once interactive payment methods are supported on the CLI
 	var methods []*store.PaymentMethod
 	for _, method := range paymentInfo.Methods {
 		if !method.RequiresInteraction {

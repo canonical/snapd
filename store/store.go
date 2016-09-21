@@ -48,6 +48,8 @@ import (
 const (
 	// halJsonContentType is the default accept value for store requests
 	halJsonContentType = "application/hal+json"
+	// jsonContentType is for store enpoints that don't support HAL
+	jsonContentType = "application/json"
 	// UbuntuCoreWireProtocol is the protocol level we support when
 	// communicating with the store. History:
 	//  - "1": client supports squashfs snaps
@@ -95,6 +97,21 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	info.Prices = d.Prices
 	info.Private = d.Private
 	info.Confinement = snap.ConfinementType(d.Confinement)
+
+	deltas := make([]snap.DeltaInfo, len(d.Deltas))
+	for i, d := range d.Deltas {
+		deltas[i] = snap.DeltaInfo{
+			FromRevision:    d.FromRevision,
+			ToRevision:      d.ToRevision,
+			Format:          d.Format,
+			AnonDownloadURL: d.AnonDownloadURL,
+			DownloadURL:     d.DownloadURL,
+			Size:            d.Size,
+			Sha3_384:        d.Sha3_384,
+		}
+	}
+	info.Deltas = deltas
+
 	return info
 }
 
@@ -105,6 +122,7 @@ type Config struct {
 	BulkURI           *url.URL
 	AssertionsURI     *url.URL
 	PurchasesURI      *url.URL
+	CustomersMeURI    *url.URL
 	PaymentMethodsURI *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
@@ -114,6 +132,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
+	DeltaFormats []string
 }
 
 // Store represents the ubuntu snap store
@@ -123,6 +142,7 @@ type Store struct {
 	bulkURI           *url.URL
 	assertionsURI     *url.URL
 	purchasesURI      *url.URL
+	customersMeURI    *url.URL
 	paymentMethodsURI *url.URL
 
 	architecture string
@@ -131,6 +151,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
+	deltaFormats []string
 	// reused http client
 	client *http.Client
 
@@ -262,6 +283,11 @@ func init() {
 		panic(err)
 	}
 
+	defaultConfig.CustomersMeURI, err = url.Parse(myappsURL() + "purchases/v1/customers/me")
+	if err != nil {
+		panic(err)
+	}
+
 	defaultConfig.PaymentMethodsURI, err = url.Parse(myappsURL() + "api/2.0/click/paymentmethods/")
 	if err != nil {
 		panic(err)
@@ -276,6 +302,9 @@ type searchResults struct {
 
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
+
+// The default delta formats if none are configured.
+var defaultSupportedDeltaFormats = []string{"xdelta"}
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
@@ -319,6 +348,11 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		series = cfg.Series
 	}
 
+	deltaFormats := cfg.DeltaFormats
+	if deltaFormats == nil {
+		deltaFormats = defaultSupportedDeltaFormats
+	}
+
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
 		searchURI:         searchURI,
@@ -326,6 +360,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		bulkURI:           cfg.BulkURI,
 		assertionsURI:     cfg.AssertionsURI,
 		purchasesURI:      cfg.PurchasesURI,
+		customersMeURI:    cfg.CustomersMeURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
 		series:            series,
 		architecture:      architecture,
@@ -333,7 +368,33 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
+		deltaFormats:      deltaFormats,
 	}
+}
+
+// LoginUser logs user in the store and returns the authentication macaroons.
+func LoginUser(username, password, otp string) (string, string, error) {
+	macaroon, err := requestStoreMacaroon()
+	if err != nil {
+		return "", "", err
+	}
+	deserializedMacaroon, err := MacaroonDeserialize(macaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	// get SSO 3rd party caveat, and request discharge
+	loginCaveat, err := loginCaveatID(deserializedMacaroon)
+	if err != nil {
+		return "", "", err
+	}
+
+	discharge, err := dischargeAuthCaveat(loginCaveat, username, password, otp)
+	if err != nil {
+		return "", "", err
+	}
+
+	return macaroon, discharge, nil
 }
 
 // authenticateUser will add the store expected Macaroon Authorization header for user
@@ -380,7 +441,7 @@ func refreshDischarges(user *auth.UserState) ([]string, error) {
 			continue
 		}
 
-		refreshedDischarge, err := RefreshDischargeMacaroon(d)
+		refreshedDischarge, err := refreshDischargeMacaroon(d)
 		if err != nil {
 			return nil, err
 		}
@@ -414,7 +475,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return fmt.Errorf("internal error: no authContext")
 	}
 
-	nonce, err := RequestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce()
 	if err != nil {
 		return err
 	}
@@ -424,7 +485,7 @@ func (s *Store) refreshDeviceSession(device *auth.DeviceState) error {
 		return err
 	}
 
-	session, err := RequestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
+	session, err := requestDeviceSession(string(serialAssertion), string(sessionRequest), device.SessionMacaroon)
 	if err != nil {
 		return err
 	}
@@ -462,11 +523,12 @@ func (s *Store) setStoreID(r *http.Request) {
 
 // requestOptions specifies parameters for store requests.
 type requestOptions struct {
-	Method      string
-	URL         *url.URL
-	Accept      string
-	ContentType string
-	Data        []byte
+	Method       string
+	URL          *url.URL
+	Accept       string
+	ContentType  string
+	ExtraHeaders map[string]string
+	Data         []byte
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -563,6 +625,10 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 
 	if reqOptions.ContentType != "" {
 		req.Header.Set("Content-Type", reqOptions.ContentType)
+	}
+
+	for header, value := range reqOptions.ExtraHeaders {
+		req.Header.Set(header, value)
 	}
 
 	s.setStoreID(req)
@@ -984,6 +1050,13 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		ContentType: "application/json",
 		Data:        jsonData,
 	}
+
+	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+		reqOptions.ExtraHeaders = map[string]string{
+			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
+		}
+	}
+
 	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
 		return nil, err
@@ -1190,6 +1263,26 @@ type buyError struct {
 	ErrorMessage string `json:"error_message"`
 }
 
+type storeError struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
+func (s *storeError) Error() string {
+	return s.Message
+}
+
+type storeErrors struct {
+	Errors []*storeError `json:"error_list"`
+}
+
+func (s *storeErrors) Error() string {
+	if len(s.Errors) == 0 {
+		return "internal error: empty store error used as an actual error"
+	}
+	return "store reported an error: " + s.Errors[0].Error()
+}
+
 func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 	identifier := ""
 	if options.SnapName != "" {
@@ -1326,7 +1419,64 @@ type PaymentInformation struct {
 	Methods                []*PaymentMethod `json:"methods"`
 }
 
+type storeCustomer struct {
+	LatestTosDate     string `json:"latest_tos_date"`
+	AcceptedTosDate   string `json:"accepted_tos_date"`
+	LatestTosAccepted bool   `json:"latest_tos_accepted"`
+	HasPaymentMethod  bool   `json:"has_payment_method"`
+}
+
+// ReadyToBuy returns nil if the user's account has accepted T&Cs and has a payment method registered, and an error otherwise
+func (s *Store) ReadyToBuy(user *auth.UserState) error {
+	if user == nil {
+		return ErrInvalidCredentials
+	}
+
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    s.customersMeURI,
+		Accept: jsonContentType,
+	}
+	resp, err := s.doRequest(s.client, reqOptions, user)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	switch resp.StatusCode {
+	case http.StatusOK:
+		var customer storeCustomer
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&customer); err != nil {
+			return err
+		}
+		if !customer.LatestTosAccepted {
+			return ErrTosNotAccepted
+		}
+		if !customer.HasPaymentMethod {
+			return ErrNoPaymentMethods
+		}
+		return nil
+	case http.StatusNotFound:
+		// Likely because user has no account registered on the pay server
+		return fmt.Errorf("cannot get customer details: server says no account exists")
+	case http.StatusUnauthorized:
+		return ErrInvalidCredentials
+	default:
+		var errors storeErrors
+		dec := json.NewDecoder(resp.Body)
+		if err := dec.Decode(&errors); err != nil {
+			return err
+		}
+		if len(errors.Errors) == 0 {
+			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+		}
+		return &errors
+	}
+}
+
 // PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
+// TODO Remove once the CLI is using the new /buy/ready endpoint
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
 	if user == nil {
 		return nil, ErrInvalidCredentials
