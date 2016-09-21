@@ -21,6 +21,7 @@ package snapdir_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -47,6 +48,24 @@ func (s *SnapdirTestSuite) TestReadFile(c *C) {
 	content, err := snap.ReadFile("foo")
 	c.Assert(err, IsNil)
 	c.Assert(content, DeepEquals, needle)
+}
+
+func (s *SnapdirTestSuite) TestListDir(c *C) {
+	d := c.MkDir()
+
+	err := os.MkdirAll(filepath.Join(d, "test"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "test", "test1"), nil, 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(d, "test", "test2"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	snap := snapdir.New(d)
+	fileNames, err := snap.ListDir("test")
+	c.Assert(err, IsNil)
+	c.Assert(fileNames, HasLen, 2)
+	c.Check(fileNames[0], Equals, "test1")
+	c.Check(fileNames[1], Equals, "test2")
 }
 
 func (s *SnapdirTestSuite) TestInstall(c *C) {

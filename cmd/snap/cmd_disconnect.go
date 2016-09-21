@@ -27,8 +27,8 @@ import (
 
 type cmdDisconnect struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<slot>"`
+		Offer SnapAndName `required:"true"`
+		Use   SnapAndName
 	} `positional-args:"true"`
 }
 
@@ -53,10 +53,17 @@ Disconnects all plugs from the provided snap.
 func init() {
 	addCommand("disconnect", shortDisconnectHelp, longDisconnectHelp, func() flags.Commander {
 		return &cmdDisconnect{}
+	}, nil, []argDesc{
+		{name: i18n.G("<snap>:<plug>")},
+		{name: i18n.G("<snap>:<slot>")},
 	})
 }
 
 func (x *cmdDisconnect) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	// snap disconnect <snap>:<slot>
 	// snap disconnect <snap>
 	if x.Positionals.Use.Snap == "" && x.Positionals.Use.Name == "" {

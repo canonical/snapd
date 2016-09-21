@@ -92,6 +92,8 @@ network sna,
 /{,usr/}{,s}bin/wpa_passphrase ixr,
 /{,usr/}{,s}bin/wpa_supplicant ixr,
 
+/dev/rfkill rw,
+
 # arp
 network netlink dgram,
 

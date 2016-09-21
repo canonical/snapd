@@ -1,0 +1,50 @@
+summary: Checks for cli errors installing snaps
+
+systems: [-ubuntu-core-16-64]
+
+environment:
+    SNAP_NAME: test-snapd-tools
+
+prepare: |
+    echo "Given a snap with a failing command is installed"
+    snap install $SNAP_NAME
+
+execute: |
+    echo "Install unexisting snap prints error"
+    if snap install unexisting.canonical; then
+        echo "Installing unexisting snap should fail"
+        exit 1
+    fi
+
+    echo "============================================"
+
+    echo "Install without snap name shows error"
+    if snap install; then
+        echo "Installing without snap name should fail"
+        exit 1
+    fi
+
+    echo "============================================"
+
+    echo "Install points to sudo when not authenticated"
+    if su - -c "snap install $SNAP_NAME 2>${PWD}/install.output" test; then
+        echo "Unauthenticated install should fail"
+        exit 1
+    fi
+    grep "try with sudo" install.output
+
+    echo "============================================"
+
+    echo "Calling a failing command from a snap should fail"
+    if test-snapd-tools.fail; then
+        echo "Failing snap commands should keep failing after installed"
+        exit 1
+    fi
+
+    echo "============================================"
+
+    echo "Install a snap already installed fails"
+    if snap install $SNAP_NAME; then
+        echo "Trying to install an already installed snap should fail"
+        exit 1
+    fi

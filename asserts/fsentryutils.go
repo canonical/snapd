@@ -33,11 +33,11 @@ import (
 func ensureTop(path string) error {
 	err := os.MkdirAll(path, 0775)
 	if err != nil {
-		return fmt.Errorf("failed to create assert storage root: %v", err)
+		return fmt.Errorf("cannot create assert storage root: %v", err)
 	}
 	info, err := os.Stat(path)
 	if err != nil {
-		return fmt.Errorf("failed to create assert storage root: %v", err)
+		return fmt.Errorf("cannot create assert storage root: %v", err)
 	}
 	if info.Mode().Perm()&0002 != 0 {
 		return fmt.Errorf("assert storage root unexpectedly world-writable: %v", path)

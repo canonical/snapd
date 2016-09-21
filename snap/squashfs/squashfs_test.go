@@ -20,8 +20,6 @@
 package squashfs
 
 import (
-	"crypto"
-	_ "crypto/sha256"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -33,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -45,10 +44,21 @@ var _ = Suite(&SquashfsTestSuite{})
 
 func makeSnap(c *C, manifest, data string) *Snap {
 	tmp := c.MkDir()
-	err := os.MkdirAll(filepath.Join(tmp, "meta"), 0755)
+	err := os.MkdirAll(filepath.Join(tmp, "meta", "hooks", "dir"), 0755)
+	c.Assert(err, IsNil)
 
 	// our regular snap.yaml
 	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "snap.yaml"), []byte(manifest), 0644)
+	c.Assert(err, IsNil)
+
+	// some hooks
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "foo-hook"), nil, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "bar-hook"), nil, 0755)
+	c.Assert(err, IsNil)
+	// And a file in another directory in there, just for testing (not a valid
+	// hook)
+	err = ioutil.WriteFile(filepath.Join(tmp, "meta", "hooks", "dir", "baz"), nil, 0755)
 	c.Assert(err, IsNil)
 
 	// some data
@@ -69,18 +79,33 @@ func (s *SquashfsTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *SquashfsTestSuite) TestInstallSimple(c *C) {
+	snap := makeSnap(c, "name: test", "")
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	mountDir := c.MkDir()
+	err := snap.Install(targetPath, mountDir)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(targetPath), Equals, true)
+}
+
+func (s *SquashfsTestSuite) TestInstallNotCopyTwice(c *C) {
+	snap := makeSnap(c, "name: test2", "")
+	targetPath := filepath.Join(c.MkDir(), "target.snap")
+	mountDir := c.MkDir()
+	err := snap.Install(targetPath, mountDir)
+	c.Assert(err, IsNil)
+
+	cmd := testutil.MockCommand(c, "cp", "")
+	defer cmd.Restore()
+	err = snap.Install(targetPath, mountDir)
+	c.Assert(err, IsNil)
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
 func (s *SquashfsTestSuite) TestPath(c *C) {
 	p := "/path/to/foo.snap"
 	snap := New("/path/to/foo.snap")
 	c.Assert(snap.Path(), Equals, p)
-}
-
-func (s *SquashfsTestSuite) TestHashFile(c *C) {
-	snap := makeSnap(c, "name: test", "")
-	size, digest, err := snap.HashDigest(crypto.SHA256)
-	c.Assert(err, IsNil)
-	c.Check(size, Equals, uint64(4096))
-	c.Check(digest, HasLen, crypto.SHA256.Size())
 }
 
 func (s *SquashfsTestSuite) TestReadFile(c *C) {
@@ -91,13 +116,24 @@ func (s *SquashfsTestSuite) TestReadFile(c *C) {
 	c.Assert(string(content), Equals, "name: foo")
 }
 
+func (s *SquashfsTestSuite) TestListDir(c *C) {
+	snap := makeSnap(c, "name: foo", "")
+
+	fileNames, err := snap.ListDir("meta/hooks")
+	c.Assert(err, IsNil)
+	c.Assert(len(fileNames), Equals, 3)
+	c.Check(fileNames[0], Equals, "bar-hook")
+	c.Check(fileNames[1], Equals, "dir")
+	c.Check(fileNames[2], Equals, "foo-hook")
+}
+
 // TestUnpackGlob tests the internal unpack
 func (s *SquashfsTestSuite) TestUnpackGlob(c *C) {
 	data := "some random data"
 	snap := makeSnap(c, "", data)
 
 	outputDir := c.MkDir()
-	err := snap.unpack("data*", outputDir)
+	err := snap.Unpack("data*", outputDir)
 	c.Assert(err, IsNil)
 
 	// this is the file we expect

@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -20,4 +19,48 @@
 
 package main
 
+import (
+	"os/user"
+	"time"
+)
+
 var RunMain = run
+
+var (
+	CreateUserDataDirs = createUserDataDirs
+	SnapRunApp         = snapRunApp
+	SnapRunHook        = snapRunHook
+	Wait               = wait
+)
+
+func MockPollTime(d time.Duration) (restore func()) {
+	d0 := pollTime
+	pollTime = d
+	return func() {
+		pollTime = d0
+	}
+}
+
+func MockMaxGoneTime(d time.Duration) (restore func()) {
+	d0 := maxGoneTime
+	maxGoneTime = d
+	return func() {
+		maxGoneTime = d0
+	}
+}
+
+func MockSyscallExec(f func(string, []string, []string) error) (restore func()) {
+	syscallExecOrig := syscallExec
+	syscallExec = f
+	return func() {
+		syscallExec = syscallExecOrig
+	}
+}
+
+func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
+	userCurrentOrig := userCurrent
+	userCurrent = f
+	return func() {
+		userCurrent = userCurrentOrig
+	}
+}

@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -49,7 +48,7 @@ platform.
 
 
 Application Options:
- +--version +print the version and exit
+ +--version +Print the version and exit
 
 Help Options:
  +-h, --help +Show this help message

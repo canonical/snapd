@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !integrationcoverage
 
 /*
  * Copyright (C) 2016 Canonical Ltd
@@ -52,16 +51,16 @@ Filters the complete output so only plugs and/or slots matching the provided
 details are listed.
 
 Application Options:
-      --version                    print the version and exit
+      --version                    Print the version and exit
 
 Help Options:
   -h, --help                       Show this help message
 
 [interfaces command options]
-      -i=                          constrain listing to specific interfaces
+      -i=                          Constrain listing to specific interfaces
 
 [interfaces command arguments]
-  <snap>:<slot or plug>:           snap or snap:name
+  <snap>:<slot or plug>:           Constrain listing to a specific snap or snap:name
 `
 	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
 	c.Assert(err.Error(), Equals, msg)
@@ -175,6 +174,22 @@ func (s *SnapSuite) TestInterfacesOneSlotOnePlug(c *C) {
 	expectedStdout := "" +
 		"Slot                  Plug\n" +
 		"canonical-pi2:pin-13  keyboard-lights:capslock-led\n"
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.SetUpTest(c)
+	// should be the same
+	rest, err = Parser().ParseArgs([]string{"interfaces", "canonical-pi2"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Assert(s.Stdout(), Equals, expectedStdout)
+	c.Assert(s.Stderr(), Equals, "")
+
+	s.SetUpTest(c)
+	// and the same again
+	rest, err = Parser().ParseArgs([]string{"interfaces", "keyboard-lights"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }

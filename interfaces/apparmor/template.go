@@ -72,6 +72,11 @@ var defaultTemplate = []byte(`
 
   # End dangerous accesses
 
+  # Note: this potentially allows snaps to DoS other snaps via resource
+  # exhaustion but we can't sensibly mediate this today. In the future we may
+  # employ cgroup limits, AppArmor rlimit mlock rules or something else.
+  capability ipc_lock,
+
   # for bash 'binaries' (do *not* use abstractions/bash)
   # user-specific bash files
   /bin/bash ixr,
@@ -81,6 +86,7 @@ var defaultTemplate = []byte(`
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
   /etc/profile r,
+  /etc/environment r,
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
@@ -93,6 +99,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/bzip2 ixr,
   /{,usr/}bin/cat ixr,
   /{,usr/}bin/chmod ixr,
+  /{,usr/}bin/clear ixr,
   /{,usr/}bin/cmp ixr,
   /{,usr/}bin/cp ixr,
   /{,usr/}bin/cpio ixr,
@@ -122,6 +129,7 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/ln ixr,
   /{,usr/}bin/line ixr,
   /{,usr/}bin/link ixr,
+  /{,usr/}bin/locale ixr,
   /{,usr/}bin/logger ixr,
   /{,usr/}bin/ls ixr,
   /{,usr/}bin/md5sum ixr,
@@ -142,9 +150,13 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/rmdir ixr,
   /{,usr/}bin/sed ixr,
   /{,usr/}bin/seq ixr,
+  /{,usr/}bin/sha{1,224,256,384,512}sum ixr,
+  /{,usr/}bin/shuf ixr,
   /{,usr/}bin/sleep ixr,
   /{,usr/}bin/sort ixr,
   /{,usr/}bin/stat ixr,
+  /{,usr/}bin/stdbuf ixr,
+  /{,usr/}bin/stty ixr,
   /{,usr/}bin/tac ixr,
   /{,usr/}bin/tail ixr,
   /{,usr/}bin/tar ixr,
@@ -153,8 +165,10 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/tempfile ixr,
   /{,usr/}bin/tset ixr,
   /{,usr/}bin/touch ixr,
+  /{,usr/}bin/tput ixr,
   /{,usr/}bin/tr ixr,
   /{,usr/}bin/true ixr,
+  /{,usr/}bin/tty ixr,
   /{,usr/}bin/uname ixr,
   /{,usr/}bin/uniq ixr,
   /{,usr/}bin/unlink ixr,
@@ -171,10 +185,27 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
 
+  # For printing the cache (we don't allow updating the cache)
+  /{,usr/}sbin/ldconfig{,.real} ixr,
+
   # uptime
   /{,usr/}bin/uptime ixr,
   @{PROC}/uptime r,
   @{PROC}/loadavg r,
+
+  # lsb-release
+  /usr/bin/lsb_release ixr,
+  /usr/bin/ r,
+  /usr/share/distro-info/*.csv r,
+
+  # systemd native journal API (see sd_journal_print(4)). This should be in
+  # AppArmor's base abstraction, but until it is, include here.
+  /run/systemd/journal/socket w,
+
+  # snapctl and its requirements
+  /usr/bin/snapctl ixr,
+  @{PROC}/sys/net/core/somaxconn r,
+  /run/snapd-snap.socket rw,
 
   # Note: for now, don't explicitly deny this noisy denial so --devmode isn't
   # broken but eventually we may conditionally deny this since it is an
@@ -185,12 +216,11 @@ var defaultTemplate = []byte(`
   @{PROC}/@{pid}/ r,
   @{PROC}/@{pid}/fd/ r,
   owner @{PROC}/@{pid}/auxv r,
-  @{PROC}/@{pid}/version_signature r,
-  @{PROC}/@{pid}/version r,
   @{PROC}/sys/vm/zone_reclaim_mode r,
   /etc/lsb-release r,
   /sys/devices/**/read_ahead_kb r,
   /sys/devices/system/cpu/** r,
+  /sys/devices/system/node/node[0-9]*/* r,
   /sys/kernel/mm/transparent_hugepage/enabled r,
   /sys/kernel/mm/transparent_hugepage/defrag r,
   # NOTE: this leaks running process but java seems to want it (even though it
@@ -200,14 +230,24 @@ var defaultTemplate = []byte(`
   owner @{PROC}/@{pid}/cmdline r,
 
   # Miscellaneous accesses
+  /etc/machine-id r,
   /etc/mime.types r,
   @{PROC}/ r,
+  @{PROC}/version r,
+  @{PROC}/version_signature r,
   /etc/{,writable/}hostname r,
   /etc/{,writable/}localtime r,
   /etc/{,writable/}timezone r,
+  @{PROC}/@{pid}/io r,
+  owner @{PROC}/@{pid}/limits r,
+  @{PROC}/@{pid}/smaps r,
   @{PROC}/@{pid}/stat r,
   @{PROC}/@{pid}/statm r,
   @{PROC}/@{pid}/status r,
+  @{PROC}/@{pid}/task/ r,
+  @{PROC}/@{pid}/task/[0-9]*/stat r,
+  @{PROC}/@{pid}/task/[0-9]*/statm r,
+  @{PROC}/@{pid}/task/[0-9]*/status r,
   @{PROC}/sys/kernel/hostname r,
   @{PROC}/sys/kernel/osrelease r,
   @{PROC}/sys/kernel/yama/ptrace_scope r,
@@ -215,6 +255,8 @@ var defaultTemplate = []byte(`
   @{PROC}/sys/fs/file-max r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/uuid r,
+  /sys/devices/virtual/tty/{console,tty*}/active r,
+  /{,usr/}lib/ r,
 
   # Reads of oom_adj and oom_score_adj are safe
   owner @{PROC}/@{pid}/oom_{,score_}adj r,

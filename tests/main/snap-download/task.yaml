@@ -1,0 +1,25 @@
+summary: Check that snap download works
+restore: |
+    rm -f *.snap
+execute: |
+    verify_asserts() {
+        fn="$1"
+        grep "type: account-key" "$fn"
+        grep "type: snap-declaration" "$fn"
+        grep "type: snap-revision" "$fn"
+    }
+    echo "Snap download can download snaps"
+    snap download hello-world
+    ls hello-world_*.snap
+    verify_asserts hello-world_*.snap.assertions
+
+    echo "Snap download understand --edge"
+    snap download --edge test-snapd-tools
+    ls test-snapd-tools_*.snap
+    verify_asserts test-snapd-tools_*.snap.assertions
+
+    echo "Snap download downloads devmode snaps"
+    snap download --beta classic
+    ls classic_*.snap
+    verify_asserts classic_*.snap.assertions
+

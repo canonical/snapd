@@ -21,6 +21,9 @@ package snapstate_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -30,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snap/squashfs"
 
 	"github.com/snapcore/snapd/overlord/snapstate"
 )
@@ -45,53 +47,6 @@ func (s *checkSnapSuite) SetUpTest(c *C) {
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
-}
-
-func (s *checkSnapSuite) TestOpenSnapFile(c *C) {
-	const yaml = `name: hello
-version: 1.0
-apps:
- bin:
-   command: bin
-`
-
-	snapPath := makeTestSnap(c, yaml)
-	info, snapf, err := snapstate.OpenSnapFileImpl(snapPath, nil)
-	c.Assert(err, IsNil)
-
-	c.Assert(snapf, FitsTypeOf, &squashfs.Snap{})
-	c.Check(info.Name(), Equals, "hello")
-}
-
-func (s *checkSnapSuite) TestOpenSnapFilebSideInfo(c *C) {
-	const yaml = `name: foo
-apps:
- bar:
-  command: bin/bar
-plugs:
-  plug:
-slots:
- slot:
-`
-
-	snapPath := makeTestSnap(c, yaml)
-	si := snap.SideInfo{OfficialName: "blessed", Revision: snap.R(42)}
-	info, _, err := snapstate.OpenSnapFileImpl(snapPath, &si)
-	c.Assert(err, IsNil)
-
-	// check side info
-	c.Check(info.Name(), Equals, "blessed")
-	c.Check(info.Revision, Equals, snap.R(42))
-
-	c.Check(info.SideInfo, DeepEquals, si)
-
-	// ensure that all leaf objects link back to the same snap.Info
-	// and not to some copy.
-	// (we had a bug around this)
-	c.Check(info.Apps["bar"].Snap, Equals, info)
-	c.Check(info.Plugs["plug"].Snap, Equals, info)
-	c.Check(info.Slots["slot"].Snap, Equals, info)
-
 }
 
 func (s *checkSnapSuite) TestCheckSnapErrorOnUnsupportedArchitecture(c *C) {
@@ -155,19 +110,24 @@ assumes: [common-data-dir]`
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: snap.R(2)}
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: gadget
@@ -191,19 +151,24 @@ version: 2
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetAdditionProhibited(c *C) {
+	reset := release.MockOnClassic(false)
+	defer reset()
+
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
 
-	si := &snap.SideInfo{Revision: snap.R(2)}
+	si := &snap.SideInfo{RealName: "gadget", Revision: snap.R(2)}
 	snaptest.MockSnap(c, `
 name: gadget
 type: gadget
 version: 1
 `, si)
 	snapstate.Set(st, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
 	})
 
 	const yaml = `name: zgadget
@@ -227,6 +192,11 @@ version: 2
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
+	err := os.MkdirAll(filepath.Dir(dirs.SnapFirstBootStamp), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(dirs.SnapFirstBootStamp, nil, 0644)
+	c.Assert(err, IsNil)
+
 	reset := release.MockOnClassic(false)
 	defer reset()
 
@@ -280,4 +250,25 @@ version: 1
 	err = snapstate.CheckSnap(st, "snap-path", nil, 0)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot install a gadget snap on classic")
+}
+
+func (s *checkSnapSuite) TestCheckSnapErrorOnDevModeDisallowed(c *C) {
+	const yaml = `name: hello
+version: 1.10
+confinement: devmode
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		c.Check(path, Equals, "snap-path")
+		c.Check(si, IsNil)
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+
+	c.Assert(err, ErrorMatches, ".* requires devmode or confinement override")
 }

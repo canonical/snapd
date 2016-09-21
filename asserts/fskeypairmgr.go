@@ -22,7 +22,6 @@ package asserts
 import (
 	"errors"
 	"fmt"
-	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -31,7 +30,7 @@ import (
 // the default simple filesystem based keypair manager/backstore
 
 const (
-	privateKeysLayoutVersion = "v0"
+	privateKeysLayoutVersion = "v1"
 	privateKeysRoot          = "private-keys-" + privateKeysLayoutVersion
 )
 
@@ -52,43 +51,42 @@ func OpenFSKeypairManager(path string) (KeypairManager, error) {
 
 var errKeypairAlreadyExists = errors.New("key pair with given key id already exists")
 
-func (fskm *filesystemKeypairManager) Put(authorityID string, privKey PrivateKey) error {
+func (fskm *filesystemKeypairManager) Put(privKey PrivateKey) error {
 	keyID := privKey.PublicKey().ID()
-	escapedAuthorityID := url.QueryEscape(authorityID)
-	if entryExists(fskm.top, escapedAuthorityID, keyID) {
+	if entryExists(fskm.top, keyID) {
 		return errKeypairAlreadyExists
 	}
 	encoded, err := encodePrivateKey(privKey)
 	if err != nil {
-		return fmt.Errorf("failed to store private key: %v", err)
+		return fmt.Errorf("cannot store private key: %v", err)
 	}
 
 	fskm.mu.Lock()
 	defer fskm.mu.Unlock()
 
-	err = atomicWriteEntry(encoded, true, fskm.top, escapedAuthorityID, keyID)
+	err = atomicWriteEntry(encoded, true, fskm.top, keyID)
 	if err != nil {
-		return fmt.Errorf("failed to store private key: %v", err)
+		return fmt.Errorf("cannot store private key: %v", err)
 	}
 	return nil
 }
 
 var errKeypairNotFound = errors.New("cannot find key pair")
 
-func (fskm *filesystemKeypairManager) Get(authorityID, keyID string) (PrivateKey, error) {
+func (fskm *filesystemKeypairManager) Get(keyID string) (PrivateKey, error) {
 	fskm.mu.RLock()
 	defer fskm.mu.RUnlock()
 
-	encoded, err := readEntry(fskm.top, url.QueryEscape(authorityID), keyID)
+	encoded, err := readEntry(fskm.top, keyID)
 	if os.IsNotExist(err) {
 		return nil, errKeypairNotFound
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to read key pair: %v", err)
+		return nil, fmt.Errorf("cannot read key pair: %v", err)
 	}
 	privKey, err := decodePrivateKey(encoded)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode key pair: %v", err)
+		return nil, fmt.Errorf("cannot decode key pair: %v", err)
 	}
 	return privKey, nil
 }

@@ -222,6 +222,7 @@ arm_fadvise64_64
 
 mbind
 membarrier
+memfd_create
 mincore
 mkdir
 mkdirat
@@ -230,6 +231,7 @@ mlock2
 mlockall
 mmap
 mmap2
+modify_ldt
 mprotect
 
 # LP: #1448184 - these aren't currently mediated by AppArmor. Deny for now
@@ -317,6 +319,11 @@ sched_setscheduler
 
 sched_yield
 
+# Allow configuring seccomp filter. This is ok because the kernel enforces that
+# the new filter is a subset of the current filter (ie, no widening
+# permissions)
+seccomp
+
 select
 _newselect
 pselect
@@ -389,6 +396,11 @@ sigwaitinfo
 # needed by ls -l
 socket
 connect
+
+# needed by snapctl
+setsockopt
+getsockname
+getpeername
 
 # Per man page, on Linux this is limited to only AF_UNIX so it is ok to have
 # in the default template
@@ -473,4 +485,9 @@ writev
 pwrite
 pwrite64
 pwritev
+
+# FIXME: remove this after LP: #1446748 is implemented
+# This is an older interface and single entry point that can be used instead
+# of socket(), bind(), connect(), etc individually.
+socketcall
 `)

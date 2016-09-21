@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 
 	. "gopkg.in/check.v1"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
@@ -116,6 +118,19 @@ func (s *copydataSuite) TestCopyData(c *C) {
 	c.Assert(content, DeepEquals, canaryData)
 }
 
+func (s *copydataSuite) TestCopyDataBails(c *C) {
+	oldSnapDataHomeGlob := dirs.SnapDataHomeGlob
+	defer func() { dirs.SnapDataHomeGlob = oldSnapDataHomeGlob }()
+
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	c.Assert(s.be.CopySnapData(v1, nil, &s.nullProgress), IsNil)
+	c.Assert(os.Chmod(v1.DataDir(), 0), IsNil)
+
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
+	c.Check(err, ErrorMatches, "cannot copy .*")
+}
+
 // ensure that even with no home dir there is no error and the
 // system data gets copied
 func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
@@ -150,20 +165,31 @@ func (s *copydataSuite) TestCopyDataNoUserHomes(c *C) {
 }
 
 func (s *copydataSuite) populateData(c *C, revision snap.Revision) {
-	datadir := filepath.Join(dirs.SnapDataDir, "hello/"+revision.String())
+	datadir := filepath.Join(dirs.SnapDataDir, "hello", revision.String())
 	subdir := filepath.Join(datadir, "random-subdir")
 	err := os.MkdirAll(subdir, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(subdir, "canary"), []byte(fmt.Sprintln(revision)), 0644)
 	c.Assert(err, IsNil)
+}
+
+func (s *copydataSuite) populatedData(d string) string {
+	bs, err := ioutil.ReadFile(filepath.Join(dirs.SnapDataDir, "hello", d, "random-subdir", "canary"))
+	if err == nil {
+		return string(bs)
+	}
+	if os.IsNotExist(err) {
+		return ""
+	}
+	panic(err)
 }
 
 func (s copydataSuite) populateHomeData(c *C, user string, revision snap.Revision) (homedir string) {
 	homedir = filepath.Join(s.tempdir, "home", user, "snap")
-	homeData := filepath.Join(homedir, "hello/"+revision.String())
+	homeData := filepath.Join(homedir, "hello", revision.String())
 	err := os.MkdirAll(homeData, 0755)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), nil, 0644)
+	err = ioutil.WriteFile(filepath.Join(homeData, "canary.home"), []byte(fmt.Sprintln(revision)), 0644)
 	c.Assert(err, IsNil)
 	return
 }
@@ -243,6 +269,58 @@ func (s *copydataSuite) TestCopyDataDoUndoFirstInstall(c *C) {
 	c.Check(os.IsNotExist(err), Equals, true)
 	_, err = os.Stat(v1.CommonDataDir())
 	c.Check(os.IsNotExist(err), Equals, true)
+}
+
+func (s *copydataSuite) TestCopyDataDoABA(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	s.populateData(c, snap.R(10))
+	c.Check(s.populatedData("10"), Equals, "10\n")
+
+	// pretend we install a new version
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+	// and write our own data to it
+	s.populateData(c, snap.R(20))
+	c.Check(s.populatedData("20"), Equals, "20\n")
+
+	// and now we pretend to refresh back to v1 (r10)
+	c.Check(s.be.CopySnapData(v1, v2, &s.nullProgress), IsNil)
+
+	// so 10 now has 20's data
+	c.Check(s.populatedData("10"), Equals, "20\n")
+
+	// but we still have the trash
+	c.Check(s.populatedData("10.old"), Equals, "10\n")
+
+	// but cleanup cleans it up, huzzah
+	s.be.ClearTrashedData(v1)
+	c.Check(s.populatedData("10.old"), Equals, "")
+}
+
+func (s *copydataSuite) TestCopyDataDoUndoABA(c *C) {
+	v1 := snaptest.MockSnap(c, helloYaml1, &snap.SideInfo{Revision: snap.R(10)})
+	s.populateData(c, snap.R(10))
+	c.Check(s.populatedData("10"), Equals, "10\n")
+
+	// pretend we install a new version
+	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
+	// and write our own data to it
+	s.populateData(c, snap.R(20))
+	c.Check(s.populatedData("20"), Equals, "20\n")
+
+	// and now we pretend to refresh back to v1 (r10)
+	c.Check(s.be.CopySnapData(v1, v2, &s.nullProgress), IsNil)
+
+	// so v1 (r10) now has v2 (r20)'s data and we have trash
+	c.Check(s.populatedData("10"), Equals, "20\n")
+	c.Check(s.populatedData("10.old"), Equals, "10\n")
+
+	// but oh no! we have to undo it!
+	c.Check(s.be.UndoCopySnapData(v1, v2, &s.nullProgress), IsNil)
+
+	// so now v1 (r10) has v1 (r10)'s data and v2 (r20) has v2 (r20)'s data and we have no trash
+	c.Check(s.populatedData("10"), Equals, "10\n")
+	c.Check(s.populatedData("20"), Equals, "20\n")
+	c.Check(s.populatedData("10.old"), Equals, "")
 }
 
 func (s *copydataSuite) TestCopyDataDoIdempotent(c *C) {
@@ -356,21 +434,13 @@ func (s *copydataSuite) TestCopyDataCopyFailure(c *C) {
 	// pretend we install a new version
 	v2 := snaptest.MockSnap(c, helloYaml2, &snap.SideInfo{Revision: snap.R(20)})
 
-	fakeBinDir := filepath.Join(s.tempdir, "bin")
-	err := os.MkdirAll(fakeBinDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(fakeBinDir, "cp"), []byte(
-		`#!/bin/sh
-echo cp: boom
-exit 3
-`), 0755)
-	c.Assert(err, IsNil)
+	defer testutil.MockCommand(c, "cp", "echo cp: boom; exit 3").Restore()
 
-	oldPATH := os.Getenv("PATH")
-	defer os.Setenv("PATH", oldPATH)
-	os.Setenv("PATH", fakeBinDir+":"+oldPATH)
+	q := func(s string) string {
+		return regexp.QuoteMeta(strconv.Quote(s))
+	}
 
 	// copy data will fail
-	err = s.be.CopySnapData(v2, v1, &s.nullProgress)
-	c.Assert(err, ErrorMatches, regexp.QuoteMeta(fmt.Sprintf("cannot copy %s to %s: cp: boom", v1.DataDir(), v2.DataDir())))
+	err := s.be.CopySnapData(v2, v1, &s.nullProgress)
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot copy %s to %s: .*: "cp: boom" \(3\)`, q(v1.DataDir()), q(v2.DataDir())))
 }

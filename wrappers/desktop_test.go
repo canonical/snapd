@@ -20,6 +20,7 @@
 package wrappers_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -30,11 +31,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
 type desktopSuite struct {
 	tempdir string
+
+	mockUpdateDesktopDatabase *testutil.MockCmd
 }
 
 var _ = Suite(&desktopSuite{})
@@ -42,6 +46,8 @@ var _ = Suite(&desktopSuite{})
 func (s *desktopSuite) SetUpTest(c *C) {
 	s.tempdir = c.MkDir()
 	dirs.SetRootDir(s.tempdir)
+
+	s.mockUpdateDesktopDatabase = testutil.MockCommand(c, "update-desktop-database", "")
 }
 
 func (s *desktopSuite) TearDownTest(c *C) {
@@ -75,6 +81,9 @@ func (s *desktopSuite) TestAddPackageDesktopFiles(c *C) {
 	err = wrappers.AddSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(expectedDesktopFilePath), Equals, true)
+	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
+		{"update-desktop-database", dirs.SnapDesktopFilesDir},
+	})
 }
 
 func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
@@ -90,6 +99,9 @@ func (s *desktopSuite) TestRemovePackageDesktopFiles(c *C) {
 	err = wrappers.RemoveSnapDesktopFiles(info)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(mockDesktopFilePath), Equals, false)
+	c.Assert(s.mockUpdateDesktopDatabase.Calls(), DeepEquals, [][]string{
+		{"update-desktop-database", dirs.SnapDesktopFilesDir},
+	})
 }
 
 // sanitize
@@ -99,7 +111,7 @@ type sanitizeDesktopFileSuite struct{}
 var _ = Suite(&sanitizeDesktopFileSuite{})
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeIgnoreNotWhitelisted(c *C) {
-	snap := &snap.Info{SideInfo: snap.SideInfo{OfficialName: "foo", Revision: snap.R(12)}}
+	snap := &snap.Info{SideInfo: snap.SideInfo{RealName: "foo", Revision: snap.R(12)}}
 	desktopContent := []byte(`[Desktop Entry]
 Name=foo
 UnknownKey=baz
@@ -108,12 +120,12 @@ Icon=${SNAP}/meep
 
 # the empty line above is fine`)
 
-	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
-	c.Assert(string(e), Equals, `[Desktop Entry]
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Icon=/snap/foo/12/meep
+Icon=%s/foo/12/meep
 
-# the empty line above is fine`)
+# the empty line above is fine`, dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestSanitizeFiltersExec(c *C) {
@@ -130,7 +142,7 @@ Name=foo
 Exec=baz
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
@@ -149,7 +161,7 @@ Name=foo
 Exec=snap.app.evil.evil
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
@@ -168,10 +180,10 @@ Name=foo
 Exec=snap.app %U
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
-	c.Assert(string(e), Equals, `[Desktop Entry]
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
+	c.Assert(string(e), Equals, fmt.Sprintf(`[Desktop Entry]
 Name=foo
-Exec=/snap/bin/snap.app %U`)
+Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app %%U`, dirs.SnapMountDir))
 }
 
 // we do not support TryExec (even if its a valid line), this test ensures
@@ -190,7 +202,7 @@ Name=foo
 TryExec=snap.app %U
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo`)
 }
@@ -207,7 +219,7 @@ Invalid=key
 Invalid[i18n]=key
 `)
 
-	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Entry]
 Name=foo
 GenericName=bar
@@ -220,13 +232,13 @@ func (s *sanitizeDesktopFileSuite) TestSanitizeDesktopActionsOk(c *C) {
 	snap := &snap.Info{}
 	desktopContent := []byte(`[Desktop Action is-ok]`)
 
-	e := wrappers.SanitizeDesktopFile(snap, desktopContent)
+	e := wrappers.SanitizeDesktopFile(snap, "foo.desktop", desktopContent)
 	c.Assert(string(e), Equals, `[Desktop Action is-ok]`)
 }
 
 func (s *sanitizeDesktopFileSuite) TestRewriteExecLineInvalid(c *C) {
 	snap := &snap.Info{}
-	_, err := wrappers.RewriteExecLine(snap, "Exec=invalid")
+	_, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=invalid")
 	c.Assert(err, ErrorMatches, `invalid exec command: "invalid"`)
 }
 
@@ -240,9 +252,9 @@ apps:
 `))
 	c.Assert(err, IsNil)
 
-	newl, err := wrappers.RewriteExecLine(snap, "Exec=snap.app")
+	newl, err := wrappers.RewriteExecLine(snap, "foo.desktop", "Exec=snap.app")
 	c.Assert(err, IsNil)
-	c.Assert(newl, Equals, "Exec=/snap/bin/snap.app")
+	c.Assert(newl, Equals, fmt.Sprintf("Exec=env BAMF_DESKTOP_FILE_HINT=foo.desktop %s/bin/snap.app", dirs.SnapMountDir))
 }
 
 func (s *sanitizeDesktopFileSuite) TestTrimLang(c *C) {

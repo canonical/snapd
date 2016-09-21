@@ -22,8 +22,10 @@ package cmd
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"syscall"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 )
@@ -34,15 +36,26 @@ import (
 // to be set to 1 (do re-exec); that is: set it to 0 to disable.
 const key = "SNAP_REEXEC"
 
-// SwitchToTheRealOne makes sure you're executing the "real"
-// binary. I.e. the one that ships in the ubuntu-core snap.
+// newCore is the place to look for the core snap; everything in this
+// location will be new enough to re-exec into.
+const newCore = "/snap/core/current"
+
+// oldCore is the previous location of the core snap. Only things
+// newer than minOldRevno will be ok to re-exec into.
+const oldCore = "/snap/ubuntu-core/current"
+
+// old ubuntu-core snaps older than this aren't suitable targets for re-execage
+const minOldRevno = 126
+
+// ExecInCoreSnap makes sure you're executing the binary that ships in
+// the core snap.
 func ExecInCoreSnap() {
 	if !release.OnClassic {
 		// you're already the real deal, natch
 		return
 	}
 
-	if os.Getenv(key) == "0" {
+	if os.Getenv(key) != "1" {
 		return
 	}
 
@@ -51,11 +64,22 @@ func ExecInCoreSnap() {
 		return
 	}
 
-	exe = filepath.Join("/snap/ubuntu-core/current", exe)
-	if !osutil.FileExists(exe) {
-		return
+	full := filepath.Join(newCore, exe)
+	if !osutil.FileExists(full) {
+		if rev, err := os.Readlink(oldCore); err != nil {
+			return
+		} else if revno, err := strconv.Atoi(rev); err != nil || revno < minOldRevno {
+			return
+		}
+
+		full = filepath.Join(oldCore, exe)
+		if !osutil.FileExists(full) {
+			return
+		}
 	}
 
+	logger.Debugf("restarting into %q", full)
+
 	env := append(os.Environ(), key+"=0")
-	panic(syscall.Exec(exe, os.Args, env))
+	panic(syscall.Exec(full, os.Args, env))
 }

@@ -24,17 +24,34 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"path"
+	"syscall"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 )
 
-func unixDialer(_, _ string) (net.Conn, error) {
-	return net.Dial("unix", dirs.SnapdSocket)
+func unixDialer() func(string, string) (net.Conn, error) {
+	// We have two sockets available: the SnapdSocket (which provides
+	// administrative access), and the SnapSocket (which doesn't). Use the most
+	// powerful one available (e.g. from within snaps, SnapdSocket is hidden by
+	// apparmor unless the snap has the snapd-control interface).
+	socketPath := dirs.SnapdSocket
+	file, err := os.OpenFile(socketPath, os.O_RDWR, 0666)
+	if err == nil {
+		file.Close()
+	} else if e, ok := err.(*os.PathError); ok && (e.Err == syscall.ENOENT || e.Err == syscall.EACCES) {
+		socketPath = dirs.SnapSocket
+	}
+
+	return func(_, _ string) (net.Conn, error) {
+		return net.Dial("unix", socketPath)
+	}
 }
 
 type doer interface {
@@ -64,7 +81,7 @@ func New(config *Config) *Client {
 				Host:   "localhost",
 			},
 			doer: &http.Client{
-				Transport: &http.Transport{Dial: unixDialer},
+				Transport: &http.Transport{Dial: unixDialer()},
 			},
 		}
 	}
@@ -122,20 +139,58 @@ func (client *Client) raw(method, urlpath string, query url.Values, headers map[
 	return client.doer.Do(req)
 }
 
+var (
+	doRetry   = 250 * time.Millisecond
+	doTimeout = 5 * time.Second
+)
+
+// MockDoRetry mocks the delays used by the do retry loop.
+func MockDoRetry(retry, timeout time.Duration) (restore func()) {
+	oldRetry := doRetry
+	oldTimeout := doTimeout
+	doRetry = retry
+	doTimeout = timeout
+	return func() {
+		doRetry = oldRetry
+		doTimeout = oldTimeout
+	}
+}
+
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
 func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) error {
-	rsp, err := client.raw(method, path, query, headers, body)
+	retry := time.NewTicker(doRetry)
+	defer retry.Stop()
+	timeout := time.After(doTimeout)
+	var rsp *http.Response
+	var err error
+	for {
+		rsp, err = client.raw(method, path, query, headers, body)
+		if err == nil || method != "GET" {
+			break
+		}
+		select {
+		case <-retry.C:
+			continue
+		case <-timeout:
+		}
+		break
+	}
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot communicate with server: %s", err)
 	}
 	defer rsp.Body.Close()
 
 	if v != nil {
 		dec := json.NewDecoder(rsp.Body)
 		if err := dec.Decode(v); err != nil {
-			return err
+			r := dec.Buffered()
+			buf, err1 := ioutil.ReadAll(r)
+			if err1 != nil {
+				buf = []byte(fmt.Sprintf("error reading buffered response body: %s", err1))
+			}
+			return fmt.Errorf("cannot decode %q: %s", buf, err)
 		}
 	}
 
@@ -147,9 +202,8 @@ func (client *Client) do(method, path string, query url.Values, headers map[stri
 // response payload into the given value.
 func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	var rsp response
-
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
-		return nil, fmt.Errorf("cannot communicate with server: %s", err)
+		return nil, err
 	}
 	if err := rsp.err(); err != nil {
 		return nil, err
@@ -171,7 +225,7 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	var rsp response
 
 	if err := client.do(method, path, query, headers, body, &rsp); err != nil {
-		return "", fmt.Errorf("cannot communicate with server: %v", err)
+		return "", err
 	}
 	if err := rsp.err(); err != nil {
 		return "", err
@@ -189,18 +243,27 @@ func (client *Client) doAsync(method, path string, query url.Values, headers map
 	return rsp.Change, nil
 }
 
-func (client *Client) ServerVersion() (string, error) {
+type ServerVersion struct {
+	Version     string
+	Series      string
+	OSID        string
+	OSVersionID string
+	OnClassic   bool
+}
+
+func (client *Client) ServerVersion() (*ServerVersion, error) {
 	sysInfo, err := client.SysInfo()
 	if err != nil {
-		return "unknown", err
+		return nil, err
 	}
 
-	version := sysInfo.Version
-	if version == "" {
-		version = "unknown"
-	}
-
-	return fmt.Sprintf("%s (series %s)", version, sysInfo.Series), nil
+	return &ServerVersion{
+		Version:     sysInfo.Version,
+		Series:      sysInfo.Series,
+		OSID:        sysInfo.OSRelease.ID,
+		OSVersionID: sysInfo.OSRelease.VersionID,
+		OnClassic:   sysInfo.OnClassic,
+	}, nil
 }
 
 // A response produced by the REST API will usually fit in this
@@ -244,10 +307,18 @@ func IsTwoFactorError(err error) bool {
 	return e.Kind == ErrorKindTwoFactorFailed || e.Kind == ErrorKindTwoFactorRequired
 }
 
+// OSRelease contains information about the system extracted from /etc/os-release.
+type OSRelease struct {
+	ID        string `json:"id"`
+	VersionID string `json:"version-id,omitempty"`
+}
+
 // SysInfo holds system information
 type SysInfo struct {
-	Series  string `json:"series,omitempty"`
-	Version string `json:"version,omitempty"`
+	Series    string    `json:"series,omitempty"`
+	Version   string    `json:"version,omitempty"`
+	OSRelease OSRelease `json:"os-release"`
+	OnClassic bool      `json:"on-classic"`
 }
 
 func (rsp *response) err() error {
@@ -291,4 +362,31 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	}
 
 	return &sysInfo, nil
+}
+
+// CreateUserResult holds the result of a user creation
+type CreateUserResult struct {
+	Username    string `json:"username"`
+	SSHKeyCount int    `json:"ssh-key-count"`
+}
+
+// createUserRequest holds the user creation request
+type CreateUserRequest struct {
+	Email  string `json:"email"`
+	Sudoer bool   `json:"sudoer"`
+}
+
+// CreateUser creates a user from the given mail address
+func (client *Client) CreateUser(request *CreateUserRequest) (*CreateUserResult, error) {
+	var createResult CreateUserResult
+	b, err := json.Marshal(request)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(b), &createResult); err != nil {
+		return nil, fmt.Errorf("bad user result: %v", err)
+	}
+
+	return &createResult, nil
 }

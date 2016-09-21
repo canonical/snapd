@@ -34,10 +34,12 @@ import (
 )
 
 // A Backend is used by State to checkpoint on every unlock operation
-// and to mediate requests to ensure the state sooner.
+// and to mediate requests to ensure the state sooner or request restarts.
 type Backend interface {
 	Checkpoint(data []byte) error
 	EnsureBefore(d time.Duration)
+	// TODO: take flags to ask for reboot vs restart?
+	RequestRestart(t RestartType)
 }
 
 type customData map[string]*json.RawMessage
@@ -62,6 +64,14 @@ func (data customData) set(key string, value interface{}) {
 	entryJSON := json.RawMessage(serialized)
 	data[key] = &entryJSON
 }
+
+type RestartType int
+
+const (
+	RestartUnset RestartType = iota
+	RestartDaemon
+	RestartSystem
+)
 
 // State represents an evolving system state that persists across restarts.
 //
@@ -217,6 +227,13 @@ func (s *State) Unlock() {
 func (s *State) EnsureBefore(d time.Duration) {
 	if s.backend != nil {
 		s.backend.EnsureBefore(d)
+	}
+}
+
+// RequestRestart asks for a restart of the managing process.
+func (s *State) RequestRestart(t RestartType) {
+	if s.backend != nil {
+		s.backend.RequestRestart(t)
 	}
 }
 
@@ -376,5 +393,6 @@ func ReadState(backend Backend, r io.Reader) (*State, error) {
 	}
 	s.backend = backend
 	s.modified = false
+	s.cache = make(map[interface{}]interface{})
 	return s, err
 }

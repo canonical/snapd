@@ -28,9 +28,9 @@ import (
 )
 
 type cmdInterfaces struct {
-	Interface   string `short:"i" description:"constrain listing to specific interfaces"`
+	Interface   string `short:"i"`
 	Positionals struct {
-		Query SnapAndName `positional-arg-name:"<snap>:<slot or plug>" description:"snap or snap:name" skip-help:"true"`
+		Query SnapAndName `skip-help:"true"`
 	} `positional-args:"true"`
 }
 
@@ -56,10 +56,19 @@ Filters the complete output so only plugs and/or slots matching the provided det
 func init() {
 	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
-	})
+	}, map[string]string{
+		"i": i18n.G("Constrain listing to specific interfaces"),
+	}, []argDesc{{
+		name: i18n.G("<snap>:<slot or plug>"),
+		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
+	}})
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
 	ifaces, err := Client().Interfaces()
 	if err == nil {
 		if len(ifaces.Plugs) == 0 && len(ifaces.Slots) == 0 {
@@ -69,8 +78,14 @@ func (x *cmdInterfaces) Execute(args []string) error {
 		fmt.Fprintln(w, i18n.G("Slot\tPlug"))
 		defer w.Flush()
 		for _, slot := range ifaces.Slots {
-			if x.Positionals.Query.Snap != "" && x.Positionals.Query.Snap != slot.Snap {
-				continue
+			if wanted := x.Positionals.Query.Snap; wanted != "" {
+				ok := wanted == slot.Snap
+				for i := 0; i < len(slot.Connections) && !ok; i++ {
+					ok = wanted == slot.Connections[i].Snap
+				}
+				if !ok {
+					continue
+				}
 			}
 			if x.Positionals.Query.Name != "" && x.Positionals.Query.Name != slot.Name {
 				continue

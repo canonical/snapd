@@ -7,7 +7,7 @@
 # http://pythonhosted.org/Markdown/
 
 import sys
-
+import codecs
 
 def lint_li(fname, text):
     """Ensure that the list-items are multiplies of 4"""
@@ -23,7 +23,7 @@ def lint(md_files):
     """lint all md files"""
     all_clean = True
     for md in md_files:
-        with open(md) as f:
+        with codecs.open(md, "r", "utf-8") as f:
             buf = f.read()
             for fname, func in globals().items():
                 if fname.startswith("lint_"):

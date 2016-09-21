@@ -27,6 +27,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -52,4 +53,51 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	c.Assert(err, check.IsNil)
 
 	return snapInfo
+}
+
+// PopulateDir populates the directory with files specified as pairs of relative file path and its content. Useful to add extra files to a snap.
+func PopulateDir(dir string, files [][]string) {
+	for _, filenameAndContent := range files {
+		filename := filenameAndContent[0]
+		content := filenameAndContent[1]
+		fpath := filepath.Join(dir, filename)
+		err := os.MkdirAll(filepath.Dir(fpath), 0755)
+		if err != nil {
+			panic(err)
+		}
+		err = ioutil.WriteFile(fpath, []byte(content), 0644)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+// MakeTestSnapWithFiles makes a squashfs snap file with the given
+// snap.yaml content and optional extras files specified as pairs of
+// relative file path and its content.
+func MakeTestSnapWithFiles(c *check.C, snapYamlContent string, files [][]string) (snapFilePath string) {
+	tmpdir := c.MkDir()
+	snapSource := filepath.Join(tmpdir, "snapsrc")
+
+	err := os.MkdirAll(filepath.Join(snapSource, "meta"), 0755)
+	if err != nil {
+		panic(err)
+	}
+	snapYamlFn := filepath.Join(snapSource, "meta", "snap.yaml")
+	err = ioutil.WriteFile(snapYamlFn, []byte(snapYamlContent), 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	PopulateDir(snapSource, files)
+
+	err = osutil.ChDir(snapSource, func() error {
+		var err error
+		snapFilePath, err = BuildSquashfsSnap(snapSource, "")
+		return err
+	})
+	if err != nil {
+		panic(err)
+	}
+	return filepath.Join(snapSource, snapFilePath)
 }

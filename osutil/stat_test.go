@@ -62,3 +62,15 @@ func (ts *StatTestSuite) TestIsDirectorySimple(c *C) {
 
 	c.Assert(IsDirectory(dname), Equals, true)
 }
+
+func (ts *StatTestSuite) TestIsSymlink(c *C) {
+	sname := filepath.Join(c.MkDir(), "symlink")
+	err := os.Symlink("/", sname)
+	c.Assert(err, IsNil)
+
+	c.Assert(IsSymlink(sname), Equals, true)
+}
+
+func (ts *StatTestSuite) TestIsSymlinkNoSymlink(c *C) {
+	c.Assert(IsSymlink(c.MkDir()), Equals, false)
+}

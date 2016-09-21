@@ -67,11 +67,16 @@ network packet,
 
 /dev/rfkill rw,
 
+/run/udev/data/* r,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
 # Needed for systemd's dhcp implementation
 /etc/machine-id r,
+
+# Needed to use resolvconf from core
+/sbin/resolvconf ixr,
 
 #include <abstractions/nameservice>
 
@@ -375,7 +380,7 @@ func (iface *NetworkManagerInterface) Name() string {
 
 func (iface *NetworkManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -400,7 +405,7 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return networkManagerConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
@@ -413,7 +418,7 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 		return networkManagerPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return networkManagerPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev:
+	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	case interfaces.SecurityDBus:
 		return networkManagerPermanentSlotDBus, nil
@@ -424,14 +429,14 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 
 func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev:
+	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
 		return nil, nil
 	default:
 		return nil, interfaces.ErrUnknownSecurity
 	}
 }
 
-func (iface *NetworkManagerInterface) SanitizePlug(slot *interfaces.Plug) error {
+func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 

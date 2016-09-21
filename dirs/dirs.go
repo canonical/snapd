@@ -20,15 +20,17 @@
 package dirs
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // the various file paths
 var (
 	GlobalRootDir string
 
-	SnapSnapsDir              string
+	SnapMountDir              string
 	SnapBlobDir               string
 	SnapDataDir               string
 	SnapDataHomeGlob          string
@@ -36,15 +38,21 @@ var (
 	AppArmorCacheDir          string
 	SnapAppArmorAdditionalDir string
 	SnapSeccompDir            string
+	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
 	LocaleDir                 string
 	SnapMetaDir               string
 	SnapdSocket               string
+	SnapSocket                string
+
+	SnapSeedDir   string
+	SnapDeviceDir string
 
 	SnapAssertsDBDir      string
 	SnapTrustedAccountKey string
 
-	SnapStateFile string
+	SnapStateFile      string
+	SnapFirstBootStamp string
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
@@ -64,37 +72,61 @@ var (
 func init() {
 	// init the global directories at startup
 	root := os.Getenv("SNAPPY_GLOBAL_ROOT")
-	if root == "" {
-		root = "/"
-	}
 
 	SetRootDir(root)
+}
+
+// StripRootDir strips the custom global root directory from the specified argument.
+func StripRootDir(dir string) string {
+	if !filepath.IsAbs(dir) {
+		panic(fmt.Sprintf("supplied path is not absolute %q", dir))
+	}
+	if !strings.HasPrefix(dir, GlobalRootDir) {
+		panic(fmt.Sprintf("supplied path is not related to global root %q", dir))
+	}
+	result, err := filepath.Rel(GlobalRootDir, dir)
+	if err != nil {
+		panic(err)
+	}
+	return "/" + result
 }
 
 // SetRootDir allows settings a new global root directory, this is useful
 // for e.g. chroot operations
 func SetRootDir(rootdir string) {
+	if rootdir == "" {
+		rootdir = "/"
+	}
 	GlobalRootDir = rootdir
 
-	SnapSnapsDir = filepath.Join(rootdir, "/snap")
+	SnapMountDir = filepath.Join(rootdir, "/snap")
 	SnapDataDir = filepath.Join(rootdir, "/var/snap")
 	SnapDataHomeGlob = filepath.Join(rootdir, "/home/*/snap/")
 	SnapAppArmorDir = filepath.Join(rootdir, snappyDir, "apparmor", "profiles")
 	AppArmorCacheDir = filepath.Join(rootdir, "/var/cache/apparmor")
 	SnapAppArmorAdditionalDir = filepath.Join(rootdir, snappyDir, "apparmor", "additional")
 	SnapSeccompDir = filepath.Join(rootdir, snappyDir, "seccomp", "profiles")
+	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
-	// keep in sync with the debian/ubuntu-snappy.snapd.socket file:
+
+	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
+	SnapSocket = filepath.Join(rootdir, "/run/snapd-snap.socket")
 
 	SnapAssertsDBDir = filepath.Join(rootdir, snappyDir, "assertions")
-	SnapTrustedAccountKey = filepath.Join(rootdir, "/usr/share/snapd/trusted.acckey")
 
 	SnapStateFile = filepath.Join(rootdir, snappyDir, "state.json")
 
-	SnapBinariesDir = filepath.Join(SnapSnapsDir, "bin")
+	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
+	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
+
+	// NOTE: if you change stampFile, update the condition in
+	// snapd.firstboot.service to match
+	SnapFirstBootStamp = filepath.Join(rootdir, snappyDir, "firstboot", "stamp")
+
+	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
 

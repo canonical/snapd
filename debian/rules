@@ -5,27 +5,57 @@
 export DH_OPTIONS
 export DH_GOPKG := github.com/snapcore/snapd
 #export DEB_BUILD_OPTIONS=nocheck
-export DH_GOLANG_EXCLUDES=integration-tests
+export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
-
-# we need the builddir; is there a simpler way to get it?
-BUILDDIR:=${CURDIR}/obj-$(shell dpkg-architecture -qDEB_TARGET_GNU_TYPE)
 
 export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
+# The go tool does not fully support vendoring with gccgo, but we can
+# work around that by constructing the appropriate -I flag by hand.
+GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
+
+GCCGOFLAGS=
+ifeq ($(GCCGO),yes)
+GOARCH := $(shell go env GOARCH)
+GOOS := $(shell go env GOOS)
+
+GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
+export DH_GOLANG_GO_GENERATE=0
+endif
+
+# check if we need to include the testkeys in the binary
+TAGS=
+ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
+	TAGS=-tags withtestkeys
+endif
+
 %:
-	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd
+	dh $@ --buildsystem=golang --with=golang --fail-missing --with systemd --builddirectory=_build
+
+override_dh_auto_build:
+	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
+	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
+	dh_auto_build -- $(TAGS) $(GCCGOFLAGS)
+
+
+override_dh_auto_test:
+	dh_auto_test -- $(GCCGOFLAGS)
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	# check that only the main trusted account-key is included
+	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
+	strings _build/bin/snapd|grep -c "^public-key-sha3-384: -CvQKAwRQ5h3Ffn10FILJoEZUXOv6km9FwA80-Rcj-f-6jadQ89VRswHNiEB9Lxk$$"
+endif
 
 override_dh_systemd_enable:
 	# enable boot-ok
 	dh_systemd_enable \
-		-pubuntu-core-snapd-units \
+		-psnapd \
 		snapd.boot-ok.service
 	# enable the first boot service
 	dh_systemd_enable \
-		-pubuntu-core-snapd-units \
+		-psnapd \
 		snapd.firstboot.service
 	# we want the auto-update timer enabled by default
 	dh_systemd_enable \
@@ -47,7 +77,7 @@ override_dh_systemd_enable:
 override_dh_systemd_start:
 	# start boot-ok
 	dh_systemd_start \
-		-pubuntu-core-snapd-units \
+		-psnapd \
 		snapd.boot-ok.service
 	# we want to start the auto-update timer
 	dh_systemd_start \
@@ -72,13 +102,13 @@ override_dh_auto_install: snap.8
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
 	# Making the packages private
 	rm -rf ${CURDIR}/debian/snapd/usr/share/gocode
-	# toolbelt is not shippable
-	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# no uboot-go
+	rm -f ${CURDIR}/debian/tmp/usr/bin/uboot-go
 
 snap.8:
-	${BUILDDIR}/bin/snap help --man > $@
+	$(CURDIR)/_build/bin/snap help --man > $@
 
 override_dh_auto_clean:
 	dh_auto_clean -O--buildsystem=golang

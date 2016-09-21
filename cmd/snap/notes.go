@@ -22,15 +22,19 @@ package main
 import (
 	"strings"
 
-	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 )
 
+// Notes encapsulate everything that might be interesting about a
+// snap, in order to present a brief summary of it.
 type Notes struct {
-	Confinement string
-	Price       string
-	Private     bool
-	DevMode     bool
-	TryMode     bool
+	Price    string
+	Private  bool
+	DevMode  bool
+	JailMode bool
+	TryMode  bool
+	Disabled bool
+	Broken   bool
 }
 
 func (n *Notes) String() string {
@@ -40,20 +44,31 @@ func (n *Notes) String() string {
 		ns = append(ns, n.Price)
 	}
 
-	if n.Confinement != "" {
-		if n.Confinement != client.StrictConfinement {
-			ns = append(ns, n.Confinement)
-		}
-	} else if n.DevMode {
+	if n.DevMode {
 		ns = append(ns, "devmode")
 	}
 
+	if n.JailMode {
+		ns = append(ns, "jailmode")
+	}
+
 	if n.Private {
-		ns = append(ns, "private")
+		// TRANSLATORS: if possible, a single short word
+		ns = append(ns, i18n.G("private"))
 	}
 
 	if n.TryMode {
 		ns = append(ns, "try")
+	}
+
+	if n.Disabled {
+		// TRANSLATORS: if possible, a single short word
+		ns = append(ns, i18n.G("disabled"))
+	}
+
+	if n.Broken {
+		// TRANSLATORS: if possible, a single short word
+		ns = append(ns, i18n.G("broken"))
 	}
 
 	if len(ns) == 0 {
