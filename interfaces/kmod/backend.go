@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -53,14 +54,14 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	}
 
 	modules := b.processSnipets(snapInfo, snippets)
-	err = LoadModules(modules)
-	if err == nil {
-		err = WriteModulesFile(modules, snapName)
+	err = WriteModulesFile(modules, snapName)
+	if err == osutil.ErrSameState {
+		return nil
 	}
 	if err != nil {
 		return err
 	}
-	return nil
+	return LoadModules(modules)
 }
 
 // Remove removes modules config file specific to a given snap.
