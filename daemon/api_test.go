@@ -114,6 +114,11 @@ func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.
 	return s.buyResult, s.err
 }
 
+func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
+	s.user = user
+	return s.err
+}
+
 func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
 	s.user = user
 	return s.paymentMethods, s.err
@@ -3604,6 +3609,78 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 	for _, t := range []string{"true", "1", "True", "t"} {
 		form.Value = map[string][]string{"foo": []string{t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
+	}
+}
+
+type readyToBuyTest struct {
+	Input error
+	Test  func(c *check.C, rsp *resp)
+}
+
+var readyToBuyTests = []readyToBuyTest{
+	{
+		// Success
+		Input: nil,
+		Test: func(c *check.C, rsp *resp) {
+			c.Check(rsp.Status, check.Equals, http.StatusOK)
+			c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+			c.Assert(rsp.Result, check.FitsTypeOf, true)
+			c.Check(rsp.Result, check.Equals, true)
+		},
+	},
+	{
+		// Not accepted TOS
+		Input: store.ErrTosNotAccepted,
+		Test: func(c *check.C, rsp *resp) {
+			c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Result, check.DeepEquals, &errorResult{
+				Message: "terms of service not accepted",
+				Kind:    errorKindTosNotAccepted,
+			})
+		},
+	},
+	{
+		// Not accepted TOS
+		Input: store.ErrTosNotAccepted,
+		Test: func(c *check.C, rsp *resp) {
+			c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Result, check.DeepEquals, &errorResult{
+				Message: "terms of service not accepted",
+				Kind:    errorKindTosNotAccepted,
+			})
+		},
+	},
+	{
+		// No payment methods
+		Input: store.ErrNoPaymentMethods,
+		Test: func(c *check.C, rsp *resp) {
+			c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
+			c.Check(rsp.Type, check.Equals, ResponseTypeError)
+			c.Check(rsp.Result, check.DeepEquals, &errorResult{
+				Message: "no payment methods",
+				Kind:    errorKindNoPaymentMethods,
+			})
+		},
+	},
+}
+
+func (s *apiSuite) TestReadyToBuy(c *check.C) {
+	for _, test := range readyToBuyTests {
+		s.err = test.Input
+
+		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
+		c.Assert(err, check.IsNil)
+
+		state := snapCmd.d.overlord.State()
+		state.Lock()
+		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+		state.Unlock()
+		c.Check(err, check.IsNil)
+
+		rsp := readyToBuy(readyToBuyCmd, req, user).(*resp)
+		test.Test(c, rsp)
 	}
 }
 
