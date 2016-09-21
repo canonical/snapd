@@ -55,7 +55,7 @@ func MockSnap(c *check.C, yamlText string, sideInfo *snap.SideInfo) *snap.Info {
 	return snapInfo
 }
 
-// MockInfo parses snap.yaml and returns a validated snap.Info object.
+// MockInfo parses the give snap.yaml text and returns a validated snap.Info object with included the option sideInfo.
 //
 // The result is just kept in memory, there is nothing kept on disk. If that is
 // desired please use MockSnap instead.
