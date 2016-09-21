@@ -22,3 +22,10 @@ package builtin
 func MprisGetName(iface *MprisInterface, attribs map[string]interface{}) (string, error) {
 	return iface.getName(attribs)
 }
+
+func MockGPIOExportToUserspace() (restore func()) {
+	reallyExportGPIOsToUserspace = false
+	return func() {
+		reallyExportGPIOsToUserspace = true
+	}
+}
