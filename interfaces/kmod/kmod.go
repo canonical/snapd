@@ -32,7 +32,7 @@ import (
 )
 
 func moduleFilePath(snapName string) string {
-	confFileName := fmt.Sprintf("snapd-%s.conf", snap.SecurityTag(snapName))
+	confFileName := fmt.Sprintf("%s.conf", snap.SecurityTag(snapName))
 	return filepath.Join(dirs.SnapKModModulesDir, confFileName)
 }
 

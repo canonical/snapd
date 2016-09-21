@@ -21,11 +21,15 @@ package kmod_test
 
 import (
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/kmod"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/testutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -35,6 +39,7 @@ func Test(t *testing.T) {
 
 type backendSuite struct {
 	backendtest.BackendSuite
+	modprobeCmd *testutil.MockCmd
 }
 
 var _ = Suite(&backendSuite{})
@@ -42,6 +47,7 @@ var _ = Suite(&backendSuite{})
 func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &kmod.Backend{}
 	s.BackendSuite.SetUpTest(c)
+	s.modprobeCmd = testutil.MockCommand(c, "modprobe", "")
 
 	// Prepare a directory for kernel modules conf files.
 	// NOTE: Normally this is a part of the OS snap.
@@ -50,9 +56,56 @@ func (s *backendSuite) SetUpTest(c *C) {
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
+	s.modprobeCmd.Restore()
 	s.BackendSuite.TearDownTest(c)
 }
 
 func (s *backendSuite) TestName(c *C) {
 	c.Check(s.Backend.Name(), Equals, "kmod")
+}
+
+func (s *backendSuite) TestInstallingSnapCreatedModulesConf(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		if securitySystem == interfaces.SecurityKMod {
+			return []byte("module1\nmodule2"), nil
+		}
+		return nil, nil
+	}
+
+	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
+	c.Assert(osutil.FileExists(path), Equals, false)
+
+	for _, devMode := range []bool{true, false} {
+		s.modprobeCmd.ForgetCalls()
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+
+		c.Assert(osutil.FileExists(path), Equals, true)
+		c.Assert(s.modprobeCmd.Calls(), DeepEquals, [][]string{
+			{"modprobe", "--syslog", "module1"},
+			{"modprobe", "--syslog", "module2"},
+		})
+		s.RemoveSnap(c, snapInfo)
+	}
+}
+
+func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		if securitySystem == interfaces.SecurityKMod {
+			return []byte("module1\nmodule2"), nil
+		}
+		return nil, nil
+	}
+
+	path := filepath.Join(dirs.SnapKModModulesDir, "snap.samba.conf")
+	c.Assert(osutil.FileExists(path), Equals, false)
+
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		c.Assert(osutil.FileExists(path), Equals, true)
+		s.modprobeCmd.ForgetCalls()
+		s.RemoveSnap(c, snapInfo)
+		c.Assert(osutil.FileExists(path), Equals, false)
+	}
 }

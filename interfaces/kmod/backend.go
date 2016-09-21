@@ -86,13 +86,14 @@ func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]by
 				l := bytes.Trim(line, " \r")
 				// ignore empty lines and comments
 				if len(l) > 0 && l[0] != '#' {
-					modulesDedup[string(l)] = struct{}{}
+					mod := string(l)
+					if _, ok := modulesDedup[mod]; !ok {
+						modulesDedup[mod] = struct{}{}
+						modules = append(modules, l)
+					}
 				}
 			}
 		}
-	}
-	for mod, _ := range modulesDedup {
-		modules = append(modules, []byte(mod))
 	}
 	return modules
 }
