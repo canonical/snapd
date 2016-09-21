@@ -143,12 +143,7 @@ func (iface *LocationControlInterface) Name() string {
 }
 
 func (iface *LocationControlInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -162,10 +157,8 @@ func (iface *LocationControlInterface) ConnectedPlugSnippet(plug *interfaces.Plu
 		return locationControlConnectedPlugDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationControlConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
@@ -177,10 +170,8 @@ func (iface *LocationControlInterface) PermanentSlotSnippet(slot *interfaces.Slo
 		return locationControlPermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
 		return locationControlPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
@@ -191,10 +182,8 @@ func (iface *LocationControlInterface) ConnectedSlotSnippet(plug *interfaces.Plu
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(locationControlConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 

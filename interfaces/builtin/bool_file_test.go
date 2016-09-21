@@ -190,10 +190,6 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
-		c.Assert(snippet, IsNil)
 	}
 }
 
@@ -213,10 +209,6 @@ func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c
 	// No extra udev permissions for plug
 	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	// Other security types are not recognized
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, ErrorMatches, `unknown security system`)
 	c.Assert(snippet, IsNil)
 }
 
@@ -260,10 +252,6 @@ func (s *BoolFileInterfaceSuite) TestConnectedSlotSnippetUnusedSecuritySystems(c
 		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
-		c.Assert(snippet, IsNil)
 	}
 }
 
@@ -280,10 +268,6 @@ func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c
 		// No extra udev permissions for slot
 		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.PermanentSlotSnippet(slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
 		c.Assert(snippet, IsNil)
 	}
 }

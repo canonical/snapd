@@ -196,12 +196,7 @@ func (iface *FwupdInterface) Name() string {
 
 // PermanentPlugSnippet - no slot snippets provided
 func (iface *FwupdInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // ConnectedPlugSnippet returns security snippets for plug at connection
@@ -214,10 +209,8 @@ func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return fwupdConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
@@ -230,10 +223,8 @@ func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return fwupdPermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
 		return fwupdPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
@@ -245,10 +236,8 @@ func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 

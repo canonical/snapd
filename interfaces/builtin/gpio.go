@@ -83,19 +83,12 @@ func (iface *GpioInterface) SanitizePlug(plug *interfaces.Plug) error {
 
 // PermanentPlugSnippet returns security snippets for plug at install
 func (iface *GpioInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // ConnectedPlugSnippet returns security snippets for plug at connection
 func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
 	case interfaces.SecurityAppArmor:
 		path := fmt.Sprint(gpioSysfsGpioBase, slot.Attrs["number"])
 		// Entries in /sys/class/gpio for single GPIO's are just symlinks
@@ -108,18 +101,13 @@ func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 		}
 		return []byte(fmt.Sprintf("%s/* rwk,\n", dereferencedPath)), nil
 	default:
-		return nil, interfaces.ErrUnknownSecurity
+		return nil, nil
 	}
 }
 
 // PermanentSlotSnippet - no slot snippets provided
 func (iface *GpioInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // ConnectedSlotSnippet - no slot snippets provided
@@ -145,15 +133,7 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 			return nil, err
 		}
 	}
-
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	case interfaces.SecurityAppArmor:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // AutoConnect returns whether interface should be auto-connected by default

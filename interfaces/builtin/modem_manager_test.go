@@ -173,18 +173,3 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
-
-func (s *ModemManagerInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-}
