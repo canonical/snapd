@@ -62,7 +62,7 @@ var statePatch4JSON = []byte(`
 			"id": "1",
 			"kind": "revert-snap",
 			"summary": "revert a snap",
-			"status": 0,
+			"status": 2,
 			"data": {"snap-names": ["a"]},
 			"task-ids": ["1","2","3","4"]
 		},
@@ -70,7 +70,7 @@ var statePatch4JSON = []byte(`
 			"id": "2",
 			"kind": "refresh-snap",
 			"summary": "refresh b snap",
-			"status": 0,
+			"status": 2,
 			"data": {"snap-names": ["b"]},
 			"task-ids": ["10","11","12","13","14","15","16"]
 		}
@@ -215,8 +215,11 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		st.Lock()
 		defer st.Unlock()
 
+		// simulate that the task was running (but the change
+		// is not fully done yet)
 		task := st.Task("4")
 		c.Assert(task, NotNil)
+		task.SetStatus(state.DoneStatus)
 
 		ss, err := snapstate.TaskSnapSetup(task)
 		c.Assert(err, IsNil)
@@ -226,6 +229,59 @@ func (s *patch4Suite) TestPatch4OnReverts(c *C) {
 		var idx int
 		c.Check(task.Get("had-candidate", &had), IsNil)
 		c.Check(had, Equals, true)
+		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(len(task.Change().Tasks()), Equals, 4)
+	}()
+
+	// go from patch level 3 -> 4
+	err = patch.Apply(st)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.Task("4")
+	c.Assert(task, NotNil)
+
+	ss, err := snapstate.TaskSnapSetup(task)
+	c.Assert(err, IsNil)
+	c.Check(ss.Flags.Revert(), Equals, true)
+
+	var had bool
+	var idx int
+	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("old-candidate-index", &idx), IsNil)
+	c.Check(idx, Equals, 1)
+	c.Check(len(task.Change().Tasks()), Equals, 4)
+}
+
+func (s *patch4Suite) TestPatch4OnRevertsNoCandidateYet(c *C) {
+	restorer := patch.MockLevel(4)
+	defer restorer()
+
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	defer r.Close()
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+
+		task := st.Task("4")
+		c.Assert(task, NotNil)
+		// its ready to run but has not run yet
+		task.Clear("had-candidate")
+		task.SetStatus(state.DoStatus)
+
+		ss, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		c.Check(ss.Flags.Revert(), Equals, false)
+
+		var had bool
+		var idx int
+		c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
 		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 4)
 	}()
@@ -268,6 +324,9 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 
 		task := st.Task("16")
 		c.Assert(task, NotNil)
+		// simulate that the task was running (but the change
+		// is not fully done yet)
+		task.SetStatus(state.DoneStatus)
 
 		ss, err := snapstate.TaskSnapSetup(task)
 		c.Assert(err, IsNil)
@@ -277,6 +336,62 @@ func (s *patch4Suite) TestPatch4OnRefreshes(c *C) {
 		var idx int
 		c.Check(task.Get("had-candidate", &had), IsNil)
 		c.Check(had, Equals, false)
+		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
+		c.Check(len(task.Change().Tasks()), Equals, 7)
+	}()
+
+	// go from patch level 3 -> 4
+	err = patch.Apply(st)
+	c.Assert(err, IsNil)
+
+	st.Lock()
+	defer st.Unlock()
+
+	task := st.Task("16")
+	c.Assert(task, NotNil)
+
+	ss, err := snapstate.TaskSnapSetup(task)
+	c.Assert(err, IsNil)
+	c.Check(ss.Flags.Revert(), Equals, false)
+
+	var had bool
+	var idx int
+	c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
+	c.Check(task.Get("old-candidate-index", &idx), IsNil)
+	c.Check(idx, Equals, 1)
+	// we added cleanup
+	c.Check(len(task.Change().Tasks()), Equals, 7+1)
+}
+
+// This test simulates a link-snap task that is scheduled but has not
+// run yet. It has no "had-candidate" data set yet.
+func (s *patch4Suite) TestPatch4OnRefreshesNoHadCandidateYet(c *C) {
+	restorer := patch.MockLevel(4)
+	defer restorer()
+
+	r, err := os.Open(dirs.SnapStateFile)
+	c.Assert(err, IsNil)
+	defer r.Close()
+	st, err := state.ReadState(nil, r)
+	c.Assert(err, IsNil)
+
+	func() {
+		st.Lock()
+		defer st.Unlock()
+
+		task := st.Task("16")
+		c.Assert(task, NotNil)
+		// its ready to run but has not run yet
+		task.Clear("had-candidate")
+		task.SetStatus(state.DoStatus)
+
+		ss, err := snapstate.TaskSnapSetup(task)
+		c.Assert(err, IsNil)
+		c.Check(ss.Flags.Revert(), Equals, false)
+
+		var had bool
+		var idx int
+		c.Check(task.Get("had-candidate", &had), Equals, state.ErrNoState)
 		c.Check(task.Get("old-candidate-index", &idx), Equals, state.ErrNoState)
 		c.Check(len(task.Change().Tasks()), Equals, 7)
 	}()

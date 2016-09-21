@@ -217,4 +217,11 @@ prepare_all_snap() {
 
     echo "Kernel has a store revision"
     snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
+
+    # Snapshot the fresh state
+    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        systemctl stop snapd.service snapd.socket
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        systemctl start snapd.socket
+    fi
 }

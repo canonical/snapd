@@ -65,8 +65,8 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 }
 
 // RefreshControl returns the ids of snaps whose updates are controlled by this declaration.
-func (mod *SnapDeclaration) RefreshControl() []string {
-	return mod.refreshControl
+func (snapdcl *SnapDeclaration) RefreshControl() []string {
+	return snapdcl.refreshControl
 }
 
 // Implement further consistency checks.
@@ -383,7 +383,7 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 	if err != nil {
 		return err
 	}
-	_, err = db.Find(SnapDeclarationType, map[string]string{
+	a, err := db.Find(SnapDeclarationType, map[string]string{
 		"series":  validation.Series(),
 		"snap-id": validation.SnapID(),
 	})
@@ -392,6 +392,11 @@ func (validation *Validation) checkConsistency(db RODatabase, acck *AccountKey) 
 	}
 	if err != nil {
 		return err
+	}
+
+	gatingDecl := a.(*SnapDeclaration)
+	if gatingDecl.PublisherID() != validation.AuthorityID() {
+		return fmt.Errorf("validation assertion by snap %q (id %q) not signed by its publisher", gatingDecl.SnapName(), validation.SnapID())
 	}
 
 	return nil
