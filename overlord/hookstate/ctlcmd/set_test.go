@@ -20,8 +20,6 @@
 package ctlcmd_test
 
 import (
-	"testing"
-
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -31,15 +29,13 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-func Test(t *testing.T) { TestingT(t) }
-
-type ctlcmdSuite struct {
+type setSuite struct {
 	mockContext *hookstate.Context
 }
 
-var _ = Suite(&ctlcmdSuite{})
+var _ = Suite(&setSuite{})
 
-func (s *ctlcmdSuite) SetUpTest(c *C) {
+func (s *setSuite) SetUpTest(c *C) {
 	handler := hooktest.NewMockHandler()
 
 	state := state.New(nil)
@@ -54,23 +50,14 @@ func (s *ctlcmdSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *ctlcmdSuite) TestNonExistingCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"foo"})
+func (s *setSuite) TestCommand(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar"})
+	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
-	c.Check(err, ErrorMatches, ".*[Uu]nknown command.*")
 }
 
-func (s *ctlcmdSuite) TestCommandOutput(c *C) {
-	mockCommand := ctlcmd.AddMockCommand("mock")
-	defer ctlcmd.RemoveCommand("mock")
-
-	mockCommand.FakeStdout = "test stdout"
-	mockCommand.FakeStderr = "test stderr"
-
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"mock", "foo"})
-	c.Check(err, IsNil)
-	c.Check(string(stdout), Equals, "test stdout")
-	c.Check(string(stderr), Equals, "test stderr")
-	c.Check(mockCommand.Args, DeepEquals, []string{"foo"})
+func (s *setSuite) TestCommandWithoutContext(c *C) {
+	_, _, err := ctlcmd.Run(nil, []string{"set", "foo=bar"})
+	c.Check(err, ErrorMatches, ".*cannot set without a context.*")
 }

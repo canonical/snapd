@@ -58,18 +58,18 @@ slots:
     bad-number:
         interface: gpio
         number: forty-two
-    bad-interface: other-interface
+    bad-interface-slot: other-interface
 plugs:
     plug: gpio
-    bad-interface: other-interface
+    bad-interface-plug: other-interface
 `))
 	c.Assert(gadgetErr, IsNil)
 	s.gadgetGpioSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["my-pin"]}
 	s.gadgetMissingNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["missing-number"]}
 	s.gadgetBadNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-number"]}
-	s.gadgetBadInterfaceSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-interface"]}
+	s.gadgetBadInterfaceSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-interface-slot"]}
 	s.gadgetPlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["plug"]}
-	s.gadgetBadInterfacePlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["bad-interface"]}
+	s.gadgetBadInterfacePlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["bad-interface-plug"]}
 
 	osInfo, osErr := snap.InfoFromSnapYaml([]byte(`
 name: my-core

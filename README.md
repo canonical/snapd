@@ -4,7 +4,7 @@
 The snapd and snap tools enable systems to work with .snap files. See
 [snapcraft.io](http://snapcraft.io) for a high level overview about
 snap files and the snapd application.
-
+  
 ## Development
 
 To get started with development off the snapd code itself, please check
