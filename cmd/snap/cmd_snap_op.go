@@ -305,26 +305,16 @@ type cmdInstall struct {
 	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
 
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdInstall) Execute([]string) error {
-	if err := x.setChannelFromCommandline(); err != nil {
-		return err
-	}
-	if err := x.validateMode(); err != nil {
-		return err
-	}
-
-	var changeID string
+func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	var err error
 	var installFromFile bool
+	var changeID string
 
 	cli := Client()
-	name := x.Positional.Snap
-	dangerous := x.Dangerous || x.ForceDangerous
-	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision, Dangerous: dangerous}
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
 		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
@@ -350,7 +340,61 @@ func (x *cmdInstall) Execute([]string) error {
 		name = snapName
 	}
 
-	return showDone([]string{name}, "install")
+	return showDone(x.Positional.Snaps, "install")
+}
+
+func (x *cmdInstall) installMany(names []string) error {
+	// sanity check
+	for _, name := range names {
+		if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
+			return fmt.Errorf("only a single snap file can be installed")
+		}
+	}
+
+	cli := Client()
+	changeID, err := cli.InstallMany(names)
+	if err != nil {
+		return err
+	}
+
+	chg, err := wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	var installed []string
+	if err := chg.Get("snap-names", &installed); err != nil && err != client.ErrNoData {
+		return err
+	}
+
+	if len(installed) > 0 {
+		return showDone(installed, "install")
+	}
+
+	return nil
+}
+
+func (x *cmdInstall) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+	if err := x.validateMode(); err != nil {
+		return err
+	}
+
+	dangerous := x.Dangerous || x.ForceDangerous
+	if len(x.Positional.Snaps) == 1 {
+		opts := &client.SnapOptions{
+			Channel:   x.Channel,
+			DevMode:   x.DevMode,
+			JailMode:  x.JailMode,
+			Revision:  x.Revision,
+			Dangerous: dangerous,
+		}
+		return x.installOne(x.Positional.Snaps[0], opts)
+	}
+
+	return x.installMany(x.Positional.Snaps)
 }
 
 type cmdRefresh struct {

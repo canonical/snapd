@@ -876,3 +876,20 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 
 	return nil, state.ErrNoState
 }
+
+// InstallMany installs everything from the given list of names.
+// Note that the state must be locked by the caller.
+func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	installed := make([]string, 0, len(names))
+	tasksets := make([]*state.TaskSet, 0, len(names))
+	for _, name := range names {
+		ts, err := Install(st, name, "", snap.R(0), userID, 0)
+		if err != nil {
+			return nil, nil, err
+		}
+		installed = append(installed, name)
+		tasksets = append(tasksets, ts)
+	}
+
+	return installed, tasksets, nil
+}
