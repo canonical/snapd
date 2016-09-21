@@ -400,9 +400,8 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return networkManagerConnectedPlugSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -413,9 +412,8 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 		return networkManagerPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
 		return networkManagerPermanentSlotDBus, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

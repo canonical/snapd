@@ -129,9 +129,8 @@ func (iface *SerialPortInterface) PermanentSlotSnippet(slot *interfaces.Slot, se
 			return nil, nil
 		}
 		return udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "SYMLINK", strings.TrimPrefix(path, "/dev/")), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // ConnectedSlotSnippet no extra permissions granted on connection
@@ -176,9 +175,8 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 			udevSnippet.Write(udevUsbDeviceSnippet("tty", usbVendor, usbProduct, "TAG", tag))
 		}
 		return udevSnippet.Bytes(), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // AutoConnect indicates whether this type of interface should allow autoconnect

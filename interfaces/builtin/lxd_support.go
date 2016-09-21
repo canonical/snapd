@@ -55,9 +55,8 @@ func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		return []byte(lxdSupportConnectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(lxdSupportConnectedPlugSecComp), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *LxdSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

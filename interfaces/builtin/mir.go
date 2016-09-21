@@ -100,9 +100,8 @@ func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return mirConnectedPlugSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *MirInterface) PermanentSlotSnippet(
@@ -113,9 +112,8 @@ func (iface *MirInterface) PermanentSlotSnippet(
 		return mirPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return mirPermanentSlotSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -125,9 +123,8 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *MirInterface) SanitizePlug(plug *interfaces.Plug) error {

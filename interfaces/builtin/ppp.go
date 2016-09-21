@@ -62,9 +62,8 @@ func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return pppConnectedPlugAppArmor, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {

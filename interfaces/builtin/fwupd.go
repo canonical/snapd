@@ -209,9 +209,8 @@ func (iface *FwupdInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return fwupdConnectedPlugSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // PermanentSlotSnippet returns security snippets for slot at install
@@ -223,9 +222,8 @@ func (iface *FwupdInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return fwupdPermanentSlotDBus, nil
 	case interfaces.SecuritySecComp:
 		return fwupdPermanentSlotSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // ConnectedSlotSnippet returns security snippets for slot at connection
@@ -236,9 +234,8 @@ func (iface *FwupdInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(fwupdConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // SanitizePlug checks the plug definition is valid

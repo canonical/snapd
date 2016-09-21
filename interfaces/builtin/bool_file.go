@@ -99,9 +99,8 @@ func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 			return gpioSnippet, nil
 		}
 		return nil, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
@@ -118,9 +117,8 @@ func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 			return nil, fmt.Errorf("cannot compute plug security snippet: %v", err)
 		}
 		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // PermanentPlugSnippet returns the configuration snippet required to use a bool-file interface.

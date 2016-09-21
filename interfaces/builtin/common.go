@@ -90,9 +90,8 @@ func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		return []byte(iface.connectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(iface.connectedPlugSecComp), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // PermanentSlotSnippet returns the snippet of text for the given security

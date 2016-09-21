@@ -100,9 +100,8 @@ func (iface *GpioInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *in
 			return nil, err
 		}
 		return []byte(fmt.Sprintf("%s/* rwk,\n", dereferencedPath)), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 // PermanentSlotSnippet - no slot snippets provided

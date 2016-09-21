@@ -172,9 +172,8 @@ func (iface *MprisInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return mprisConnectedPlugSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -196,9 +195,8 @@ func (iface *MprisInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return mprisPermanentSlotSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -208,9 +206,8 @@ func (iface *MprisInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *i
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mprisConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *MprisInterface) getName(attribs map[string]interface{}) (string, error) {

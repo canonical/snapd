@@ -127,9 +127,8 @@ func (iface *ContentInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 	switch securitySystem {
 	case interfaces.SecurityMount:
 		return contentSnippet.Bytes(), nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {

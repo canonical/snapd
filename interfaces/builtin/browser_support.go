@@ -252,9 +252,8 @@ func (iface *BrowserSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 			snippet = append(snippet, browserSupportConnectedPlugSecCompWithSandbox...)
 		}
 		return snippet, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {

@@ -205,9 +205,8 @@ func (iface *BluezInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *i
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return bluezConnectedPlugSecComp, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -218,9 +217,8 @@ func (iface *BluezInterface) PermanentSlotSnippet(slot *interfaces.Slot, securit
 		return bluezPermanentSlotSecComp, nil
 	case interfaces.SecurityDBus:
 		return bluezPermanentSlotDBus, nil
-	default:
-		return nil, nil
 	}
+	return nil, nil
 }
 
 func (iface *BluezInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
