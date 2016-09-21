@@ -345,40 +345,6 @@ func (s *MprisInterfaceSuite) TestPermanentSlotSecComp(c *C) {
 	c.Check(string(snippet), testutil.Contains, "getsockname\n")
 }
 
-func (s *MprisInterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityDBus,
-		interfaces.SecurityUDev, interfaces.SecurityMount}
-	for _, system := range systems {
-		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-
-		snippet, err = s.iface.PermanentSlotSnippet(s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityAppArmor)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-}
-
 func (s *MprisInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}
@@ -393,21 +359,6 @@ func (s *MprisInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *MprisInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
 }
 
 func (s *MprisInterfaceSuite) TestAutoConnect(c *C) {
