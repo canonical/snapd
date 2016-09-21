@@ -1,8 +1,5 @@
 summary: Regression test that ensures that $HOME/snap is not root owned for sudo commands
 
-# does not run currently on core because sudo has no tty there
-systems: [-ubuntu-core-16-64]
-
 prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap
