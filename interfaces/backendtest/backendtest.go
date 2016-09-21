@@ -58,7 +58,8 @@ developer: acme
 apps:
     smbd:
 slots:
-    iface:
+    slot:
+        interface: iface
 `
 const SambaYamlV1WithNmbd = `
 name: samba
@@ -68,7 +69,8 @@ apps:
     smbd:
     nmbd:
 slots:
-    iface:
+    slot:
+        interface: iface
 `
 const SambaYamlV1NoSlot = `
 name: samba
@@ -92,7 +94,8 @@ developer: acme
 apps:
     smbd:
 slots:
-    iface:
+    slot:
+        interface: iface
 `
 const SambaYamlWithHook = `
 name: samba
@@ -101,9 +104,13 @@ apps:
     nmbd:
 hooks:
     apply-config:
-        plugs: [iface]
+        plugs: [plug]
 slots:
-    iface:
+    slot:
+        interface: iface
+plugs:
+    plug:
+        interface: iface
 `
 const HookYaml = `
 name: foo
@@ -112,21 +119,24 @@ developer: acme
 hooks:
     apply-config:
 plugs:
-    iface:
+    plug:
+        interface: iface
 `
 const PlugNoAppsYaml = `
 name: foo
 version: 1
 developer: acme
 plugs:
-    iface:
+    plug:
+        interface: iface
 `
 const SlotNoAppsYaml = `
 name: foo
 version: 1
 developer: acme
 slots:
-    iface:
+    slots:
+        interface: iface
 `
 
 // Support code for tests
