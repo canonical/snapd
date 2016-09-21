@@ -49,12 +49,7 @@ func WriteModulesFile(modules [][]byte, snapName string) error {
 		Mode:    0644,
 	}
 
-	if err := osutil.EnsureFileState(moduleFilePath(snapName), content); err == osutil.ErrSameState {
-		return nil
-	} else if err != nil {
-		return err
-	}
-	return nil
+	return osutil.EnsureFileState(moduleFilePath(snapName), content)
 }
 
 func RemoveModulesFile(snapName string) error {
