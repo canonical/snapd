@@ -68,7 +68,7 @@ func (s *backendSuite) TestInstallingSnapCreatedModulesConf(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		if securitySystem == interfaces.SecurityKMod {
-			return []byte("module1\nmodule2"), nil
+			return []byte("module1\nmodule2\nmodule1\n"), nil
 		}
 		return nil, nil
 	}
@@ -107,5 +107,24 @@ func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 		s.modprobeCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
 		c.Assert(osutil.FileExists(path), Equals, false)
+	}
+}
+
+func (s *backendSuite) TestSecurityIsStable(c *C) {
+	// NOTE: Hand out a permanent snippet so that .conf file is generated.
+	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+		if securitySystem == interfaces.SecurityKMod {
+			return []byte("module1\nmodule2"), nil
+		}
+		return nil, nil
+	}
+	for _, devMode := range []bool{true, false} {
+		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
+		s.modprobeCmd.ForgetCalls()
+		err := s.Backend.Setup(snapInfo, devMode, s.Repo)
+		c.Assert(err, IsNil)
+		// modules conf is not re-loaded when nothing changes
+		c.Check(s.modprobeCmd.Calls(), HasLen, 0)
+		s.RemoveSnap(c, snapInfo)
 	}
 }
