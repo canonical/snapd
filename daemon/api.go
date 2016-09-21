@@ -909,6 +909,9 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	chg := newChange(state, inst.Action+"-snap", msg, tsets, inst.Snaps)
+	chg.Set("api-data", map[string]interface{}{
+		"snap-names": inst.Snaps,
+	})
 
 	ensureStateSoon(state)
 
@@ -953,7 +956,9 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 
 	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets}, []string{info.Name()})
-	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
+	chg.Set("api-data", map[string]interface{}{
+		"snap-names": []string{info.Name()},
+	})
 
 	ensureStateSoon(st)
 
@@ -1161,7 +1166,9 @@ out:
 	}
 
 	chg := newChange(st, "install-snap", msg, tsets, []string{snapName})
-	chg.Set("api-data", map[string]string{"snap-name": snapName})
+	chg.Set("api-data", map[string]interface{}{
+		"snap-names": []string{snapName},
+	})
 
 	ensureStateSoon(st)
 
@@ -1319,7 +1326,9 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	change := state.NewChange(a.Action+"-snap", summary)
-	change.Set("snap-names", []string{a.Plugs[0].Snap, a.Slots[0].Snap})
+	change.Set("api-data", map[string]interface{}{
+		"snap-names": []string{a.Plugs[0].Snap, a.Slots[0].Snap},
+	})
 	change.AddAll(taskset)
 
 	state.EnsureBefore(0)
@@ -1505,12 +1514,17 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 				return false
 			}
 
-			var snapNames []string
-			if err := chg.Get("snap-names", &snapNames); err != nil {
-				logger.Noticef("Cannot get snap-name for change %v", chg.ID())
+			var data map[string]*json.RawMessage
+			if chg.Get("api-data", &data) != nil {
+				logger.Noticef("cannot get api-data for change %v", chg.ID())
 				return false
 			}
-
+			var snapNames []string
+			err := json.Unmarshal(*data["snap-names"], &snapNames)
+			if err != nil {
+				logger.Noticef("cannot get snap name for change %v", chg.ID())
+				return false
+			}
 			for _, snapName := range snapNames {
 				if snapName == wantedName {
 					return true
