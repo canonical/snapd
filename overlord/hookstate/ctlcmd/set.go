@@ -33,17 +33,19 @@ type setCommand struct {
 	baseCommand
 
 	Positional struct {
-		ConfValues []string `positional-arg-name:"<conf value>" description:"configuration value (key=value)" required:"1"`
+		ConfValues []string `positional-arg-name:"key=value" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
 
 var shortSetHelp = i18n.G("Set snap configuration")
 var longSetHelp = i18n.G(`
-The set command sets configuration parameters for the snap determined via the
-SNAP_CONTEXT environment variable. This command accepts a number of key=value
-pairs of parameters, for example:
+The set command changes the provided configuration options as requested. For
+example:
 
-$ snapctl set foo=bar baz=qux`)
+    $ snapctl set username=joe password=$PASSWORD
+
+All configuration changes are persisted at once, and only after the hook returns
+successfully.`)
 
 func init() {
 	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
@@ -69,7 +71,7 @@ func (s *setCommand) Execute(args []string) error {
 	for _, patchValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
 		if len(parts) != 2 {
-			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
+			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), patchValue)
 		}
 		key := parts[0]
 		var value interface{}

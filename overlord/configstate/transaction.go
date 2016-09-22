@@ -128,7 +128,7 @@ func (t *Transaction) Commit() {
 
 	// Update our copy of the config with the most recent one from the state.
 	if err := t.state.Get("config", &t.config); err != nil {
-		// Make sure it's still a valid map, in case Get() modified it.
+		// Make sure it's still a valid map, in case Get modified it.
 		t.config = make(systemConfig)
 	}
 
@@ -155,12 +155,12 @@ func (t *Transaction) Commit() {
 func (t *Transaction) get(config systemConfig, snapName, key string, value interface{}) error {
 	c, ok := config[snapName]
 	if !ok {
-		return fmt.Errorf("no config available for snap %q", snapName)
+		return fmt.Errorf("snap %q has no %q configuration option", snapName, key)
 	}
 
 	raw, ok := c[key]
 	if !ok {
-		return fmt.Errorf("snap %q has no config value for key %q", snapName, key)
+		return fmt.Errorf("snap %q has no %q configuration option", snapName, key)
 	}
 
 	err := json.Unmarshal([]byte(*raw), &value)
