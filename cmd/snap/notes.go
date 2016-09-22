@@ -21,8 +21,12 @@ package main
 
 import (
 	"strings"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
+// Notes encapsulate everything that might be interesting about a
+// snap, in order to present a brief summary of it.
 type Notes struct {
 	Price    string
 	Private  bool
@@ -49,7 +53,8 @@ func (n *Notes) String() string {
 	}
 
 	if n.Private {
-		ns = append(ns, "private")
+		// TRANSLATORS: if possible, a single short word
+		ns = append(ns, i18n.G("private"))
 	}
 
 	if n.TryMode {
@@ -57,11 +62,13 @@ func (n *Notes) String() string {
 	}
 
 	if n.Disabled {
-		ns = append(ns, "disabled")
+		// TRANSLATORS: if possible, a single short word
+		ns = append(ns, i18n.G("disabled"))
 	}
 
 	if n.Broken {
-		ns = append(ns, "broken")
+		// TRANSLATORS: if possible, a single short word
+		ns = append(ns, i18n.G("broken"))
 	}
 
 	if len(ns) == 0 {

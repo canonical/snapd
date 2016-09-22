@@ -192,6 +192,9 @@ func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]i
 	}
 	otherHeaders["account-id"] = acct.AccountID()
 	otherHeaders["public-key-sha3-384"] = pubKey.ID()
+	if otherHeaders["name"] == nil {
+		otherHeaders["name"] = "default"
+	}
 	if otherHeaders["since"] == nil {
 		otherHeaders["since"] = time.Now().Format(time.RFC3339)
 	}
@@ -272,6 +275,7 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 		"timestamp":  ts,
 	}, "")
 	trustedKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
+		"name":  "root",
 		"since": ts,
 	}, rootPrivKey.PublicKey(), "")
 	trusted := []asserts.Assertion{trustedAcct, trustedKey}
@@ -287,7 +291,9 @@ func NewStoreStack(authorityID string, rootPrivKey, storePrivKey asserts.Private
 	if err != nil {
 		panic(err)
 	}
-	storeKey := NewAccountKey(rootSigning, trustedAcct, nil, storePrivKey.PublicKey(), "")
+	storeKey := NewAccountKey(rootSigning, trustedAcct, map[string]interface{}{
+		"name": "store",
+	}, storePrivKey.PublicKey(), "")
 	err = db.Add(storeKey)
 	if err != nil {
 		panic(err)

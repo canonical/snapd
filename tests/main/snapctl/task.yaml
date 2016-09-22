@@ -1,83 +1,43 @@
 summary: Check that `snapctl` can be run from within hooks
 
-systems: [-ubuntu-core-16-64]
-
 prepare: |
     snapbuild $TESTSLIB/snaps/snapctl-hooks .
     snap install --dangerous snapctl-hooks_1.0_all.snap
 
-    # We want to use the in-tree snap-exec and snapctl, not the ones in the core
-    # snap. To accomplish that, we'll just unpack the core we just grabbed,
-    # shove the new snap-exec and snapctl in there, and repack it.
-
-    # First of all, unmount the core
-    systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
-    umount "$core"
-
-    # Now unpack the core, inject the new snap-exec and snapctl into it, and
-    # repack it.
-    unsquashfs "$snap"
-    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp /usr/bin/snapctl squashfs-root/usr/bin/
-    mv "$snap" "${snap}.orig"
-    mksquashfs squashfs-root "$snap" -comp xz
-    rm -rf squashfs-root
-
-    # Now mount the new core snap
-    mount "$snap" "$core"
-    systemctl start snapd.service
-
-    # Make sure we're running with the correct snap-exec
-    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
-        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
-        exit 1
-    fi
-
-    # Make sure we're running with the correct snapctl
-    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
-        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
-        exit 1
-    fi
-
 restore: |
     rm snapctl-hooks_1.0_all.snap
 
-    # Unmount the modified core snap, and put the old one back in place
-    systemctl stop snapd.service
-    core="$(realpath /snap/ubuntu-core/current)"
-    snap="$(mount | grep "$core" | awk '{print $1}')"
-    umount "$core"
-    mv "${snap}.orig" "$snap"
-    mount "$snap" "$core"
-    systemctl start snapd.service
-
 execute: |
+    echo "Verify that snapctl -h runs without a context"
+
+    if ! snapctl -h; then
+        echo "Expected snapctl -h to be successful"
+    fi
+
     echo "Run the hook that calls snapctl"
 
-    # This context is enough to hit the API, but the hook will fail since this
-    # context is obviously invalid. That failure still means we're correctly
-    # hitting the API, though, which is all we care about here.
-    export SNAP_CONTEXT="foo"
+    # The snapctl usage in the hook is invalid and will cause a failure. That
+    # failure still means we're correctly hitting the API, though, which is all
+    # we care about here.
     if output="$(snap run --hook=apply-config snapctl-hooks 2>&1 >/dev/null)"; then
         echo "Expected the hook to fail"
         exit 1
     fi
 
-    if [[ ! "$output" =~ .*"no context for ID: \"foo\"".* ]]; then
-        echo "Expected failure to be due to missing context, but it was \"$output\""
+    if [[ ! "$output" =~ .*"unknown flag".*bar.* ]]; then
+        echo "Expected failure to be due to unknown flag, but it was \"$output\""
         exit 1
     fi
 
     echo "Verify that the snapd API is only available via the snapd socket"
 
-    if ! curl -s --unix-socket /run/snapd.socket http:/v2/snaps | grep status-code\":\s*200; then
+    if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket | grep "200 OK"; then
         echo "Expected snapd API to be available on the snapd socket"
+        echo "Got: $(curl -s --unix-socket /run/snapd.socket http:/v2/snaps)"
         exit 1
     fi
 
-    if ! curl -s --unix-socket /run/snapd-snap.socket http:/v2/snaps | grep status-code\":\s*401; then
+    if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd-snap.socket | grep "401 Unauthorized"; then
         echo "Expected snapd API to be unauthorized on the snap socket"
         exit 1
     fi

@@ -126,3 +126,24 @@ func DeriveSideInfo(snapPath string, db asserts.RODatabase) (*snap.SideInfo, err
 		Developer:   devAcct.Username(),
 	}, nil
 }
+
+// FetchSnapAssertions fetches the assertions matching the snap file digest using the given fetcher.
+func FetchSnapAssertions(f asserts.Fetcher, snapSHA3_384 string) error {
+	// for now starting from the snap-revision will get us all other relevant assertions
+	ref := &asserts.Ref{
+		Type:       asserts.SnapRevisionType,
+		PrimaryKey: []string{snapSHA3_384},
+	}
+
+	return f.Fetch(ref)
+}
+
+// FetchSnapDeclaration fetches the snap declaration and its prerequisites for the given snap id using the given fetcher.
+func FetchSnapDeclaration(f asserts.Fetcher, snapID string) error {
+	ref := &asserts.Ref{
+		Type:       asserts.SnapDeclarationType,
+		PrimaryKey: []string{release.Series, snapID},
+	}
+
+	return f.Fetch(ref)
+}

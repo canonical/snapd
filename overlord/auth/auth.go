@@ -228,15 +228,17 @@ type DeviceAssertions interface {
 }
 
 var (
+	// ErrNoSerial indicates that a device serial is not set yet.
 	ErrNoSerial = errors.New("no device serial yet")
 )
 
 // An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
 	Device() (*DeviceState, error)
-	UpdateDevice(device *DeviceState) error
 
-	UpdateUser(user *UserState) error
+	UpdateDeviceAuth(device *DeviceState, sessionMacaroon string) (actual *DeviceState, err error)
+
+	UpdateUserAuth(user *UserState, discharges []string) (actual *UserState, err error)
 
 	StoreID(fallback string) (string, error)
 
@@ -265,20 +267,46 @@ func (ac *authContext) Device() (*DeviceState, error) {
 	return Device(ac.state)
 }
 
-// UpdateDevice updates device in state.
-func (ac *authContext) UpdateDevice(device *DeviceState) error {
+// UpdateDeviceAuth updates the device auth details in state.
+// The last update wins but other device details are left unchanged.
+// It returns the updated device state value.
+func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon string) (actual *DeviceState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
 
-	return SetDevice(ac.state, device)
+	cur, err := Device(ac.state)
+	if err != nil {
+		return nil, err
+	}
+
+	// just do it, last update wins
+	cur.SessionMacaroon = newSessionMacaroon
+	if err := SetDevice(ac.state, cur); err != nil {
+		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
+	}
+
+	return cur, nil
 }
 
-// UpdateUser updates user in state.
-func (ac *authContext) UpdateUser(user *UserState) error {
+// UpdateUserAuth updates the user auth details in state.
+// The last update wins but other user details are left unchanged.
+// It returns the updated user state value.
+func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (actual *UserState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
 
-	return UpdateUser(ac.state, user)
+	cur, err := User(ac.state, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// just do it, last update wins
+	cur.StoreDischarges = newDischarges
+	if err := UpdateUser(ac.state, cur); err != nil {
+		return nil, fmt.Errorf("internal error: cannot update just read user state: %v", err)
+	}
+
+	return cur, nil
 }
 
 // StoreID returns the store id according to system state or

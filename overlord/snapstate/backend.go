@@ -39,6 +39,7 @@ type StoreService interface {
 
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
+	// TODO Remove once the CLI is using the new /buy/ready endpoint
 	PaymentMethods(*auth.UserState) (*store.PaymentInformation, error)
 }
 
@@ -53,6 +54,8 @@ type managerBackend interface {
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
+	// cleanup
+	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove releated
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
