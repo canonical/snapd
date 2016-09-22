@@ -59,6 +59,21 @@ func (s *backendSuite) TestName(c *C) {
 	c.Check(s.Backend.Name(), Equals, "kmod")
 }
 
+func (s *backendSuite) TestUniqueLines(c *C) {
+	data := [][]byte{
+		[]byte("module1"),
+		[]byte("module2"),
+		[]byte("module3"),
+		[]byte("module2"),
+	}
+	out := kmod.UniqueLines(data)
+	c.Assert(len(out), Equals, 3)
+
+	data = [][]byte{}
+	out = kmod.UniqueLines(data)
+	c.Assert(len(out), Equals, 0)
+}
+
 func (s *backendSuite) TestInstallingSnapCreatedModulesConf(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
