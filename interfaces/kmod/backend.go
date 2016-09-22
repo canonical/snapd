@@ -67,18 +67,18 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	}
 	if len(snippets) == 0 {
 		// Make sure that the modules conf file gets removed when we don't have any content
-		return RemoveModulesFile(snapName)
+		return removeModulesFile(snapName)
 	}
 
 	modules := b.processSnipets(snapInfo, snippets)
-	err = WriteModulesFile(modules, snapName)
+	err = writeModulesFile(modules, snapName)
 	if err == osutil.ErrSameState {
 		return nil
 	}
 	if err != nil {
 		return err
 	}
-	return LoadModules(modules)
+	return loadModules(modules)
 }
 
 // Remove removes modules config file specific to a given snap.
@@ -87,7 +87,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
-	RemoveModulesFile(snapName)
+	removeModulesFile(snapName)
 	return nil
 }
 
@@ -101,7 +101,7 @@ func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]by
 			// split snippet by newline to get the list of modules
 			individualLines := bytes.Split(snippet, []byte{'\n'})
 			for _, line := range individualLines {
-				l := bytes.Trim(line, " \r")
+				l := bytes.TrimSpace(line)
 				// ignore empty lines and comments
 				if len(l) > 0 && l[0] != '#' {
 					mod := string(l)
