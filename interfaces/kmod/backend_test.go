@@ -69,6 +69,10 @@ func (s *backendSuite) TestUniqueLines(c *C) {
 	out := kmod.UniqueLines(data)
 	c.Assert(len(out), Equals, 3)
 
+	c.Assert(out[0], DeepEquals, []byte("module1"))
+	c.Assert(out[1], DeepEquals, []byte("module2"))
+	c.Assert(out[2], DeepEquals, []byte("module3"))
+
 	data = [][]byte{}
 	out = kmod.UniqueLines(data)
 	c.Assert(len(out), Equals, 0)
