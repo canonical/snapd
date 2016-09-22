@@ -30,7 +30,7 @@ import (
 // Transaction is responsible for configuration transactions. Its config will
 // never change outside the control of its owner, and any changes made to it
 // doesn't affect the overall system config. Change it, query it, and if you
-// really want to get any changes saved back into the config, Commit() it.
+// really want to get any changes saved back into the config, Commit it.
 //
 // Note that Transactions are safe to access concurrently.
 type Transaction struct {
@@ -45,24 +45,28 @@ type snapConfig map[string]*json.RawMessage
 type systemConfig map[string]snapConfig
 
 // NewTransaction creates a new config transaction initialized with the given state.
-func NewTransaction(state *state.State) *Transaction {
-	state.Lock()
-	defer state.Unlock()
+func NewTransaction(st *state.State) (*Transaction, error) {
+	st.Lock()
+	defer st.Unlock()
 
-	transaction := &Transaction{state: state}
+	transaction := &Transaction{state: st}
 	transaction.writeCache = make(systemConfig)
 
 	// Record the current state of the map containing the config of every snap
 	// in the system. We'll use it for this transaction.
-	if err := state.Get("config", &transaction.config); err != nil {
+	if err := st.Get("config", &transaction.config); err != nil {
+		if err != state.ErrNoState {
+			return nil, err
+		}
+
 		transaction.config = make(systemConfig)
 	}
 
-	return transaction
+	return transaction, nil
 }
 
 // Set associates the value with the key for the given snap. Note that this
-// doesn't save any changes (see Commit()), so if the transaction is destroyed
+// doesn't save any changes (see Commit), so if the transaction is destroyed
 // the changes have no effect. Also note that the value must properly marshal
 // and unmarshal with encoding/json.
 func (t *Transaction) Set(snapName, key string, value interface{}) error {

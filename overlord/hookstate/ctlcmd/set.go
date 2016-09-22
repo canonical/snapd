@@ -59,7 +59,11 @@ func (s *setCommand) Execute(args []string) error {
 	transaction, ok := s.context().Cached("transaction").(*configstate.Transaction)
 	s.context().Unlock()
 	if !ok {
-		transaction = initializeTransaction(s.context())
+		var err error
+		transaction, err = initializeTransaction(s.context())
+		if err != nil {
+			return fmt.Errorf("cannot initialize transaction: %s", err)
+		}
 	}
 
 	for _, patchValue := range s.Positional.ConfValues {
@@ -85,11 +89,16 @@ func (s *setCommand) Execute(args []string) error {
 	return nil
 }
 
-func initializeTransaction(context *hookstate.Context) *configstate.Transaction {
-	transaction := configstate.NewTransaction(context.State())
+func initializeTransaction(context *hookstate.Context) (*configstate.Transaction, error) {
+	transaction, err := configstate.NewTransaction(context.State())
+	if err != nil {
+		return nil, err
+	}
+
 	context.OnDone(func() error {
 		transaction.Commit()
 		return nil
 	})
-	return transaction
+
+	return transaction, nil
 }
