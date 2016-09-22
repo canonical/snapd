@@ -68,7 +68,7 @@ func (s *backendSuite) TestInstallingSnapCreatedModulesConf(c *C) {
 	// NOTE: Hand out a permanent snippet so that .conf file is generated.
 	s.Iface.PermanentSlotSnippetCallback = func(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 		if securitySystem == interfaces.SecurityKMod {
-			return []byte("module1\nmodule2\nmodule1\n"), nil
+			return []byte("module1    \n    module2\nmodule1\n#\n"), nil
 		}
 		return nil, nil
 	}
