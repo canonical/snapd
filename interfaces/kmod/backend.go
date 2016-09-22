@@ -41,7 +41,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -66,20 +65,17 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 		return fmt.Errorf("cannot obtain kmod security snippets for snap %q: %s", snapName, err)
 	}
 
-	if len(snippets) == 0 {
-		// Make sure that the modules conf file gets removed when we don't have any content
-		return removeModulesFile(snapName)
-	}
-
 	modules := b.processSnipets(snapInfo, snippets)
-	err = writeModulesFile(modules, snapName)
-	if err == osutil.ErrSameState {
-		return nil
-	}
+	var changed bool
+	err, changed = syncModulesFile(modules, snapName)
 	if err != nil {
 		return err
 	}
-	return loadModules(modules)
+
+	if changed {
+		return loadModules(modules)
+	}
+	return nil
 }
 
 // Remove removes modules config file specific to a given snap.
@@ -88,8 +84,8 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 //
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
-	removeModulesFile(snapName)
-	return nil
+	err, _ := syncModulesFile([][]byte{}, snapName)
+	return err
 }
 
 // processSnipets combines security snippets collected from all the interfaces
