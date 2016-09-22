@@ -22,4 +22,5 @@ package kmod
 var (
 	SyncModulesFile = syncModulesFile
 	LoadModules     = loadModules
+	UniqueLines     = uniqueLines
 )
