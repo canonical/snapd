@@ -68,7 +68,12 @@ type mgrsSuite struct {
 	storeSigning   *assertstest.StoreStack
 	restoreTrusted func()
 
+	devAcct *asserts.Account
+
 	o *overlord.Overlord
+
+	serveSnapPath string
+	serveRevision string
 }
 
 var (
@@ -81,6 +86,8 @@ var (
 	storePrivKey, _ = assertstest.GenerateKey(752)
 
 	brandPrivKey, _ = assertstest.GenerateKey(752)
+
+	develPrivKey, _ = assertstest.GenerateKey(752)
 
 	deviceKey, _ = assertstest.GenerateKey(752)
 )
@@ -106,6 +113,12 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
+
+	ms.devAcct = assertstest.NewAccount(ms.storeSigning, "devdevev", map[string]interface{}{
+		"account-id": "devdevdev",
+	}, "")
+	err = ms.storeSigning.Add(ms.devAcct)
+	c.Assert(err, IsNil)
 
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
@@ -238,12 +251,6 @@ const (
 )
 
 func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
-	devAcct := assertstest.NewAccount(ms.storeSigning, "devdevev", map[string]interface{}{
-		"account-id": "devdevdev",
-	}, "")
-	err := ms.storeSigning.Add(devAcct)
-	c.Assert(err, IsNil)
-
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      fooSnapID,
@@ -279,36 +286,21 @@ func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (pat
 	return snapPath, snapDigest
 }
 
-func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeSvc(c *C) {
-	// test install through store and update, plus some mechanics
-	// of update
-	// TODO: ok to split if it gets too messy to maintain
-
-	ms.prereqSnapAssertions(c)
-
-	snapYamlContent := `name: foo
-version: @VERSION@
-apps:
- bar:
-  command: bin/bar
- svc:
-  command: svc
-  daemon: forking
-`
-
-	ver := "1.0"
-	revno := "42"
-
-	snapPath, digest := ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
-	snapR, err := os.Open(snapPath)
-	c.Assert(err, IsNil)
-
+func (ms *mgrsSuite) mockStore(c *C) *httptest.Server {
 	var baseURL string
 	fillHit := func() string {
+		snapf, err := snap.Open(ms.serveSnapPath)
+		if err != nil {
+			panic(err)
+		}
+		info, err := snap.ReadInfoFromSnapFile(snapf, nil)
+		if err != nil {
+			panic(err)
+		}
 		hit := strings.Replace(fooSearchHit, "@URL@", baseURL+"/snap", -1)
 		hit = strings.Replace(hit, "@ICON@", baseURL+"/icon", -1)
-		hit = strings.Replace(hit, "@VERSION@", ver, -1)
-		hit = strings.Replace(hit, "@REVISION@", revno, -1)
+		hit = strings.Replace(hit, "@VERSION@", info.Version, -1)
+		hit = strings.Replace(hit, "@REVISION@", ms.serveRevision, -1)
 		return hit
 	}
 
@@ -349,13 +341,16 @@ apps:
 			output = strings.Replace(output, "@HIT@", fillHit(), 1)
 			io.WriteString(w, output)
 		case "/snap":
+			snapR, err := os.Open(ms.serveSnapPath)
+			if err != nil {
+				panic(err)
+			}
 			io.Copy(w, snapR)
 		default:
 			panic("unexpected url path: " + r.URL.Path)
 		}
 	}))
 	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
 
 	baseURL = mockServer.URL
 
@@ -372,11 +367,47 @@ apps:
 	}
 
 	mStore := store.New(&storeCfg, nil)
+	st := ms.o.State()
+	st.Lock()
+	snapstate.ReplaceStore(ms.o.State(), mStore)
+	st.Unlock()
+
+	return mockServer
+}
+
+func (ms *mgrsSuite) serveSnap(snapPath string, revno string) {
+	ms.serveSnapPath = snapPath
+	ms.serveRevision = revno
+}
+
+func (ms *mgrsSuite) TestHappyRemoteInstallAndUpgradeSvc(c *C) {
+	// test install through store and update, plus some mechanics
+	// of update
+	// TODO: ok to split if it gets too messy to maintain
+
+	ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+version: @VERSION@
+apps:
+ bar:
+  command: bin/bar
+ svc:
+  command: svc
+  daemon: forking
+`
+
+	ver := "1.0"
+	revno := "42"
+	snapPath, digest := ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
+	ms.serveSnap(snapPath, revno)
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
 
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
-	snapstate.ReplaceStore(ms.o.State(), mStore)
 
 	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
@@ -421,8 +452,7 @@ apps:
 	ver = "2.0"
 	revno = "50"
 	snapPath, digest = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
-	snapR, err = os.Open(snapPath)
-	c.Assert(err, IsNil)
+	ms.serveSnap(snapPath, revno)
 
 	ts, err = snapstate.Update(st, "foo", "stable", snap.R(0), 0, 0)
 	c.Assert(err, IsNil)
@@ -523,6 +553,123 @@ apps:
 	c.Assert(err, IsNil)
 	c.Assert(string(content), Matches, "(?ms).*^Where=/snap/foo/55")
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
+}
+
+func (ms *mgrsSuite) TestHappyRefreshControl(c *C) {
+	// test install through store and update, plus some mechanics
+	// of update
+	// TODO: ok to split if it gets too messy to maintain
+
+	ms.prereqSnapAssertions(c)
+
+	snapYamlContent := `name: foo
+version: @VERSION@
+`
+
+	ver := "1.0"
+	revno := "42"
+	snapPath, _ := ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
+	ms.serveSnap(snapPath, revno)
+
+	mockServer := ms.mockStore(c)
+	defer mockServer.Close()
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.Install(st, "foo", "stable", snap.R(0), 0, 0)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+
+	info, err := snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+
+	c.Check(info.Revision, Equals, snap.R(42))
+
+	// Refresh
+
+	// Setup refresh control
+
+	headers := map[string]interface{}{
+		"series":          "16",
+		"snap-id":         "bar-id",
+		"snap-name":       "bar",
+		"publisher-id":    "devdevdev",
+		"refresh-control": []interface{}{fooSnapID},
+		"timestamp":       time.Now().Format(time.RFC3339),
+	}
+	snapDeclBar, err := ms.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = ms.storeSigning.Add(snapDeclBar)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDeclBar)
+	c.Assert(err, IsNil)
+
+	snapstate.Set(st, "bar", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+
+	develSigning := assertstest.NewSigningDB("devdevdev", develPrivKey)
+
+	develAccKey := assertstest.NewAccountKey(ms.storeSigning, ms.devAcct, nil, develPrivKey.PublicKey(), "")
+	err = ms.storeSigning.Add(develAccKey)
+	c.Assert(err, IsNil)
+
+	ver = "2.0"
+	revno = "50"
+	snapPath, _ = ms.makeStoreTestSnap(c, strings.Replace(snapYamlContent, "@VERSION@", ver, -1), revno)
+	ms.serveSnap(snapPath, revno)
+
+	updated, tss, err := snapstate.UpdateMany(st, []string{"foo"}, 0)
+	// no validation we, get an error
+	c.Check(err, ErrorMatches, `cannot refresh "foo" to revision 50: no validation by "bar"`)
+
+	// setup validation
+	headers = map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "bar-id",
+		"approved-snap-id":       fooSnapID,
+		"approved-snap-revision": "50",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	barValidation, err := develSigning.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = ms.storeSigning.Add(barValidation)
+	c.Assert(err, IsNil)
+
+	// ... and try again
+	updated, tss, err = snapstate.UpdateMany(st, []string{"foo"}, 0)
+	c.Assert(err, IsNil)
+	c.Assert(updated, DeepEquals, []string{"foo"})
+	c.Assert(tss, HasLen, 1)
+	chg = st.NewChange("upgrade-snaps", "...")
+	chg.AddAll(tss[0])
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("upgrade-snap change failed with: %v", chg.Err()))
+
+	info, err = snapstate.CurrentInfo(st, "foo")
+	c.Assert(err, IsNil)
+
+	c.Check(info.Revision, Equals, snap.R(50))
 }
 
 // core & kernel

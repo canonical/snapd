@@ -230,7 +230,7 @@ type DownloadInfo struct {
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
 
-	Deltas []DeltaInfo
+	Deltas []DeltaInfo `json:"deltas,omitempty"`
 }
 
 // DeltaInfo contains the information to download a delta

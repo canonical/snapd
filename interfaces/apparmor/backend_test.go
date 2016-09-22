@@ -31,7 +31,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/backendtest"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -284,10 +284,9 @@ func (s *backendSuite) TestUpdatingSnapToOneWithFewerHooks(c *C) {
 }
 
 func (s *backendSuite) TestRealDefaultTemplateIsNormallyUsed(c *C) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(backendtest.SambaYamlV1))
-	c.Assert(err, IsNil)
+	snapInfo := snaptest.MockInfo(c, backendtest.SambaYamlV1, nil)
 	// NOTE: we don't call apparmor.MockTemplate()
-	err = s.Backend.Setup(snapInfo, false, s.Repo)
+	err := s.Backend.Setup(snapInfo, false, s.Repo)
 	c.Assert(err, IsNil)
 	profile := filepath.Join(dirs.SnapAppArmorDir, "snap.samba.smbd")
 	data, err := ioutil.ReadFile(profile)
