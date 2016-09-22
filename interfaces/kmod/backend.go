@@ -94,24 +94,29 @@ func (b *Backend) Remove(snapName string) error {
 // processSnipets combines security snippets collected from all the interfaces
 // affecting a given snap into a de-duplicated list of kernel modules.
 func (b *Backend) processSnipets(snapInfo *snap.Info, snippets map[string][][]byte) (modules [][]byte) {
-	// we need to de-duplicate the modules, as some interfaces may contain overlapping modules.
-	modulesDedup := make(map[string]struct{})
 	for _, appInfo := range snapInfo.Apps {
 		for _, snippet := range snippets[appInfo.SecurityTag()] {
 			// split snippet by newline to get the list of modules
-			individualLines := bytes.Split(snippet, []byte{'\n'})
-			for _, line := range individualLines {
+			for _, line := range bytes.Split(snippet, []byte{'\n'}) {
 				l := bytes.TrimSpace(line)
 				// ignore empty lines and comments
 				if len(l) > 0 && l[0] != '#' {
-					mod := string(l)
-					if _, ok := modulesDedup[mod]; !ok {
-						modulesDedup[mod] = struct{}{}
-						modules = append(modules, l)
-					}
+					modules = append(modules, l)
 				}
 			}
 		}
 	}
-	return modules
+	return uniqueLines(modules)
+}
+
+func uniqueLines(lines [][]byte) (deduplicated [][]byte) {
+	dedup := make(map[string]bool)
+	for _, line := range lines {
+		l := string(line)
+		if _, ok := dedup[l]; !ok {
+			dedup[l] = true
+			deduplicated = append(deduplicated, line)
+		}
+	}
+	return deduplicated
 }
