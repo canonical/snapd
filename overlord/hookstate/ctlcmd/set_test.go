@@ -64,7 +64,8 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(string(stderr), Equals, "")
 
 	// Verify that the previous set doesn't modify the global state
-	transaction := configstate.NewTransaction(s.mockContext.State())
+	transaction, err := configstate.NewTransaction(s.mockContext.State())
+	c.Check(err, IsNil)
 	var value string
 	c.Check(transaction.Get("test-snap", "foo", &value), ErrorMatches, ".*no config available.*")
 	c.Check(transaction.Get("test-snap", "baz", &value), ErrorMatches, ".*no config available.*")
@@ -73,7 +74,8 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	transaction = configstate.NewTransaction(s.mockContext.State())
+	transaction, err = configstate.NewTransaction(s.mockContext.State())
+	c.Check(err, IsNil)
 	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "bar")
 	c.Check(transaction.Get("test-snap", "baz", &value), IsNil)
@@ -82,7 +84,8 @@ func (s *setSuite) TestCommand(c *C) {
 
 func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	// Setup an initial configuration
-	transaction := configstate.NewTransaction(s.mockContext.State())
+	transaction, err := configstate.NewTransaction(s.mockContext.State())
+	c.Check(err, IsNil)
 	transaction.Set("test-snap", "test-key1", "test-value1")
 	transaction.Set("test-snap", "test-key2", "test-value2")
 	transaction.Commit()
@@ -96,7 +99,8 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated, but only test-key2
-	transaction = configstate.NewTransaction(s.mockContext.State())
+	transaction, err = configstate.NewTransaction(s.mockContext.State())
+	c.Check(err, IsNil)
 	var value string
 	c.Check(transaction.Get("test-snap", "test-key1", &value), IsNil)
 	c.Check(value, Equals, "test-value1")
