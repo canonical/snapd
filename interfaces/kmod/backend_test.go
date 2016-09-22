@@ -20,7 +20,6 @@
 package kmod_test
 
 import (
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -48,11 +47,6 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.Backend = &kmod.Backend{}
 	s.BackendSuite.SetUpTest(c)
 	s.modprobeCmd = testutil.MockCommand(c, "modprobe", "")
-
-	// Prepare a directory for kernel modules conf files.
-	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapKModModulesDir, 0700)
-	c.Assert(err, IsNil)
 }
 
 func (s *backendSuite) TearDownTest(c *C) {

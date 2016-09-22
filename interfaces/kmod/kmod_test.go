@@ -21,7 +21,6 @@ package kmod_test
 
 import (
 	"io/ioutil"
-	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
@@ -41,11 +40,6 @@ var _ = Suite(&kmodSuite{})
 func (s *kmodSuite) SetUpTest(c *C) {
 	s.Backend = &kmod.Backend{}
 	s.BackendSuite.SetUpTest(c)
-
-	// Prepare a directory for kernel modules conf files.
-	// NOTE: Normally this is a part of the OS snap.
-	err := os.MkdirAll(dirs.SnapKModModulesDir, 0700)
-	c.Assert(err, IsNil)
 }
 
 func (s *kmodSuite) TearDownTest(c *C) {
@@ -92,7 +86,7 @@ func (s *kmodSuite) TestRemoveModulesFile(c *C) {
 	c.Assert(err, IsNil)
 
 	// create a dummy conf file and verify that it's removed on RemoveModulesFile()
-	err = ioutil.WriteFile(path, []byte(nil), 0644)
+	err = kmod.WriteModulesFile([][]byte{}, snapName)
 	c.Assert(err, IsNil)
 	c.Assert(osutil.FileExists(path), Equals, true)
 	err = kmod.RemoveModulesFile(snapName)
