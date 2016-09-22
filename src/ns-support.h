@@ -59,6 +59,15 @@ struct sc_ns_group;
 struct sc_ns_group *sc_open_ns_group(const char *group_name);
 
 /**
+ * Maybe open a namespace group.
+ *
+ * This function is just like sc_open_ns_group() except that it gracefully
+ * handles the lack of the namespace group directory (/run/snapd/ns) and
+ * returns NULL instead of aborting.
+ **/
+struct sc_ns_group *sc_maybe_open_ns_group(const char *group_name)
+
+/**
  * Close namespace group.
  *
  * This will close all of the open file descriptors and release allocated memory.
