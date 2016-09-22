@@ -54,12 +54,12 @@
     # changing profile
     @{PROC}/[0-9]*/attr/exec w,
 
-	# Don't allow changing profile to unconfined or profiles that start with
-	# '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
-	# the environment for determining the capabilities of the architecture.
-	# 'unsafe' is ok here because the kernel will have already cleared the
-	# environment as part of launching snap-confine with
-	# CAP_SYS_ADMIN.
+    # Don't allow changing profile to unconfined or profiles that start with
+    # '/'. Use 'unsafe' to support snap-exec on armhf and its reliance on
+    # the environment for determining the capabilities of the architecture.
+    # 'unsafe' is ok here because the kernel will have already cleared the
+    # environment as part of launching snap-confine with
+    # CAP_SYS_ADMIN.
     change_profile unsafe /** -> [^u/]**,
     change_profile unsafe /** -> u[^n]**,
     change_profile unsafe /** -> un[^c]**,
@@ -84,6 +84,74 @@
 
     # reading mount profiles
     /{tmp/snap.rootfs_*/,}var/lib/snapd/mount/*.fstab r,
+
+    # boostrapping the mount namespace
+    mount options=(rw rshared) -> /,
+    mount options=(rw bind) /tmp/snap.rootfs_*/ -> /tmp/snap.rootfs_*/,
+    mount options=(rw unbindable) -> /tmp/snap.rootfs_*/,
+    # the next line is for clasic system
+    mount options=(rw rbind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/ -> /tmp/snap.rootfs_*/,
+    # the next line is for core system
+    mount options=(rw rbind) / -> /tmp/snap.rootfs_*/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/,
+    # bidirectional mounts
+    mount options=(rw rbind) /media/ -> /tmp/snap.rootfs_*/media/,
+    # unidirectional mounts (only for classic system)
+    mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/dev/,
+
+    mount options=(rw rbind) /etc/ -> /tmp/snap.rootfs_*/etc/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/etc/,
+
+    mount options=(rw rbind) /home/ -> /tmp/snap.rootfs_*/home/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/home/,
+
+    mount options=(rw rbind) /root/ -> /tmp/snap.rootfs_*/root/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/root/,
+
+    mount options=(rw rbind) /proc/ -> /tmp/snap.rootfs_*/proc/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/proc/,
+
+    mount options=(rw rbind) /sys/ -> /tmp/snap.rootfs_*/sys/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/sys/,
+
+    mount options=(rw rbind) /tmp/ -> /tmp/snap.rootfs_*/tmp/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/tmp/,
+
+    mount options=(rw rbind) /var/lib/snapd/ -> /tmp/snap.rootfs_*/var/lib/snapd/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/lib/snapd/,
+
+    mount options=(rw rbind) /var/snap/ -> /tmp/snap.rootfs_*/var/snap/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/snap/,
+
+    mount options=(rw rbind) /var/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/tmp/,
+
+    mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/run/,
+
+    mount options=(rw rbind) {/usr,}/lib/modules/ -> /tmp/snap.rootfs_*/lib/modules/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/lib/modules/,
+
+    mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/log/,
+
+    mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/usr/src/,
+    # /etc/alternatives
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw slave) -> /tmp/snap.rootfs_*/etc/alternatives/,
+    # the /snap directory
+    mount options=(rw rbind) @SNAP_MOUNT_DIR@/ -> /tmp/snap.rootfs_*/snap/,
+    mount options=(rw rslave) -> /tmp/snap.rootfs_*/snap/,
+    # pivot_root preparation and execution
+    mount options=(rw bind) /tmp/snap.rootfs_*/var/lib/snapd/hostfs/ -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
+    mount options=(rw private) -> /tmp/snap.rootfs_*/var/lib/snapd/hostfs/,
+    pivot_root,
+    # cleanup 
+    umount /var/lib/snapd/hostfs/tmp/snap.rootfs_*/,
+    mount options=(rw rslave) -> /var/lib/snapd/hostfs/,
+    mount options=(rw rprivate) -> /var/lib/snapd/hostfs/,
 
     # set up snap-specific private /tmp dir
     capability chown,
@@ -154,8 +222,6 @@
 
     # for chroot on steroids, we use pivot_root as a better chroot that makes
     # apparmor rules behave the same on classic and outside of classic.
-    pivot_root,
-    umount /,
 
     # for creating the user data directories: ~/snap, ~/snap/<name> and
     # ~/snap/<name>/<version>
