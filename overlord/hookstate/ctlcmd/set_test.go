@@ -20,6 +20,7 @@
 package ctlcmd_test
 
 import (
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -63,28 +64,28 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(string(stderr), Equals, "")
 
 	// Verify that the previous set doesn't modify the global state
-	t := s.mockContext.NewTransaction()
+	transaction := configstate.NewTransaction(s.mockContext.State())
 	var value string
-	c.Check(t.Get("test-snap", "foo", &value), ErrorMatches, ".*no config available.*")
-	c.Check(t.Get("test-snap", "baz", &value), ErrorMatches, ".*no config available.*")
+	c.Check(transaction.Get("test-snap", "foo", &value), ErrorMatches, ".*no config available.*")
+	c.Check(transaction.Get("test-snap", "baz", &value), ErrorMatches, ".*no config available.*")
 
 	// Notify the context that we're done. This should save the config.
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated.
-	t = s.mockContext.NewTransaction()
-	c.Check(t.Get("test-snap", "foo", &value), IsNil)
+	transaction = configstate.NewTransaction(s.mockContext.State())
+	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "bar")
-	c.Check(t.Get("test-snap", "baz", &value), IsNil)
+	c.Check(transaction.Get("test-snap", "baz", &value), IsNil)
 	c.Check(value, Equals, "qux")
 }
 
 func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	// Setup an initial configuration
-	t := s.mockContext.NewTransaction()
-	t.Set("test-snap", "test-key1", "test-value1")
-	t.Set("test-snap", "test-key2", "test-value2")
-	t.Commit()
+	transaction := configstate.NewTransaction(s.mockContext.State())
+	transaction.Set("test-snap", "test-key1", "test-value1")
+	transaction.Set("test-snap", "test-key2", "test-value2")
+	transaction.Commit()
 
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "test-key2=test-value3"})
 	c.Check(err, IsNil)
@@ -95,11 +96,11 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated, but only test-key2
-	t = s.mockContext.NewTransaction()
+	transaction = configstate.NewTransaction(s.mockContext.State())
 	var value string
-	c.Check(t.Get("test-snap", "test-key1", &value), IsNil)
+	c.Check(transaction.Get("test-snap", "test-key1", &value), IsNil)
 	c.Check(value, Equals, "test-value1")
-	c.Check(t.Get("test-snap", "test-key2", &value), IsNil)
+	c.Check(transaction.Get("test-snap", "test-key2", &value), IsNil)
 	c.Check(value, Equals, "test-value3")
 }
 

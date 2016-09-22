@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
@@ -56,10 +56,10 @@ func (s *setCommand) Execute(args []string) error {
 
 	// Extract the transaction from the context. If none, make one.
 	s.context().Lock()
-	t, ok := s.context().Cached("transaction").(*transaction.Transaction)
+	transaction, ok := s.context().Cached("transaction").(*configstate.Transaction)
 	s.context().Unlock()
 	if !ok {
-		t = initializeTransaction(s.context())
+		transaction = initializeTransaction(s.context())
 	}
 
 	for _, patchValue := range s.Positional.ConfValues {
@@ -75,21 +75,21 @@ func (s *setCommand) Execute(args []string) error {
 			value = parts[1]
 		}
 
-		t.Set(s.context().SnapName(), key, value)
+		transaction.Set(s.context().SnapName(), key, value)
 	}
 
 	s.context().Lock()
-	s.context().Cache("transaction", t)
+	s.context().Cache("transaction", transaction)
 	s.context().Unlock()
 
 	return nil
 }
 
-func initializeTransaction(context *hookstate.Context) *transaction.Transaction {
-	t := context.NewTransaction()
+func initializeTransaction(context *hookstate.Context) *configstate.Transaction {
+	transaction := configstate.NewTransaction(context.State())
 	context.OnDone(func() error {
-		t.Commit()
+		transaction.Commit()
 		return nil
 	})
-	return t
+	return transaction
 }
