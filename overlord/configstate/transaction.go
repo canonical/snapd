@@ -44,11 +44,9 @@ type Transaction struct {
 type snapConfig map[string]*json.RawMessage
 type systemConfig map[string]snapConfig
 
-// NewTransaction creates a new config transaction initialized with the given state.
+// NewTransaction creates a new config transaction initialized with the given
+// state. Note that the state should be locked/unlocked by the caller.
 func NewTransaction(st *state.State) (*Transaction, error) {
-	st.Lock()
-	defer st.Unlock()
-
 	transaction := &Transaction{state: st}
 	transaction.writeCache = make(systemConfig)
 
@@ -110,7 +108,7 @@ func (t *Transaction) Get(snapName, key string, value interface{}) error {
 }
 
 // Commit actually saves the changes made to the config in the transaction to
-// the state.
+// the state. Note that the state should be locked/unlocked by the caller.
 func (t *Transaction) Commit() {
 	t.writeCacheMutex.Lock()
 	defer t.writeCacheMutex.Unlock()
@@ -119,9 +117,6 @@ func (t *Transaction) Commit() {
 	if len(t.writeCache) == 0 {
 		return
 	}
-
-	t.state.Lock()
-	defer t.state.Unlock()
 
 	t.configMutex.Lock()
 	defer t.configMutex.Unlock()

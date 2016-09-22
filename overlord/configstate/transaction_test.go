@@ -40,6 +40,8 @@ var _ = Suite(&transactionSuite{})
 func (s *transactionSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 	var err error
+	s.state.Lock()
+	defer s.state.Unlock()
 	s.transaction, err = configstate.NewTransaction(s.state)
 	c.Check(err, IsNil)
 }
@@ -48,6 +50,8 @@ func (s *transactionSuite) TestSetDoesNotTouchState(c *C) {
 	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
 
 	// Create a new transaction to grab a new snapshot of the state
+	s.state.Lock()
+	defer s.state.Unlock()
 	transaction, err := configstate.NewTransaction(s.state)
 	c.Check(err, IsNil)
 	var value string
@@ -56,6 +60,8 @@ func (s *transactionSuite) TestSetDoesNotTouchState(c *C) {
 }
 
 func (s *transactionSuite) TestCommit(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
 	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
 	s.transaction.Commit()
 
@@ -70,6 +76,8 @@ func (s *transactionSuite) TestCommit(c *C) {
 
 func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 	// Set the initial config
+	s.state.Lock()
+	defer s.state.Unlock()
 	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
 	s.transaction.Commit()
 
@@ -118,6 +126,8 @@ func (s *transactionSuite) TestGetCachedWrites(c *C) {
 
 func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
 	// Set the initial config
+	s.state.Lock()
+	defer s.state.Unlock()
 	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
 	s.transaction.Commit()
 
@@ -135,6 +145,8 @@ func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
 
 func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
 	// Set the initial config
+	s.state.Lock()
+	defer s.state.Unlock()
 	c.Check(s.transaction.Set("test-snap", "foo", "initial"), IsNil)
 	s.transaction.Commit()
 
