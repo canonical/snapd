@@ -21,7 +21,11 @@ setup_fake_store(){
     # debugging
     systemctl status fakestore || true
     echo "Given a controlled store service is up"
-    systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 $@"
+
+    https_proxy=${https_proxy:-}
+    http_proxy=${http_proxy:-}
+    systemd_create_and_start_unit fakestore "$(which fakestore) -start -dir $top_dir -addr localhost:11028 -https-proxy=${https_proxy} -http-proxy=${http_proxy} $@"
+
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_CPI_URL=http://localhost:11028" "SNAPPY_FORCE_SAS_URL=http://localhost:11028"
 }
@@ -53,8 +57,6 @@ setup_store(){
     local store_type=$1
     local top_dir=$2
     if [ "$store_type" = "fake" ]; then
-        setup_fake_store $top_dir
-    elif [ "$store_type" = "fake-w-assert-fallback" ]; then
         setup_fake_store $top_dir -assert-fallback
     else
         if [ "$store_type" = "staging" ]; then

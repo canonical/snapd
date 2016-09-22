@@ -1,0 +1,20 @@
+spawn bash
+
+expect {
+    "# " { send "cat pi3-model.json | snap sign -k default &> pi3.model ; cat pi3.model\n" }
+}
+
+# fun!
+# gpg1 asks for a passphrase on the terminal no matter what
+# gpg2 gets the passphrase via our fake pinentry
+expect {
+    "Enter passphrase: " {send "pass\n"; exp_continue}
+    "type: model" { send "exit\n" }
+    timeout { exit 1 }
+    eof { exit 1 }
+}
+
+set status [wait]
+if {[lindex $status 3] != 0} {
+    exit 1
+}

@@ -77,7 +77,7 @@ func (s *authTestSuite) TestRequestStoreMacaroon(c *C) {
 	defer mockServer.Close()
 	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestStoreMacaroon()
+	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -89,7 +89,7 @@ func (s *authTestSuite) TestRequestStoreMacaroonMissingData(c *C) {
 	defer mockServer.Close()
 	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestStoreMacaroon()
+	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: empty macaroon returned")
 	c.Assert(macaroon, Equals, "")
 }
@@ -101,7 +101,7 @@ func (s *authTestSuite) TestRequestStoreMacaroonError(c *C) {
 	defer mockServer.Close()
 	MyAppsMacaroonACLAPI = mockServer.URL + "/acl/"
 
-	macaroon, err := RequestStoreMacaroon()
+	macaroon, err := requestStoreMacaroon()
 	c.Assert(err, ErrorMatches, "cannot get snap access permission from store: store server returned status 500")
 	c.Assert(macaroon, Equals, "")
 }
@@ -113,7 +113,7 @@ func (s *authTestSuite) TestDischargeAuthCaveat(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("third-party-caveat", "guy@example.com", "passwd", "")
+	discharge, err := dischargeAuthCaveat("third-party-caveat", "guy@example.com", "passwd", "")
 	c.Assert(err, IsNil)
 	c.Assert(discharge, Equals, "the-discharge-macaroon-serialized-data")
 }
@@ -126,7 +126,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatNeeds2fa(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	discharge, err := dischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
 	c.Assert(err, Equals, ErrAuthenticationNeeds2fa)
 	c.Assert(discharge, Equals, "")
 }
@@ -139,7 +139,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatFails2fa(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	discharge, err := dischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
 	c.Assert(err, Equals, Err2faFailed)
 	c.Assert(discharge, Equals, "")
 }
@@ -152,7 +152,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatInvalidLogin(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	discharge, err := dischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: Provided email/password is not correct.")
 	c.Assert(discharge, Equals, "")
 }
@@ -164,7 +164,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatMissingData(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	discharge, err := dischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: empty macaroon returned")
 	c.Assert(discharge, Equals, "")
 }
@@ -176,7 +176,7 @@ func (s *authTestSuite) TestDischargeAuthCaveatError(c *C) {
 	defer mockServer.Close()
 	UbuntuoneDischargeAPI = mockServer.URL + "/tokens/discharge"
 
-	discharge, err := DischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
+	discharge, err := dischargeAuthCaveat("third-party-caveat", "foo@example.com", "passwd", "")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: server returned status 500")
 	c.Assert(discharge, Equals, "")
 }
@@ -188,7 +188,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroon(c *C) {
 	defer mockServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
-	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	discharge, err := refreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
 	c.Assert(err, IsNil)
 	c.Assert(discharge, Equals, "the-discharge-macaroon-serialized-data")
 }
@@ -201,7 +201,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonInvalidLogin(c *C) {
 	defer mockServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
-	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	discharge, err := refreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: Provided email/password is not correct.")
 	c.Assert(discharge, Equals, "")
 }
@@ -213,7 +213,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonMissingData(c *C) {
 	defer mockServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
-	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	discharge, err := refreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: empty macaroon returned")
 	c.Assert(discharge, Equals, "")
 }
@@ -225,7 +225,7 @@ func (s *authTestSuite) TestRefreshDischargeMacaroonError(c *C) {
 	defer mockServer.Close()
 	UbuntuoneRefreshDischargeAPI = mockServer.URL + "/tokens/refresh"
 
-	discharge, err := RefreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
+	discharge, err := refreshDischargeMacaroon("soft-expired-serialized-discharge-macaroon")
 	c.Assert(err, ErrorMatches, "cannot authenticate to snap store: server returned status 500")
 	c.Assert(discharge, Equals, "")
 }
@@ -277,7 +277,7 @@ func (s *authTestSuite) TestLoginCaveatIDReturnCaveatID(c *C) {
 	err = m.AddThirdPartyCaveat([]byte("shared-key"), "third-party-caveat", UbuntuoneLocation)
 	c.Check(err, IsNil)
 
-	caveat, err := LoginCaveatID(m)
+	caveat, err := loginCaveatID(m)
 	c.Check(err, IsNil)
 	c.Check(caveat, Equals, "third-party-caveat")
 }
@@ -288,7 +288,7 @@ func (s *authTestSuite) TestLoginCaveatIDMacaroonMissingCaveat(c *C) {
 	err = m.AddThirdPartyCaveat([]byte("shared-key"), "third-party-caveat", "other-location")
 	c.Check(err, IsNil)
 
-	caveat, err := LoginCaveatID(m)
+	caveat, err := loginCaveatID(m)
 	c.Check(err, NotNil)
 	c.Check(caveat, Equals, "")
 }
@@ -300,7 +300,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonce(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
 
-	nonce, err := RequestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, IsNil)
 	c.Assert(nonce, Equals, "the-nonce")
 }
@@ -312,7 +312,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceEmptyResponse(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
 
-	nonce, err := RequestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: empty nonce returned")
 	c.Assert(nonce, Equals, "")
 }
@@ -324,7 +324,7 @@ func (s *authTestSuite) TestRequestStoreDeviceNonceError(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceNonceAPI = mockServer.URL + "/identity/api/v1/nonces"
 
-	nonce, err := RequestStoreDeviceNonce()
+	nonce, err := requestStoreDeviceNonce()
 	c.Assert(err, ErrorMatches, "cannot get nonce from store: store server returned status 500")
 	c.Assert(nonce, Equals, "")
 }
@@ -341,7 +341,7 @@ func (s *authTestSuite) TestRequestDeviceSession(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -358,7 +358,7 @@ func (s *authTestSuite) TestRequestDeviceSessionWithPreviousSession(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "previous-session")
+	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "previous-session")
 	c.Assert(err, IsNil)
 	c.Assert(macaroon, Equals, "the-root-macaroon-serialized-data")
 }
@@ -370,7 +370,7 @@ func (s *authTestSuite) TestRequestDeviceSessionMissingData(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, "cannot get device session from store: empty session returned")
 	c.Assert(macaroon, Equals, "")
 }
@@ -383,7 +383,7 @@ func (s *authTestSuite) TestRequestDeviceSessionError(c *C) {
 	defer mockServer.Close()
 	MyAppsDeviceSessionAPI = mockServer.URL + "/identity/api/v1/sessions"
 
-	macaroon, err := RequestDeviceSession("serial-assertion", "session-request", "")
+	macaroon, err := requestDeviceSession("serial-assertion", "session-request", "")
 	c.Assert(err, ErrorMatches, `cannot get device session from store: store server returned status 500 and body "error body"`)
 	c.Assert(macaroon, Equals, "")
 }

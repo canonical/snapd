@@ -99,7 +99,21 @@ type Ref struct {
 }
 
 func (ref *Ref) String() string {
-	return fmt.Sprintf("%s %v", ref.Type.Name, ref.PrimaryKey)
+	pkStr := "-"
+	n := len(ref.Type.PrimaryKey)
+	if n != len(ref.PrimaryKey) {
+		pkStr = "???"
+	} else if n > 0 {
+		pkStr = ref.PrimaryKey[n-1]
+		if n > 1 {
+			sfx := []string{pkStr + ";"}
+			for i, k := range ref.Type.PrimaryKey[:n-1] {
+				sfx = append(sfx, fmt.Sprintf("%s:%s", k, ref.PrimaryKey[i]))
+			}
+			pkStr = strings.Join(sfx, " ")
+		}
+	}
+	return fmt.Sprintf("%s (%s)", ref.Type.Name, pkStr)
 }
 
 // Unique returns a unique string representing the reference that can be used as a key in maps.
