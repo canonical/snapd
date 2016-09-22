@@ -54,7 +54,7 @@ func (s *setSuite) SetUpTest(c *C) {
 
 func (s *setSuite) TestInvalidArguments(c *C) {
 	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "foo", "bar"})
-	c.Check(err, ErrorMatches, ".*invalid configuration.*want key=value.*")
+	c.Check(err, ErrorMatches, ".*invalid parameter.*want key=value.*")
 }
 
 func (s *setSuite) TestCommand(c *C) {
@@ -67,8 +67,8 @@ func (s *setSuite) TestCommand(c *C) {
 	transaction, err := configstate.NewTransaction(s.mockContext.State())
 	c.Check(err, IsNil)
 	var value string
-	c.Check(transaction.Get("test-snap", "foo", &value), ErrorMatches, ".*no config available.*")
-	c.Check(transaction.Get("test-snap", "baz", &value), ErrorMatches, ".*no config available.*")
+	c.Check(transaction.Get("test-snap", "foo", &value), ErrorMatches, ".*snap.*has no.*configuration.*")
+	c.Check(transaction.Get("test-snap", "baz", &value), ErrorMatches, ".*snap.*has no.*configuration.*")
 
 	// Notify the context that we're done. This should save the config.
 	c.Check(s.mockContext.Done(), IsNil)
