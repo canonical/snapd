@@ -105,6 +105,7 @@ func (t *TextProgress) Start(label string, total float64) {
 	t.pbar.Total = int64(total)
 	t.pbar.ShowSpeed = true
 	t.pbar.Units = pb.U_BYTES
+	t.pbar.NotPrint = true
 	t.pbar.Prefix(label)
 	t.pbar.Start()
 }
