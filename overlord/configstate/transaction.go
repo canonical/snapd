@@ -148,12 +148,7 @@ func (t *Transaction) Commit() {
 }
 
 func (t *Transaction) get(config systemConfig, snapName, key string, value interface{}) error {
-	c, ok := config[snapName]
-	if !ok {
-		return fmt.Errorf("snap %q has no %q configuration option", snapName, key)
-	}
-
-	raw, ok := c[key]
+	raw, ok := config[snapName][key]
 	if !ok {
 		return fmt.Errorf("snap %q has no %q configuration option", snapName, key)
 	}
