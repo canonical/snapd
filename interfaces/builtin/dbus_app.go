@@ -190,7 +190,7 @@ func getAppArmorAbstraction(bus string) (string, error) {
 	} else if bus == "session" {
 		abstraction = "dbus-session-strict"
 	} else {
-		return "", fmt.Errorf("unknown abstraction for specified bus '%s'", bus)
+		return "", fmt.Errorf("unknown abstraction for specified bus '%q'", bus)
 	}
 	return abstraction, nil
 }
