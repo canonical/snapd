@@ -21,6 +21,7 @@ package snaptest_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -68,6 +69,20 @@ func (s *snapTestSuite) TestMockSnap(c *C) {
 
 	c.Check(string(cont), Equals, sampleYaml)
 
+	// More
+	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
+	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")
+}
+
+func (s *snapTestSuite) TestMockInfo(c *C) {
+	snapInfo := snaptest.MockInfo(c, sampleYaml, &snap.SideInfo{Revision: snap.R(42)})
+	// Data from YAML is used
+	c.Check(snapInfo.Name(), Equals, "sample")
+	// Data from SideInfo is used
+	c.Check(snapInfo.Revision, Equals, snap.R(42))
+	// The YAML is *not* placed on disk
+	_, err := os.Stat(filepath.Join(dirs.SnapMountDir, "sample", "42", "meta", "snap.yaml"))
+	c.Assert(os.IsNotExist(err), Equals, true)
 	// More
 	c.Check(snapInfo.Apps["app"].Command, Equals, "foo")
 	c.Check(snapInfo.Plugs["network"].Interface, Equals, "network")

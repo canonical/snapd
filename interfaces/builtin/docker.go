@@ -50,16 +50,7 @@ func (iface *DockerInterface) Name() string {
 }
 
 func (iface *DockerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor,
-		interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecuritySecComp,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -70,43 +61,19 @@ func (iface *DockerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 	case interfaces.SecuritySecComp:
 		snippet := []byte(dockerConnectedPlugSecComp)
 		return snippet, nil
-	case interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *DockerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	// No permanent slot policy. Instead, use the docker-support interface
-	switch securitySystem {
-	case interfaces.SecurityAppArmor,
-		interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecuritySecComp,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DockerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	// The docker socket is a named socket and therefore mediated by
 	// AppArmor file rules. As such, there is no additional ConnectedSlot
 	// policy to add.
-	switch securitySystem {
-	case interfaces.SecurityAppArmor,
-		interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecuritySecComp,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DockerInterface) SanitizePlug(plug *interfaces.Plug) error {
