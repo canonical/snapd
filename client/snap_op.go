@@ -56,8 +56,8 @@ func (client *Client) Install(name string, options *SnapOptions) (changeID strin
 	return client.doSnapAction("install", name, options)
 }
 
-func (client *Client) InstallMany(names []string) (changeID string, err error) {
-	return client.doMultiSnapAction("install", names, nil)
+func (client *Client) InstallMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("install", names, options)
 }
 
 // Remove removes the snap with the given name.
@@ -65,8 +65,8 @@ func (client *Client) Remove(name string, options *SnapOptions) (changeID string
 	return client.doSnapAction("remove", name, options)
 }
 
-func (client *Client) RemoveMany(names []string) (changeID string, err error) {
-	return client.doMultiSnapAction("remove", names, nil)
+func (client *Client) RemoveMany(names []string, options *SnapOptions) (changeID string, err error) {
+	return client.doMultiSnapAction("remove", names, options)
 }
 
 // Refresh refreshes the snap with the given name (switching it to track
