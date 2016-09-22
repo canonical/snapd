@@ -3712,3 +3712,59 @@ func (s *snapmgrTestSuite) TestSnapStateLocalRevision(c *C) {
 	}
 	c.Assert(snapst.LocalRevision().Unset(), Equals, true)
 }
+
+func (s *snapmgrTestSuite) TestInstallMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installed, tts, err := snapstate.InstallMany(s.state, []string{"one", "two"}, 0)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(installed, DeepEquals, []string{"one", "two"})
+
+	for _, ts := range tts {
+		verifyInstallUpdateTasks(c, false, ts, s.state)
+	}
+}
+
+func (s *snapmgrTestSuite) TestRemoveMany(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "one", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "one", SnapID: "one-id", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+	snapstate.Set(s.state, "two", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "two", SnapID: "two-id", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+
+	removed, tts, err := snapstate.RemoveMany(s.state, []string{"one", "two"})
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 2)
+	c.Check(removed, DeepEquals, []string{"one", "two"})
+
+	c.Assert(s.state.NumTask(), Equals, 6*2)
+	for _, ts := range tts {
+		c.Assert(ts.Tasks(), HasLen, 6)
+		i := 0
+		c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
+		i++
+		c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
+		i++
+		c.Assert(ts.Tasks()[i].Kind(), Equals, "remove-profiles")
+		i++
+		c.Assert(ts.Tasks()[i].Kind(), Equals, "clear-snap")
+		i++
+		c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
+		i++
+		c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
+	}
+}
