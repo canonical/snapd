@@ -145,6 +145,8 @@ type Info struct {
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 	MustBuy bool
 	Broken  string
+
+	Screenshots []ScreenshotInfo
 }
 
 // Name returns the blessed name for the snap.
@@ -297,6 +299,15 @@ type AppInfo struct {
 	Slots map[string]*SlotInfo
 
 	Environment map[string]string
+}
+
+// ScreenshotInfo provides information about a screenshot.
+type ScreenshotInfo struct {
+	Snap *Info
+
+	URL    string
+	Width  int64
+	Height int64
 }
 
 // HookInfo provides information about a hook.
