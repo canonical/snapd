@@ -103,12 +103,12 @@ func buySnap(opts *store.BuyOptions) error {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: it has already been bought"), opts.SnapName)
 	}
 
+	// TODO Change to use the new /buy/ready endpoint instead of checking payment methods
 	paymentInfo, err := cli.PaymentMethods()
 	if err != nil {
 		return err
 	}
 
-	// TODO Remove this payment method filter once interactive payment methods are supported on the CLI
 	var methods []*store.PaymentMethod
 	for _, method := range paymentInfo.Methods {
 		if !method.RequiresInteraction {

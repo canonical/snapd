@@ -66,6 +66,13 @@ func (li *localInfos) Name(pathOrName string) string {
 	return pathOrName
 }
 
+func (li *localInfos) PreferLocal(name string) string {
+	if path := li.Path(name); path != "" {
+		return path
+	}
+	return name
+}
+
 func (li *localInfos) Path(name string) string {
 	return li.nameToPath[name]
 }
@@ -185,7 +192,7 @@ func acquireSnap(sto Store, name string, dlOpts *DownloadOptions, local *localIn
 }
 
 type addingFetcher struct {
-	*asserts.Fetcher
+	asserts.Fetcher
 	addedRefs []*asserts.Ref
 }
 
@@ -248,21 +255,22 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		DevMode:   false, // XXX: should this be true?
 	}
 
-	snaps := []string{}
-	// opts.Snaps need to be considered first to support local overrides
-	// of snaps mentioned in the model assertion whose fetching
-	// from the store will be then skipped
-	snaps = append(snaps, opts.Snaps...)
-	snaps = append(snaps, model.Gadget())
-	snaps = append(snaps, defaultCore)
-	snaps = append(snaps, model.Kernel())
-	snaps = append(snaps, model.RequiredSnaps()...)
-
 	for _, d := range []string{snapSeedDir, assertSeedDir} {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			return err
 		}
 	}
+
+	snaps := []string{}
+	// core,kernel,gadget first
+	snaps = append(snaps, local.PreferLocal(defaultCore))
+	snaps = append(snaps, local.PreferLocal(model.Kernel()))
+	snaps = append(snaps, local.PreferLocal(model.Gadget()))
+	// then required and the user requested stuff
+	for _, snapName := range model.RequiredSnaps() {
+		snaps = append(snaps, local.PreferLocal(snapName))
+	}
+	snaps = append(snaps, opts.Snaps...)
 
 	seen := make(map[string]bool)
 	downloadedSnapsInfo := map[string]*snap.Info{}
@@ -291,7 +299,7 @@ func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *l
 		// TODO: support somehow including available assertions
 		// also for local snaps
 		if info.SnapID != "" {
-			err = FetchSnapAssertions(fn, info, f.Fetcher, db)
+			err = FetchAndCheckSnapAssertions(fn, info, f, db)
 			if err != nil {
 				return err
 			}
