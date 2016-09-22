@@ -58,19 +58,10 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	// Extract the transaction from the context. If none, make one and cache it
-	// in the context.
-	s.context().Lock()
-	transaction, ok := s.context().Cached(cachedTransaction{}).(*configstate.Transaction)
-	if !ok {
-		var err error
-		transaction, err = initializeTransaction(s.context())
-		if err != nil {
-			return fmt.Errorf("cannot initialize transaction: %s", err)
-		}
-		s.context().Cache(cachedTransaction{}, transaction)
+	transaction, err := getTransaction(s.context())
+	if err != nil {
+		return err
 	}
-	s.context().Unlock()
 
 	for _, patchValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
@@ -91,16 +82,27 @@ func (s *setCommand) Execute(args []string) error {
 	return nil
 }
 
-func initializeTransaction(context *hookstate.Context) (*configstate.Transaction, error) {
-	transaction, err := configstate.NewTransaction(context.State())
-	if err != nil {
-		return nil, err
-	}
+func getTransaction(context *hookstate.Context) (*configstate.Transaction, error) {
+	context.Lock()
+	defer context.Unlock()
 
-	context.OnDone(func() error {
-		transaction.Commit()
-		return nil
-	})
+	// Extract the transaction from the context. If none, make one and cache it
+	// in the context.
+	transaction, ok := context.Cached(cachedTransaction{}).(*configstate.Transaction)
+	if !ok {
+		var err error
+		transaction, err = configstate.NewTransaction(context.State())
+		if err != nil {
+			return nil, fmt.Errorf("cannot create transaction: %s", err)
+		}
+
+		context.OnDone(func() error {
+			transaction.Commit()
+			return nil
+		})
+
+		context.Cache(cachedTransaction{}, transaction)
+	}
 
 	return transaction, nil
 }
