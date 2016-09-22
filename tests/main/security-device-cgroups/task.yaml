@@ -21,6 +21,11 @@ restore: |
     udevadm trigger
 
 execute: |
+    if [ "$KARCH" != "x86_64" ]; then
+        echo "Skipping for non amd64 architectures"
+        exit 0
+    fi
+
     echo "Given a snap is installed"
     snapbuild $TESTSLIB/snaps/test-snapd-tools .
     snap install --dangerous ./test-snapd-tools_1.0_all.snap

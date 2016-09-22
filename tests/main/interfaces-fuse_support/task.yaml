@@ -17,9 +17,6 @@ environment:
     MOUNT_POINT: /var/snap/test-snapd-fuse-consumer/current/mount_point
 
 prepare: |
-    echo "Given a snap declaring a fuse plug is installed"
-    snap install test-snapd-fuse-consumer
-
     echo "And a user writable mount point is created"
     mkdir -p $MOUNT_POINT
 
@@ -28,6 +25,14 @@ restore: |
     rm -rf $MOUNT_POINT fuse.error
 
 execute: |
+    if [ "$KARCH" != "x86_64" ]; then
+        echo "Skipping for non amd64 architectures"
+        exit 0
+    fi
+
+    echo "Given a snap declaring a fuse plug is installed"
+    snap install test-snapd-fuse-consumer
+
     CONNECTED_PATTERN=":fuse-support +test-snapd-fuse-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-fuse-consumer:fuse-support"
 
