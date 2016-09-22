@@ -23,13 +23,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/snapcore/snapd/testutil"
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backendtest"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/testutil"
-	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) {
@@ -98,7 +99,6 @@ func (s *backendSuite) TestRemovingSnapRemovesModulesConf(c *C) {
 	for _, devMode := range []bool{true, false} {
 		snapInfo := s.InstallSnap(c, devMode, backendtest.SambaYamlV1, 0)
 		c.Assert(osutil.FileExists(path), Equals, true)
-		s.modprobeCmd.ForgetCalls()
 		s.RemoveSnap(c, snapInfo)
 		c.Assert(osutil.FileExists(path), Equals, false)
 	}

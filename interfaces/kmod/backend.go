@@ -110,7 +110,7 @@ func uniqueLines(lines [][]byte) (deduplicated [][]byte) {
 	dedup := make(map[string]bool)
 	for _, line := range lines {
 		l := string(line)
-		if _, ok := dedup[l]; !ok {
+		if !dedup[l] {
 			dedup[l] = true
 			deduplicated = append(deduplicated, line)
 		}
