@@ -41,6 +41,8 @@ type Context struct {
 	onDoneMutex sync.Mutex
 }
 
+type contextCache struct{}
+
 // NewContext returns a new Context.
 func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, error) {
 	// Generate a secure, random ID for this context
@@ -140,8 +142,8 @@ func (c *Context) State() *state.State {
 // Cached returns the cached value associated with the provided key.
 // It returns nil if there is no entry for key.
 func (c *Context) Cached(key interface{}) interface{} {
-	contextCache := c.task.State().Cached("hook-context")
-	cache, ok := contextCache.(map[interface{}]interface{})
+	cachedCache := c.task.State().Cached(contextCache{})
+	cache, ok := cachedCache.(map[interface{}]interface{})
 	if !ok {
 		return nil
 	}
@@ -151,13 +153,13 @@ func (c *Context) Cached(key interface{}) interface{} {
 
 // Cache associates value with key. The cached value is not persisted.
 func (c *Context) Cache(key, value interface{}) {
-	contextCache := c.task.State().Cached("hook-context")
-	cache, ok := contextCache.(map[interface{}]interface{})
+	cachedCache := c.task.State().Cached(contextCache{})
+	cache, ok := cachedCache.(map[interface{}]interface{})
 	if !ok {
 		cache = make(map[interface{}]interface{})
 	}
 	cache[key] = value
-	c.task.State().Cache("hook-context", cache)
+	c.task.State().Cache(contextCache{}, cache)
 }
 
 // OnDone requests the provided function to be run once the context knows it's

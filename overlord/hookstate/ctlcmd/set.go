@@ -37,6 +37,8 @@ type setCommand struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
+type cachedTransaction struct{}
+
 var shortSetHelp = i18n.G("Set snap configuration")
 var longSetHelp = i18n.G(`
 The set command changes the provided configuration options as requested. For
@@ -58,7 +60,7 @@ func (s *setCommand) Execute(args []string) error {
 
 	// Extract the transaction from the context. If none, make one.
 	s.context().Lock()
-	transaction, ok := s.context().Cached("transaction").(*configstate.Transaction)
+	transaction, ok := s.context().Cached(cachedTransaction{}).(*configstate.Transaction)
 	s.context().Unlock()
 	if !ok {
 		var err error
@@ -85,7 +87,7 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	s.context().Lock()
-	s.context().Cache("transaction", transaction)
+	s.context().Cache(cachedTransaction{}, transaction)
 	s.context().Unlock()
 
 	return nil
