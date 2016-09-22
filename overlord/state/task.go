@@ -28,7 +28,7 @@ import (
 )
 
 type progress struct {
-	Info  string `json:"info"`
+	Label string `json:"label"`
 	Done  int    `json:"done"`
 	Total int    `json:"total"`
 }
@@ -202,7 +202,7 @@ func (t *Task) Change() *Change {
 // Progress returns the current progress for the task.
 // If progress is not explicitly set, it returns
 // (0, 1) if the status is DoStatus and (1, 1) otherwise.
-func (t *Task) Progress() (info string, done, total int) {
+func (t *Task) Progress() (label string, done, total int) {
 	t.state.reading()
 	if t.progress == nil {
 		if t.Status() == DoStatus {
@@ -210,11 +210,11 @@ func (t *Task) Progress() (info string, done, total int) {
 		}
 		return "", 1, 1
 	}
-	return t.progress.Info, t.progress.Done, t.progress.Total
+	return t.progress.Label, t.progress.Done, t.progress.Total
 }
 
 // SetProgress sets the task progress to cur out of total steps.
-func (t *Task) SetProgress(info string, done, total int) {
+func (t *Task) SetProgress(label string, done, total int) {
 	// Only mark state for checkpointing if progress is final.
 	if total > 0 && done == total {
 		t.state.writing()
@@ -225,7 +225,7 @@ func (t *Task) SetProgress(info string, done, total int) {
 		// Doing math wrong is easy. Be conservative.
 		t.progress = nil
 	} else {
-		t.progress = &progress{Info: info, Done: done, Total: total}
+		t.progress = &progress{Label: label, Done: done, Total: total}
 	}
 }
 

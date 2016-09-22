@@ -131,14 +131,14 @@ func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 	t := st.NewTask("download", "1...")
 
 	t.SetProgress("snap", 2, 99)
-	tinfo, cur, tot := t.Progress()
-	c.Check(tinfo, Equals, "snap")
+	label, cur, tot := t.Progress()
+	c.Check(label, Equals, "snap")
 	c.Check(cur, Equals, 2)
 	c.Check(tot, Equals, 99)
 
 	t.SetProgress("", 0, 0)
-	tinfo, cur, tot = t.Progress()
-	c.Check(tinfo, Equals, "")
+	label, cur, tot = t.Progress()
+	c.Check(label, Equals, "")
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
