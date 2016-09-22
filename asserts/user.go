@@ -87,14 +87,11 @@ func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
 var _ consistencyChecker = (*SystemUser)(nil)
 
 func assembleSystemUser(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "brand-id")
+	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
 	}
-	_, err = checkNotEmptyString(assert.headers, "email")
-	if err != nil {
-		return nil, err
-	}
+
 	series, err := checkStringList(assert.headers, "series")
 	if err != nil {
 		return nil, err
