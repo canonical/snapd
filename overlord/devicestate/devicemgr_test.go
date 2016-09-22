@@ -102,6 +102,10 @@ func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult,
 	panic("fakeStore.Buy not expected")
 }
 
+func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
+	panic("fakeStore.ReadyToBuy not expected")
+}
+
 func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
 	panic("fakeStore.PaymentMethods not expected")
 }

@@ -218,6 +218,10 @@ func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store
 	panic("Never expected fakeStore.Buy to be called")
 }
 
+func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
+	panic("Never expected fakeStore.ReadyToBuy to be called")
+}
+
 func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
 	panic("Never expected fakeStore.PaymentMethods to be called")
 }
