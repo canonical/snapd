@@ -277,6 +277,36 @@ struct sc_ns_group *sc_open_ns_group(const char *group_name)
 	return group;
 }
 
+struct sc_ns_group *sc_maybe_open_ns_group(const char *group_name)
+{
+	struct sc_ns_group *group = sc_alloc_ns_group();
+	debug("opening namespace group directory %s", sc_ns_dir);
+	group->dir_fd =
+	    open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
+	if (group->dir_fd < 0) {
+		if (errno == ENOENT) {
+			free(group);
+			return NULL;
+		}
+		die("cannot open directory for namespace group %s", group_name);
+	}
+	char lock_fname[PATH_MAX];
+	must_snprintf(lock_fname, sizeof lock_fname, "%s%s", group_name,
+		      SC_NS_LOCK_FILE);
+	debug("opening lock file for namespace group %s", group_name);
+	group->lock_fd =
+	    openat(group->dir_fd, lock_fname,
+		   O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
+	if (group->lock_fd < 0) {
+		die("cannot open lock file for namespace group %s", group_name);
+	}
+	group->name = strdup(group_name);
+	if (group->name == NULL) {
+		die("cannot duplicate namespace group name %s", group_name);
+	}
+	return group;
+}
+
 void sc_close_ns_group(struct sc_ns_group *group)
 {
 	debug("releasing resources associated wih namespace group %s",
@@ -523,12 +553,21 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 		      SC_NS_MNT_FILE);
 	debug("unmounting preserved mount namespace file %s", mnt_fname);
 	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) < 0) {
-		// EINVAL is returned when there's nothing to unmount (no bind-mount).
-		// Instead of checking for this explicitly (which is always racy) we
-		// just unmount and check the return code.
-		if (errno != EINVAL) {
+		switch (errno) {
+		case EINVAL:
+			// EINVAL is returned when there's nothing to unmount (no bind-mount).
+			// Instead of checking for this explicitly (which is always racy) we
+			// just unmount and check the return code.
+			break;
+		case ENOENT:
+			// We may be asked to discard a namespace that doesn't yet
+			// exist (even the mount point may be absent). We just
+			// ignore that error and return gracefully.
+			break;
+		default:
 			die("cannot unmount preserved mount namespace file %s",
 			    mnt_fname);
+			break;
 		}
 	}
 	// Get back to the original directory
