@@ -198,7 +198,7 @@ func getAppArmorIndividualSnippet(policy []byte, bus string, name string) []byte
 	new = []byte(name)
 	snippet = bytes.Replace(snippet, old, new, -1)
 
-	// convert name to AppArmor dbus path
+	// convert name to AppArmor dbus path (eg org.foo' to '/org/foo{,/**}')
 	dot_re := regexp.MustCompile("\\.")
 	var path_buf bytes.Buffer
 	path_buf.WriteString(`"/`)
