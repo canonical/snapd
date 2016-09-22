@@ -23,7 +23,8 @@ int main(int argc, char **argv)
 	if (argc != 2)
 		die("Usage: %s snap-name", argv[0]);
 	const char *snap_name = argv[1];
-	struct sc_ns_group *group = sc_maybe_open_ns_group(snap_name);
+	struct sc_ns_group *group =
+	    sc_open_ns_group(snap_name, SC_NS_FAIL_GRACEFULLY);
 	if (group != NULL) {
 		sc_lock_ns_mutex(group);
 		sc_discard_preserved_ns_group(group);
