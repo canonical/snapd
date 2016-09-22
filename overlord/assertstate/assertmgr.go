@@ -34,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -262,4 +264,123 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 	return doFetch(s, userID, fetching)
+}
+
+type refreshControlError struct {
+	errs []error
+}
+
+func (e *refreshControlError) Error() string {
+	if len(e.errs) == 1 {
+		return e.errs[0].Error()
+	}
+	l := []string{""}
+	for _, e := range e.errs {
+		l = append(l, e.Error())
+	}
+	return fmt.Sprintf("refresh control errors:%s", strings.Join(l, "\n - "))
+}
+
+// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated.
+func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (validated []*snap.Info, err error) {
+	// maps gated snap-ids to gating snap-ids
+	controlled := make(map[string][]string)
+	// maps gating snap-ids to their snap names
+	gatingNames := make(map[string]string)
+
+	db := DB(s)
+	snapStates, err := snapstate.All(s)
+	if err != nil {
+		return nil, err
+	}
+	for snapName, snapState := range snapStates {
+		info, err := snapState.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		if info.SnapID == "" {
+			continue
+		}
+		gatingID := info.SnapID
+		a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+			"series":  release.Series,
+			"snap-id": gatingID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q (id %q): err", snapName, gatingID)
+		}
+		decl := a.(*asserts.SnapDeclaration)
+		control := decl.RefreshControl()
+		if len(control) == 0 {
+			continue
+		}
+		gatingNames[gatingID] = decl.SnapName()
+		for _, gatedID := range control {
+			controlled[gatedID] = append(controlled[gatedID], gatingID)
+		}
+	}
+
+	var errs []error
+	for _, candInfo := range snapInfos {
+		gatedID := candInfo.SnapID
+		gating := controlled[gatedID]
+		if len(gating) == 0 { // easy case, no refresh control
+			validated = append(validated, candInfo)
+			continue
+		}
+
+		var validationRefs []*asserts.Ref
+
+		fetching := func(f asserts.Fetcher) error {
+			for _, gatingID := range gating {
+				valref := &asserts.Ref{
+					Type:       asserts.ValidationType,
+					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
+				}
+				err := f.Fetch(valref)
+				if notFound, ok := err.(*store.AssertionNotFoundError); ok && notFound.Ref.Type == asserts.ValidationType {
+					return fmt.Errorf("no validation by %q", gatingNames[gatingID])
+				}
+				if err != nil {
+					return fmt.Errorf("cannot find validation by %q: %v", gatingNames[gatingID], err)
+				}
+				validationRefs = append(validationRefs, valref)
+			}
+			return nil
+		}
+		err := doFetch(s, userID, fetching)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.Name(), candInfo.Revision, err))
+			continue
+		}
+
+		var revoked *asserts.Validation
+		for _, valref := range validationRefs {
+			a, err := valref.Resolve(db.Find)
+			if err != nil {
+				return nil, fmt.Errorf("internal error: cannot find just fetched %v: %v", valref, err)
+			}
+			if val := a.(*asserts.Validation); val.Revoked() {
+				revoked = val
+				break
+			}
+		}
+		if revoked != nil {
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.Name(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
+			continue
+		}
+
+		validated = append(validated, candInfo)
+	}
+
+	if errs != nil {
+		return validated, &refreshControlError{errs}
+	}
+
+	return validated, nil
+}
+
+func init() {
+	// hook validation of refreshes into snapstate logic
+	snapstate.ValidateRefreshes = ValidateRefreshes
 }
