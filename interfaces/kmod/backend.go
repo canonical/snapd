@@ -65,6 +65,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	if err != nil {
 		return fmt.Errorf("cannot obtain kmod security snippets for snap %q: %s", snapName, err)
 	}
+
 	if len(snippets) == 0 {
 		// Make sure that the modules conf file gets removed when we don't have any content
 		return removeModulesFile(snapName)
