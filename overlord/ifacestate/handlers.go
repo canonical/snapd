@@ -22,6 +22,7 @@ package ifacestate
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 
 	"gopkg.in/tomb.v2"
 
@@ -322,7 +323,7 @@ func (m *InterfaceManager) doDiscardNamespace(task *state.Task, _ *tomb.Tomb) er
 	// command is not meant to always succeed because the namespace may not
 	// have been created yet in practice (e.g. the snap was removed before it
 	// was started since last reboot).
-	cmd := exec.Command(dirs.InternalCmdPath("snap-discard-ns"), snapName)
+	cmd := exec.Command(filepath.Join(dirs.LibExecDir, "snap-discard-ns"), snapName)
 	cmd.Run()
 	return nil
 }
