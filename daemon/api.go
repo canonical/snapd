@@ -1037,10 +1037,6 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 
-	if inst.Action != "refresh" && inst.Action != "install" && inst.Action != "remove" {
-		return BadRequest("only refresh/install/remove supported for multi-snap operation right now")
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1060,6 +1056,8 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		msg, affected, tsets, err = snapInstallMany(&inst, st)
 	case "remove":
 		msg, affected, tsets, err = snapRemoveMany(&inst, st)
+	default:
+		return BadRequest("unsupported multi-snap operation %q", inst.Action)
 	}
 	if err != nil {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)

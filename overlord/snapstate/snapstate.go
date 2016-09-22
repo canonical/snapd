@@ -880,14 +880,14 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 // InstallMany installs everything from the given list of names.
 // Note that the state must be locked by the caller.
 func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
-	installed := make([]string, 0, len(names))
+	installed := make([]string, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
-	for _, name := range names {
+	for i, name := range names {
 		ts, err := Install(st, name, "", snap.R(0), userID, 0)
 		if err != nil {
 			return nil, nil, err
 		}
-		installed = append(installed, name)
+		installed[i] = name
 		tasksets = append(tasksets, ts)
 	}
 
@@ -897,14 +897,14 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
-	removed := make([]string, 0, len(names))
+	removed := make([]string, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
-	for _, name := range names {
+	for i, name := range names {
 		ts, err := Remove(st, name, snap.R(0))
 		if err != nil {
 			return nil, nil, err
 		}
-		removed = append(removed, name)
+		removed[i] = name
 		tasksets = append(tasksets, ts)
 	}
 
