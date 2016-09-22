@@ -819,7 +819,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	// check progress
 	ta := ts.Tasks()
 	task := ta[0]
-	cur, total := task.Progress()
+	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 	c.Check(task.Summary(), Equals, `Download snap "some-snap" (42) from channel "some-channel"`)
@@ -977,7 +977,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	// check progress
 	task := ts.Tasks()[0]
-	cur, total := task.Progress()
+	_, cur, total := task.Progress()
 	c.Assert(cur, Equals, s.fakeStore.fakeCurrentProgress)
 	c.Assert(total, Equals, s.fakeStore.fakeTotalProgress)
 
