@@ -94,12 +94,18 @@ func (s *setCommand) Execute(args []string) error {
 }
 
 func initializeTransaction(context *hookstate.Context) (*configstate.Transaction, error) {
-	transaction, err := configstate.NewTransaction(context.State())
+	state := context.State()
+	state.Lock()
+	defer state.Unlock()
+
+	transaction, err := configstate.NewTransaction(state)
 	if err != nil {
 		return nil, err
 	}
 
 	context.OnDone(func() error {
+		state.Lock()
+		defer state.Unlock()
 		transaction.Commit()
 		return nil
 	})
