@@ -526,16 +526,7 @@ func (iface *DockerSupportInterface) Name() string {
 }
 
 func (iface *DockerSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor,
-		interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecuritySecComp,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -553,39 +544,16 @@ func (iface *DockerSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug,
 			snippet = append(snippet, dockerSupportPrivilegedSecComp...)
 		}
 		return snippet, nil
-	case interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *DockerSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor,
-		interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecuritySecComp,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DockerSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor,
-		interfaces.SecurityDBus,
-		interfaces.SecurityMount,
-		interfaces.SecuritySecComp,
-		interfaces.SecurityUDev:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *DockerSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
