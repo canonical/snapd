@@ -165,13 +165,11 @@ type cmdRemove struct {
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdRemove) removeOne() error {
+func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
 	name := x.Positional.Snaps[0]
 
 	cli := Client()
-	changeID, err := cli.Remove(name, &client.SnapOptions{
-		Revision: x.Revision},
-	)
+	changeID, err := cli.Remove(name, opts)
 	if err != nil {
 		return err
 	}
@@ -184,11 +182,11 @@ func (x *cmdRemove) removeOne() error {
 	return nil
 }
 
-func (x *cmdRemove) removeMany() error {
+func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 	names := x.Positional.Snaps
 
 	cli := Client()
-	changeID, err := cli.RemoveMany(names)
+	changeID, err := cli.RemoveMany(names, opts)
 	if err != nil {
 		return err
 	}
@@ -212,11 +210,12 @@ func (x *cmdRemove) removeMany() error {
 }
 
 func (x *cmdRemove) Execute([]string) error {
+	opts := &client.SnapOptions{Revision: x.Revision}
 	if len(x.Positional.Snaps) == 1 {
-		return x.removeOne()
+		return x.removeOne(opts)
 	}
 
-	return x.removeMany()
+	return x.removeMany(opts)
 }
 
 type channelMixin struct {
@@ -381,7 +380,7 @@ func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	return showDone([]string{name}, "install")
 }
 
-func (x *cmdInstall) installMany(names []string) error {
+func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
 	// sanity check
 	for _, name := range names {
 		if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
@@ -390,7 +389,7 @@ func (x *cmdInstall) installMany(names []string) error {
 	}
 
 	cli := Client()
-	changeID, err := cli.InstallMany(names)
+	changeID, err := cli.InstallMany(names, opts)
 	if err != nil {
 		return err
 	}
@@ -421,18 +420,19 @@ func (x *cmdInstall) Execute([]string) error {
 	}
 
 	dangerous := x.Dangerous || x.ForceDangerous
+	opts := &client.SnapOptions{
+		Channel:   x.Channel,
+		DevMode:   x.DevMode,
+		JailMode:  x.JailMode,
+		Revision:  x.Revision,
+		Dangerous: dangerous,
+	}
+
 	if len(x.Positional.Snaps) == 1 {
-		opts := &client.SnapOptions{
-			Channel:   x.Channel,
-			DevMode:   x.DevMode,
-			JailMode:  x.JailMode,
-			Revision:  x.Revision,
-			Dangerous: dangerous,
-		}
 		return x.installOne(x.Positional.Snaps[0], opts)
 	}
 
-	return x.installMany(x.Positional.Snaps)
+	return x.installMany(x.Positional.Snaps, opts)
 }
 
 type cmdRefresh struct {
