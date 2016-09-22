@@ -171,16 +171,17 @@ func (c *Context) OnDone(f func() error) {
 }
 
 // Done is called to notify the context that its hook has exited successfully.
-// It will call all of the functions added in OnDone, but will stop short and
-// return an error if one of the functions does so.
+// It will call all of the functions added in OnDone (even if one of them
+// returns an error) and will return the first error encountered.
 func (c *Context) Done() error {
 	c.onDoneMutex.Lock()
 	defer c.onDoneMutex.Unlock()
 
+	var finalErr error
 	for _, f := range c.onDone {
-		if err := f(); err != nil {
-			return err
+		if err := f(); err != nil && finalErr == nil {
+			finalErr = err
 		}
 	}
-	return nil
+	return finalErr
 }
