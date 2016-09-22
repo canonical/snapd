@@ -74,10 +74,3 @@ func (s *ctlcmdSuite) TestCommandOutput(c *C) {
 	c.Check(string(stderr), Equals, "test stderr")
 	c.Check(mockCommand.Args, DeepEquals, []string{"foo"})
 }
-
-func (s *ctlcmdSuite) TestSetCommand(c *C) {
-	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "foo=bar"})
-	c.Check(err, IsNil)
-	c.Check(string(stdout), Equals, "")
-	c.Check(string(stderr), Equals, "")
-}

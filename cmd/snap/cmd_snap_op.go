@@ -50,7 +50,6 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
 		pb.Finished()
-		fmt.Fprint(Stdout, "\n")
 	}()
 
 	tMax := time.Time{}
