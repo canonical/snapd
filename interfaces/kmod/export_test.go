@@ -20,7 +20,6 @@
 package kmod
 
 var (
-	WriteModulesFile  = writeModulesFile
-	LoadModules       = loadModules
-	RemoveModulesFile = removeModulesFile
+	SyncModulesFile = syncModulesFile
+	LoadModules     = loadModules
 )
