@@ -8,8 +8,11 @@ send "pass\n"
 expect "Confirm passphrase: "
 send "pass\n"
 
-set status [wait]
-if {[lindex $status 3] != 0} {
+expect eof
+
+lassign [wait] pid spawnid os_error_flag value
+if {$value != 0} {
+    puts "exit status: $value"
     exit 10
 }
 
