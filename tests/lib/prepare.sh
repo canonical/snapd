@@ -2,15 +2,63 @@
 
 set -eux
 
+update_core_snap_with_snap_exec_snapctl() {
+    # We want to use the in-tree snap-exec and snapctl, not the ones in the core
+    # snap. To accomplish that, we'll just unpack the core we just grabbed,
+    # shove the new snap-exec and snapctl in there, and repack it.
+
+    # First of all, unmount the core
+    core="$(readlink -f /snap/ubuntu-core/current)"
+    snap="$(mount | grep " $core" | awk '{print $1}')"
+    umount "$core"
+
+    # Now unpack the core, inject the new snap-exec and snapctl into it, and
+    # repack it.
+    unsquashfs "$snap"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    mv "$snap" "${snap}.orig"
+    mksquashfs squashfs-root "$snap" -comp xz
+    rm -rf squashfs-root
+
+    # Now mount the new core snap
+    mount "$snap" "$core"
+
+    # Make sure we're running with the correct snap-exec
+    if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
+        echo "snap-exec in tree and snap-exec in core snap are unexpectedly not the same"
+        exit 1
+    fi
+
+    # Make sure we're running with the correct snapctl
+    if ! cmp /usr/bin/snapctl ${core}/usr/bin/snapctl; then
+        echo "snapctl in tree and snapctl in core snap are unexpectedly not the same"
+        exit 1
+    fi
+}
+
 prepare_classic() {
     apt install -y ${SPREAD_PATH}/../snapd_*.deb
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
-        snap install ubuntu-core
+        # FIXME: go back to stable once we have a stable release with
+        #        the snap-exec fix
+        snap install --candidate ubuntu-core
         snap list | grep core
 
+        echo "Ensure that the grub-editenv list output is empty on classic"
+        output=$(grub-editenv list)
+        if [ -n "$output" ]; then
+            echo "Expected empty grub environment, got:"
+            echo "$output"
+            exit 1
+        fi
+
         systemctl stop snapd.service snapd.socket
+
+        update_core_snap_with_snap_exec_snapctl
+
         systemctl daemon-reload
         mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
         services="$(systemctl list-unit-files | grep '^snap[-.].*\.service' | cut -f1 -d ' ')"
@@ -30,15 +78,11 @@ setup_reflash_magic() {
         # install the stuff we need
         apt install -y kpartx busybox-static
         apt install -y ${SPREAD_PATH}/../snapd_*.deb
-        
+
         snap install --edge ubuntu-core
 
-        # install special u-d-f
-        apt install -y bzr git
-        export GOPATH=/tmp/go
-        mkdir -p $GOPATH/src/launchpad.net/
-        ln -s $GOPATH/src/launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/  $GOPATH/src/launchpad.net/goget-ubuntu-touch
-        go get -insecure -u launchpad.net/~mvo/goget-ubuntu-touch/minimal-first-boot/ubuntu-device-flash
+        # install ubuntu-image
+        snap install --devmode --edge ubuntu-image
 
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
@@ -63,9 +107,10 @@ setup_reflash_magic() {
         if [ -e /.spread.yaml ]; then
             cp -av /.spread.yaml $UNPACKD
         fi
-        
+
         # we need the test user in the image
         chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
+        echo 'test ALL=(ALL) NOPASSWD:ALL' >> $UNPACKD/etc/sudoers.d/99-test-user
 
         # modify sshd so that we can connect as root
         sed -i 's/\(PermitRootLogin\|PasswordAuthentication\)\>.*/\1 yes/' $UNPACKD/etc/ssh/sshd_config
@@ -74,32 +119,52 @@ setup_reflash_magic() {
         #        the image
         # unpack our freshly build snapd into the new core snap
         dpkg-deb -x ${SPREAD_PATH}/../snapd_*.deb $UNPACKD
-        
+
         # build new core snap for the image
         snapbuild $UNPACKD $IMAGE_HOME
 
-        # FIXME: remove once we have a proper model.assertion
-        . $TESTSLIB/store.sh
-        STORE_DIR=/tmp/fake-store-blobdir
-        mkdir -p $STORE_DIR
-        setup_store fake-w-assert-fallback $STORE_DIR
-        cp $TESTSLIB/assertions/developer1.account $STORE_DIR/asserts
-        cp $TESTSLIB/assertions/developer1.account-key $STORE_DIR/asserts
+        # FIXME: fetch directly once its in the assertion service
+        cat > $IMAGE_HOME/pc.model <<EOF
+type: model
+authority-id: canonical
+series: 16
+brand-id: canonical
+model: pc
+architecture: amd64
+gadget: pc
+kernel: pc-kernel
+timestamp: 2016-08-31T00:00:00.0Z
+sign-key-sha3-384: 9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+
+AcLBXAQAAQoABgUCV8lRDQAKCRDgT5vottzAEg9GEACsSb+qXB34mwESsd7ns6VpM9BfAOOSstwB
+KJlWOlcJ39M7is/fO+dxRH4XsI7Td6BI1WEf5188sJuld8APUsTPn8tPYN3JB5CJ8Edkr6p78YUW
+f3Wo26USAE32ewjq9kHo6uBqIr4VixjTXfGUeDXc7tvKcduIMokSKjDLRHJRur1NC8LjkBn2ZPi8
+9d0BpJzr5y8wK0yFEyAhaS8H8LvL7VMjKG7/BkZcQ0a3jv69qh9jdmxnKDN2zcd1btRR1Giew3gw
+VJ8lNtfxQSWi+nYNEuzDqwKdffo9sVyCzBC+vEH3xYYk8NpRx2QgCSzDCPMoxaJgLwhAeWz6mHQp
+8EaGOsMZm7c85BXUcdJGEhZ5MpNGSzCb/ifgOKBB6zYzekiQh4TVLgi9Uk/acsLH75vNrI8Kwyl+
+r4Pahf///LbeWNwcEonaSV48S5fg3QqxEQeb42xcp6wPfRr7LN1LvQ9kRQTt42GDAlIva5HKlo0T
+cUb5A4zz3IlBn/KQ4BS/2sBcixrH97tHInef4oA8IrBiBDGnIv/s4qyZ+gB5fX8Ohnn/a5bUgU5u
+GmwRQ12Ix54YGJrzZocu1AiQINij4s6ZSoJAEJobI9VBK8WnV8PRmra6UJonV+qrJOiSKTJVCkAF
++RFartQL+pjF/H29FsyBkIEcPwhTslxWKUWajHsExw==
+EOF
 
         # FIXME: how to test store updated of ubuntu-core with sideloaded snap?
-        export SNAPPY_FORCE_SAS_URL=http://localhost:11028
         IMAGE=all-snap-amd64.img
-        /tmp/go/bin/ubuntu-device-flash core 16 $TESTSLIB/assertions/developer1-pc.model --channel edge --install snapweb --install $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
-        # teardown store
-        teardown_store fake $STORE_DIR
+        # ensure that ubuntu-image is using our test-build of snapd with the
+        # test keys and not the bundled version of usr/bin/snap from the snap.
+        # Note that we can not put it into /usr/bin as '/usr' is different
+        # when the snap uses confinement.
+        cp /usr/bin/snap $IMAGE_HOME
+        export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
-        mount /dev/mapper/loop1p3 /mnt
+        mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -avr /home/gopath /mnt/user-data/
+        cp -ar /home/gopath /mnt/user-data/
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
@@ -124,13 +189,11 @@ EOF
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
 StartLimitInterval=0
-[Service]
-Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
 EOF
-    
+
         umount /mnt
         kpartx -d  $IMAGE_HOME/$IMAGE
-    
+
         # the reflash magic
         # FIXME: ideally in initrd, but this is good enough for now
         cat > $IMAGE_HOME/reflash.sh << EOF
@@ -176,7 +239,9 @@ prepare_all_snap() {
     fi
 
     echo "Ensure fundamental snaps are still present"
-    for name in pc pc-kernel ubuntu-core; do
+    . $TESTSLIB/gadget.sh
+    gadget_name=$(get_gadget_name)
+    for name in $gadget_name ${gadget_name}-kernel ubuntu-core; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
@@ -186,6 +251,12 @@ prepare_all_snap() {
     done
 
     echo "Kernel has a store revision"
-    snap list|grep ^pc-kernel|grep -E " [0-9]+\s+canonical"
-}
+    snap list|grep ^${gadget_name}-kernel|grep -E " [0-9]+\s+canonical"
 
+    # Snapshot the fresh state
+    if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
+        systemctl stop snapd.service snapd.socket
+        tar czf $SPREAD_PATH/snapd-state.tar.gz /var/lib/snapd
+        systemctl start snapd.socket
+    fi
+}

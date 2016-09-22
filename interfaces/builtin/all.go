@@ -28,7 +28,10 @@ var allInterfaces = []interfaces.Interface{
 	&BluezInterface{},
 	&BrowserSupportInterface{},
 	&ContentInterface{},
+	&DockerInterface{},
+	&DockerSupportInterface{},
 	&GpioInterface{},
+	&HidrawInterface{},
 	&LocationControlInterface{},
 	&LocationObserveInterface{},
 	&LxdSupportInterface{},
@@ -39,6 +42,7 @@ var allInterfaces = []interfaces.Interface{
 	&PppInterface{},
 	&SerialPortInterface{},
 	&PulseAudioInterface{},
+	&UDisks2Interface{},
 	&FwupdInterface{},
 	NewFirewallControlInterface(),
 	NewGsettingsInterface(),
@@ -52,6 +56,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
 	NewProcessControlInterface(),
+	NewRemovableMediaInterface(),
 	NewScreenInhibitControlInterface(),
 	NewSnapdControlInterface(),
 	NewSystemObserveInterface(),
@@ -69,6 +74,7 @@ var allInterfaces = []interfaces.Interface{
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
 	NewFuseSupportInterface(),
+	NewLibvirtInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
