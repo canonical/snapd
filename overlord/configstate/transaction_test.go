@@ -17,47 +17,47 @@
  *
  */
 
-package transaction_test
+package configstate_test
 
 import (
 	"testing"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-func TestTransaction(t *testing.T) { TestingT(t) }
+func TestConfigState(t *testing.T) { TestingT(t) }
 
 type transactionSuite struct {
-	state *state.State
-	t     *transaction.Transaction
+	state       *state.State
+	transaction *configstate.Transaction
 }
 
 var _ = Suite(&transactionSuite{})
 
 func (s *transactionSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
-	s.t = transaction.New(s.state)
+	s.transaction = configstate.NewTransaction(s.state)
 }
 
 func (s *transactionSuite) TestSetDoesNotTouchState(c *C) {
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
+	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
 
 	// Create a new transaction to grab a new snapshot of the state
-	transaction := transaction.New(s.state)
+	transaction := configstate.NewTransaction(s.state)
 	var value string
 	err := transaction.Get("test-snap", "foo", &value)
 	c.Check(err, NotNil, Commentf("Expected config set by first transaction to not be saved"))
 }
 
 func (s *transactionSuite) TestCommit(c *C) {
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
-	s.t.Commit()
+	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
+	s.transaction.Commit()
 
 	// Create a new transaction to grab a new snapshot of the state
-	transaction := transaction.New(s.state)
+	transaction := configstate.NewTransaction(s.state)
 	var value string
 	err := transaction.Get("test-snap", "foo", &value)
 	c.Check(err, IsNil, Commentf("Expected config set by first transaction to be saved"))
@@ -66,12 +66,12 @@ func (s *transactionSuite) TestCommit(c *C) {
 
 func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 	// Set the initial config
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
-	s.t.Commit()
+	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
+	s.transaction.Commit()
 
 	// Create two new transactions
-	transaction1 := transaction.New(s.state)
-	transaction2 := transaction.New(s.state)
+	transaction1 := configstate.NewTransaction(s.state)
+	transaction2 := configstate.NewTransaction(s.state)
 
 	// transaction1 will change the configuration item that is already present.
 	c.Check(transaction1.Set("test-snap", "foo", "baz"), IsNil)
@@ -84,7 +84,7 @@ func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 	// Now verify that the change made by both transactions actually took place
 	// (i.e. transaction1's change was not overridden by the old data in
 	// transaction2).
-	transaction := transaction.New(s.state)
+	transaction := configstate.NewTransaction(s.state)
 
 	var value string
 	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
@@ -96,25 +96,25 @@ func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 
 func (s *transactionSuite) TestGetNothing(c *C) {
 	var value string
-	err := s.t.Get("test-snap", "foo", &value)
+	err := s.transaction.Get("test-snap", "foo", &value)
 	c.Check(err, NotNil, Commentf("Expected Get to fail if key not set"))
 }
 
 func (s *transactionSuite) TestGetCachedWrites(c *C) {
 	// Get() should read the cached writes, even without a Commit()
-	s.t.Set("test-snap", "foo", "bar")
+	s.transaction.Set("test-snap", "foo", "bar")
 	var value string
-	err := s.t.Get("test-snap", "foo", &value)
+	err := s.transaction.Get("test-snap", "foo", &value)
 	c.Check(err, IsNil, Commentf("Expected 'test-snap' config to contain 'foo'"))
 	c.Check(value, Equals, "bar")
 }
 
 func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
 	// Set the initial config
-	c.Check(s.t.Set("test-snap", "foo", "bar"), IsNil)
-	s.t.Commit()
+	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
+	s.transaction.Commit()
 
-	transaction := transaction.New(s.state)
+	transaction := configstate.NewTransaction(s.state)
 	c.Check(transaction.Set("test-snap", "baz", "qux"), IsNil)
 
 	// Now get both the cached write as well as the initial config
@@ -127,12 +127,12 @@ func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
 
 func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
 	// Set the initial config
-	c.Check(s.t.Set("test-snap", "foo", "initial"), IsNil)
-	s.t.Commit()
+	c.Check(s.transaction.Set("test-snap", "foo", "initial"), IsNil)
+	s.transaction.Commit()
 
 	// Create two new transactions
-	transaction1 := transaction.New(s.state)
-	transaction2 := transaction.New(s.state)
+	transaction1 := configstate.NewTransaction(s.state)
+	transaction2 := configstate.NewTransaction(s.state)
 
 	// Change the config in one
 	c.Check(transaction1.Set("test-snap", "foo", "updated"), IsNil)

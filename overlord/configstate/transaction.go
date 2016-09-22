@@ -17,9 +17,7 @@
  *
  */
 
-// Package transaction contains the transactional get/set logic for snap
-// configurations.
-package transaction
+package configstate
 
 import (
 	"encoding/json"
@@ -46,8 +44,8 @@ type Transaction struct {
 type snapConfig map[string]*json.RawMessage
 type systemConfig map[string]snapConfig
 
-// New creates a new config transaction initialized with the given state.
-func New(state *state.State) *Transaction {
+// NewTransaction creates a new config transaction initialized with the given state.
+func NewTransaction(state *state.State) *Transaction {
 	state.Lock()
 	defer state.Unlock()
 

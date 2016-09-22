@@ -25,18 +25,17 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/snapcore/snapd/overlord/configstate/transaction"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
 // Context represents the context under which a given hook is running.
 type Context struct {
-	task      *state.Task
-	setup     *HookSetup
-	id        string
-	handler   Handler
-	finalizer func() error
+	task    *state.Task
+	setup   *HookSetup
+	id      string
+	handler Handler
+	onDone  []func() error
 }
 
 // NewContext returns a new Context.
@@ -130,6 +129,11 @@ func (c *Context) Get(key string, value interface{}) error {
 	return nil
 }
 
+// State returns the state contained within the context
+func (c *Context) State() *state.State {
+	return c.task.State()
+}
+
 // Cached returns the cached value associated with the provided key.
 // It returns nil if there is no entry for key.
 func (c *Context) Cached(key interface{}) interface{} {
@@ -153,22 +157,21 @@ func (c *Context) Cache(key, value interface{}) {
 	c.task.State().Cache("hook-context", cache)
 }
 
-// OnDone requests the provided finalizer to be run once the context knows it's
-// complete.
-func (c *Context) OnDone(finalizer func() error) {
-	c.finalizer = finalizer
+// OnDone requests the provided function to be run once the context knows it's
+// complete. This can be called multiple times; each function will be called in
+// the order in which they were added.
+func (c *Context) OnDone(f func() error) {
+	c.onDone = append(c.onDone, f)
 }
 
 // Done is called to notify the context that its hook has exited successfully.
+// It will call all of the functions added in OnDone, but will stop short and
+// return an error if one of the functions does so.
 func (c *Context) Done() error {
-	if c.finalizer != nil {
-		return c.finalizer()
+	for _, f := range c.onDone {
+		if err := f(); err != nil {
+			return err
+		}
 	}
 	return nil
-}
-
-// NewTransaction returns a getter/setter for snap configs that runs all
-// operations on a copy of the system configuration until committed.
-func (c *Context) NewTransaction() *transaction.Transaction {
-	return transaction.New(c.task.State())
 }
