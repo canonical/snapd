@@ -155,7 +155,7 @@ static struct sc_ns_group *sc_test_open_ns_group(const char *group_name)
 	if (group_name == NULL) {
 		group_name = "test-group";
 	}
-	group = sc_open_ns_group(group_name);
+	group = sc_open_ns_group(group_name, 0);
 	g_test_queue_destroy((GDestroyNotify) sc_close_ns_group, group);
 	// Check if the returned group data looks okay
 	g_assert_nonnull(group);

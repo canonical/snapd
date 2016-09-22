@@ -251,40 +251,14 @@ static struct sc_ns_group *sc_alloc_ns_group()
 	return group;
 }
 
-struct sc_ns_group *sc_open_ns_group(const char *group_name)
+struct sc_ns_group *sc_open_ns_group(const char *group_name, const int flags)
 {
 	struct sc_ns_group *group = sc_alloc_ns_group();
 	debug("opening namespace group directory %s", sc_ns_dir);
 	group->dir_fd =
 	    open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (group->dir_fd < 0) {
-		die("cannot open directory for namespace group %s", group_name);
-	}
-	char lock_fname[PATH_MAX];
-	must_snprintf(lock_fname, sizeof lock_fname, "%s%s", group_name,
-		      SC_NS_LOCK_FILE);
-	debug("opening lock file for namespace group %s", group_name);
-	group->lock_fd =
-	    openat(group->dir_fd, lock_fname,
-		   O_CREAT | O_RDWR | O_CLOEXEC | O_NOFOLLOW, 0600);
-	if (group->lock_fd < 0) {
-		die("cannot open lock file for namespace group %s", group_name);
-	}
-	group->name = strdup(group_name);
-	if (group->name == NULL) {
-		die("cannot duplicate namespace group name %s", group_name);
-	}
-	return group;
-}
-
-struct sc_ns_group *sc_maybe_open_ns_group(const char *group_name)
-{
-	struct sc_ns_group *group = sc_alloc_ns_group();
-	debug("opening namespace group directory %s", sc_ns_dir);
-	group->dir_fd =
-	    open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
-	if (group->dir_fd < 0) {
-		if (errno == ENOENT) {
+		if (flags & SC_NS_FAIL_GRACEFULLY && errno == ENOENT) {
 			free(group);
 			return NULL;
 		}
