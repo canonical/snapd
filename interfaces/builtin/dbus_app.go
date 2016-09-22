@@ -163,16 +163,9 @@ func (iface *DbusAppInterface) getBusNames(attribs map[string]interface{}) (map[
 				return nil, fmt.Errorf("session element is not a string")
 			}
 
-			// https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-names
-			if !ok || len(busName) == 0 {
-				return nil, fmt.Errorf("bus name must be set")
-			} else if len(busName) > 255 {
-				return nil, fmt.Errorf("bus name is too long (must be <= 255)")
-			}
-
-			validBusName := regexp.MustCompile("^[a-zA-Z][a-zA-Z0-9_-]*(\\.[a-zA-Z0-9_-]+)+$")
-			if !validBusName.MatchString(busName) {
-				return nil, fmt.Errorf("invalid bus name: %q", busName)
+			err := interfaces.ValidateDBusBusName(busName)
+			if err != nil {
+				return nil, err
 			}
 
 			busNames[bus] = append(busNames[bus], busName)
