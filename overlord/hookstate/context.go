@@ -24,6 +24,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -35,7 +36,9 @@ type Context struct {
 	setup   *HookSetup
 	id      string
 	handler Handler
-	onDone  []func() error
+
+	onDone      []func() error
+	onDoneMutex sync.Mutex
 }
 
 // NewContext returns a new Context.
@@ -161,6 +164,9 @@ func (c *Context) Cache(key, value interface{}) {
 // complete. This can be called multiple times; each function will be called in
 // the order in which they were added.
 func (c *Context) OnDone(f func() error) {
+	c.onDoneMutex.Lock()
+	defer c.onDoneMutex.Unlock()
+
 	c.onDone = append(c.onDone, f)
 }
 
@@ -168,6 +174,9 @@ func (c *Context) OnDone(f func() error) {
 // It will call all of the functions added in OnDone, but will stop short and
 // return an error if one of the functions does so.
 func (c *Context) Done() error {
+	c.onDoneMutex.Lock()
+	defer c.onDoneMutex.Unlock()
+
 	for _, f := range c.onDone {
 		if err := f(); err != nil {
 			return err
