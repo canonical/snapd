@@ -56,9 +56,9 @@ if [ "$1" = "purge" ]; then
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
     for mnt in /run/snapd/ns/*.mnt; do
-        umount "$mnt" || true
+        umount --lazy "$mnt" || true
     done
-    umount /run/snapd/ns/ || true
+    umount --lazy /run/snapd/ns/ || true
 
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
