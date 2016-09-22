@@ -11,7 +11,7 @@ for i in $(seq 1 "$ITERATIONS"); do
     echo "Running iteration $i of $ITERATIONS"
     START_TIME=$SECONDS
     spread -v "$BACKEND"
-    if [ $? = 0 ]; then
+    if [ "$?" = "0" ]; then
         SUCCESSFUL_EXECUTIONS=$((SUCCESSFUL_EXECUTIONS + 1))
         ITERATION_TIME=$((SECONDS - START_TIME))
         TOTAL_TIME=$((TOTAL_TIME + ITERATION_TIME))
