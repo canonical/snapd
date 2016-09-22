@@ -383,6 +383,13 @@ apps.
 
 * Auto-Connect: no
 
+### netplan-observe
+
+Can read netplan configuration files. This is restricted because it gives access
+to system network configuration which can contain network security details.
+
+* Auto-Connect: no
+
 ### network-control
 
 Can configure networking which gives wide, privileged access to networking.

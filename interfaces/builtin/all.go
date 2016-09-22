@@ -51,6 +51,7 @@ var allInterfaces = []interfaces.Interface{
 	NewLocaleControlInterface(),
 	NewLogObserveInterface(),
 	NewMountObserveInterface(),
+	NewNetplanObserveInterface(),
 	NewNetworkInterface(),
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
