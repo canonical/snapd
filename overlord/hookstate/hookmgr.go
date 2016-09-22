@@ -199,6 +199,8 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// Let the context know we're finished with it.
+	context.Lock()
+	defer context.Unlock()
 	if err = context.Done(); err != nil {
 		return err
 	}

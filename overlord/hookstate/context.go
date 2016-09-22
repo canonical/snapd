@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -37,11 +38,12 @@ type Context struct {
 	id      string
 	handler Handler
 
-	onDone      []func() error
-	onDoneMutex sync.Mutex
-}
+	cache  map[interface{}]interface{}
+	onDone []func() error
 
-type contextCache struct{}
+	mutex        sync.Mutex
+	mutexChecker int32
+}
 
 // NewContext returns a new Context.
 func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, error) {
@@ -57,6 +59,7 @@ func NewContext(task *state.Task, setup *HookSetup, handler Handler) (*Context, 
 		setup:   setup,
 		id:      base64.URLEncoding.EncodeToString(idBytes),
 		handler: handler,
+		cache:   make(map[interface{}]interface{}),
 	}, nil
 }
 
@@ -85,19 +88,39 @@ func (c *Context) Handler() Handler {
 	return c.handler
 }
 
-// Lock acquires the state lock for this context (required for Set/Get).
+// Lock acquires the lock for this context (required for Set/Get, Cache/Cached),
+// and OnDone/Done).
 func (c *Context) Lock() {
+	c.mutex.Lock()
 	c.task.State().Lock()
+	atomic.AddInt32(&c.mutexChecker, 1)
 }
 
-// Unlock releases the state lock for this context.
+// Unlock releases the lock for this context.
 func (c *Context) Unlock() {
+	atomic.AddInt32(&c.mutexChecker, -1)
 	c.task.State().Unlock()
+	c.mutex.Unlock()
+}
+
+func (c *Context) reading() {
+	if atomic.LoadInt32(&c.mutexChecker) != 1 {
+		panic("internal error: accessing context without lock")
+	}
+}
+
+func (c *Context) writing() {
+	if atomic.LoadInt32(&c.mutexChecker) != 1 {
+		panic("internal error: accessing context without lock")
+	}
 }
 
 // Set associates value with key. The provided value must properly marshal and
-// unmarshal with encoding/json.
+// unmarshal with encoding/json. Note that the context needs to be locked and
+// unlocked by the caller.
 func (c *Context) Set(key string, value interface{}) {
+	c.writing()
+
 	var data map[string]*json.RawMessage
 	if err := c.task.Get("hook-context", &data); err != nil {
 		data = make(map[string]*json.RawMessage)
@@ -114,8 +137,11 @@ func (c *Context) Set(key string, value interface{}) {
 }
 
 // Get unmarshals the stored value associated with the provided key into the
-// value parameter.
+// value parameter. Note that the context needs to be locked/unlocked by the
+// caller.
 func (c *Context) Get(key string, value interface{}) error {
+	c.reading()
+
 	var data map[string]*json.RawMessage
 	if err := c.task.Get("hook-context", &data); err != nil {
 		return err
@@ -139,51 +165,46 @@ func (c *Context) State() *state.State {
 	return c.task.State()
 }
 
-// Cached returns the cached value associated with the provided key.
-// It returns nil if there is no entry for key.
+// Cached returns the cached value associated with the provided key. It returns
+// nil if there is no entry for key. Note that the context needs to be locked
+// and unlocked by the caller.
 func (c *Context) Cached(key interface{}) interface{} {
-	cachedCache := c.task.State().Cached(contextCache{})
-	cache, ok := cachedCache.(map[interface{}]interface{})
-	if !ok {
-		return nil
-	}
+	c.reading()
 
-	return cache[key]
+	return c.cache[key]
 }
 
-// Cache associates value with key. The cached value is not persisted.
+// Cache associates value with key. The cached value is not persisted. Note that
+// the context needs to be locked/unlocked by the caller.
 func (c *Context) Cache(key, value interface{}) {
-	cachedCache := c.task.State().Cached(contextCache{})
-	cache, ok := cachedCache.(map[interface{}]interface{})
-	if !ok {
-		cache = make(map[interface{}]interface{})
-	}
-	cache[key] = value
-	c.task.State().Cache(contextCache{}, cache)
+	c.writing()
+
+	c.cache[key] = value
 }
 
 // OnDone requests the provided function to be run once the context knows it's
 // complete. This can be called multiple times; each function will be called in
-// the order in which they were added.
+// the order in which they were added. Note that the context needs to be locked
+// and unlocked by the caller.
 func (c *Context) OnDone(f func() error) {
-	c.onDoneMutex.Lock()
-	defer c.onDoneMutex.Unlock()
+	c.writing()
 
 	c.onDone = append(c.onDone, f)
 }
 
 // Done is called to notify the context that its hook has exited successfully.
 // It will call all of the functions added in OnDone (even if one of them
-// returns an error) and will return the first error encountered.
+// returns an error) and will return the first error encountered. Note that the
+// context needs to be locked/unlocked by the caller.
 func (c *Context) Done() error {
-	c.onDoneMutex.Lock()
-	defer c.onDoneMutex.Unlock()
+	c.reading()
 
-	var finalErr error
+	var firstErr error
 	for _, f := range c.onDone {
-		if err := f(); err != nil && finalErr == nil {
-			finalErr = err
+		if err := f(); err != nil && firstErr == nil {
+			firstErr = err
 		}
 	}
-	return finalErr
+
+	return firstErr
 }
