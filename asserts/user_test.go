@@ -43,7 +43,7 @@ func (s *systemUserSuite) SetUpSuite(c *C) {
 
 const systemUserExample = "type: system-user\n" +
 	"authority-id: canonical\n" +
-	"brand-id: brand-canonical\n" +
+	"brand-id: canonical\n" +
 	"email: foo@example.com\n" +
 	"series:\n" +
 	"  - 16\n" +
@@ -67,7 +67,7 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	systemUser := a.(*asserts.SystemUser)
-	c.Check(systemUser.BrandID(), Equals, "brand-canonical")
+	c.Check(systemUser.BrandID(), Equals, "canonical")
 	c.Check(systemUser.EMail(), Equals, "foo@example.com")
 	c.Check(systemUser.Series(), DeepEquals, []string{"16"})
 	c.Check(systemUser.Models(), DeepEquals, []string{"frobinator"})
@@ -89,8 +89,9 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 	encoded := strings.Replace(systemUserExample, "TSLINE", s.tsLine, 1)
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
-		{"brand-id: brand-canonical\n", "", `"brand-id" header is mandatory`},
-		{"brand-id: brand-canonical\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"brand-id: canonical\n", "", `"brand-id" header is mandatory`},
+		{"brand-id: canonical\n", "brand-id: \n", `"brand-id" header should not be empty`},
+		{"brand-id: canonical\n", "brand-id: something-else\n", `authority-id and brand-id must match, system-user assertions are expected to be signed by the brand: "canonical" != "something-else"`},
 		{"email: foo@example.com\n", "", `"email" header is mandatory`},
 		{"email: foo@example.com\n", "email: \n", `"email" header should not be empty`},
 		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
