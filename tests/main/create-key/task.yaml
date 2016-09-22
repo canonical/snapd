@@ -1,6 +1,9 @@
 summary: Checks for snap create-key
 
-systems: [-ubuntu-core-16-64]
+# systems: [-ubuntu-core-16-64]
+
+# Test is broken: http://paste.ubuntu.com/23217619/
+systems: [none]
 
 restore: |
     rm -rf $HOME/.snap/gnupg
