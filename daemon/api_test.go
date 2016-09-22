@@ -2153,6 +2153,42 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
+func (s *apiSuite) TestInstallMany(c *check.C) {
+	snapstateInstallMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-install-2", "Install two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "install", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, installs, _, err := snapInstallMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(installs, check.DeepEquals, inst.Snaps)
+}
+
+func (s *apiSuite) TestRemoveMany(c *check.C) {
+	snapstateRemoveMany = func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "remove", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, removes, _, err := snapRemoveMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(removes, check.DeepEquals, inst.Snaps)
+}
+
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	installQueue := []*state.Task{}
 
