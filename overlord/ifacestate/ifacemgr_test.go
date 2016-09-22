@@ -1039,9 +1039,12 @@ func (s *interfaceManagerSuite) TestDiscardNamespace(c *C) {
 	si := s.mockSnap(c, sampleSnapYaml)
 
 	// Mock enough bits so that we can observe calls to snap-discard-ns
-	defer testutil.MockInternalCmdPath("")()
 	cmd := testutil.MockCommand(c, "snap-discard-ns", "")
 	defer cmd.Restore()
+
+	oldLibExecDir := dirs.LibExecDir
+	dirs.LibExecDir = cmd.BinDir()
+	defer func() { dirs.LibExecDir = oldLibExecDir }()
 
 	// Create a change that discards the namespace of a sample snap
 	s.state.Lock()
