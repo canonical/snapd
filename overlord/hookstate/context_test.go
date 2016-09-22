@@ -41,7 +41,9 @@ func (s *contextSuite) SetUpTest(c *C) {
 
 	s.task = state.NewTask("test-task", "my test task")
 	s.setup = &HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.context = &Context{task: s.task, setup: s.setup}
+	var err error
+	s.context, err = NewContext(s.task, s.setup, nil)
+	c.Check(err, IsNil)
 }
 
 func (s *contextSuite) TestHookSetup(c *C) {
@@ -119,6 +121,9 @@ func (s *contextSuite) TestCache(c *C) {
 }
 
 func (s *contextSuite) TestDone(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
 	called := false
 	s.context.OnDone(func() error {
 		called = true

@@ -58,17 +58,19 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	// Extract the transaction from the context. If none, make one.
+	// Extract the transaction from the context. If none, make one and cache it
+	// in the context.
 	s.context().Lock()
 	transaction, ok := s.context().Cached(cachedTransaction{}).(*configstate.Transaction)
-	s.context().Unlock()
 	if !ok {
 		var err error
 		transaction, err = initializeTransaction(s.context())
 		if err != nil {
 			return fmt.Errorf("cannot initialize transaction: %s", err)
 		}
+		s.context().Cache(cachedTransaction{}, transaction)
 	}
+	s.context().Unlock()
 
 	for _, patchValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
@@ -86,26 +88,16 @@ func (s *setCommand) Execute(args []string) error {
 		transaction.Set(s.context().SnapName(), key, value)
 	}
 
-	s.context().Lock()
-	s.context().Cache(cachedTransaction{}, transaction)
-	s.context().Unlock()
-
 	return nil
 }
 
 func initializeTransaction(context *hookstate.Context) (*configstate.Transaction, error) {
-	state := context.State()
-	state.Lock()
-	defer state.Unlock()
-
-	transaction, err := configstate.NewTransaction(state)
+	transaction, err := configstate.NewTransaction(context.State())
 	if err != nil {
 		return nil, err
 	}
 
 	context.OnDone(func() error {
-		state.Lock()
-		defer state.Unlock()
 		transaction.Commit()
 		return nil
 	})

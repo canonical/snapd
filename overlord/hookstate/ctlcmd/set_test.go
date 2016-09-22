@@ -73,10 +73,10 @@ func (s *setSuite) TestCommand(c *C) {
 	c.Check(transaction.Get("test-snap", "baz", &value), ErrorMatches, ".*snap.*has no.*configuration.*")
 
 	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
 	c.Check(s.mockContext.Done(), IsNil)
 
-	s.mockContext.State().Lock()
-	defer s.mockContext.State().Unlock()
 	// Verify that the global config has been updated.
 	transaction, err = configstate.NewTransaction(s.mockContext.State())
 	c.Check(err, IsNil)
@@ -102,11 +102,11 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	c.Check(string(stderr), Equals, "")
 
 	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
 	c.Check(s.mockContext.Done(), IsNil)
 
 	// Verify that the global config has been updated, but only test-key2
-	s.mockContext.State().Lock()
-	defer s.mockContext.State().Unlock()
 	transaction, err = configstate.NewTransaction(s.mockContext.State())
 	c.Check(err, IsNil)
 	var value string
