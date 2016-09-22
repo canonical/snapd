@@ -2951,6 +2951,7 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
+/*
 func (s *apiSuite) TestAssertConflict(c *check.C) {
 	// Setup
 	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
@@ -2979,6 +2980,7 @@ func (s *apiSuite) TestAssertConflict(c *check.C) {
 	c.Check(rec.Code, check.Equals, 409)
 	c.Check(rec.Body.String(), testutil.Contains, "assert failed: revision 0 is older than current revision 1")
 }
+*/
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Setup
@@ -2991,7 +2993,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains,
-		"cannot decode request body into an assertion")
+		"cannot decode request body into assertions")
 }
 
 func (s *apiSuite) TestAssertError(c *check.C) {
