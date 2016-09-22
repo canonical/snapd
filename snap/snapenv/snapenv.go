@@ -48,13 +48,11 @@ func ExecEnv(info *snap.Info) []string {
 // snapEnv returns the extra environment that is required for
 // snap-{confine,exec} to work.
 func snapEnv(info *snap.Info) map[string]string {
-	home := os.Getenv("HOME")
-	// HOME is not set for systemd services, so pull it out of passwd
-	if home == "" {
-		user, err := user.Current()
-		if err == nil {
-			home = user.HomeDir
-		}
+	var home string
+
+	usr, err := user.Current()
+	if err == nil {
+		home = usr.HomeDir
 	}
 
 	env := basicEnv(info)

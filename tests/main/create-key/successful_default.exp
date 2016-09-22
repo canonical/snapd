@@ -1,3 +1,5 @@
+set timeout 60
+
 spawn snap create-key
 
 expect "Passphrase: "

@@ -34,10 +34,10 @@ prepare: |
 
 execute: |
     echo "Checking passphrase mismatch error"
-    expect -f passphrase_mismatch.exp
+    expect -d -f passphrase_mismatch.exp
 
     echo "Checking successful default key pair generation"
-    expect -f successful_default.exp
+    expect -d -f successful_default.exp
 
     echo "Checking successful non-default key pair generation"
-    expect -f successful_non_default.exp
+    expect -d -f successful_non_default.exp

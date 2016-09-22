@@ -186,6 +186,7 @@ var (
 		POST:   postBuy,
 	}
 
+	// TODO Remove once the CLI is using the new /buy/ready endpoint
 	paymentMethodsCmd = &Command{
 		Path:   "/v2/buy/methods",
 		UserOK: false,
@@ -1657,6 +1658,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(buyResult, nil)
 }
 
+// TODO Remove once the CLI is using the new /buy/ready endpoint
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
 	s := getStore(c)
 
