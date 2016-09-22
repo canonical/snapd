@@ -17,6 +17,23 @@
  *
  */
 
+// Package kmod implements a backend which loads kernel modules on behalf of
+// interfaces.
+//
+// Interfaces may request kernel modules to be loaded by providing snippets via
+// their respective "*Snippet" methods for interfaces.SecurityKMod security
+// system. The snippet should contain a newline-separated list of requested
+// kernel modules. The KMod backend stores all the modules needed by given
+// snap in /etc/modules-load.d/snap.<snapname>.conf file ensuring they are
+// loaded when the system boots and also loads these modules via modprobe.
+// If a snap is uninstalled or respective interface gets disconnected, the
+// corresponding /etc/modules-load.d/ config file gets removed, however no
+// kernel modules are unloaded. This is by design.
+//
+// Note: this mechanism should not be confused with kernel-module-interface;
+// kmod only loads a well-defined list of modules provided by interface definition
+// and doesn't grant any special permissions related to kernel modules to snaps,
+// in contrast to kernel-module-interface.
 package kmod
 
 import (
