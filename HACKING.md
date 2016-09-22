@@ -57,7 +57,11 @@ Dependencies are handled via `govendor`. Get it via:
 
     go get -u github.com/kardianos/govendor
 
-After a fresh checkout, run:
+After a fresh checkout, move to the snapd source directory:
+
+    cd $GOPATH/github.com/snapcore/snapd
+   
+And then, run:
 
     govendor sync
 
