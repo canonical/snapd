@@ -53,6 +53,13 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
+    echo "Discarding preserved snap namespaces"
+    # opportunistic as those might not be actually mounted
+    for mnt in /run/snapd/ns/*.mnt; do
+        umount "$mnt" || true
+    done
+    umount /run/snapd/ns/ || true
+
     echo "Removing snapd state"
     rm -rf /var/lib/snapd
 fi

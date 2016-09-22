@@ -16,12 +16,6 @@ reset_classic() {
 
     rm -f /tmp/ubuntu-core*
 
-    # discard all preserved namespaces
-    for mnt in /run/snapd/ns/*.mnt; do
-        umount "$mnt" || true
-    done
-    umount /run/snapd/ns/ || true
-
     if [ "$1" = "--reuse-core" ]; then
         $(cd / && tar xzf $SPREAD_PATH/snapd-state.tar.gz)
 	mounts="$(systemctl list-unit-files | grep '^snap[-.].*\.mount' | cut -f1 -d ' ')"
