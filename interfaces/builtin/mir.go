@@ -88,23 +88,11 @@ func (iface *MirInterface) Name() string {
 	return "mir"
 }
 
-func (iface *MirInterface) PermanentPlugSnippet(
-	plug *interfaces.Plug,
-	securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp,
-		interfaces.SecurityUDev, interfaces.SecurityDBus,
-		interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+func (iface *MirInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
+	return nil, nil
 }
 
-func (iface *MirInterface) ConnectedPlugSnippet(
-	plug *interfaces.Plug,
-	slot *interfaces.Slot,
-	securitySystem interfaces.SecuritySystem) ([]byte, error) {
+func (iface *MirInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		old := []byte("###SLOT_SECURITY_TAGS###")
@@ -113,11 +101,8 @@ func (iface *MirInterface) ConnectedPlugSnippet(
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return mirConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *MirInterface) PermanentSlotSnippet(
@@ -128,11 +113,8 @@ func (iface *MirInterface) PermanentSlotSnippet(
 		return mirPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return mirPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -142,11 +124,8 @@ func (iface *MirInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *int
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(mirConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityDBus, interfaces.SecurityMount, interfaces.SecurityKMod:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *MirInterface) SanitizePlug(plug *interfaces.Plug) error {
