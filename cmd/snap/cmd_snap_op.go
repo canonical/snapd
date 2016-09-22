@@ -201,8 +201,8 @@ func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
 		return err
 	}
 
-	if len(removed) > 0 {
-		return showDone(removed, "remove")
+	for _, name := range removed {
+		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
 	}
 
 	return nil
@@ -215,7 +215,10 @@ func (x *cmdRemove) Execute([]string) error {
 		return x.removeOne(opts)
 	}
 
-	return x.removeMany(opts)
+	if x.Revision != "" {
+		return errors.New(i18n.G("a single snap name is needed to specify the revision"))
+	}
+	return x.removeMany(nil)
 }
 
 type channelMixin struct {
@@ -432,7 +435,11 @@ func (x *cmdInstall) Execute([]string) error {
 		return x.installOne(x.Positional.Snaps[0], opts)
 	}
 
-	return x.installMany(x.Positional.Snaps, opts)
+	if x.asksForMode() || x.asksForChannel() {
+		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	}
+
+	return x.installMany(x.Positional.Snaps, nil)
 }
 
 type cmdRefresh struct {
@@ -446,9 +453,9 @@ type cmdRefresh struct {
 	} `positional-args:"yes"`
 }
 
-func refreshMany(snaps []string) error {
+func refreshMany(snaps []string, opts *client.SnapOptions) error {
 	cli := Client()
-	changeID, err := cli.RefreshMany(snaps, nil)
+	changeID, err := cli.RefreshMany(snaps, opts)
 	if err != nil {
 		return err
 	}
@@ -532,19 +539,20 @@ func (x *cmdRefresh) Execute([]string) error {
 		return listRefresh()
 	}
 	if len(x.Positional.Snaps) == 1 {
-		return refreshOne(x.Positional.Snaps[0], &client.SnapOptions{
+		opts := &client.SnapOptions{
 			Channel:  x.Channel,
 			DevMode:  x.DevMode,
 			JailMode: x.JailMode,
 			Revision: x.Revision,
-		})
+		}
+		return refreshOne(x.Positional.Snaps[0], opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
 	}
 
-	return refreshMany(x.Positional.Snaps)
+	return refreshMany(x.Positional.Snaps, nil)
 }
 
 type cmdTry struct {

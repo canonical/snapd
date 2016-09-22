@@ -112,7 +112,7 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 
 func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
 	if options != nil {
-		return "", fmt.Errorf("cannnot use options for multi-action") // (yet)
+		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
 	}
 	action := multiActionData{
 		Action: actionName,
