@@ -385,7 +385,7 @@ func (x *cmdInstall) installMany(names []string) error {
 	// sanity check
 	for _, name := range names {
 		if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
-			return fmt.Errorf("only a single snap file can be installed")
+			return fmt.Errorf("only one snap file can be installed at a time")
 		}
 	}
 
