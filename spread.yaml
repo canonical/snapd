@@ -11,6 +11,7 @@ environment:
     SPREAD_STORE_PASSWORD: "$(HOST: echo $SPREAD_STORE_PASSWORD)"
     LANG: "$(echo ${LANG:-C.UTF-8})"
     LANGUAGE: "$(echo ${LANGUAGE:-en})"
+    KARCH: "$(uname -m)"
     # important to ensure adhoc and linode/qemu behave the same
     SUDO_USER: ""
     SUDO_UID: ""
@@ -62,7 +63,7 @@ exclude:
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
-    [ "$REUSE_PROJECT" != 1 ] || exit 0
+    [ "${REUSE_PROJECT:-}" != 1 ] || exit 0
 
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1

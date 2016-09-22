@@ -6,6 +6,11 @@ restore: |
     snap logout || true
 
 execute: |
+    if [ "$KARCH" != "x86_64" ]; then
+        echo "Skipping for non amd64 architectures"
+        exit 0
+    fi
+
     echo "Checking missing email error"
     expect -f missing_email_error.exp
 
