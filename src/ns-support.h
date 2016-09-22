@@ -64,7 +64,8 @@ enum {
  * NULL if the /run/snapd/ns directory doesn't exist. In all other cases it
  * calls die() and exits the process.
  */
-struct sc_ns_group *sc_open_ns_group(const char *group_name, const int flags);
+struct sc_ns_group *sc_open_ns_group(const char *group_name,
+				     const unsigned flags);
 
 /**
  * Close namespace group.

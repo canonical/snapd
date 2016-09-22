@@ -251,7 +251,8 @@ static struct sc_ns_group *sc_alloc_ns_group()
 	return group;
 }
 
-struct sc_ns_group *sc_open_ns_group(const char *group_name, const int flags)
+struct sc_ns_group *sc_open_ns_group(const char *group_name,
+				     const unsigned flags)
 {
 	struct sc_ns_group *group = sc_alloc_ns_group();
 	debug("opening namespace group directory %s", sc_ns_dir);
