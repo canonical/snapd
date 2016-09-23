@@ -105,8 +105,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 // If the method fails it should be re-tried (with a sensible strategy) by the caller.
 func (b *Backend) Remove(snapName string) error {
 	glob := interfaces.SecurityTagGlob(snapName)
-	content := make(map[string]*osutil.FileState)
-	_, _, err := osutil.EnsureDirState(dirs.SnapKModModulesDir, glob, content)
+	_, _, err := osutil.EnsureDirState(dirs.SnapKModModulesDir, glob, nil)
 	return err
 }
 
@@ -115,14 +114,7 @@ func (b *Backend) Remove(snapName string) error {
 func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, modules []string, err error) {
 	content = make(map[string]*osutil.FileState)
 
-	// sort apps by name to ensure the order of snippets is deterministic
-	apps := make([]*snap.AppInfo, 0, len(snapInfo.Apps))
 	for _, appInfo := range snapInfo.Apps {
-		apps = append(apps, appInfo)
-	}
-	sort.Sort(byAppName(apps))
-
-	for _, appInfo := range apps {
 		for _, snippet := range snippets[appInfo.SecurityTag()] {
 			// split snippet by newline to get the list of modules
 			for _, line := range bytes.Split(snippet, []byte{'\n'}) {
@@ -135,6 +127,7 @@ func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]b
 		}
 	}
 
+	sort.Strings(modules)
 	modules = uniqueLines(modules)
 	if len(modules) > 0 {
 		var buffer bytes.Buffer
