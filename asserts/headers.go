@@ -23,39 +23,17 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 	"unicode/utf8"
 )
-
-/* TODO: map support
-
-one:
-  two:
-    three:
-
-one:
-  two:
-      three
-
-map-within-map:
-  lev1:
-    lev2: x
-
-list-of-maps:
-  -
-    entry: foo
-    bar: baz
-  -
-    entry: bar
-
-*/
 
 var (
 	nl   = []byte("\n")
 	nlnl = []byte("\n\n")
 
 	// for basic sanity checking of header names
-	headerNameSanity = regexp.MustCompile("^[a-z][a-z0-9-]*[a-z0-9]$")
+	headerNameSanity = regexp.MustCompile("^[a-z](?:-?[a-z0-9])*$")
 )
 
 func parseHeaders(head []byte) (map[string]interface{}, error) {
@@ -93,8 +71,10 @@ func parseHeaders(head []byte) (map[string]interface{}, error) {
 }
 
 const (
+	commonPrefix    = "  "
 	multilinePrefix = "    "
-	listPrefix      = "  -"
+	listChar        = "-"
+	listPrefix      = commonPrefix + listChar
 )
 
 func nestingPrefix(baseIndent int, prefix string) string {
@@ -106,11 +86,18 @@ func parseEntry(consumedByIntro int, first int, lines []string, baseIndent int) 
 	i := first + 1
 	if consumedByIntro == len(entry) {
 		// multiline values
-		if i < len(lines) && strings.HasPrefix(lines[i], nestingPrefix(baseIndent, listPrefix)) {
-			// list
-			return parseList(i, lines, baseIndent)
+		basePrefix := nestingPrefix(baseIndent, commonPrefix)
+		if i < len(lines) && strings.HasPrefix(lines[i], basePrefix) {
+			rest := lines[i][len(basePrefix):]
+			if strings.HasPrefix(rest, listChar) {
+				// list
+				return parseList(i, lines, baseIndent)
+			}
+			if len(rest) > 0 && rest[0] != ' ' {
+				// map
+				return parseMap(i, lines, baseIndent)
+			}
 		}
-		// TODO: support maps
 
 		return parseMultilineText(i, lines, baseIndent)
 	}
@@ -177,7 +164,43 @@ func parseList(first int, lines []string, baseIndent int) (value interface{}, fi
 	return lst, j, nil
 }
 
-// checkHeader checks that the header values are strings, or nested lists with strings as the only scalars
+func parseMap(first int, lines []string, baseIndent int) (value interface{}, firstAfter int, err error) {
+	m := make(map[string]interface{})
+	j := first
+	prefix := nestingPrefix(baseIndent, commonPrefix)
+	for j < len(lines) {
+		if !strings.HasPrefix(lines[j], prefix) {
+			return m, j, nil
+		}
+
+		entry := lines[j][len(prefix):]
+		keyValueSplit := strings.Index(entry, ":")
+		if keyValueSplit == -1 {
+			return nil, -1, fmt.Errorf("map entry missing ':' separator: %q", entry)
+		}
+		key := entry[:keyValueSplit]
+		if !headerNameSanity.MatchString(key) {
+			return nil, -1, fmt.Errorf("invalid map entry key: %q", key)
+		}
+
+		consumed := keyValueSplit + 1
+		var value interface{}
+		var err error
+		value, j, err = parseEntry(len(prefix)+consumed, j, lines, len(prefix))
+		if err != nil {
+			return nil, -1, err
+		}
+
+		if _, ok := m[key]; ok {
+			return nil, -1, fmt.Errorf("repeated map entry: %q", key)
+		}
+
+		m[key] = value
+	}
+	return m, j, nil
+}
+
+// checkHeader checks that the header values are strings, or nested lists or maps with strings as the only scalars
 func checkHeader(v interface{}) error {
 	switch x := v.(type) {
 	case string:
@@ -190,9 +213,16 @@ func checkHeader(v interface{}) error {
 			}
 		}
 		return nil
-	// TODO: support maps
+	case map[string]interface{}:
+		for _, elem := range x {
+			err := checkHeader(elem)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	default:
-		return fmt.Errorf("header values must be strings or nested lists with strings as the only scalars: %v", v)
+		return fmt.Errorf("header values must be strings or nested lists or maps with strings as the only scalars: %v", v)
 	}
 }
 
@@ -264,7 +294,24 @@ func appendEntry(buf *bytes.Buffer, intro string, v interface{}, baseIndent int)
 		for _, elem := range x {
 			appendEntry(buf, pfx, elem, baseIndent+len(listPrefix)-1)
 		}
-	// TODO: support maps
+	case map[string]interface{}:
+		if len(x) == 0 {
+			return // simply omit
+		}
+		buf.WriteByte('\n')
+		buf.WriteString(intro)
+		// emit entries sorted by key
+		keys := make([]string, len(x))
+		i := 0
+		for key := range x {
+			keys[i] = key
+			i++
+		}
+		sort.Strings(keys)
+		pfx := nestingPrefix(baseIndent, commonPrefix)
+		for _, key := range keys {
+			appendEntry(buf, pfx+key+":", x[key], len(pfx))
+		}
 	default:
 		panic(fmt.Sprintf("internal error: encountered unexpected value type formatting headers: %v", v))
 	}
