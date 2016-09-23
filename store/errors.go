@@ -50,8 +50,8 @@ var (
 	// ErrInvalidCredentials is returned on login error
 	ErrInvalidCredentials = errors.New("invalid credentials")
 
-	// ErrInvalidCredentials is returned when the user has not accepted the store's terms of service.
-	ErrTosNotAccepted = errors.New("terms of service not accepted")
+	// ErrTOSNotAccepted is returned when the user has not accepted the store's terms of service.
+	ErrTOSNotAccepted = errors.New("terms of service not accepted")
 
 	// ErrNoPaymentMethods is returned when the user has no valid payment methods associated with their account.
 	ErrNoPaymentMethods = errors.New("no payment methods")
