@@ -1581,6 +1581,24 @@ var (
 	osutilAddUser                = osutil.AddUser
 )
 
+func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
+	v, err := storeUserInfo(email)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
+	}
+	if len(v.SSHKeys) == 0 {
+		return "", nil, fmt.Errorf("cannot create user for %s: no ssh keys found", email)
+	}
+
+	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)
+	opts := &osutil.AddUserOptions{
+		SSHKeys:    v.SSHKeys,
+		Gecos:      gecos,
+		ExtraUsers: !release.OnClassic,
+	}
+	return v.Username, opts, nil
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1604,31 +1622,22 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
-	v, err := storeUserInfo(createData.Email)
+	username, opts, err := getUserDetailsFromStore(createData.Email)
 	if err != nil {
-		return BadRequest("cannot create user %q: %s", createData.Email, err)
+		return BadRequest("%s", err)
 	}
-	if len(v.SSHKeys) == 0 {
-		return BadRequest("cannot create user for %s: no ssh keys found", createData.Email)
-	}
+	opts.Sudoer = createData.Sudoer
 
-	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
-	opts := &osutil.AddUserOptions{
-		SSHKeys:    v.SSHKeys,
-		Gecos:      gecos,
-		Sudoer:     createData.Sudoer,
-		ExtraUsers: !release.OnClassic,
-	}
-	if err := osutilAddUser(v.Username, opts); err != nil {
-		return BadRequest("cannot create user %s: %s", v.Username, err)
+	if err := osutilAddUser(username, opts); err != nil {
+		return BadRequest("cannot create user %s: %s", username, err)
 	}
 
 	var createResponseData struct {
 		Username    string `json:"username"`
 		SSHKeyCount int    `json:"ssh-key-count"`
 	}
-	createResponseData.Username = v.Username
-	createResponseData.SSHKeyCount = len(v.SSHKeys)
+	createResponseData.Username = username
+	createResponseData.SSHKeyCount = len(opts.SSHKeys)
 
 	return SyncResponse(createResponseData, nil)
 }
