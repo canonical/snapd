@@ -1673,6 +1673,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
+	// FIXME: check --known flag and use "getUserDetailsFromAssertions"
+	//        in this case and getUserDetailsFromStore otherwise
 	username, opts, err := getUserDetailsFromAssertions(c.d.overlord, createData.Email)
 	if username == "" {
 		username, opts, err = getUserDetailsFromStore(createData.Email)
