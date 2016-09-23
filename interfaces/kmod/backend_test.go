@@ -68,7 +68,7 @@ func (s *backendSuite) TestUniqueLines(c *C) {
 		"module2",
 	}
 	out := kmod.UniqueLines(data)
-	c.Assert(len(out), Equals, 3)
+	c.Assert(out, HasLen, 3)
 
 	c.Assert(out[0], Equals, "module1")
 	c.Assert(out[1], Equals, "module2")
@@ -76,7 +76,7 @@ func (s *backendSuite) TestUniqueLines(c *C) {
 
 	data = []string{}
 	out = kmod.UniqueLines(data)
-	c.Assert(len(out), Equals, 0)
+	c.Assert(out, HasLen, 0)
 }
 
 func (s *backendSuite) TestInstallingSnapCreatesModulesConf(c *C) {
