@@ -3641,11 +3641,92 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 }
 
 func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
-	st := snapCmd.d.overlord.State()
+	s.daemon(c)
+	st := s.d.overlord.State()
 	email := "foo@example.com"
 
 	username, opts, err := getUserDetailsFromAssertion(st, email)
 	c.Check(username, check.Equals, "")
 	c.Check(opts, check.IsNil)
 	c.Check(err, check.ErrorMatches, "cannot get model assertion: no state entry for key")
+}
+
+func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
+	// this must be done very early
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	s.daemon(c)
+	st := s.d.overlord.State()
+
+	// create fake brand signature
+	// FIXME: move out into a  helper
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+
+	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	model = model.(*asserts.Model)
+
+	// now add model related stuff to the system
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+	assertAdd(st, brandAcct)
+	assertAdd(st, brandAccKey)
+	assertAdd(st, model)
+
+	// and the system-user
+	su, err := brandSigning.Sign(asserts.SystemUserType, map[string]interface{}{
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"series":       []interface{}{"16", "18"},
+		"models":       []interface{}{"my-model", "other-model"},
+		"name":         "Boring Guy",
+		"username":     "guy",
+		"password":     "$6$salt$hash",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	su = su.(*asserts.SystemUser)
+	// now add system-user assertion to the system
+	assertAdd(st, su)
+
+	// create fake device
+	st.Lock()
+	err = auth.SetDevice(st, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// ensure that if we query the details from the assert DB we get
+	// the expected user
+	username, opts, err := getUserDetailsFromAssertion(st, "foo@bar.com")
+	c.Check(username, check.Equals, "guy")
+	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
+		Gecos:    "foo@bar.com,Boring Guy",
+		Password: "$6$salt$hash",
+	})
+	c.Check(err, check.IsNil)
 }

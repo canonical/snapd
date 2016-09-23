@@ -1617,7 +1617,7 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		"email":    email,
 	})
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("cannot get system-user assertion: %s", err)
 	}
 	su, ok := a.(*asserts.SystemUser)
 	if !ok {
