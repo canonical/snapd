@@ -1,4 +1,37 @@
 #!/bin/sh
 
-echo "Running snapctl. It should be in my PATH and not cause denials."
-snapctl foo --bar
+echo "Getting a configuration value that shouldn't be there"
+if snapctl get foo; then
+	echo "Expected getting a non-existing value to be an error"
+	exit 1
+fi
+
+echo "Setting a configuration value"
+if ! snapctl set foo=bar; then
+	echo "snapctl set unexpectedly failed"
+	exit 1
+fi
+
+echo "Getting that same configuration value back"
+if ! output=$(snapctl get foo); then
+	echo "Expected snapctl get to be able to retrieve value just set"
+	exit 1
+fi
+
+expected_output="bar"
+if "$output" -ne "$expected_output"; then
+	echo "Expected output to be '$expected_output', but it was '$output'"
+	exit 1
+fi
+
+echo "Getting configuration with full document"
+if ! output=$(snapctl get -d foo); then
+	echo "Expected snapctl get to be able to retrieve value just set"
+	exit 1
+fi
+
+expected_output='{\n"foo": "bar"\n}'
+if "$output" -ne "$expected_output"; then
+	echo "Expected output to be '$expected_output', but it was '$output'"
+	exit 1
+fi
