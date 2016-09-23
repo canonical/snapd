@@ -139,7 +139,7 @@ type Info struct {
 	SideInfo
 
 	// Broken marks if set whether the snap is broken and the reason.
-	Broken  string
+	Broken string
 
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
