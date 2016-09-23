@@ -3630,13 +3630,13 @@ var readyToBuyTests = []readyToBuyTest{
 	},
 	{
 		// Not accepted TOS
-		Input: store.ErrTosNotAccepted,
+		Input: store.ErrTOSNotAccepted,
 		Test: func(c *check.C, rsp *resp) {
 			c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
 			c.Check(rsp.Type, check.Equals, ResponseTypeError)
 			c.Check(rsp.Result, check.DeepEquals, &errorResult{
 				Message: "terms of service not accepted",
-				Kind:    errorKindTosNotAccepted,
+				Kind:    errorKindTOSNotAccepted,
 			})
 		},
 	},
