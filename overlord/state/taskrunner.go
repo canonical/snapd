@@ -90,7 +90,9 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 // task is. This mechanism enables keeping data around for a potential undo
 // until there's no more chance of the task being undone.
 //
-// If the cleanup function returns an error, it will be retried later.
+// The cleanup function is run concurrently with other cleanup functions,
+// despite any wait ordering between the tasks. If it returns an error,
+// it will be retried later.
 //
 // The handler for tasks of the provided kind must have been previously
 // registered before AddCleanup is called for it.
@@ -202,6 +204,7 @@ func (r *TaskRunner) clean(t *Task) {
 	select {
 	case <-t.Change().Ready():
 	default:
+		// Whole Change is not ready so don't run cleanups yet.
 		return
 	}
 
