@@ -20,8 +20,15 @@
 package asserts
 
 import (
+	"fmt"
+	"net/mail"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 )
+
+var validSystemUserUsernames = regexp.MustCompile(`^[a-z0-9][-a-z0-9+.-_]*$`)
 
 // SystemUser holds a system-user assertion which allows creating local
 // system users.
@@ -90,10 +97,48 @@ func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*SystemUser)(nil)
 
+func checkHashedPassword(headers map[string]interface{}, name string) (string, error) {
+	pw, err := checkOptionalString(headers, name)
+	if err != nil {
+		return "", err
+	}
+	// crypt(3) compatible hashes have the form: $id$salt$hash
+	l := strings.SplitN(pw, "$", 4)
+	if len(l) != 4 {
+		return "", fmt.Errorf(`%q header must be a hashed password of the form "$integer-id$salt$hash", see crypt(3)`, name)
+	}
+	// see crypt(3), ID 6 means SHA-512 (since glibc 2.7)
+	ID, err := strconv.Atoi(l[1])
+	if err != nil {
+		return "", fmt.Errorf(`%q header must start with "$integer-id$", got %q`, name, l[1])
+	}
+	// double check that we only allow modern hashes
+	if ID < 6 {
+		return "", fmt.Errorf("%q header only supports $id$ values of 6 (sha512crypt) or higher", name)
+	}
+	// see crypt(3) for the legal chars
+	validSaltAndHash := regexp.MustCompile(`^[a-zA-Z0-9./]+$`)
+	if !validSaltAndHash.MatchString(l[2]) {
+		return "", fmt.Errorf("%q header has invalid chars in salt %q", name, l[2])
+	}
+	if !validSaltAndHash.MatchString(l[3]) {
+		return "", fmt.Errorf("%q header has invalid chars in hash %q", name, l[3])
+	}
+
+	return pw, nil
+}
+
 func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
 	if err != nil {
 		return nil, err
+	}
+	email, err := checkNotEmptyString(assert.headers, "email")
+	if err != nil {
+		return nil, err
+	}
+	if _, err := mail.ParseAddress(email); err != nil {
+		return nil, fmt.Errorf(`"email" header must be a RFC 5322 compliant email address: %s`, err)
 	}
 
 	series, err := checkStringList(assert.headers, "series")
@@ -107,12 +152,13 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if _, err := checkOptionalString(assert.headers, "name"); err != nil {
 		return nil, err
 	}
-	if _, err := checkOptionalString(assert.headers, "username"); err != nil {
+	if _, err := checkStringMatches(assert.headers, "username", validSystemUserUsernames); err != nil {
 		return nil, err
 	}
-	if _, err := checkOptionalString(assert.headers, "password"); err != nil {
+	if _, err := checkHashedPassword(assert.headers, "password"); err != nil {
 		return nil, err
 	}
+
 	sshKeys, err := checkStringList(assert.headers, "ssh-keys")
 	if err != nil {
 		return nil, err
