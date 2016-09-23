@@ -41,7 +41,9 @@ func (s *contextSuite) SetUpTest(c *C) {
 
 	s.task = state.NewTask("test-task", "my test task")
 	s.setup = &HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
-	s.context = &Context{task: s.task, setup: s.setup}
+	var err error
+	s.context, err = NewContext(s.task, s.setup, nil)
+	c.Check(err, IsNil)
 }
 
 func (s *contextSuite) TestHookSetup(c *C) {
@@ -103,4 +105,31 @@ func (s *contextSuite) TestGetIsolatedFromTask(c *C) {
 	// Verify that "foo" is not set when asking for data from the hook context
 	var output string
 	c.Check(s.context.Get("foo", &output), NotNil, Commentf("Expected context data to be isolated from task"))
+}
+
+func (s *contextSuite) TestCache(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	c.Check(s.context.Cached("foo"), IsNil)
+
+	s.context.Cache("foo", "bar")
+	c.Check(s.context.Cached("foo"), Equals, "bar")
+
+	// Test another non-existing key, but after the context cache was created.
+	c.Check(s.context.Cached("baz"), IsNil)
+}
+
+func (s *contextSuite) TestDone(c *C) {
+	s.context.Lock()
+	defer s.context.Unlock()
+
+	called := false
+	s.context.OnDone(func() error {
+		called = true
+		return nil
+	})
+
+	s.context.Done()
+	c.Check(called, Equals, true, Commentf("Expected finalizer to be called"))
 }

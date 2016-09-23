@@ -186,6 +186,7 @@ var (
 		POST:   postBuy,
 	}
 
+	// TODO Remove once the CLI is using the new /buy/ready endpoint
 	paymentMethodsCmd = &Command{
 		Path:   "/v2/buy/methods",
 		UserOK: false,
@@ -1469,8 +1470,9 @@ type taskInfo struct {
 }
 
 type taskInfoProgress struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+	Label string `json:"label"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
 }
 
 func change2changeInfo(chg *state.Change) *changeInfo {
@@ -1495,7 +1497,8 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
 	for j, t := range tasks {
-		done, total := t.Progress()
+		label, done, total := t.Progress()
+
 		taskInfo := &taskInfo{
 			ID:      t.ID(),
 			Kind:    t.Kind(),
@@ -1503,6 +1506,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 			Status:  t.Status().String(),
 			Log:     t.Log(),
 			Progress: taskInfoProgress{
+				Label: label,
 				Done:  done,
 				Total: total,
 			},
@@ -1711,6 +1715,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(buyResult, nil)
 }
 
+// TODO Remove once the CLI is using the new /buy/ready endpoint
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
 	s := getStore(c)
 

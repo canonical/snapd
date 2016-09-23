@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -54,7 +55,7 @@ var _ = Suite(&BoolFileInterfaceSuite{
 })
 
 func (s *BoolFileInterfaceSuite) SetUpTest(c *C) {
-	info, err := snap.InfoFromSnapYaml([]byte(`
+	info := snaptest.MockInfo(c, `
 name: ubuntu-core
 slots:
     gpio:
@@ -70,20 +71,19 @@ slots:
     parent-dir-path:
         interface: bool-file
         path: "/sys/class/gpio/../value"
-    bad-interface: other-interface
+    bad-interface-slot: other-interface
 plugs:
     plug: bool-file
-    bad-interface: other-interface
-`))
-	c.Assert(err, IsNil)
+    bad-interface-plug: other-interface
+`, &snap.SideInfo{})
 	s.gpioSlot = &interfaces.Slot{SlotInfo: info.Slots["gpio"]}
 	s.ledSlot = &interfaces.Slot{SlotInfo: info.Slots["led"]}
 	s.missingPathSlot = &interfaces.Slot{SlotInfo: info.Slots["missing-path"]}
 	s.badPathSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-path"]}
 	s.parentDirPathSlot = &interfaces.Slot{SlotInfo: info.Slots["parent-dir-path"]}
-	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface"]}
+	s.badInterfaceSlot = &interfaces.Slot{SlotInfo: info.Slots["bad-interface-slot"]}
 	s.plug = &interfaces.Plug{PlugInfo: info.Plugs["plug"]}
-	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface"]}
+	s.badInterfacePlug = &interfaces.Plug{PlugInfo: info.Plugs["bad-interface-plug"]}
 }
 
 func (s *BoolFileInterfaceSuite) TestName(c *C) {
@@ -190,10 +190,6 @@ func (s *BoolFileInterfaceSuite) TestConnectedPlugSnippetUnusedSecuritySystems(c
 		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, interfaces.SecurityUDev)
 		c.Assert(err, IsNil)
 		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.ConnectedPlugSnippet(s.plug, slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
-		c.Assert(snippet, IsNil)
 	}
 }
 
@@ -213,10 +209,6 @@ func (s *BoolFileInterfaceSuite) TestPermanentPlugSnippetUnusedSecuritySystems(c
 	// No extra udev permissions for plug
 	snippet, err = s.iface.PermanentPlugSnippet(s.plug, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	// Other security types are not recognized
-	snippet, err = s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, ErrorMatches, `unknown security system`)
 	c.Assert(snippet, IsNil)
 }
 
@@ -244,48 +236,6 @@ func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetPanicksOnUnsanitizedSlo
 	c.Assert(func() {
 		s.iface.PermanentSlotSnippet(s.missingPathSlot, interfaces.SecurityAppArmor)
 	}, PanicMatches, "slot is not sanitized")
-}
-
-func (s *BoolFileInterfaceSuite) TestConnectedSlotSnippetUnusedSecuritySystems(c *C) {
-	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
-		// No extra seccomp permissions for slot
-		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecuritySecComp)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for slot
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityDBus)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for slot
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
-		c.Assert(snippet, IsNil)
-	}
-}
-
-func (s *BoolFileInterfaceSuite) TestPermanentSlotSnippetUnusedSecuritySystems(c *C) {
-	for _, slot := range []*interfaces.Slot{s.ledSlot, s.gpioSlot} {
-		// No extra seccomp permissions for slot
-		snippet, err := s.iface.PermanentSlotSnippet(slot, interfaces.SecuritySecComp)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra dbus permissions for slot
-		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityDBus)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// No extra udev permissions for slot
-		snippet, err = s.iface.PermanentSlotSnippet(slot, interfaces.SecurityUDev)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		// Other security types are not recognized
-		snippet, err = s.iface.PermanentSlotSnippet(slot, "foo")
-		c.Assert(err, ErrorMatches, `unknown security system`)
-		c.Assert(snippet, IsNil)
-	}
 }
 
 func (s *BoolFileInterfaceSuite) TestAutoConnect(c *C) {

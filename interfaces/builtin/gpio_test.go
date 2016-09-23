@@ -24,7 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -46,7 +46,7 @@ var _ = Suite(&GpioInterfaceSuite{
 })
 
 func (s *GpioInterfaceSuite) SetUpTest(c *C) {
-	gadgetInfo, gadgetErr := snap.InfoFromSnapYaml([]byte(`
+	gadgetInfo := snaptest.MockInfo(c, `
 name: my-device
 type: gadget
 slots:
@@ -58,20 +58,19 @@ slots:
     bad-number:
         interface: gpio
         number: forty-two
-    bad-interface: other-interface
+    bad-interface-slot: other-interface
 plugs:
     plug: gpio
-    bad-interface: other-interface
-`))
-	c.Assert(gadgetErr, IsNil)
+    bad-interface-plug: other-interface
+`, nil)
 	s.gadgetGpioSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["my-pin"]}
 	s.gadgetMissingNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["missing-number"]}
 	s.gadgetBadNumberSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-number"]}
-	s.gadgetBadInterfaceSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-interface"]}
+	s.gadgetBadInterfaceSlot = &interfaces.Slot{SlotInfo: gadgetInfo.Slots["bad-interface-slot"]}
 	s.gadgetPlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["plug"]}
-	s.gadgetBadInterfacePlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["bad-interface"]}
+	s.gadgetBadInterfacePlug = &interfaces.Plug{PlugInfo: gadgetInfo.Plugs["bad-interface-plug"]}
 
-	osInfo, osErr := snap.InfoFromSnapYaml([]byte(`
+	osInfo := snaptest.MockInfo(c, `
 name: my-core
 type: os
 slots:
@@ -79,19 +78,17 @@ slots:
         interface: gpio
         number: 777
         direction: out
-`))
-	c.Assert(osErr, IsNil)
+`, nil)
 	s.osGpioSlot = &interfaces.Slot{SlotInfo: osInfo.Slots["my-pin"]}
 
-	appInfo, appErr := snap.InfoFromSnapYaml([]byte(`
+	appInfo := snaptest.MockInfo(c, `
 name: my-app
 slots:
     my-pin:
         interface: gpio
         number: 154
         direction: out
-`))
-	c.Assert(appErr, IsNil)
+`, nil)
 	s.appGpioSlot = &interfaces.Slot{SlotInfo: appInfo.Slots["my-pin"]}
 }
 
