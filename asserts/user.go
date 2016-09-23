@@ -98,8 +98,8 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 		return "", err
 	}
 	// crypt(3) compatible hashes have the form: $id$salt$hash
-	l := strings.SplitN(pw, "$", 4)
-	if len(l) != 4 {
+	l := strings.SplitN(pw, "$", 5)
+	if len(l) != 4 && len(l) != 5 {
 		return "", fmt.Errorf(`%q header must be a hashed password of the form "$integer-id$salt$hash", see crypt(3)`, name)
 	}
 	// see crypt(3), ID 6 means SHA-512 (since glibc 2.7)
@@ -111,12 +111,23 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 	if ID < 6 {
 		return "", fmt.Errorf("%q header only supports $id$ values of 6 (sha512crypt) or higher", name)
 	}
+
+	// the $rounds=N$ part is optional
+	i := 2
+	if strings.HasPrefix(l[i], "rounds=") {
+		i++
+	}
+
 	// see crypt(3) for the legal chars
-	validSaltAndHash := regexp.MustCompile(`^[a-zA-Z0-9./]+$`)
-	if !validSaltAndHash.MatchString(l[2]) {
+	validSaltAndHash := regexp.MustCompile(`^[a-zA-Z0-9./=]+$`)
+	if !validSaltAndHash.MatchString(l[i]) {
 		return "", fmt.Errorf("%q header has invalid chars in salt %q", name, l[2])
 	}
-	if !validSaltAndHash.MatchString(l[3]) {
+	i++
+	if i >= len(l) {
+		return "", fmt.Errorf("%q header has missing hash field", name)
+	}
+	if !validSaltAndHash.MatchString(l[i]) {
 		return "", fmt.Errorf("%q header has invalid chars in hash %q", name, l[3])
 	}
 

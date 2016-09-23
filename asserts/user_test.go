@@ -81,6 +81,19 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(systemUser.Until(), DeepEquals, tv)
 }
 
+func (s *systemUserSuite) TestDecodePasswd(c *C) {
+	encoded := strings.Replace(systemUserExample, "TSLINE", s.tsLine, 1)
+
+	validTests := []struct{ original, valid string }{
+		{"password: $6$salt$hash\n", "password: $6$rounds=9999$salt$hash\n"},
+	}
+	for _, test := range validTests {
+		valid := strings.Replace(encoded, test.original, test.valid, 1)
+		_, err := asserts.Decode([]byte(valid))
+		c.Check(err, IsNil)
+	}
+}
+
 const (
 	systemUserErrPrefix = "assertion system-user: "
 )
@@ -111,6 +124,7 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"password: $6$salt$hash\n", "password: $3$salt$hash\n", `"password" header only supports \$id\$ values of 6 \(sha512crypt\) or higher`},
 		{"password: $6$salt$hash\n", "password: $7$invalid-salt$hash\n", `"password" header has invalid chars in salt "invalid-salt"`},
 		{"password: $6$salt$hash\n", "password: $8$salt$invalid-hash\n", `"password" header has invalid chars in hash "invalid-hash"`},
+		{"password: $6$salt$hash\n", "password: $8$rounds=9999$hash\n", `"password" header has missing hash field`},
 		{s.tsLine, "since: \n", `"since" header should not be empty`},
 		{s.tsLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{"until: 2092-11-01T22:08:41+00:00\n", "until: \n", `"until" header should not be empty`},
