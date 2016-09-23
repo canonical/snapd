@@ -104,6 +104,15 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err := checkOptionalString(assert.headers, "name"); err != nil {
+		return nil, err
+	}
+	if _, err := checkOptionalString(assert.headers, "username"); err != nil {
+		return nil, err
+	}
+	if _, err := checkOptionalString(assert.headers, "password"); err != nil {
+		return nil, err
+	}
 	sshKeys, err := checkStringList(assert.headers, "ssh-keys")
 	if err != nil {
 		return nil, err
