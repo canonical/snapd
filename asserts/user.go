@@ -92,6 +92,15 @@ func (su *SystemUser) Until() time.Time {
 	return su.until
 }
 
+// ValidAt returns whether the system-user is valid at 'when' time.
+func (su *SystemUser) ValidAt(when time.Time) bool {
+	valid := when.After(su.since) || when.Equal(su.since)
+	if valid && !su.until.IsZero() {
+		valid = when.Before(su.until)
+	}
+	return valid
+}
+
 // Implement further consistency checks.
 func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
 	// Do the cross-checks when this assertion is actually used,

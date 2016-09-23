@@ -94,6 +94,21 @@ func (s *systemUserSuite) TestDecodePasswd(c *C) {
 	}
 }
 
+func (s *systemUserSuite) TestValidAt(c *C) {
+	encoded := strings.Replace(systemUserExample, "TSLINE", s.tsLine, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	su := a.(*asserts.SystemUser)
+
+	c.Check(su.ValidAt(su.Since()), Equals, true)
+	c.Check(su.ValidAt(su.Since().AddDate(0, 0, -1)), Equals, false)
+	c.Check(su.ValidAt(su.Since().AddDate(0, 0, 1)), Equals, true)
+
+	c.Check(su.ValidAt(su.Until()), Equals, false)
+	c.Check(su.ValidAt(su.Until().AddDate(0, -1, 0)), Equals, true)
+	c.Check(su.ValidAt(su.Until().AddDate(0, 1, 0)), Equals, false)
+}
+
 const (
 	systemUserErrPrefix = "assertion system-user: "
 )
