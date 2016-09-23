@@ -1422,7 +1422,7 @@ type PaymentInformation struct {
 type storeCustomer struct {
 	LatestTosDate     string `json:"latest_tos_date"`
 	AcceptedTosDate   string `json:"accepted_tos_date"`
-	LatestTosAccepted bool   `json:"latest_tos_accepted"`
+	LatestTOSAccepted bool   `json:"latest_tos_accepted"`
 	HasPaymentMethod  bool   `json:"has_payment_method"`
 }
 
@@ -1450,8 +1450,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		if err := dec.Decode(&customer); err != nil {
 			return err
 		}
-		if !customer.LatestTosAccepted {
-			return ErrTosNotAccepted
+		if !customer.LatestTOSAccepted {
+			return ErrTOSNotAccepted
 		}
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods

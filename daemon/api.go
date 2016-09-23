@@ -1690,12 +1690,12 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	case store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
-	case store.ErrTosNotAccepted:
+	case store.ErrTOSNotAccepted:
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindTosNotAccepted,
+				Kind:    errorKindTOSNotAccepted,
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
