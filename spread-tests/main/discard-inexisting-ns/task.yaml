@@ -3,7 +3,8 @@ details: |
     The internal snap-discard-ns program is supposed to simply unmount
     whatever is mounted at /run/snapd/ns/$SNAP_NAME.mnt. In case of
     some specific failures though, we don't expect it to fail.
-prepare:
+prepare: |
+    umount /run/snapd/ns || true
     rm -rf /run/snapd/ns
 execute: |
     echo "We can try to discard a namespace before *any* snap runs"
