@@ -68,8 +68,9 @@ type Task struct {
 }
 
 type TaskProgress struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+	Label string `json:"label"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
 }
 
 type changeAndData struct {

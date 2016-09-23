@@ -29,6 +29,7 @@ import (
 
 var implicitSlots = []string{
 	"bluetooth-control",
+	"docker-support",
 	"firewall-control",
 	"fuse-support",
 	"home",
