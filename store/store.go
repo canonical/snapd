@@ -1420,8 +1420,8 @@ type PaymentInformation struct {
 }
 
 type storeCustomer struct {
-	LatestTosDate     string `json:"latest_tos_date"`
-	AcceptedTosDate   string `json:"accepted_tos_date"`
+	LatestTOSDate     string `json:"latest_tos_date"`
+	AcceptedTOSDate   string `json:"accepted_tos_date"`
 	LatestTOSAccepted bool   `json:"latest_tos_accepted"`
 	HasPaymentMethod  bool   `json:"has_payment_method"`
 }
