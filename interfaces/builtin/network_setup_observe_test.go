@@ -27,64 +27,64 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type NetplanObserveInterfaceSuite struct {
+type NetworkSetupObserveInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&NetplanObserveInterfaceSuite{
-	iface: builtin.NewNetplanObserveInterface(),
+var _ = Suite(&NetworkSetupObserveInterfaceSuite{
+	iface: builtin.NewNetworkSetupObserveInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
-			Name:      "netplan-observe",
-			Interface: "netplan-observe",
+			Name:      "network-setup-observe",
+			Interface: "network-setup-observe",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "netplan-observe",
-			Interface: "netplan-observe",
+			Name:      "network-setup-observe",
+			Interface: "network-setup-observe",
 		},
 	},
 })
 
-func (s *NetplanObserveInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "netplan-observe")
+func (s *NetworkSetupObserveInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "network-setup-observe")
 }
 
-func (s *NetplanObserveInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *NetworkSetupObserveInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "netplan-observe",
-		Interface: "netplan-observe",
+		Name:      "network-setup-observe",
+		Interface: "network-setup-observe",
 	}})
-	c.Assert(err, ErrorMatches, "netplan-observe slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "network-setup-observe slots are reserved for the operating system snap")
 }
 
-func (s *NetplanObserveInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *NetworkSetupObserveInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *NetplanObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *NetworkSetupObserveInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "netplan-observe"`)
+		PanicMatches, `slot is not of interface "network-setup-observe"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "netplan-observe"`)
+		PanicMatches, `plug is not of interface "network-setup-observe"`)
 }
 
-func (s *NetplanObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *NetworkSetupObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *NetplanObserveInterfaceSuite) TestAutoConnect(c *C) {
+func (s *NetworkSetupObserveInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, false)
 }
