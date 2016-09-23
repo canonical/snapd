@@ -28,7 +28,7 @@ const timeDateControlConnectedPlugAppArmor = `
 
 #include <abstractions/dbus-strict>
 
-# org.freedesktop.timedate1
+# Introspection of org.freedesktop.timedate1
 dbus (send)
     bus=system
     path=/org/freedesktop/timedate1
@@ -40,7 +40,7 @@ dbus (send)
     bus=system
     path=/org/freedesktop/timedate1
     interface=org.freedesktop.timedate1
-    member="Set{Time,Timezone,LocalRTC,NTP}"
+    member="Set{Time,LocalRTC}"
     peer=(label=unconfined),
 
 # Read all properties from timedate1
@@ -51,7 +51,7 @@ dbus (send)
     member=Get{,All}
     peer=(label=unconfined),
 
-# Receive property changed events
+# Receive timedate1 property changed events
 dbus (receive)
     bus=system
     path=/org/freedesktop/timedate1
@@ -78,6 +78,6 @@ func NewTimeDateControlInterface() interfaces.Interface {
 		connectedPlugAppArmor: timeDateControlConnectedPlugAppArmor,
 		connectedPlugSecComp:  timeDateControlConnectedPlugSecComp,
 		reservedForOS:         true,
-		autoConnect:           true,
+		autoConnect:           false,
 	}
 }

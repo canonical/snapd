@@ -28,9 +28,54 @@ const timezoneControlConnectedPlugAppArmor = `
 # Description: Can manage timezones directly separate from 'config ubuntu-core'.
 # Usage: reserved
 
+#include <abstractions/dbus-strict>
+
 /usr/share/zoneinfo/      r,
 /usr/share/zoneinfo/**    r,
 /etc/{,writable/}timezone rw,
+
+# Introspection of org.freedesktop.timedate1
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Introspectable
+    member=Introspect
+    peer=(label=unconfined),
+
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.timedate1
+    member="SetTimezone"
+    peer=(label=unconfined),
+
+# Read all properties from timedate1
+dbus (send)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Properties
+    member=Get{,All}
+    peer=(label=unconfined),
+
+# Receive timedate1 property changed events
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/timedate1
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
+    peer=(label=unconfined),
+`
+
+const timezoneControlConnectedPlugSecComp = `
+# dbus
+connect
+getsockname
+recvmsg
+recvfrom
+send
+sendto
+sendmsg
+socket
 `
 
 // NewTimezoneControlInterface returns a new "timezone-control" interface.
@@ -38,6 +83,7 @@ func NewTimezoneControlInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "timezone-control",
 		connectedPlugAppArmor: timezoneControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timezoneControlConnectedPlugSecComp,
 		reservedForOS:         true,
 	}
 }
