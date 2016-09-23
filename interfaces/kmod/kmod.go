@@ -26,12 +26,19 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+func LoadModule(module string) error {
+	if output, err := exec.Command("modprobe", "--syslog", module).CombinedOutput(); err != nil {
+		return fmt.Errorf("cannot load module %s: %s", module, osutil.OutputErr(output, err))
+	}
+	return nil
+}
+
 // loadModules loads given list of modules via modprobe.
 // Any error from modprobe interrupts loading of subsequent modules and returns the error.
 func loadModules(modules [][]byte) error {
 	for _, mod := range modules {
-		if output, err := exec.Command("modprobe", "--syslog", string(mod)).CombinedOutput(); err != nil {
-			return fmt.Errorf("cannot load module %s: %s", mod, osutil.OutputErr(output, err))
+		if err := LoadModule(string(mod)); err != nil {
+			return err
 		}
 	}
 	return nil
