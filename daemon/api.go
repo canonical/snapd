@@ -1582,6 +1582,8 @@ var (
 )
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
+	logger.Debugf("Starting create-user")
+	defer logger.Debugf("Finishing create-user")
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
 		return BadRequest("cannot get ucrednet uid: %v", err)
@@ -1604,6 +1606,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
+	logger.Debugf("Requesting user info")
 	v, err := storeUserInfo(createData.Email)
 	if err != nil {
 		return BadRequest("cannot create user %q: %s", createData.Email, err)
@@ -1611,6 +1614,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if len(v.SSHKeys) == 0 {
 		return BadRequest("cannot create user for %s: no ssh keys found", createData.Email)
 	}
+	logger.Debugf("Received user info")
 
 	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
 	opts := &osutil.AddUserOptions{
