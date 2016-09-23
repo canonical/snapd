@@ -1,13 +1,13 @@
 #!/bin/bash
 
-BACKEND=${1:-"linode:"}
+BACKEND="${1:-linode:}"
 ITERATIONS=${2:-10}
-OUTPUT_FILE=${3:-"${PWD}/benchmark.out"}
+OUTPUT_FILE="${3:-${PWD}/benchmark.out}"
 SUCCESSFUL_EXECUTIONS=0
 
-rm -rf "$OUTPUT_FILE"
+rm -f "$OUTPUT_FILE"
 
-for i in $(seq 1 "$ITERATIONS"); do
+for i in $(seq "$ITERATIONS"); do
     echo "Running iteration $i of $ITERATIONS"
     START_TIME=$SECONDS
     spread -v "$BACKEND"
