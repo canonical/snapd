@@ -20,7 +20,6 @@
 package asserts
 
 import (
-	"fmt"
 	"time"
 )
 
@@ -28,11 +27,11 @@ import (
 // system users.
 type SystemUser struct {
 	assertionBase
-	series    []string
-	models    []string
-	sshKeys   []string
-	timestamp time.Time
-	until     time.Time
+	series  []string
+	models  []string
+	sshKeys []string
+	since   time.Time
+	until   time.Time
 }
 
 func (su *SystemUser) BrandID() string {
@@ -67,8 +66,8 @@ func (su *SystemUser) SSHKeys() []string {
 	return su.sshKeys
 }
 
-func (su *SystemUser) Timestamp() time.Time {
-	return su.timestamp
+func (su *SystemUser) Since() time.Time {
+	return su.since
 }
 
 func (su *SystemUser) Until() time.Time {
@@ -109,7 +108,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	since, err := checkRFC3339Date(assert.headers, "since")
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +122,7 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 		series:        series,
 		models:        models,
 		sshKeys:       sshKeys,
-		timestamp:     timestamp,
+		since:         since,
 		until:         until,
 	}, nil
 }
