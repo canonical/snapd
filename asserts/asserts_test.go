@@ -671,7 +671,7 @@ func (as *assertsSuite) TestAssembleHeadersCheck(c *C) {
 	}
 
 	_, err := asserts.Assemble(headers, nil, cont, nil)
-	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists with strings as the only scalars: 5`)
+	c.Check(err, ErrorMatches, `header "revision": header values must be strings or nested lists or maps with strings as the only scalars: 5`)
 }
 
 func (as *assertsSuite) TestSignWithoutAuthorityMisuse(c *C) {
