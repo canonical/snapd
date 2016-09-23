@@ -22,7 +22,6 @@ package boot
 import (
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -139,24 +138,13 @@ func populateStateFromSeed() error {
 	return ovld.Stop()
 }
 
-func readAsserts(fn string) (res []asserts.Assertion, err error) {
+func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 	f, err := os.Open(fn)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
-	dec := asserts.NewDecoder(f)
-	for {
-		a, err := dec.Decode()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return nil, err
-		}
-		res = append(res, a)
-	}
-	return res, nil
+	return batch.AddStream(f)
 }
 
 func importAssertionsFromSeed(st *state.State) error {
@@ -175,61 +163,37 @@ func importAssertionsFromSeed(st *state.State) error {
 	}
 
 	// collect
-	var modelAssertion *asserts.Model
-	modelUnique := ""
-	assertionsToAdd := make([]asserts.Assertion, 0, len(dc))
-	bs := asserts.NewMemoryBackstore()
+	var modelRef *asserts.Ref
+	batch := assertstate.NewBatch()
 	for _, fi := range dc {
 		fn := filepath.Join(assertSeedDir, fi.Name())
-		assertions, err := readAsserts(fn)
+		refs, err := readAsserts(fn, batch)
 		if err != nil {
 			return fmt.Errorf("cannot read assertions: %s", err)
 		}
-		for _, as := range assertions {
-			if err := bs.Put(as.Type(), as); err != nil {
-				if revErr, ok := err.(*asserts.RevisionError); ok {
-					if revErr.Current >= as.Revision() {
-						// we already got something more recent
-						continue
-					}
-				}
-				return err
-			}
-			assertionsToAdd = append(assertionsToAdd, as)
-			if as.Type() == asserts.ModelType {
-				asUnique := as.Ref().Unique()
-				if modelUnique != "" && asUnique != modelUnique {
+		for _, ref := range refs {
+			if ref.Type == asserts.ModelType {
+				if modelRef != nil && modelRef.Unique() != ref.Unique() {
 					return fmt.Errorf("cannot add more than one model assertion")
 				}
-				modelUnique = asUnique
-				modelAssertion = as.(*asserts.Model)
+				modelRef = ref
 			}
 		}
 	}
 	// verify we have one model assertion
-	if modelAssertion == nil {
+	if modelRef == nil {
 		return fmt.Errorf("need a model assertion")
 	}
 
-	// create a fetcher that stores valid assertions into the system
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		as, err := bs.Get(ref.Type, ref.PrimaryKey)
-		if err != nil {
-			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
-		}
-		return as, nil
+	if err := batch.Commit(st); err != nil {
+		return err
 	}
-	save := func(as asserts.Assertion) error {
-		return assertstate.Add(st, as)
-	}
-	fetcher := asserts.NewFetcher(assertstate.DB(st), retrieve, save)
 
-	// using the fetcher ensures that prerequisites are available etc
-	for _, as := range assertionsToAdd {
-		if err := fetcher.Save(as); err != nil {
-			return err
-		}
+	a, err := modelRef.Resolve(assertstate.DB(st).Find)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find just added assertion %v: %v", modelRef, err)
 	}
+	modelAssertion := a.(*asserts.Model)
 
 	// set device,model from the model assertion
 	auth.SetDevice(st, &auth.DeviceState{
