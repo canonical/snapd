@@ -1329,23 +1329,17 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	b, err := ioutil.ReadAll(r.Body)
+	batch := assertstate.NewBatch()
+	_, err := batch.AddStream(r.Body)
 	if err != nil {
-		return BadRequest("reading assert request body gave %v", err)
-	}
-	a, err := asserts.Decode(b)
-	if err != nil {
-		return BadRequest("cannot decode request body into an assertion: %v", err)
+		return BadRequest("cannot decode request body into assertions: %v", err)
 	}
 
 	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
 
-	if err := assertstate.Add(state, a); err != nil {
-		if _, ok := err.(*asserts.RevisionError); ok {
-			return Conflict("assert failed: %v", err)
-		}
+	if err := batch.Commit(state); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?
@@ -1413,8 +1407,9 @@ type taskInfo struct {
 }
 
 type taskInfoProgress struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+	Label string `json:"label"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
 }
 
 func change2changeInfo(chg *state.Change) *changeInfo {
@@ -1439,7 +1434,8 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
 	for j, t := range tasks {
-		done, total := t.Progress()
+		label, done, total := t.Progress()
+
 		taskInfo := &taskInfo{
 			ID:      t.ID(),
 			Kind:    t.Kind(),
@@ -1447,6 +1443,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 			Status:  t.Status().String(),
 			Log:     t.Log(),
 			Progress: taskInfoProgress{
+				Label: label,
 				Done:  done,
 				Total: total,
 			},
