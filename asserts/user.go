@@ -171,6 +171,9 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
+	if !until.IsZero() && until.Before(since) {
+		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
+	}
 
 	return &SystemUser{
 		assertionBase: assert,
