@@ -3639,3 +3639,13 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
 	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
 }
+
+func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
+	st := snapCmd.d.overlord.State()
+	email := "foo@example.com"
+
+	username, opts, err := getUserDetailsFromAssertion(st, email)
+	c.Check(username, check.Equals, "")
+	c.Check(opts, check.IsNil)
+	c.Check(err, check.ErrorMatches, "cannot get model assertion: no state entry for key")
+}

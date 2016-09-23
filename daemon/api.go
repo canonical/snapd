@@ -46,9 +46,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -1599,16 +1599,15 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 	return v.Username, opts, nil
 }
 
-func getUserDetailsFromAssertions(ovl *overlord.Overlord, email string) (string, *osutil.AddUserOptions, error) {
-	st := ovl.State()
+func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
 	st.Lock()
 	db := assertstate.DB(st)
+	modelAs, err := devicestate.Model(st)
 	st.Unlock()
-
-	modelAs, err := ovl.DeviceManager().Model()
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("cannot get model assertion: %s", err)
 	}
+
 	brandID := modelAs.BrandID()
 	series := modelAs.Series()
 	model := modelAs.Model()
@@ -1675,7 +1674,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 
 	// FIXME: check --known flag and use "getUserDetailsFromAssertions"
 	//        in this case and getUserDetailsFromStore otherwise
-	username, opts, err := getUserDetailsFromAssertions(c.d.overlord, createData.Email)
+	username, opts, err := getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
 	if username == "" {
 		username, opts, err = getUserDetailsFromStore(createData.Email)
 	}
