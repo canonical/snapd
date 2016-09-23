@@ -46,6 +46,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -1592,11 +1593,61 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 
 	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)
 	opts := &osutil.AddUserOptions{
-		SSHKeys:    v.SSHKeys,
-		Gecos:      gecos,
-		ExtraUsers: !release.OnClassic,
+		SSHKeys: v.SSHKeys,
+		Gecos:   gecos,
 	}
 	return v.Username, opts, nil
+}
+
+func getUserDetailsFromAssertions(ovl *overlord.Overlord, email string) (string, *osutil.AddUserOptions, error) {
+	st := ovl.State()
+	st.Lock()
+	db := assertstate.DB(st)
+	st.Unlock()
+
+	modelAs, err := ovl.DeviceManager().Model()
+	if err != nil {
+		return "", nil, err
+	}
+	brandID := modelAs.BrandID()
+	series := modelAs.Series()
+	model := modelAs.Model()
+
+	a, err := db.Find(asserts.SystemUserType, map[string]string{
+		"brand-id": brandID,
+		"email":    email,
+	})
+	if err != nil {
+		return "", nil, err
+	}
+	su, ok := a.(*asserts.SystemUser)
+	if !ok {
+		return "", nil, fmt.Errorf("Invalid assert %s", a)
+	}
+
+	// cross check that the assertion is valid for the given series/model
+	contains := func(needle string, haystack []string) bool {
+		for _, s := range haystack {
+			if needle == s {
+				return true
+			}
+		}
+		return false
+	}
+	if !contains(series, su.Series()) {
+		return "", nil, fmt.Errorf("%q not in series %q", series, su.Series())
+	}
+	if !contains(model, su.Models()) {
+		return "", nil, fmt.Errorf("%q not in models %q", model, su.Models())
+	}
+
+	gecos := fmt.Sprintf("%s,%s", email, su.Name())
+	opts := &osutil.AddUserOptions{
+		SSHKeys:  su.SSHKeys(),
+		Gecos:    gecos,
+		Password: su.Password(),
+	}
+	return su.Username(), opts, nil
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1622,11 +1673,15 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
-	username, opts, err := getUserDetailsFromStore(createData.Email)
+	username, opts, err := getUserDetailsFromAssertions(c.d.overlord, createData.Email)
+	if username == "" {
+		username, opts, err = getUserDetailsFromStore(createData.Email)
+	}
 	if err != nil {
 		return BadRequest("%s", err)
 	}
 	opts.Sudoer = createData.Sudoer
+	opts.ExtraUsers = !release.OnClassic
 
 	if err := osutilAddUser(username, opts); err != nil {
 		return BadRequest("cannot create user %s: %s", username, err)

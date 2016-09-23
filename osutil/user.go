@@ -46,6 +46,8 @@ type AddUserOptions struct {
 	ExtraUsers bool
 	Gecos      string
 	SSHKeys    []string
+	// crypt(3) compatible password of the form $id$salt$hash
+	Password string
 }
 
 func AddUser(name string, opts *AddUserOptions) error {
@@ -82,6 +84,13 @@ func AddUser(name string, opts *AddUserOptions) error {
 		sudoersFile := filepath.Join(sudoersDotD, "create-user-"+strings.Replace(name, ".", "%2E", -1))
 		if err := AtomicWriteFile(sudoersFile, []byte(fmt.Sprintf(sudoersTemplate, name)), 0400, 0); err != nil {
 			return fmt.Errorf("cannot create file under sudoers.d: %s", err)
+		}
+	}
+
+	if opts.Password != "" {
+		cmd := exec.Command("usermod", "--password", opts.Password, name)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("setting password failed with %s: %s", err, output)
 		}
 	}
 
