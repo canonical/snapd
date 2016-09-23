@@ -9,7 +9,7 @@ execute: |
     prevsnapdver=$(snap --version|grep "snapd ")
 
     echo Install a snap with it
-    sudo snap install test-snapd-tools
+    snap install test-snapd-tools
 
     echo Sanity check install
     test-snapd-tools.echo Hello | grep Hello
