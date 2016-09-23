@@ -32,13 +32,6 @@ var (
 )
 
 type systemUserSuite struct {
-	ts     time.Time
-	tsLine string
-}
-
-func (s *systemUserSuite) SetUpSuite(c *C) {
-	s.ts = time.Now().Truncate(time.Second).UTC()
-	s.tsLine = "since: " + s.ts.Format(time.RFC3339) + "\n"
 }
 
 const systemUserExample = "type: system-user\n" +
@@ -54,7 +47,7 @@ const systemUserExample = "type: system-user\n" +
 	"password: $6$salt$hash\n" +
 	"ssh-keys:\n" +
 	"  - ssh-rsa AAAABcdefg\n" +
-	"TSLINE" +
+	"since: 1092-11-01T22:08:41+00:00\n" +
 	"until: 2092-11-01T22:08:41+00:00\n" +
 	"body-length: 0\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -62,8 +55,7 @@ const systemUserExample = "type: system-user\n" +
 	"AXNpZw=="
 
 func (s *systemUserSuite) TestDecodeOK(c *C) {
-	encoded := strings.Replace(systemUserExample, "TSLINE", s.tsLine, 1)
-	a, err := asserts.Decode([]byte(encoded))
+	a, err := asserts.Decode([]byte(systemUserExample))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	systemUser := a.(*asserts.SystemUser)
@@ -75,28 +67,28 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(systemUser.Username(), Equals, "guy")
 	c.Check(systemUser.Password(), Equals, "$6$salt$hash")
 	c.Check(systemUser.SSHKeys(), DeepEquals, []string{"ssh-rsa AAAABcdefg"})
-	c.Check(systemUser.Since(), Equals, s.ts)
-	tv, err := time.Parse(time.RFC3339, "2092-11-01T22:08:41+00:00")
+	since, err := time.Parse(time.RFC3339, "1092-11-01T22:08:41+00:00")
 	c.Assert(err, IsNil)
-	c.Check(systemUser.Until(), DeepEquals, tv)
+	c.Check(systemUser.Since(), DeepEquals, since)
+
+	until, err := time.Parse(time.RFC3339, "2092-11-01T22:08:41+00:00")
+	c.Assert(err, IsNil)
+	c.Check(systemUser.Until(), DeepEquals, until)
 }
 
 func (s *systemUserSuite) TestDecodePasswd(c *C) {
-	encoded := strings.Replace(systemUserExample, "TSLINE", s.tsLine, 1)
-
 	validTests := []struct{ original, valid string }{
 		{"password: $6$salt$hash\n", "password: $6$rounds=9999$salt$hash\n"},
 	}
 	for _, test := range validTests {
-		valid := strings.Replace(encoded, test.original, test.valid, 1)
+		valid := strings.Replace(systemUserExample, test.original, test.valid, 1)
 		_, err := asserts.Decode([]byte(valid))
 		c.Check(err, IsNil)
 	}
 }
 
 func (s *systemUserSuite) TestValidAt(c *C) {
-	encoded := strings.Replace(systemUserExample, "TSLINE", s.tsLine, 1)
-	a, err := asserts.Decode([]byte(encoded))
+	a, err := asserts.Decode([]byte(systemUserExample))
 	c.Assert(err, IsNil)
 	su := a.(*asserts.SystemUser)
 
@@ -114,8 +106,6 @@ const (
 )
 
 func (s *systemUserSuite) TestDecodeInvalid(c *C) {
-	encoded := strings.Replace(systemUserExample, "TSLINE", s.tsLine, 1)
-
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"brand-id: canonical\n", "", `"brand-id" header is mandatory`},
 		{"brand-id: canonical\n", "brand-id: \n", `"brand-id" header should not be empty`},
@@ -140,15 +130,15 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"password: $6$salt$hash\n", "password: $7$invalid-salt$hash\n", `"password" header has invalid chars in salt "invalid-salt"`},
 		{"password: $6$salt$hash\n", "password: $8$salt$invalid-hash\n", `"password" header has invalid chars in hash "invalid-hash"`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=9999$hash\n", `"password" header has missing hash field`},
-		{s.tsLine, "since: \n", `"since" header should not be empty`},
-		{s.tsLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
+		{"since: 1092-11-01T22:08:41+00:00\n", "since: \n", `"since" header should not be empty`},
+		{"since: 1092-11-01T22:08:41+00:00\n", "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{"until: 2092-11-01T22:08:41+00:00\n", "until: \n", `"until" header should not be empty`},
 		{"until: 2092-11-01T22:08:41+00:00\n", "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
-		{"until: 2092-11-01T22:08:41+00:00\n", "until: 1092-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
+		{"until: 2092-11-01T22:08:41+00:00\n", "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
 	}
 
 	for _, test := range invalidTests {
-		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		invalid := strings.Replace(systemUserExample, test.original, test.invalid, 1)
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
 	}
