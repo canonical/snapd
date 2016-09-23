@@ -43,7 +43,6 @@ const bluetoothControlConnectedPlugAppArmor = `
 
   # Requires CONFIG_BT_VHCI to be loaded
   /dev/vhci                       rw,
-
 `
 
 const bluetoothControlConnectedPlugSecComp = `
@@ -51,6 +50,7 @@ const bluetoothControlConnectedPlugSecComp = `
 #  because this gives privileged access to the system.
 # Usage: reserved
 bind
+getsockopt
 `
 
 func NewBluetoothControlInterface() interfaces.Interface {
