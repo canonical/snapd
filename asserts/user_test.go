@@ -100,6 +100,8 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"series:\n  - 16\n", "series: something\n", `"series" header must be a list of strings`},
 		{"models:\n  - frobinator\n", "models: \n", `"models" header must be a list of strings`},
 		{"models:\n  - frobinator\n", "models: something\n", `"models" header must be a list of strings`},
+		{"ssh-keys:\n  - ssh-rsa AAAABcdefg\n", "ssh-keys: \n", `"ssh-keys" header must be a list of strings`},
+		{"ssh-keys:\n  - ssh-rsa AAAABcdefg\n", "ssh-keys: something\n", `"ssh-keys" header must be a list of strings`},
 		{"name: Nice Guy\n", "name:\n  - foo\n", `"name" header must be a string`},
 		{"username: guy\n", "username:\n  - foo\n", `"username" header must be a string`},
 		{"username: guy\n", "username: bäää\n", `"username" header contains invalid characters: "bäää"`},
