@@ -155,7 +155,7 @@ static struct sc_ns_group *sc_test_open_ns_group(const char *group_name)
 	if (group_name == NULL) {
 		group_name = "test-group";
 	}
-	group = sc_open_ns_group(group_name);
+	group = sc_open_ns_group(group_name, 0);
 	g_test_queue_destroy((GDestroyNotify) sc_close_ns_group, group);
 	// Check if the returned group data looks okay
 	g_assert_nonnull(group);
@@ -183,6 +183,15 @@ static void test_sc_open_ns_group()
 	    g_strdup_printf("%s/%s%s", ns_dir, group->name, SC_NS_LOCK_FILE);
 	g_assert_true(g_file_test
 		      (lock_file, G_FILE_TEST_EXISTS | G_FILE_TEST_IS_REGULAR));
+}
+
+static void test_sc_open_ns_group_graceful()
+{
+	sc_set_ns_dir("/nonexistent");
+	g_test_queue_destroy((GDestroyNotify) sc_set_ns_dir, SC_NS_DIR);
+	struct sc_ns_group *group =
+	    sc_open_ns_group("foo", SC_NS_FAIL_GRACEFULLY);
+	g_assert_null(group);
 }
 
 static void test_sc_lock_ns_mutex_precondition()
@@ -361,7 +370,9 @@ static void __attribute__ ((constructor)) init()
 	g_test_add_func("/ns/sc_enable_sanity_timeout",
 			test_sc_enable_sanity_timeout);
 	g_test_add_func("/ns/sc_alloc_ns_group", test_sc_alloc_ns_group);
-	g_test_add_func("/ns/sc_init_ns_group", test_sc_open_ns_group);
+	g_test_add_func("/ns/sc_open_ns_group", test_sc_open_ns_group);
+	g_test_add_func("/ns/sc_open_ns_group/graceful",
+			test_sc_open_ns_group_graceful);
 	g_test_add_func("/ns/sc_lock_unlock_ns_mutex",
 			test_sc_lock_unlock_ns_mutex);
 	g_test_add_func("/ns/sc_lock_ns_mutex/precondition",

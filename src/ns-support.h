@@ -49,14 +49,23 @@ void sc_initialize_ns_groups();
  */
 struct sc_ns_group;
 
+enum {
+	SC_NS_FAIL_GRACEFULLY = 1
+};
+
 /**
  * Open a namespace group.
  *
  * This will open and keep file descriptors for /run/snapd/ns/ as well as for
  * /run/snapd/ns/${group_name}.lock. The lock file is created if necessary but
  * is not locked until sc_lock_ns_mutex() is called.
+ *
+ * If the flags argument is SC_NS_FAIL_GRACEFULLY then the function returns
+ * NULL if the /run/snapd/ns directory doesn't exist. In all other cases it
+ * calls die() and exits the process.
  */
-struct sc_ns_group *sc_open_ns_group(const char *group_name);
+struct sc_ns_group *sc_open_ns_group(const char *group_name,
+				     const unsigned flags);
 
 /**
  * Close namespace group.

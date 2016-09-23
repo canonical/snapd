@@ -251,13 +251,18 @@ static struct sc_ns_group *sc_alloc_ns_group()
 	return group;
 }
 
-struct sc_ns_group *sc_open_ns_group(const char *group_name)
+struct sc_ns_group *sc_open_ns_group(const char *group_name,
+				     const unsigned flags)
 {
 	struct sc_ns_group *group = sc_alloc_ns_group();
 	debug("opening namespace group directory %s", sc_ns_dir);
 	group->dir_fd =
 	    open(sc_ns_dir, O_DIRECTORY | O_PATH | O_CLOEXEC | O_NOFOLLOW);
 	if (group->dir_fd < 0) {
+		if (flags & SC_NS_FAIL_GRACEFULLY && errno == ENOENT) {
+			free(group);
+			return NULL;
+		}
 		die("cannot open directory for namespace group %s", group_name);
 	}
 	char lock_fname[PATH_MAX];
@@ -523,12 +528,21 @@ void sc_discard_preserved_ns_group(struct sc_ns_group *group)
 		      SC_NS_MNT_FILE);
 	debug("unmounting preserved mount namespace file %s", mnt_fname);
 	if (umount2(mnt_fname, UMOUNT_NOFOLLOW) < 0) {
-		// EINVAL is returned when there's nothing to unmount (no bind-mount).
-		// Instead of checking for this explicitly (which is always racy) we
-		// just unmount and check the return code.
-		if (errno != EINVAL) {
+		switch (errno) {
+		case EINVAL:
+			// EINVAL is returned when there's nothing to unmount (no bind-mount).
+			// Instead of checking for this explicitly (which is always racy) we
+			// just unmount and check the return code.
+			break;
+		case ENOENT:
+			// We may be asked to discard a namespace that doesn't yet
+			// exist (even the mount point may be absent). We just
+			// ignore that error and return gracefully.
+			break;
+		default:
 			die("cannot unmount preserved mount namespace file %s",
 			    mnt_fname);
+			break;
 		}
 	}
 	// Get back to the original directory
