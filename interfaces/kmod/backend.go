@@ -40,12 +40,19 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
+
+type byAppName []*snap.AppInfo
+
+func (c byAppName) Len() int           { return len(c) }
+func (c byAppName) Swap(i, j int)      { c[i], c[j] = c[j], c[i] }
+func (c byAppName) Less(i, j int) bool { return c[i].Name < c[j].Name }
 
 // Backend is responsible for maintaining kernel modules
 type Backend struct{}
@@ -109,7 +116,14 @@ func (b *Backend) Remove(snapName string) error {
 func (b *Backend) combineSnippets(snapInfo *snap.Info, snippets map[string][][]byte) (content map[string]*osutil.FileState, modules [][]byte, err error) {
 	content = make(map[string]*osutil.FileState)
 
+	// sort apps by name to ensure the order of snippets is deterministic
+	apps := make([]*snap.AppInfo, 0, len(snapInfo.Apps))
 	for _, appInfo := range snapInfo.Apps {
+		apps = append(apps, appInfo)
+	}
+	sort.Sort(byAppName(apps))
+
+	for _, appInfo := range apps {
 		for _, snippet := range snippets[appInfo.SecurityTag()] {
 			// split snippet by newline to get the list of modules
 			for _, line := range bytes.Split(snippet, []byte{'\n'}) {
