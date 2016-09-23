@@ -3612,12 +3612,10 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 	}
 }
 
-type readyToBuyTest struct {
+var readyToBuyTests = []struct {
 	Input error
 	Test  func(c *check.C, rsp *resp)
-}
-
-var readyToBuyTests = []readyToBuyTest{
+}{
 	{
 		// Success
 		Input: nil,
