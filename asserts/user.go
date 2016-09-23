@@ -41,42 +41,53 @@ type SystemUser struct {
 	until   time.Time
 }
 
+// BrandID returns the brand identifier that signed this assertion.
 func (su *SystemUser) BrandID() string {
 	return su.HeaderString("brand-id")
 }
 
+// EMail returns the email address that this assertion is valid for.
 func (su *SystemUser) EMail() string {
 	return su.HeaderString("email")
 }
 
+// Series returns the series that this assertion is valid for.
 func (su *SystemUser) Series() []string {
 	return su.series
 }
 
+// Models returns the models that this assertion is valid for.
 func (su *SystemUser) Models() []string {
 	return su.models
 }
 
+// Name returns the full name of the user (e.g. Random Guy).
 func (su *SystemUser) Name() string {
 	return su.HeaderString("name")
 }
 
+// Username returns the system user name that should be created (e.g. "foo").
 func (su *SystemUser) Username() string {
 	return su.HeaderString("username")
 }
 
+// Password returns the crypt(3) compatible password for the user.
+// Note that only ID: $6$ or stronger is supported (sha512crypt).
 func (su *SystemUser) Password() string {
 	return su.HeaderString("password")
 }
 
+// SSHKeys returns the ssh keys for the user.
 func (su *SystemUser) SSHKeys() []string {
 	return su.sshKeys
 }
 
+// Since returns the time since the assertion is valid.
 func (su *SystemUser) Since() time.Time {
 	return su.since
 }
 
+// Until returns the time until the assertion is valid.
 func (su *SystemUser) Until() time.Time {
 	return su.until
 }
