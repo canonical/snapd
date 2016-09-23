@@ -115,6 +115,7 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{s.tsLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{"until: 2092-11-01T22:08:41+00:00\n", "until: \n", `"until" header should not be empty`},
 		{"until: 2092-11-01T22:08:41+00:00\n", "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
+		{"until: 2092-11-01T22:08:41+00:00\n", "until: 1092-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
 	}
 
 	for _, test := range invalidTests {
