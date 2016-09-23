@@ -83,13 +83,8 @@ func (su *SystemUser) Until() time.Time {
 
 // Implement further consistency checks.
 func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
-	// If we allow only a single model assertion in the DB (we have not
-	// decided that yet) we could check that the brand of the system-user
-	// assertion matches the brand of the device and also check
-	// series/models is ok.
-	//
-	// Right now we will have to do the cross-checks when this assertion
-	// is actually used, i.e. in the create-user code
+	// Do the cross-checks when this assertion is actually used,
+	// i.e. in the create-user code. See also Model.checkConsitency
 
 	return nil
 }
