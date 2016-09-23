@@ -51,6 +51,7 @@ type TaskRunner struct {
 	// locking
 	mu       sync.Mutex
 	handlers map[string]handlerPair
+	cleanups map[string]func(*Task) error
 	stopped  bool
 
 	blocked     func(t *Task, running []*Task) bool
@@ -69,6 +70,7 @@ func NewTaskRunner(s *State) *TaskRunner {
 	return &TaskRunner{
 		state:    s,
 		handlers: make(map[string]handlerPair),
+		cleanups: make(map[string]func(*Task) error),
 		tombs:    make(map[string]*tomb.Tomb),
 	}
 }
@@ -80,6 +82,25 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	defer r.mu.Unlock()
 
 	r.handlers[kind] = handlerPair{do, undo}
+}
+
+// AddCleanup registers a function to be called after the change completes,
+// for cleaning up data left behind by tasks of the specified kind. The provided
+// function will be called no matter what the final status of the task is.
+// This mechanism enables keeping data around for a potential undo until
+// there's no more chance of the task being undone.
+//
+// If the cleanup function returns an error, it will be retried later.
+//
+// The handler for tasks of the provided kind must have been previously
+// registered before AddCleanup is called for it.
+func (r *TaskRunner) AddCleanup(kind string, cleanup func(t *Task) error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.handlers[kind]; !ok {
+		panic("internal error: attempted to register cleanup for unknown task kind")
+	}
+	r.cleanups[kind] = cleanup
 }
 
 // SetBlocked sets a predicate function to decide whether to block a task from running based on the current running tasks. It can be used to control task serialisation.
@@ -260,6 +281,9 @@ func (r *TaskRunner) Ensure() {
 
 		status := t.Status()
 		if status.Ready() {
+			if !t.IsClean() {
+				r.cleanTask(t)
+			}
 			continue
 		}
 		if status == UndoStatus && handlers.undo == nil {
@@ -300,6 +324,22 @@ func (r *TaskRunner) Ensure() {
 	if !nextTaskTime.IsZero() {
 		r.state.EnsureBefore(nextTaskTime.Sub(ensureTime))
 	}
+}
+
+func (r *TaskRunner) cleanTask(t *Task) {
+	select {
+	case <-t.Change().Ready():
+	default:
+		return
+	}
+	cleanup, ok := r.cleanups[t.Kind()]
+	if ok {
+		if err := cleanup(t); err != nil {
+			logger.Debugf("Cleaning task %s: %s", t.ID(), err)
+			return // Retry next time.
+		}
+	}
+	t.SetClean()
 }
 
 // mustWait returns whether task t must wait for other tasks to be done.
