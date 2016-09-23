@@ -391,7 +391,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1ID := t1.ID()
 	t1.Set("a", 1)
 	t1.SetStatus(state.DoneStatus)
-	t1.SetProgress(5, 10)
+	t1.SetProgress("snap", 5, 10)
 
 	t2 := st.NewTask("inst", "2...")
 	chg.AddTask(t2)
@@ -436,7 +436,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	c.Check(task0_1.Status(), Equals, state.DoneStatus)
 
-	cur, tot := task0_1.Progress()
+	_, cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
 

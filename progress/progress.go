@@ -31,7 +31,7 @@ import (
 // Meter is an interface to show progress to the user
 type Meter interface {
 	// Start progress with max "total" steps
-	Start(pkg string, total float64)
+	Start(label string, total float64)
 
 	// set progress to the "current" step
 	Set(current float64)
@@ -57,7 +57,7 @@ type NullProgress struct {
 }
 
 // Start does nothing
-func (t *NullProgress) Start(pkg string, total float64) {
+func (t *NullProgress) Start(label string, total float64) {
 }
 
 // Set does nothing
@@ -99,12 +99,14 @@ func NewTextProgress() *TextProgress {
 }
 
 // Start starts showing progress
-func (t *TextProgress) Start(pkg string, total float64) {
+func (t *TextProgress) Start(label string, total float64) {
 	// TODO go to New64 once we update the pb package.
 	t.pbar = pb.New(0)
 	t.pbar.Total = int64(total)
 	t.pbar.ShowSpeed = true
 	t.pbar.Units = pb.U_BYTES
+	t.pbar.NotPrint = true
+	t.pbar.Prefix(label)
 	t.pbar.Start()
 }
 

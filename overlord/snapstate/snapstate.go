@@ -373,6 +373,9 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	return updates, stateByID, nil
 }
 
+// ValidateRefreshes allows to hook validation into the handling of refresh candidates.
+var ValidateRefreshes func(s *state.State, refreshes []*snap.Info, userID int) (validated []*snap.Info, err error)
+
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
@@ -385,6 +388,18 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	updates, stateByID, err := refreshCandidates(st, names, user)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if ValidateRefreshes != nil && len(updates) != 0 {
+		updates, err = ValidateRefreshes(st, updates, userID)
+		if err != nil {
+			// not doing "refresh all" report the error
+			if len(names) != 0 {
+				return nil, nil, err
+			}
+			// doing "refresh all", log the problems
+			logger.Noticef("cannot refresh some snaps: %v", err)
+		}
 	}
 
 	updated := make([]string, 0, len(updates))
@@ -461,7 +476,17 @@ func Update(s *state.State, name, channel string, revision snap.Revision, userID
 func infoForUpdate(s *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
 	if revision.Unset() {
 		// good ol' refresh
-		return updateInfo(s, snapst, channel, userID, flags)
+		info, err := updateInfo(s, snapst, channel, userID, flags)
+		if err != nil {
+			return nil, err
+		}
+		if ValidateRefreshes != nil {
+			_, err := ValidateRefreshes(s, []*snap.Info{info}, userID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return info, nil
 	}
 	var sideInfo *snap.SideInfo
 	for _, si := range snapst.Sequence {
