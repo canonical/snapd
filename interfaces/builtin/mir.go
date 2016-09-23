@@ -79,6 +79,7 @@ var mirConnectedPlugSecComp = []byte(`
 recvmsg
 sendmsg
 sendto
+recvfrom
 `)
 
 type MirInterface struct{}
