@@ -92,7 +92,7 @@ func (s *getSuite) TestCommandMultipleKeys(c *C) {
 
 func (s *getSuite) TestCommandWithNoConfig(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"get", "foo"})
-	c.Check(err, ErrorMatches, ".*cannot get configuration.*")
+	c.Check(err, ErrorMatches, ".*snap.*has no.*configuration option.*")
 	c.Check(string(stderr), Equals, "")
 	c.Check(string(stdout), Equals, "")
 }

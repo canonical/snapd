@@ -70,7 +70,7 @@ func (c *getCommand) Execute(args []string) error {
 	for _, key := range c.Positional.Keys {
 		var value interface{}
 		if err := transaction.Get(c.context().SnapName(), key, &value); err != nil {
-			return fmt.Errorf("cannot get configuration: %s", err)
+			return err
 		}
 
 		patch[key] = value
