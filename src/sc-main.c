@@ -88,7 +88,7 @@ int sc_main(int argc, char **argv)
 		}
 		sc_initialize_ns_groups();
 		struct sc_ns_group *group = NULL;
-		group = sc_open_ns_group(group_name);
+		group = sc_open_ns_group(group_name, 0);
 		sc_lock_ns_mutex(group);
 		sc_create_or_join_ns_group(group);
 		if (sc_should_populate_ns_group(group)) {
