@@ -12,6 +12,7 @@ execute: |
 
     # ensure SNAP_USER_DATA points to the right place
     echo $output | grep -E SNAP_USER_DATA=/root/snap/test-snapd-tools/x[0-9]+
+    echo $output | grep -E HOME=/root/snap/test-snapd-tools/x[0-9]+
     echo $output | grep SNAP_USER_COMMON=/root/snap/test-snapd-tools/common
 
     echo "Verify that the /root/snap directory created and root owned"
