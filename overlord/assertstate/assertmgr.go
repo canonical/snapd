@@ -24,6 +24,7 @@ package assertstate
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"gopkg.in/tomb.v2"
@@ -101,10 +102,94 @@ func DB(s *state.State) asserts.RODatabase {
 	return cachedDB(s)
 }
 
-// Add the given assertion to the system assertiond database. Readding the current revision is a no-op.
+// Add the given assertion to the system assertion database.
 func Add(s *state.State, a asserts.Assertion) error {
 	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
 	return cachedDB(s).Add(a)
+}
+
+// Batch allows to accumulate a set of assertions possibly out of prerequisite order and then add them in one go to the system assertion database.
+type Batch struct {
+	bs   asserts.Backstore
+	refs []*asserts.Ref
+}
+
+// NewBatch creates a new Batch to accumulate assertions to add in one go to the system assertion database.
+func NewBatch() *Batch {
+	return &Batch{
+		bs:   asserts.NewMemoryBackstore(),
+		refs: nil,
+	}
+}
+
+// Add one assertion to the batch.
+func (b *Batch) Add(a asserts.Assertion) error {
+	if err := b.bs.Put(a.Type(), a); err != nil {
+		if revErr, ok := err.(*asserts.RevisionError); ok {
+			if revErr.Current >= a.Revision() {
+				// we already got something more recent
+				return nil
+			}
+		}
+		return err
+	}
+	b.refs = append(b.refs, a.Ref())
+	return nil
+}
+
+// AddStream adds a stream of assertions to the batch.
+// Returns references to to the assertions effectively added.
+func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
+	start := len(b.refs)
+	dec := asserts.NewDecoder(r)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if err := b.Add(a); err != nil {
+			return nil, err
+		}
+	}
+	added := b.refs[start:]
+	if len(added) == 0 {
+		return nil, nil
+	}
+	refs := make([]*asserts.Ref, len(added))
+	copy(refs, added)
+	return refs, nil
+}
+
+// Commit adds the batch of assertions to the system assertion database.
+func (b *Batch) Commit(st *state.State) error {
+	db := cachedDB(st)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		a, err := b.bs.Get(ref.Type, ref.PrimaryKey)
+		if err == asserts.ErrNotFound {
+			// fallback to pre-existing assertions
+			a, err = ref.Resolve(db.Find)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
+		}
+		return a, nil
+	}
+
+	// linearize using fetcher
+	f := newFetcher(st, retrieve)
+	for _, ref := range b.refs {
+		if err := f.Fetch(ref); err != nil {
+			return err
+		}
+	}
+
+	// TODO: trigger w. caller a global sanity check if something is revoked
+	// (but try to save as much possible still),
+	// or err is a check error
+	return f.commit()
 }
 
 // TODO: snapstate also has this, move to auth, or change a bit the approach now that we have AuthContext in the store?
@@ -121,17 +206,11 @@ type fetcher struct {
 	fetched []asserts.Assertion
 }
 
-// newFetches creates a fetcher used to retrieve assertions from the store and later commit them to the system database in one go.
-func newFetcher(s *state.State, user *auth.UserState) *fetcher {
+// newFetches creates a fetcher used to retrieve assertions and later commit them to the system database in one go.
+func newFetcher(s *state.State, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *fetcher {
 	db := cachedDB(s)
-	sto := snapstate.Store(s)
 
 	f := &fetcher{db: db}
-
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		// TODO: ignore errors if already in db?
-		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
-	}
 
 	save := func(a asserts.Assertion) error {
 		f.fetched = append(f.fetched, a)
@@ -185,7 +264,14 @@ func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) e
 		return err
 	}
 
-	f := newFetcher(s, user)
+	sto := snapstate.Store(s)
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		// TODO: ignore errors if already in db?
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
+	}
+
+	f := newFetcher(s, retrieve)
 
 	s.Unlock()
 	err = fetching(f)
