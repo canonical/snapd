@@ -38,7 +38,7 @@ type systemUserSuite struct {
 
 func (s *systemUserSuite) SetUpSuite(c *C) {
 	s.ts = time.Now().Truncate(time.Second).UTC()
-	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
+	s.tsLine = "since: " + s.ts.Format(time.RFC3339) + "\n"
 }
 
 const systemUserExample = "type: system-user\n" +
@@ -75,7 +75,7 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(systemUser.Username(), Equals, "guy")
 	c.Check(systemUser.Password(), Equals, "$6$salt$hash")
 	c.Check(systemUser.SSHKeys(), DeepEquals, []string{"ssh-rsa AAAABcdefg"})
-	c.Check(systemUser.Timestamp(), Equals, s.ts)
+	c.Check(systemUser.Since(), Equals, s.ts)
 	tv, err := time.Parse(time.RFC3339, "2092-11-01T22:08:41+00:00")
 	c.Assert(err, IsNil)
 	c.Check(systemUser.Until(), DeepEquals, tv)
@@ -94,8 +94,10 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"brand-id: canonical\n", "brand-id: something-else\n", `authority-id and brand-id must match, system-user assertions are expected to be signed by the brand: "canonical" != "something-else"`},
 		{"email: foo@example.com\n", "", `"email" header is mandatory`},
 		{"email: foo@example.com\n", "email: \n", `"email" header should not be empty`},
-		{s.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
-		{s.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+		{s.tsLine, "since: \n", `"since" header should not be empty`},
+		{s.tsLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
+		{"until: 2092-11-01T22:08:41+00:00\n", "until: \n", `"until" header should not be empty`},
+		{"until: 2092-11-01T22:08:41+00:00\n", "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
 	}
 
 	for _, test := range invalidTests {
@@ -103,35 +105,4 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, systemUserErrPrefix+test.expectedErr)
 	}
-}
-
-func (s *systemUserSuite) TestCheckInconsistentTimestamp(c *C) {
-	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1)))
-	c.Assert(err, IsNil)
-
-	storeDB, db := makeStoreAndCheckDB(c)
-
-	headers := ex.Headers()
-	headers["timestamp"] = "2011-01-01T14:00:00Z"
-	account, err := storeDB.Sign(asserts.AccountType, headers, nil, "")
-	c.Assert(err, IsNil)
-
-	err = db.Check(account)
-	c.Assert(err, ErrorMatches, "account assertion timestamp outside of signing key validity")
-}
-
-func (s *systemUserSuite) TestCheckUntrustedAuthority(c *C) {
-	ex, err := asserts.Decode([]byte(strings.Replace(accountExample, "TSLINE", s.tsLine, 1)))
-	c.Assert(err, IsNil)
-
-	storeDB, db := makeStoreAndCheckDB(c)
-	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
-
-	headers := ex.Headers()
-	headers["timestamp"] = time.Now().Format(time.RFC3339)
-	account, err := otherDB.Sign(asserts.AccountType, headers, nil, "")
-	c.Assert(err, IsNil)
-
-	err = db.Check(account)
-	c.Assert(err, ErrorMatches, `account assertion for "abc-123" is not signed by a directly trusted authority:.*`)
 }
