@@ -35,9 +35,9 @@ func LoadModule(module string) error {
 
 // loadModules loads given list of modules via modprobe.
 // Any error from modprobe interrupts loading of subsequent modules and returns the error.
-func loadModules(modules [][]byte) error {
+func loadModules(modules []string) error {
 	for _, mod := range modules {
-		if err := LoadModule(string(mod)); err != nil {
+		if err := LoadModule(mod); err != nil {
 			return err
 		}
 	}

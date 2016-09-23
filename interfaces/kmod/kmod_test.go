@@ -45,9 +45,9 @@ func (s *kmodSuite) TestModprobeCall(c *C) {
 	cmd := testutil.MockCommand(c, "modprobe", "")
 	defer cmd.Restore()
 
-	err := kmod.LoadModules([][]byte{
-		[]byte("module1"),
-		[]byte("module2"),
+	err := kmod.LoadModules([]string{
+		"module1",
+		"module2",
 	})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
