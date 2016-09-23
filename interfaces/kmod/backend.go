@@ -80,7 +80,6 @@ func (b *Backend) Setup(snapInfo *snap.Info, devMode bool, repo *interfaces.Repo
 	content, modules, err := b.combineSnippets(snapInfo, snippets)
 	if err != nil {
 		return fmt.Errorf("cannot obtain expected security files for snap %q: %s", snapName, err)
-
 	}
 
 	dir := dirs.SnapKModModulesDir
