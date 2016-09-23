@@ -19,7 +19,15 @@
 
 package configstate
 
-import "github.com/snapcore/snapd/overlord/hookstate"
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/overlord/hookstate"
+)
+
+// CachedTransaction is the index into the context cache where the initialized
+// transaction is stored.
+type CachedTransaction struct{}
 
 // applyConfigHandler is the handler for the apply-config hook.
 type applyConfigHandler struct {
@@ -32,6 +40,31 @@ func newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
 
 // Before is called by the HookManager before the apply-config hook is run.
 func (h *applyConfigHandler) Before() error {
+	h.context.Lock()
+	defer h.context.Unlock()
+
+	// Initialize a new transaction and cache it in the context.
+	transaction, err := NewTransaction(h.context.State())
+	if err != nil {
+		return fmt.Errorf("cannot create transaction: %s", err)
+	}
+
+	// Initialize the transaction if there's a patch provided in the
+	// context.
+	var patch map[string]interface{}
+	if err := h.context.Get("patch", &patch); err == nil {
+		for key, value := range patch {
+			transaction.Set(h.context.SnapName(), key, value)
+		}
+	}
+
+	h.context.OnDone(func() error {
+		transaction.Commit()
+		return nil
+	})
+
+	h.context.Cache(CachedTransaction{}, transaction)
+
 	return nil
 }
 
