@@ -120,6 +120,8 @@ kind               | value description
 `two-factor-failed` | the OTP provided wasn't recognised
 `login-required` | the requested operation cannot be performed without an authenticated user. This is the kind of any other 401 Unauthorized response.
 `invalid-auth-data` | the authentication data provided failed to validate (e.g. a malformed email address). The `value` of the error is an object with a key per failed field and a list of the failures on each field.
+`tos-not-accepted` | the user has not accepted the store's terms of service.
+`no-payment-methods` | the user does not have a payment method registered to complete a purchase.
 
 ### Timestamps
 
@@ -602,6 +604,15 @@ Generally the UUID of a background operation you are interested in.
  "state": "Complete",
 }
 ```
+
+## /v2/buy/ready
+
+### GET
+
+* Description: Determine if the user's account ready to make purchases.
+* Access: authenticated
+* Operation: sync
+* Return: bool true, or error.
 
 ## /v2/buy/methods
 
