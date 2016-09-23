@@ -26,6 +26,9 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timeserver-control
 const timeserverControlConnectedPlugAppArmor = `
 # Description: Can manage timeservers directly separate from config ubuntu-core.
+# Can enable system clock NTP synchronization via timedated D-Bus interface,
+# Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
+# https://www.freedesktop.org/wiki/Software/systemd/timedated/
 # Usage: reserved
 
 #include <abstractions/dbus-strict>

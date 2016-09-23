@@ -458,7 +458,8 @@ trusted apps.
 
 ### timedate-control
 
-Can query and modify the time-related settings exposed by systemd-timedated.
+Can modify time/date exposed via D-Bus by systemd-timedated and read all
+all properties of /org/freedesktop/timedate1 D-Bus object.
 
 * Auto-Connect: yes
 

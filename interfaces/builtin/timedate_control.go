@@ -22,7 +22,8 @@ package builtin
 import "github.com/snapcore/snapd/interfaces"
 
 const timeDateControlConnectedPlugAppArmor = `
-# Description: Allows configuration of time, date and timezone via systemd' timedated D-Bus interface:
+# Description: Can set time and date via systemd' timedated D-Bus interface.
+# Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/
 # Usage: reserved
 

@@ -26,6 +26,9 @@ import (
 // http://bazaar.launchpad.net/~ubuntu-security/ubuntu-core-security/trunk/view/head:/data/apparmor/policygroups/ubuntu-core/16.04/timezone-control
 const timezoneControlConnectedPlugAppArmor = `
 # Description: Can manage timezones directly separate from 'config ubuntu-core'.
+# Can change timezone via timedated D-Bus interface,
+# Can read all properties of /org/freedesktop/timedate1 D-Bus object, see:
+# https://www.freedesktop.org/wiki/Software/systemd/timedated/
 # Usage: reserved
 
 #include <abstractions/dbus-strict>
