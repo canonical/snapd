@@ -338,7 +338,7 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	c.markReady()
 }
 
-// IsClean returns whether the task has been cleaned. See SetClean.
+// IsClean returns whether all tasks in the change have been cleaned. See SetClean.
 func (c *Change) IsClean() bool {
 	c.state.reading()
 	return c.clean

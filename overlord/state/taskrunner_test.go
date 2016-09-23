@@ -637,7 +637,7 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	r.AddHandler("other", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
 
 	called := 0
-	r.AddCleanup("clean-it", func(t *state.Task) error {
+	r.AddCleanup("clean-it", func(t *state.Task, tb *tomb.Tomb) error {
 		called++
 		if called == 1 {
 			return fmt.Errorf("retry me")
@@ -666,12 +666,15 @@ func (ts *taskRunnerSuite) TestCleanup(c *C) {
 	c.Assert(chgIsClean(), Equals, false)
 	c.Assert(called, Equals, 0)
 	r.Ensure()
+	r.Wait()
 	c.Assert(chgIsClean(), Equals, false)
 	c.Assert(called, Equals, 1)
 	r.Ensure()
+	r.Wait()
 	c.Assert(chgIsClean(), Equals, true)
 	c.Assert(called, Equals, 2)
 	r.Ensure()
+	r.Wait()
 	c.Assert(chgIsClean(), Equals, true)
 	c.Assert(called, Equals, 2)
 }
