@@ -403,6 +403,13 @@ networking information.
 
 * Auto-Connect: no
 
+### network-setup-observe
+
+Can read network setup configuration files. This is restricted because it gives
+access to system network configuration which can contain network security details.
+
+* Auto-Connect: no
+
 ### ppp
 
 Can access Point-to-Point protocol daemon which gives privileged access to
