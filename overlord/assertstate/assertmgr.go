@@ -102,7 +102,7 @@ func DB(s *state.State) asserts.RODatabase {
 	return cachedDB(s)
 }
 
-// Add adds the given assertion to the system assertion database.
+// Add the given assertion to the system assertion database.
 func Add(s *state.State, a asserts.Assertion) error {
 	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
 	return cachedDB(s).Add(a)
@@ -122,7 +122,7 @@ func NewBatch() *Batch {
 	}
 }
 
-// Add adds one assertion to the batch.
+// Add one assertion to the batch.
 func (b *Batch) Add(a asserts.Assertion) error {
 	if err := b.bs.Put(a.Type(), a); err != nil {
 		if revErr, ok := err.(*asserts.RevisionError); ok {
