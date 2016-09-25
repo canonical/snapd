@@ -21,7 +21,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -37,6 +39,8 @@ import (
 type cmdDownload struct {
 	channelMixin
 	Revision string `long:"revision"`
+
+	Assertion bool `long:"assertion" description:"Download the given assertion"`
 
 	Positional struct {
 		Snap string
@@ -57,6 +61,27 @@ func init() {
 		name: "<snap>",
 		desc: i18n.G("Snap name"),
 	}})
+}
+
+func (x *cmdDownload) downloadAssertion() error {
+	var user *auth.UserState
+
+	// FIXME: set auth context
+	var authContext auth.AuthContext
+
+	sto := store.New(nil, authContext)
+	l := strings.Split(x.Positional.Snap, "/")
+	as, err := sto.Assertion(asserts.Type(l[0]), l[1:], user)
+	if err != nil {
+		return err
+	}
+	fn := strings.Replace(x.Positional.Snap, "/", "_", -1) + ".assertion"
+	if err := ioutil.WriteFile(fn, asserts.Encode(as), 0644); err != nil {
+		return err
+	}
+	fmt.Printf("assertion saved as %q\n", fn)
+
+	return nil
 }
 
 func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info, dlOpts *image.DownloadOptions) error {
@@ -90,6 +115,10 @@ func (x *cmdDownload) Execute(args []string) error {
 
 	if len(args) > 0 {
 		return ErrExtraArgs
+	}
+
+	if x.Assertion {
+		return x.downloadAssertion()
 	}
 
 	var revision snap.Revision
