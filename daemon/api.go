@@ -651,6 +651,8 @@ var (
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
 	snapstateUpdateMany        = snapstate.UpdateMany
+	snapstateInstallMany       = snapstate.InstallMany
+	snapstateRemoveMany        = snapstate.RemoveMany
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -752,6 +754,29 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	return msg, updated, tasksets, nil
 }
 
+func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, installed []string, tasksets []*state.TaskSet, err error) {
+	installed, tasksets, err = snapstateInstallMany(st, inst.Snaps, inst.userID)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		return "", nil, nil, fmt.Errorf("cannot install zero snaps")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Install snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, installed, tasksets, nil
+}
+
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
@@ -799,6 +824,29 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed []string, tasksets []*state.TaskSet, err error) {
+	removed, tasksets, err = snapstateRemoveMany(st, inst.Snaps)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		return "", nil, nil, fmt.Errorf("cannot remove zero snaps")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, removed, tasksets, nil
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -990,10 +1038,6 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 
-	if inst.Action != "refresh" {
-		return BadRequest("only refresh supported for multi-snap operation right now")
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1002,7 +1046,20 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	msg, updated, tsets, err := snapUpdateMany(&inst, st)
+	var msg string
+	var affected []string
+	var tsets []*state.TaskSet
+	var err error
+	switch inst.Action {
+	case "refresh":
+		msg, affected, tsets, err = snapUpdateMany(&inst, st)
+	case "install":
+		msg, affected, tsets, err = snapInstallMany(&inst, st)
+	case "remove":
+		msg, affected, tsets, err = snapRemoveMany(&inst, st)
+	default:
+		return BadRequest("unsupported multi-snap operation %q", inst.Action)
+	}
 	if err != nil {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
 	}
@@ -1012,10 +1069,10 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg = st.NewChange(inst.Action+"-snap", msg)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, inst.Action+"-snap", msg, tsets, updated)
+		chg = newChange(st, inst.Action+"-snap", msg, tsets, affected)
 		ensureStateSoon(st)
 	}
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
