@@ -55,6 +55,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
+	NewNetworkSetupObserveInterface(),
 	NewProcessControlInterface(),
 	NewRemovableMediaInterface(),
 	NewScreenInhibitControlInterface(),

@@ -436,17 +436,10 @@ func (as *authSuite) TestAuthContextStoreIDFromEnv(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "env-store-id")
 }
-
-func (as *authSuite) TestAuthContextSerialAndFriendsNilDeviceAssertions(c *C) {
+func (as *authSuite) TestAuthContextDeviceSessionRequestNilDeviceAssertions(c *C) {
 	authContext := auth.NewAuthContext(as.state, nil)
 
-	_, err := authContext.Serial()
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, err = authContext.SerialProof("NONCE")
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, _, err = authContext.DeviceSessionRequest("NONCE")
+	_, _, err := authContext.DeviceSessionRequest("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 }
 
@@ -483,12 +476,6 @@ device-key:
     rAsxbnHXiXyVimUAEQEAAQ==
 device-key-sha3-384: EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 timestamp: 2016-08-24T21:55:00Z
-sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
-
-AXNpZw=`
-
-	exSerialProof = `type: serial-proof
-nonce: @NONCE@
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw=`
@@ -530,17 +517,6 @@ func (da *testDeviceAssertions) Serial() (*asserts.Serial, error) {
 	return a.(*asserts.Serial), nil
 }
 
-func (da *testDeviceAssertions) SerialProof(nonce string) (*asserts.SerialProof, error) {
-	if da.nothing {
-		return nil, state.ErrNoState
-	}
-	a, err := asserts.Decode([]byte(strings.Replace(exSerialProof, "@NONCE@", nonce, 1)))
-	if err != nil {
-		return nil, err
-	}
-	return a.(*asserts.SerialProof), nil
-}
-
 func (da *testDeviceAssertions) DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error) {
 	if da.nothing {
 		return nil, nil, state.ErrNoState
@@ -562,13 +538,8 @@ func (da *testDeviceAssertions) DeviceSessionRequest(nonce string) (*asserts.Dev
 func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 	// no assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{nothing: true})
-	_, err := authContext.Serial()
-	c.Check(err, Equals, state.ErrNoState)
 
-	_, err = authContext.SerialProof("NONCE")
-	c.Check(err, Equals, state.ErrNoState)
-
-	_, _, err = authContext.DeviceSessionRequest("NONCE")
+	_, _, err := authContext.DeviceSessionRequest("NONCE")
 	c.Check(err, Equals, auth.ErrNoSerial)
 
 	storeID, err := authContext.StoreID("fallback")
@@ -579,14 +550,6 @@ func (as *authSuite) TestAuthContextMissingDeviceAssertions(c *C) {
 func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	// having assertions in state
 	authContext := auth.NewAuthContext(as.state, &testDeviceAssertions{})
-
-	serial, err := authContext.Serial()
-	c.Assert(err, IsNil)
-	c.Check(strings.Contains(string(serial), "serial: 9999\n"), Equals, true)
-
-	proof, err := authContext.SerialProof("NONCE-1")
-	c.Assert(err, IsNil)
-	c.Check(strings.Contains(string(proof), "nonce: NONCE-1\n"), Equals, true)
 
 	req, serial, err := authContext.DeviceSessionRequest("NONCE-1")
 	c.Assert(err, IsNil)

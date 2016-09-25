@@ -1,7 +1,6 @@
 summary: Check that a remove operation is working even if the mount point is busy.
 
 restore: |
-    rm -f test-snapd-tools_1.0_all.snap
     kill %1 || true
 
 execute: |
@@ -17,8 +16,7 @@ execute: |
     }
 
     echo "Given a snap is installed"
-    snapbuild $TESTSLIB/snaps/test-snapd-tools .
-    snap install --dangerous test-snapd-tools_1.0_all.snap
+    . $TESTSLIB/install.sh test-snapd-tools
 
     echo "And its mount point is kept busy"
     # we need a marker file, because just using systemd to figure out
@@ -41,4 +39,3 @@ execute: |
 
     # cleanup umount blocker
     systemctl stop unmount-blocker
-
