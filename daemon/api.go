@@ -1633,11 +1633,14 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		}
 		return false
 	}
-	if !contains(series, su.Series()) {
+	if len(su.Series()) > 0 && !contains(series, su.Series()) {
 		return "", nil, fmt.Errorf("%q not in series %q", series, su.Series())
 	}
-	if !contains(model, su.Models()) {
+	if len(su.Models()) > 0 && !contains(model, su.Models()) {
 		return "", nil, fmt.Errorf("%q not in models %q", model, su.Models())
+	}
+	if !su.ValidAt(time.Now()) {
+		return "", nil, fmt.Errorf("cannot add system-user, not valid anymore")
 	}
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
