@@ -24,10 +24,18 @@ execute: |
     echo "When a temporary file is created by one snap"
     expect -f tmp-create.exp
 
-    echo "Then that file is accessible from other calls of commands from the same snap"
-    if ! test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
-        echo "Expected the file to be present"
-        exit 1
+    if [ -e /usr/lib/snapd/snap-discard-ns ]; then
+        echo "Then that file is accessible from other calls of commands from the same snap"
+        if ! test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
+            echo "Expected the file to be present"
+            exit 1
+        fi
+    else
+        echo "Then that file is not accessible from other calls of commands from the same snap"
+        if test-snapd-tools.cmd stat /tmp/foo 2>same-stat.error; then
+            echo "Expected the file to be absent"
+            exit 1
+        fi
     fi
 
     echo "And that file is not accessible by other snaps"
