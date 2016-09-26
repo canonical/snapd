@@ -1,4 +1,5 @@
 summary: Check snap ack
+systems: [-ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
 execute: |
     echo "Ack the test store key in case"
     snap ack $TESTSLIB/assertions/testrootorg-store.account-key

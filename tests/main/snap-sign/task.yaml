@@ -1,6 +1,6 @@
 summary: Run snap sign to sign a model assertion
 
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
 
 prepare: |
     echo "setup fake gpg pinentry environment"
