@@ -76,21 +76,21 @@ mkdir("/tmp/snap.0_snap.hello-world.hello-world_QXGSt1/tmp", 01777) = 0
 mount("/tmp/snap.0_snap.hello-world.hello-world_QXGSt1/tmp", "/tmp", NULL, MS_BIND, NULL) = 0
 mount("none", "/tmp", NULL, MS_PRIVATE, NULL) = 0
 
-# /dev/pts
+# Create a per-snap /dev/pts
 mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL, "newinstance,ptmxmode=0666,mode=0"...)
 mount("/dev/pts/ptmx", "/dev/ptmx", 0x5574dfe9a5c3, MS_BIND, NULL)
 
 # Classic only - process quirks mounts by:
 #   creating temporary quirks directory for moving /var/lib/snapd aside
 mkdir("/tmp/snapd.quirks_xKIzG3", 0700) = 0
-#   moving /var/lib/snapd aside for a moment
+#   moving /var/lib/snapd aside
 mount("/var/lib/snapd", "/tmp/snapd.quirks_xKIzG3", NULL, MS_MOVE, NULL) = 0
 #   creating a tmpfs on /var/lib for our mount points
 mount("none", "/var/lib", "tmpfs", MS_NOSUID|MS_NODEV, NULL) = 0
 #   mimicking the vanilla /var/lib/* from the core snap in /var/lib in tmpfs
 #   (the directories to mimic are dynamically determined and will vary as the
 #   core snap changes. Syscalls for finding what to mount and creating the
-#   mount points are omitted))
+#   mount points are omitted)
 mount("/snap/ubuntu-core/current/var/lib/apparmor", "/var/lib/apparmor", NULL, MS_RDONLY|MS_NOSUID|MS_NODEV|MS_BIND|MS_REC|MS_SLAVE, NULL) = 0
 mount("/snap/ubuntu-core/current/var/lib/classic", "/var/lib/classic", ...) = 0
 mount("/snap/ubuntu-core/current/var/lib/console-conf", "/var/lib/console-conf", ...) = 0
@@ -126,12 +126,12 @@ rmdir("/tmp/snapd.quirks_xKIzG3") = 0
 mount("/var/lib/snapd/hostfs/var/lib/lxd", "/var/lib/lxd", NULL, MS_REC|MS_SLAVE|MS_NODEV|MS_NOSUID|MS_NOEXEC) = 0
 # End quirk mounts on classic
 
-# process snap-defined mounts (eg, for content interfaces and mount the source
-# to the target as defined in /var/lib/snapd/mount/snap.<name>.<command>.fstab)
+# Process snap-defined mounts (eg, for content interface, mount the source to
+# the target as defined in /var/lib/snapd/mount/snap.<name>.<command>.fstab)
 # Eg:
 mount("/snap/some-content-snap/current/src", "/snap/hello-world/current/dst", NULL, MS_RDONLY|MS_NOSUID|MS_NODEV|MS_BIND, NULL)
 
-# bind mount this namespace to the application-specific NSFS magic file to
+# Bind mount this namespace to the application-specific NSFS magic file to
 # preserve it across snap invocations (an fchdir() happened just after the
 # unshare(), above).
 mount("/proc/12887/ns/mnt", "hello-world.mnt", NULL, MS_BIND, NULL) = 0
