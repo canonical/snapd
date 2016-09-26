@@ -182,7 +182,7 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	// Actually run the hook
-	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
+	output, err := runHook(context, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
 		if handlerErr := context.Handler().Error(err); handlerErr != nil {
@@ -206,6 +206,21 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	return nil
+}
+
+func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
+	return runHookAndWait(c.SnapName(), c.SnapRevision(), c.HookName(), c.ID(), tomb)
+}
+
+var runHook = runHookImpl
+
+// MockRunHook mocks the actual invokcation of hooks for tests.
+func MockRunHook(hookInvoke func(c *Context, tomb *tomb.Tomb) ([]byte, error)) (restore func()) {
+	oldRunHook := runHook
+	runHook = hookInvoke
+	return func() {
+		runHook = oldRunHook
+	}
 }
 
 func runHookAndWait(snapName string, revision snap.Revision, hookName, hookContext string, tomb *tomb.Tomb) ([]byte, error) {

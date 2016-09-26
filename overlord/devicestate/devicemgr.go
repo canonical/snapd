@@ -28,25 +28,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
-	"path/filepath"
+	"regexp"
 	"time"
 
 	"gopkg.in/tomb.v2"
-	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -58,7 +58,7 @@ type DeviceManager struct {
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
 	runner := state.NewTaskRunner(s)
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -69,10 +69,30 @@ func Manager(s *state.State) (*DeviceManager, error) {
 
 	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
 
+	hookManager.Register(regexp.MustCompile("^device-init$"), newDeviceInitHandler)
+
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 
 	return m, nil
+}
+
+type deviceInitHandler struct{}
+
+func newDeviceInitHandler(context *hookstate.Context) hookstate.Handler {
+	return deviceInitHandler{}
+}
+
+func (h deviceInitHandler) Before() error {
+	return nil
+}
+
+func (h deviceInitHandler) Done() error {
+	return nil
+}
+
+func (h deviceInitHandler) Error(err error) error {
+	return fmt.Errorf("cannot run successfully device init hook: %v", err)
 }
 
 func (m *DeviceManager) ensureOperational() error {
@@ -112,16 +132,39 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
+	gadgetInfo, err := snapstate.GadgetInfo(m.state)
+	if err == state.ErrNoState {
+		// no gadget installed yet, cannot proceed
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
 	// XXX: some of these will need to be split and use hooks
 	// retries might need to embrace more than one "task" then,
 	// need to be careful
 
+	tasks := []*state.Task{}
+
+	var deviceInit *state.Task
+	if gadgetInfo.Hooks["device-init"] != nil {
+		summary := i18n.G("Run device init hook")
+		deviceInit = hookstate.HookTask(m.state, summary, gadgetInfo.Name(), snap.R(0), "device-init")
+		tasks = append(tasks, deviceInit)
+	}
+
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
+	if deviceInit != nil {
+		genKey.WaitFor(deviceInit)
+	}
+	tasks = append(tasks, genKey)
 	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
 	requestSerial.WaitFor(genKey)
+	tasks = append(tasks, requestSerial)
 
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
-	chg.AddAll(state.NewTaskSet(genKey, requestSerial))
+	chg.AddAll(state.NewTaskSet(tasks...))
 
 	return nil
 }
@@ -158,9 +201,8 @@ func deviceAPIBaseURL() string {
 }
 
 var (
-	keyLength     = 4096
-	retryInterval = 60 * time.Second
-	// TODO: this will come optionally as config from the gadget snap
+	keyLength        = 4096
+	retryInterval    = 60 * time.Second
 	deviceAPIBase    = deviceAPIBaseURL()
 	requestIDURL     = deviceAPIBase + "request-id"
 	serialRequestURL = deviceAPIBase + "devices"
@@ -264,12 +306,17 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 
 	}
 
-	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, map[string]interface{}{
+	headers := map[string]interface{}{
 		"brand-id":   device.Brand,
 		"model":      device.Model,
 		"request-id": requestID.RequestID,
 		"device-key": string(encodedPubKey),
-	}, cfg.body, privKey)
+	}
+	if cfg.proposedSerial != "" {
+		headers["serial"] = cfg.proposedSerial
+	}
+
+	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, headers, cfg.body, privKey)
 	if err != nil {
 		return "", err
 	}
@@ -377,16 +424,11 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	return serial, nil
 }
 
-type deviceYAML struct {
-	ServiceURL string                 `yaml:"device-service-url"`
-	Headers    map[string]string      `yaml:"device-service-headers,omitempty"`
-	Details    map[string]interface{} `yaml:"details,omitempty"`
-}
-
 type serialRequestConfig struct {
 	requestIDURL     string
 	serialRequestURL string
 	headers          map[string]string
+	proposedSerial   string
 	body             []byte
 }
 
@@ -396,33 +438,44 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 	}
 }
 
+func getFromTransaction(tr *configstate.Transaction, gadgetName, key string, v interface{}) error {
+	err := tr.Get(gadgetName, key, v)
+	if err != nil {
+		if _, ok := err.(*configstate.NoOptionError); !ok {
+			return err
+		}
+	}
+	return nil
+}
+
 func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
-	deviceYAMLFn := filepath.Join(dirs.SnapSeedDir, "device.yaml")
-	if osutil.FileExists(deviceYAMLFn) {
-		yamlData, err := ioutil.ReadFile(deviceYAMLFn)
+	gadgetInfo, err := snapstate.GadgetInfo(t.State())
+	if err != nil {
+		return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
+	}
+	gadgetName := gadgetInfo.Name()
+
+	tr, _ := configstate.NewTransaction(t.State())
+	var svcURL string
+	err = getFromTransaction(tr, gadgetName, "registration-service-url", &svcURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if svcURL != "" {
+		baseURL, err := url.Parse(svcURL)
 		if err != nil {
-			return nil, fmt.Errorf("cannot read device yaml: %v", deviceYAMLFn)
+			return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
 		}
 
-		var deviceYAML deviceYAML
-		if err := yaml.Unmarshal(yamlData, &deviceYAML); err != nil {
-			return nil, fmt.Errorf("cannot unmarshal device yaml %q: %v", yamlData, err)
+		var headers map[string]string
+		err = getFromTransaction(tr, gadgetName, "registration-headers", &headers)
+		if err != nil {
+			return nil, err
 		}
 
 		cfg := serialRequestConfig{
-			headers: deviceYAML.Headers,
-		}
-
-		if len(deviceYAML.Details) != 0 {
-			var err error
-			cfg.body, err = yaml.Marshal(deviceYAML.Details)
-			if err != nil {
-				return nil, fmt.Errorf("cannot remarshal device details: %v", err)
-			}
-		}
-		baseURL, err := url.Parse(deviceYAML.ServiceURL)
-		if err != nil {
-			return nil, fmt.Errorf("cannot parse device service URL %q: %v", deviceYAML.ServiceURL, err)
+			headers: headers,
 		}
 
 		reqIDURL, err := baseURL.Parse("request-id")
@@ -431,11 +484,26 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 		cfg.requestIDURL = reqIDURL.String()
 
+		var bodyStr string
+		err = getFromTransaction(tr, gadgetName, "registration-body", &bodyStr)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.body = []byte(bodyStr)
+
 		serialURL, err := baseURL.Parse("serial")
 		if err != nil {
 			return nil, fmt.Errorf("cannot build /serial URL from %v: %v", baseURL, err)
 		}
 		cfg.serialRequestURL = serialURL.String()
+
+		var proposedSerial string
+		err = getFromTransaction(tr, gadgetName, "registration-proposed-serial", &proposedSerial)
+		if err != nil {
+			return nil, err
+		}
+		cfg.proposedSerial = proposedSerial
 
 		return &cfg, nil
 	}
@@ -443,8 +511,6 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 	return &serialRequestConfig{
 		requestIDURL:     requestIDURL,
 		serialRequestURL: serialRequestURL,
-		headers:          nil,
-		body:             nil,
 	}, nil
 }
 

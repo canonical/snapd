@@ -20,18 +20,18 @@
 package devicestate_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
@@ -40,19 +40,23 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
 
 type deviceMgrSuite struct {
-	state *state.State
-	mgr   *devicestate.DeviceManager
-	db    *asserts.Database
+	state   *state.State
+	hookMgr *hookstate.HookManager
+	mgr     *devicestate.DeviceManager
+	db      *asserts.Database
 
 	storeSigning *assertstest.StoreStack
 }
@@ -134,10 +138,13 @@ func (s *deviceMgrSuite) SetUpTest(c *C) {
 	err = db.Add(s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 
-	mgr, err := devicestate.Manager(s.state)
+	hookMgr, err := hookstate.Manager(s.state)
+	c.Assert(err, IsNil)
+	mgr, err := devicestate.Manager(s.state, hookMgr)
 	c.Assert(err, IsNil)
 
 	s.db = db
+	s.hookMgr = hookMgr
 	s.mgr = mgr
 
 	s.state.Lock()
@@ -157,7 +164,9 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 
 func (s *deviceMgrSuite) settle() {
 	for i := 0; i < 50; i++ {
+		s.hookMgr.Ensure()
 		s.mgr.Ensure()
+		s.hookMgr.Wait()
 		s.mgr.Wait()
 	}
 }
@@ -194,10 +203,15 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 				w.WriteHeader(http.StatusAccepted)
 				return
 			}
+			serialStr := fmt.Sprintf("%d", serialNum)
+			if serialReq.Serial() != "" {
+				// use proposed serial
+				serialStr = serialReq.Serial()
+			}
 			serial, err := s.storeSigning.Sign(asserts.SerialType, map[string]interface{}{
 				"brand-id":            "canonical",
 				"model":               "pc",
-				"serial":              fmt.Sprintf("%d", serialNum),
+				"serial":              serialStr,
 				"device-key":          serialReq.HeaderString("device-key"),
 				"device-key-sha3-384": serialReq.SignKeyID(),
 				"timestamp":           time.Now().Format(time.RFC3339),
@@ -208,6 +222,20 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 			w.Write(asserts.Encode(serial))
 		}
 	}))
+}
+
+func (s *deviceMgrSuite) setupGadget(c *C, snapYaml string) {
+	sideInfoGadget := &snap.SideInfo{
+		RealName: "gadget",
+		Revision: snap.R(2),
+	}
+	snaptest.MockSnap(c, snapYaml, sideInfoGadget)
+	snapstate.Set(s.state, "gadget", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfoGadget},
+		Current:  sideInfoGadget.Revision,
+	})
 }
 
 func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
@@ -225,19 +253,25 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappy(c *C) {
 	r3 := devicestate.MockSerialRequestURL(mockSerialRequestURL)
 	defer r3()
 
-	s.state.Lock()
 	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`)
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.state.Unlock()
 
 	// runs the whole device registration process
+	s.state.Unlock()
 	s.settle()
-
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	var becomeOperational *state.Change
 	for _, chg := range s.state.Changes() {
@@ -289,10 +323,16 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterAddSerial(c *C) {
 	restore = devicestate.MockRepeatRequestSerial("after-add-serial")
 	defer restore()
 
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`)
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
@@ -348,10 +388,16 @@ func (s *deviceMgrSuite) TestDoRequestSerialIdempotentAfterGotSerial(c *C) {
 	restore = devicestate.MockRepeatRequestSerial("after-got-serial")
 	defer restore()
 
+	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`)
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
@@ -409,19 +455,25 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	r4 := devicestate.MockRetryInterval(0)
 	defer r4()
 
-	s.state.Lock()
 	// setup state as will be done by first-boot
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+`)
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.state.Unlock()
 
 	// runs the whole device registration process with polling
+	s.state.Unlock()
 	s.settle()
-
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	var becomeOperational *state.Change
 	for _, chg := range s.state.Changes() {
@@ -456,37 +508,63 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 }
 
-func (s *deviceMgrSuite) TestFullDeviceRegistrationHappySeedDeviceYAML(c *C) {
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyDeviceInitHook(c *C) {
 	r1 := devicestate.MockKeyLength(752)
 	defer r1()
 
 	mockServer := s.mockServer(c, "REQID-1")
 	defer mockServer.Close()
 
-	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "device.yaml"),
-		[]byte(fmt.Sprintf(`device-service-url: %q
-device-service-headers:
-  x-extra-header: extra
-details:
-   mac: "00:00:00:00:ff:00"
-`, mockServer.URL+"/identity/api/v1/")), 0644)
-	c.Assert(err, IsNil)
+	r2 := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
+		c.Assert(ctx.HookName(), Equals, "device-init")
 
-	s.state.Lock()
+		// snapctl set the registration params
+		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration-service-url=%q", mockServer.URL+"/identity/api/v1/")})
+		c.Assert(err, IsNil)
+
+		h, err := json.Marshal(map[string]string{
+			"x-extra-header": "extra",
+		})
+		c.Assert(err, IsNil)
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration-headers=%s", string(h))})
+		c.Assert(err, IsNil)
+
+		d, err := yaml.Marshal(map[string]string{
+			"mac": "00:00:00:00:ff:00",
+		})
+		c.Assert(err, IsNil)
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration-body=%q", d)})
+		c.Assert(err, IsNil)
+
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration-proposed-serial=%q", "Y9999")})
+		c.Assert(err, IsNil)
+
+		return nil, nil
+	})
+	defer r2()
+
 	// setup state as will be done by first-boot
+	// & have a gadget with a device-init hook
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.setupGadget(c, `
+name: gadget
+type: gadget
+version: gadget
+hooks:
+    device-init:
+`)
+
 	auth.SetDevice(s.state, &auth.DeviceState{
 		Brand: "canonical",
 		Model: "pc",
 	})
-	s.state.Unlock()
 
 	// runs the whole device registration process
+	s.state.Unlock()
 	s.settle()
-
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	var becomeOperational *state.Change
 	for _, chg := range s.state.Changes() {
@@ -504,12 +582,12 @@ details:
 	c.Assert(err, IsNil)
 	c.Check(device.Brand, Equals, "canonical")
 	c.Check(device.Model, Equals, "pc")
-	c.Check(device.Serial, Equals, "9999")
+	c.Check(device.Serial, Equals, "Y9999")
 
 	a, err := s.db.Find(asserts.SerialType, map[string]string{
 		"brand-id": "canonical",
 		"model":    "pc",
-		"serial":   "9999",
+		"serial":   "Y9999",
 	})
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
