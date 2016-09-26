@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -1270,8 +1271,33 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
-	// TODO: Get configuration values from configmanager
-	return SyncResponse(nil, nil)
+	vars := muxVars(r)
+	snapName := vars["name"]
+
+	keys := strings.Split(r.URL.Query().Get("keys"), ",")
+	if len(keys) == 0 {
+		return BadRequest("cannot obtain configuration: no keys supplied")
+	}
+
+	s := c.d.overlord.State()
+	s.Lock()
+	transaction, err := configstate.NewTransaction(s)
+	s.Unlock()
+	if err != nil {
+		return BadRequest("cannot create transaction: %s", err)
+	}
+
+	currentConfValues := make(map[string]interface{})
+	for _, key := range keys {
+		var value interface{}
+		if err := transaction.Get(snapName, key, &value); err != nil {
+			return BadRequest("%s", err)
+		}
+
+		currentConfValues[key] = value
+	}
+
+	return SyncResponse(currentConfValues, nil)
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
