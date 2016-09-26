@@ -3520,7 +3520,15 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
+	expected := &createResponseData{
+		Username:    "karl",
+		SSHKeys:     []string{"ssh1", "ssh2"},
+		SSHKeyCount: 2,
+	}
+
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestBuySnap(c *check.C) {
