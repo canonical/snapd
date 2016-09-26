@@ -244,8 +244,11 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !until.IsZero() && until.Before(since) {
+	if until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
+	}
+	if until.After(time.Now().AddDate(1, 0, 0)) {
+		return nil, fmt.Errorf("'until' time cannot be more than 365 days in the future")
 	}
 
 	return &SystemUser{
