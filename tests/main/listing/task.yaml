@@ -3,7 +3,8 @@ summary: Check snap listings
 systems: [-ubuntu-core-16-64]
 
 prepare: |
-    . $TESTSLIB/install.sh test-snapd-tools
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 
 execute: |
     echo "List prints core snap version"

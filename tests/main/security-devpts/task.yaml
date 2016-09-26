@@ -4,7 +4,8 @@ systems: [-ubuntu-core-16-64]
 
 prepare: |
     echo "Given a basic snap is installed"
-    . $TESTSLIB/install.sh test-snapd-tools
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 
 execute: |
     echo "Then the pts device follows confinement rules"
