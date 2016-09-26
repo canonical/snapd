@@ -1,14 +1,15 @@
-# The setup for this test is unorthodox because by the time the cgroup code
-# is executed, the mounts are in place and /lib/udev/snappy-app-dev from the
-# core snap is used. Unfortunately, simple bind mounts over
-# /snap/ubuntu-core/current/lib/udev don't work and the core snap must be
-# unpacked, lib/udev/snappy-app-dev modified to be tested, repacked and
-# mounted. We unmount the core snap and move it aside to avoid both the
-# original and the updated core snap from being mounted on the same mount
-# point, which confuses the kernel.
 summary: Check that execle doesn't regress
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
+details: |
+ The setup for this test is unorthodox because by the time the cgroup code is
+ executed, the mounts are in place and /lib/udev/snappy-app-dev from the core
+ snap is used. Unfortunately, simple bind mounts over
+ /snap/ubuntu-core/current/lib/udev don't work and the core snap must be
+ unpacked, lib/udev/snappy-app-dev modified to be tested, repacked and mounted.
+ We unmount the core snap and move it aside to avoid both the original and the
+ updated core snap from being mounted on the same mount point, which confuses
+ the kernel.
 prepare: |
     echo "This test is disabled because it causes failures for subsequent tests"
     echo "it seems to unmount ubuntu-core snap and not re-mount the original one correctly"
