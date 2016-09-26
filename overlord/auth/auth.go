@@ -222,9 +222,6 @@ type DeviceAssertions interface {
 
 	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
 	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error)
-
-	// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
-	SerialProof(nonce string) (*asserts.SerialProof, error)
 }
 
 var (
@@ -241,9 +238,6 @@ type AuthContext interface {
 	UpdateUserAuth(user *UserState, discharges []string) (actual *UserState, err error)
 
 	StoreID(fallback string) (string, error)
-
-	Serial() ([]byte, error)                  // DEPRECATED
-	SerialProof(nonce string) ([]byte, error) // DEPRECATED
 
 	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, err error)
 }
@@ -329,30 +323,6 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 		return storeID, nil
 	}
 	return fallback, nil
-}
-
-// Serial returns the encoded device serial assertion.
-func (ac *authContext) Serial() ([]byte, error) {
-	if ac.deviceAsserts == nil {
-		return nil, state.ErrNoState
-	}
-	serial, err := ac.deviceAsserts.Serial()
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(serial), nil
-}
-
-// SerialProof produces a serial-proof with the given nonce.
-func (ac *authContext) SerialProof(nonce string) ([]byte, error) {
-	if ac.deviceAsserts == nil {
-		return nil, state.ErrNoState
-	}
-	proof, err := ac.deviceAsserts.SerialProof(nonce)
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(proof), nil
 }
 
 // DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial assertion. It returns ErrNoSerial if the device serial is not yet initialized.

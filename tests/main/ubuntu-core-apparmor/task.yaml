@@ -7,7 +7,7 @@ execute: |
         done
     }
     if [ "$SPREAD_REBOOT" = "0" ]; then
-        snap install test-snapd-tools
+        . $TESTSLIB/install.sh test-snapd-tools
         ensure_apparmor_profile_loaded
         REBOOT
     fi

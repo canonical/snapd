@@ -22,8 +22,10 @@ backends:
         systems:
             - ubuntu-16.04-64:
                 kernel: GRUB 2
+                workers: 2
             - ubuntu-16.04-32:
                 kernel: GRUB 2
+                workers: 2
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64

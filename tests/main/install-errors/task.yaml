@@ -7,7 +7,7 @@ environment:
 
 prepare: |
     echo "Given a snap with a failing command is installed"
-    snap install $SNAP_NAME
+    . $TESTSLIB/install.sh $SNAP_NAME
 
 execute: |
     echo "Install unexisting snap prints error"

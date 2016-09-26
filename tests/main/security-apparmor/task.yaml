@@ -2,11 +2,7 @@ summary: Check basic apparmor confinement rules.
 
 prepare: |
     echo "Given a basic snap is installed"
-    snapbuild $TESTSLIB/snaps/test-snapd-tools .
-    snap install --dangerous test-snapd-tools_1.0_all.snap
-
-restore: |
-    rm -f test-snapd-tools_1.0_all.snap
+    . $TESTSLIB/install.sh test-snapd-tools
 
 execute: |
     echo "Then an unconfined action should succeed"

@@ -9,7 +9,7 @@ execute: |
     echo "================================"
 
     echo "Given ubuntu-core is installed"
-    snap install test-snapd-tools
+    . $TESTSLIB/install.sh test-snapd-tools
 
     echo "An error is returned whrn trying to remove ubuntu-core"
     if snap remove ubuntu-core; then

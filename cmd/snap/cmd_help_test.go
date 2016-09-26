@@ -69,7 +69,7 @@ func (s *SnapSuite) TestSubCommandHelpPrintsHelp(c *check.C) {
 	err := snap.RunMain()
 	c.Assert(err, check.IsNil)
 	c.Check(s.Stdout(), check.Matches, `(?smU)Usage:
- +snap \[OPTIONS\] install \[install-OPTIONS\] <snap>
+ +snap \[OPTIONS\] install \[install-OPTIONS\] <snap>...
 .*
 `)
 	c.Check(s.Stderr(), check.Equals, "")

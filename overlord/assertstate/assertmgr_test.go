@@ -20,6 +20,7 @@
 package assertstate_test
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"io/ioutil"
@@ -52,6 +53,7 @@ type assertMgrSuite struct {
 
 	storeSigning *assertstest.StoreStack
 	dev1Acct     *asserts.Account
+	dev1Signing  *assertstest.SigningDB
 
 	restore func()
 }
@@ -116,7 +118,17 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	s.restore = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
+	dev1PrivKey, _ := assertstest.GenerateKey(752)
 	s.dev1Acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	err := s.storeSigning.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	// developer signing
+	dev1AcctKey := assertstest.NewAccountKey(s.storeSigning, s.dev1Acct, nil, dev1PrivKey.PublicKey(), "")
+	err = s.storeSigning.Add(dev1AcctKey)
+	c.Assert(err, IsNil)
+
+	s.dev1Signing = assertstest.NewSigningDB(s.dev1Acct.AccountID(), dev1PrivKey)
 
 	s.state = state.New(nil)
 	mgr, err := assertstate.Manager(s.state)
@@ -162,6 +174,98 @@ func (s *assertMgrSuite) TestAdd(c *C) {
 	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
 }
 
+func (s *assertMgrSuite) TestBatchAddStream(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	b := &bytes.Buffer{}
+	enc := asserts.NewEncoder(b)
+	// wrong order is ok
+	err := enc.Encode(s.dev1Acct)
+	c.Assert(err, IsNil)
+	enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+	refs, err := batch.AddStream(b)
+	c.Assert(err, IsNil)
+	c.Check(refs, DeepEquals, []*asserts.Ref{
+		&asserts.Ref{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+		&asserts.Ref{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
+	})
+
+	// noop
+	err = batch.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	err = batch.Commit(s.state)
+	c.Assert(err, IsNil)
+
+	db := assertstate.DB(s.state)
+	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestBatchConsiderPreexisting(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// prereq store key
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+	err = batch.Add(s.dev1Acct)
+	c.Assert(err, IsNil)
+
+	err = batch.Commit(s.state)
+	c.Assert(err, IsNil)
+
+	db := assertstate.DB(s.state)
+	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
+func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	b := &bytes.Buffer{}
+	enc := asserts.NewEncoder(b)
+	// wrong order is ok
+	err := enc.Encode(s.dev1Acct)
+	c.Assert(err, IsNil)
+	enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	batch := assertstate.NewBatch()
+
+	err = batch.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	refs, err := batch.AddStream(b)
+	c.Assert(err, IsNil)
+	c.Check(refs, DeepEquals, []*asserts.Ref{
+		&asserts.Ref{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+	})
+
+	err = batch.Commit(s.state)
+	c.Assert(err, IsNil)
+
+	db := assertstate.DB(s.state)
+	devAcct, err := db.Find(asserts.AccountType, map[string]string{
+		"account-id": s.dev1Acct.AccountID(),
+	})
+	c.Assert(err, IsNil)
+	c.Check(devAcct.(*asserts.Account).Username(), Equals, "developer1")
+}
+
 func fakeSnap(rev int) []byte {
 	fake := fmt.Sprintf("hsqs________________%d", rev)
 	return []byte(fake)
@@ -181,9 +285,6 @@ func makeDigest(rev int) string {
 }
 
 func (s *assertMgrSuite) prereqSnapAssertions(c *C, revisions ...int) {
-	err := s.storeSigning.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
-
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "snap-id-1",
@@ -375,51 +476,45 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install snap "f" that is undergoing a rename to "foo".*`)
 }
 
+func (s *assertMgrSuite) snapDecl(c *C, name string, control []interface{}) *asserts.SnapDeclaration {
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      name + "-id",
+		"snap-name":    name,
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	if len(control) != 0 {
+		headers["refresh-control"] = control
+	}
+	decl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(decl)
+	c.Assert(err, IsNil)
+	return decl.(*asserts.SnapDeclaration)
+}
+
+func (s *assertMgrSuite) stateFromDecl(decl *asserts.SnapDeclaration, revno snap.Revision) {
+	name := decl.SnapName()
+	snapID := decl.SnapID()
+	snapstate.Set(s.state, name, &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: name, SnapID: snapID, Revision: revno},
+		},
+		Current: revno,
+	})
+}
+
 func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := s.storeSigning.Add(s.dev1Acct)
-	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", nil)
 
-	headers := map[string]interface{}{
-		"series":       "16",
-		"snap-id":      "foo-id",
-		"snap-name":    "foo",
-		"publisher-id": s.dev1Acct.AccountID(),
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	snapDeclFoo, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclFoo)
-	c.Assert(err, IsNil)
-
-	headers = map[string]interface{}{
-		"series":       "16",
-		"snap-id":      "bar-id",
-		"snap-name":    "bar",
-		"publisher-id": s.dev1Acct.AccountID(),
-		"timestamp":    time.Now().Format(time.RFC3339),
-	}
-	snapDeclBar, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
-	c.Assert(err, IsNil)
-	err = s.storeSigning.Add(snapDeclBar)
-	c.Assert(err, IsNil)
-
-	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "foo", SnapID: "foo-id", Revision: snap.R(7)},
-		},
-		Current: snap.R(7),
-	})
-	snapstate.Set(s.state, "bar", &snapstate.SnapState{
-		Active: false,
-		Sequence: []*snap.SideInfo{
-			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(3)},
-		},
-		Current: snap.R(3),
-	})
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
 	snapstate.Set(s.state, "local", &snapstate.SnapState{
 		Active: false,
 		Sequence: []*snap.SideInfo{
@@ -429,7 +524,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	})
 
 	// previous state
-	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
 	c.Assert(err, IsNil)
 	err = assertstate.Add(s.state, s.dev1Acct)
 	c.Assert(err, IsNil)
@@ -439,7 +534,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	c.Assert(err, IsNil)
 
 	// one changed assertion
-	headers = map[string]interface{}{
+	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      "foo-id",
 		"snap-name":    "fo-o",
@@ -480,4 +575,196 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarations(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.Account).DisplayName(), Equals, "Dev 1 edited display-name")
+}
+
+func (s *assertMgrSuite) TestValidateRefreshesNothing(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	validated, err := assertstate.ValidateRefreshes(s.state, nil, 0)
+	c.Assert(err, IsNil)
+	c.Check(validated, HasLen, 0)
+}
+
+func (s *assertMgrSuite) TestValidateRefreshesNoControl(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", nil)
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+
+	fooRefresh := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
+	}
+
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	c.Assert(err, IsNil)
+	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
+}
+
+func (s *assertMgrSuite) TestValidateRefreshesMissingValidation(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
+
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+
+	fooRefresh := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
+	}
+
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	c.Assert(err, ErrorMatches, `cannot refresh "foo" to revision 9: no validation by "bar"`)
+	c.Check(validated, HasLen, 0)
+}
+
+func (s *assertMgrSuite) TestValidateRefreshesValidationOK(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
+	snapDeclBaz := s.snapDecl(c, "baz", []interface{}{"foo-id"})
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
+	s.stateFromDecl(snapDeclBaz, snap.R(1))
+	snapstate.Set(s.state, "local", &snapstate.SnapState{
+		Active: false,
+		Sequence: []*snap.SideInfo{
+			{RealName: "local", Revision: snap.R(-1)},
+		},
+		Current: snap.R(-1),
+	})
+
+	// validation by bar
+	headers := map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "bar-id",
+		"approved-snap-id":       "foo-id",
+		"approved-snap-revision": "9",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	barValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(barValidation)
+	c.Assert(err, IsNil)
+
+	// validation by baz
+	headers = map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "baz-id",
+		"approved-snap-id":       "foo-id",
+		"approved-snap-revision": "9",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	bazValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(bazValidation)
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBaz)
+	c.Assert(err, IsNil)
+
+	fooRefresh := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
+	}
+
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	c.Assert(err, IsNil)
+	c.Check(validated, DeepEquals, []*snap.Info{fooRefresh})
+}
+
+func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	snapDeclBar := s.snapDecl(c, "bar", []interface{}{"foo-id"})
+	snapDeclBaz := s.snapDecl(c, "baz", []interface{}{"foo-id"})
+	s.stateFromDecl(snapDeclFoo, snap.R(7))
+	s.stateFromDecl(snapDeclBar, snap.R(3))
+	s.stateFromDecl(snapDeclBaz, snap.R(1))
+	snapstate.Set(s.state, "local", &snapstate.SnapState{
+		Active: false,
+		Sequence: []*snap.SideInfo{
+			{RealName: "local", Revision: snap.R(-1)},
+		},
+		Current: snap.R(-1),
+	})
+
+	// validation by bar
+	headers := map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "bar-id",
+		"approved-snap-id":       "foo-id",
+		"approved-snap-revision": "9",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	barValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(barValidation)
+	c.Assert(err, IsNil)
+
+	// revoked validation by baz
+	headers = map[string]interface{}{
+		"series":                 "16",
+		"snap-id":                "baz-id",
+		"approved-snap-id":       "foo-id",
+		"approved-snap-revision": "9",
+		"revoked":                "true",
+		"timestamp":              time.Now().Format(time.RFC3339),
+	}
+	bazValidation, err := s.dev1Signing.Sign(asserts.ValidationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(bazValidation)
+	c.Assert(err, IsNil)
+
+	err = assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBar)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, snapDeclBaz)
+	c.Assert(err, IsNil)
+
+	fooRefresh := &snap.Info{
+		SideInfo: snap.SideInfo{RealName: "foo", SnapID: "foo-id", Revision: snap.R(9)},
+	}
+
+	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
+	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
+	c.Check(validated, HasLen, 0)
 }
