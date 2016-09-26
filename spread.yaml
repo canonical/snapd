@@ -63,8 +63,6 @@ backends:
             SPREAD_ADHOC_UC_ADDRESS: "$(HOST: echo ${SPREAD_ADHOC_UC_ADDRESS:-localhost:8022})"
         allocate: |
             ADDRESS $SPREAD_ADHOC_UC_ADDRESS
-        restore: |
-            rm -rf $GOPATH/src
         systems:
             # FIXME: remove the ubuntu-core-16.04-64 dummy system once the runner handles tasks without systems assigned
             - ubuntu-core-16.04-64:
