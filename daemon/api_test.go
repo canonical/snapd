@@ -1786,27 +1786,15 @@ func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
 	d.overlord.State().Lock()
 	transaction, err := configstate.NewTransaction(d.overlord.State())
 	c.Check(err, check.IsNil)
-	transaction.Set("test-snap", "test-key", "test-value")
-	transaction.Commit()
-	d.overlord.State().Unlock()
-
-	result := s.runGetConf(c, []string{"test-key"})
-	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key": "test-value"})
-}
-
-func (s *apiSuite) TestGetConfSingleMultipleKeys(c *check.C) {
-	d := s.daemon(c)
-
-	// Set a config that we'll get in a moment
-	d.overlord.State().Lock()
-	transaction, err := configstate.NewTransaction(d.overlord.State())
-	c.Check(err, check.IsNil)
 	transaction.Set("test-snap", "test-key1", "test-value1")
 	transaction.Set("test-snap", "test-key2", "test-value2")
 	transaction.Commit()
 	d.overlord.State().Unlock()
 
-	result := s.runGetConf(c, []string{"test-key1", "test-key2"})
+	result := s.runGetConf(c, []string{"test-key1"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
+
+	result = s.runGetConf(c, []string{"test-key1", "test-key2"})
 	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
 }
 
