@@ -10,6 +10,9 @@ summary: Check that execle doesn't regress
 # This is blacklisted on debian because we first have to get the dpkg-vendor patches
 systems: [-debian-8]
 prepare: |
+    echo "This test is disabled because it causes failures for subsequent tests"
+    echo "it seems to unmount ubuntu-core snap and not re-mount the original one correctly"
+    exit 0
     cd /
     echo "Install hello-world"
     snap install hello-world
@@ -29,6 +32,7 @@ prepare: |
     mount $(ls -1 /var/lib/snapd/snaps/ubuntu-core_*.snap | tail -1) $(ls -1d /snap/ubuntu-core/* | grep -v current | tail -1)
     systemctl start snapd.refresh.timer snapd.service snapd.socket
 execute: |
+    exit 0
     cd /
     echo "Add a udev tag so affected code branch is exercised"
     echo 'KERNEL=="uinput", TAG+="snap_hello-world_env"' > /etc/udev/rules.d/70-spread-test.rules
@@ -43,6 +47,7 @@ execute: |
     echo "Ensure environment is clean"
     ! grep 'TESTVAR=bar' /run/udev/spread-test.out
 restore: |
+    exit 0
     echo "Remove hello-world"
     snap remove hello-world
     systemctl stop snapd.refresh.timer snapd.service snapd.socket
