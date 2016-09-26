@@ -35,7 +35,7 @@ openat(3, "ns", O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC) = 4
 openat(3, "hello-world.mnt", O_RDONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC, 0600) = 5
 fstatfs(5, {f_type=0x6e736673, ...) = 0
 setns(5, CLONE_NEWNS)             = 0
-... go on to setup the rest of the sandbox ...
+... mount namespace setup finished, go on to setup the rest of the sandbox ...
 
 
 # Otherwise, create a new mount namespace
@@ -135,4 +135,4 @@ mount("/snap/some-content-snap/current/src", "/snap/hello-world/current/dst", NU
 # preserve it across snap invocations (an fchdir() happened just after the
 # unshare(), above).
 mount("/proc/12887/ns/mnt", "hello-world.mnt", NULL, MS_BIND, NULL) = 0
-... go on to setup the rest of the sandbox ...
+... mount namespace setup finished, go on to setup the rest of the sandbox ...
