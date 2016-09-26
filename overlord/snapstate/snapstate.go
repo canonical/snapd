@@ -714,11 +714,8 @@ func Remove(s *state.State, name string, revision snap.Revision) (*state.TaskSet
 				RealName: name,
 			},
 		})
+		addNext(state.NewTaskSet(discardConns))
 
-		discardNamespace := s.NewTask("discard-namespace", fmt.Sprintf(i18n.G("Discard mount namespace for snap %q"), name))
-		discardNamespace.Set("snap-setup-task", discardConns.ID())
-		discardNamespace.WaitFor(discardConns)
-		addNext(state.NewTaskSet(discardConns, discardNamespace))
 	} else {
 		addNext(removeInactiveRevision(s, name, revision))
 	}

@@ -704,9 +704,9 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(err, IsNil)
 
 	i := 0
-	c.Assert(ts.Tasks(), HasLen, 7)
+	c.Assert(ts.Tasks(), HasLen, 6)
 	// all tasks are accounted
-	c.Assert(s.state.NumTask(), Equals, 7)
+	c.Assert(s.state.NumTask(), Equals, 6)
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "stop-snap-services")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "unlink-snap")
@@ -718,8 +718,6 @@ func (s *snapmgrTestSuite) TestRemoveTasks(c *C) {
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-snap")
 	i++
 	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-conns")
-	i++
-	c.Assert(ts.Tasks()[i].Kind(), Equals, "discard-namespace")
 }
 
 func (s *snapmgrTestSuite) TestRemoveConflict(c *C) {
@@ -1807,11 +1805,11 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			stype: "app",
 		},
 		{
-			op:   "discard-conns:Doing",
+			op:   "discard-namespace",
 			name: "some-snap",
 		},
 		{
-			op:   "discard-namespace:Doing",
+			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -1824,7 +1822,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" || t.Kind() == "discard-namespace" {
+		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -1929,11 +1927,11 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			stype: "app",
 		},
 		{
-			op:   "discard-conns:Doing",
+			op:   "discard-namespace",
 			name: "some-snap",
 		},
 		{
-			op:   "discard-namespace:Doing",
+			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -1948,7 +1946,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 		c.Assert(err, IsNil)
 
 		var expSnapSetup *snapstate.SnapSetup
-		if t.Kind() == "discard-conns" || t.Kind() == "discard-namespace" {
+		if t.Kind() == "discard-conns" {
 			expSnapSetup = &snapstate.SnapSetup{
 				SideInfo: &snap.SideInfo{
 					RealName: "some-snap",
@@ -2091,11 +2089,11 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			stype: "app",
 		},
 		{
-			op:   "discard-conns:Doing",
+			op:   "discard-namespace",
 			name: "some-snap",
 		},
 		{
-			op:   "discard-namespace:Doing",
+			op:   "discard-conns:Doing",
 			name: "some-snap",
 		},
 	}
@@ -2112,7 +2110,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 			},
 		}
-		if t.Kind() != "discard-conns" && t.Kind() != "discard-namespace" {
+		if t.Kind() != "discard-conns" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
 		}
 

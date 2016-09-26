@@ -406,6 +406,14 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 	return nil
 }
 
+func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "discard-namespace",
+		name: snapName,
+	})
+	return nil
+}
+
 func (f *fakeSnappyBackend) Candidate(sideInfo *snap.SideInfo) {
 	var sinfo snap.SideInfo
 	if sideInfo != nil {
