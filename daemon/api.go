@@ -1695,7 +1695,7 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 			Type: ResponseTypeError,
 			Result: &errorResult{
 				Message: err.Error(),
-				Kind:    errorKindTOSNotAccepted,
+				Kind:    errorKindTermsNotAccepted,
 			},
 			Status: http.StatusBadRequest,
 		}, nil)

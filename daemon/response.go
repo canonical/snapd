@@ -124,7 +124,7 @@ const (
 	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
 	errorKindLoginRequired     = errorKind("login-required")
 	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
-	errorKindTOSNotAccepted    = errorKind("tos-not-accepted")
+	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
 	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
 )
 

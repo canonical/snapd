@@ -3613,48 +3613,43 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 }
 
 var readyToBuyTests = []struct {
-	Input error
-	Test  func(c *check.C, rsp *resp)
+	input    error
+	status   int
+	respType interface{}
+	response interface{}
 }{
 	{
 		// Success
-		Input: nil,
-		Test: func(c *check.C, rsp *resp) {
-			c.Check(rsp.Status, check.Equals, http.StatusOK)
-			c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-			c.Assert(rsp.Result, check.FitsTypeOf, true)
-			c.Check(rsp.Result, check.Equals, true)
-		},
+		input:    nil,
+		status:   http.StatusOK,
+		respType: ResponseTypeSync,
+		response: true,
 	},
 	{
 		// Not accepted TOS
-		Input: store.ErrTOSNotAccepted,
-		Test: func(c *check.C, rsp *resp) {
-			c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
-			c.Check(rsp.Type, check.Equals, ResponseTypeError)
-			c.Check(rsp.Result, check.DeepEquals, &errorResult{
-				Message: "terms of service not accepted",
-				Kind:    errorKindTOSNotAccepted,
-			})
+		input:    store.ErrTOSNotAccepted,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "terms of service not accepted",
+			Kind:    errorKindTermsNotAccepted,
 		},
 	},
 	{
 		// No payment methods
-		Input: store.ErrNoPaymentMethods,
-		Test: func(c *check.C, rsp *resp) {
-			c.Check(rsp.Status, check.Equals, http.StatusBadRequest)
-			c.Check(rsp.Type, check.Equals, ResponseTypeError)
-			c.Check(rsp.Result, check.DeepEquals, &errorResult{
-				Message: "no payment methods",
-				Kind:    errorKindNoPaymentMethods,
-			})
+		input:    store.ErrNoPaymentMethods,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "no payment methods",
+			Kind:    errorKindNoPaymentMethods,
 		},
 	},
 }
 
 func (s *apiSuite) TestReadyToBuy(c *check.C) {
 	for _, test := range readyToBuyTests {
-		s.err = test.Input
+		s.err = test.input
 
 		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
 		c.Assert(err, check.IsNil)
@@ -3666,7 +3661,10 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 		c.Check(err, check.IsNil)
 
 		rsp := readyToBuy(readyToBuyCmd, req, user).(*resp)
-		test.Test(c, rsp)
+		c.Check(rsp.Status, check.Equals, test.status)
+		c.Check(rsp.Type, check.Equals, test.respType)
+		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
+		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
 }
 
