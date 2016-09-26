@@ -135,6 +135,14 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 	// the $rounds=N$ part is optional
 	i := 2
 	if strings.HasPrefix(l[i], "rounds=") {
+		roundsStr := strings.SplitN(l[i], "=", 2)[1]
+		rounds, err := strconv.Atoi(roundsStr)
+		if err != nil {
+			return "", fmt.Errorf("%q header has invalid number of rounds: %s", name, err)
+		}
+		if rounds < 5000 || rounds > 999999999 {
+			return "", fmt.Errorf("%q header rounds parameter out of bounds: %d", name, rounds)
+		}
 		i++
 	}
 
