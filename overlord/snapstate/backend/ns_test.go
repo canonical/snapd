@@ -66,3 +66,9 @@ func (s *nsSuite) TestDiscardNamespaceFailure(c *C) {
 	c.Assert(err, ErrorMatches, `cannot discard preserved namespaces of snap "snap-name": failure\n`)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "snap-name"}})
 }
+
+// pretend that we have an old version of snap-confine without the snap-discard-ns command.
+func (s *nsSuite) TestDiscardNamespaceOldSnapConfine(c *C) {
+	err := s.be.DiscardSnapNamespace("snap-name")
+	c.Assert(err, IsNil)
+}

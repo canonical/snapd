@@ -25,13 +25,21 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func (b Backend) DiscardSnapNamespace(snapName string) error {
-	cmd := exec.Command(filepath.Join(dirs.LibExecDir, "snap-discard-ns"), snapName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot discard preserved namespaces of snap %q: %s", snapName, output)
+	snapDiscardNs := filepath.Join(dirs.LibExecDir, "snap-discard-ns")
+	if osutil.FileExists(snapDiscardNs) {
+		// Preserved namespaces need to be discarded only if they are being
+		// preserved by snap-confine. If the snap-discard-ns command doesn't
+		// exist then the shared mount namespace feature is not available and
+		// there is nothing to do here.
+		cmd := exec.Command(snapDiscardNs, snapName)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("cannot discard preserved namespaces of snap %q: %s", snapName, output)
+		}
 	}
 	return nil
 }
