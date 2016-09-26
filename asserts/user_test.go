@@ -60,7 +60,7 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(a.Type(), Equals, asserts.SystemUserType)
 	systemUser := a.(*asserts.SystemUser)
 	c.Check(systemUser.BrandID(), Equals, "canonical")
-	c.Check(systemUser.EMail(), Equals, "foo@example.com")
+	c.Check(systemUser.Email(), Equals, "foo@example.com")
 	c.Check(systemUser.Series(), DeepEquals, []string{"16"})
 	c.Check(systemUser.Models(), DeepEquals, []string{"frobinator"})
 	c.Check(systemUser.Name(), Equals, "Nice Guy")
@@ -124,6 +124,7 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"name: Nice Guy\n", "name:\n  - foo\n", `"name" header must be a string`},
 		{"username: guy\n", "username:\n  - foo\n", `"username" header must be a string`},
 		{"username: guy\n", "username: bäää\n", `"username" header contains invalid characters: "bäää"`},
+		{"username: guy\n", "", `"username" header is mandatory`},
 		{"password: $6$salt$hash\n", "password:\n  - foo\n", `"password" header must be a string`},
 		{"password: $6$salt$hash\n", "password: cleartext\n", `"password" header invalid: hashed password must be of the form "\$integer-id\$salt\$hash", see crypt\(3\)`},
 		{"password: $6$salt$hash\n", "password: $ni!$salt$hash\n", `"password" header must start with "\$integer-id\$", got "ni!"`},

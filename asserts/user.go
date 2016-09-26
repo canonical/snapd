@@ -46,8 +46,8 @@ func (su *SystemUser) BrandID() string {
 	return su.HeaderString("brand-id")
 }
 
-// EMail returns the email address that this assertion is valid for.
-func (su *SystemUser) EMail() string {
+// Email returns the email address that this assertion is valid for.
+func (su *SystemUser) Email() string {
 	return su.HeaderString("email")
 }
 
