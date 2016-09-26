@@ -38,11 +38,13 @@ An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {
-	JSON       bool `long:"json"`
-	Sudoer     bool `long:"sudoer"`
 	Positional struct {
 		Email string
 	} `positional-args:"yes"`
+
+	JSON   bool `long:"json"`
+	Sudoer bool `long:"sudoer"`
+	Known  bool `long:"known"`
 }
 
 func init() {
@@ -50,6 +52,7 @@ func init() {
 		map[string]string{
 			"json":   i18n.G("Output results in JSON format"),
 			"sudoer": i18n.G("Grant sudo access to the created user"),
+			"known":  i18n.G("Use known assertions for user lookup"),
 		}, []argDesc{{
 			// TRANSLATORS: noun
 			name: i18n.G("<email>"),
@@ -68,6 +71,7 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	request := client.CreateUserRequest{
 		Email:  x.Positional.Email,
 		Sudoer: x.Sudoer,
+		Known:  x.Known,
 	}
 
 	rsp, err := cli.CreateUser(&request)

@@ -1668,6 +1668,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var createData struct {
 		Email  string `json:"email"`
 		Sudoer bool   `json:"sudoer"`
+		Known  bool   `json:"known"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -1679,10 +1680,11 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
-	// FIXME: check --known flag and use "getUserDetailsFromAssertions"
-	//        in this case and getUserDetailsFromStore otherwise
-	username, opts, err := getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
-	if username == "" {
+	var username string
+	var opts *osutil.AddUserOptions
+	if createData.Known {
+		username, opts, err = getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
+	} else {
 		username, opts, err = getUserDetailsFromStore(createData.Email)
 	}
 	if err != nil {
