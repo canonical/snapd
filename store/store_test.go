@@ -807,7 +807,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryDetails(c *C) {
 	c.Check(result.Summary(), Equals, "The 'hello-world' of snaps")
 	c.Assert(result.Prices, DeepEquals, map[string]float64{"EUR": 0.99, "USD": 1.23})
 	c.Assert(result.Screenshots, DeepEquals, []snap.ScreenshotInfo{
-		snap.ScreenshotInfo{
+		{
 			URL: "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/03/screenshot.png",
 		},
 	})
