@@ -102,6 +102,22 @@ func (s *systemUserSuite) TestValidAt(c *C) {
 	c.Check(su.ValidAt(su.Until().AddDate(0, 1, 0)), Equals, false)
 }
 
+func (s *systemUserSuite) TestValidAtRevoked(c *C) {
+	// With since == until, i.e. system-user has been revoked.
+	revoked := strings.Replace(systemUserExample, "since: 1092-11-01T22:08:41+00:00\n", "since: 2092-11-01T22:08:41+00:00\n", 1)
+	a, err := asserts.Decode([]byte(revoked))
+	c.Assert(err, IsNil)
+	su := a.(*asserts.SystemUser)
+
+	c.Check(su.ValidAt(su.Since()), Equals, false)
+	c.Check(su.ValidAt(su.Since().AddDate(0, 0, -1)), Equals, false)
+	c.Check(su.ValidAt(su.Since().AddDate(0, 0, 1)), Equals, false)
+
+	c.Check(su.ValidAt(su.Until()), Equals, false)
+	c.Check(su.ValidAt(su.Until().AddDate(0, -1, 0)), Equals, false)
+	c.Check(su.ValidAt(su.Until().AddDate(0, 1, 0)), Equals, false)
+}
+
 const (
 	systemUserErrPrefix = "assertion system-user: "
 )
