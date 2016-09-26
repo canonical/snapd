@@ -17,7 +17,8 @@ execute: |
     echo "Abort with valid id - error"
     subdirPath="/snap/$SNAP_NAME/current/foo"
     mkdir -p $subdirPath
-    if . $TESTSLIB/install.sh $SNAP_NAME; then
+    . $TESTSLIB/snaps.sh
+    if install_local $SNAP_NAME; then
         echo "install should fail when the target directory exists"
         exit 1
     fi
@@ -30,7 +31,7 @@ execute: |
     echo "===================================="
 
     echo "Abort with valid id - done"
-    . $TESTSLIB/install.sh $SNAP_NAME
+    install_local $SNAP_NAME
     if snap abort 2; then
         echo "abort with valid done id should fail"
         exit 1

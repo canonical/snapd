@@ -4,7 +4,8 @@ prepare: |
     # ensure we have no snap user data directory yet
     rm -rf /home/test/snap
     rm -rf /root/snap
-    . $TESTSLIB/install.sh test-snapd-tools
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 
 execute: |
     # run a snap command via sudo
