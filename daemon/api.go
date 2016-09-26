@@ -1649,7 +1649,11 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		Gecos:    gecos,
 		Password: su.Password(),
 	}
-	return su.Username(), opts, nil
+	username := su.Username()
+	if username == "" {
+		return "", nil, fmt.Errorf("cannot add system-user, no username provided in the assertion")
+	}
+	return username, opts, nil
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
