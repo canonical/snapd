@@ -70,18 +70,18 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    apt purge -y snapd || true
-    apt update
+    apt-get purge -y snapd || true
+    apt-get update
     # utilities
-    apt install -y devscripts expect jq rng-tools software-properties-common git
+    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
     add-apt-repository --update ppa:snappy-dev/image
     # this should not be needed but apparently it is :/
-    apt update
-
-    apt build-dep -y ./
+    apt-get update
+    # in 16.04: apt build-dep -y ./
+    apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
 
     # update vendoring
     go get -u github.com/kardianos/govendor
@@ -89,7 +89,7 @@ prepare: |
 
     # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
     #        hits xenial-updates
-    apt install -y snap-confine
+    apt-get install -y snap-confine
 
     # and remove the image PPA again
     add-apt-repository --remove ppa:snappy-dev/image
@@ -112,7 +112,7 @@ prepare: |
     EOF
 
     # Build snapbuild.
-    apt install -y git
+    apt-get install -y git
     go get ./tests/lib/snapbuild
 
     # Build fakestore.
@@ -130,7 +130,7 @@ suites:
         restore: |
             $TESTSLIB/reset.sh
             if [ "$SPREAD_SYSTEM" != "ubuntu-core-16-64" ]; then
-                apt purge -y snapd || true
+                apt-get purge -y snapd || true
             fi
         restore-each: |
             $TESTSLIB/reset.sh --reuse-core
@@ -138,6 +138,6 @@ suites:
     tests/upgrade/:
         summary: Tests for snapd upgrade
         restore:
-            apt purge -y snapd || true
+            apt-get purge -y snapd || true
         restore-each: |
             $TESTSLIB/reset.sh
