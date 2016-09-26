@@ -100,10 +100,17 @@ apps:
     app2:
 hooks:
     apply-config:
-        plugs: [iface, iface2]
+        plugs: [iface-plug, iface2-plug]
+plugs:
+    iface-plug:
+        interface: iface
+    iface2-plug:
+        interface: iface2
 slots:
-    iface:
-    iface2:
+    iface-slot:
+        interface: iface
+    iface2-slot:
+        interface: iface2
 `
 
 func (s *backendSuite) TestSetupSetsupSimple(c *C) {

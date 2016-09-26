@@ -20,7 +20,6 @@
 package interfaces
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 
@@ -79,9 +78,8 @@ type Interface interface {
 	// slot.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 
 	// ConnectedPlugSnippet returns the snippet of text for the given security
@@ -97,9 +95,8 @@ type Interface interface {
 	// instead.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// PermanentSlotSnippet returns the snippet of text for the given security
@@ -111,9 +108,8 @@ type Interface interface {
 	// slot is made.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// ConnectedSlotSnippet returns the snippet of text for the given security
@@ -129,9 +125,8 @@ type Interface interface {
 	// instead.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// AutoConnect returns whether plugs and slots should be implicitly
@@ -156,11 +151,6 @@ const (
 	SecurityMount SecuritySystem = "mount"
 	// SecurityKMod identifies the kernel modules security system
 	SecurityKMod SecuritySystem = "kmod"
-)
-
-var (
-	// ErrUnknownSecurity is reported when a interface is unable to deal with a given security system.
-	ErrUnknownSecurity = errors.New("unknown security system")
 )
 
 // Regular expression describing correct identifiers.

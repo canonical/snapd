@@ -19,15 +19,29 @@
 
 package ctlcmd
 
+import (
+	"fmt"
+
+	"github.com/snapcore/snapd/i18n"
+)
+
 type setCommand struct {
 	baseCommand
 }
 
+var shortSetHelp = i18n.G("Set snap configuration")
+var longSetHelp = i18n.G(`
+The set command is currently only a placeholder.`)
+
 func init() {
-	addCommand("set", func() command { return &setCommand{} })
+	addCommand("set", shortSetHelp, longSetHelp, func() command { return &setCommand{} })
 }
 
 func (s *setCommand) Execute(args []string) error {
+	if s.context() == nil {
+		return fmt.Errorf("cannot set without a context")
+	}
+
 	// TODO: Talk to the handler to take care of the set request.
 	return nil
 }
