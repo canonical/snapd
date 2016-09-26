@@ -671,7 +671,7 @@ Generally the UUID of a background operation you are interested in.
 * Description: Create a local user
 * Access: trusted
 * Operation: sync
-* Return: an object with the created username and the amount of imported ssh keys
+* Return: an object with the created username, the ssh keys imported and the amount of imported ssh keys
 
 Sample input:
 
@@ -686,6 +686,7 @@ Sample return:
 ```javascript
 {
   "username":"mvo",
-  "ssk-key-count": 2
+  "ssh-keys": ["key1","key2"]
+  "ssk-key-count": 2,
 }
 ```
