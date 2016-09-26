@@ -138,13 +138,15 @@ type Info struct {
 	// The information in all the remaining fields is not sourced from the snap blob itself.
 	SideInfo
 
+	// Broken marks if set whether the snap is broken and the reason.
+	Broken string
+
 	// The information in these fields is ephemeral, available only from the store.
 	DownloadInfo
 
 	IconURL string
 	Prices  map[string]float64 `yaml:"prices,omitempty" json:"prices,omitempty"`
 	MustBuy bool
-	Broken  string
 
 	Screenshots []ScreenshotInfo
 }
@@ -232,7 +234,7 @@ type DownloadInfo struct {
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
 
-	Deltas []DeltaInfo
+	Deltas []DeltaInfo `json:"deltas,omitempty"`
 }
 
 // DeltaInfo contains the information to download a delta

@@ -57,7 +57,11 @@ Dependencies are handled via `govendor`. Get it via:
 
     go get -u github.com/kardianos/govendor
 
-After a fresh checkout, run:
+After a fresh checkout, move to the snapd source directory:
+
+    cd $GOPATH/github.com/snapcore/snapd
+   
+And then, run:
 
     govendor sync
 
@@ -150,7 +154,10 @@ transfer it to the snappy system and then run:
 
     sudo systemctl stop snapd.service snapd.socket
     sudo /lib/systemd/systemd-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
-    or with systemd version >= 230
+
+or with systemd version >= 230
+
+    sudo systemctl stop snapd.service snapd.socket
     sudo systemd-socket-activate -E SNAPD_DEBUG=1 -E SNAP_REEXEC=0 -E SNAPD_DEBUG_HTTP3 -l /run/snapd.socket -l /run/snapd-snap.socket ./snapd
 
 This will stop the installed snapd and activate the new one. Once it's

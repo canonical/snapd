@@ -9,7 +9,6 @@ restore: |
 
 execute: |
     echo "Verify that snapctl -h runs without a context"
-
     if ! snapctl -h; then
         echo "Expected snapctl -h to be successful"
     fi
@@ -24,13 +23,12 @@ execute: |
         exit 1
     fi
 
-    if [[ ! "$output" =~ .*"unknown flag".*bar.* ]]; then
-        echo "Expected failure to be due to unknown flag, but it was \"$output\""
+    if [[ ! "$output" =~ .*"cannot set without a context".* ]]; then
+        echo "Expected failure to be due to missing context, but it was \"$output\""
         exit 1
     fi
 
     echo "Verify that the snapd API is only available via the snapd socket"
-
     if ! printf "GET /v2/snaps HTTP/1.0\r\n\r\n" | nc -U -q 1 /run/snapd.socket | grep "200 OK"; then
         echo "Expected snapd API to be available on the snapd socket"
         echo "Got: $(curl -s --unix-socket /run/snapd.socket http:/v2/snaps)"
