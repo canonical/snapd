@@ -88,9 +88,16 @@ func AddUser(name string, opts *AddUserOptions) error {
 	}
 
 	if opts.Password != "" {
-		cmd := exec.Command("usermod", "--password", opts.Password, name)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return fmt.Errorf("setting password failed with %s: %s", err, output)
+		cmdStr := []string{
+			"usermod",
+			"--password", opts.Password,
+		}
+		if opts.ExtraUsers {
+			cmdStr = append(cmdStr, "--extrausers")
+		}
+		cmdStr = append(cmdStr, name)
+		if output, err := exec.Command(cmdStr[0], cmdStr[1:]...).CombinedOutput(); err != nil {
+			return fmt.Errorf("setting password failed: %s", OutputErr(output, err))
 		}
 	}
 
