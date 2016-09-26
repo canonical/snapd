@@ -79,6 +79,7 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 func (s *systemUserSuite) TestDecodePasswd(c *C) {
 	validTests := []struct{ original, valid string }{
 		{"password: $6$salt$hash\n", "password: $6$rounds=9999$salt$hash\n"},
+		{"password: $6$salt$hash\n", ""},
 	}
 	for _, test := range validTests {
 		valid := strings.Replace(systemUserExample, test.original, test.valid, 1)
@@ -124,12 +125,12 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"username: guy\n", "username:\n  - foo\n", `"username" header must be a string`},
 		{"username: guy\n", "username: bäää\n", `"username" header contains invalid characters: "bäää"`},
 		{"password: $6$salt$hash\n", "password:\n  - foo\n", `"password" header must be a string`},
-		{"password: $6$salt$hash\n", "password: cleartext\n", `"password" header must be a hashed password of the form "\$integer-id\$salt\$hash", see crypt\(3\)`},
+		{"password: $6$salt$hash\n", "password: cleartext\n", `"password" header invalid: hashed password must be of the form "\$integer-id\$salt\$hash", see crypt\(3\)`},
 		{"password: $6$salt$hash\n", "password: $ni!$salt$hash\n", `"password" header must start with "\$integer-id\$", got "ni!"`},
 		{"password: $6$salt$hash\n", "password: $3$salt$hash\n", `"password" header only supports \$id\$ values of 6 \(sha512crypt\) or higher`},
 		{"password: $6$salt$hash\n", "password: $7$invalid-salt$hash\n", `"password" header has invalid chars in salt "invalid-salt"`},
 		{"password: $6$salt$hash\n", "password: $8$salt$invalid-hash\n", `"password" header has invalid chars in hash "invalid-hash"`},
-		{"password: $6$salt$hash\n", "password: $8$rounds=9999$hash\n", `"password" header has missing hash field`},
+		{"password: $6$salt$hash\n", "password: $8$rounds=9999$hash\n", `"password" header invalid: missing hash field`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=xxx$salt$hash\n", `"password" header has invalid number of rounds:.*`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=1$salt$hash\n", `"password" header rounds parameter out of bounds: 1`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=1999999999$salt$hash\n", `"password" header rounds parameter out of bounds: 1999999999`},
