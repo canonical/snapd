@@ -6,6 +6,7 @@ details: |
 prepare: |
     # NOTE: devmode is required because there's no interface for reading /usr/src/.canary
     snap install --devmode snapd-hacker-toolbelt
+    mv /usr/src /usr/src.orig || true
     mkdir -p /usr/src
     echo canary > /usr/src/.canary
 execute: |
@@ -15,4 +16,5 @@ execute: |
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -f /usr/src/.canary
-    rmdir /usr/src || true
+    rmdir /usr/src
+    mv /usr/src.orig /usr/src || true
