@@ -128,14 +128,6 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) Serial() ([]byte, error) {
-	panic("Serial is deprecated, it should not be called")
-}
-
-func (ac *testAuthContext) SerialProof(nonce string) ([]byte, error) {
-	panic("SerialProof is deprecated, it should not be called")
-}
-
 func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
 	serial, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
