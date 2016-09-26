@@ -1776,7 +1776,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 7)
+	c.Check(len(s.fakeBackend.ops), Equals, 8)
 	expected := fakeOps{
 		{
 			op:   "stop-snap-services",
@@ -1803,6 +1803,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			op:    "remove-snap-files",
 			name:  "/snap/some-snap/7",
 			stype: "app",
+		},
+		{
+			op:   "discard-namespace",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-conns:Doing",
@@ -1921,6 +1925,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:    "remove-snap-files",
 			name:  "/snap/some-snap/5",
 			stype: "app",
+		},
+		{
+			op:   "discard-namespace",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-conns:Doing",
@@ -2065,7 +2073,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle()
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 4)
+	c.Check(len(s.fakeBackend.ops), Equals, 5)
 	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
@@ -2079,6 +2087,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			op:    "remove-snap-files",
 			name:  "/snap/some-snap/2",
 			stype: "app",
+		},
+		{
+			op:   "discard-namespace",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-conns:Doing",
