@@ -40,7 +40,7 @@ update_core_snap_with_snap_exec_snapctl() {
 }
 
 prepare_classic() {
-    apt_install_local_package ${SPREAD_PATH}/../snapd_*.deb
+    apt_install_local ${SPREAD_PATH}/../snapd_*.deb
 
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
@@ -80,7 +80,7 @@ prepare_classic() {
 setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
-        apt_install_local_package ${SPREAD_PATH}/../snapd_*.deb
+        apt_install_local ${SPREAD_PATH}/../snapd_*.deb
 
         snap install --edge ubuntu-core
 
