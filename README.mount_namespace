@@ -12,10 +12,10 @@ $ sudo strace -f -vv -s8192 -o /tmp/trace.unshare -e trace='!select' /snap/bin/h
 $ sudo strace -f -vv -s8192 -o /tmp/trace.setns -e trace='!select' /snap/bin/hello-world
 
 Examine /tmp/trace.unshare for initial mount namespace setup and
-/tmp/trace.setns for seeing how the mount namespace is resused. Note that
-running /usr/lib/snapd/snap-discard-ns prior to running the command is
-required for creating the new mount namespace (otherwise the previous mount
-namespace will be reused).
+/tmp/trace.setns for seeing how the mount namespace is reused on subsequent
+runs. Note that running /usr/lib/snapd/snap-discard-ns prior to running the
+command is required for creating the new mount namespace (otherwise the
+previous mount namespace will be reused).
 
 
 Here are the steps in setting up the mount namespace for a given snap:
