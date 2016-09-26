@@ -3,7 +3,7 @@ summary: Check snap listings
 systems: [-ubuntu-core-16-64]
 
 prepare: |
-    snap install test-snapd-tools
+    . $TESTSLIB/install.sh test-snapd-tools
 
 execute: |
     echo "List prints core snap version"
@@ -11,5 +11,5 @@ execute: |
     snap list | grep -Pq "$expected"
 
     echo "List prints installed snap version"
-    expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +[0-9]+ +\\S+ +- *"
+    expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +x[0-9]+ +-"
     snap list | grep -Pq "$expected"

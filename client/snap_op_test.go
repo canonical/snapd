@@ -54,6 +54,8 @@ var multiOps = []struct {
 	action string
 }{
 	{(*client.Client).RefreshMany, "refresh"},
+	{(*client.Client).InstallMany, "install"},
+	{(*client.Client).RemoveMany, "remove"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {

@@ -55,7 +55,7 @@ execute: |
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "And a new mount is created"
-    snap install test-snapd-tools
+    . $TESTSLIB/install.sh test-snapd-tools
 
     echo "Then the new mount info is reachable"
     expected="/snap/test-snapd-tools"
