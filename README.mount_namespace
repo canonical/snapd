@@ -1,13 +1,24 @@
 = Mount namespace setup in snap-confine =
 
+This document provides a terse explanation of the mount setup using syscall
+traces to show precisely what is happening and show the difference between
+all snaps images and classic.
+
+
 Obtain trace with:
 $ sudo snap install hello-world
 $ sudo /usr/lib/snapd/snap-discard-ns hello-world
-$ sudo strace -f -vv -s8192 -o /tmp/trace -e trace='!select' /snap/bin/hello-world
+$ sudo strace -f -vv -s8192 -o /tmp/trace.unshare -e trace='!select' /snap/bin/hello-world
+$ sudo strace -f -vv -s8192 -o /tmp/trace.setns -e trace='!select' /snap/bin/hello-world
 
-Examine /tmp/trace. Note that running /usr/lib/snapd/snap-discard-ns is
+Examine /tmp/trace.unshare for initial mount namespace setup and
+/tmp/trace.setns for seeing how the mount namespace is resused. Note that
+running /usr/lib/snapd/snap-discard-ns prior to running the command is
 required for creating the new mount namespace (otherwise the previous mount
 namespace will be reused).
+
+
+Here are the steps in setting up the mount namespace for a given snap:
 
 # Create the /run/snapd/ns directory to save off the mount namespace to be
 # shared on other app-invocations
@@ -23,6 +34,8 @@ openat(3, "ns", O_RDONLY|O_DIRECTORY|O_NOFOLLOW|O_CLOEXEC) = 4
 openat(3, "hello-world.mnt", O_RDONLY|O_CREAT|O_NOFOLLOW|O_CLOEXEC, 0600) = 5
 fstatfs(5, {f_type=0x6e736673, ...) = 0
 setns(5, CLONE_NEWNS)             = 0
+... go on to setup the rest of the sandbox ...
+
 
 # Otherwise, create a new mount namespace
 unshare(CLONE_NEWNS)
@@ -121,3 +134,4 @@ mount("/snap/some-content-snap/current/src", "/snap/hello-world/current/dst", NU
 # preserve it across snap invocations (an fchdir() happened just after the
 # unshare(), above).
 mount("/proc/12887/ns/mnt", "hello-world.mnt", NULL, MS_BIND, NULL) = 0
+... go on to setup the rest of the sandbox ...
