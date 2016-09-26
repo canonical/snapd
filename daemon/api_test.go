@@ -1030,12 +1030,12 @@ func (s *apiSuite) TestFindScreenshotted(c *check.C) {
 		Type:    snap.TypeApp,
 		Version: "v2",
 		Screenshots: []snap.ScreenshotInfo{
-			snap.ScreenshotInfo{
+			{
 				URL:    "http://example.com/screenshot.png",
 				Width:  800,
 				Height: 1280,
 			},
-			snap.ScreenshotInfo{
+			{
 				URL: "http://example.com/screenshot2.png",
 			},
 		},
@@ -1889,7 +1889,7 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Check that the apply-config hook was run correctly
-	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{[]string{
+	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
 		"snap", "run", "--hook", "apply-config", "-r", "unset", "config-snap",
 	}})
 }
@@ -3728,11 +3728,11 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 	form := &multipart.Form{}
 	c.Check(isTrue(form, "foo"), check.Equals, false)
 	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
-		form.Value = map[string][]string{"foo": []string{f}}
+		form.Value = map[string][]string{"foo": {f}}
 		c.Check(isTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
 	}
 	for _, t := range []string{"true", "1", "True", "t"} {
-		form.Value = map[string][]string{"foo": []string{t}}
+		form.Value = map[string][]string{"foo": {t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
 }
@@ -3797,7 +3797,7 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 	s.paymentMethods = &store.PaymentInformation{
 		AllowsAutomaticPayment: true,
 		Methods: []*store.PaymentMethod{
-			&store.PaymentMethod{
+			{
 				BackendID:           "credit_card",
 				Currencies:          []string{"GBP", "USD"},
 				Description:         "**** **** **** 1234 (exp 20/2020)",
