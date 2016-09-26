@@ -69,6 +69,10 @@ network packet,
 
 /run/udev/data/* r,
 
+# Allow access to configuration files generated on the fly
+# from netplan
+/run/NetworkManager/{,**} r,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
