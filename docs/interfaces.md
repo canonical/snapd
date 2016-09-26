@@ -258,6 +258,24 @@ printing.
 
 * Auto-Connect: no
 
+### docker
+
+Can access snaps providing the docker interface which gives privileged access
+to the system.
+
+* Auto-Connect: no
+
+### docker-support
+
+Can access resources and syscalls necessary to run Docker application
+containers. The ``privileged-containers`` attribute may be used to give the
+necessary access to run privileged containers. Providing snaps specifying this
+interface currently may only be established with the Docker project.
+
+* Auto-Connect: no
+* Attributes:
+    * privileged-containers (plug): true|false (defaults to ``false``)
+
 ### firewall-control
 
 Can configure network firewalling giving privileged access to networking.
@@ -382,6 +400,13 @@ access to configure and observe networking.
 
 Can query network status information which gives privileged read-only access to
 networking information.
+
+* Auto-Connect: no
+
+### network-setup-observe
+
+Can read network setup configuration files. This is restricted because it gives
+access to system network configuration which can contain network security details.
 
 * Auto-Connect: no
 

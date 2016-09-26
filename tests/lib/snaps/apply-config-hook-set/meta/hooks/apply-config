@@ -1,0 +1,7 @@
+#!/bin/sh
+
+echo "Setting a configuration value"
+if ! snapctl set baz=qux; then
+	echo "snapctl set unexpectedly failed"
+	exit 1
+fi

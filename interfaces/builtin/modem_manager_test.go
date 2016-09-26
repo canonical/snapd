@@ -128,30 +128,6 @@ func (s *ModemManagerInterfaceSuite) TestConnectedPlugSnippedUsesUnconfinedLabel
 	c.Assert(string(snippet), testutil.Contains, "peer=(label=unconfined),")
 }
 
-func (s *ModemManagerInterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityDBus,
-		interfaces.SecurityUDev}
-	for _, system := range systems {
-		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		if system == interfaces.SecurityAppArmor {
-			c.Assert(snippet, Not(IsNil))
-		} else {
-			c.Assert(snippet, IsNil)
-		}
-	}
-	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityUDev)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityDBus)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-}
-
 func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}
@@ -172,19 +148,4 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err = s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityUDev)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-}
-
-func (s *ModemManagerInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
 }

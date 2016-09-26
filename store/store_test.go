@@ -128,14 +128,6 @@ func (ac *testAuthContext) StoreID(fallback string) (string, error) {
 	return fallback, nil
 }
 
-func (ac *testAuthContext) Serial() ([]byte, error) {
-	panic("Serial is deprecated, it should not be called")
-}
-
-func (ac *testAuthContext) SerialProof(nonce string) ([]byte, error) {
-	panic("SerialProof is deprecated, it should not be called")
-}
-
 func (ac *testAuthContext) DeviceSessionRequest(nonce string) ([]byte, []byte, error) {
 	serial, err := asserts.Decode([]byte(exSerial))
 	if err != nil {
@@ -515,6 +507,41 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	c.Check(string(responseData), Equals, "response-data")
 	c.Check(deviceSessionRequested, Equals, true)
 	c.Check(refreshSessionRequested, Equals, true)
+}
+
+func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
+	// Custom headers are applied last.
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, `customAgent`)
+		c.Check(r.Header.Get("X-Foo-Header"), Equals, `Bar`)
+		c.Check(r.Header.Get("Content-Type"), Equals, `application/bson`)
+		c.Check(r.Header.Get("Accept"), Equals, `application/hal+bson`)
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	repo := New(&Config{}, nil)
+	c.Assert(repo, NotNil)
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{
+		Method: "GET",
+		URL:    endpoint,
+		ExtraHeaders: map[string]string{
+			"X-Foo-Header": "Bar",
+			"Content-Type": "application/bson",
+			"Accept":       "application/hal+bson",
+			"User-Agent":   "customAgent",
+		},
+	}
+
+	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	defer response.Body.Close()
+	c.Assert(err, IsNil)
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
 }
 
 func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
@@ -2773,4 +2800,131 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsHandles401(c *C) {
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "invalid credentials")
+}
+
+var readyToBuyTests = []struct {
+	Input func(w http.ResponseWriter)
+	Test  func(c *C, err error)
+}{
+	{
+		// A user account the is ready for purchasing
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
+{
+  "latest_tos_date": "2016-09-14T00:00:00+00:00",
+  "accepted_tos_date": "2016-09-14T15:56:49+00:00",
+  "latest_tos_accepted": true,
+  "has_payment_method": true
+}
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Check(err, IsNil)
+		},
+	},
+	{
+		// A user account that hasn't accepted the TOS
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
+{
+  "latest_tos_date": "2016-10-14T00:00:00+00:00",
+  "accepted_tos_date": "2016-09-14T15:56:49+00:00",
+  "latest_tos_accepted": false,
+  "has_payment_method": true
+}
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "terms of service not accepted")
+		},
+	},
+	{
+		// A user account that has no payment method
+		Input: func(w http.ResponseWriter) {
+			io.WriteString(w, `
+{
+  "latest_tos_date": "2016-10-14T00:00:00+00:00",
+  "accepted_tos_date": "2016-09-14T15:56:49+00:00",
+  "latest_tos_accepted": true,
+  "has_payment_method": false
+}
+`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "no payment methods")
+		},
+	},
+	{
+		// No user account exists
+		Input: func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, "{}")
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, "cannot get customer details: server says no account exists")
+		},
+	},
+	{
+		// An unknown set of errors occurs
+		Input: func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusInternalServerError)
+			io.WriteString(w, `
+{
+	"error_list": [
+		{
+			"code": "code 1",
+			"message": "message 1"
+		},
+		{
+			"code": "code 2",
+			"message": "message 2"
+		}
+	]
+}`)
+		},
+		Test: func(c *C, err error) {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, `store reported an error: message 1`)
+		},
+	},
+}
+
+func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
+	for _, test := range readyToBuyTests {
+		purchaseServerGetCalled := 0
+		mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				// check device authorization is set, implicitly checking doRequest was used
+				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+				c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+				c.Check(r.URL.Path, Equals, "/purchases/v1/customers/me")
+				test.Input(w)
+				purchaseServerGetCalled++
+			default:
+				c.Error("Unexpected request method: ", r.Method)
+			}
+		}))
+
+		c.Assert(mockPurchasesServer, NotNil)
+		defer mockPurchasesServer.Close()
+
+		customersMeURI, err := url.Parse(mockPurchasesServer.URL + "/purchases/v1/customers/me")
+		c.Assert(err, IsNil)
+
+		authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+		cfg := Config{
+			CustomersMeURI: customersMeURI,
+		}
+		repo := New(&cfg, authContext)
+		c.Assert(repo, NotNil)
+
+		err = repo.ReadyToBuy(t.user)
+		test.Test(c, err)
+		c.Check(purchaseServerGetCalled, Equals, 1)
+	}
 }

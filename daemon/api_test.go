@@ -35,6 +35,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -48,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -112,6 +114,11 @@ func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.
 	s.buyOptions = options
 	s.user = user
 	return s.buyResult, s.err
+}
+
+func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
+	s.user = user
+	return s.err
 }
 
 func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
@@ -395,6 +402,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"snapstateUpdateMany",
+		"snapstateInstallMany",
+		"snapstateRemoveMany",
 		"snapstateRefreshCandidates",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
@@ -1805,6 +1814,38 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	return chg.Summary()
 }
 
+func (s *apiSuite) runGetConf(c *check.C, keys []string) map[string]interface{} {
+	s.vars = map[string]string{"name": "test-snap"}
+	req, err := http.NewRequest("GET", "/v2/snaps/test-snap/conf?keys="+strings.Join(keys, ","), nil)
+	c.Check(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	snapConfCmd.GET(snapConfCmd, req, nil).ServeHTTP(rec, req)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	return body["result"].(map[string]interface{})
+}
+
+func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
+	d := s.daemon(c)
+
+	// Set a config that we'll get in a moment
+	d.overlord.State().Lock()
+	transaction, err := configstate.NewTransaction(d.overlord.State())
+	c.Check(err, check.IsNil)
+	transaction.Set("test-snap", "test-key1", "test-value1")
+	transaction.Set("test-snap", "test-key2", "test-value2")
+	transaction.Commit()
+	d.overlord.State().Unlock()
+
+	result := s.runGetConf(c, []string{"test-key1"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
+
+	result = s.runGetConf(c, []string{"test-key1", "test-key2"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
+}
+
 func (s *apiSuite) TestSetConf(c *check.C) {
 	d := s.daemon(c)
 	s.mockSnap(c, configYaml)
@@ -2192,6 +2233,42 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh snap "foo"`)
 	c.Check(updates, check.DeepEquals, inst.Snaps)
 	c.Check(refreshSnapDecls, check.Equals, true)
+}
+
+func (s *apiSuite) TestInstallMany(c *check.C) {
+	snapstateInstallMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-install-2", "Install two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "install", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, installs, _, err := snapInstallMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(installs, check.DeepEquals, inst.Snaps)
+}
+
+func (s *apiSuite) TestRemoveMany(c *check.C) {
+	snapstateRemoveMany = func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "remove", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, removes, _, err := snapRemoveMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(removes, check.DeepEquals, inst.Snaps)
 }
 
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
@@ -2994,33 +3071,35 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *apiSuite) TestAssertConflict(c *check.C) {
+func (s *apiSuite) TestAssertStreamOK(c *check.C) {
 	// Setup
 	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
 	st := d.overlord.State()
-	// add store key
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 
-	acctRev0 := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	acctRev1 := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
-		"account-id": acctRev0.AccountID(),
-		"revision":   "1",
-		"validation": "certified",
-	}, "")
-	assertAdd(st, acctRev1)
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	buf := &bytes.Buffer{}
+	enc := asserts.NewEncoder(buf)
+	err := enc.Encode(acct)
+	c.Assert(err, check.IsNil)
+	err = enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
 
-	buf := bytes.NewBuffer(asserts.Encode(acctRev0))
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	// Execute
-	assertsCmd.POST(assertsCmd, req, nil).ServeHTTP(rec, req)
+	rsp := doAssert(assertsCmd, req, nil).(*resp)
 	// Verify (external)
-	c.Check(rec.Code, check.Equals, 409)
-	c.Check(rec.Body.String(), testutil.Contains, "assert failed: revision 0 is older than current revision 1")
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	// Verify (internal)
+	st.Lock()
+	defer st.Unlock()
+	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
+		"account-id": acct.AccountID(),
+	})
+	c.Check(err, check.IsNil)
 }
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
@@ -3034,7 +3113,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains,
-		"cannot decode request body into an assertion")
+		"cannot decode request body into assertions")
 }
 
 func (s *apiSuite) TestAssertError(c *check.C) {
@@ -3227,7 +3306,7 @@ func (s *apiSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
 
 func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
@@ -3254,7 +3333,7 @@ func (s *apiSuite) TestStateChangesInProgress(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
 
 func (s *apiSuite) TestStateChangesAll(c *check.C) {
@@ -3280,8 +3359,8 @@ func (s *apiSuite) TestStateChangesAll(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"label":"","done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChangesReady(c *check.C) {
@@ -3307,7 +3386,7 @@ func (s *apiSuite) TestStateChangesReady(c *check.C) {
 	res, err := rsp.MarshalJSON()
 	c.Assert(err, check.IsNil)
 
-	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
+	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"label":"","done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
 }
 
 func (s *apiSuite) TestStateChangesForSnapName(c *check.C) {
@@ -3383,7 +3462,7 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 				"summary":    "1...",
 				"status":     "Do",
 				"log":        []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
-				"progress":   map[string]interface{}{"done": 0., "total": 1.},
+				"progress":   map[string]interface{}{"label": "", "done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 			},
 			map[string]interface{}{
@@ -3391,7 +3470,7 @@ func (s *apiSuite) TestStateChange(c *check.C) {
 				"kind":       "activate",
 				"summary":    "2...",
 				"status":     "Do",
-				"progress":   map[string]interface{}{"done": 0., "total": 1.},
+				"progress":   map[string]interface{}{"label": "", "done": 0., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 			},
 		},
@@ -3454,7 +3533,7 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 				"summary":    "1...",
 				"status":     "Hold",
 				"log":        []interface{}{"2016-04-21T01:02:03Z INFO l11", "2016-04-21T01:02:03Z INFO l12"},
-				"progress":   map[string]interface{}{"done": 1., "total": 1.},
+				"progress":   map[string]interface{}{"label": "", "done": 1., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 				"ready-time": "2016-04-21T01:02:03Z",
 			},
@@ -3463,7 +3542,7 @@ func (s *apiSuite) TestStateChangeAbort(c *check.C) {
 				"kind":       "activate",
 				"summary":    "2...",
 				"status":     "Hold",
-				"progress":   map[string]interface{}{"done": 1., "total": 1.},
+				"progress":   map[string]interface{}{"label": "", "done": 1., "total": 1.},
 				"spawn-time": "2016-04-21T01:02:03Z",
 				"ready-time": "2016-04-21T01:02:03Z",
 			},
@@ -3563,7 +3642,15 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
+	expected := &createResponseData{
+		Username:    "karl",
+		SSHKeys:     []string{"ssh1", "ssh2"},
+		SSHKeyCount: 2,
+	}
+
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestBuySnap(c *check.C) {
@@ -3647,6 +3734,62 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 	for _, t := range []string{"true", "1", "True", "t"} {
 		form.Value = map[string][]string{"foo": []string{t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
+	}
+}
+
+var readyToBuyTests = []struct {
+	input    error
+	status   int
+	respType interface{}
+	response interface{}
+}{
+	{
+		// Success
+		input:    nil,
+		status:   http.StatusOK,
+		respType: ResponseTypeSync,
+		response: true,
+	},
+	{
+		// Not accepted TOS
+		input:    store.ErrTOSNotAccepted,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "terms of service not accepted",
+			Kind:    errorKindTermsNotAccepted,
+		},
+	},
+	{
+		// No payment methods
+		input:    store.ErrNoPaymentMethods,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "no payment methods",
+			Kind:    errorKindNoPaymentMethods,
+		},
+	},
+}
+
+func (s *apiSuite) TestReadyToBuy(c *check.C) {
+	for _, test := range readyToBuyTests {
+		s.err = test.input
+
+		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
+		c.Assert(err, check.IsNil)
+
+		state := snapCmd.d.overlord.State()
+		state.Lock()
+		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+		state.Unlock()
+		c.Check(err, check.IsNil)
+
+		rsp := readyToBuy(readyToBuyCmd, req, user).(*resp)
+		c.Check(rsp.Status, check.Equals, test.status)
+		c.Check(rsp.Type, check.Equals, test.respType)
+		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
+		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
 }
 

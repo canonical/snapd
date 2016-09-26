@@ -39,6 +39,8 @@ type StoreService interface {
 
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
+	ReadyToBuy(*auth.UserState) error
+	// TODO Remove once the CLI is using the new /buy/ready endpoint
 	PaymentMethods(*auth.UserState) (*store.PaymentInformation, error)
 }
 
@@ -61,6 +63,7 @@ type managerBackend interface {
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
+	DiscardSnapNamespace(snapName string) error
 
 	// testing helpers
 	CurrentInfo(cur *snap.Info)
