@@ -239,6 +239,27 @@ func (cs *changeSuite) TestCloseReadyWhenTasksReady(c *C) {
 	}
 }
 
+func (cs *changeSuite) TestIsClean(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("install", "...")
+
+	t1 := st.NewTask("download", "1...")
+	t2 := st.NewTask("verify", "2...")
+	chg.AddAll(state.NewTaskSet(t1, t2))
+
+	t1.SetStatus(state.DoneStatus)
+	c.Assert(t1.SetClean, PanicMatches, ".*while change not ready")
+	t2.SetStatus(state.DoneStatus)
+
+	t1.SetClean()
+	c.Assert(chg.IsClean(), Equals, false)
+	t2.SetClean()
+	c.Assert(chg.IsClean(), Equals, true)
+}
+
 func (cs *changeSuite) TestState(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -299,6 +320,7 @@ func (cs *changeSuite) TestMethodEntrance(c *C) {
 	reads := []func(){
 		func() { chg.Get("a", nil) },
 		func() { chg.Status() },
+		func() { chg.IsClean() },
 		func() { chg.Tasks() },
 		func() { chg.Err() },
 		func() { chg.MarshalJSON() },

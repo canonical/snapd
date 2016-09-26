@@ -395,6 +395,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateTryPath",
 		"snapstateGet",
 		"snapstateUpdateMany",
+		"snapstateInstallMany",
+		"snapstateRemoveMany",
 		"snapstateRefreshCandidates",
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
@@ -2151,6 +2153,42 @@ func (s *apiSuite) TestRefreshMany1(c *check.C) {
 	c.Check(refreshSnapDecls, check.Equals, true)
 }
 
+func (s *apiSuite) TestInstallMany(c *check.C) {
+	snapstateInstallMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-install-2", "Install two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "install", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, installs, _, err := snapInstallMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Install snaps "foo", "bar"`)
+	c.Check(installs, check.DeepEquals, inst.Snaps)
+}
+
+func (s *apiSuite) TestRemoveMany(c *check.C) {
+	snapstateRemoveMany = func(s *state.State, names []string) ([]string, []*state.TaskSet, error) {
+		c.Check(names, check.HasLen, 2)
+		t := s.NewTask("fake-remove-2", "Remove two")
+		return names, []*state.TaskSet{state.NewTaskSet(t)}, nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{Action: "remove", Snaps: []string{"foo", "bar"}}
+	st := d.overlord.State()
+	st.Lock()
+	summary, removes, _, err := snapRemoveMany(inst, st)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(summary, check.Equals, `Remove snaps "foo", "bar"`)
+	c.Check(removes, check.DeepEquals, inst.Snaps)
+}
+
 func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	installQueue := []*state.Task{}
 
@@ -2951,33 +2989,35 @@ func (s *apiSuite) TestAssertOK(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
-func (s *apiSuite) TestAssertConflict(c *check.C) {
+func (s *apiSuite) TestAssertStreamOK(c *check.C) {
 	// Setup
 	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
 	defer restore()
 	d := s.daemon(c)
 	st := d.overlord.State()
-	// add store key
-	assertAdd(st, s.storeSigning.StoreAccountKey(""))
 
-	acctRev0 := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	acctRev1 := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
-		"account-id": acctRev0.AccountID(),
-		"revision":   "1",
-		"validation": "certified",
-	}, "")
-	assertAdd(st, acctRev1)
+	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	buf := &bytes.Buffer{}
+	enc := asserts.NewEncoder(buf)
+	err := enc.Encode(acct)
+	c.Assert(err, check.IsNil)
+	err = enc.Encode(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, check.IsNil)
 
-	buf := bytes.NewBuffer(asserts.Encode(acctRev0))
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rec := httptest.NewRecorder()
-	// Execute
-	assertsCmd.POST(assertsCmd, req, nil).ServeHTTP(rec, req)
+	rsp := doAssert(assertsCmd, req, nil).(*resp)
 	// Verify (external)
-	c.Check(rec.Code, check.Equals, 409)
-	c.Check(rec.Body.String(), testutil.Contains, "assert failed: revision 0 is older than current revision 1")
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Status, check.Equals, http.StatusOK)
+	// Verify (internal)
+	st.Lock()
+	defer st.Unlock()
+	_, err = assertstate.DB(st).Find(asserts.AccountType, map[string]string{
+		"account-id": acct.AccountID(),
+	})
+	c.Check(err, check.IsNil)
 }
 
 func (s *apiSuite) TestAssertInvalid(c *check.C) {
@@ -2991,7 +3031,7 @@ func (s *apiSuite) TestAssertInvalid(c *check.C) {
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains,
-		"cannot decode request body into an assertion")
+		"cannot decode request body into assertions")
 }
 
 func (s *apiSuite) TestAssertError(c *check.C) {

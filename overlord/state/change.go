@@ -120,6 +120,7 @@ type Change struct {
 	kind    string
 	summary string
 	status  Status
+	clean   bool
 	data    customData
 	taskIDs []string
 	ready   chan struct{}
@@ -146,6 +147,7 @@ type marshalledChange struct {
 	Kind    string                      `json:"kind"`
 	Summary string                      `json:"summary"`
 	Status  Status                      `json:"status"`
+	Clean   bool                        `json:"clean,omitempty"`
 	Data    map[string]*json.RawMessage `json:"data,omitempty"`
 	TaskIDs []string                    `json:"task-ids,omitempty"`
 
@@ -165,6 +167,7 @@ func (c *Change) MarshalJSON() ([]byte, error) {
 		Kind:    c.kind,
 		Summary: c.summary,
 		Status:  c.status,
+		Clean:   c.clean,
 		Data:    c.data,
 		TaskIDs: c.taskIDs,
 
@@ -187,6 +190,7 @@ func (c *Change) UnmarshalJSON(data []byte) error {
 	c.kind = unmarshalled.Kind
 	c.summary = unmarshalled.Summary
 	c.status = unmarshalled.Status
+	c.clean = unmarshalled.Clean
 	custData := unmarshalled.Data
 	if custData == nil {
 		custData = make(customData)
@@ -332,6 +336,27 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	default:
 	}
 	c.markReady()
+}
+
+// IsClean returns whether all tasks in the change have been cleaned. See SetClean.
+func (c *Change) IsClean() bool {
+	c.state.reading()
+	return c.clean
+}
+
+func (c *Change) taskCleanChanged() {
+	select {
+	case <-c.Ready():
+	default:
+		panic("internal error: attempted to set a task clean while change not ready")
+	}
+	for _, tid := range c.taskIDs {
+		task := c.state.tasks[tid]
+		if !task.clean {
+			return
+		}
+	}
+	c.clean = true
 }
 
 // SpawnTime returns the time when the change was created.
