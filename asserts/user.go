@@ -112,20 +112,66 @@ func (su *SystemUser) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*SystemUser)(nil)
 
+type shadow struct {
+	ID     string
+	Rounds string
+	Salt   string
+	Hash   string
+}
+
+// crypt(3) compatible hashes have the forms:
+// - $id$salt$hash
+// - $id$rounds=N$salt$hash
+func parseShadowLine(line string) (*shadow, error) {
+	l := strings.SplitN(line, "$", 5)
+	if len(l) != 4 && len(l) != 5 {
+		return nil, fmt.Errorf(`hashed password must be of the form "$integer-id$salt$hash", see crypt(3)`)
+	}
+
+	// if rounds is the second field, the line must consist of 4
+	if strings.HasPrefix(l[2], "rounds=") && len(l) == 4 {
+		return nil, fmt.Errorf(`missing hash field`)
+	}
+
+	// shadow line without $rounds=N$
+	if len(l) == 4 {
+		return &shadow{
+			ID:   l[1],
+			Salt: l[2],
+			Hash: l[3],
+		}, nil
+	}
+	// shadow line with rounds
+	return &shadow{
+		ID:     l[1],
+		Rounds: l[2],
+		Salt:   l[3],
+		Hash:   l[4],
+	}, nil
+}
+
 func checkHashedPassword(headers map[string]interface{}, name string) (string, error) {
 	pw, err := checkOptionalString(headers, name)
 	if err != nil {
 		return "", err
 	}
-	// crypt(3) compatible hashes have the form: $id$salt$hash
-	l := strings.SplitN(pw, "$", 5)
-	if len(l) != 4 && len(l) != 5 {
-		return "", fmt.Errorf(`%q header must be a hashed password of the form "$integer-id$salt$hash", see crypt(3)`, name)
+	// the pw string option, so just return if its empty
+	if pw == "" {
+		return "", nil
 	}
-	// see crypt(3), ID 6 means SHA-512 (since glibc 2.7)
-	ID, err := strconv.Atoi(l[1])
+
+	// parse the shadow line
+	shd, err := parseShadowLine(pw)
 	if err != nil {
-		return "", fmt.Errorf(`%q header must start with "$integer-id$", got %q`, name, l[1])
+		return "", fmt.Errorf(`%q header invalid: %s`, name, err)
+	}
+
+	// and verify it
+
+	// see crypt(3), ID 6 means SHA-512 (since glibc 2.7)
+	ID, err := strconv.Atoi(shd.ID)
+	if err != nil {
+		return "", fmt.Errorf(`%q header must start with "$integer-id$", got %q`, name, shd.ID)
 	}
 	// double check that we only allow modern hashes
 	if ID < 6 {
@@ -133,30 +179,23 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 	}
 
 	// the $rounds=N$ part is optional
-	i := 2
-	if strings.HasPrefix(l[i], "rounds=") {
-		roundsStr := strings.SplitN(l[i], "=", 2)[1]
-		rounds, err := strconv.Atoi(roundsStr)
+	if strings.HasPrefix(shd.Rounds, "rounds=") {
+		rounds, err := strconv.Atoi(strings.Split(shd.Rounds, "=")[1])
 		if err != nil {
 			return "", fmt.Errorf("%q header has invalid number of rounds: %s", name, err)
 		}
 		if rounds < 5000 || rounds > 999999999 {
 			return "", fmt.Errorf("%q header rounds parameter out of bounds: %d", name, rounds)
 		}
-		i++
 	}
 
 	// see crypt(3) for the legal chars
-	validSaltAndHash := regexp.MustCompile(`^[a-zA-Z0-9./=]+$`)
-	if !validSaltAndHash.MatchString(l[i]) {
-		return "", fmt.Errorf("%q header has invalid chars in salt %q", name, l[2])
+	validSaltAndHash := regexp.MustCompile(`^[a-zA-Z0-9./]+$`)
+	if !validSaltAndHash.MatchString(shd.Salt) {
+		return "", fmt.Errorf("%q header has invalid chars in salt %q", name, shd.Salt)
 	}
-	i++
-	if i >= len(l) {
-		return "", fmt.Errorf("%q header has missing hash field", name)
-	}
-	if !validSaltAndHash.MatchString(l[i]) {
-		return "", fmt.Errorf("%q header has invalid chars in hash %q", name, l[3])
+	if !validSaltAndHash.MatchString(shd.Hash) {
+		return "", fmt.Errorf("%q header has invalid chars in hash %q", name, shd.Hash)
 	}
 
 	return pw, nil
