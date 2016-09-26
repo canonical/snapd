@@ -12,7 +12,12 @@ backends:
             # - ubuntu-16.04-32-grub
     qemu:
         systems:
-            - ubuntu-16.04:
+            - ubuntu-16.04-64:
+                username: ubuntu
+                password: ubuntu
+                environment:
+                    APT_PROXY: "$(HOST: echo $APT_PROXY)"
+            - ubuntu-16.10-64:
                 username: ubuntu
                 password: ubuntu
                 environment:
