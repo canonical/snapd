@@ -33,8 +33,11 @@ var (
 )
 
 type systemUserSuite struct {
-	until         time.Time
-	untilLine     string
+	until     time.Time
+	untilLine string
+	since     time.Time
+	sinceLine string
+
 	systemUserStr string
 }
 
@@ -51,7 +54,7 @@ const systemUserExample = "type: system-user\n" +
 	"password: $6$salt$hash\n" +
 	"ssh-keys:\n" +
 	"  - ssh-rsa AAAABcdefg\n" +
-	"since: 1092-11-01T22:08:41+00:00\n" +
+	"SINCELINE\n" +
 	"UNTILLINE\n" +
 	"body-length: 0\n" +
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -59,9 +62,13 @@ const systemUserExample = "type: system-user\n" +
 	"AXNpZw=="
 
 func (s *systemUserSuite) SetUpTest(c *C) {
+	s.since = time.Now().Truncate(time.Second)
+	s.sinceLine = fmt.Sprintf("since: %s\n", s.since.Format(time.RFC3339))
 	s.until = time.Now().AddDate(0, 1, 0).Truncate(time.Second)
 	s.untilLine = fmt.Sprintf("until: %s\n", s.until.Format(time.RFC3339))
+
 	s.systemUserStr = strings.Replace(systemUserExample, "UNTILLINE\n", s.untilLine, 1)
+	s.systemUserStr = strings.Replace(s.systemUserStr, "SINCELINE\n", s.sinceLine, 1)
 }
 
 func (s *systemUserSuite) TestDecodeOK(c *C) {
@@ -77,9 +84,7 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(systemUser.Username(), Equals, "guy")
 	c.Check(systemUser.Password(), Equals, "$6$salt$hash")
 	c.Check(systemUser.SSHKeys(), DeepEquals, []string{"ssh-rsa AAAABcdefg"})
-	since, err := time.Parse(time.RFC3339, "1092-11-01T22:08:41+00:00")
-	c.Assert(err, IsNil)
-	c.Check(systemUser.Since(), DeepEquals, since)
+	c.Check(systemUser.Since(), DeepEquals, s.since)
 
 	c.Check(systemUser.Until(), DeepEquals, s.until)
 }
@@ -112,7 +117,7 @@ func (s *systemUserSuite) TestValidAt(c *C) {
 
 func (s *systemUserSuite) TestValidAtRevoked(c *C) {
 	// With since == until, i.e. system-user has been revoked.
-	revoked := strings.Replace(s.systemUserStr, "since: 1092-11-01T22:08:41+00:00\n", fmt.Sprintf("since: %s\n", s.until.Format(time.RFC3339)), 1)
+	revoked := strings.Replace(s.systemUserStr, s.sinceLine, fmt.Sprintf("since: %s\n", s.until.Format(time.RFC3339)), 1)
 	a, err := asserts.Decode([]byte(revoked))
 	c.Assert(err, IsNil)
 	su := a.(*asserts.SystemUser)
@@ -159,12 +164,12 @@ func (s *systemUserSuite) TestDecodeInvalid(c *C) {
 		{"password: $6$salt$hash\n", "password: $8$rounds=xxx$salt$hash\n", `"password" header has invalid number of rounds:.*`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=1$salt$hash\n", `"password" header rounds parameter out of bounds: 1`},
 		{"password: $6$salt$hash\n", "password: $8$rounds=1999999999$salt$hash\n", `"password" header rounds parameter out of bounds: 1999999999`},
-		{"since: 1092-11-01T22:08:41+00:00\n", "since: \n", `"since" header should not be empty`},
-		{"since: 1092-11-01T22:08:41+00:00\n", "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
+		{s.sinceLine, "since: \n", `"since" header should not be empty`},
+		{s.sinceLine, "since: 12:30\n", `"since" header is not a RFC3339 date: .*`},
 		{s.untilLine, "until: \n", `"until" header should not be empty`},
 		{s.untilLine, "until: 12:30\n", `"until" header is not a RFC3339 date: .*`},
 		{s.untilLine, "until: 1002-11-01T22:08:41+00:00\n", `'until' time cannot be before 'since' time`},
-		{s.untilLine, fmt.Sprintf("until: %s\n", time.Now().AddDate(1, 0, 1).Format(time.RFC3339)), `'until' time cannot be more than 365 days in the future`},
+		{s.untilLine, fmt.Sprintf("until: %s\n", s.since.AddDate(1, 0, 1).Format(time.RFC3339)), `'until' time cannot be more than 365 days in the future`},
 	}
 
 	for _, test := range invalidTests {
