@@ -62,6 +62,7 @@ type managerBackend interface {
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
+	DiscardSnapNamespace(snapName string) error
 
 	// testing helpers
 	CurrentInfo(cur *snap.Info)

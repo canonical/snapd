@@ -21,12 +21,9 @@ package ifacestate
 
 import (
 	"fmt"
-	"os/exec"
-	"path/filepath"
 
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -304,25 +301,5 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 
 	delete(conns, connID(plugRef, slotRef))
 	setConns(st, conns)
-	return nil
-}
-
-func (m *InterfaceManager) doDiscardNamespace(task *state.Task, _ *tomb.Tomb) error {
-	st := task.State()
-	st.Lock()
-	defer st.Unlock()
-
-	snapSetup, err := snapstate.TaskSnapSetup(task)
-	if err != nil {
-		return err
-	}
-
-	snapName := snapSetup.Name()
-
-	cmd := exec.Command(filepath.Join(dirs.LibExecDir, "snap-discard-ns"), snapName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("cannot discard preserved namespaces of snap %q: %s", snapName, output)
-	}
 	return nil
 }
