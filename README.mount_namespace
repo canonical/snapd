@@ -17,8 +17,9 @@ command is required for creating the new mount namespace (otherwise the
 previous mount namespace will be reused).
 
 
-= Setup in detail =
-Here are the steps in setting up the mount namespace for a given snap:
+= Mount namespace setup in detail =
+Here are the steps snap-confine takes when setting up the mount namespace for a
+given snap:
 
 # Create the /run/snapd/ns directory to save off the mount namespace to be
 # shared on other app-invocations
