@@ -2793,12 +2793,10 @@ func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsHandles401(c *C) {
 	c.Check(err.Error(), Equals, "invalid credentials")
 }
 
-type readyToBuyTest struct {
+var readyToBuyTests = []struct {
 	Input func(w http.ResponseWriter)
 	Test  func(c *C, err error)
-}
-
-var readyToBuyTests = []readyToBuyTest{
+}{
 	{
 		// A user account the is ready for purchasing
 		Input: func(w http.ResponseWriter) {

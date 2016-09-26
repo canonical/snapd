@@ -114,6 +114,11 @@ func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.
 	return s.buyResult, s.err
 }
 
+func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
+	s.user = user
+	return s.err
+}
+
 func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
 	s.user = user
 	return s.paymentMethods, s.err
@@ -3644,6 +3649,62 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 	for _, t := range []string{"true", "1", "True", "t"} {
 		form.Value = map[string][]string{"foo": []string{t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
+	}
+}
+
+var readyToBuyTests = []struct {
+	input    error
+	status   int
+	respType interface{}
+	response interface{}
+}{
+	{
+		// Success
+		input:    nil,
+		status:   http.StatusOK,
+		respType: ResponseTypeSync,
+		response: true,
+	},
+	{
+		// Not accepted TOS
+		input:    store.ErrTOSNotAccepted,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "terms of service not accepted",
+			Kind:    errorKindTermsNotAccepted,
+		},
+	},
+	{
+		// No payment methods
+		input:    store.ErrNoPaymentMethods,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "no payment methods",
+			Kind:    errorKindNoPaymentMethods,
+		},
+	},
+}
+
+func (s *apiSuite) TestReadyToBuy(c *check.C) {
+	for _, test := range readyToBuyTests {
+		s.err = test.input
+
+		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
+		c.Assert(err, check.IsNil)
+
+		state := snapCmd.d.overlord.State()
+		state.Lock()
+		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+		state.Unlock()
+		c.Check(err, check.IsNil)
+
+		rsp := readyToBuy(readyToBuyCmd, req, user).(*resp)
+		c.Check(rsp.Status, check.Equals, test.status)
+		c.Check(rsp.Type, check.Equals, test.respType)
+		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
+		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
 }
 
