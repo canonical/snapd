@@ -28,13 +28,18 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// mountNsPath returns path of the mount namespace file of a given snap
+func mountNsPath(snapName string) string {
+	// NOTE: This value has to be synchronized with snap-confine
+	return filepath.Join(dirs.SnapRunNsDir, fmt.Sprintf("%s.mnt", snapName))
+}
+
 func (b Backend) DiscardSnapNamespace(snapName string) error {
-	snapDiscardNs := filepath.Join(dirs.LibExecDir, "snap-discard-ns")
-	if osutil.FileExists(snapDiscardNs) {
-		// Preserved namespaces need to be discarded only if they are being
-		// preserved by snap-confine. If the snap-discard-ns command doesn't
-		// exist then the shared mount namespace feature is not available and
-		// there is nothing to do here.
+	mntFile := mountNsPath(snapName)
+	// If there's a .mnt file that was created by snap-confine we should ask
+	// snap-confine to discard it appropriately.
+	if osutil.FileExists(mntFile) {
+		snapDiscardNs := filepath.Join(dirs.LibExecDir, "snap-discard-ns")
 		cmd := exec.Command(snapDiscardNs, snapName)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
