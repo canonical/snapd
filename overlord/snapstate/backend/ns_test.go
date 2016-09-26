@@ -63,7 +63,17 @@ func (s *nsSuite) TestDiscardNamespaceFailure(c *C) {
 	defer cmd.Restore()
 
 	err := s.be.DiscardSnapNamespace("snap-name")
-	c.Assert(err, ErrorMatches, `cannot discard preserved namespaces of snap "snap-name": failure\n`)
+	c.Assert(err, ErrorMatches, `cannot discard preserved namespaces of snap "snap-name": failure`)
+	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "snap-name"}})
+}
+
+func (s *nsSuite) TestDiscardNamespaceSilentFailure(c *C) {
+	cmd := testutil.MockCommand(c, "snap-discard-ns", "exit 1")
+	dirs.LibExecDir = cmd.BinDir()
+	defer cmd.Restore()
+
+	err := s.be.DiscardSnapNamespace("snap-name")
+	c.Assert(err, ErrorMatches, `cannot discard preserved namespaces of snap "snap-name": exit status 1`)
 	c.Check(cmd.Calls(), DeepEquals, [][]string{{"snap-discard-ns", "snap-name"}})
 }
 

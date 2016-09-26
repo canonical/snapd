@@ -38,7 +38,7 @@ func (b Backend) DiscardSnapNamespace(snapName string) error {
 		cmd := exec.Command(snapDiscardNs, snapName)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("cannot discard preserved namespaces of snap %q: %s", snapName, output)
+			return fmt.Errorf("cannot discard preserved namespaces of snap %q: %s", snapName, osutil.OutputErr(output, err))
 		}
 	}
 	return nil
