@@ -4,8 +4,7 @@ This document provides a terse explanation of the mount setup using syscall
 traces to show precisely what is happening and show the difference between
 all snaps images and classic.
 
-
-Obtain trace with:
+Obtain traces with (ignoring select helps keep strace from hanging):
 $ sudo snap install hello-world
 $ sudo /usr/lib/snapd/snap-discard-ns hello-world
 $ sudo strace -f -vv -s8192 -o /tmp/trace.unshare -e trace='!select' /snap/bin/hello-world
@@ -18,6 +17,7 @@ command is required for creating the new mount namespace (otherwise the
 previous mount namespace will be reused).
 
 
+= Setup in detail =
 Here are the steps in setting up the mount namespace for a given snap:
 
 # Create the /run/snapd/ns directory to save off the mount namespace to be
