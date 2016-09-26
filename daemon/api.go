@@ -1665,6 +1665,13 @@ var (
 	osutilAddUser                = osutil.AddUser
 )
 
+type createResponseData struct {
+	Username string   `json:"username"`
+	SSHKeys  []string `json:"ssh-keys"`
+	// deprecated
+	SSHKeyCount int `json:"ssh-key-count"`
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1707,14 +1714,11 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
-	var createResponseData struct {
-		Username    string `json:"username"`
-		SSHKeyCount int    `json:"ssh-key-count"`
-	}
-	createResponseData.Username = v.Username
-	createResponseData.SSHKeyCount = len(v.SSHKeys)
-
-	return SyncResponse(createResponseData, nil)
+	return SyncResponse(&createResponseData{
+		Username:    v.Username,
+		SSHKeys:     v.SSHKeys,
+		SSHKeyCount: len(v.SSHKeys),
+	}, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
