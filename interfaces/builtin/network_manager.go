@@ -69,6 +69,10 @@ network packet,
 
 /run/udev/data/* r,
 
+# Allow access to configuration files generated on the fly
+# from netplan
+/run/NetworkManager/{,**} r,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
@@ -77,6 +81,13 @@ network packet,
 
 # Needed to use resolvconf from core
 /sbin/resolvconf ixr,
+/run/resolvconf/{,**} r,
+/run/resolvconf/** w,
+/etc/resolvconf/{,**} r,
+/etc/resolvconf/** w,
+/lib/resolvconf/* ix,
+# Required by resolvconf
+/bin/run-parts ixr,
 
 #include <abstractions/nameservice>
 

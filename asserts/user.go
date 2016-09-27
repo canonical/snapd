@@ -95,7 +95,7 @@ func (su *SystemUser) Until() time.Time {
 // ValidAt returns whether the system-user is valid at 'when' time.
 func (su *SystemUser) ValidAt(when time.Time) bool {
 	valid := when.After(su.since) || when.Equal(su.since)
-	if valid && !su.until.IsZero() {
+	if valid {
 		valid = when.Before(su.until)
 	}
 	return valid
@@ -155,7 +155,7 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 	if err != nil {
 		return "", err
 	}
-	// the pw string option, so just return if its empty
+	// the pw string is optional, so just return if its empty
 	if pw == "" {
 		return "", nil
 	}
@@ -180,7 +180,7 @@ func checkHashedPassword(headers map[string]interface{}, name string) (string, e
 
 	// the $rounds=N$ part is optional
 	if strings.HasPrefix(shd.Rounds, "rounds=") {
-		rounds, err := strconv.Atoi(strings.Split(shd.Rounds, "=")[1])
+		rounds, err := strconv.Atoi(strings.SplitN(shd.Rounds, "=", 2)[1])
 		if err != nil {
 			return "", fmt.Errorf("%q header has invalid number of rounds: %s", name, err)
 		}
@@ -244,8 +244,11 @@ func assembleSystemUser(assert assertionBase) (Assertion, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !until.IsZero() && until.Before(since) {
+	if until.Before(since) {
 		return nil, fmt.Errorf("'until' time cannot be before 'since' time")
+	}
+	if until.After(since.AddDate(1, 0, 0)) {
+		return nil, fmt.Errorf("'until' time cannot be more than 365 days in the future")
 	}
 
 	return &SystemUser{

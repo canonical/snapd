@@ -622,7 +622,15 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		st.Unlock()
 		return &state.Retry{After: 3 * time.Minute}
 	}
-
+	if len(snapst.Sequence) == 0 {
+		err = m.backend.DiscardSnapNamespace(ss.Name())
+		if err != nil {
+			st.Lock()
+			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", ss.Name(), err)
+			st.Unlock()
+			return &state.Retry{After: 3 * time.Minute}
+		}
+	}
 	st.Lock()
 	Set(st, ss.Name(), snapst)
 	st.Unlock()

@@ -492,26 +492,6 @@ func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessi
 
 }
 
-// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
-func (m *DeviceManager) SerialProof(nonce string) (*asserts.SerialProof, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	privKey, err := m.keyPair()
-	if err != nil {
-		return nil, err
-	}
-
-	a, err := asserts.SignWithoutAuthority(asserts.SerialProofType, map[string]interface{}{
-		"nonce": nonce,
-	}, nil, privKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.(*asserts.SerialProof), err
-}
-
 // Model returns the device model assertion.
 func Model(st *state.State) (*asserts.Model, error) {
 	device, err := auth.Device(st)

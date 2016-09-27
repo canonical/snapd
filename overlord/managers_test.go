@@ -63,6 +63,8 @@ type mgrsSuite struct {
 	udev   *testutil.MockCmd
 	umount *testutil.MockCmd
 
+	snapDiscardNs *testutil.MockCmd
+
 	prevctlCmd func(...string) ([]byte, error)
 
 	storeSigning   *assertstest.StoreStack
@@ -110,6 +112,8 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	ms.aa = testutil.MockCommand(c, "apparmor_parser", "")
 	ms.udev = testutil.MockCommand(c, "udevadm", "")
 	ms.umount = testutil.MockCommand(c, "umount", "")
+	ms.snapDiscardNs = testutil.MockCommand(c, "snap-discard-ns", "")
+	dirs.LibExecDir = ms.snapDiscardNs.BinDir()
 
 	ms.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
 	ms.restoreTrusted = sysdb.InjectTrusted(ms.storeSigning.Trusted)
@@ -133,6 +137,7 @@ func (ms *mgrsSuite) TearDownTest(c *C) {
 	ms.udev.Restore()
 	ms.aa.Restore()
 	ms.umount.Restore()
+	ms.snapDiscardNs.Restore()
 }
 
 func makeTestSnap(c *C, snapYamlContent string) string {
@@ -930,32 +935,6 @@ func (s *authContextSetupSuite) TearDownTest(c *C) {
 	s.restoreTrusted()
 }
 
-func (s *authContextSetupSuite) TestSerial(c *C) {
-	st := s.o.State()
-	st.Lock()
-	defer st.Unlock()
-
-	st.Unlock()
-	encSerial, err := s.ac.Serial()
-	st.Lock()
-	c.Check(err, Equals, state.ErrNoState)
-
-	// setup serial in system state
-	auth.SetDevice(st, &auth.DeviceState{
-		Brand:  s.serial.BrandID(),
-		Model:  s.serial.Model(),
-		Serial: s.serial.Serial(),
-	})
-	err = assertstate.Add(st, s.serial)
-	c.Assert(err, IsNil)
-
-	st.Unlock()
-	encSerial, err = s.ac.Serial()
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Check(encSerial, DeepEquals, asserts.Encode(s.serial))
-}
-
 func (s *authContextSetupSuite) TestStoreID(c *C) {
 	st := s.o.State()
 	st.Lock()
@@ -981,32 +960,6 @@ func (s *authContextSetupSuite) TestStoreID(c *C) {
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
-}
-
-func (s *authContextSetupSuite) TestSerialProof(c *C) {
-	st := s.o.State()
-	st.Lock()
-	defer st.Unlock()
-
-	st.Unlock()
-	_, err := s.ac.SerialProof("NONCE")
-	st.Lock()
-	c.Check(err, Equals, state.ErrNoState)
-
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
-	auth.SetDevice(st, &auth.DeviceState{
-		KeyID: deviceKey.PublicKey().ID(),
-	})
-	kpMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
-	c.Assert(err, IsNil)
-	err = kpMgr.Put(deviceKey)
-	c.Assert(err, IsNil)
-
-	st.Unlock()
-	proof, err := s.ac.SerialProof("NONCE")
-	st.Lock()
-	c.Assert(err, IsNil)
-	c.Check(bytes.HasPrefix(proof, []byte("type: serial-proof\n")), Equals, true)
 }
 
 func (s *authContextSetupSuite) TestDeviceSessionRequest(c *C) {

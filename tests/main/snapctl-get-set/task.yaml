@@ -1,0 +1,25 @@
+summary: Check that `snapctl set` and `snapctl get` work as expected
+
+prepare: |
+    snapbuild $TESTSLIB/snaps/snapctl-hooks .
+    snapbuild $TESTSLIB/snaps/snapctl-hooks-v2 .
+    snap install --dangerous snapctl-hooks_1.0_all.snap
+
+restore: |
+    rm snapctl-hooks_*.snap
+
+execute: |
+    echo "Run the hook that sets a value via snapctl set"
+    if ! snap set snapctl-hooks test-key=test-value; then
+        echo "snap set unexpectedy failed, should have set value"
+        exit 1
+    fi
+
+    echo "Install the next version of the snap, which will load the value"
+    snap install --dangerous snapctl-hooks_2.0_all.snap
+
+    echo "Run the hook that gets the value we set earlier"
+    if ! snap set snapctl-hooks test-key=test-value; then
+        echo "snap set unexpectedy failed, should have gotten value"
+        exit 1
+    fi

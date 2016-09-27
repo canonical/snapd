@@ -37,6 +37,8 @@ var (
 	topDir          = flag.String("dir", "", "Directory to be used by the store to keep and serve snaps, <dir>/asserts is used for assertions")
 	makeRefreshable = flag.String("make-refreshable", "", "List of snaps with new versions separated by commas")
 	addr            = flag.String("addr", "locahost:11028", "Store address")
+	https_proxy     = flag.String("https-proxy", "", "HTTPS proxy address")
+	http_proxy      = flag.String("http-proxy", "", "HTTP proxy address")
 )
 
 func main() {
@@ -48,6 +50,14 @@ func main() {
 
 func run() error {
 	flag.Parse()
+
+	if len(*https_proxy) > 0 {
+		os.Setenv("https_proxy", *https_proxy)
+	}
+
+	if len(*http_proxy) > 0 {
+		os.Setenv("http_proxy", *http_proxy)
+	}
 
 	if *start {
 		return runServer(*topDir, *addr, *assertFallback)

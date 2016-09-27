@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -78,6 +79,7 @@ var api = []*Command{
 	stateChangesCmd,
 	createUserCmd,
 	buyCmd,
+	readyToBuyCmd,
 	paymentMethodsCmd,
 	snapctlCmd,
 }
@@ -185,6 +187,12 @@ var (
 		Path:   "/v2/buy",
 		UserOK: false,
 		POST:   postBuy,
+	}
+
+	readyToBuyCmd = &Command{
+		Path:   "/v2/buy/ready",
+		UserOK: false,
+		GET:    readyToBuy,
 	}
 
 	// TODO Remove once the CLI is using the new /buy/ready endpoint
@@ -652,6 +660,8 @@ var (
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
 	snapstateUpdateMany        = snapstate.UpdateMany
+	snapstateInstallMany       = snapstate.InstallMany
+	snapstateRemoveMany        = snapstate.RemoveMany
 
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
@@ -753,6 +763,29 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	return msg, updated, tasksets, nil
 }
 
+func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, installed []string, tasksets []*state.TaskSet, err error) {
+	installed, tasksets, err = snapstateInstallMany(st, inst.Snaps, inst.userID)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		return "", nil, nil, fmt.Errorf("cannot install zero snaps")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Install snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, installed, tasksets, nil
+}
+
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
@@ -800,6 +833,29 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed []string, tasksets []*state.TaskSet, err error) {
+	removed, tasksets, err = snapstateRemoveMany(st, inst.Snaps)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		return "", nil, nil, fmt.Errorf("cannot remove zero snaps")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, removed, tasksets, nil
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -991,10 +1047,6 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 
-	if inst.Action != "refresh" {
-		return BadRequest("only refresh supported for multi-snap operation right now")
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -1003,7 +1055,20 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	msg, updated, tsets, err := snapUpdateMany(&inst, st)
+	var msg string
+	var affected []string
+	var tsets []*state.TaskSet
+	var err error
+	switch inst.Action {
+	case "refresh":
+		msg, affected, tsets, err = snapUpdateMany(&inst, st)
+	case "install":
+		msg, affected, tsets, err = snapInstallMany(&inst, st)
+	case "remove":
+		msg, affected, tsets, err = snapRemoveMany(&inst, st)
+	default:
+		return BadRequest("unsupported multi-snap operation %q", inst.Action)
+	}
 	if err != nil {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
 	}
@@ -1013,10 +1078,10 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg = st.NewChange(inst.Action+"-snap", msg)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, inst.Action+"-snap", msg, tsets, updated)
+		chg = newChange(st, inst.Action+"-snap", msg, tsets, affected)
 		ensureStateSoon(st)
 	}
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -1207,8 +1272,33 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
-	// TODO: Get configuration values from configmanager
-	return SyncResponse(nil, nil)
+	vars := muxVars(r)
+	snapName := vars["name"]
+
+	keys := strings.Split(r.URL.Query().Get("keys"), ",")
+	if len(keys) == 0 {
+		return BadRequest("cannot obtain configuration: no keys supplied")
+	}
+
+	s := c.d.overlord.State()
+	s.Lock()
+	transaction, err := configstate.NewTransaction(s)
+	s.Unlock()
+	if err != nil {
+		return BadRequest("cannot create transaction: %s", err)
+	}
+
+	currentConfValues := make(map[string]interface{})
+	for _, key := range keys {
+		var value interface{}
+		if err := transaction.Get(snapName, key, &value); err != nil {
+			return BadRequest("%s", err)
+		}
+
+		currentConfValues[key] = value
+	}
+
+	return SyncResponse(currentConfValues, nil)
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1330,23 +1420,17 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	b, err := ioutil.ReadAll(r.Body)
+	batch := assertstate.NewBatch()
+	_, err := batch.AddStream(r.Body)
 	if err != nil {
-		return BadRequest("reading assert request body gave %v", err)
-	}
-	a, err := asserts.Decode(b)
-	if err != nil {
-		return BadRequest("cannot decode request body into an assertion: %v", err)
+		return BadRequest("cannot decode request body into assertions: %v", err)
 	}
 
 	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
 
-	if err := assertstate.Add(state, a); err != nil {
-		if _, ok := err.(*asserts.RevisionError); ok {
-			return Conflict("assert failed: %v", err)
-		}
+	if err := batch.Commit(state); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?
@@ -1656,6 +1740,13 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 	return username, opts, nil
 }
 
+type createResponseData struct {
+	Username string   `json:"username"`
+	SSHKeys  []string `json:"ssh-keys"`
+	// deprecated
+	SSHKeyCount int `json:"ssh-key-count"`
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1697,14 +1788,11 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user %s: %s", username, err)
 	}
 
-	var createResponseData struct {
-		Username    string `json:"username"`
-		SSHKeyCount int    `json:"ssh-key-count"`
-	}
-	createResponseData.Username = username
-	createResponseData.SSHKeyCount = len(opts.SSHKeys)
-
-	return SyncResponse(createResponseData, nil)
+	return SyncResponse(&createResponseData{
+		Username:    username,
+		SSHKeys:     opts.SSHKeys,
+		SSHKeyCount: len(opts.SSHKeys),
+	}, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1748,6 +1836,41 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	return SyncResponse(paymentMethods, nil)
+}
+
+func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	err := s.ReadyToBuy(user)
+
+	switch err {
+	default:
+		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	case store.ErrTOSNotAccepted:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindTermsNotAccepted,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case store.ErrNoPaymentMethods:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindNoPaymentMethods,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case nil:
+		// continue
+	}
+
+	return SyncResponse(true, nil)
 }
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
