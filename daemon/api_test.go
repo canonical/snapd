@@ -1832,8 +1832,7 @@ func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
 
 	// Set a config that we'll get in a moment
 	d.overlord.State().Lock()
-	transaction, err := configstate.NewTransaction(d.overlord.State())
-	c.Check(err, check.IsNil)
+	transaction := configstate.NewTransaction(d.overlord.State())
 	transaction.Set("test-snap", "test-key1", "test-value1")
 	transaction.Set("test-snap", "test-key2", "test-value2")
 	transaction.Commit()
