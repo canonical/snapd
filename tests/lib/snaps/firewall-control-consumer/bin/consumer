@@ -1,26 +1,3 @@
-#! /usr/bin/env python3
+#!/bin/sh
 
-import subprocess
-import sys
-
-result_map={'A': 'DNAT       tcp  --  anywhere             172.26.0.15          tcp dpt:tproxy to:127.0.0.1:8081',
-            'D': 'target     prot opt source               destination'}
-
-def fw_control(action):
-    subprocess.check_output(
-      "iptables -t nat -{} OUTPUT -p tcp -d ".format(action) +
-      "172.26.0.15 --dport 8081 -j DNAT --to-destination "+
-      "127.0.0.1:8081", shell=True)
-    return str(subprocess.check_output(
-      "iptables --list OUTPUT -t nat", shell=True))
-
-def run(action):
-    result = fw_control(action)
-    expected = result_map[action]
-    if expected in result:
-        message = "ok\n"
-    else:
-        message = "error controlling firewall\n"
-
-if __name__ == '__main__':
-    sys.exit(run(sys.argv[1]))
+iptables -t nat -"$1" OUTPUT -p tcp -d 172.26.0.15 --dport 8081 -j DNAT --to-destination 127.0.0.1:8081
