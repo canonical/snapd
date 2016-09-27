@@ -469,7 +469,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 
 		var headers map[string]string
-		err = getFromTransaction(tr, gadgetName, "registration-headers", &headers)
+		err = getFromTransaction(tr, gadgetName, "registration-http-headers", &headers)
 		if err != nil {
 			return nil, err
 		}

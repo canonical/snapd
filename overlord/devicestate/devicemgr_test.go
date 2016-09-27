@@ -526,7 +526,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyDeviceInitHook(c *C) {
 			"x-extra-header": "extra",
 		})
 		c.Assert(err, IsNil)
-		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration-headers=%s", string(h))})
+		_, _, err = ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration-http-headers=%s", string(h))})
 		c.Assert(err, IsNil)
 
 		d, err := yaml.Marshal(map[string]string{
