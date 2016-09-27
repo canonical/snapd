@@ -23,7 +23,7 @@ execute: |
         exit 1
     fi
 
-    if [[ ! "$output" =~ .*"cannot set without a context".* ]]; then
+    if [[ ! "$output" =~ .*"cannot get without a context".* ]]; then
         echo "Expected failure to be due to missing context, but it was \"$output\""
         exit 1
     fi
