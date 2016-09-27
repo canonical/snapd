@@ -96,7 +96,7 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	err := t.get(t.changes, snapName, key, result)
-	if _, ok := err.(*NoOptionError); ok {
+	if IsNoOption(err) {
 		err = t.get(t.pristine, snapName, key, result)
 	}
 	return err

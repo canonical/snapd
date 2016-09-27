@@ -181,12 +181,19 @@ func (b *brokenType) UnmarshalJSON(data []byte) error {
 func (s *transactionSuite) TestGetUnmarshalError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(s.transaction.Set("test-snap", "foo", "break"), IsNil)
+	c.Check(s.transaction.Set("test-snap", "foo", "good"), IsNil)
 	s.transaction.Commit()
 
 	transaction := configstate.NewTransaction(s.state)
+	c.Check(transaction.Set("test-snap", "foo", "break"), IsNil)
 
+	// Pristine state is good, value in the transaction breaks.
 	broken := brokenType{`"break"`}
 	err := transaction.Get("test-snap", "foo", &broken)
+	c.Assert(err, ErrorMatches, ".*BAM!.*")
+
+	// Pristine state breaks, nothing in the transaction.
+	transaction.Commit()
+	err = transaction.Get("test-snap", "foo", &broken)
 	c.Assert(err, ErrorMatches, ".*BAM!.*")
 }
