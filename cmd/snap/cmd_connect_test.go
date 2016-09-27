@@ -30,7 +30,7 @@ import (
 
 func (s *SnapSuite) TestConnectHelp(c *C) {
 	msg := `Usage:
-  snap.test [OPTIONS] connect <snap>:<plug> <snap>:<slot>
+  snap.test [OPTIONS] connect [<snap>:<plug>] [<snap>:<slot>]
 
 The connect command connects a plug to a slot.
 It may be called in the following ways:
@@ -51,6 +51,11 @@ Without a name for the snap offering the plug, the plug name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
 first of these snaps that has a matching plug name is used and the command
 proceeds as above.
+
+$ snap connect <snap>:<plug>
+
+Connects the provided plug to the slot in the os snap
+with a name matching the plug name.
 
 Application Options:
       --version            Print the version and exit

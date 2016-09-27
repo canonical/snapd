@@ -27,9 +27,9 @@ import (
 
 type cmdConnect struct {
 	Positionals struct {
-		Offer SnapAndName `required:"true"`
-		Use   SnapAndName `required:"true"`
-	} `positional-args:"true" required:"true"`
+		Offer SnapAndName `required:"yes"`
+		Use   SnapAndName
+	} `positional-args:"true"`
 }
 
 var shortConnectHelp = i18n.G("Connects a plug to a slot")
@@ -53,6 +53,11 @@ Without a name for the snap offering the plug, the plug name is looked at in
 the gadget snap, the kernel snap, and then the os snap, in that order. The
 first of these snaps that has a matching plug name is used and the command
 proceeds as above.
+
+$ snap connect <snap>:<plug>
+
+Connects the provided plug to the slot in the os snap
+with a name matching the plug name.
 `)
 
 func init() {

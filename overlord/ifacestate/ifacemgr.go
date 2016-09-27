@@ -71,6 +71,12 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
+
+	if slotSnap == "" && slotName == "" {
+		// connect slotSnapName:slotName to OS snap
+		slotSnap = "ubuntu-core"
+		slotName = plugName
+	}
 	summary := fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
 	task := s.NewTask("connect", summary)
