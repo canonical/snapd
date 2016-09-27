@@ -542,3 +542,106 @@ func (s *SnapOpSuite) TestRemove(c *check.C) {
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
+
+func (s *SnapOpSuite) TestRemoveManyRevision(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"remove", "--revision=17", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify the revision`)
+}
+
+func (s *SnapOpSuite) TestRemoveMany(c *check.C) {
+	total := 3
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action": "remove",
+				"snaps":  []interface{}{"one", "two"},
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["one","two"]}}}`)
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser().ParseArgs([]string{"remove", "one", "two"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*one removed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*two removed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, total)
+}
+
+func (s *SnapOpSuite) TestInstallManyChannel(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"install", "--beta", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
+}
+
+func (s *SnapOpSuite) TestInstallManyMixFileAndStore(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"install", "store-snap", "./local.snap"})
+	c.Assert(err, check.ErrorMatches, `only one snap file can be installed at a time`)
+}
+
+func (s *SnapOpSuite) TestInstallMany(c *check.C) {
+	total := 4
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+				"action": "install",
+				"snaps":  []interface{}{"one", "two"},
+			})
+
+			c.Check(r.Method, check.Equals, "POST")
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprintln(w, `{"type":"async", "change": "42", "status-code": 202}`)
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {"snap-names": ["one","two"]}}}`)
+		case 3:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/snaps")
+			fmt.Fprintf(w, `{"type": "sync", "result": [{"name": "one", "status": "active", "version": "1.0", "developer": "bar", "revision":42, "channel":"stable"},{"name": "two", "status": "active", "version": "2.0", "developer": "baz", "revision":42, "channel":"stable"}]}\n`)
+
+		default:
+			c.Fatalf("expected to get %d requests, now on %d", total, n+1)
+		}
+
+		n++
+	})
+
+	rest, err := snap.Parser().ParseArgs([]string{"install", "one", "two"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*one \(stable\) 1.0 from 'bar' installed`)
+	c.Check(s.Stdout(), check.Matches, `(?sm).*two \(stable\) 2.0 from 'baz' installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(n, check.Equals, total)
+}

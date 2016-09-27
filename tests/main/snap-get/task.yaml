@@ -1,0 +1,25 @@
+summary: Check that `snap get` works as expected
+
+prepare: |
+    echo "Build package with hook to run snapctl set"
+    snapbuild $TESTSLIB/snaps/apply-config-hook-set .
+    snap install --dangerous apply-config-hook-set_1.0_all.snap
+
+restore: |
+    rm apply-config-hook-set_1.0_all.snap
+
+execute: |
+    echo "Test that values set via snapctl can be gotten via snap get"
+    if ! snap set apply-config-hook-set foo=bar; then
+        echo "snap set unexpectedly failed"
+        exit 1
+    fi
+    if ! output=$(snap get apply-config-hook-set baz); then
+        echo "snap get unexpectedly failed"
+        exit 1
+    fi
+    expected="qux"
+    if "$output" -ne "$expected"; then
+        echo "Expected 'baz' to be '$expected', but it was '$output'"
+        exit 1
+    fi

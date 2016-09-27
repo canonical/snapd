@@ -41,6 +41,7 @@ type snapDetails struct {
 	Publisher        string             `json:"publisher,omitempty"`
 	RatingsAverage   float64            `json:"ratings_average,omitempty"`
 	Revision         int                `json:"revision"` // store revisions are ints starting at 1
+	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
 	SnapID           string             `json:"snap_id"`
 	SupportURL       string             `json:"support_url"`
 	Title            string             `json:"title"`

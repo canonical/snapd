@@ -1,7 +1,6 @@
 summary: Check that a remove operation is working even if the mount point is busy.
 
 restore: |
-    rm -f test-snapd-tools_1.0_all.snap
     kill %1 || true
 
 execute: |
@@ -16,9 +15,11 @@ execute: |
         while ! snap changes | grep -Pq "$expected"; do sleep 1; done
     }
 
+    . $TESTSLIB/systemd.sh
+
     echo "Given a snap is installed"
-    snapbuild $TESTSLIB/snaps/test-snapd-tools .
-    snap install --dangerous test-snapd-tools_1.0_all.snap
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 
     echo "And its mount point is kept busy"
     # we need a marker file, because just using systemd to figure out
@@ -26,7 +27,9 @@ execute: |
     # not that the dir is actually blocked yet
     MARKER=/var/snap/test-snapd-tools/current/block-running
     rm -f $MARKER
-    systemd-run --unit unmount-blocker $(which test-snapd-tools.block)
+
+    systemd_create_and_start_unit unmount-blocker "$(which test-snapd-tools.block)"
+
     wait_for_service unmount-blocker active
     while [ ! -f $MARKER ]; do sleep 1; done
 
@@ -40,5 +43,5 @@ execute: |
     while snap list | grep -q test-snapd-tools; do sleep 1; done
 
     # cleanup umount blocker
-    systemctl stop unmount-blocker
+    systemd_stop_and_destroy_unit unmount-blocker
 

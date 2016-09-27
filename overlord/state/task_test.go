@@ -115,6 +115,21 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
+func (ts *taskSuite) TestIsCleanAndSetClean(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	c.Check(t.IsClean(), Equals, false)
+
+	t.SetStatus(state.DoneStatus)
+	t.SetClean()
+
+	c.Check(t.IsClean(), Equals, true)
+}
+
 func jsonStr(m json.Marshaler) string {
 	data, err := m.MarshalJSON()
 	if err != nil {
@@ -339,6 +354,7 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 
 	writes := []func(){
 		func() { t1.SetStatus(state.DoneStatus) },
+		func() { t1.SetClean() },
 		func() { t1.Set("a", 1) },
 		func() { t2.WaitFor(t1) },
 		func() { t1.SetProgress("", 2, 2) },
@@ -350,6 +366,7 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 
 	reads := []func(){
 		func() { t1.Status() },
+		func() { t1.IsClean() },
 		func() { t1.Get("a", nil) },
 		func() { t1.WaitTasks() },
 		func() { t1.HaltTasks() },

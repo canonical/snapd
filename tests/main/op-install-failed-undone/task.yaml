@@ -16,7 +16,8 @@ execute: |
     mkdir -p /snap/test-snapd-tools/current/foo
 
     echo "And we try to install it"
-    if snap install test-snapd-tools; then
+    . $TESTSLIB/snaps.sh
+    if install_local test-snapd-tools; then
         echo "A snap shouldn't be installable if its mount point is busy"
         exit 1
     fi
@@ -31,9 +32,6 @@ execute: |
         exit 1
     fi
 
-    echo "And the Download subtask is actually undone"
-    snap change $failed_task_id | grep -Pq "Undone +.*?Download snap \"test-snapd-tools\""
-
     echo "And the Mount subtask is actually undone"
     snap change $failed_task_id | grep -Pq "Undone +.*?Mount snap \"test-snapd-tools\""
     check_empty_glob /snap/test-snapd-tools [0-9]+
@@ -45,7 +43,7 @@ execute: |
     check_empty_glob /var/snap/test-snapd-tools [0-9]+
 
     echo "And the Security Profiles Setup subtask is actually undone"
-    snap change $failed_task_id | grep -Pq "Undone +.*?Setup snap \"test-snapd-tools\" \(\d+\) security profiles"
+    snap change $failed_task_id | grep -Pq "Undone +.*?Setup snap \"test-snapd-tools\" \(unset\) security profiles"
     check_empty_glob /var/lib/snapd/apparmor/profiles snap.test-snapd-tools.*
     check_empty_glob /var/lib/snapd/seccomp/profiles snap.test-snapd-tools.*
     check_empty_glob /etc/dbus-1/system.d snap.test-snapd-tools.*.conf

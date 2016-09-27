@@ -41,11 +41,6 @@ var pppConnectedPlugAppArmor = []byte(`
 @{PROC}/@{pid}/loginuid r,
 capability setgid,
 capability setuid,
-/sbin/resolvconf rix,
-/run/resolvconf** rw,
-/etc/resolvconf/** rw,
-/etc/resolvconf/update.d/* ix,
-/lib/resolvconf/* ix,
 `)
 
 type PppInterface struct{}

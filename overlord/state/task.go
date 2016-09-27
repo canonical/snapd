@@ -43,6 +43,7 @@ type Task struct {
 	kind      string
 	summary   string
 	status    Status
+	clean     bool
 	progress  *progress
 	data      customData
 	waitTasks []string
@@ -73,6 +74,7 @@ type marshalledTask struct {
 	Kind      string                      `json:"kind"`
 	Summary   string                      `json:"summary"`
 	Status    Status                      `json:"status"`
+	Clean     bool                        `json:"clean,omitempty"`
 	Progress  *progress                   `json:"progress,omitempty"`
 	Data      map[string]*json.RawMessage `json:"data,omitempty"`
 	WaitTasks []string                    `json:"wait-tasks,omitempty"`
@@ -102,6 +104,7 @@ func (t *Task) MarshalJSON() ([]byte, error) {
 		Kind:      t.kind,
 		Summary:   t.summary,
 		Status:    t.status,
+		Clean:     t.clean,
 		Progress:  t.progress,
 		Data:      t.data,
 		WaitTasks: t.waitTasks,
@@ -130,6 +133,7 @@ func (t *Task) UnmarshalJSON(data []byte) error {
 	t.kind = unmarshalled.Kind
 	t.summary = unmarshalled.Summary
 	t.status = unmarshalled.Status
+	t.clean = unmarshalled.Clean
 	t.progress = unmarshalled.Progress
 	custData := unmarshalled.Data
 	if custData == nil {
@@ -185,6 +189,27 @@ func (t *Task) SetStatus(new Status) {
 	chg := t.Change()
 	if chg != nil {
 		chg.taskStatusChanged(t, old, new)
+	}
+}
+
+// IsClean returns whether the task has been cleaned. See SetClean.
+func (t *Task) IsClean() bool {
+	t.state.reading()
+	return t.clean
+}
+
+// SetClean flags the task as clean after any left over data was removed.
+//
+// Cleaning a task must only be done after the change is ready.
+func (t *Task) SetClean() {
+	t.state.writing()
+	if t.clean {
+		return
+	}
+	t.clean = true
+	chg := t.Change()
+	if chg != nil {
+		chg.taskCleanChanged()
 	}
 }
 

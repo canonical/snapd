@@ -21,6 +21,7 @@ package state_test
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -624,4 +625,56 @@ func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
 		c.Errorf("Change considered ready prematurely")
 	default:
 	}
+}
+
+func (ts *taskRunnerSuite) TestCleanup(c *C) {
+	sb := &stateBackend{}
+	st := state.New(sb)
+	r := state.NewTaskRunner(st)
+	defer r.Stop()
+
+	r.AddHandler("clean-it", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+	r.AddHandler("other", func(t *state.Task, tb *tomb.Tomb) error { return nil }, nil)
+
+	called := 0
+	r.AddCleanup("clean-it", func(t *state.Task, tb *tomb.Tomb) error {
+		called++
+		if called == 1 {
+			return fmt.Errorf("retry me")
+		}
+		return nil
+	})
+
+	st.Lock()
+	chg := st.NewChange("install", "...")
+	t1 := st.NewTask("clean-it", "...")
+	t2 := st.NewTask("other", "...")
+	chg.AddTask(t1)
+	chg.AddTask(t2)
+	st.Unlock()
+
+	chgIsClean := func() bool {
+		st.Lock()
+		defer st.Unlock()
+		return chg.IsClean()
+	}
+
+	// Mark tasks as done.
+	ensureChange(c, r, sb, chg)
+
+	// First time it errors, then it works, then it's ignored.
+	c.Assert(chgIsClean(), Equals, false)
+	c.Assert(called, Equals, 0)
+	r.Ensure()
+	r.Wait()
+	c.Assert(chgIsClean(), Equals, false)
+	c.Assert(called, Equals, 1)
+	r.Ensure()
+	r.Wait()
+	c.Assert(chgIsClean(), Equals, true)
+	c.Assert(called, Equals, 2)
+	r.Ensure()
+	r.Wait()
+	c.Assert(chgIsClean(), Equals, true)
+	c.Assert(called, Equals, 2)
 }

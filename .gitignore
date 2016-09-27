@@ -5,3 +5,4 @@ cmd/version_generated.go
 *~
 *.swp
 vendor/*/
+.spread-reuse.yaml
