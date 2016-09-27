@@ -36,6 +36,7 @@ func compileAttrMatcher(context string, constraints interface{}) (attrMatcher, e
 	case map[string]interface{}:
 		return compileMapAttrMatcher(x)
 	case []interface{}:
+		// TODO: disallow nesting alternatives directly inside alernatives?
 		return compileAltAttrMatcher(context, x)
 	case string:
 		if context == "top" {
