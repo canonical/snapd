@@ -26,12 +26,51 @@ type applyConfigHandler struct {
 	context *hookstate.Context
 }
 
+// cachedTransaction is the index into the context cache where the initialized
+// transaction is stored.
+type cachedTransaction struct{}
+
+// ContextTransaction retrieves the transaction cached within the context (and
+// creates one if it hasn't already been cached).
+func ContextTransaction(context *hookstate.Context) *Transaction {
+	// Check for one already cached
+	transaction, ok := context.Cached(cachedTransaction{}).(*Transaction)
+	if ok {
+		return transaction
+	}
+
+	// It wasn't already cached, so create and cache a new one
+	transaction = NewTransaction(context.State())
+
+	context.OnDone(func() error {
+		transaction.Commit()
+		return nil
+	})
+
+	context.Cache(cachedTransaction{}, transaction)
+	return transaction
+}
+
 func newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
 	return &applyConfigHandler{context: context}
 }
 
 // Before is called by the HookManager before the apply-config hook is run.
 func (h *applyConfigHandler) Before() error {
+	h.context.Lock()
+	defer h.context.Unlock()
+
+	transaction := ContextTransaction(h.context)
+
+	// Initialize the transaction if there's a patch provided in the
+	// context.
+	var patch map[string]interface{}
+	if err := h.context.Get("patch", &patch); err == nil {
+		for key, value := range patch {
+			transaction.Set(h.context.SnapName(), key, value)
+		}
+	}
+
 	return nil
 }
 
