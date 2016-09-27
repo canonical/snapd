@@ -25,11 +25,14 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -168,6 +171,9 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 			w.WriteHeader(http.StatusOK)
 			io.WriteString(w, fmt.Sprintf(`{"request-id": "%s"}`, reqID))
 
+		case "/identity/api/v1/serial":
+			c.Check(r.Header.Get("X-Extra-Header"), Equals, "extra")
+			fallthrough
 		case "/identity/api/v1/devices":
 			mu.Lock()
 			serialNum := 9999 + count
@@ -195,7 +201,7 @@ func (s *deviceMgrSuite) mockServer(c *C, reqID string) *httptest.Server {
 				"device-key":          serialReq.HeaderString("device-key"),
 				"device-key-sha3-384": serialReq.SignKeyID(),
 				"timestamp":           time.Now().Format(time.RFC3339),
-			}, nil, "")
+			}, serialReq.Body(), "")
 			c.Assert(err, IsNil)
 			w.Header().Set("Content-Type", asserts.MediaType)
 			w.WriteHeader(http.StatusOK)
@@ -442,6 +448,79 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationPollHappy(c *C) {
 	})
 	c.Assert(err, IsNil)
 	serial := a.(*asserts.Serial)
+
+	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
+	c.Assert(err, IsNil)
+	c.Check(privKey, NotNil)
+
+	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
+}
+
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappySeedDeviceYAML(c *C) {
+	r1 := devicestate.MockKeyLength(752)
+	defer r1()
+
+	mockServer := s.mockServer(c, "REQID-1")
+	defer mockServer.Close()
+
+	err := os.MkdirAll(dirs.SnapSeedDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "device.yaml"),
+		[]byte(fmt.Sprintf(`device-service-url: %q
+device-service-headers:
+  x-extra-header: extra
+details:
+   mac: "00:00:00:00:ff:00"
+`, mockServer.URL+"/identity/api/v1/")), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	// setup state as will be done by first-boot
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+	s.state.Unlock()
+
+	// runs the whole device registration process
+	s.settle()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var becomeOperational *state.Change
+	for _, chg := range s.state.Changes() {
+		if chg.Kind() == "become-operational" {
+			becomeOperational = chg
+			break
+		}
+	}
+	c.Assert(becomeOperational, NotNil)
+
+	c.Check(becomeOperational.Status().Ready(), Equals, true)
+	c.Check(becomeOperational.Err(), IsNil)
+
+	device, err := auth.Device(s.state)
+	c.Assert(err, IsNil)
+	c.Check(device.Brand, Equals, "canonical")
+	c.Check(device.Model, Equals, "pc")
+	c.Check(device.Serial, Equals, "9999")
+
+	a, err := s.db.Find(asserts.SerialType, map[string]string{
+		"brand-id": "canonical",
+		"model":    "pc",
+		"serial":   "9999",
+	})
+	c.Assert(err, IsNil)
+	serial := a.(*asserts.Serial)
+
+	var details map[string]interface{}
+	err = yaml.Unmarshal(serial.Body(), &details)
+	c.Assert(err, IsNil)
+
+	c.Check(details, DeepEquals, map[string]interface{}{
+		"mac": "00:00:00:00:ff:00",
+	})
 
 	privKey, err := s.mgr.KeypairManager().Get(serial.DeviceKey().ID())
 	c.Assert(err, IsNil)
