@@ -90,11 +90,7 @@ func getTransaction(context *hookstate.Context) (*configstate.Transaction, error
 	// in the context.
 	transaction, ok := context.Cached(cachedTransaction{}).(*configstate.Transaction)
 	if !ok {
-		var err error
-		transaction, err = configstate.NewTransaction(context.State())
-		if err != nil {
-			return nil, fmt.Errorf("cannot create transaction: %s", err)
-		}
+		transaction = configstate.NewTransaction(context.State())
 
 		context.OnDone(func() error {
 			transaction.Commit()
