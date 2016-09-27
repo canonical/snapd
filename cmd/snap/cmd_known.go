@@ -37,7 +37,7 @@ type cmdKnown struct {
 		HeaderFilters  []string `required:"0"`
 	} `positional-args:"true" required:"true"`
 
-	Store bool `long:"store"`
+	Remote bool `long:"remote"`
 }
 
 var shortKnownHelp = i18n.G("Shows known assertions of the provided type")
@@ -75,7 +75,11 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 	}
 	primaryKeys := make([]string, len(at.PrimaryKey))
 	for i, k := range at.PrimaryKey {
-		primaryKeys[i] = headers[k]
+		pk, ok := headers[k]
+		if !ok {
+			return nil, fmt.Errorf("missing primary header %q to query remote assertion", k)
+		}
+		primaryKeys[i] = pk
 	}
 
 	sto := store.New(nil, authContext)
@@ -104,7 +108,7 @@ func (x *cmdKnown) Execute(args []string) error {
 
 	var assertions []asserts.Assertion
 	var err error
-	if x.Store {
+	if x.Remote {
 		assertions, err = downloadAssertion(x.KnownOptions.AssertTypeName, headers)
 	} else {
 		assertions, err = Client().Known(x.KnownOptions.AssertTypeName, headers)
