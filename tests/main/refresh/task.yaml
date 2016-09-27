@@ -17,6 +17,10 @@ environment:
     STORE_TYPE/production: production
 
 prepare: |
+    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+        exit
+    fi
+
     if [ "$STORE_TYPE" = "fake" ]; then
         echo "Given a snap is installed"
         snap install test-snapd-tools
@@ -31,11 +35,15 @@ prepare: |
     fi
 
 restore: |
+    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+        exit
+    fi
+
     . $TESTSLIB/store.sh
     teardown_store $STORE_TYPE $BLOB_DIR
 
 execute: |
-    if [ "$STORE_TYPE" = "fake" -a "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]; then
+    if [[ "$STORE_TYPE" = "fake" ]] && [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
         exit
     fi
 
