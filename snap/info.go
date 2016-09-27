@@ -305,8 +305,6 @@ type AppInfo struct {
 
 // ScreenshotInfo provides information about a screenshot.
 type ScreenshotInfo struct {
-	Snap *Info
-
 	URL    string
 	Width  int64
 	Height int64
