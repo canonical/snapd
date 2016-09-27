@@ -96,7 +96,7 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
 	c.Check(calledContext.HookName(), Equals, "test-hook")
 
-	c.Check(s.command.Calls(), DeepEquals, [][]string{[]string{
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
 		"snap", "run", "--hook", "test-hook", "-r", "1", "test-snap",
 	}})
 
@@ -232,7 +232,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile(".*before failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*Before failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
@@ -258,7 +258,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile(".*done failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*Done failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
@@ -287,7 +287,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile(".*error failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*Error failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {

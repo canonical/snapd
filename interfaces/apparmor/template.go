@@ -185,6 +185,9 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
 
+  # For snappy reexec on 4.8+ kernels
+  /usr/lib/snapd/snap-exec m,
+
   # For printing the cache (we don't allow updating the cache)
   /{,usr/}sbin/ldconfig{,.real} ixr,
 

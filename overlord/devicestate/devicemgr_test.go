@@ -102,6 +102,10 @@ func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult,
 	panic("fakeStore.Buy not expected")
 }
 
+func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
+	panic("fakeStore.ReadyToBuy not expected")
+}
+
 func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
 	panic("fakeStore.PaymentMethods not expected")
 }
@@ -545,28 +549,6 @@ func (s *deviceMgrSuite) TestDeviceAssertionsModelAndSerial(c *C) {
 	s.state.Unlock()
 	c.Assert(err, IsNil)
 	c.Check(ser.Serial(), Equals, "8989")
-}
-
-func (s *deviceMgrSuite) TestDeviceAssertionsSerialProof(c *C) {
-	// nothing there
-	_, err := s.mgr.SerialProof("NONCE-1")
-	c.Check(err, Equals, state.ErrNoState)
-
-	s.state.Lock()
-	privKey, _ := assertstest.GenerateKey(1024)
-	// setup state as done by first-boot/Ensure/doGenerateDeviceKey
-	auth.SetDevice(s.state, &auth.DeviceState{
-		KeyID: privKey.PublicKey().ID(),
-	})
-	s.mgr.KeypairManager().Put(privKey)
-	s.state.Unlock()
-
-	serialProof, err := s.mgr.SerialProof("NONCE-1")
-	c.Assert(err, IsNil)
-
-	// correctly signed with device key
-	err = asserts.SignatureCheck(serialProof, privKey.PublicKey())
-	c.Check(err, IsNil)
 }
 
 func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {

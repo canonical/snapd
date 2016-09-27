@@ -391,7 +391,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 	t1ID := t1.ID()
 	t1.Set("a", 1)
 	t1.SetStatus(state.DoneStatus)
-	t1.SetProgress(5, 10)
+	t1.SetProgress("snap", 5, 10)
 
 	t2 := st.NewTask("inst", "2...")
 	chg.AddTask(t2)
@@ -436,7 +436,7 @@ func (ss *stateSuite) TestNewTaskAndCheckpoint(c *C) {
 
 	c.Check(task0_1.Status(), Equals, state.DoneStatus)
 
-	cur, tot := task0_1.Progress()
+	_, cur, tot := task0_1.Progress()
 	c.Check(cur, Equals, 5)
 	c.Check(tot, Equals, 10)
 
@@ -549,6 +549,37 @@ func (ss *stateSuite) TestCheckpointPreserveLastIds(c *C) {
 
 	c.Assert(st2.NewTask("download", "...").ID(), Equals, "3")
 	c.Assert(st2.NewChange("install", "...").ID(), Equals, "2")
+}
+
+func (ss *stateSuite) TestCheckpointPreserveCleanStatus(c *C) {
+	b := new(fakeStateBackend)
+	st := state.New(b)
+	st.Lock()
+
+	chg := st.NewChange("install", "...")
+	t := st.NewTask("download", "...")
+	chg.AddTask(t)
+	t.SetStatus(state.DoneStatus)
+	t.SetClean()
+
+	// implicit checkpoint
+	st.Unlock()
+
+	c.Assert(b.checkpoints, HasLen, 1)
+
+	buf := bytes.NewBuffer(b.checkpoints[0])
+
+	st2, err := state.ReadState(nil, buf)
+	c.Assert(err, IsNil)
+
+	st2.Lock()
+	defer st2.Unlock()
+
+	chg2 := st2.Change(chg.ID())
+	t2 := st2.Task(t.ID())
+
+	c.Assert(chg2.IsClean(), Equals, true)
+	c.Assert(t2.IsClean(), Equals, true)
 }
 
 func (ss *stateSuite) TestNewTaskAndTasks(c *C) {

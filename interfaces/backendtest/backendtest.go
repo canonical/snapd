@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type BackendSuite struct {
@@ -58,7 +59,8 @@ developer: acme
 apps:
     smbd:
 slots:
-    iface:
+    slot:
+        interface: iface
 `
 const SambaYamlV1WithNmbd = `
 name: samba
@@ -68,7 +70,8 @@ apps:
     smbd:
     nmbd:
 slots:
-    iface:
+    slot:
+        interface: iface
 `
 const SambaYamlV1NoSlot = `
 name: samba
@@ -92,7 +95,8 @@ developer: acme
 apps:
     smbd:
 slots:
-    iface:
+    slot:
+        interface: iface
 `
 const SambaYamlWithHook = `
 name: samba
@@ -101,9 +105,13 @@ apps:
     nmbd:
 hooks:
     apply-config:
-        plugs: [iface]
+        plugs: [plug]
 slots:
-    iface:
+    slot:
+        interface: iface
+plugs:
+    plug:
+        interface: iface
 `
 const HookYaml = `
 name: foo
@@ -112,51 +120,50 @@ developer: acme
 hooks:
     apply-config:
 plugs:
-    iface:
+    plug:
+        interface: iface
 `
 const PlugNoAppsYaml = `
 name: foo
 version: 1
 developer: acme
 plugs:
-    iface:
+    plug:
+        interface: iface
 `
 const SlotNoAppsYaml = `
 name: foo
 version: 1
 developer: acme
 slots:
-    iface:
+    slots:
+        interface: iface
 `
 
 // Support code for tests
 
 // InstallSnap "installs" a snap from YAML.
 func (s *BackendSuite) InstallSnap(c *C, devMode bool, snapYaml string, revision int) *snap.Info {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
-	// this won't come from snap.yaml
-	snapInfo.Revision = snap.R(revision)
-	snapInfo.Developer = "acme"
-
+	snapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
+		Revision:  snap.R(revision),
+		Developer: "acme",
+	})
 	s.addPlugsSlots(c, snapInfo)
-	err = s.Backend.Setup(snapInfo, devMode, s.Repo)
+	err := s.Backend.Setup(snapInfo, devMode, s.Repo)
 	c.Assert(err, IsNil)
 	return snapInfo
 }
 
 // UpdateSnap "updates" an existing snap from YAML.
 func (s *BackendSuite) UpdateSnap(c *C, oldSnapInfo *snap.Info, devMode bool, snapYaml string, revision int) *snap.Info {
-	newSnapInfo, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
-	// this won't come from snap.yaml
-	newSnapInfo.Revision = snap.R(revision)
-	newSnapInfo.Developer = "acme"
-
+	newSnapInfo := snaptest.MockInfo(c, snapYaml, &snap.SideInfo{
+		Revision:  snap.R(revision),
+		Developer: "acme",
+	})
 	c.Assert(newSnapInfo.Name(), Equals, oldSnapInfo.Name())
 	s.removePlugsSlots(c, oldSnapInfo)
 	s.addPlugsSlots(c, newSnapInfo)
-	err = s.Backend.Setup(newSnapInfo, devMode, s.Repo)
+	err := s.Backend.Setup(newSnapInfo, devMode, s.Repo)
 	c.Assert(err, IsNil)
 	return newSnapInfo
 }

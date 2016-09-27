@@ -24,6 +24,7 @@ package assertstate
 
 import (
 	"fmt"
+	"io"
 	"strings"
 
 	"gopkg.in/tomb.v2"
@@ -34,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -99,10 +102,94 @@ func DB(s *state.State) asserts.RODatabase {
 	return cachedDB(s)
 }
 
-// Add the given assertion to the system assertiond database. Readding the current revision is a no-op.
+// Add the given assertion to the system assertion database.
 func Add(s *state.State, a asserts.Assertion) error {
 	// TODO: deal together with asserts itself with (cascading) side effects of possible assertion updates
 	return cachedDB(s).Add(a)
+}
+
+// Batch allows to accumulate a set of assertions possibly out of prerequisite order and then add them in one go to the system assertion database.
+type Batch struct {
+	bs   asserts.Backstore
+	refs []*asserts.Ref
+}
+
+// NewBatch creates a new Batch to accumulate assertions to add in one go to the system assertion database.
+func NewBatch() *Batch {
+	return &Batch{
+		bs:   asserts.NewMemoryBackstore(),
+		refs: nil,
+	}
+}
+
+// Add one assertion to the batch.
+func (b *Batch) Add(a asserts.Assertion) error {
+	if err := b.bs.Put(a.Type(), a); err != nil {
+		if revErr, ok := err.(*asserts.RevisionError); ok {
+			if revErr.Current >= a.Revision() {
+				// we already got something more recent
+				return nil
+			}
+		}
+		return err
+	}
+	b.refs = append(b.refs, a.Ref())
+	return nil
+}
+
+// AddStream adds a stream of assertions to the batch.
+// Returns references to to the assertions effectively added.
+func (b *Batch) AddStream(r io.Reader) ([]*asserts.Ref, error) {
+	start := len(b.refs)
+	dec := asserts.NewDecoder(r)
+	for {
+		a, err := dec.Decode()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		if err := b.Add(a); err != nil {
+			return nil, err
+		}
+	}
+	added := b.refs[start:]
+	if len(added) == 0 {
+		return nil, nil
+	}
+	refs := make([]*asserts.Ref, len(added))
+	copy(refs, added)
+	return refs, nil
+}
+
+// Commit adds the batch of assertions to the system assertion database.
+func (b *Batch) Commit(st *state.State) error {
+	db := cachedDB(st)
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		a, err := b.bs.Get(ref.Type, ref.PrimaryKey)
+		if err == asserts.ErrNotFound {
+			// fallback to pre-existing assertions
+			a, err = ref.Resolve(db.Find)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("cannot find %s: %s", ref, err)
+		}
+		return a, nil
+	}
+
+	// linearize using fetcher
+	f := newFetcher(st, retrieve)
+	for _, ref := range b.refs {
+		if err := f.Fetch(ref); err != nil {
+			return err
+		}
+	}
+
+	// TODO: trigger w. caller a global sanity check if something is revoked
+	// (but try to save as much possible still),
+	// or err is a check error
+	return f.commit()
 }
 
 // TODO: snapstate also has this, move to auth, or change a bit the approach now that we have AuthContext in the store?
@@ -119,17 +206,11 @@ type fetcher struct {
 	fetched []asserts.Assertion
 }
 
-// newFetches creates a fetcher used to retrieve assertions from the store and later commit them to the system database in one go.
-func newFetcher(s *state.State, user *auth.UserState) *fetcher {
+// newFetches creates a fetcher used to retrieve assertions and later commit them to the system database in one go.
+func newFetcher(s *state.State, retrieve func(*asserts.Ref) (asserts.Assertion, error)) *fetcher {
 	db := cachedDB(s)
-	sto := snapstate.Store(s)
 
 	f := &fetcher{db: db}
-
-	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
-		// TODO: ignore errors if already in db?
-		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
-	}
 
 	save := func(a asserts.Assertion) error {
 		f.fetched = append(f.fetched, a)
@@ -183,7 +264,14 @@ func doFetch(s *state.State, userID int, fetching func(asserts.Fetcher) error) e
 		return err
 	}
 
-	f := newFetcher(s, user)
+	sto := snapstate.Store(s)
+
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		// TODO: ignore errors if already in db?
+		return sto.Assertion(ref.Type, ref.PrimaryKey, user)
+	}
+
+	f := newFetcher(s, retrieve)
 
 	s.Unlock()
 	err = fetching(f)
@@ -262,4 +350,123 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 	return doFetch(s, userID, fetching)
+}
+
+type refreshControlError struct {
+	errs []error
+}
+
+func (e *refreshControlError) Error() string {
+	if len(e.errs) == 1 {
+		return e.errs[0].Error()
+	}
+	l := []string{""}
+	for _, e := range e.errs {
+		l = append(l, e.Error())
+	}
+	return fmt.Sprintf("refresh control errors:%s", strings.Join(l, "\n - "))
+}
+
+// ValidateRefreshes validates the refresh candidate revisions represented by the snapInfos, looking for the needed refresh control validation assertions, it returns a validated subset in validated and a summary error if not all candidates validated.
+func ValidateRefreshes(s *state.State, snapInfos []*snap.Info, userID int) (validated []*snap.Info, err error) {
+	// maps gated snap-ids to gating snap-ids
+	controlled := make(map[string][]string)
+	// maps gating snap-ids to their snap names
+	gatingNames := make(map[string]string)
+
+	db := DB(s)
+	snapStates, err := snapstate.All(s)
+	if err != nil {
+		return nil, err
+	}
+	for snapName, snapState := range snapStates {
+		info, err := snapState.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		if info.SnapID == "" {
+			continue
+		}
+		gatingID := info.SnapID
+		a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+			"series":  release.Series,
+			"snap-id": gatingID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("internal error: cannot find snap declaration for installed snap %q (id %q): err", snapName, gatingID)
+		}
+		decl := a.(*asserts.SnapDeclaration)
+		control := decl.RefreshControl()
+		if len(control) == 0 {
+			continue
+		}
+		gatingNames[gatingID] = decl.SnapName()
+		for _, gatedID := range control {
+			controlled[gatedID] = append(controlled[gatedID], gatingID)
+		}
+	}
+
+	var errs []error
+	for _, candInfo := range snapInfos {
+		gatedID := candInfo.SnapID
+		gating := controlled[gatedID]
+		if len(gating) == 0 { // easy case, no refresh control
+			validated = append(validated, candInfo)
+			continue
+		}
+
+		var validationRefs []*asserts.Ref
+
+		fetching := func(f asserts.Fetcher) error {
+			for _, gatingID := range gating {
+				valref := &asserts.Ref{
+					Type:       asserts.ValidationType,
+					PrimaryKey: []string{release.Series, gatingID, gatedID, candInfo.Revision.String()},
+				}
+				err := f.Fetch(valref)
+				if notFound, ok := err.(*store.AssertionNotFoundError); ok && notFound.Ref.Type == asserts.ValidationType {
+					return fmt.Errorf("no validation by %q", gatingNames[gatingID])
+				}
+				if err != nil {
+					return fmt.Errorf("cannot find validation by %q: %v", gatingNames[gatingID], err)
+				}
+				validationRefs = append(validationRefs, valref)
+			}
+			return nil
+		}
+		err := doFetch(s, userID, fetching)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: %v", candInfo.Name(), candInfo.Revision, err))
+			continue
+		}
+
+		var revoked *asserts.Validation
+		for _, valref := range validationRefs {
+			a, err := valref.Resolve(db.Find)
+			if err != nil {
+				return nil, fmt.Errorf("internal error: cannot find just fetched %v: %v", valref, err)
+			}
+			if val := a.(*asserts.Validation); val.Revoked() {
+				revoked = val
+				break
+			}
+		}
+		if revoked != nil {
+			errs = append(errs, fmt.Errorf("cannot refresh %q to revision %s: validation by %q (id %q) revoked", candInfo.Name(), candInfo.Revision, gatingNames[revoked.SnapID()], revoked.SnapID()))
+			continue
+		}
+
+		validated = append(validated, candInfo)
+	}
+
+	if errs != nil {
+		return validated, &refreshControlError{errs}
+	}
+
+	return validated, nil
+}
+
+func init() {
+	// hook validation of refreshes into snapstate logic
+	snapstate.ValidateRefreshes = ValidateRefreshes
 }
