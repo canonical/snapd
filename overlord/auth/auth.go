@@ -58,7 +58,7 @@ type UserState struct {
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
-func NewUser(st *state.State, username, macaroon string, discharges []string) (*UserState, error) {
+func NewUser(st *state.State, username, macaroon string, discharges []string, storeMacaroon string, storeDischarges []string) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -69,14 +69,15 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 	}
 
 	sort.Strings(discharges)
+	sort.Strings(storeDischarges)
 	authStateData.LastID++
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
 		Username:        username,
 		Macaroon:        macaroon,
 		Discharges:      discharges,
-		StoreMacaroon:   macaroon,
-		StoreDischarges: discharges,
+		StoreMacaroon:   storeMacaroon,
+		StoreDischarges: storeDischarges,
 	}
 	authStateData.Users = append(authStateData.Users, authenticatedUser)
 

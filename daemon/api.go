@@ -303,7 +303,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge}, macaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
@@ -1726,7 +1726,7 @@ func addAuthUser(st *state.State, username string) error {
 	// store the freshly created user in the state so that snapd
 	// can be used without sudo
 	st.Lock()
-	_, err = auth.NewUser(st, username, string(macaB), nil)
+	_, err = auth.NewUser(st, username, string(macaB), nil, "", nil)
 	st.Unlock()
 	if err != nil {
 		return fmt.Errorf("cannot persist authentication details: %v", err)

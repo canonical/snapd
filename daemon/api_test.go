@@ -316,7 +316,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -570,7 +570,7 @@ func (s *apiSuite) TestLogoutUser(c *check.C) {
 	d := s.daemon(c)
 	state := d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -725,7 +725,7 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -743,7 +743,7 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1128,7 +1128,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1317,7 +1317,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3665,7 +3665,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3703,7 +3703,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3778,7 +3778,7 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 
 		state := snapCmd.d.overlord.State()
 		state.Lock()
-		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 		state.Unlock()
 		c.Check(err, check.IsNil)
 
@@ -3811,7 +3811,7 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
