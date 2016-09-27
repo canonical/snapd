@@ -23,5 +23,5 @@ execute: |
     snap install --dangerous basic-hooks_1.0_all.snap
     loaded_profiles=$(cat /sys/kernel/security/apparmor/profiles)
 
-    echo "$loaded_profiles" | grep -zq "snap.basic-hooks.hook.config-changing (enforce)"
-    [ -f "$seccomp_profile_directory/snap.basic-hooks.hook.config-changing" ]
+    echo "$loaded_profiles" | grep -zq "snap.basic-hooks.hook.configure (enforce)"
+    [ -f "$seccomp_profile_directory/snap.basic-hooks.hook.configure" ]

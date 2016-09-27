@@ -1887,9 +1887,9 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	// Check that the config-changing hook was run correctly
+	// Check that the configure hook was run correctly
 	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
-		"snap", "run", "--hook", "config-changing", "-r", "unset", "config-snap",
+		"snap", "run", "--hook", "configure", "-r", "unset", "config-snap",
 	}})
 }
 
