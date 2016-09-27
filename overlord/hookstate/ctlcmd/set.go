@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
 type setCommand struct {
@@ -56,10 +55,7 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	transaction, err := getTransaction(s.context())
-	if err != nil {
-		return err
-	}
+	transaction := configstate.ContextTransaction(s.context())
 
 	for _, patchValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
@@ -78,25 +74,4 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	return nil
-}
-
-func getTransaction(context *hookstate.Context) (*configstate.Transaction, error) {
-	context.Lock()
-	defer context.Unlock()
-
-	// Extract the transaction from the context. If none, make one and cache it
-	// in the context.
-	transaction, ok := context.Cached(configstate.CachedTransaction{}).(*configstate.Transaction)
-	if !ok {
-		transaction = configstate.NewTransaction(context.State())
-
-		context.OnDone(func() error {
-			transaction.Commit()
-			return nil
-		})
-
-		context.Cache(configstate.CachedTransaction{}, transaction)
-	}
-
-	return transaction, nil
 }

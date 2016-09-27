@@ -52,10 +52,8 @@ func (s *applyConfigHandlerSuite) SetUpTest(c *C) {
 }
 
 func (s *applyConfigHandlerSuite) TestBeforeInitializesTransaction(c *C) {
-	s.context.Lock()
-	c.Check(s.context.Cached(configstate.CachedTransaction{}), IsNil)
-
 	// Initialize context
+	s.context.Lock()
 	s.context.Set("patch", map[string]interface{}{
 		"foo": "bar",
 	})
@@ -63,10 +61,7 @@ func (s *applyConfigHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 
 	c.Check(s.handler.Before(), IsNil)
 
-	s.context.Lock()
-	defer s.context.Unlock()
-	transaction := s.context.Cached(configstate.CachedTransaction{}).(*configstate.Transaction)
-	c.Assert(transaction, NotNil)
+	transaction := configstate.ContextTransaction(s.context)
 
 	var value string
 	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)

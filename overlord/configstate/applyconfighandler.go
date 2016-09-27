@@ -19,19 +19,39 @@
 
 package configstate
 
-import (
-	"fmt"
-
-	"github.com/snapcore/snapd/overlord/hookstate"
-)
-
-// CachedTransaction is the index into the context cache where the initialized
-// transaction is stored.
-type CachedTransaction struct{}
+import "github.com/snapcore/snapd/overlord/hookstate"
 
 // applyConfigHandler is the handler for the apply-config hook.
 type applyConfigHandler struct {
 	context *hookstate.Context
+}
+
+// cachedTransaction is the index into the context cache where the initialized
+// transaction is stored.
+type cachedTransaction struct{}
+
+// ContextTransaction retrieves the transaction cached within the context (and
+// creates one if it hasn't already been cached).
+func ContextTransaction(context *hookstate.Context) *Transaction {
+	context.Lock()
+	defer context.Unlock()
+
+	// Check for one already cached
+	transaction, ok := context.Cached(cachedTransaction{}).(*Transaction)
+	if ok {
+		return transaction
+	}
+
+	// It wasn't already cached, so create and cache a new one
+	transaction = NewTransaction(context.State())
+
+	context.OnDone(func() error {
+		transaction.Commit()
+		return nil
+	})
+
+	context.Cache(cachedTransaction{}, transaction)
+	return transaction
 }
 
 func newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
@@ -40,14 +60,10 @@ func newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
 
 // Before is called by the HookManager before the apply-config hook is run.
 func (h *applyConfigHandler) Before() error {
+	transaction := ContextTransaction(h.context)
+
 	h.context.Lock()
 	defer h.context.Unlock()
-
-	// Initialize a new transaction and cache it in the context.
-	transaction, err := NewTransaction(h.context.State())
-	if err != nil {
-		return fmt.Errorf("cannot create transaction: %s", err)
-	}
 
 	// Initialize the transaction if there's a patch provided in the
 	// context.
@@ -57,13 +73,6 @@ func (h *applyConfigHandler) Before() error {
 			transaction.Set(h.context.SnapName(), key, value)
 		}
 	}
-
-	h.context.OnDone(func() error {
-		transaction.Commit()
-		return nil
-	})
-
-	h.context.Cache(CachedTransaction{}, transaction)
 
 	return nil
 }
