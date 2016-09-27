@@ -88,6 +88,7 @@ network packet,
 /lib/resolvconf/* ix,
 # Required by resolvconf
 /bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
 
