@@ -614,17 +614,11 @@ func (ts *taskRunnerSuite) TestPrematureChangeReady(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	if chg.Status().Ready() {
+	if chg.IsReady() || chg.Status().Ready() {
 		c.Errorf("Change considered ready prematurely")
 	}
 
 	c.Assert(chg.Err(), IsNil)
-
-	select {
-	case <-chg.Ready():
-		c.Errorf("Change considered ready prematurely")
-	default:
-	}
 }
 
 func (ts *taskRunnerSuite) TestCleanup(c *C) {
