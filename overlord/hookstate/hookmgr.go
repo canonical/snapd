@@ -23,7 +23,6 @@ package hookstate
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -98,16 +97,7 @@ func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revisi
 
 	// Set the initial context in the task, which will be loaded when Context
 	// is used.
-	data := make(map[string]*json.RawMessage)
-	for key, value := range initialContext {
-		marshalledValue, err := json.Marshal(value)
-		if err != nil {
-			panic(fmt.Sprintf("internal error: cannot marshal initial context value for %q: %s", key, err))
-		}
-		raw := json.RawMessage(marshalledValue)
-		data[key] = &raw
-	}
-	task.Set("hook-context", &data)
+	task.Set("hook-context", &initialContext)
 	return task
 }
 
