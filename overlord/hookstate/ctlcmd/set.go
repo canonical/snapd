@@ -26,7 +26,6 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/configstate"
-	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
 type setCommand struct {
@@ -36,8 +35,6 @@ type setCommand struct {
 		ConfValues []string `positional-arg-name:"key=value" required:"1"`
 	} `positional-args:"yes" required:"yes"`
 }
-
-type cachedTransaction struct{}
 
 var shortSetHelp = i18n.G("Set snap configuration")
 var longSetHelp = i18n.G(`
@@ -54,14 +51,14 @@ func init() {
 }
 
 func (s *setCommand) Execute(args []string) error {
-	if s.context() == nil {
+	context := s.context()
+	if context == nil {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	transaction, err := getTransaction(s.context())
-	if err != nil {
-		return err
-	}
+	context.Lock()
+	transaction := configstate.ContextTransaction(context)
+	context.Unlock()
 
 	for _, patchValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
@@ -80,25 +77,4 @@ func (s *setCommand) Execute(args []string) error {
 	}
 
 	return nil
-}
-
-func getTransaction(context *hookstate.Context) (*configstate.Transaction, error) {
-	context.Lock()
-	defer context.Unlock()
-
-	// Extract the transaction from the context. If none, make one and cache it
-	// in the context.
-	transaction, ok := context.Cached(cachedTransaction{}).(*configstate.Transaction)
-	if !ok {
-		transaction = configstate.NewTransaction(context.State())
-
-		context.OnDone(func() error {
-			transaction.Commit()
-			return nil
-		})
-
-		context.Cache(cachedTransaction{}, transaction)
-	}
-
-	return transaction, nil
 }
