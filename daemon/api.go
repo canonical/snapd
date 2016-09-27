@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -77,6 +78,7 @@ var api = []*Command{
 	stateChangesCmd,
 	createUserCmd,
 	buyCmd,
+	readyToBuyCmd,
 	paymentMethodsCmd,
 	snapctlCmd,
 }
@@ -184,6 +186,12 @@ var (
 		Path:   "/v2/buy",
 		UserOK: false,
 		POST:   postBuy,
+	}
+
+	readyToBuyCmd = &Command{
+		Path:   "/v2/buy/ready",
+		UserOK: false,
+		GET:    readyToBuy,
 	}
 
 	// TODO Remove once the CLI is using the new /buy/ready endpoint
@@ -1263,8 +1271,33 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
-	// TODO: Get configuration values from configmanager
-	return SyncResponse(nil, nil)
+	vars := muxVars(r)
+	snapName := vars["name"]
+
+	keys := strings.Split(r.URL.Query().Get("keys"), ",")
+	if len(keys) == 0 {
+		return BadRequest("cannot obtain configuration: no keys supplied")
+	}
+
+	s := c.d.overlord.State()
+	s.Lock()
+	transaction, err := configstate.NewTransaction(s)
+	s.Unlock()
+	if err != nil {
+		return BadRequest("cannot create transaction: %s", err)
+	}
+
+	currentConfValues := make(map[string]interface{})
+	for _, key := range keys {
+		var value interface{}
+		if err := transaction.Get(snapName, key, &value); err != nil {
+			return BadRequest("%s", err)
+		}
+
+		currentConfValues[key] = value
+	}
+
+	return SyncResponse(currentConfValues, nil)
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1632,6 +1665,13 @@ var (
 	osutilAddUser                = osutil.AddUser
 )
 
+type createResponseData struct {
+	Username string   `json:"username"`
+	SSHKeys  []string `json:"ssh-keys"`
+	// deprecated
+	SSHKeyCount int `json:"ssh-key-count"`
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1674,14 +1714,11 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
-	var createResponseData struct {
-		Username    string `json:"username"`
-		SSHKeyCount int    `json:"ssh-key-count"`
-	}
-	createResponseData.Username = v.Username
-	createResponseData.SSHKeyCount = len(v.SSHKeys)
-
-	return SyncResponse(createResponseData, nil)
+	return SyncResponse(&createResponseData{
+		Username:    v.Username,
+		SSHKeys:     v.SSHKeys,
+		SSHKeyCount: len(v.SSHKeys),
+	}, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1725,6 +1762,41 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	}
 
 	return SyncResponse(paymentMethods, nil)
+}
+
+func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	err := s.ReadyToBuy(user)
+
+	switch err {
+	default:
+		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	case store.ErrTOSNotAccepted:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindTermsNotAccepted,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case store.ErrNoPaymentMethods:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindNoPaymentMethods,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case nil:
+		// continue
+	}
+
+	return SyncResponse(true, nil)
 }
 
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {

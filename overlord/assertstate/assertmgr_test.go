@@ -106,6 +106,10 @@ func (sto *fakeStore) Buy(*store.BuyOptions, *auth.UserState) (*store.BuyResult,
 	panic("fakeStore.Buy not expected")
 }
 
+func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
+	panic("fakeStore.ReadyToBuy not expected")
+}
+
 func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
 	panic("fakeStore.PaymentMethods not expected")
 }
@@ -190,8 +194,8 @@ func (s *assertMgrSuite) TestBatchAddStream(c *C) {
 	refs, err := batch.AddStream(b)
 	c.Assert(err, IsNil)
 	c.Check(refs, DeepEquals, []*asserts.Ref{
-		&asserts.Ref{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
-		&asserts.Ref{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
+		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
 	})
 
 	// noop
@@ -252,7 +256,7 @@ func (s *assertMgrSuite) TestBatchAddStreamReturnsEffectivelyAddedRefs(c *C) {
 	refs, err := batch.AddStream(b)
 	c.Assert(err, IsNil)
 	c.Check(refs, DeepEquals, []*asserts.Ref{
-		&asserts.Ref{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
+		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
 	})
 
 	err = batch.Commit(s.state)

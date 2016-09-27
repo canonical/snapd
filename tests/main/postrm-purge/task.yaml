@@ -4,7 +4,8 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-devi
 
 execute: |
     echo "When some snaps are installed"
-    . $TESTSLIB/install.sh test-snapd-tools
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
     snap install hello-world
 
     echo "And snapd is purged"

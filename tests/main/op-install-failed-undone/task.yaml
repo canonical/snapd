@@ -16,7 +16,8 @@ execute: |
     mkdir -p /snap/test-snapd-tools/current/foo
 
     echo "And we try to install it"
-    if . $TESTSLIB/install.sh test-snapd-tools; then
+    . $TESTSLIB/snaps.sh
+    if install_local test-snapd-tools; then
         echo "A snap shouldn't be installable if its mount point is busy"
         exit 1
     fi

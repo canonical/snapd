@@ -2,6 +2,8 @@
 
 set -eux
 
+. $TESTSLIB/apt.sh
+
 update_core_snap_with_snap_exec_snapctl() {
     # We want to use the in-tree snap-exec and snapctl, not the ones in the core
     # snap. To accomplish that, we'll just unpack the core we just grabbed,
@@ -38,7 +40,8 @@ update_core_snap_with_snap_exec_snapctl() {
 }
 
 prepare_classic() {
-    apt install -y ${SPREAD_PATH}/../snapd_*.deb
+    apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+
     # Snapshot the state including core.
     if [ ! -f $SPREAD_PATH/snapd-state.tar.gz ]; then
         ! snap list | grep core || exit 1
@@ -76,8 +79,8 @@ prepare_classic() {
 
 setup_reflash_magic() {
         # install the stuff we need
-        apt install -y kpartx busybox-static
-        apt install -y ${SPREAD_PATH}/../snapd_*.deb
+        apt-get install -y kpartx busybox-static
+        apt_install_local ${SPREAD_PATH}/../snapd_*.deb
 
         snap install --edge ubuntu-core
 

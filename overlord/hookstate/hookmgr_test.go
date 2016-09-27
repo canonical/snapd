@@ -96,7 +96,7 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
 	c.Check(calledContext.HookName(), Equals, "test-hook")
 
-	c.Check(s.command.Calls(), DeepEquals, [][]string{[]string{
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
 		"snap", "run", "--hook", "test-hook", "-r", "1", "test-snap",
 	}})
 

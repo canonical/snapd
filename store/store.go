@@ -112,6 +112,14 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	}
 	info.Deltas = deltas
 
+	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
+	for _, url := range d.ScreenshotURLs {
+		screenshots = append(screenshots, snap.ScreenshotInfo{
+			URL: url,
+		})
+	}
+	info.Screenshots = screenshots
+
 	return info
 }
 
@@ -1420,9 +1428,9 @@ type PaymentInformation struct {
 }
 
 type storeCustomer struct {
-	LatestTosDate     string `json:"latest_tos_date"`
-	AcceptedTosDate   string `json:"accepted_tos_date"`
-	LatestTosAccepted bool   `json:"latest_tos_accepted"`
+	LatestTOSDate     string `json:"latest_tos_date"`
+	AcceptedTOSDate   string `json:"accepted_tos_date"`
+	LatestTOSAccepted bool   `json:"latest_tos_accepted"`
 	HasPaymentMethod  bool   `json:"has_payment_method"`
 }
 
@@ -1450,8 +1458,8 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		if err := dec.Decode(&customer); err != nil {
 			return err
 		}
-		if !customer.LatestTosAccepted {
-			return ErrTosNotAccepted
+		if !customer.LatestTOSAccepted {
+			return ErrTOSNotAccepted
 		}
 		if !customer.HasPaymentMethod {
 			return ErrNoPaymentMethods

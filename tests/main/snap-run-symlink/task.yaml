@@ -4,9 +4,10 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-devi
 
 prepare: |
     echo Ensure we have a os snap with snap run
-    $SPREAD_PATH/tests/lib/reset.sh
+    $TESTSLIB/reset.sh
     snap install --channel=beta ubuntu-core
-    . $TESTSLIB/install.sh test-snapd-tools
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 
 environment:
     APP/testsnapdtoolsecho: test-snapd-tools.echo

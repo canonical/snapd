@@ -35,6 +35,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -48,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -112,6 +114,11 @@ func (s *apiSuite) Buy(options *store.BuyOptions, user *auth.UserState) (*store.
 	s.buyOptions = options
 	s.user = user
 	return s.buyResult, s.err
+}
+
+func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
+	s.user = user
+	return s.err
 }
 
 func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
@@ -853,6 +860,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
+	c.Check(snaps[0]["screenshots"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
@@ -1015,6 +1023,48 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 	c.Check(snap["status"], check.Equals, "priced")
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "GBP")
+}
+
+func (s *apiSuite) TestFindScreenshotted(c *check.C) {
+	s.rsnaps = []*snap.Info{{
+		Type:    snap.TypeApp,
+		Version: "v2",
+		Screenshots: []snap.ScreenshotInfo{
+			{
+				URL:    "http://example.com/screenshot.png",
+				Width:  800,
+				Height: 1280,
+			},
+			{
+				URL: "http://example.com/screenshot2.png",
+			},
+		},
+		MustBuy: true,
+		SideInfo: snap.SideInfo{
+			RealName:  "test-screenshot",
+			Developer: "foo",
+		},
+	}}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
+	c.Assert(err, check.IsNil)
+	rsp, ok := searchStore(findCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+
+	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
+	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"url":    "http://example.com/screenshot.png",
+			"width":  float64(800),
+			"height": float64(1280),
+		},
+		map[string]interface{}{
+			"url": "http://example.com/screenshot2.png",
+		},
+	})
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
@@ -1764,6 +1814,38 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	return chg.Summary()
 }
 
+func (s *apiSuite) runGetConf(c *check.C, keys []string) map[string]interface{} {
+	s.vars = map[string]string{"name": "test-snap"}
+	req, err := http.NewRequest("GET", "/v2/snaps/test-snap/conf?keys="+strings.Join(keys, ","), nil)
+	c.Check(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	snapConfCmd.GET(snapConfCmd, req, nil).ServeHTTP(rec, req)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	return body["result"].(map[string]interface{})
+}
+
+func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
+	d := s.daemon(c)
+
+	// Set a config that we'll get in a moment
+	d.overlord.State().Lock()
+	transaction, err := configstate.NewTransaction(d.overlord.State())
+	c.Check(err, check.IsNil)
+	transaction.Set("test-snap", "test-key1", "test-value1")
+	transaction.Set("test-snap", "test-key2", "test-value2")
+	transaction.Commit()
+	d.overlord.State().Unlock()
+
+	result := s.runGetConf(c, []string{"test-key1"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1"})
+
+	result = s.runGetConf(c, []string{"test-key1", "test-key2"})
+	c.Check(result, check.DeepEquals, map[string]interface{}{"test-key1": "test-value1", "test-key2": "test-value2"})
+}
+
 func (s *apiSuite) TestSetConf(c *check.C) {
 	d := s.daemon(c)
 	s.mockSnap(c, configYaml)
@@ -1807,7 +1889,7 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Check that the apply-config hook was run correctly
-	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{[]string{
+	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
 		"snap", "run", "--hook", "apply-config", "-r", "unset", "config-snap",
 	}})
 }
@@ -3560,7 +3642,15 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
+	expected := &createResponseData{
+		Username:    "karl",
+		SSHKeys:     []string{"ssh1", "ssh2"},
+		SSHKeyCount: 2,
+	}
+
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
 
 func (s *apiSuite) TestBuySnap(c *check.C) {
@@ -3638,12 +3728,68 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 	form := &multipart.Form{}
 	c.Check(isTrue(form, "foo"), check.Equals, false)
 	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
-		form.Value = map[string][]string{"foo": []string{f}}
+		form.Value = map[string][]string{"foo": {f}}
 		c.Check(isTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
 	}
 	for _, t := range []string{"true", "1", "True", "t"} {
-		form.Value = map[string][]string{"foo": []string{t}}
+		form.Value = map[string][]string{"foo": {t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
+	}
+}
+
+var readyToBuyTests = []struct {
+	input    error
+	status   int
+	respType interface{}
+	response interface{}
+}{
+	{
+		// Success
+		input:    nil,
+		status:   http.StatusOK,
+		respType: ResponseTypeSync,
+		response: true,
+	},
+	{
+		// Not accepted TOS
+		input:    store.ErrTOSNotAccepted,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "terms of service not accepted",
+			Kind:    errorKindTermsNotAccepted,
+		},
+	},
+	{
+		// No payment methods
+		input:    store.ErrNoPaymentMethods,
+		status:   http.StatusBadRequest,
+		respType: ResponseTypeError,
+		response: &errorResult{
+			Message: "no payment methods",
+			Kind:    errorKindNoPaymentMethods,
+		},
+	},
+}
+
+func (s *apiSuite) TestReadyToBuy(c *check.C) {
+	for _, test := range readyToBuyTests {
+		s.err = test.input
+
+		req, err := http.NewRequest("GET", "/v2/buy/ready", nil)
+		c.Assert(err, check.IsNil)
+
+		state := snapCmd.d.overlord.State()
+		state.Lock()
+		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+		state.Unlock()
+		c.Check(err, check.IsNil)
+
+		rsp := readyToBuy(readyToBuyCmd, req, user).(*resp)
+		c.Check(rsp.Status, check.Equals, test.status)
+		c.Check(rsp.Type, check.Equals, test.respType)
+		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
+		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
 }
 
@@ -3651,7 +3797,7 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 	s.paymentMethods = &store.PaymentInformation{
 		AllowsAutomaticPayment: true,
 		Methods: []*store.PaymentMethod{
-			&store.PaymentMethod{
+			{
 				BackendID:           "credit_card",
 				Currencies:          []string{"GBP", "USD"},
 				Description:         "**** **** **** 1234 (exp 20/2020)",

@@ -7,7 +7,8 @@ execute: |
         done
     }
     if [ "$SPREAD_REBOOT" = "0" ]; then
-        . $TESTSLIB/install.sh test-snapd-tools
+        . $TESTSLIB/snaps.sh
+        install_local test-snapd-tools
         ensure_apparmor_profile_loaded
         REBOOT
     fi
