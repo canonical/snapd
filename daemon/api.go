@@ -1280,11 +1280,8 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	s := c.d.overlord.State()
 	s.Lock()
-	transaction, err := configstate.NewTransaction(s)
+	transaction := configstate.NewTransaction(s)
 	s.Unlock()
-	if err != nil {
-		return BadRequest("cannot create transaction: %s", err)
-	}
 
 	currentConfValues := make(map[string]interface{})
 	for _, key := range keys {
