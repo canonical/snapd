@@ -40,21 +40,37 @@ func (s *tasksetsSuite) SetUpTest(c *C) {
 
 func (s *tasksetsSuite) TestChange(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
-
 	taskset := configstate.Change(s.state, "test-snap", map[string]interface{}{
 		"foo": "bar",
 	})
+	s.state.Unlock()
 
 	tasks := taskset.Tasks()
 	c.Assert(tasks, HasLen, 1)
 	task := tasks[0]
 
 	c.Assert(task.Kind(), Equals, "run-hook")
+
+	// Check that the Context is initialized as we expect
 	var setup hookstate.HookSetup
+	s.state.Lock()
 	err := task.Get("hook-setup", &setup)
+	s.state.Unlock()
 	c.Check(err, IsNil)
-	c.Check(setup.Snap, Equals, "test-snap")
-	c.Check(setup.Revision, Equals, snap.Revision{})
-	c.Check(setup.Hook, Equals, "apply-config")
+
+	context, err := hookstate.NewContext(task, &setup, nil)
+	c.Check(err, IsNil)
+	c.Check(context.SnapName(), Equals, "test-snap")
+	c.Check(context.SnapRevision(), Equals, snap.Revision{})
+	c.Check(context.HookName(), Equals, "apply-config")
+
+	context.Lock()
+	defer context.Unlock()
+
+	var patchValues map[string]interface{}
+	err = context.Get("patch", &patchValues)
+	c.Check(err, IsNil)
+	c.Check(patchValues, DeepEquals, map[string]interface{}{
+		"foo": "bar",
+	})
 }
