@@ -1,5 +1,5 @@
 summary: Ensure that the apt output on ubuntu-core is correct
-systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64, ubuntu-core-16-device-arm]
+systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64, ubuntu-core-16-arm]
 execute: |
     expected="Ubuntu Core does not use apt-get, see 'snap --help'!"
     output=$(apt-get update)

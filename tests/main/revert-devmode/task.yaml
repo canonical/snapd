@@ -24,8 +24,9 @@ restore: |
     teardown_store $STORE_TYPE $BLOB_DIR
 
 execute: |
-    # skip the test for nonproduction stores on ubuntu-core systems
-    if [ "$STORE_TYPE" = "fake" -a "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]; then exit; fi
+    if [ "$STORE_TYPE" = "fake" -a "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]; then
+        exit
+    fi
 
     echo "When a refresh is made"
     snap refresh --devmode --edge test-snapd-tools

@@ -243,7 +243,7 @@ prepare_all_snap() {
 
     echo "Ensure fundamental snaps are still present"
     . $TESTSLIB/names.sh
-    for name in $gadget_name ${kernel_name} ubuntu-core; do
+    for name in $gadget_name $kernel_name ubuntu-core; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"

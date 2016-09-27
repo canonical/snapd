@@ -1,6 +1,6 @@
 summary: Checks for local install with metadata from assertions
 # XXX we would need to bother with curl there atm
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm]
 restore: |
     rm -f test-snapd-tools_*.snap
 execute: |

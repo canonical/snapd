@@ -35,8 +35,9 @@ restore: |
     teardown_store $STORE_TYPE $BLOB_DIR
 
 execute: |
-    # skip the test for nonproduction stores on ubuntu-core systems
-    if [ "$STORE_TYPE" = "fake" -a "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]; then exit; fi
+    if [ "$STORE_TYPE" = "fake" -a "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]; then
+        exit
+    fi
 
     # FIXME: currently the --list from channel doesn't work
     # echo "Then the new version is available for the snap to be refreshed"

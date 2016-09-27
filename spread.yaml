@@ -57,12 +57,12 @@ backends:
                 username: ubuntu
                 password: ubuntu
 
-    external-ubuntu-core:
+    external:
         type: adhoc
         environment:
-            SPREAD_ADHOC_UC_ADDRESS: "$(HOST: echo ${SPREAD_ADHOC_UC_ADDRESS:-localhost:8022})"
+            SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
         allocate: |
-            ADDRESS $SPREAD_ADHOC_UC_ADDRESS
+            ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
             # FIXME: remove the ubuntu-core-16.04-64 dummy system once the runner handles tasks without systems assigned
             - ubuntu-core-16.04-64:
@@ -71,7 +71,7 @@ backends:
             - ubuntu-core-16-device-amd64:
                 username: test
                 password: ubuntu
-            - ubuntu-core-16-device-arm:
+            - ubuntu-core-16-arm:
                 username: test
                 password: ubuntu
 
@@ -93,8 +93,7 @@ prepare: |
     Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
     EOF
 
-    # adhoc backend and ubuntu-core system, nothing to setup
-    if [ "$SPREAD_BACKEND" = external-ubuntu-core ]; then
+    if [ "$SPREAD_BACKEND" = external ]; then
         # build test binaries
         if [ ! -f $GOPATH/bin/snapbuild ]; then
             mkdir -p $GOPATH/bin

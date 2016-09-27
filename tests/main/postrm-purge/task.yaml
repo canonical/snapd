@@ -1,6 +1,6 @@
 summary: Check that postrm purge works
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm]
 
 execute: |
     echo "When some snaps are installed"

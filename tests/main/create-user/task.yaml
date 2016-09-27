@@ -1,6 +1,6 @@
 summary: Ensure create-user functionality
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-device-arm]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm]
 
 environment:
     USER_EMAIL: mvo@ubuntu.com
