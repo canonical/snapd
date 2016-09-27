@@ -26,7 +26,7 @@ import (
 )
 
 type attrMatcher interface {
-	Match(interface{}) error
+	match(interface{}) error
 }
 
 // compileAttrMatcher compiles an attrMatcher derived from constraints,
@@ -66,7 +66,7 @@ func matchEntry(k string, matcher1 attrMatcher, v interface{}) error {
 	if v == nil {
 		return fmt.Errorf("%q has constraints but is unset", k)
 	}
-	if err := matcher1.Match(v); err != nil {
+	if err := matcher1.match(v); err != nil {
 		return fmt.Errorf("%q mismatch: %v", k, err)
 	}
 	return nil
@@ -74,14 +74,14 @@ func matchEntry(k string, matcher1 attrMatcher, v interface{}) error {
 
 func matchList(matcher attrMatcher, l []interface{}) error {
 	for i, elem := range l {
-		if err := matcher.Match(elem); err != nil {
+		if err := matcher.match(elem); err != nil {
 			return fmt.Errorf("element %d: %v", i, err)
 		}
 	}
 	return nil
 }
 
-func (matcher mapAttrMatcher) Match(v interface{}) error {
+func (matcher mapAttrMatcher) match(v interface{}) error {
 	switch x := v.(type) {
 	case map[string]interface{}: // top level looks like this
 		for k, matcher1 := range matcher {
@@ -115,7 +115,7 @@ func compileRegexpAttrMatcher(s string) (attrMatcher, error) {
 	return regexpAttrMatcher{rx}, nil
 }
 
-func (matcher regexpAttrMatcher) Match(v interface{}) error {
+func (matcher regexpAttrMatcher) match(v interface{}) error {
 	var s string
 	switch x := v.(type) {
 	case string:
@@ -153,10 +153,10 @@ func compileAltAttrMatcher(context string, l []interface{}) (attrMatcher, error)
 
 }
 
-func (matcher altAttrMatcher) Match(v interface{}) error {
+func (matcher altAttrMatcher) match(v interface{}) error {
 	var firstErr error
 	for _, alt := range matcher.alts {
-		err := alt.Match(v)
+		err := alt.match(v)
 		if err == nil {
 			return nil
 		}
@@ -183,5 +183,5 @@ func compileAttributeContraints(constraints interface{}) (*AttributeConstraints,
 
 // Check checks whether attrs don't match the constraints.
 func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
-	return c.matcher.Match(attrs)
+	return c.matcher.match(attrs)
 }
