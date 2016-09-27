@@ -28,9 +28,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// ApplyConf returns a taskset required to apply the given configuration
+// Change returns a taskset required to apply the given configuration
 // patch.
-func ApplyConf(s *state.State, snapName string, patchValues map[string]interface{}) *state.TaskSet {
+func Change(s *state.State, snapName string, patchValues map[string]interface{}) *state.TaskSet {
 	initialContext := map[string]interface{}{
 		"patch": patchValues,
 	}

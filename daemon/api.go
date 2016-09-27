@@ -1310,7 +1310,7 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 	s.Lock()
 	defer s.Unlock()
 
-	taskset := configstate.ApplyConf(s, snapName, patchValues)
+	taskset := configstate.Change(s, snapName, patchValues)
 	change := s.NewChange("configure-snap", fmt.Sprintf("Setting config for %s", snapName))
 	change.AddAll(taskset)
 

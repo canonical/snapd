@@ -38,11 +38,11 @@ func (s *tasksetsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 }
 
-func (s *tasksetsSuite) TestApplyConf(c *C) {
+func (s *tasksetsSuite) TestChange(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	taskset := configstate.ApplyConf(s.state, "test-snap", map[string]interface{}{
+	taskset := configstate.Change(s.state, "test-snap", map[string]interface{}{
 		"foo": "bar",
 	})
 
