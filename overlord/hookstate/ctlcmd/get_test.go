@@ -52,8 +52,7 @@ func (s *getSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	// Initialize configuration
-	transaction, err := configstate.NewTransaction(state)
-	c.Check(err, IsNil)
+	transaction := configstate.NewTransaction(state)
 	transaction.Set("test-snap", "initial-key", "initial-value")
 	transaction.Commit()
 }
