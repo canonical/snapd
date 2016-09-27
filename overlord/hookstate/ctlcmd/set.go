@@ -51,11 +51,14 @@ func init() {
 }
 
 func (s *setCommand) Execute(args []string) error {
-	if s.context() == nil {
+	context := s.context()
+	if context == nil {
 		return fmt.Errorf("cannot set without a context")
 	}
 
-	transaction := configstate.ContextTransaction(s.context())
+	context.Lock()
+	transaction := configstate.ContextTransaction(context)
+	context.Unlock()
 
 	for _, patchValue := range s.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)

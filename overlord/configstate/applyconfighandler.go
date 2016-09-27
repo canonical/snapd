@@ -33,9 +33,6 @@ type cachedTransaction struct{}
 // ContextTransaction retrieves the transaction cached within the context (and
 // creates one if it hasn't already been cached).
 func ContextTransaction(context *hookstate.Context) *Transaction {
-	context.Lock()
-	defer context.Unlock()
-
 	// Check for one already cached
 	transaction, ok := context.Cached(cachedTransaction{}).(*Transaction)
 	if ok {
@@ -60,10 +57,10 @@ func newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
 
 // Before is called by the HookManager before the apply-config hook is run.
 func (h *applyConfigHandler) Before() error {
-	transaction := ContextTransaction(h.context)
-
 	h.context.Lock()
 	defer h.context.Unlock()
+
+	transaction := ContextTransaction(h.context)
 
 	// Initialize the transaction if there's a patch provided in the
 	// context.

@@ -57,12 +57,15 @@ func init() {
 }
 
 func (c *getCommand) Execute(args []string) error {
-	if c.context() == nil {
+	context := c.context()
+	if context == nil {
 		return fmt.Errorf("cannot get without a context")
 	}
 
 	patch := make(map[string]interface{})
-	transaction := configstate.ContextTransaction(c.context())
+	context.Lock()
+	transaction := configstate.ContextTransaction(context)
+	context.Unlock()
 
 	for _, key := range c.Positional.Keys {
 		var value interface{}
