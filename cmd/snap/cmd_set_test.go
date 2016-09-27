@@ -34,7 +34,7 @@ import (
 var validApplyYaml = []byte(`name: snapname
 version: 1.0
 hooks:
- apply-config:
+ config-changing:
 `)
 
 func (s *SnapSuite) TestInvalidSetParameters(c *check.C) {

@@ -34,7 +34,7 @@ func Change(s *state.State, snapName string, patchValues map[string]interface{})
 	initialContext := map[string]interface{}{
 		"patch": patchValues,
 	}
-	hookTaskSummary := fmt.Sprintf(i18n.G("Run apply-config hook for %s"), snapName)
-	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "apply-config", initialContext)
+	hookTaskSummary := fmt.Sprintf(i18n.G("Run config-changing hook for %s"), snapName)
+	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "config-changing", initialContext)
 	return state.NewTaskSet(task)
 }

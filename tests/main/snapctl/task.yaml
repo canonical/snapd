@@ -18,7 +18,7 @@ execute: |
     # The snapctl usage in the hook is invalid and will cause a failure. That
     # failure still means we're correctly hitting the API, though, which is all
     # we care about here.
-    if output="$(snap run --hook=apply-config snapctl-hooks 2>&1 >/dev/null)"; then
+    if output="$(snap run --hook=config-changing snapctl-hooks 2>&1 >/dev/null)"; then
         echo "Expected the hook to fail"
         exit 1
     fi

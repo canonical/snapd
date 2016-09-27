@@ -1,4 +1,4 @@
-summary: Check that `snap set` runs apply-config hook.
+summary: Check that `snap set` runs config-changing hook.
 
 prepare: |
     echo "Build basic test package (without hooks)"
@@ -19,15 +19,15 @@ restore: |
     rm snapctl-hooks_1.0_all.snap
 
 execute: |
-    echo "Test that snap set executes successfully without apply-config hook"
+    echo "Test that snap set executes successfully without config-changing hook"
     if ! snap set basic foo=bar; then
-        echo "Expected snap set to succeed, even when apply-config hook is missing"
+        echo "Expected snap set to succeed, even when config-changing hook is missing"
         exit 1
     fi
 
-    echo "Test that snap set fails when apply-config hook fails"
+    echo "Test that snap set fails when config-changing hook fails"
     if snap set failing-config-hooks foo=bar; then
-        echo "Expected snap set to fail when apply-config hook fails"
+        echo "Expected snap set to fail when config-changing hook fails"
         exit 1
     fi
 
