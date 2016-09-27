@@ -463,7 +463,7 @@ void sc_populate_mount_ns(const char *security_tag)
 	if (vanilla_cwd == NULL) {
 		die("cannot get the current working directory");
 	}
-	// Make our "/" a rslave of the real "/". this means that mounts from the
+	// Make our "/" a rslave of the real "/". This means that mounts from the
 	// host "/" get propagated to our namespace (i.e. we see new media mounts).
 	if (mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL) != 0) {
 		die("can not make make / rslave");
