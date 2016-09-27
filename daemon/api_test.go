@@ -3621,6 +3621,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 			Username: username,
 			Uid:      "1000",
 			Gid:      "1000",
+			HomeDir:  c.MkDir(),
 		}, nil
 	}
 
