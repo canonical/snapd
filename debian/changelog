@@ -1,3 +1,17 @@
+snapd (2.15.2ubuntu1) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - snap/snapenv, tests: use root's data dirs when running via sudo
+      (cherry pick PR: #1857)
+    - tests: add https_proxy into environment
+      (cherry pick PR: #1926)
+    - interfaces: allow xdg-open in unity7, unity7 cleanups
+      (cherry pick PR: #1946)
+    - tests: ensure http{,s}_proxy is defined inside the fake-store 
+      (cherry pick PR: #1949)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 21 Sep 2016 17:21:12 +0200
+
 snapd (2.15.2) xenial; urgency=medium
 
   * New upstream release, LP: #1623579
