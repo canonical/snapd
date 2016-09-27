@@ -59,13 +59,13 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
 		"bar": "BAZ",
 		"baz": "BAZ",
 	})
-	c.Check(err, ErrorMatches, `"bar" mismatch: "BAZ" does not match \^BAR\$`)
+	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^BAR\$`)
 
 	err = cstrs.Check(map[string]interface{}{
 		"foo": "FOO",
 		"baz": "BAZ",
 	})
-	c.Check(err, ErrorMatches, `"bar" has constraints but is unset`)
+	c.Check(err, ErrorMatches, `attribute "bar" has constraints but is unset`)
 }
 
 func (s *attrConstraintsSuite) TestNested(c *C) {
@@ -94,7 +94,7 @@ foo: FOO
 bar: BAZ
 baz: BAZ
 `))
-	c.Check(err, ErrorMatches, `"bar" mismatch: cannot match key-value constraints against: BAZ`)
+	c.Check(err, ErrorMatches, `attribute "bar" must be a map`)
 
 	err = cstrs.Check(attrs(`
 foo: FOO
@@ -104,7 +104,7 @@ bar:
   bar3: BAR3
 baz: BAZ
 `))
-	c.Check(err, ErrorMatches, `"bar" mismatch: "bar2" mismatch: "BAR22" does not match \^BAR2\$`)
+	c.Check(err, ErrorMatches, `attribute "bar\.bar2" value "BAR22" does not match \^BAR2\$`)
 
 	err = cstrs.Check(attrs(`
 foo: FOO
@@ -115,7 +115,7 @@ bar:
   bar3: BAR3
 baz: BAZ
 `))
-	c.Check(err, ErrorMatches, `"bar" mismatch: "bar2" mismatch: cannot match regexp constraint against:.*`)
+	c.Check(err, ErrorMatches, `attribute "bar\.bar2" must be a scalar or list`)
 }
 
 func (s *attrConstraintsSuite) TestAlternative(c *C) {
@@ -150,7 +150,7 @@ func (s *attrConstraintsSuite) TestAlternative(c *C) {
 		"bar": "BARR",
 		"baz": "BAR",
 	})
-	c.Check(err, ErrorMatches, `no alternative matches: "bar" mismatch: "BARR" does not match \^BAR\$`)
+	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^BAR\$`)
 }
 
 func (s *attrConstraintsSuite) TestNestedAlternative(c *C) {
@@ -188,7 +188,7 @@ bar:
   bar1: BAR1
   bar2: BAR3
 `))
-	c.Check(err, ErrorMatches, `"bar" mismatch: "bar2" mismatch: no alternative matches: "BAR3" does not match \^BAR2\$`)
+	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^BAR2\$`)
 }
 
 func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
@@ -211,18 +211,23 @@ func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
 	_, err := asserts.CompileAttributeContraints(map[string]interface{}{
 		"foo": "[",
 	})
-	c.Check(err, ErrorMatches, `constraint for "foo": cannot compile "\[": error parsing regexp:.*`)
+	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\[": error parsing regexp:.*`)
 
 	_, err = asserts.CompileAttributeContraints(map[string]interface{}{
 		"foo": []interface{}{"foo", "["},
 	})
-	c.Check(err, ErrorMatches, `constraint for "foo": alternative 2: cannot compile "\[": error parsing regexp:.*`)
+	c.Check(err, ErrorMatches, `cannot compile "foo/alt#2/" constraint "\[": error parsing regexp:.*`)
+
+	_, err = asserts.CompileAttributeContraints(map[string]interface{}{
+		"foo": []interface{}{"foo", []interface{}{"bar", "baz"}},
+	})
+	c.Check(err, ErrorMatches, `cannot nest alternative constraints directly at "foo/alt#2/"`)
 
 	_, err = asserts.CompileAttributeContraints("FOO")
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
 
 	_, err = asserts.CompileAttributeContraints([]interface{}{"FOO"})
-	c.Check(err, ErrorMatches, `alternative 1: first level of non alternative constraints must be a set of key-value contraints`)
+	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
 }
 
 func (s *attrConstraintsSuite) TestMatchingListsSimple(c *C) {
@@ -241,7 +246,7 @@ foo: ["/foo/x", "/foo/y"]
 	err = cstrs.Check(attrs(`
 foo: ["/foo/x", "/foo"]
 `))
-	c.Check(err, ErrorMatches, `"foo" mismatch: element 1: "/foo" does not match \^/foo/\.\*\$`)
+	c.Check(err, ErrorMatches, `attribute "foo\.1" value "/foo" does not match \^/foo/\.\*\$`)
 }
 
 func (s *attrConstraintsSuite) TestMatchingListsMap(c *C) {
@@ -261,5 +266,5 @@ foo: [{p: "/foo/x"}, {p: "/foo/y"}]
 	err = cstrs.Check(attrs(`
 foo: [{p: "zzz"}, {p: "/foo/y"}]
 `))
-	c.Check(err, ErrorMatches, `"foo" mismatch: element 0: "p" mismatch: "zzz" does not match \^/foo/\.\*\$`)
+	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^/foo/\.\*\$`)
 }
