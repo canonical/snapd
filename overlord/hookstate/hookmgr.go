@@ -23,6 +23,7 @@ package hookstate
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -94,7 +95,19 @@ func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revisi
 		Revision: revision,
 		Hook:     hookName,
 	})
-	task.Set("initial-context", initialContext)
+
+	// Set the initial context in the task, which will be loaded when Context
+	// is used.
+	data := make(map[string]*json.RawMessage)
+	for key, value := range initialContext {
+		marshalledValue, err := json.Marshal(value)
+		if err != nil {
+			panic(fmt.Sprintf("internal error: cannot marshal initial context value for %q: %s", key, err))
+		}
+		raw := json.RawMessage(marshalledValue)
+		data[key] = &raw
+	}
+	task.Set("hook-context", &data)
 	return task
 }
 
@@ -145,17 +158,11 @@ func (m *HookManager) Context(contextID string) (*Context, error) {
 func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	task.State().Lock()
 	setup := &HookSetup{}
-	hookSetupError := task.Get("hook-setup", setup)
-	var initialContext map[string]interface{}
-	initialContextError := task.Get("initial-context", &initialContext)
+	err := task.Get("hook-setup", setup)
 	task.State().Unlock()
 
-	if hookSetupError != nil {
-		return fmt.Errorf("cannot extract hook setup from task: %s", hookSetupError)
-	}
-
-	if initialContextError != nil {
-		return fmt.Errorf("cannot extract initial context from task: %s", initialContextError)
+	if err != nil {
+		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
 	context, err := NewContext(task, setup, nil)
@@ -176,13 +183,6 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}
 
 	context.handler = handlers[0]
-
-	// Initialize context as necessary
-	context.Lock()
-	for key, value := range initialContext {
-		context.Set(key, value)
-	}
-	context.Unlock()
 
 	contextID := context.ID()
 	m.contextsMutex.Lock()
