@@ -93,7 +93,7 @@ func (s *BaseSnapSuite) Login(c *C) {
 }
 
 func (s *BaseSnapSuite) Logout(c *C) {
-	if _, err := os.Stat(s.AuthFile); err == nil {
+	if osutil.FileExists(s.AuthFile) {
 		err := os.Remove(s.AuthFile)
 		c.Assert(err, IsNil)
 		c.Assert(osutil.FileExists(s.AuthFile), Equals, false)
