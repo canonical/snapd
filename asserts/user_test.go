@@ -84,9 +84,8 @@ func (s *systemUserSuite) TestDecodeOK(c *C) {
 	c.Check(systemUser.Username(), Equals, "guy")
 	c.Check(systemUser.Password(), Equals, "$6$salt$hash")
 	c.Check(systemUser.SSHKeys(), DeepEquals, []string{"ssh-rsa AAAABcdefg"})
-	c.Check(systemUser.Since(), DeepEquals, s.since)
-
-	c.Check(systemUser.Until(), DeepEquals, s.until)
+	c.Check(systemUser.Since(), Equals, s.since)
+	c.Check(systemUser.Until(), Equals, s.until)
 }
 
 func (s *systemUserSuite) TestDecodePasswd(c *C) {
