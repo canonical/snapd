@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
-	"strings"
 )
 
 type attrMatcher interface {
@@ -31,59 +30,64 @@ type attrMatcher interface {
 }
 
 func chain(context, k string) string {
-	return fmt.Sprintf("%s.%s", context, k)
-}
-
-func clean(context string) string {
-	return strings.TrimLeft(context, ".")
-}
-
-func hasMap(context string) bool {
-	return strings.IndexRune(context, '.') != -1
-}
-
-func wasAlt(context string) bool {
-	return strings.HasSuffix(context, "/")
-}
-
-func alt(context string, alt int) string {
-	return fmt.Sprintf("%s/alt#%d/", context, alt+1)
-}
-
-func cleanChain(context, k string) string {
 	if context == "" {
 		return k
 	}
-	return chain(context, k)
+	return fmt.Sprintf("%s.%s", context, k)
+}
+
+type compileContext struct {
+	dotted string
+	hadMap bool
+	wasAlt bool
+}
+
+func (cc compileContext) String() string {
+	return cc.dotted
+}
+
+func (cc compileContext) keyEntry(k string) compileContext {
+	return compileContext{
+		dotted: chain(cc.dotted, k),
+		hadMap: true,
+		wasAlt: false,
+	}
+}
+
+func (cc compileContext) alt(alt int) compileContext {
+	return compileContext{
+		dotted: fmt.Sprintf("%s/alt#%d/", cc.dotted, alt+1),
+		hadMap: cc.hadMap,
+		wasAlt: true,
+	}
 }
 
 // compileAttrMatcher compiles an attrMatcher derived from constraints,
-// context can be "top" or "map", alternatives have no influence on it
-func compileAttrMatcher(context string, constraints interface{}) (attrMatcher, error) {
+func compileAttrMatcher(cc compileContext, constraints interface{}) (attrMatcher, error) {
 	switch x := constraints.(type) {
 	case map[string]interface{}:
-		return compileMapAttrMatcher(context, x)
+		return compileMapAttrMatcher(cc, x)
 	case []interface{}:
-		if wasAlt(context) {
-			return nil, fmt.Errorf("cannot nest alternative constraints directly at %q", clean(context))
+		if cc.wasAlt {
+			return nil, fmt.Errorf("cannot nest alternative constraints directly at %q", cc)
 		}
-		return compileAltAttrMatcher(context, x)
+		return compileAltAttrMatcher(cc, x)
 	case string:
-		if !hasMap(context) {
+		if !cc.hadMap {
 			return nil, fmt.Errorf("first level of non alternative constraints must be a set of key-value contraints")
 		}
-		return compileRegexpAttrMatcher(context, x)
+		return compileRegexpAttrMatcher(cc, x)
 	default:
-		return nil, fmt.Errorf("constraint %q must be a key-value map, regexp or a list of alternative constraints: %v", clean(context), x)
+		return nil, fmt.Errorf("constraint %q must be a key-value map, regexp or a list of alternative constraints: %v", cc, x)
 	}
 }
 
 type mapAttrMatcher map[string]attrMatcher
 
-func compileMapAttrMatcher(context string, m map[string]interface{}) (attrMatcher, error) {
+func compileMapAttrMatcher(cc compileContext, m map[string]interface{}) (attrMatcher, error) {
 	matcher := make(mapAttrMatcher)
 	for k, constraint := range m {
-		matcher1, err := compileAttrMatcher(chain(context, k), constraint)
+		matcher1, err := compileAttrMatcher(cc.keyEntry(k), constraint)
 		if err != nil {
 			return nil, err
 		}
@@ -93,7 +97,7 @@ func compileMapAttrMatcher(context string, m map[string]interface{}) (attrMatche
 }
 
 func matchEntry(context, k string, matcher1 attrMatcher, v interface{}) error {
-	context = cleanChain(context, k)
+	context = chain(context, k)
 	if v == nil {
 		return fmt.Errorf("attribute %q has constraints but is unset", context)
 	}
@@ -105,7 +109,7 @@ func matchEntry(context, k string, matcher1 attrMatcher, v interface{}) error {
 
 func matchList(context string, matcher attrMatcher, l []interface{}) error {
 	for i, elem := range l {
-		if err := matcher.match(cleanChain(context, strconv.Itoa(i)), elem); err != nil {
+		if err := matcher.match(chain(context, strconv.Itoa(i)), elem); err != nil {
 			return err
 		}
 	}
@@ -138,10 +142,10 @@ type regexpAttrMatcher struct {
 	*regexp.Regexp
 }
 
-func compileRegexpAttrMatcher(context, s string) (attrMatcher, error) {
+func compileRegexpAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
 	rx, err := regexp.Compile("^" + s + "$")
 	if err != nil {
-		return nil, fmt.Errorf("cannot compile %q constraint %q: %v", clean(context), s, err)
+		return nil, fmt.Errorf("cannot compile %q constraint %q: %v", cc, s, err)
 	}
 	return regexpAttrMatcher{rx}, nil
 }
@@ -171,10 +175,10 @@ type altAttrMatcher struct {
 	alts []attrMatcher
 }
 
-func compileAltAttrMatcher(context string, l []interface{}) (attrMatcher, error) {
+func compileAltAttrMatcher(cc compileContext, l []interface{}) (attrMatcher, error) {
 	alts := make([]attrMatcher, len(l))
 	for i, constraint := range l {
-		matcher1, err := compileAttrMatcher(alt(context, i), constraint)
+		matcher1, err := compileAttrMatcher(cc.alt(i), constraint)
 		if err != nil {
 			return nil, err
 		}
@@ -209,7 +213,7 @@ type AttributeConstraints struct {
 
 // compileAttributeContraints checks and compiles a mapping or list from the assertion format into AttributeConstraints.
 func compileAttributeContraints(constraints interface{}) (*AttributeConstraints, error) {
-	matcher, err := compileAttrMatcher("", constraints)
+	matcher, err := compileAttrMatcher(compileContext{}, constraints)
 	if err != nil {
 		return nil, err
 	}
