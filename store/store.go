@@ -112,6 +112,14 @@ func infoFromRemote(d snapDetails) *snap.Info {
 	}
 	info.Deltas = deltas
 
+	screenshots := make([]snap.ScreenshotInfo, 0, len(d.ScreenshotURLs))
+	for _, url := range d.ScreenshotURLs {
+		screenshots = append(screenshots, snap.ScreenshotInfo{
+			URL: url,
+		})
+	}
+	info.Screenshots = screenshots
+
 	return info
 }
 

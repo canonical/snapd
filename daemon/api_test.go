@@ -860,6 +860,7 @@ func (s *apiSuite) TestFind(c *check.C) {
 	c.Assert(snaps, check.HasLen, 1)
 	c.Assert(snaps[0]["name"], check.Equals, "store")
 	c.Check(snaps[0]["prices"], check.IsNil)
+	c.Check(snaps[0]["screenshots"], check.IsNil)
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "EUR")
 
@@ -1022,6 +1023,48 @@ func (s *apiSuite) TestFindPriced(c *check.C) {
 	c.Check(snap["status"], check.Equals, "priced")
 
 	c.Check(rsp.SuggestedCurrency, check.Equals, "GBP")
+}
+
+func (s *apiSuite) TestFindScreenshotted(c *check.C) {
+	s.rsnaps = []*snap.Info{{
+		Type:    snap.TypeApp,
+		Version: "v2",
+		Screenshots: []snap.ScreenshotInfo{
+			{
+				URL:    "http://example.com/screenshot.png",
+				Width:  800,
+				Height: 1280,
+			},
+			{
+				URL: "http://example.com/screenshot2.png",
+			},
+		},
+		MustBuy: true,
+		SideInfo: snap.SideInfo{
+			RealName:  "test-screenshot",
+			Developer: "foo",
+		},
+	}}
+
+	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
+	c.Assert(err, check.IsNil)
+	rsp, ok := searchStore(findCmd, req, nil).(*resp)
+	c.Assert(ok, check.Equals, true)
+
+	snaps := snapList(rsp.Result)
+	c.Assert(snaps, check.HasLen, 1)
+
+	c.Check(snaps[0]["name"], check.Equals, "test-screenshot")
+	c.Check(snaps[0]["screenshots"], check.DeepEquals, []interface{}{
+		map[string]interface{}{
+			"url":    "http://example.com/screenshot.png",
+			"width":  float64(800),
+			"height": float64(1280),
+		},
+		map[string]interface{}{
+			"url": "http://example.com/screenshot2.png",
+		},
+	})
 }
 
 func (s *apiSuite) TestSnapsInfoOnlyStore(c *check.C) {
@@ -1846,7 +1889,7 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// Check that the apply-config hook was run correctly
-	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{[]string{
+	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
 		"snap", "run", "--hook", "apply-config", "-r", "unset", "config-snap",
 	}})
 }
@@ -3685,11 +3728,11 @@ func (s *apiSuite) TestIsTrue(c *check.C) {
 	form := &multipart.Form{}
 	c.Check(isTrue(form, "foo"), check.Equals, false)
 	for _, f := range []string{"", "false", "0", "False", "f", "try"} {
-		form.Value = map[string][]string{"foo": []string{f}}
+		form.Value = map[string][]string{"foo": {f}}
 		c.Check(isTrue(form, "foo"), check.Equals, false, check.Commentf("expected %q to be false", f))
 	}
 	for _, t := range []string{"true", "1", "True", "t"} {
-		form.Value = map[string][]string{"foo": []string{t}}
+		form.Value = map[string][]string{"foo": {t}}
 		c.Check(isTrue(form, "foo"), check.Equals, true, check.Commentf("expected %q to be true", t))
 	}
 }
@@ -3754,7 +3797,7 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 	s.paymentMethods = &store.PaymentInformation{
 		AllowsAutomaticPayment: true,
 		Methods: []*store.PaymentMethod{
-			&store.PaymentMethod{
+			{
 				BackendID:           "credit_card",
 				Currencies:          []string{"GBP", "USD"},
 				Description:         "**** **** **** 1234 (exp 20/2020)",
