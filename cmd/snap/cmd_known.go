@@ -63,6 +63,8 @@ func init() {
 
 var nl = []byte{'\n'}
 
+var storeNew = store.New
+
 func downloadAssertion(typeName string, headers map[string]string) ([]asserts.Assertion, error) {
 	var user *auth.UserState
 
@@ -82,7 +84,7 @@ func downloadAssertion(typeName string, headers map[string]string) ([]asserts.As
 		primaryKeys[i] = pk
 	}
 
-	sto := store.New(nil, authContext)
+	sto := storeNew(nil, authContext)
 	as, err := sto.Assertion(at, primaryKeys, user)
 	if err != nil {
 		return nil, err
