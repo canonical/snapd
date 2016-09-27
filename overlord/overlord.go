@@ -93,6 +93,13 @@ func New() (*Overlord, error) {
 
 	o.stateEng = NewStateEngine(s)
 
+	hookMgr, err := hookstate.Manager(s)
+	if err != nil {
+		return nil, err
+	}
+	o.hookMgr = hookMgr
+	o.stateEng.AddManager(o.hookMgr)
+
 	snapMgr, err := snapstate.Manager(s)
 	if err != nil {
 		return nil, err
@@ -114,12 +121,7 @@ func New() (*Overlord, error) {
 	o.ifaceMgr = ifaceMgr
 	o.stateEng.AddManager(o.ifaceMgr)
 
-	hookMgr, err := hookstate.Manager(s)
-	if err != nil {
-		return nil, err
-	}
-	o.hookMgr = hookMgr
-	o.stateEng.AddManager(o.hookMgr)
+	ifacestate.SetupHooks(hookMgr)
 
 	configMgr, err := configstate.Manager(s, hookMgr)
 	if err != nil {
