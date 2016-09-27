@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -411,6 +412,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
+		"userLookup",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -704,19 +706,6 @@ func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
 	state.Unlock()
 
 	c.Check(err, check.ErrorMatches, "authorization header misses Macaroon prefix")
-	c.Check(user, check.IsNil)
-}
-
-func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
-
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, req)
-	state.Unlock()
-
-	c.Check(err, check.ErrorMatches, "invalid authorization header")
 	c.Check(user, check.IsNil)
 }
 
@@ -3627,6 +3616,13 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+		}, nil
+	}
 
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
@@ -3634,6 +3630,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
 	}()
 
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
