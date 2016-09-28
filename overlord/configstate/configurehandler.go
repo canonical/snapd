@@ -21,8 +21,8 @@ package configstate
 
 import "github.com/snapcore/snapd/overlord/hookstate"
 
-// applyConfigHandler is the handler for the configure hook.
-type applyConfigHandler struct {
+// configureHandler is the handler for the configure hook.
+type configureHandler struct {
 	context *hookstate.Context
 }
 
@@ -51,12 +51,12 @@ func ContextTransaction(context *hookstate.Context) *Transaction {
 	return transaction
 }
 
-func newApplyConfigHandler(context *hookstate.Context) hookstate.Handler {
-	return &applyConfigHandler{context: context}
+func newConfigureHandler(context *hookstate.Context) hookstate.Handler {
+	return &configureHandler{context: context}
 }
 
 // Before is called by the HookManager before the configure hook is run.
-func (h *applyConfigHandler) Before() error {
+func (h *configureHandler) Before() error {
 	h.context.Lock()
 	defer h.context.Unlock()
 
@@ -76,12 +76,12 @@ func (h *applyConfigHandler) Before() error {
 
 // Done is called by the HookManager after the configure hook has exited
 // successfully.
-func (h *applyConfigHandler) Done() error {
+func (h *configureHandler) Done() error {
 	return nil
 }
 
 // Error is called by the HookManager after the configure hook has exited
 // non-zero, and includes the error.
-func (h *applyConfigHandler) Error(err error) error {
+func (h *configureHandler) Error(err error) error {
 	return nil
 }

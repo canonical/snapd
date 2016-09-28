@@ -29,14 +29,14 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type applyConfigHandlerSuite struct {
+type configureHandlerSuite struct {
 	context *hookstate.Context
 	handler hookstate.Handler
 }
 
-var _ = Suite(&applyConfigHandlerSuite{})
+var _ = Suite(&configureHandlerSuite{})
 
-func (s *applyConfigHandlerSuite) SetUpTest(c *C) {
+func (s *configureHandlerSuite) SetUpTest(c *C) {
 	state := state.New(nil)
 	state.Lock()
 	defer state.Unlock()
@@ -48,10 +48,10 @@ func (s *applyConfigHandlerSuite) SetUpTest(c *C) {
 	s.context, err = hookstate.NewContext(task, setup, hooktest.NewMockHandler())
 	c.Assert(err, IsNil)
 
-	s.handler = configstate.NewApplyConfigHandler(s.context)
+	s.handler = configstate.NewConfigureHandler(s.context)
 }
 
-func (s *applyConfigHandlerSuite) TestBeforeInitializesTransaction(c *C) {
+func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
 	// Initialize context
 	s.context.Lock()
 	s.context.Set("patch", map[string]interface{}{
