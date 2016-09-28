@@ -127,6 +127,114 @@ foo:
 	})
 }
 
+func (s *headersSuite) TestParseHeadersSimpleMap(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`foo:
+  x: X
+  yy: YY
+  z5: 
+bar: baz`))
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"foo": map[string]interface{}{
+			"x":  "X",
+			"yy": "YY",
+			"z5": "",
+		},
+		"bar": "baz",
+	})
+}
+
+func (s *headersSuite) TestParseHeadersMapNestedMultiline(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`foo:
+  x: X
+  yy:
+      YY1
+      YY2
+  u:
+    - u1
+    - u2
+bar: baz`))
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"foo": map[string]interface{}{
+			"x":  "X",
+			"yy": "YY1\nYY2",
+			"u":  []interface{}{"u1", "u2"},
+		},
+		"bar": "baz",
+	})
+
+	m, err = asserts.ParseHeaders([]byte(`one:
+  two:
+    three: `))
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"one": map[string]interface{}{
+			"two": map[string]interface{}{
+				"three": "",
+			},
+		},
+	})
+
+	m, err = asserts.ParseHeaders([]byte(`one:
+  two:
+      three`))
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"one": map[string]interface{}{
+			"two": "three",
+		},
+	})
+
+	m, err = asserts.ParseHeaders([]byte(`map-within-map:
+  lev1:
+    lev2: x`))
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"map-within-map": map[string]interface{}{
+			"lev1": map[string]interface{}{
+				"lev2": "x",
+			},
+		},
+	})
+
+	m, err = asserts.ParseHeaders([]byte(`list-of-maps:
+  -
+    entry: foo
+    bar: baz
+  -
+    entry: bar`))
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"list-of-maps": []interface{}{
+			map[string]interface{}{
+				"entry": "foo",
+				"bar":   "baz",
+			},
+			map[string]interface{}{
+				"entry": "bar",
+			},
+		},
+	})
+}
+
+func (s *headersSuite) TestParseHeadersMapErrors(c *C) {
+	_, err := asserts.ParseHeaders([]byte(`foo:
+  x X
+bar: baz`))
+	c.Check(err, ErrorMatches, `map entry missing ':' separator: "x X"`)
+
+	_, err = asserts.ParseHeaders([]byte(`foo:
+  0x: X
+bar: baz`))
+	c.Check(err, ErrorMatches, `invalid map entry key: "0x"`)
+
+	_, err = asserts.ParseHeaders([]byte(`foo:
+  a: a
+  a: b`))
+	c.Check(err, ErrorMatches, `repeated map entry: "a"`)
+}
+
 func (s *headersSuite) TestParseHeadersErrors(c *C) {
 	_, err := asserts.ParseHeaders([]byte(`foo: 1
 bar:baz`))
@@ -199,7 +307,7 @@ func (s *headersSuite) TestAppendEntrySimpleList(c *C) {
 }
 
 func (s *headersSuite) TestAppendEntryListNested(c *C) {
-	lst := []interface{}{"x", "a\nb\n", "", []interface{}{"u1", "u2"}}
+	lst := []interface{}{"x", "a\nb\n", "", []interface{}{"u1", []interface{}{"w1", "w2"}}}
 
 	buf := bytes.NewBufferString("start: .")
 
@@ -210,6 +318,45 @@ func (s *headersSuite) TestAppendEntryListNested(c *C) {
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   lst,
+	})
+}
+
+func (s *headersSuite) TestAppendEntrySimpleMap(c *C) {
+	mp := map[string]interface{}{
+		"x":  "X",
+		"yy": "YY",
+		"z5": "",
+	}
+
+	buf := bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", mp, 0)
+
+	m, err := asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
+		"bar":   mp,
+	})
+}
+
+func (s *headersSuite) TestAppendEntryNestedMap(c *C) {
+	mp := map[string]interface{}{
+		"x":  "X",
+		"u":  []interface{}{"u1", "u2"},
+		"yy": "YY1\nYY2",
+		"m":  map[string]interface{}{"a": "A", "b": map[string]interface{}{"x": "X", "y": "Y"}},
+	}
+
+	buf := bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", mp, 0)
+
+	m, err := asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
+		"bar":   mp,
 	})
 }
 
@@ -235,5 +382,15 @@ func (s *headersSuite) TestAppendEntryOmitting(c *C) {
 	c.Check(m, DeepEquals, map[string]interface{}{
 		"start": ".",
 		"bar":   []interface{}{"z"},
+	})
+
+	buf = bytes.NewBufferString("start: .")
+
+	asserts.AppendEntry(buf, "bar:", map[string]interface{}{}, 0)
+
+	m, err = asserts.ParseHeaders(buf.Bytes())
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]interface{}{
+		"start": ".",
 	})
 }

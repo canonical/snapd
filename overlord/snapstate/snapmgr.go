@@ -329,6 +329,9 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, err := theStore.ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
 	st.Lock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
+	}
 	if len(res) == 0 {
 		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
 	}
@@ -622,7 +625,15 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		st.Unlock()
 		return &state.Retry{After: 3 * time.Minute}
 	}
-
+	if len(snapst.Sequence) == 0 {
+		err = m.backend.DiscardSnapNamespace(ss.Name())
+		if err != nil {
+			st.Lock()
+			t.Errorf("cannot discard snap namespace %q, will retry in 3 mins: %s", ss.Name(), err)
+			st.Unlock()
+			return &state.Retry{After: 3 * time.Minute}
+		}
+	}
 	st.Lock()
 	Set(st, ss.Name(), snapst)
 	st.Unlock()

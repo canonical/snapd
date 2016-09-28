@@ -37,6 +37,7 @@ type commonInterface struct {
 	name                  string
 	connectedPlugAppArmor string
 	connectedPlugSecComp  string
+	connectedPlugKMod     string
 	reservedForOS         bool
 	autoConnect           bool
 }
@@ -75,12 +76,7 @@ func (iface *commonInterface) SanitizePlug(plug *interfaces.Plug) error {
 //
 // Plugs don't get any permanent security snippets.
 func (iface *commonInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // ConnectedPlugSnippet returns the snippet of text for the given security
@@ -95,11 +91,10 @@ func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 		return []byte(iface.connectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(iface.connectedPlugSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
+	case interfaces.SecurityKMod:
+		return []byte(iface.connectedPlugKMod), nil
 	}
+	return nil, nil
 }
 
 // PermanentSlotSnippet returns the snippet of text for the given security
@@ -108,12 +103,7 @@ func (iface *commonInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 //
 // Slots don't get any permanent security snippets.
 func (iface *commonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // ConnectedSlotSnippet returns the snippet of text for the given security
@@ -122,12 +112,7 @@ func (iface *commonInterface) PermanentSlotSnippet(slot *interfaces.Slot, securi
 //
 // Slots don't get any per-connection security snippets.
 func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // AutoConnect returns true if plugs and slots should be implicitly

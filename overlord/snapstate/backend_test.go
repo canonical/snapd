@@ -144,6 +144,10 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		return nil, nil
 	}
 
+	if snapID == "fakestore-please-error-on-refresh" {
+		return nil, fmt.Errorf("failing as requested")
+	}
+
 	var name string
 	if snapID == "some-snap-id" {
 		name = "some-snap"
@@ -216,6 +220,10 @@ func (f *fakeStore) Download(name string, snapInfo *snap.DownloadInfo, pb progre
 
 func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error) {
 	panic("Never expected fakeStore.Buy to be called")
+}
+
+func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
+	panic("Never expected fakeStore.ReadyToBuy to be called")
 }
 
 func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
@@ -402,6 +410,14 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-common-data",
 		name: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "discard-namespace",
+		name: snapName,
 	})
 	return nil
 }

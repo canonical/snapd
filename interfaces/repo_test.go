@@ -26,6 +26,7 @@ import (
 
 	. "github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -45,45 +46,42 @@ var _ = Suite(&RepositorySuite{
 })
 
 func (s *RepositorySuite) SetUpTest(c *C) {
-	consumer, err := snap.InfoFromSnapYaml([]byte(`
+	consumer := snaptest.MockInfo(c, `
 name: consumer
 apps:
     app:
 hooks:
-    apply-config:
+    configure:
 plugs:
     plug:
         interface: interface
         label: label
         attr: value
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	s.plug = &Plug{PlugInfo: consumer.Plugs["plug"]}
-	producer, err := snap.InfoFromSnapYaml([]byte(`
+	producer := snaptest.MockInfo(c, `
 name: producer
 apps:
     app:
 hooks:
-    apply-config:
+    configure:
 slots:
     slot:
         interface: interface
         label: label
         attr: value
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	s.slot = &Slot{SlotInfo: producer.Slots["slot"]}
 	s.emptyRepo = NewRepository()
 	s.testRepo = NewRepository()
-	err = s.testRepo.AddInterface(s.iface)
+	err := s.testRepo.AddInterface(s.iface)
 	c.Assert(err, IsNil)
 }
 
 func addPlugsSlots(c *C, repo *Repository, yamls ...string) []*snap.Info {
 	result := make([]*snap.Info, len(yamls))
 	for i, yaml := range yamls {
-		info, err := snap.InfoFromSnapYaml([]byte(yaml))
-		c.Assert(err, IsNil)
+		info := snaptest.MockInfo(c, yaml, nil)
 		result[i] = info
 		for _, plugInfo := range info.Plugs {
 			err := repo.AddPlug(&Plug{PlugInfo: plugInfo})
@@ -741,25 +739,25 @@ var testInterface = &TestInterface{
 		if securitySystem == testSecurity {
 			return []byte(`static plug snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 	PlugSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`connection-specific plug snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 	PermanentSlotSnippetCallback: func(slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`static slot snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 	SlotSnippetCallback: func(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error) {
 		if securitySystem == testSecurity {
 			return []byte(`connection-specific slot snippet`), nil
 		}
-		return nil, ErrUnknownSecurity
+		return nil, nil
 	},
 }
 
@@ -776,7 +774,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 		"snap.consumer.app": {
 			[]byte(`static plug snippet`),
 		},
-		"snap.consumer.hook.apply-config": {
+		"snap.consumer.hook.configure": {
 			[]byte(`static plug snippet`),
 		},
 	})
@@ -797,7 +795,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},
-		"snap.consumer.hook.apply-config": {
+		"snap.consumer.hook.configure": {
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},
@@ -928,21 +926,19 @@ func (s *RepositorySuite) TestAutoConnectBlacklist(c *C) {
 	c.Assert(err, IsNil)
 
 	// Add a pair of snaps with plugs/slots using those two interfaces
-	consumer, err := snap.InfoFromSnapYaml([]byte(`
+	consumer := snaptest.MockInfo(c, `
 name: consumer
 plugs:
     auto:
     manual:
-`))
-	c.Assert(err, IsNil)
-	producer, err := snap.InfoFromSnapYaml([]byte(`
+`, nil)
+	producer := snaptest.MockInfo(c, `
 name: producer
 type: os
 slots:
     auto:
     manual:
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	err = repo.AddSnap(producer)
 	c.Assert(err, IsNil)
 	err = repo.AddSnap(consumer)
@@ -997,7 +993,7 @@ func (s *AddRemoveSuite) TestAddSnapComplexErrorHandling(c *C) {
 		SanitizePlugCallback: func(plug *Plug) error { return fmt.Errorf("plug is invalid") },
 		SanitizeSlotCallback: func(slot *Slot) error { return fmt.Errorf("slot is invalid") },
 	})
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(`
+	snapInfo := snaptest.MockInfo(c, `
 name: complex
 plugs:
     invalid-plug-iface:
@@ -1005,8 +1001,7 @@ plugs:
 slots:
     invalid-slot-iface:
     unknown-slot-iface:
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	err = s.repo.AddSnap(snapInfo)
 	c.Check(err, ErrorMatches,
 		`snap "complex" has bad plugs or slots: invalid-plug-iface \(plug is invalid\); invalid-slot-iface \(slot is invalid\); unknown-plug-iface, unknown-slot-iface \(unknown interface\)`)
@@ -1031,8 +1026,7 @@ apps:
 `
 
 func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, error) {
-	snapInfo, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
+	snapInfo := snaptest.MockInfo(c, yaml, nil)
 	return snapInfo, s.repo.AddSnap(snapInfo)
 }
 
@@ -1115,24 +1109,23 @@ func (s *DisconnectSnapSuite) SetUpTest(c *C) {
 	err = s.repo.AddInterface(&TestInterface{InterfaceName: "iface-b"})
 	c.Assert(err, IsNil)
 
-	s.s1, err = snap.InfoFromSnapYaml([]byte(`
+	s.s1 = snaptest.MockInfo(c, `
 name: s1
 plugs:
     iface-a:
 slots:
     iface-b:
-`))
-	c.Assert(err, IsNil)
+`, nil)
 	err = s.repo.AddSnap(s.s1)
 	c.Assert(err, IsNil)
 
-	s.s2, err = snap.InfoFromSnapYaml([]byte(`
+	s.s2 = snaptest.MockInfo(c, `
 name: s2
 plugs:
     iface-b:
 slots:
     iface-a:
-`))
+`, nil)
 	c.Assert(err, IsNil)
 	err = s.repo.AddSnap(s.s2)
 	c.Assert(err, IsNil)
@@ -1184,22 +1177,20 @@ func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken str
 	repo := NewRepository()
 	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectFlag: true})
 
-	plugSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(`
+	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap
 plugs:
   import-content:
     interface: content
     content: %s
-`, plugContentToken)))
-	c.Assert(err, IsNil)
-	slotSnap, err := snap.InfoFromSnapYaml([]byte(fmt.Sprintf(`
+`, plugContentToken), nil)
+	slotSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-slot-snap
 slots:
   exported-content:
     interface: content
     content: %s
-`, slotContentToken)))
-	c.Assert(err, IsNil)
+`, slotContentToken), nil)
 
 	err = repo.AddSnap(plugSnap)
 	c.Assert(err, IsNil)
@@ -1237,5 +1228,85 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	slotSnap.Developer = "bar"
 
 	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	c.Check(candidateSlots, HasLen, 0)
+}
+
+func makeLivepatchConnectionTestSnaps(c *C, name, developer string) (*Repository, *snap.Info, *snap.Info) {
+	repo := NewRepository()
+	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted", AutoConnectFlag: false})
+	c.Assert(err, IsNil)
+
+	err = repo.AddInterface(&TestInterface{InterfaceName: "non-restricted", AutoConnectFlag: true})
+	c.Assert(err, IsNil)
+
+	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
+name: %s
+plugs:
+  restricted:
+    interface: restricted
+  non-restricted:
+    interface: non-restricted
+`, name), &snap.SideInfo{
+		DeveloperID: developer,
+	})
+	slotSnap := snaptest.MockInfo(c, `
+name: ubuntu-core
+type: os
+slots:
+  restricted:
+    interface: restricted
+  non-restricted:
+    interface: non-restricted
+`, &snap.SideInfo{
+		DeveloperID: "canonical",
+	})
+
+	err = repo.AddSnap(plugSnap)
+	c.Assert(err, IsNil)
+	err = repo.AddSnap(slotSnap)
+	c.Assert(err, IsNil)
+
+	return repo, plugSnap, slotSnap
+}
+
+// test auto-connecting livepatch interfaces for special snaps
+func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "restricted")
+}
+
+// test auto-connecting unrestricted (auto-connect) interfaces for special snaps
+func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
+}
+
+// test auto-connecting unrestricted (auto-connect) interfaces for non-special snaps
+func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "someone-else")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
+	c.Check(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
+	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
+}
+
+func (s *RepositorySuite) TestAutoConnectLivepatchWrongDeveloper(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "somebody")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
+	c.Check(candidateSlots, HasLen, 0)
+}
+
+func (s *RepositorySuite) TestAutoConnectLivepatchWrongName(c *C) {
+	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "something", "canonical")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
 	c.Check(candidateSlots, HasLen, 0)
 }

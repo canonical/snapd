@@ -33,6 +33,8 @@ type BuySnapSuite struct {
 	SnapSuite
 }
 
+var _ = check.Suite(&BuySnapSuite{})
+
 type expectedURL struct {
 	Body    string
 	Checker func(r *http.Request)

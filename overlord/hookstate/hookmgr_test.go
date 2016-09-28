@@ -53,8 +53,12 @@ func (s *hookManagerSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.manager = manager
 
+	initialContext := map[string]interface{}{
+		"test-key": "test-value",
+	}
+
 	s.state.Lock()
-	s.task = hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook")
+	s.task = hookstate.HookTask(s.state, "test summary", "test-snap", snap.R(1), "test-hook", initialContext)
 	c.Assert(s.task, NotNil, Commentf("Expected HookTask to return a task"))
 
 	s.change = s.state.NewChange("kind", "summary")
@@ -96,7 +100,7 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(calledContext.SnapRevision(), Equals, snap.R(1))
 	c.Check(calledContext.HookName(), Equals, "test-hook")
 
-	c.Check(s.command.Calls(), DeepEquals, [][]string{[]string{
+	c.Check(s.command.Calls(), DeepEquals, [][]string{{
 		"snap", "run", "--hook", "test-hook", "-r", "1", "test-snap",
 	}})
 
@@ -107,6 +111,27 @@ func (s *hookManagerSuite) TestHookTask(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.DoneStatus)
 	c.Check(s.change.Status(), Equals, state.DoneStatus)
+}
+
+func (s *hookManagerSuite) TestHookTaskInitializesContext(c *C) {
+	// Register a handler generator for the "test-hook" hook
+	var calledContext *hookstate.Context
+	mockHandlerGenerator := func(context *hookstate.Context) hookstate.Handler {
+		calledContext = context
+		return hooktest.NewMockHandler()
+	}
+
+	s.manager.Register(regexp.MustCompile("test-hook"), mockHandlerGenerator)
+
+	s.manager.Ensure()
+	s.manager.Wait()
+
+	var value string
+	c.Assert(calledContext, NotNil, Commentf("Expected handler generator to be called with a valid context"))
+	calledContext.Lock()
+	defer calledContext.Unlock()
+	c.Check(calledContext.Get("test-key", &value), IsNil, Commentf("Expected context to be initialized"))
+	c.Check(value, Equals, "test-value")
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlesHookError(c *C) {
@@ -232,7 +257,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerBeforeError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile(".*before failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*Before failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
@@ -258,7 +283,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerDoneError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile(".*done failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*Done failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
@@ -287,7 +312,7 @@ func (s *hookManagerSuite) TestHookTaskHandlerErrorError(c *C) {
 	c.Check(s.task.Kind(), Equals, "run-hook")
 	c.Check(s.task.Status(), Equals, state.ErrorStatus)
 	c.Check(s.change.Status(), Equals, state.ErrorStatus)
-	checkTaskLogContains(c, s.task, regexp.MustCompile(".*error failed at user request.*"))
+	checkTaskLogContains(c, s.task, regexp.MustCompile(".*Error failed at user request.*"))
 }
 
 func (s *hookManagerSuite) TestHookWithoutHandlerIsError(c *C) {

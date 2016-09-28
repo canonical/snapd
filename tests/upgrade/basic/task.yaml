@@ -3,6 +3,8 @@ systems: [-ubuntu-core-16-64]
 restore: |
     rm -f /var/tmp/myevil.txt
 execute: |
+    . $TESTSLIB/apt.sh
+
     echo Install previous version...
     apt-get install -y snapd
 
@@ -18,8 +20,11 @@ execute: |
     echo Do upgrade
     # allow-downgrades prevents errors when new versions hit the archive, for instance,
     # trying to install 2.11ubuntu1 over 2.11+0.16.04
-    # relying on dpkg as apt(-get) does not support installation from local files in trusty.
-    dpkg -i ${SPREAD_PATH}/../snapd*.deb || apt-get -f install -y
+    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
+        apt_install_local ${SPREAD_PATH}/../snapd*.deb
+    else
+        apt install -y --allow-downgrades ${SPREAD_PATH}/../snapd*.deb
+    fi
 
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$prevsnapdver" ]

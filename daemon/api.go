@@ -36,6 +36,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -47,7 +48,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -76,6 +77,7 @@ var api = []*Command{
 	stateChangesCmd,
 	createUserCmd,
 	buyCmd,
+	readyToBuyCmd,
 	paymentMethodsCmd,
 	snapctlCmd,
 }
@@ -185,6 +187,13 @@ var (
 		POST:   postBuy,
 	}
 
+	readyToBuyCmd = &Command{
+		Path:   "/v2/buy/ready",
+		UserOK: false,
+		GET:    readyToBuy,
+	}
+
+	// TODO Remove once the CLI is using the new /buy/ready endpoint
 	paymentMethodsCmd = &Command{
 		Path:   "/v2/buy/methods",
 		UserOK: false,
@@ -250,18 +259,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	serializedMacaroon, err := store.RequestStoreMacaroon()
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	macaroon, err := store.MacaroonDeserialize(serializedMacaroon)
-
-	// get SSO 3rd party caveat, and request discharge
-	loginCaveat, err := store.LoginCaveatID(macaroon)
-	if err != nil {
-		return InternalError(err.Error())
-	}
-	discharge, err := store.DischargeAuthCaveat(loginCaveat, loginData.Username, loginData.Password, loginData.Otp)
+	macaroon, discharge, err := store.LoginUser(loginData.Username, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -301,14 +299,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, serializedMacaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
 	result := loginResponseData{
-		Macaroon:   serializedMacaroon,
+		Macaroon:   macaroon,
 		Discharges: []string{discharge},
 	}
 	return SyncResponse(result, nil)
@@ -660,6 +658,10 @@ var (
 	snapstateTryPath           = snapstate.TryPath
 	snapstateUpdate            = snapstate.Update
 	snapstateUpdateMany        = snapstate.UpdateMany
+	snapstateInstallMany       = snapstate.InstallMany
+	snapstateRemoveMany        = snapstate.RemoveMany
+
+	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
 
 func ensureStateSoonImpl(st *state.State) {
@@ -731,6 +733,11 @@ func modeFlags(devMode, jailMode bool) (snapstate.Flags, error) {
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated []string, tasksets []*state.TaskSet, err error) {
+	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
+	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+		return "", nil, nil, err
+	}
+
 	updated, tasksets, err = snapstateUpdateMany(st, inst.Snaps, inst.userID)
 	if err != nil {
 		return "", nil, nil, err
@@ -752,6 +759,29 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (msg string, updated
 	}
 
 	return msg, updated, tasksets, nil
+}
+
+func snapInstallMany(inst *snapInstruction, st *state.State) (msg string, installed []string, tasksets []*state.TaskSet, err error) {
+	installed, tasksets, err = snapstateInstallMany(st, inst.Snaps, inst.userID)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		return "", nil, nil, fmt.Errorf("cannot install zero snaps")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Install snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Install snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, installed, tasksets, nil
 }
 
 func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -785,6 +815,11 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 		return "", nil, err
 	}
 
+	// we need refreshed snap-declarations to enforce refresh-control as best as we can
+	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+		return "", nil, err
+	}
+
 	ts, err := snapstateUpdate(st, inst.Snaps[0], inst.Channel, inst.Revision, inst.userID, flags)
 	if err != nil {
 		return "", nil, err
@@ -796,6 +831,29 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	return msg, []*state.TaskSet{ts}, nil
+}
+
+func snapRemoveMany(inst *snapInstruction, st *state.State) (msg string, removed []string, tasksets []*state.TaskSet, err error) {
+	removed, tasksets, err = snapstateRemoveMany(st, inst.Snaps)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	switch len(inst.Snaps) {
+	case 0:
+		return "", nil, nil, fmt.Errorf("cannot remove zero snaps")
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Remove snap %q"), inst.Snaps[0])
+	default:
+		quoted := make([]string, len(inst.Snaps))
+		for i, name := range inst.Snaps {
+			quoted[i] = strconv.Quote(name)
+		}
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Remove snaps %s"), strings.Join(quoted, ", "))
+	}
+
+	return msg, removed, tasksets, nil
 }
 
 func snapRemove(inst *snapInstruction, st *state.State) (string, []*state.TaskSet, error) {
@@ -987,10 +1045,6 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("unsupported option provided for multi-snap operation")
 	}
 
-	if inst.Action != "refresh" {
-		return BadRequest("only refresh supported for multi-snap operation right now")
-	}
-
 	st := c.d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
@@ -999,7 +1053,20 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		inst.userID = user.ID
 	}
 
-	msg, updated, tsets, err := snapUpdateMany(&inst, st)
+	var msg string
+	var affected []string
+	var tsets []*state.TaskSet
+	var err error
+	switch inst.Action {
+	case "refresh":
+		msg, affected, tsets, err = snapUpdateMany(&inst, st)
+	case "install":
+		msg, affected, tsets, err = snapInstallMany(&inst, st)
+	case "remove":
+		msg, affected, tsets, err = snapRemoveMany(&inst, st)
+	default:
+		return BadRequest("unsupported multi-snap operation %q", inst.Action)
+	}
 	if err != nil {
 		return InternalError("cannot %s %q: %v", inst.Action, inst.Snaps, err)
 	}
@@ -1009,10 +1076,10 @@ func snapsOp(c *Command, r *http.Request, user *auth.UserState) Response {
 		chg = st.NewChange(inst.Action+"-snap", msg)
 		chg.SetStatus(state.DoneStatus)
 	} else {
-		chg = newChange(st, inst.Action+"-snap", msg, tsets, updated)
+		chg = newChange(st, inst.Action+"-snap", msg, tsets, affected)
 		ensureStateSoon(st)
 	}
-	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }
@@ -1203,8 +1270,30 @@ func appIconGet(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
-	// TODO: Get configuration values from configmanager
-	return SyncResponse(nil, nil)
+	vars := muxVars(r)
+	snapName := vars["name"]
+
+	keys := strings.Split(r.URL.Query().Get("keys"), ",")
+	if len(keys) == 0 {
+		return BadRequest("cannot obtain configuration: no keys supplied")
+	}
+
+	s := c.d.overlord.State()
+	s.Lock()
+	transaction := configstate.NewTransaction(s)
+	s.Unlock()
+
+	currentConfValues := make(map[string]interface{})
+	for _, key := range keys {
+		var value interface{}
+		if err := transaction.Get(snapName, key, &value); err != nil {
+			return BadRequest("%s", err)
+		}
+
+		currentConfValues[key] = value
+	}
+
+	return SyncResponse(currentConfValues, nil)
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1217,16 +1306,11 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
-	// TODO: Add patch values to configmanager
-
 	s := c.d.overlord.State()
 	s.Lock()
 	defer s.Unlock()
 
-	hookTaskSummary := fmt.Sprintf(i18n.G("Run apply-config hook for %s"), snapName)
-	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "apply-config")
-	taskset := state.NewTaskSet(task)
-
+	taskset := configstate.Change(s, snapName, patchValues)
 	change := s.NewChange("configure-snap", fmt.Sprintf("Setting config for %s", snapName))
 	change.AddAll(taskset)
 
@@ -1326,23 +1410,17 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
-	b, err := ioutil.ReadAll(r.Body)
+	batch := assertstate.NewBatch()
+	_, err := batch.AddStream(r.Body)
 	if err != nil {
-		return BadRequest("reading assert request body gave %v", err)
-	}
-	a, err := asserts.Decode(b)
-	if err != nil {
-		return BadRequest("cannot decode request body into an assertion: %v", err)
+		return BadRequest("cannot decode request body into assertions: %v", err)
 	}
 
 	state := c.d.overlord.State()
 	state.Lock()
 	defer state.Unlock()
 
-	if err := assertstate.Add(state, a); err != nil {
-		if _, ok := err.(*asserts.RevisionError); ok {
-			return Conflict("assert failed: %v", err)
-		}
+	if err := batch.Commit(state); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
 	// TODO: what more info do we want to return on success?
@@ -1410,8 +1488,9 @@ type taskInfo struct {
 }
 
 type taskInfoProgress struct {
-	Done  int `json:"done"`
-	Total int `json:"total"`
+	Label string `json:"label"`
+	Done  int    `json:"done"`
+	Total int    `json:"total"`
 }
 
 func change2changeInfo(chg *state.Change) *changeInfo {
@@ -1436,7 +1515,8 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 	tasks := chg.Tasks()
 	taskInfos := make([]*taskInfo, len(tasks))
 	for j, t := range tasks {
-		done, total := t.Progress()
+		label, done, total := t.Progress()
+
 		taskInfo := &taskInfo{
 			ID:      t.ID(),
 			Kind:    t.Kind(),
@@ -1444,6 +1524,7 @@ func change2changeInfo(chg *state.Change) *changeInfo {
 			Status:  t.Status().String(),
 			Log:     t.Log(),
 			Progress: taskInfoProgress{
+				Label: label,
 				Done:  done,
 				Total: total,
 			},
@@ -1575,6 +1656,13 @@ var (
 	osutilAddUser                = osutil.AddUser
 )
 
+type createResponseData struct {
+	Username string   `json:"username"`
+	SSHKeys  []string `json:"ssh-keys"`
+	// deprecated
+	SSHKeyCount int `json:"ssh-key-count"`
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1617,14 +1705,11 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user %s: %s", v.Username, err)
 	}
 
-	var createResponseData struct {
-		Username    string `json:"username"`
-		SSHKeyCount int    `json:"ssh-key-count"`
-	}
-	createResponseData.Username = v.Username
-	createResponseData.SSHKeyCount = len(v.SSHKeys)
-
-	return SyncResponse(createResponseData, nil)
+	return SyncResponse(&createResponseData{
+		Username:    v.Username,
+		SSHKeys:     v.SSHKeys,
+		SSHKeyCount: len(v.SSHKeys),
+	}, nil)
 }
 
 func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1652,6 +1737,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(buyResult, nil)
 }
 
+// TODO Remove once the CLI is using the new /buy/ready endpoint
 func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
 	s := getStore(c)
 
@@ -1669,15 +1755,46 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 	return SyncResponse(paymentMethods, nil)
 }
 
+func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	err := s.ReadyToBuy(user)
+
+	switch err {
+	default:
+		return InternalError("%v", err)
+	case store.ErrInvalidCredentials:
+		return Unauthorized(err.Error())
+	case store.ErrTOSNotAccepted:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindTermsNotAccepted,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case store.ErrNoPaymentMethods:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindNoPaymentMethods,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
+	case nil:
+		// continue
+	}
+
+	return SyncResponse(true, nil)
+}
+
 func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	var snapctlOptions client.SnapCtlOptions
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&snapctlOptions); err != nil {
 		return BadRequest("cannot decode snapctl request: %s", err)
-	}
-
-	if snapctlOptions.ContextID == "" {
-		return BadRequest("snapctl cannot run without context ID")
 	}
 
 	if len(snapctlOptions.Args) == 0 {
@@ -1686,14 +1803,14 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// Right now snapctl is only used for hooks. If at some point it grows
 	// beyond that, this probably shouldn't go straight to the HookManager.
-	context, err := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
-	if err != nil {
-		return BadRequest("cannot run snapctl: %s", err)
-	}
-
+	context, _ := c.d.overlord.HookManager().Context(snapctlOptions.ContextID)
 	stdout, stderr, err := ctlcmd.Run(context, snapctlOptions.Args)
 	if err != nil {
-		return BadRequest("error running snapctl: %s", err)
+		if e, ok := err.(*flags.Error); ok && e.Type == flags.ErrHelp {
+			stdout = []byte(e.Error())
+		} else {
+			return BadRequest("error running snapctl: %s", err)
+		}
 	}
 
 	result := map[string]string{

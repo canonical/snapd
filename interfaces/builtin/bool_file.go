@@ -80,12 +80,7 @@ func (iface *BoolFileInterface) SanitizePlug(plug *interfaces.Plug) error {
 // ConnectedSlotSnippet returns security snippet specific to a given connection between the bool-file slot and some plug.
 // Applications associated with the slot don't gain any extra permissions.
 func (iface *BoolFileInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 // PermanentSlotSnippet returns security snippet permanently granted to bool-file slots.
@@ -104,11 +99,8 @@ func (iface *BoolFileInterface) PermanentSlotSnippet(slot *interfaces.Slot, secu
 			return gpioSnippet, nil
 		}
 		return nil, nil
-	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 // ConnectedPlugSnippet returns security snippet specific to a given connection between the bool-file plug and some slot.
@@ -125,22 +117,14 @@ func (iface *BoolFileInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot
 			return nil, fmt.Errorf("cannot compute plug security snippet: %v", err)
 		}
 		return []byte(fmt.Sprintf("%s rwk,\n", path)), nil
-	case interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 // PermanentPlugSnippet returns the configuration snippet required to use a bool-file interface.
 // Applications associated with the plug don't gain any extra permissions.
 func (iface *BoolFileInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *BoolFileInterface) dereferencedPath(slot *interfaces.Slot) (string, error) {

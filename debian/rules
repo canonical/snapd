@@ -14,6 +14,20 @@ export PATH:=/usr/lib/go-1.6/bin:${PATH}
 
 RELEASE = $(shell lsb_release -c -s)
 
+# The go tool does not fully support vendoring with gccgo, but we can
+# work around that by constructing the appropriate -I flag by hand.
+GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
+
+GCCGOFLAGS=
+ifeq ($(GCCGO),yes)
+GOARCH := $(shell go env GOARCH)
+GOOS := $(shell go env GOOS)
+
+GCCGOFLAGS=-gccgoflags="-I $(CURDIR)/_build/pkg/gccgo_$(GOOS)_$(GOARCH)/$(DH_GOPKG)/vendor"
+export DH_GOLANG_GO_GENERATE=0
+endif
+
+# check if we need to include the testkeys in the binary
 TAGS=
 ifneq (,$(filter testkeys,$(DEB_BUILD_OPTIONS)))
 	TAGS=-tags withtestkeys
@@ -25,10 +39,11 @@ endif
 override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
-	dh_auto_build -- $(TAGS)
+	dh_auto_build -- $(TAGS) $(GCCGOFLAGS)
+
 
 override_dh_auto_test:
-	dh_auto_test
+	dh_auto_test -- $(GCCGOFLAGS)
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-key is included
 	[ $$(strings _build/bin/snapd|grep -c -E "public-key-sha3-384: [a-zA-Z0-9_-]{64}") -eq 1 ]
@@ -91,6 +106,8 @@ override_dh_auto_install: snap.8
 	rm -rf ${CURDIR}/debian/snapd/usr/share/gocode
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
+	# no uboot-go
+	rm -f ${CURDIR}/debian/tmp/usr/bin/uboot-go
 
 snap.8:
 	$(CURDIR)/_build/bin/snap help --man > $@

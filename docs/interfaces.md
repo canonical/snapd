@@ -258,6 +258,24 @@ printing.
 
 * Auto-Connect: no
 
+### docker
+
+Can access snaps providing the docker interface which gives privileged access
+to the system.
+
+* Auto-Connect: no
+
+### docker-support
+
+Can access resources and syscalls necessary to run Docker application
+containers. The ``privileged-containers`` attribute may be used to give the
+necessary access to run privileged containers. Providing snaps specifying this
+interface currently may only be established with the Docker project.
+
+* Auto-Connect: no
+* Attributes:
+    * privileged-containers (plug): true|false (defaults to ``false``)
+
 ### firewall-control
 
 Can configure network firewalling giving privileged access to networking.
@@ -312,6 +330,8 @@ Can insert kernel modules. This interface gives privileged access to the device.
 Can access the libvirt control socket, which gives privileged access to control
 libvirtd on the host. This is commonly used to create and manage QEMU/KVM
 instances on the host.
+
+* Auto-Connect: no
 
 ### locale-control
 
@@ -383,6 +403,13 @@ networking information.
 
 * Auto-Connect: no
 
+### network-setup-observe
+
+Can read network setup configuration files. This is restricted because it gives
+access to system network configuration which can contain network security details.
+
+* Auto-Connect: no
+
 ### ppp
 
 Can access Point-to-Point protocol daemon which gives privileged access to
@@ -436,9 +463,15 @@ trusted apps.
 
 * Auto-Connect: no
 
+### time-control
+
+Can set system time and date and query systemd-timedated for time information.
+
+* Auto-Connect: no
+
 ### timeserver-control
 
-Can manage timeservers directly separate from ``config core``.
+Can manage timeservers via systemd-timedated and directly separate from ``config core``
 
 * Auto-Connect: no
 

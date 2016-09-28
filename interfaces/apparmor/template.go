@@ -86,6 +86,7 @@ var defaultTemplate = []byte(`
   /etc/libnl-3/{classid,pktloc} r,      # apps that use libnl
   /var/lib/extrausers/{passwd,group} r,
   /etc/profile r,
+  /etc/environment r,
   /usr/share/terminfo/** r,
   /etc/inputrc r,
   # Common utilities for shell scripts
@@ -183,6 +184,9 @@ var defaultTemplate = []byte(`
   /{,usr/}bin/z{,e,f}grep ixr,
   /{,usr/}bin/zip ixr,
   /{,usr/}bin/zipgrep ixr,
+
+  # For snappy reexec on 4.8+ kernels
+  /usr/lib/snapd/snap-exec m,
 
   # For printing the cache (we don't allow updating the cache)
   /{,usr/}sbin/ldconfig{,.real} ixr,

@@ -967,21 +967,21 @@ apps:
     daemon:
        command: foo --daemon
        plugs: [network, network-bind]
-       slots: [foo-socket]
+       slots: [foo-socket-slot]
     foo:
        command: fooctl
-       plugs: [foo-socket]
+       plugs: [foo-socket-plug]
 hooks:
     test-hook:
-       plugs: [foo-socket]
+       plugs: [foo-socket-plug]
 plugs:
-    foo-socket:
+    foo-socket-plug:
         interface: socket
         # $protocol: foo
     logging:
         interface: syslog
 slots:
-    foo-socket:
+    foo-socket-slot:
         interface: socket
         path: $SNAP_DATA/socket
         protocol: foo
@@ -1008,9 +1008,9 @@ slots:
 	hook := info.Hooks["test-hook"]
 	plug1 := info.Plugs["network"]
 	plug2 := info.Plugs["network-bind"]
-	plug3 := info.Plugs["foo-socket"]
+	plug3 := info.Plugs["foo-socket-plug"]
 	plug4 := info.Plugs["logging"]
-	slot1 := info.Slots["foo-socket"]
+	slot1 := info.Slots["foo-socket-slot"]
 	slot2 := info.Slots["tracing"]
 
 	// app1 ("daemon") has three plugs ("network", "network-bind", "logging")
@@ -1072,7 +1072,7 @@ slots:
 
 	c.Assert(plug3, Not(IsNil))
 	c.Check(plug3.Snap, Equals, info)
-	c.Check(plug3.Name, Equals, "foo-socket")
+	c.Check(plug3.Name, Equals, "foo-socket-plug")
 	c.Check(plug3.Interface, Equals, "socket")
 	c.Check(plug3.Attrs, HasLen, 0)
 	c.Check(plug3.Label, Equals, "")
@@ -1093,7 +1093,7 @@ slots:
 
 	c.Assert(slot1, Not(IsNil))
 	c.Check(slot1.Snap, Equals, info)
-	c.Check(slot1.Name, Equals, "foo-socket")
+	c.Check(slot1.Name, Equals, "foo-socket-slot")
 	c.Check(slot1.Interface, Equals, "socket")
 	c.Check(slot1.Attrs, DeepEquals, map[string]interface{}{
 		"protocol": "foo", "path": "$SNAP_DATA/socket"})

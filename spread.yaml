@@ -24,8 +24,10 @@ backends:
                 kernel: GRUB 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
+                workers: 2
             - ubuntu-16.04-32:
                 kernel: GRUB 2
+                workers: 2
             - ubuntu-core-16-64:
                 kernel: Direct Disk
                 image: ubuntu-16.04-64
@@ -65,6 +67,11 @@ path: /home/gopath/src/github.com/snapcore/snapd
 exclude:
     - .git
 
+debug-each: |
+    # something went wrong in the test, get some logs
+    echo "Snapd debug log:"
+    journalctl -u snapd
+
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
@@ -86,15 +93,19 @@ prepare: |
     apt-get purge -y snapd || true
     apt-get update
     # utilities
-    apt-get install -y curl devscripts expect gdebi-core jq rng-tools software-properties-common
+    apt-get install -y curl devscripts expect gdebi-core jq rng-tools software-properties-common git
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
     add-apt-repository --update ppa:snappy-dev/image
     # this should not be needed but apparently it is :/
     apt-get update
-
+    # in 16.04: apt build-dep -y ./
     apt-get install -y $(gdebi --quiet --apt-line ./debian/control)
+
+    # update vendoring
+    go get -u github.com/kardianos/govendor
+    govendor sync
 
     # FIXME: this can be removed once snap-confine 1.0.38-0ubuntu0.16.04.8
     #        hits xenial-updates
@@ -126,6 +137,7 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd

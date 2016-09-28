@@ -36,9 +36,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// HookRunner is the hook runner. Exported here for use in tests.
-var HookRunner = runHookAndWait
-
 // HookManager is responsible for the maintenance of hooks in the system state.
 // It runs hooks when they're requested, assuming they're present in the given
 // snap. Otherwise they're skipped with no error.
@@ -88,10 +85,19 @@ func Manager(s *state.State) (*HookManager, error) {
 	return manager, nil
 }
 
-// HookTask returns a task that will run the specified hook.
-func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
+// HookTask returns a task that will run the specified hook. Note that the
+// initial context must properly marshal and unmarshal with encoding/json.
+func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string, initialContext map[string]interface{}) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook-setup", HookSetup{
+		Snap:     snapName,
+		Revision: revision,
+		Hook:     hookName,
+	})
+
+	// Set the initial context in the task, which will be loaded when Context
+	// is used.
+	task.Set("hook-context", &initialContext)
 	return task
 }
 
@@ -149,10 +155,15 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("cannot extract hook setup from task: %s", err)
 	}
 
+	context, err := NewContext(task, setup, nil)
+	if err != nil {
+		return err
+	}
+
 	// Obtain a handler for this hook. The repository returns a list since it's
 	// possible for regular expressions to overlap, but multiple handlers is an
 	// error (as is no handler).
-	handlers := m.repository.generateHandlers(&Context{task: task, setup: setup})
+	handlers := m.repository.generateHandlers(context)
 	handlersCount := len(handlers)
 	if handlersCount == 0 {
 		return fmt.Errorf("no registered handlers for hook %q", setup.Hook)
@@ -161,14 +172,9 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 		return fmt.Errorf("%d handlers registered for hook %q, expected 1", handlersCount, setup.Hook)
 	}
 
-	handler := handlers[0]
-	context, err := NewContext(task, setup, handler)
-	if err != nil {
-		return err
-	}
+	context.handler = handlers[0]
 
 	contextID := context.ID()
-
 	m.contextsMutex.Lock()
 	m.contexts[contextID] = context
 	m.contextsMutex.Unlock()
@@ -180,15 +186,15 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 	}()
 
 	// About to run the hook-- notify the handler
-	if err = handler.Before(); err != nil {
+	if err = context.Handler().Before(); err != nil {
 		return err
 	}
 
 	// Actually run the hook
-	output, err := HookRunner(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
+	output, err := runHookAndWait(setup.Snap, setup.Revision, setup.Hook, contextID, tomb)
 	if err != nil {
 		err = osutil.OutputErr(output, err)
-		if handlerErr := handler.Error(err); handlerErr != nil {
+		if handlerErr := context.Handler().Error(err); handlerErr != nil {
 			return handlerErr
 		}
 
@@ -197,7 +203,14 @@ func (m *HookManager) doRunHook(task *state.Task, tomb *tomb.Tomb) error {
 
 	// Assuming no error occurred, notify the handler that the hook has
 	// finished.
-	if err = handler.Done(); err != nil {
+	if err = context.Handler().Done(); err != nil {
+		return err
+	}
+
+	// Let the context know we're finished with it.
+	context.Lock()
+	defer context.Unlock()
+	if err = context.Done(); err != nil {
 		return err
 	}
 

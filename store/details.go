@@ -31,6 +31,7 @@ type snapDetails struct {
 	DownloadSha3_384 string             `json:"download_sha3_384,omitempty"`
 	Summary          string             `json:"summary,omitempty"`
 	Description      string             `json:"description,omitempty"`
+	Deltas           []snapDeltaDetail  `json:"deltas,omitempty"`
 	DownloadSize     int64              `json:"binary_filesize,omitempty"`
 	DownloadURL      string             `json:"download_url,omitempty"`
 	IconURL          string             `json:"icon_url"`
@@ -40,6 +41,7 @@ type snapDetails struct {
 	Publisher        string             `json:"publisher,omitempty"`
 	RatingsAverage   float64            `json:"ratings_average,omitempty"`
 	Revision         int                `json:"revision"` // store revisions are ints starting at 1
+	ScreenshotURLs   []string           `json:"screenshot_urls,omitempty"`
 	SnapID           string             `json:"snap_id"`
 	SupportURL       string             `json:"support_url"`
 	Title            string             `json:"title"`
@@ -54,4 +56,14 @@ type snapDetails struct {
 	DeveloperID string `json:"developer_id"`
 	Private     bool   `json:"private"`
 	Confinement string `json:"confinement"`
+}
+
+type snapDeltaDetail struct {
+	FromRevision    int    `json:"from_revision"`
+	ToRevision      int    `json:"to_revision"`
+	Format          string `json:"format"`
+	AnonDownloadURL string `json:"anon_download_url,omitempty"`
+	DownloadURL     string `json:"download_url,omitempty"`
+	Size            int64  `json:"binary_filesize,omitempty"`
+	Sha3_384        string `json:"download_sha3_384,omitempty"`
 }
