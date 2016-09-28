@@ -21,8 +21,6 @@ package main
 
 import (
 	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/overlord/boot"
 )
 
 type cmdInternalFirstBoot struct{}
@@ -41,5 +39,8 @@ func (x *cmdInternalFirstBoot) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	return boot.FirstBoot()
+	println(`
+This command does nothing, its only there because we can not update files 
+in the writable space after they got copied out of the snap.
+`)
 }
