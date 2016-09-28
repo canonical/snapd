@@ -85,10 +85,19 @@ func Manager(s *state.State) (*HookManager, error) {
 	return manager, nil
 }
 
-// HookTask returns a task that will run the specified hook.
-func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string) *state.Task {
+// HookTask returns a task that will run the specified hook. Note that the
+// initial context must properly marshal and unmarshal with encoding/json.
+func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revision, hookName string, initialContext map[string]interface{}) *state.Task {
 	task := s.NewTask("run-hook", taskSummary)
-	task.Set("hook-setup", HookSetup{Snap: snapName, Revision: revision, Hook: hookName})
+	task.Set("hook-setup", HookSetup{
+		Snap:     snapName,
+		Revision: revision,
+		Hook:     hookName,
+	})
+
+	// Set the initial context in the task, which will be loaded when Context
+	// is used.
+	task.Set("hook-context", &initialContext)
 	return task
 }
 

@@ -44,7 +44,7 @@ apps:
  app:
   command: run-app
 hooks:
- apply-config:
+ configure:
 `)
 
 var mockSnapInfo = &snap.Info{

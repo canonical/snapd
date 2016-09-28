@@ -20,6 +20,7 @@
 package configstate_test
 
 import (
+	"fmt"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -39,11 +40,9 @@ var _ = Suite(&transactionSuite{})
 
 func (s *transactionSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
-	var err error
 	s.state.Lock()
 	defer s.state.Unlock()
-	s.transaction, err = configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
+	s.transaction = configstate.NewTransaction(s.state)
 }
 
 func (s *transactionSuite) TestNoOptionError(c *C) {
@@ -59,10 +58,9 @@ func (s *transactionSuite) TestSetDoesNotTouchState(c *C) {
 	// Create a new transaction to grab a new snapshot of the state
 	s.state.Lock()
 	defer s.state.Unlock()
-	transaction, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
+	transaction := configstate.NewTransaction(s.state)
 	var value string
-	err = transaction.Get("test-snap", "foo", &value)
+	err := transaction.Get("test-snap", "foo", &value)
 	c.Check(err, NotNil, Commentf("Expected config set by first transaction to not be saved"))
 }
 
@@ -73,10 +71,9 @@ func (s *transactionSuite) TestCommit(c *C) {
 	s.transaction.Commit()
 
 	// Create a new transaction to grab a new snapshot of the state
-	transaction, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
+	transaction := configstate.NewTransaction(s.state)
 	var value string
-	err = transaction.Get("test-snap", "foo", &value)
+	err := transaction.Get("test-snap", "foo", &value)
 	c.Check(err, IsNil, Commentf("Expected config set by first transaction to be saved"))
 	c.Check(value, Equals, "bar")
 }
@@ -89,10 +86,8 @@ func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 	s.transaction.Commit()
 
 	// Create two new transactions
-	transaction1, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
-	transaction2, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
+	transaction1 := configstate.NewTransaction(s.state)
+	transaction2 := configstate.NewTransaction(s.state)
 
 	// transaction1 will change the configuration item that is already present.
 	c.Check(transaction1.Set("test-snap", "foo", "baz"), IsNil)
@@ -105,8 +100,7 @@ func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 	// Now verify that the change made by both transactions actually took place
 	// (i.e. transaction1's change was not overridden by the old data in
 	// transaction2).
-	transaction, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
+	transaction := configstate.NewTransaction(s.state)
 
 	var value string
 	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
@@ -119,7 +113,12 @@ func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
 func (s *transactionSuite) TestGetNothing(c *C) {
 	var value string
 	err := s.transaction.Get("test-snap", "foo", &value)
-	c.Check(err, NotNil, Commentf("Expected Get to fail if key not set"))
+	c.Assert(err, FitsTypeOf, &configstate.NoOptionError{})
+	c.Check(err, ErrorMatches, `snap "test-snap" has no "foo" configuration option`)
+
+	value = ""
+	err = s.transaction.GetMaybe("test-snap", "foo", &value)
+	c.Assert(err, IsNil)
 }
 
 func (s *transactionSuite) TestGetCachedWrites(c *C) {
@@ -127,6 +126,11 @@ func (s *transactionSuite) TestGetCachedWrites(c *C) {
 	s.transaction.Set("test-snap", "foo", "bar")
 	var value string
 	err := s.transaction.Get("test-snap", "foo", &value)
+	c.Check(err, IsNil, Commentf("Expected 'test-snap' config to contain 'foo'"))
+	c.Check(value, Equals, "bar")
+
+	value = ""
+	err = s.transaction.GetMaybe("test-snap", "foo", &value)
 	c.Check(err, IsNil, Commentf("Expected 'test-snap' config to contain 'foo'"))
 	c.Check(value, Equals, "bar")
 }
@@ -138,8 +142,7 @@ func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
 	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
 	s.transaction.Commit()
 
-	transaction, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
+	transaction := configstate.NewTransaction(s.state)
 	c.Check(transaction.Set("test-snap", "baz", "qux"), IsNil)
 
 	// Now get both the cached write as well as the initial config
@@ -158,10 +161,8 @@ func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
 	s.transaction.Commit()
 
 	// Create two new transactions
-	transaction1, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
-	transaction2, err := configstate.NewTransaction(s.state)
-	c.Check(err, IsNil)
+	transaction1 := configstate.NewTransaction(s.state)
+	transaction2 := configstate.NewTransaction(s.state)
 
 	// Change the config in one
 	c.Check(transaction1.Set("test-snap", "foo", "updated"), IsNil)
@@ -171,4 +172,35 @@ func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
 	var value string
 	c.Check(transaction2.Get("test-snap", "foo", &value), IsNil)
 	c.Check(value, Equals, "initial", Commentf("Expected transaction2 to be isolated from transaction1"))
+}
+
+type brokenType struct {
+	on string
+}
+
+func (b *brokenType) UnmarshalJSON(data []byte) error {
+	if b.on == string(data) {
+		return fmt.Errorf("BAM!")
+	}
+	return nil
+}
+
+func (s *transactionSuite) TestGetUnmarshalError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(s.transaction.Set("test-snap", "foo", "good"), IsNil)
+	s.transaction.Commit()
+
+	transaction := configstate.NewTransaction(s.state)
+	c.Check(transaction.Set("test-snap", "foo", "break"), IsNil)
+
+	// Pristine state is good, value in the transaction breaks.
+	broken := brokenType{`"break"`}
+	err := transaction.Get("test-snap", "foo", &broken)
+	c.Assert(err, ErrorMatches, ".*BAM!.*")
+
+	// Pristine state breaks, nothing in the transaction.
+	transaction.Commit()
+	err = transaction.Get("test-snap", "foo", &broken)
+	c.Assert(err, ErrorMatches, ".*BAM!.*")
 }

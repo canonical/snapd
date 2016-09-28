@@ -84,10 +84,10 @@ network packet,
 /run/resolvconf/{,**} r,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
-/etc/resolvconf/** w,
 /lib/resolvconf/* ix,
 # Required by resolvconf
 /bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
 
