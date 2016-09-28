@@ -463,16 +463,15 @@ trusted apps.
 
 * Auto-Connect: no
 
-### timedate-control
+### time-control
 
-Can modify time/date exposed via D-Bus by systemd-timedated and read all
-all properties of /org/freedesktop/timedate1 D-Bus object.
+Can set system time and date and query systemd-timedated for time information.
 
-* Auto-Connect: yes
+* Auto-Connect: no
 
 ### timeserver-control
 
-Can manage timeservers directly separate from ``config core``.
+Can manage timeservers via systemd-timedated and directly separate from ``config core``
 
 * Auto-Connect: no
 
