@@ -1060,7 +1060,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		Data:        jsonData,
 	}
 
-	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+	if os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL") == "1" {
 		reqOptions.ExtraHeaders = map[string]string{
 			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
 		}
@@ -1132,8 +1132,8 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		}
 	}()
 
-	if os.Getenv("SNAPPY_USE_DELTAS") == "1" && len(downloadInfo.Deltas) >= 0 {
-		downloadDir, err := ioutil.TempDir("", fmt.Sprintf("%s-deltas", name))
+	if os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL") == "1" && len(downloadInfo.Deltas) > 0 {
+		downloadDir, err := ioutil.TempDir("", name+"-deltas")
 		if err == nil {
 			defer os.RemoveAll(downloadDir)
 
@@ -1142,11 +1142,11 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 			if err != nil {
 				// Just log the error and continue with the normal non-delta
 				// download.
-				logger.Noticef("cannot download deltas for %s: %v", name, err)
+				logger.Noticef("Cannot download deltas for %s: %v", name, err)
 			} else {
 				// Currently even on successful delta downloads, continue with the
 				// normal full download.
-				logger.Debugf("successfully downloaded deltas for %s", name)
+				logger.Debugf("Successfully downloaded deltas for %s", name)
 			}
 		}
 	}
@@ -1216,9 +1216,9 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 
 // downloadDeltas downloads the deltas associated with a downloadInfo, returning the paths.
 func (s *Store) downloadDeltas(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) ([]string, error) {
-	deltaPaths := []string{}
+	deltaPaths := make([]string, 0, len(downloadInfo.Deltas))
 
-	// Initially we only download our first supported format (xdelta).
+	// We only download our preferred delta format.
 	deltaFormat := s.deltaFormats[0]
 
 	for _, deltaInfo := range downloadInfo.Deltas {
@@ -1241,6 +1241,11 @@ func (s *Store) downloadDeltas(name string, downloadDir string, downloadInfo *sn
 		if err != nil {
 			return nil, err
 		}
+		err = w.Close()
+		if err != nil {
+			return nil, err
+		}
+
 		deltaPaths = append(deltaPaths, w.Name())
 	}
 	return deltaPaths, nil

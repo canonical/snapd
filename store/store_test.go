@@ -391,200 +391,150 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
 	c.Check(n, Equals, len(downloadBackoffs)) // woo!!
-
-func (t *remoteRepoTestSuite) TestDownloadWithDeltasOK(c *C) {
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "1"), IsNil)
-
-	expectedDownloads := []struct {
-		URL     string
-		Content string
-	}{
-		{URL: "anon-delta-url-1", Content: "delta content 1"},
-		{URL: "anon-delta-url-2", Content: "delta content 2"},
-		{URL: "full-snap-anon-url", Content: "full snap content"},
-	}
-	deltaIndex := 0
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-		c.Check(url, Equals, expectedDownloads[deltaIndex].URL)
-		w.Write([]byte(expectedDownloads[deltaIndex].Content))
-		deltaIndex++
-		return nil
-	}
-
-	downloadInfo := &snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-anon-url",
-		DownloadURL:     "full-snap-auth-url",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url-1", Format: "xdelta"},
-			{AnonDownloadURL: "anon-delta-url-2", Format: "xdelta"},
-		},
-	}
-
-	path, err := t.store.Download("foo", downloadInfo, nil, nil)
-
-	c.Assert(err, IsNil)
-	defer os.Remove(path)
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	// Currently we still download the complete package and return its content.
-	c.Assert(string(content), Equals, "full snap content")
 }
 
-func (t *remoteRepoTestSuite) TestDownloadWithDeltasErrorDefaultsToNonDeltaDownload(c *C) {
-	// If the delta downloads cause any error, the Download function defaults
-	// back to its normal behaviour and downloads the full snap.
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "1"), IsNil)
+type downloadBehaviour []struct {
+	URL     string
+	Error   bool
+}
 
-	firstTime := true
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-		if firstTime {
-			firstTime = false
-			c.Check(url, Equals, "anon-delta-url-1")
-			return errors.New("Bang")
+var deltaTests = []struct{
+	Downloads       downloadBehaviour
+	Info            snap.DownloadInfo
+	ExpectedContent string
+}{{
+	// The full snap is downloaded after the delta (currently,
+	// until the code applying the delta lands).
+	Downloads: downloadBehaviour{
+		{URL: "delta-url"},
+		{URL: "full-snap-url"},
+	},
+	Info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+		},
+	},
+	ExpectedContent: "full-snap-url-content",
+}, {
+	// If there is an error during the delta download, the
+	// full snap is downloaded as per normal.
+	Downloads: downloadBehaviour{
+		{Error: true},
+		{URL: "full-snap-url"},
+	},
+	Info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+		},
+	},
+	ExpectedContent: "full-snap-url-content",
+}}
+
+func (t *remoteRepoTestSuite) TestDownloadWithDeltas(c *C) {
+	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+
+	for _, testCase := range deltaTests {
+
+		downloadIndex := 0
+		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+			if testCase.Downloads[downloadIndex].Error {
+				downloadIndex++
+				return errors.New("Bang")
+			}
+			c.Check(url, Equals, testCase.Downloads[downloadIndex].URL)
+			w.Write([]byte(testCase.Downloads[downloadIndex].URL+"-content"))
+			downloadIndex++
+			return nil
 		}
-		c.Check(url, Equals, "full-snap-anon-url")
-		w.Write([]byte("full snap content"))
-		return nil
-	}
 
-	downloadInfo := &snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-anon-url",
-		DownloadURL:     "full-snap-auth-url",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url-1", Format: "xdelta"},
-		},
-	}
 
-	path, err := t.store.Download("foo", downloadInfo, nil, nil)
-	c.Assert(err, IsNil)
-	defer os.Remove(path)
+		path, err := t.store.Download("foo", &testCase.Info, nil, nil)
 
-	content, err := ioutil.ReadFile(path)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, "full snap content")
-}
-
-func (t *remoteRepoTestSuite) TestAuthDownloadDeltasDoesNotUseAnonURL(c *C) {
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "1"), IsNil)
-
-	expectedDownloads := []struct {
-		URL     string
-		Content string
-	}{
-		{URL: "auth-delta-url-1", Content: "delta content 1"},
-		{URL: "auth-delta-url-2", Content: "delta content 2"},
-	}
-	deltaIndex := 0
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-		c.Check(user, Equals, t.user)
-		c.Check(url, Equals, expectedDownloads[deltaIndex].URL)
-		w.Write([]byte(expectedDownloads[deltaIndex].Content))
-		deltaIndex++
-		return nil
-	}
-
-	downloadInfo := &snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-anon-url",
-		DownloadURL:     "full-snap-auth-url",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url-1", DownloadURL: "auth-delta-url-1", Format: "xdelta"},
-			{AnonDownloadURL: "anon-delta-url-2", DownloadURL: "auth-delta-url-2", Format: "xdelta"},
-		},
-	}
-
-	downloadDir, err := ioutil.TempDir("", "")
-	defer os.RemoveAll(downloadDir)
-
-	deltaPaths, err := t.store.downloadDeltas("foo", downloadDir, downloadInfo, nil, t.user)
-
-	c.Assert(err, IsNil)
-	c.Assert(len(deltaPaths), Equals, 2)
-}
-
-func (t *remoteRepoTestSuite) TestDownloadDeltasFilePathsAndContents(c *C) {
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "1"), IsNil)
-
-	expectedDownloads := []struct {
-		URL     string
-		Content string
-		Path    string
-	}{
-		{URL: "anon-delta-url-1", Content: "delta content 1", Path: "foo_1_2_delta.xdelta"},
-		{URL: "anon-delta-url-2", Content: "delta content 2", Path: "foo_2_3_delta.xdelta"},
-	}
-	deltaIndex := 0
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-		c.Check(url, Equals, expectedDownloads[deltaIndex].URL)
-		w.Write([]byte(expectedDownloads[deltaIndex].Content))
-		deltaIndex++
-		return nil
-	}
-
-	downloadInfo := &snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-anon-url",
-		DownloadURL:     "full-snap-auth-url",
-		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-delta-url-1", DownloadURL: "auth-delta-url-1", Format: "xdelta",
-				FromRevision: 1, ToRevision: 2},
-			{AnonDownloadURL: "anon-delta-url-2", DownloadURL: "auth-delta-url-2", Format: "xdelta",
-				FromRevision: 2, ToRevision: 3},
-		},
-	}
-
-	downloadDir, err := ioutil.TempDir("", "")
-	defer os.RemoveAll(downloadDir)
-
-	deltaPaths, err := t.store.downloadDeltas("foo", downloadDir, downloadInfo, nil, nil)
-
-	c.Assert(err, IsNil)
-	c.Assert(len(deltaPaths), Equals, 2)
-	for i, deltaPath := range deltaPaths {
-		c.Assert(deltaPath, Equals, path.Join(downloadDir, expectedDownloads[i].Path))
-		content, err := ioutil.ReadFile(deltaPath)
 		c.Assert(err, IsNil)
-		c.Assert(string(content), Equals, expectedDownloads[i].Content)
+		defer os.Remove(path)
+		content, err := ioutil.ReadFile(path)
+		c.Assert(err, IsNil)
+		c.Assert(string(content), Equals, testCase.ExpectedContent)
 	}
 }
 
-func (t *remoteRepoTestSuite) TestDownloadDeltasDownloadsOneFormatOnly(c *C) {
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "1"), IsNil)
-
-	expectedURLs := []string{"anon-xdelta-url-1", "anon-xdelta-url-2"}
-	deltaIndex := 0
-	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-		c.Check(url, Equals, expectedURLs[deltaIndex])
-		w.Write([]byte("content"))
-		deltaIndex++
-		return nil
-	}
-
-	downloadInfo := &snap.DownloadInfo{
-		AnonDownloadURL: "full-snap-anon-url",
-		DownloadURL:     "full-snap-auth-url",
+var downloadDeltaTests = []struct{
+	Info            snap.DownloadInfo
+	Authenticated   bool
+	Formats         []string
+	ExpectedURL     string
+	ExpectedPath    string
+}{{
+	// An unauthenticated request downloads the anonymous delta url.
+	Info: snap.DownloadInfo{
 		Deltas: []snap.DeltaInfo{
-			{AnonDownloadURL: "anon-xdelta-url-1", Format: "xdelta"},
-			{AnonDownloadURL: "anon-xdelta-url-2", Format: "xdelta"},
-			{AnonDownloadURL: "anon-bsdiff-url-3", Format: "bsdiff"},
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
 		},
+	},
+	Authenticated: false,
+	Formats: []string{"xdelta"},
+	ExpectedURL: "anon-delta-url",
+	ExpectedPath: "snapname_24_26_delta.xdelta",
+}, {
+	// An authenticated request downloads the authenticated delta url.
+	Info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "auth-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	Authenticated: true,
+	Formats: []string{"xdelta"},
+	ExpectedURL: "auth-delta-url",
+	ExpectedPath: "snapname_24_26_delta.xdelta",
+}, {
+	// The preferred delta format is downloaded.
+	Info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "delta-url", Format: "format1", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "preferred-delta-url", Format: "format2", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	Authenticated: false,
+	Formats: []string{"format2", "format1"},
+	ExpectedURL: "preferred-delta-url",
+	ExpectedPath: "snapname_24_26_delta.format2",
+}}
+func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
+	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+
+	for _, testCase := range downloadDeltaTests {
+		t.store.deltaFormats = testCase.Formats
+		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+			expectedUser := t.user
+			if !testCase.Authenticated {
+				expectedUser = nil
+			}
+			c.Check(user, Equals, expectedUser)
+			c.Check(url, Equals, testCase.ExpectedURL)
+			return nil
+		}
+
+		downloadDir, err := ioutil.TempDir("", "")
+		c.Assert(err, IsNil)
+		defer os.RemoveAll(downloadDir)
+
+		authedUser := t.user
+		if !testCase.Authenticated {
+			authedUser = nil
+		}
+
+		deltaPaths, err := t.store.downloadDeltas("snapname", downloadDir, &testCase.Info, nil, authedUser)
+
+		c.Assert(err, IsNil)
+		c.Assert(len(deltaPaths), Equals, 1)
+		c.Assert(deltaPaths[0], Equals, path.Join(downloadDir, testCase.ExpectedPath))
 	}
-
-	downloadDir, err := ioutil.TempDir("", "")
-	defer os.RemoveAll(downloadDir)
-
-	deltaPaths, err := t.store.downloadDeltas("foo", downloadDir, downloadInfo, nil, nil)
-
-	c.Assert(err, IsNil)
-	c.Assert(len(deltaPaths), Equals, 2)
 }
 
 func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
@@ -1864,9 +1814,9 @@ var MockUpdatesWithDeltasJSON = `
 `
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "1"), IsNil)
+	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, `xdelta`)
@@ -1939,9 +1889,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C) {
 	// Verify the X-Delta-Format header is not set.
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "0"), IsNil)
+	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "0"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, ``)
