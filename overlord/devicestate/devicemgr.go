@@ -438,16 +438,6 @@ func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
 	}
 }
 
-func getFromTransaction(tr *configstate.Transaction, gadgetName, key string, v interface{}) error {
-	err := tr.Get(gadgetName, key, v)
-	if err != nil {
-		if _, ok := err.(*configstate.NoOptionError); !ok {
-			return err
-		}
-	}
-	return nil
-}
-
 func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 	gadgetInfo, err := snapstate.GadgetInfo(t.State())
 	if err != nil {
@@ -457,7 +447,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 
 	tr := configstate.NewTransaction(t.State())
 	var svcURL string
-	err = getFromTransaction(tr, gadgetName, "registration-service-url", &svcURL)
+	err = tr.GetMaybe(gadgetName, "registration-service-url", &svcURL)
 	if err != nil {
 		return nil, err
 	}
@@ -469,7 +459,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 
 		var headers map[string]string
-		err = getFromTransaction(tr, gadgetName, "registration-http-headers", &headers)
+		err = tr.GetMaybe(gadgetName, "registration-http-headers", &headers)
 		if err != nil {
 			return nil, err
 		}
@@ -485,7 +475,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		cfg.requestIDURL = reqIDURL.String()
 
 		var bodyStr string
-		err = getFromTransaction(tr, gadgetName, "registration-body", &bodyStr)
+		err = tr.GetMaybe(gadgetName, "registration-body", &bodyStr)
 		if err != nil {
 			return nil, err
 		}
@@ -499,7 +489,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		cfg.serialRequestURL = serialURL.String()
 
 		var proposedSerial string
-		err = getFromTransaction(tr, gadgetName, "registration-proposed-serial", &proposedSerial)
+		err = tr.GetMaybe(gadgetName, "registration-proposed-serial", &proposedSerial)
 		if err != nil {
 			return nil, err
 		}
