@@ -44,7 +44,7 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
   bar: BAR`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeContraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(map[string]interface{}{
@@ -76,7 +76,7 @@ func (s *attrConstraintsSuite) TestNested(c *C) {
     bar2: BAR2`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeContraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -128,7 +128,7 @@ func (s *attrConstraintsSuite) TestAlternative(c *C) {
     bar: BAZ`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeContraints(m["attrs"].([]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].([]interface{}))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(map[string]interface{}{
@@ -163,7 +163,7 @@ func (s *attrConstraintsSuite) TestNestedAlternative(c *C) {
       - BAR22`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeContraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -197,7 +197,7 @@ func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
   bar: true`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeContraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -208,25 +208,25 @@ bar: true
 }
 
 func (s *attrConstraintsSuite) TestCompileErrors(c *C) {
-	_, err := asserts.CompileAttributeContraints(map[string]interface{}{
+	_, err := asserts.CompileAttributeConstraints(map[string]interface{}{
 		"foo": "[",
 	})
 	c.Check(err, ErrorMatches, `cannot compile "foo" constraint "\[": error parsing regexp:.*`)
 
-	_, err = asserts.CompileAttributeContraints(map[string]interface{}{
+	_, err = asserts.CompileAttributeConstraints(map[string]interface{}{
 		"foo": []interface{}{"foo", "["},
 	})
 	c.Check(err, ErrorMatches, `cannot compile "foo/alt#2/" constraint "\[": error parsing regexp:.*`)
 
-	_, err = asserts.CompileAttributeContraints(map[string]interface{}{
+	_, err = asserts.CompileAttributeConstraints(map[string]interface{}{
 		"foo": []interface{}{"foo", []interface{}{"bar", "baz"}},
 	})
 	c.Check(err, ErrorMatches, `cannot nest alternative constraints directly at "foo/alt#2/"`)
 
-	_, err = asserts.CompileAttributeContraints("FOO")
+	_, err = asserts.CompileAttributeConstraints("FOO")
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
 
-	_, err = asserts.CompileAttributeContraints([]interface{}{"FOO"})
+	_, err = asserts.CompileAttributeConstraints([]interface{}{"FOO"})
 	c.Check(err, ErrorMatches, `first level of non alternative constraints must be a set of key-value contraints`)
 }
 
@@ -235,7 +235,7 @@ func (s *attrConstraintsSuite) TestMatchingListsSimple(c *C) {
   foo: /foo/.*`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeContraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(attrs(`
@@ -255,7 +255,7 @@ func (s *attrConstraintsSuite) TestMatchingListsMap(c *C) {
     p: /foo/.*`))
 	c.Assert(err, IsNil)
 
-	cstrs, err := asserts.CompileAttributeContraints(m["attrs"].(map[string]interface{}))
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
 	c.Assert(err, IsNil)
 
 	err = cstrs.Check(attrs(`

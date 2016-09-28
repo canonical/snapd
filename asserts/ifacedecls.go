@@ -211,8 +211,8 @@ type AttributeConstraints struct {
 	matcher attrMatcher
 }
 
-// compileAttributeContraints checks and compiles a mapping or list from the assertion format into AttributeConstraints.
-func compileAttributeContraints(constraints interface{}) (*AttributeConstraints, error) {
+// compileAttributeConstraints checks and compiles a mapping or list from the assertion format into AttributeConstraints.
+func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
 	matcher, err := compileAttrMatcher(compileContext{}, constraints)
 	if err != nil {
 		return nil, err
