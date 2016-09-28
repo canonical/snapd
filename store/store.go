@@ -1132,6 +1132,25 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		}
 	}()
 
+	if os.Getenv("SNAPPY_USE_DELTAS") == "1" && len(downloadInfo.Deltas) >= 0 {
+		downloadDir, err := ioutil.TempDir("", fmt.Sprintf("%s-deltas", name))
+		if err == nil {
+			defer os.RemoveAll(downloadDir)
+
+			_, err = s.downloadDeltas(name, downloadDir, downloadInfo, pbar, user)
+			// We revert to normal downloads if there is any error
+			if err != nil {
+				// Just log the error and continue with the normal non-delta
+				// download.
+				logger.Noticef("cannot download deltas for %s: %v", name, err)
+			}
+
+			// Currently even on successful delta downloads, continue with the
+			// normal full download.
+			logger.Debugf("successfully downloaded deltas for %s", name)
+		}
+	}
+
 	url := downloadInfo.AnonDownloadURL
 	if url == "" || user != nil {
 		url = downloadInfo.DownloadURL
@@ -1193,6 +1212,38 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	}
 
 	return err
+}
+
+// downloadDeltas downloads the deltas associated with a downloadInfo, returning the paths.
+func (s *Store) downloadDeltas(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) ([]string, error) {
+	deltaPaths := []string{}
+
+	// Initially we only download our first supported format (xdelta).
+	deltaFormat := s.deltaFormats[0]
+
+	for _, deltaInfo := range downloadInfo.Deltas {
+		if deltaInfo.Format != deltaFormat {
+			continue
+		}
+		deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
+
+		w, err := os.Create(path.Join(downloadDir, deltaName))
+		if err != nil {
+			return nil, err
+		}
+
+		url := deltaInfo.AnonDownloadURL
+		if url == "" || user != nil {
+			url = deltaInfo.DownloadURL
+		}
+
+		err = download(deltaName, url, user, s, w, pbar)
+		if err != nil {
+			return nil, err
+		}
+		deltaPaths = append(deltaPaths, w.Name())
+	}
+	return deltaPaths, nil
 }
 
 type assertionSvcError struct {
