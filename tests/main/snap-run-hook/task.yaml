@@ -17,25 +17,14 @@ execute: |
 
     echo "Test that snap run can call valid hooks"
 
-    if ! output="$(snap run --hook=apply-config basic-hooks)"; then
-        echo "Failed to run apply-config hook"
+    if ! output="$(snap run --hook=configure basic-hooks)"; then
+        echo "Failed to run configure hook"
         exit 1
     fi
 
-    expected_output="apply-config hook"
+    expected_output="configure hook"
     if [ "$output" != "$expected_output" ]; then
-        echo "Expected apply-config output to be '$expected_output', but it was '$output'"
-        exit 1
-    fi
-
-    if ! output="$(snap run --hook=check-config basic-hooks)"; then
-        echo "Failed to run check-config hook"
-        exit 1
-    fi
-
-    expected_output="check-config hook"
-    if [ "$output" != "$expected_output" ]; then
-        echo "Expected check-config output to be '$expected_output', but it was '$output'"
+        echo "Expected configure output to be '$expected_output', but it was '$output'"
         exit 1
     fi
 

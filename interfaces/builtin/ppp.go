@@ -43,6 +43,13 @@ capability setgid,
 capability setuid,
 `)
 
+// ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded
+// by the kernel on different ioctl calls for this device. Note also that
+// in many cases ppp_generic is statically linked into the kernel (CONFIG_PPP=y)
+var pppConnectedPlugKmod = []byte(`
+ppp_generic
+`)
+
 type PppInterface struct{}
 
 func (iface *PppInterface) Name() string {
@@ -57,6 +64,8 @@ func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *int
 	switch securitySystem {
 	case interfaces.SecurityAppArmor:
 		return pppConnectedPlugAppArmor, nil
+	case interfaces.SecurityKMod:
+		return pppConnectedPlugKmod, nil
 	}
 	return nil, nil
 }
