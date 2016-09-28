@@ -1144,7 +1144,8 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	return w.Name(), w.Sync()
 }
 
-var downloadBackoffs = []time.Duration{113, 191, 331, 557, 929, 0} // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0
+// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
+var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
 
 // download writes an http.Request showing a progress.Meter
 var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
@@ -1159,9 +1160,12 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	}
 
 	var resp *http.Response
-out:
 	for _, n := range downloadBackoffs {
-		// we do *not* want to reuse the connection in this case
+		// we do *not* want to reuse the client between iterations in
+		// this case as it will have internal state (e.g. cached
+		// connections) that led us to an error (the default client is
+		// documented as not reusing the transport unless the body is
+		// read to EOF and closed, so this is a belt-and-braces thing).
 		r, err := s.doRequest(&http.Client{}, reqOptions, user)
 		if err != nil {
 			return err
@@ -1171,9 +1175,9 @@ out:
 		resp = r
 
 		if r.StatusCode != 500 {
-			break out
+			break
 		}
-		time.Sleep(n * time.Millisecond)
+		time.Sleep(time.Duration(n) * time.Millisecond)
 	}
 	if resp.StatusCode != 200 {
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}

@@ -31,7 +31,6 @@ import (
 	"os"
 	"strings"
 	"testing"
-	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/macaroon.v1"
@@ -54,7 +53,7 @@ type remoteRepoTestSuite struct {
 	device *auth.DeviceState
 
 	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
-	origBackoffs     []time.Duration
+	origBackoffs     []int
 }
 
 func TestStore(t *testing.T) { TestingT(t) }
@@ -207,7 +206,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, nil)
 	t.origDownloadFunc = download
 	t.origBackoffs = downloadBackoffs
-	downloadBackoffs = []time.Duration{2, 5, 0}
+	downloadBackoffs = []int{2, 5, 0}
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
