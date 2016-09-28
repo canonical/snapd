@@ -1,3 +1,9 @@
+snapd (2.16ubuntu1) UNRELEASED; urgency=medium
+
+  * Bump revision.
+
+ -- Thomas Voß <thomas.voss@canonical.com>  Wed, 28 Sep 2016 14:16:05 +0200
+
 snapd (2.16) xenial; urgency=medium
 
   * New upstream release, LP: #1628425
