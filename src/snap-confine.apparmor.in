@@ -21,7 +21,7 @@
     /usr/lib/@{multiarch}/libseccomp.so* mr,
     /lib/@{multiarch}/libseccomp.so* mr,
 
-    @LIBEXECDIR@/snap-confine r,
+    @LIBEXECDIR@/snap-confine mr,
 
     /dev/null rw,
     /dev/full rw,
