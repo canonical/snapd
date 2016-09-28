@@ -15,6 +15,16 @@ for in-depth details.
 
 If you have found an issue with the application, please [file a bug](https://bugs.launchpad.net/snappy/+filebug) on the [bugs list on Launchpad](https://bugs.launchpad.net/snappy/).
 
+## Get in touch
+
+We're friendly! Talk to us on [IRC](http://webchat.freenode.net/?channels=snappy)
+or on [our mailing list](https://lists.snapcraft.io/mailman/listinfo/snapcraft).
+
+Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
+[Google+](https://plus.google.com/+SnapcraftIo) or
+[Facebook](https://www.facebook.com/snapcraftio).
+
+
 
 [travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
 [travis-url]: https://travis-ci.org/snapcore/snapd
