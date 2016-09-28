@@ -17,7 +17,7 @@ If you have found an issue with the application, please [file a bug](https://bug
 
 ## Get in touch
 
-We're friendly! Talk to us on [IRC](http://webchat.freenode.net/?channels=snappy)
+We're friendly! Talk to us on [IRC](https://webchat.freenode.net/?channels=snappy)
 or on [our mailing list](https://lists.snapcraft.io/mailman/listinfo/snapcraft).
 
 Get news and stay up to date on [Twitter](https://twitter.com/snapcraftio),
