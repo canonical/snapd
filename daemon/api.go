@@ -1672,7 +1672,7 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
 	}
 	if len(v.SSHKeys) == 0 {
-		return "", nil, fmt.Errorf("cannot create user for %s: no ssh keys found", email)
+		return "", nil, fmt.Errorf("cannot create user for %q: no ssh keys found", email)
 	}
 
 	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)
@@ -1684,12 +1684,14 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 }
 
 func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
+	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
+
 	st.Lock()
 	db := assertstate.DB(st)
 	modelAs, err := devicestate.Model(st)
 	st.Unlock()
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot get model assertion: %s", err)
+		return "", nil, fmt.Errorf(errorPrefix+"cannot get model assertion: %s", err)
 	}
 
 	brandID := modelAs.BrandID()
@@ -1701,12 +1703,10 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		"email":    email,
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("cannot get system-user assertion: %s", err)
+		return "", nil, fmt.Errorf(errorPrefix+"%v", err)
 	}
-	su, ok := a.(*asserts.SystemUser)
-	if !ok {
-		return "", nil, fmt.Errorf("Invalid assert %s", a)
-	}
+	// the asserts package guarantees that this cast will work
+	su := a.(*asserts.SystemUser)
 
 	// cross check that the assertion is valid for the given series/model
 	contains := func(needle string, haystack []string) bool {
@@ -1718,13 +1718,13 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		return false
 	}
 	if len(su.Series()) > 0 && !contains(series, su.Series()) {
-		return "", nil, fmt.Errorf("%q not in series %q", series, su.Series())
+		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
 	}
 	if len(su.Models()) > 0 && !contains(model, su.Models()) {
-		return "", nil, fmt.Errorf("%q not in models %q", model, su.Models())
+		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
 	}
 	if !su.ValidAt(time.Now()) {
-		return "", nil, fmt.Errorf("cannot add system-user, not valid anymore")
+		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
 	}
 
 	gecos := fmt.Sprintf("%s,%s", email, su.Name())
@@ -1733,11 +1733,7 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		Gecos:    gecos,
 		Password: su.Password(),
 	}
-	username := su.Username()
-	if username == "" {
-		return "", nil, fmt.Errorf("cannot add system-user, no username provided in the assertion")
-	}
-	return username, opts, nil
+	return su.Username(), opts, nil
 }
 
 type createResponseData struct {

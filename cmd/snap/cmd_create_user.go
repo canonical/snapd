@@ -52,7 +52,7 @@ func init() {
 		map[string]string{
 			"json":   i18n.G("Output results in JSON format"),
 			"sudoer": i18n.G("Grant sudo access to the created user"),
-			"known":  i18n.G("Use known assertions for user lookup"),
+			"known":  i18n.G("Use known assertions for user creation"),
 		}, []argDesc{{
 			// TRANSLATORS: noun
 			name: i18n.G("<email>"),

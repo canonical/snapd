@@ -3608,7 +3608,7 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeError)
-	c.Check(rsp.Result.(*errorResult).Message, check.Matches, "cannot create user for popper@lse.ac.uk: no ssh keys found")
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 }
 
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
@@ -3834,7 +3834,7 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	username, opts, err := getUserDetailsFromAssertion(st, email)
 	c.Check(username, check.Equals, "")
 	c.Check(opts, check.IsNil)
-	c.Check(err, check.ErrorMatches, "cannot get model assertion: no state entry for key")
+	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
 }
 
 func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
