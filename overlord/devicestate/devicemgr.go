@@ -69,7 +69,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
 
-	hookManager.Register(regexp.MustCompile("^device-init$"), newDeviceInitHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
@@ -77,22 +77,22 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 	return m, nil
 }
 
-type deviceInitHandler struct{}
+type prepareDeviceHandler struct{}
 
-func newDeviceInitHandler(context *hookstate.Context) hookstate.Handler {
-	return deviceInitHandler{}
+func newPrepareDeviceHandler(context *hookstate.Context) hookstate.Handler {
+	return prepareDeviceHandler{}
 }
 
-func (h deviceInitHandler) Before() error {
+func (h prepareDeviceHandler) Before() error {
 	return nil
 }
 
-func (h deviceInitHandler) Done() error {
+func (h prepareDeviceHandler) Done() error {
 	return nil
 }
 
-func (h deviceInitHandler) Error(err error) error {
-	return fmt.Errorf("cannot run successfully device init hook: %v", err)
+func (h prepareDeviceHandler) Error(err error) error {
+	return nil
 }
 
 func (m *DeviceManager) ensureOperational() error {
@@ -147,16 +147,16 @@ func (m *DeviceManager) ensureOperational() error {
 
 	tasks := []*state.Task{}
 
-	var deviceInit *state.Task
-	if gadgetInfo.Hooks["device-init"] != nil {
-		summary := i18n.G("Run device init hook")
-		deviceInit = hookstate.HookTask(m.state, summary, gadgetInfo.Name(), snap.R(0), "device-init")
-		tasks = append(tasks, deviceInit)
+	var prepareDevice *state.Task
+	if gadgetInfo.Hooks["prepare-device"] != nil {
+		summary := i18n.G("Run prepare-device hook")
+		prepareDevice = hookstate.HookTask(m.state, summary, gadgetInfo.Name(), snap.R(0), "prepare-device", nil)
+		tasks = append(tasks, prepareDevice)
 	}
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
-	if deviceInit != nil {
-		genKey.WaitFor(deviceInit)
+	if prepareDevice != nil {
+		genKey.WaitFor(prepareDevice)
 	}
 	tasks = append(tasks, genKey)
 	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
@@ -455,7 +455,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 	}
 	gadgetName := gadgetInfo.Name()
 
-	tr, _ := configstate.NewTransaction(t.State())
+	tr := configstate.NewTransaction(t.State())
 	var svcURL string
 	err = getFromTransaction(tr, gadgetName, "registration-service-url", &svcURL)
 	if err != nil {

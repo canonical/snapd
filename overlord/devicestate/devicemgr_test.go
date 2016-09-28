@@ -508,7 +508,7 @@ version: gadget
 	c.Check(device.KeyID, Equals, privKey.PublicKey().ID())
 }
 
-func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyDeviceInitHook(c *C) {
+func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyPrepareDeviceHook(c *C) {
 	r1 := devicestate.MockKeyLength(752)
 	defer r1()
 
@@ -516,7 +516,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyDeviceInitHook(c *C) {
 	defer mockServer.Close()
 
 	r2 := hookstate.MockRunHook(func(ctx *hookstate.Context, _ *tomb.Tomb) ([]byte, error) {
-		c.Assert(ctx.HookName(), Equals, "device-init")
+		c.Assert(ctx.HookName(), Equals, "prepare-device")
 
 		// snapctl set the registration params
 		_, _, err := ctlcmd.Run(ctx, []string{"set", fmt.Sprintf("registration-service-url=%q", mockServer.URL+"/identity/api/v1/")})
@@ -544,7 +544,7 @@ func (s *deviceMgrSuite) TestFullDeviceRegistrationHappyDeviceInitHook(c *C) {
 	defer r2()
 
 	// setup state as will be done by first-boot
-	// & have a gadget with a device-init hook
+	// & have a gadget with a prepare-device hook
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -553,7 +553,7 @@ name: gadget
 type: gadget
 version: gadget
 hooks:
-    device-init:
+    prepare-device:
 `)
 
 	auth.SetDevice(s.state, &auth.DeviceState{
