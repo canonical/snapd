@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"testing"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -40,11 +41,12 @@ import (
 	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func Test(t *testing.T) { TestingT(t) }
 
 type FirstBootTestSuite struct {
 	systemctl   *testutil.MockCmd
@@ -55,6 +57,8 @@ type FirstBootTestSuite struct {
 
 	brandPrivKey asserts.PrivateKey
 	brandSigning *assertstest.SigningDB
+
+	overlord *overlord.Overlord
 }
 
 var _ = Suite(&FirstBootTestSuite{})
@@ -85,6 +89,10 @@ func (s *FirstBootTestSuite) SetUpTest(c *C) {
 
 	s.brandPrivKey, _ = assertstest.GenerateKey(752)
 	s.brandSigning = assertstest.NewSigningDB("my-brand", s.brandPrivKey)
+
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	s.overlord = ovld
 }
 
 func (s *FirstBootTestSuite) TearDownTest(c *C) {
@@ -96,27 +104,20 @@ func (s *FirstBootTestSuite) TearDownTest(c *C) {
 	s.restore()
 }
 
-func (s *FirstBootTestSuite) TestTwoRuns(c *C) {
-	c.Assert(boot.FirstBoot(), IsNil)
-	_, err := os.Stat(dirs.SnapFirstBootStamp)
-	c.Assert(err, IsNil)
-
-	c.Assert(boot.FirstBoot(), Equals, boot.ErrNotFirstBoot)
-}
-
-func (s *FirstBootTestSuite) TestNoErrorWhenNoGadget(c *C) {
-	c.Assert(boot.FirstBoot(), IsNil)
-	_, err := os.Stat(dirs.SnapFirstBootStamp)
-	c.Assert(err, IsNil)
-}
-
 func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
-	err := os.MkdirAll(filepath.Dir(dirs.SnapStateFile), 0755)
-	err = ioutil.WriteFile(dirs.SnapStateFile, nil, 0644)
-	c.Assert(err, IsNil)
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	snapstate.Set(st, "not-firstboot-anymore", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "not-firstboot-anymore", Revision: snap.R(7)},
+		},
+		Current: snap.R(7),
+	})
 
-	err = boot.PopulateStateFromSeed()
-	c.Assert(err, ErrorMatches, "cannot create state: state .* already exists")
+	err := boot.PopulateStateFromSeed(st)
+	c.Assert(err, ErrorMatches, "cannot populate state: state not empty")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {
@@ -193,8 +194,14 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	err = boot.PopulateStateFromSeed()
+	st := s.overlord.State()
+	st.Lock()
+	err = boot.PopulateStateFromSeed(st)
+	st.Unlock()
 	c.Assert(err, IsNil)
+
+	// run the changes
+	//s.overlord.Settle()
 
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
@@ -330,8 +337,13 @@ snaps:
 	c.Assert(err, IsNil)
 
 	// run the firstboot stuff
-	err = boot.PopulateStateFromSeed()
+	st := s.overlord.State()
+	st.Lock()
+	err = boot.PopulateStateFromSeed(st)
+	st.Unlock()
 	c.Assert(err, IsNil)
+
+	//s.overlord.Settle()
 
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
@@ -413,12 +425,13 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 	}
 
 	// import them
+	st.Lock()
+	defer st.Unlock()
+
 	err = boot.ImportAssertionsFromSeed(st)
 	c.Assert(err, IsNil)
 
 	// verify that the model was added
-	st.Lock()
-	defer st.Unlock()
 	db := assertstate.DB(st)
 	as, err := db.Find(asserts.ModelType, map[string]string{
 		"series":   "16",
@@ -436,9 +449,9 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedHappy(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
-	ovld, err := overlord.New()
-	c.Assert(err, IsNil)
-	st := ovld.State()
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	// write out only the model assertion
 	assertsChain := s.makeModelAssertionChain(c)
@@ -453,19 +466,19 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedMissingSig(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err = boot.ImportAssertionsFromSeed(st)
+	err := boot.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot find account-key .*: assertion not found")
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
-	ovld, err := overlord.New()
-	c.Assert(err, IsNil)
-	st := ovld.State()
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	// write out two model assertions
 	model := s.makeModelAssertion(c, "my-model")
 	fn := filepath.Join(dirs.SnapSeedDir, "assertions", "model")
-	err = ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
 	c.Assert(err, IsNil)
 
 	model2 := s.makeModelAssertion(c, "my-second-model")
@@ -480,9 +493,9 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 }
 
 func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
-	ovld, err := overlord.New()
-	c.Assert(err, IsNil)
-	st := ovld.State()
+	st := s.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
 	assertsChain := s.makeModelAssertionChain(c)
 	for _, as := range assertsChain {
@@ -496,32 +509,6 @@ func (s *FirstBootTestSuite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 
 	// try import and verify that its rejects because other assertions are
 	// missing
-	err = boot.ImportAssertionsFromSeed(st)
+	err := boot.ImportAssertionsFromSeed(st)
 	c.Assert(err, ErrorMatches, "need a model assertion")
-}
-
-func (s *FirstBootTestSuite) TestFirstBootOnClassicNoEnableEther(c *C) {
-	release.MockOnClassic(true)
-	firstBootEnableFirstEtherRun := false
-	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
-		firstBootEnableFirstEtherRun = true
-		return nil
-	})
-	defer restore()
-
-	c.Assert(boot.FirstBoot(), IsNil)
-	c.Assert(firstBootEnableFirstEtherRun, Equals, false)
-}
-
-func (s *FirstBootTestSuite) TestFirstBootnableEther(c *C) {
-	release.MockOnClassic(false)
-	firstBootEnableFirstEtherRun := false
-	restore := boot.MockFirstbootInitialNetworkConfig(func() error {
-		firstBootEnableFirstEtherRun = true
-		return nil
-	})
-	defer restore()
-
-	c.Assert(boot.FirstBoot(), IsNil)
-	c.Assert(firstBootEnableFirstEtherRun, Equals, true)
 }

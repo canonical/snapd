@@ -43,4 +43,5 @@ func (x *cmdInternalFirstBoot) Execute(args []string) error {
 This command does nothing, its only there because we can not update files 
 in the writable space after they got copied out of the snap.
 `)
+	return nil
 }

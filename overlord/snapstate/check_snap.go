@@ -24,7 +24,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -91,9 +90,14 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 
 	st.Lock()
 	defer st.Unlock()
+	all, err := All(st)
+	if err != nil {
+		return err
+	}
+
 	currentGadget, err := GadgetInfo(st)
 	// in firstboot we have no gadget yet - that is ok
-	if err == state.ErrNoState && !firstboot.HasRun() {
+	if err == state.ErrNoState && len(all) == 0 {
 		return nil
 	}
 	if err != nil {

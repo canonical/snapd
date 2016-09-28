@@ -36,7 +36,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -73,12 +72,6 @@ func Manager(s *state.State) (*DeviceManager, error) {
 }
 
 func (m *DeviceManager) ensureOperational() error {
-	if !firstboot.HasRun() {
-		if err := boot.FirstBoot(m.state); err != nil {
-			return err
-		}
-	}
-
 	m.state.Lock()
 	defer m.state.Unlock()
 
@@ -129,10 +122,47 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
+// ensureSnaps makes sure that the snaps from seed.yaml get installed
+// with the matching assertions
+func (m *DeviceManager) ensureSeedYaml() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// FIXME: enable on classic?
+	//
+	// Disable seed.yaml on classic for now. In the long run we want
+	// classic to have a seed parsing as well so that we can install
+	// snaps in a classic environment (LP: #1609903). However right
+	// now it is under heavy development so until the dust
+	// settles we disable it.
+	if release.OnClassic {
+		return nil
+	}
+
+	all, err := snapstate.All(m.state)
+	if err != nil {
+		return err
+	}
+	if len(all) > 0 {
+		return nil
+	}
+
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == "seed" && !chg.Status().Ready() {
+			// change already in motion
+			return nil
+		}
+	}
+
+	return boot.PopulateStateFromSeed(m.state)
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
-	err := m.ensureOperational()
-	if err != nil {
+	if err := m.ensureSeedYaml(); err != nil {
+		return err
+	}
+	if err := m.ensureOperational(); err != nil {
 		return err
 	}
 	m.runner.Ensure()

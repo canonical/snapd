@@ -20,7 +20,6 @@
 package boot
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -29,26 +28,21 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/firstboot"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
-var (
-	// ErrNotFirstBoot is an error that indicates that the first boot has already
-	// run
-	ErrNotFirstBoot = errors.New("this is not your first boot")
-)
-
-func populateStateFromSeed(st *state.State) error {
-	if osutil.FileExists(dirs.SnapStateFile) {
-		return fmt.Errorf("cannot create state: state %q already exists", dirs.SnapStateFile)
+func PopulateStateFromSeed(st *state.State) error {
+	// check that the state is empty
+	all, err := snapstate.All(st)
+	if err != nil {
+		return err
+	}
+	if len(all) > 0 {
+		return fmt.Errorf("cannot populate state: state not empty")
 	}
 
 	// ack all initial assertions
@@ -63,7 +57,6 @@ func populateStateFromSeed(st *state.State) error {
 
 	tsAll := []*state.TaskSet{}
 	for i, sn := range seed.Snaps {
-		st.Lock()
 
 		flags := snapstate.Flags(0)
 		if sn.DevMode {
@@ -77,11 +70,9 @@ func populateStateFromSeed(st *state.State) error {
 		} else {
 			si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
 			if err == asserts.ErrNotFound {
-				st.Unlock()
 				return fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 			}
 			if err != nil {
-				st.Unlock()
 				return err
 			}
 			sideInfo = *si
@@ -92,7 +83,6 @@ func populateStateFromSeed(st *state.State) error {
 		if i > 0 {
 			ts.WaitAll(tsAll[i-1])
 		}
-		st.Unlock()
 
 		if err != nil {
 			return err
@@ -104,13 +94,11 @@ func populateStateFromSeed(st *state.State) error {
 		return nil
 	}
 
-	st.Lock()
 	msg := fmt.Sprintf("First boot seeding")
 	chg := st.NewChange("seed", msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
-	st.Unlock()
 
 	return nil
 }
@@ -125,11 +113,11 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 }
 
 func importAssertionsFromSeed(st *state.State) error {
-	st.Lock()
-	defer st.Unlock()
-
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
+	if os.IsNotExist(err) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("cannot read assert seed dir: %s", err)
 	}
@@ -179,38 +167,4 @@ func importAssertionsFromSeed(st *state.State) error {
 	})
 
 	return nil
-}
-
-var firstbootInitialNetworkConfig = firstboot.InitialNetworkConfig
-
-// FirstBoot will do some initial boot setup and then sync the
-// state
-func FirstBoot(st *state.State) error {
-	// Disable firstboot on classic for now. In the long run we want
-	// classic to have a firstboot as well so that we can install
-	// snaps in a classic environment (LP: #1609903). However right
-	// now firstboot is under heavy development so until the dust
-	// settles we disable it.
-	if release.OnClassic {
-		return nil
-	}
-
-	if firstboot.HasRun() {
-		return ErrNotFirstBoot
-	}
-
-	// FIXME: the netplan config is static, we do not need to generate
-	//        it from snapd, we can just set it in e.g. ubuntu-core-config
-	if err := firstbootInitialNetworkConfig(); err != nil {
-		logger.Noticef("Failed during inital network configuration: %s", err)
-	}
-
-	// snappy will be in a very unhappy state if this happens,
-	// because populateStateFromSeed will error if there
-	// is a state file already
-	if err := populateStateFromSeed(st); err != nil {
-		return err
-	}
-
-	return firstboot.StampFirstBoot()
 }

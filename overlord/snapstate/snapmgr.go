@@ -639,6 +639,14 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
+	// ensure the core/kernel revisions that we booted with match
+	// the active revision on disk (they may get out of sync on
+	// a failed boot that falls back to the previous version for
+	// example)
+	if err := UpdateRevisions(m.state); err != nil {
+		return err
+	}
+
 	m.runner.Ensure()
 	return nil
 }

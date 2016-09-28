@@ -21,9 +21,6 @@ package snapstate_test
 
 import (
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -192,11 +189,6 @@ version: 2
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
-	err := os.MkdirAll(filepath.Dir(dirs.SnapFirstBootStamp), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapFirstBootStamp, nil, 0644)
-	c.Assert(err, IsNil)
-
 	reset := release.MockOnClassic(false)
 	defer reset()
 
@@ -204,11 +196,19 @@ func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	snapstate.Set(st, "not-firstboot", &snapstate.SnapState{
+		SnapType: "app",
+		Active:   true,
+		Sequence: []*snap.SideInfo{
+			&snap.SideInfo{RealName: "not-firstboot", Revision: snap.R(2)},
+		},
+		Current: snap.R(2),
+	})
+
 	const yaml = `name: gadget
 type: gadget
 version: 1
 `
-
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 

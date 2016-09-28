@@ -23,4 +23,3 @@ debian/*.target /lib/systemd/system/
 
 # boot related
 debian/snapd.boot-ok.service /lib/systemd/system/
-debian/snapd.firstboot.service /lib/systemd/system/

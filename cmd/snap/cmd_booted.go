@@ -25,8 +25,6 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 )
@@ -58,13 +56,5 @@ func (x *cmdBooted) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 	}
 
-	if err := partition.MarkBootSuccessful(bootloader); err != nil {
-		return err
-	}
-
-	ovld, err := overlord.New()
-	if err != nil {
-		return err
-	}
-	return boot.UpdateRevisions(ovld)
+	return partition.MarkBootSuccessful(bootloader)
 }

@@ -17,15 +17,13 @@
  *
  */
 
-package boot
+package snapstate
 
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
@@ -53,7 +51,7 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision, error) {
 // still has the "active" version set to "v2" which is
 // misleading. This code will check what kernel/os booted and set
 // those versions active.
-func UpdateRevisions(ovld *overlord.Overlord) error {
+func UpdateRevisions(st *state.State) error {
 	const errorPrefix = "cannot update revisions after boot changes: "
 
 	if release.OnClassic {
@@ -76,9 +74,8 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	st := ovld.State()
 	st.Lock()
-	installed, err := snapstate.All(st)
+	installed, err := All(st)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
@@ -93,7 +90,7 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 		for snapName, snapState := range installed {
 			if name == snapName {
 				if rev != snapState.Current {
-					ts, err := snapstate.RevertToRevision(st, name, rev, snapstate.Flags(0))
+					ts, err := RevertToRevision(st, name, rev, Flags(0))
 					if err != nil {
 						return err
 					}
@@ -116,25 +113,5 @@ func UpdateRevisions(ovld *overlord.Overlord) error {
 	}
 	st.Unlock()
 
-	// do it and wait for ready
-	ovld.Loop()
-
-	timeoutTime := 10 * time.Second
-	st.EnsureBefore(0)
-	select {
-	case <-chg.Ready():
-	case <-time.After(timeoutTime):
-		return fmt.Errorf("change did not apply after %s", timeoutTime)
-	}
-
-	st.Lock()
-	status := chg.Status()
-	err = chg.Err()
-	st.Unlock()
-	if status != state.DoneStatus {
-		ovld.Stop()
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
-
-	return ovld.Stop()
+	return nil
 }
