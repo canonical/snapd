@@ -60,7 +60,7 @@ dbus (receive)
     member=PropertiesChanged
     peer=(label=unconfined),
 `
-const timeDateControlConnectedPlugSecComp = `
+const timeControlConnectedPlugSecComp = `
 # dbus
 connect
 getsockname
