@@ -201,9 +201,7 @@ func (r *TaskRunner) run(t *Task) {
 }
 
 func (r *TaskRunner) clean(t *Task) {
-	select {
-	case <-t.Change().Ready():
-	default:
+	if !t.Change().IsReady() {
 		// Whole Change is not ready so don't run cleanups yet.
 		return
 	}

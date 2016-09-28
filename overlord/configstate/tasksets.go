@@ -17,30 +17,24 @@
  *
  */
 
-// Package configstate implements the manager and state aspects responsible for
-// the configuration of snaps.
 package configstate
 
 import (
-	"regexp"
+	"fmt"
 
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
-// ConfigManager is responsible for the maintenance of per-snap configuration in
-// the system state.
-type ConfigManager struct {
-	state *state.State
-}
-
-// Manager returns a new ConfigManager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
-	manager := &ConfigManager{
-		state: s,
+// Change returns a taskset required to apply the given configuration
+// patch.
+func Change(s *state.State, snapName string, patchValues map[string]interface{}) *state.TaskSet {
+	initialContext := map[string]interface{}{
+		"patch": patchValues,
 	}
-
-	hookManager.Register(regexp.MustCompile("^configure$"), newApplyConfigHandler)
-
-	return manager, nil
+	hookTaskSummary := fmt.Sprintf(i18n.G("Run configure hook for %s"), snapName)
+	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "configure", initialContext)
+	return state.NewTaskSet(task)
 }

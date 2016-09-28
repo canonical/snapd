@@ -1832,8 +1832,7 @@ func (s *apiSuite) TestGetConfSingleKey(c *check.C) {
 
 	// Set a config that we'll get in a moment
 	d.overlord.State().Lock()
-	transaction, err := configstate.NewTransaction(d.overlord.State())
-	c.Check(err, check.IsNil)
+	transaction := configstate.NewTransaction(d.overlord.State())
 	transaction.Set("test-snap", "test-key1", "test-value1")
 	transaction.Set("test-snap", "test-key2", "test-value2")
 	transaction.Commit()
@@ -1888,9 +1887,9 @@ func (s *apiSuite) TestSetConf(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
-	// Check that the apply-config hook was run correctly
+	// Check that the configure hook was run correctly
 	c.Check(hookRunner.Calls(), check.DeepEquals, [][]string{{
-		"snap", "run", "--hook", "apply-config", "-r", "unset", "config-snap",
+		"snap", "run", "--hook", "configure", "-r", "unset", "config-snap",
 	}})
 }
 

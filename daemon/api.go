@@ -50,7 +50,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -1282,11 +1281,8 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	s := c.d.overlord.State()
 	s.Lock()
-	transaction, err := configstate.NewTransaction(s)
+	transaction := configstate.NewTransaction(s)
 	s.Unlock()
-	if err != nil {
-		return BadRequest("cannot create transaction: %s", err)
-	}
 
 	currentConfValues := make(map[string]interface{})
 	for _, key := range keys {
@@ -1311,16 +1307,11 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
-	// TODO: Add patch values to configmanager
-
 	s := c.d.overlord.State()
 	s.Lock()
 	defer s.Unlock()
 
-	hookTaskSummary := fmt.Sprintf(i18n.G("Run apply-config hook for %s"), snapName)
-	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "apply-config")
-	taskset := state.NewTaskSet(task)
-
+	taskset := configstate.Change(s, snapName, patchValues)
 	change := s.NewChange("configure-snap", fmt.Sprintf("Setting config for %s", snapName))
 	change.AddAll(taskset)
 
