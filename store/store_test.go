@@ -394,11 +394,11 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 }
 
 type downloadBehaviour []struct {
-	URL     string
-	Error   bool
+	URL   string
+	Error bool
 }
 
-var deltaTests = []struct{
+var deltaTests = []struct {
 	Downloads       downloadBehaviour
 	Info            snap.DownloadInfo
 	ExpectedContent string
@@ -430,6 +430,20 @@ var deltaTests = []struct{
 		},
 	},
 	ExpectedContent: "full-snap-url-content",
+}, {
+	// If more than one matching delta is returned by the store
+	// we ignore deltas and do the full download.
+	Downloads: downloadBehaviour{
+		{URL: "full-snap-url"},
+	},
+	Info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url-2", Format: "xdelta"},
+		},
+	},
+	ExpectedContent: "full-snap-url-content",
 }}
 
 func (t *remoteRepoTestSuite) TestDownloadWithDeltas(c *C) {
@@ -446,11 +460,10 @@ func (t *remoteRepoTestSuite) TestDownloadWithDeltas(c *C) {
 				return errors.New("Bang")
 			}
 			c.Check(url, Equals, testCase.Downloads[downloadIndex].URL)
-			w.Write([]byte(testCase.Downloads[downloadIndex].URL+"-content"))
+			w.Write([]byte(testCase.Downloads[downloadIndex].URL + "-content"))
 			downloadIndex++
 			return nil
 		}
-
 
 		path, err := t.store.Download("foo", &testCase.Info, nil, nil)
 
@@ -462,12 +475,12 @@ func (t *remoteRepoTestSuite) TestDownloadWithDeltas(c *C) {
 	}
 }
 
-var downloadDeltaTests = []struct{
-	Info            snap.DownloadInfo
-	Authenticated   bool
-	Formats         []string
-	ExpectedURL     string
-	ExpectedPath    string
+var downloadDeltaTests = []struct {
+	Info          snap.DownloadInfo
+	Authenticated bool
+	Format        string
+	ExpectedURL   string
+	ExpectedPath  string
 }{{
 	// An unauthenticated request downloads the anonymous delta url.
 	Info: snap.DownloadInfo{
@@ -476,9 +489,9 @@ var downloadDeltaTests = []struct{
 		},
 	},
 	Authenticated: false,
-	Formats: []string{"xdelta"},
-	ExpectedURL: "anon-delta-url",
-	ExpectedPath: "snapname_24_26_delta.xdelta",
+	Format:        "xdelta",
+	ExpectedURL:   "anon-delta-url",
+	ExpectedPath:  "snapname_24_26_delta.xdelta",
 }, {
 	// An authenticated request downloads the authenticated delta url.
 	Info: snap.DownloadInfo{
@@ -487,29 +500,43 @@ var downloadDeltaTests = []struct{
 		},
 	},
 	Authenticated: true,
-	Formats: []string{"xdelta"},
-	ExpectedURL: "auth-delta-url",
-	ExpectedPath: "snapname_24_26_delta.xdelta",
+	Format:        "xdelta",
+	ExpectedURL:   "auth-delta-url",
+	ExpectedPath:  "snapname_24_26_delta.xdelta",
 }, {
-	// The preferred delta format is downloaded.
+	// An error is returned if more than one matching delta is returned by the store,
+	// though this may be handled in the future.
 	Info: snap.DownloadInfo{
 		Deltas: []snap.DeltaInfo{
-			{DownloadURL: "delta-url", Format: "format1", FromRevision: 24, ToRevision: 26},
-			{DownloadURL: "preferred-delta-url", Format: "format2", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 25},
+			{DownloadURL: "bsdiff-delta-url", Format: "xdelta", FromRevision: 25, ToRevision: 26},
 		},
 	},
 	Authenticated: false,
-	Formats: []string{"format2", "format1"},
-	ExpectedURL: "preferred-delta-url",
-	ExpectedPath: "snapname_24_26_delta.format2",
+	Format:        "xdelta",
+	ExpectedURL:   "",
+	ExpectedPath:  "",
+}, {
+	// If the supported format isn't available, an error is returned.
+	Info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	Authenticated: false,
+	Format:        "bsdiff",
+	ExpectedURL:   "",
+	ExpectedPath:  "",
 }}
+
 func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	for _, testCase := range downloadDeltaTests {
-		t.store.deltaFormats = testCase.Formats
+		t.store.deltaFormat = testCase.Format
 		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 			expectedUser := t.user
 			if !testCase.Authenticated {
@@ -529,11 +556,15 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 			authedUser = nil
 		}
 
-		deltaPaths, err := t.store.downloadDeltas("snapname", downloadDir, &testCase.Info, nil, authedUser)
+		deltaPath, err := t.store.downloadDelta("snapname", downloadDir, &testCase.Info, nil, authedUser)
 
-		c.Assert(err, IsNil)
-		c.Assert(len(deltaPaths), Equals, 1)
-		c.Assert(deltaPaths[0], Equals, path.Join(downloadDir, testCase.ExpectedPath))
+		if testCase.ExpectedPath == "" {
+			c.Assert(deltaPath, Equals, "")
+			c.Assert(err, NotNil)
+		} else {
+			c.Assert(err, IsNil)
+			c.Assert(deltaPath, Equals, path.Join(downloadDir, testCase.ExpectedPath))
+		}
 	}
 }
 
