@@ -19,9 +19,7 @@ execute: |
     #[ -f /root/snap/data-writer/common/from-app ]
 
     echo "Waiting for data writer service to finish..."
-    unit="snap.data-writer.service.service"
-    while ! systemctl status $unit | grep -q "Writing to SNAP_USER_DATA"; do
-       systemctl status $unit || true
+    while ! journalctl --no-pager -u snap.data-writer.service.service | grep -q "Writing to SNAP_USER_DATA"; do
        sleep 1
     done
 
