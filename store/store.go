@@ -33,6 +33,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
@@ -1143,10 +1144,10 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	return w.Name(), w.Sync()
 }
 
+var downloadBackoffs = []time.Duration{113, 191, 331, 557, 929, 0} // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0
+
 // download writes an http.Request showing a progress.Meter
 var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-	client := &http.Client{}
-
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1156,12 +1157,24 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		Method: "GET",
 		URL:    storeURL,
 	}
-	resp, err := s.doRequest(client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
+	var resp *http.Response
+out:
+	for _, n := range downloadBackoffs {
+		// we do *not* want to reuse the connection in this case
+		r, err := s.doRequest(&http.Client{}, reqOptions, user)
+		if err != nil {
+			return err
+		}
+		defer r.Body.Close()
+
+		resp = r
+
+		if r.StatusCode != 500 {
+			break out
+		}
+		time.Sleep(n * time.Millisecond)
+	}
 	if resp.StatusCode != 200 {
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
