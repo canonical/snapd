@@ -33,6 +33,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
@@ -1143,10 +1144,11 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	return w.Name(), w.Sync()
 }
 
+// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
+var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
+
 // download writes an http.Request showing a progress.Meter
 var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
-	client := &http.Client{}
-
 	storeURL, err := url.Parse(downloadURL)
 	if err != nil {
 		return err
@@ -1156,12 +1158,27 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 		Method: "GET",
 		URL:    storeURL,
 	}
-	resp, err := s.doRequest(client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
+	var resp *http.Response
+	for _, n := range downloadBackoffs {
+		// we do *not* want to reuse the client between iterations in
+		// this case as it will have internal state (e.g. cached
+		// connections) that led us to an error (the default client is
+		// documented as not reusing the transport unless the body is
+		// read to EOF and closed, so this is a belt-and-braces thing).
+		r, err := s.doRequest(&http.Client{}, reqOptions, user)
+		if err != nil {
+			return err
+		}
+		defer r.Body.Close()
+
+		resp = r
+
+		if r.StatusCode != 500 {
+			break
+		}
+		time.Sleep(time.Duration(n) * time.Millisecond)
+	}
 	if resp.StatusCode != 200 {
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
