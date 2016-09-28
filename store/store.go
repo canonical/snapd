@@ -1143,11 +1143,11 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 				// Just log the error and continue with the normal non-delta
 				// download.
 				logger.Noticef("cannot download deltas for %s: %v", name, err)
+			} else {
+				// Currently even on successful delta downloads, continue with the
+				// normal full download.
+				logger.Debugf("successfully downloaded deltas for %s", name)
 			}
-
-			// Currently even on successful delta downloads, continue with the
-			// normal full download.
-			logger.Debugf("successfully downloaded deltas for %s", name)
 		}
 	}
 
