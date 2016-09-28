@@ -32,7 +32,6 @@ import (
 	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -47,16 +46,10 @@ var (
 	ErrNotFirstBoot = errors.New("this is not your first boot")
 )
 
-func populateStateFromSeed() error {
+func populateStateFromSeed(st *state.State) error {
 	if osutil.FileExists(dirs.SnapStateFile) {
 		return fmt.Errorf("cannot create state: state %q already exists", dirs.SnapStateFile)
 	}
-
-	ovld, err := overlord.New()
-	if err != nil {
-		return err
-	}
-	st := ovld.State()
 
 	// ack all initial assertions
 	if err := importAssertionsFromSeed(st); err != nil {
@@ -119,23 +112,7 @@ func populateStateFromSeed() error {
 	}
 	st.Unlock()
 
-	// do it and wait for ready
-	ovld.Loop()
-
-	st.EnsureBefore(0)
-	<-chg.Ready()
-
-	st.Lock()
-	status := chg.Status()
-	err = chg.Err()
-	st.Unlock()
-	if status != state.DoneStatus {
-		ovld.Stop()
-		return fmt.Errorf("cannot run seed change: %s", err)
-
-	}
-
-	return ovld.Stop()
+	return nil
 }
 
 func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
@@ -208,7 +185,7 @@ var firstbootInitialNetworkConfig = firstboot.InitialNetworkConfig
 
 // FirstBoot will do some initial boot setup and then sync the
 // state
-func FirstBoot() error {
+func FirstBoot(st *state.State) error {
 	// Disable firstboot on classic for now. In the long run we want
 	// classic to have a firstboot as well so that we can install
 	// snaps in a classic environment (LP: #1609903). However right
@@ -231,7 +208,7 @@ func FirstBoot() error {
 	// snappy will be in a very unhappy state if this happens,
 	// because populateStateFromSeed will error if there
 	// is a state file already
-	if err := populateStateFromSeed(); err != nil {
+	if err := populateStateFromSeed(st); err != nil {
 		return err
 	}
 

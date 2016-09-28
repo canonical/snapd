@@ -36,9 +36,11 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/firstboot"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -71,6 +73,12 @@ func Manager(s *state.State) (*DeviceManager, error) {
 }
 
 func (m *DeviceManager) ensureOperational() error {
+	if !firstboot.HasRun() {
+		if err := boot.FirstBoot(m.state); err != nil {
+			return err
+		}
+	}
+
 	m.state.Lock()
 	defer m.state.Unlock()
 

@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
