@@ -17,3 +17,48 @@
 
 #include "utils.h"
 #include "utils.c"
+
+#include <glib.h>
+
+static void test_str2bool()
+{
+	int err;
+	bool value;
+
+	err = str2bool("yes", &value);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_true(value);
+
+	err = str2bool("1", &value);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_true(value);
+
+	err = str2bool("no", &value);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_false(value);
+
+	err = str2bool("0", &value);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_false(value);
+
+	err = str2bool("", &value);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_false(value);
+
+	err = str2bool(NULL, &value);
+	g_assert_cmpint(err, ==, 0);
+	g_assert_false(value);
+
+	err = str2bool("flower", &value);
+	g_assert_cmpint(err, ==, -1);
+	g_assert_cmpint(errno, ==, EINVAL);
+
+	err = str2bool("yes", NULL);
+	g_assert_cmpint(err, ==, -1);
+	g_assert_cmpint(errno, ==, EFAULT);
+}
+
+static void __attribute__ ((constructor)) init()
+{
+	g_test_add_func("/utils/str2bool", test_str2bool);
+}
