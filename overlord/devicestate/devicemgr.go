@@ -447,7 +447,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 
 	tr := configstate.NewTransaction(t.State())
 	var svcURL string
-	err = tr.GetMaybe(gadgetName, "registration-service-url", &svcURL)
+	err = tr.GetMaybe(gadgetName, "device-service-url", &svcURL)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +459,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 
 		var headers map[string]string
-		err = tr.GetMaybe(gadgetName, "registration-http-headers", &headers)
+		err = tr.GetMaybe(gadgetName, "device-service-headers", &headers)
 		if err != nil {
 			return nil, err
 		}
