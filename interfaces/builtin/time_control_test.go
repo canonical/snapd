@@ -27,69 +27,68 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-type TimeserverControlInterfaceSuite struct {
+type TimeControlTestInterfaceSuite struct {
 	iface interfaces.Interface
 	slot  *interfaces.Slot
 	plug  *interfaces.Plug
 }
 
-var _ = Suite(&TimeserverControlInterfaceSuite{
-	iface: builtin.NewTimeserverControlInterface(),
+var _ = Suite(&TimeControlTestInterfaceSuite{
+	iface: builtin.NewTimeControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
-			Name:      "timeserver-control",
-			Interface: "timeserver-control",
+			Name:      "time-control",
+			Interface: "time-control",
 		},
 	},
 	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap:      &snap.Info{SuggestedName: "other"},
-			Name:      "timeserver-control",
-			Interface: "timeserver-control",
+			Name:      "time-control",
+			Interface: "time-control",
 		},
 	},
 })
 
-func (s *TimeserverControlInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "timeserver-control")
+func (s *TimeControlTestInterfaceSuite) TestName(c *C) {
+	c.Assert(s.iface.Name(), Equals, "time-control")
 }
 
-func (s *TimeserverControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
 		Snap:      &snap.Info{SuggestedName: "some-snap"},
-		Name:      "timeserver-control",
-		Interface: "timeserver-control",
+		Name:      "time-control",
+		Interface: "time-control",
 	}})
-	c.Assert(err, ErrorMatches, "timeserver-control slots are reserved for the operating system snap")
+	c.Assert(err, ErrorMatches, "time-control slots are reserved for the operating system snap")
 }
 
-func (s *TimeserverControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *TimeserverControlInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
-		PanicMatches, `slot is not of interface "timeserver-control"`)
+		PanicMatches, `slot is not of interface "time-control"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
-		PanicMatches, `plug is not of interface "timeserver-control"`)
+		PanicMatches, `plug is not of interface "time-control"`)
 }
 
-func (s *TimeserverControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
-
 	// connected plugs have a non-nil security snippet for seccomp
 	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecuritySecComp)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *TimeserverControlInterfaceSuite) TestAutoConnect(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, false)
 }
