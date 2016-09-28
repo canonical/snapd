@@ -169,16 +169,6 @@ func (e *NoOptionError) Error() string {
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
 }
 
-// NoOptionError indicates that a config option is not set.
-type NoOptionError struct {
-	SnapName string
-	Key      string
-}
-
-func (e *NoOptionError) Error() string {
-	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
-}
-
 func (t *Transaction) get(config systemConfig, snapName, key string, value interface{}) error {
 	raw, ok := config[snapName][key]
 	if !ok {
