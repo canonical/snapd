@@ -144,6 +144,10 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		return nil, nil
 	}
 
+	if snapID == "fakestore-please-error-on-refresh" {
+		return nil, fmt.Errorf("failing as requested")
+	}
+
 	var name string
 	if snapID == "some-snap-id" {
 		name = "some-snap"
