@@ -24,8 +24,7 @@ import (
 )
 
 var supportedHooks = []*HookType{
-	newHookType(regexp.MustCompile("^apply-config$")),
-	newHookType(regexp.MustCompile("^check-config$")),
+	newHookType(regexp.MustCompile("^configure$")),
 }
 
 // HookType represents a pattern of supported hook names.

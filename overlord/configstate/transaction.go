@@ -27,51 +27,49 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 )
 
-// Transaction is responsible for configuration transactions. Its config will
-// never change outside the control of its owner, and any changes made to it
-// doesn't affect the overall system config. Change it, query it, and if you
-// really want to get any changes saved back into the config, Commit it.
+// Transaction holds a copy of the configuration originally present in the
+// provided state which can be queried and mutated in isolation from
+// concurrent logic. All changes performed into it are persisted back into
+// the state at once when Commit is called.
 //
-// Note that Transactions are safe to access concurrently.
+// Transactions are safe to access and modify concurrently.
 type Transaction struct {
-	state           *state.State
-	config          systemConfig
-	configMutex     sync.RWMutex
-	writeCache      systemConfig
-	writeCacheMutex sync.RWMutex
+	mu       sync.Mutex
+	state    *state.State
+	pristine systemConfig
+	changes  systemConfig
 }
 
 type snapConfig map[string]*json.RawMessage
 type systemConfig map[string]snapConfig
 
-// NewTransaction creates a new config transaction initialized with the given
-// state. Note that the state should be locked/unlocked by the caller.
-func NewTransaction(st *state.State) (*Transaction, error) {
+// NewTransaction creates a new configuration transaction initialized with the given state.
+//
+// The provided state must be locked by the caller.
+func NewTransaction(st *state.State) *Transaction {
 	transaction := &Transaction{state: st}
-	transaction.writeCache = make(systemConfig)
+	transaction.changes = make(systemConfig)
 
 	// Record the current state of the map containing the config of every snap
 	// in the system. We'll use it for this transaction.
-	if err := st.Get("config", &transaction.config); err != nil {
-		if err != state.ErrNoState {
-			return nil, err
-		}
-
-		transaction.config = make(systemConfig)
+	err := st.Get("config", &transaction.pristine)
+	if err == state.ErrNoState {
+		transaction.pristine = make(systemConfig)
+	} else if err != nil {
+		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
-
-	return transaction, nil
+	return transaction
 }
 
-// Set associates the value with the key for the given snap. Note that this
-// doesn't save any changes (see Commit), so if the transaction is destroyed
-// the changes have no effect. Also note that the value must properly marshal
-// and unmarshal with encoding/json.
+// Set sets the provided snap's configuration key to the given value.
+//
+// The provided value must marshal properly by encoding/json.
+// Changes are not persisted until Commit is called.
 func (t *Transaction) Set(snapName, key string, value interface{}) error {
-	t.writeCacheMutex.Lock()
-	defer t.writeCacheMutex.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
-	config, ok := t.writeCache[snapName]
+	config, ok := t.changes[snapName]
 	if !ok {
 		config = make(snapConfig)
 	}
@@ -85,78 +83,101 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 	config[key] = &raw
 
 	// Put that config into the write cache
-	t.writeCache[snapName] = config
+	t.changes[snapName] = config
 
 	return nil
 }
 
-// Get extracts the stored value associated with the provided key for the snap's
-// config into the value parameter. Note that this query is run against the
-// cached copy of the config; you won't see updates from other transactions.
-func (t *Transaction) Get(snapName, key string, value interface{}) error {
-	// Extract the config for this specific snap. Check the cache first; if it's
-	// not there, check the config from the state
-	t.writeCacheMutex.RLock()
-	defer t.writeCacheMutex.RUnlock()
-	if err := t.get(t.writeCache, snapName, key, value); err != nil {
-		t.configMutex.RLock()
-		defer t.configMutex.RUnlock()
-		return t.get(t.config, snapName, key, value)
+// Get unmarshals into result the cached value of the provided snap's configuration key.
+// If the key does not exist, an error of type *NoOptionError is returned.
+//
+// Transactions do not see updates from the current state or from other transactions.
+func (t *Transaction) Get(snapName, key string, result interface{}) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	err := t.get(t.changes, snapName, key, result)
+	if IsNoOption(err) {
+		err = t.get(t.pristine, snapName, key, result)
 	}
+	return err
+}
 
+// GetMaybe unmarshals into result the cached value of the provided snap's configuration key.
+// If the key does not exist, no error is returned.
+//
+// Transactions do not see updates from the current state or from other transactions.
+func (t *Transaction) GetMaybe(snapName, key string, result interface{}) error {
+	err := t.Get(snapName, key, result)
+	if err != nil && !IsNoOption(err) {
+		return err
+	}
 	return nil
 }
 
-// Commit actually saves the changes made to the config in the transaction to
-// the state. Note that the state should be locked/unlocked by the caller.
+// Commit saves to the state the configuration changes made in the transaction.
+//
+// The state associated with the transaction must be locked by the caller.
 func (t *Transaction) Commit() {
-	t.writeCacheMutex.Lock()
-	defer t.writeCacheMutex.Unlock()
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
-	// Do nothing if there's nothing to commit.
-	if len(t.writeCache) == 0 {
+	if len(t.changes) == 0 {
 		return
 	}
 
-	t.configMutex.Lock()
-	defer t.configMutex.Unlock()
-
 	// Update our copy of the config with the most recent one from the state.
-	if err := t.state.Get("config", &t.config); err != nil {
-		// Make sure it's still a valid map, in case Get modified it.
-		t.config = make(systemConfig)
+	err := t.state.Get("config", &t.pristine)
+	if err == state.ErrNoState {
+		t.pristine = make(systemConfig)
+	} else if err != nil {
+		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
 
 	// Iterate through the write cache and save each item.
-	for snapName, snapConfigToWrite := range t.writeCache {
-		newSnapConfig, ok := t.config[snapName]
+	for snapName, snapChanges := range t.changes {
+		newConfig, ok := t.pristine[snapName]
 		if !ok {
-			newSnapConfig = make(snapConfig)
+			newConfig = make(snapConfig)
 		}
 
-		for key, value := range snapConfigToWrite {
-			newSnapConfig[key] = value
+		for key, value := range snapChanges {
+			newConfig[key] = value
 		}
 
-		t.config[snapName] = newSnapConfig
+		t.pristine[snapName] = newConfig
 	}
 
-	t.state.Set("config", t.config)
+	t.state.Set("config", t.pristine)
 
-	// The cache has been flushed-- reset it
-	t.writeCache = make(systemConfig)
+	// The cache has been flushed, reset it.
+	t.changes = make(systemConfig)
+}
+
+// IsNoOption returns whether the provided error is a *NoOptionError.
+func IsNoOption(err error) bool {
+	_, ok := err.(*NoOptionError)
+	return ok
+}
+
+// NoOptionError indicates that a config option is not set.
+type NoOptionError struct {
+	SnapName string
+	Key      string
+}
+
+func (e *NoOptionError) Error() string {
+	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
 }
 
 func (t *Transaction) get(config systemConfig, snapName, key string, value interface{}) error {
 	raw, ok := config[snapName][key]
 	if !ok {
-		return fmt.Errorf("snap %q has no %q configuration option", snapName, key)
+		return &NoOptionError{SnapName: snapName, Key: key}
 	}
 
 	err := json.Unmarshal([]byte(*raw), &value)
 	if err != nil {
-		return fmt.Errorf("cannot unmarshal snap %q config value for %q: %s", snapName, key, err)
+		return fmt.Errorf("internal error: cannot unmarshal snap %q option %q into %T: %s, json: %s", snapName, key, value, err, *raw)
 	}
-
 	return nil
 }

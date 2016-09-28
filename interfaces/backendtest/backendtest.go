@@ -104,7 +104,7 @@ apps:
     smbd:
     nmbd:
 hooks:
-    apply-config:
+    configure:
         plugs: [plug]
 slots:
     slot:
@@ -118,7 +118,7 @@ name: foo
 version: 1
 developer: acme
 hooks:
-    apply-config:
+    configure:
 plugs:
     plug:
         interface: iface

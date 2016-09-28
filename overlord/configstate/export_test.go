@@ -17,30 +17,6 @@
  *
  */
 
-// Package configstate implements the manager and state aspects responsible for
-// the configuration of snaps.
 package configstate
 
-import (
-	"regexp"
-
-	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/state"
-)
-
-// ConfigManager is responsible for the maintenance of per-snap configuration in
-// the system state.
-type ConfigManager struct {
-	state *state.State
-}
-
-// Manager returns a new ConfigManager.
-func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager, error) {
-	manager := &ConfigManager{
-		state: s,
-	}
-
-	hookManager.Register(regexp.MustCompile("^configure$"), newApplyConfigHandler)
-
-	return manager, nil
-}
+var NewApplyConfigHandler = newApplyConfigHandler
