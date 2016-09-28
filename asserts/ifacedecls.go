@@ -316,7 +316,7 @@ func compilePlugInstallationConstraints(interfaceName string, entry string, cons
 		}
 		return &PlugInstallationConstraints{PlugAttributes: NeverMatchAttributes}, nil
 	}
-	attrs, err := compileAttributeContraints(cMap["plug-attributes"])
+	attrs, err := compileAttributeConstraints(cMap["plug-attributes"])
 	if err != nil {
 		return nil, fmt.Errorf("cannot compile plug-attributes in %s: %v", context, err)
 	}
@@ -389,7 +389,7 @@ func compilePlugConnectionConstraints(interfaceName string, entry string, constr
 		v := cMap[field]
 		if v != nil {
 			var err error
-			cstrs, err = compileAttributeContraints(cMap[field])
+			cstrs, err = compileAttributeConstraints(cMap[field])
 			if err != nil {
 				return nil, fmt.Errorf("cannot compile %s in %s: %v", field, context, err)
 			}

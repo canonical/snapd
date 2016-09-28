@@ -75,11 +75,6 @@ func (snapdcl *SnapDeclaration) PlugRule(interfaceName string) *PlugRule {
 	return snapdcl.plugRules[interfaceName]
 }
 
-// SlotRule returns the slot-side rule about the given interface if one was included in the slots stanza of the declaration, otherwise it returns nil.
-func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
-	return nil
-}
-
 // Implement further consistency checks.
 func (snapdcl *SnapDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
 	if !db.IsTrustedAccount(snapdcl.AuthorityID()) {
