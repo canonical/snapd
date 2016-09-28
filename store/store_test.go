@@ -53,6 +53,7 @@ type remoteRepoTestSuite struct {
 	device *auth.DeviceState
 
 	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
+	origBackoffs     []int
 }
 
 func TestStore(t *testing.T) { TestingT(t) }
@@ -204,6 +205,8 @@ func createTestDevice() *auth.DeviceState {
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, nil)
 	t.origDownloadFunc = download
+	t.origBackoffs = downloadBackoffs
+	downloadBackoffs = []int{2, 5, 0}
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
@@ -223,6 +226,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
+	downloadBackoffs = t.origBackoffs
 }
 
 func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
@@ -333,6 +337,58 @@ func (t *remoteRepoTestSuite) TestDownloadSyncFails(c *C) {
 	c.Assert(path, Equals, "")
 	// ... and ensure that the tempfile is removed
 	c.Assert(osutil.FileExists(tmpfile.Name()), Equals, false)
+}
+
+func (t *remoteRepoTestSuite) TestActualDownload(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		io.WriteString(w, "response-data")
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf bytes.Buffer
+	c.Assert(download("foo", mockServer.URL, nil, theStore, &buf, nil), IsNil)
+	c.Check(buf.String(), Equals, "response-data")
+	c.Check(n, Equals, 1)
+}
+
+func (t *remoteRepoTestSuite) TestActualDownload404(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf bytes.Buffer
+	err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, FitsTypeOf, &ErrDownload{})
+	c.Check(err.(*ErrDownload).Code, Equals, http.StatusNotFound)
+	c.Check(n, Equals, 1)
+}
+
+func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	theStore := New(&Config{}, nil)
+	var buf bytes.Buffer
+	err := download("foo", mockServer.URL, nil, theStore, &buf, nil)
+	c.Assert(err, NotNil)
+	c.Assert(err, FitsTypeOf, &ErrDownload{})
+	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
+	c.Check(n, Equals, len(downloadBackoffs)) // woo!!
 }
 
 func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
