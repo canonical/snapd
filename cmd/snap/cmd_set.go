@@ -70,10 +70,10 @@ func (x *cmdSet) Execute(args []string) error {
 		}
 	}
 
-	return applyConfig(x.Positional.Snap, patchValues)
+	return configure(x.Positional.Snap, patchValues)
 }
 
-func applyConfig(snapName string, patchValues map[string]interface{}) error {
+func configure(snapName string, patchValues map[string]interface{}) error {
 	cli := Client()
 	id, err := cli.SetConf(snapName, patchValues)
 	if err != nil {
