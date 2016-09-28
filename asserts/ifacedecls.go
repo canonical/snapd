@@ -20,9 +20,11 @@
 package asserts
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 )
 
 type attrMatcher interface {
@@ -220,7 +222,257 @@ func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints
 	return &AttributeConstraints{matcher: matcher}, nil
 }
 
+type fixedAttrMatcher struct {
+	result error
+}
+
+func (matcher fixedAttrMatcher) match(context string, v interface{}) error {
+	return matcher.result
+}
+
+var (
+	AlwaysMatchAttributes = &AttributeConstraints{matcher: fixedAttrMatcher{nil}}
+	NeverMatchAttributes  = &AttributeConstraints{matcher: fixedAttrMatcher{errors.New("not allowed, never matching")}}
+)
+
 // Check checks whether attrs don't match the constraints.
 func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
 	return c.matcher.match("", attrs)
 }
+
+func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}, shortcut bool, err error) {
+	switch x := v.(type) {
+	case map[string]interface{}:
+		return x, false, nil
+	case string:
+		switch x {
+		case "true":
+			return nil, true, nil
+		case "false":
+			return nil, false, nil
+		default:
+			return nil, false, fmt.Errorf("%s is not a map but is set to a shortcut that is not 'true' nor 'false': %q", context, x)
+		}
+	default:
+		return nil, false, fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
+	}
+
+}
+
+// PlugRule holds the rule of what is allowed, wrt installation and connection, for a plug of a specific interface for a snap.
+type PlugRule struct {
+	Interface string
+
+	AllowInstallation *PlugInstallationConstraints
+	DenyInstallation  *PlugInstallationConstraints
+
+	AllowConnection *PlugConnectionConstraints
+	DenyConnection  *PlugConnectionConstraints
+
+	AllowAutoConnection *PlugConnectionConstraints
+	DenyAutoConnection  *PlugConnectionConstraints
+}
+
+func (r *PlugRule) setPlugInstallationConstraints(field string, cstrs *PlugInstallationConstraints) {
+	switch field {
+	case "allow-installation":
+		r.AllowInstallation = cstrs
+	case "deny-installation":
+		r.DenyInstallation = cstrs
+	default:
+		panic("unknown PlugRule field " + field)
+	}
+}
+
+func (r *PlugRule) setPlugConnectionConstraints(field string, cstrs *PlugConnectionConstraints) {
+	switch field {
+	case "allow-connection":
+		r.AllowConnection = cstrs
+	case "deny-connection":
+		r.DenyConnection = cstrs
+	case "allow-auto-connection":
+		r.AllowAutoConnection = cstrs
+	case "deny-auto-connection":
+		r.DenyAutoConnection = cstrs
+	default:
+		panic("unknown PlugRule field " + field)
+	}
+}
+
+// PlugInstallationConstraints specifies a set of constraints on an interface plug relevant to the installation of snap.
+type PlugInstallationConstraints struct {
+	PlugAttributes *AttributeConstraints
+}
+
+func compilePlugInstallationConstraints(interfaceName string, entry string, constraints interface{}) (*PlugInstallationConstraints, error) {
+	context := fmt.Sprintf("%s in plug rule for interface %q", entry, interfaceName)
+	cMap, shortcut, err := checkMapOrShortcut(context, constraints)
+	if err != nil {
+		return nil, err
+	}
+	if cMap == nil {
+		if shortcut {
+			return &PlugInstallationConstraints{PlugAttributes: AlwaysMatchAttributes}, nil
+		}
+		return &PlugInstallationConstraints{PlugAttributes: NeverMatchAttributes}, nil
+	}
+	attrs, err := compileAttributeContraints(cMap["plug-attributes"])
+	if err != nil {
+		return nil, fmt.Errorf("cannot compile plug-attributes in %s: %v", context, err)
+	}
+	return &PlugInstallationConstraints{PlugAttributes: attrs}, nil
+}
+
+// PlugConnectionConstraints specfies a set of constraints on an interface plug for a snap relevant to its connection or auto-connection.
+type PlugConnectionConstraints struct {
+	SlotSnapIDs      []string
+	SlotPublisherIDs []string
+
+	PlugAttributes *AttributeConstraints
+	SlotAttributes *AttributeConstraints
+}
+
+func (c *PlugConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
+	switch field {
+	case "plug-attributes":
+		c.PlugAttributes = cstrs
+	case "slot-attributes":
+		c.SlotAttributes = cstrs
+	default:
+		panic("unknown PlugConnectionConstraints field " + field)
+	}
+}
+
+func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []string) {
+	switch field {
+	case "slot-snap-id":
+		c.SlotSnapIDs = cstrs
+	case "slot-publisher-id":
+		c.SlotPublisherIDs = cstrs
+	default:
+		panic("unknown PlugConnectionConstraints field " + field)
+	}
+}
+
+var (
+	attributeConstraints = []string{"plug-attributes", "slot-attributes"}
+	plugIDConstraints    = []string{"slot-publisher-id", "slot-snap-id"}
+)
+
+func compilePlugConnectionConstraints(interfaceName string, entry string, constraints interface{}) (*PlugConnectionConstraints, error) {
+	context := fmt.Sprintf("%s in plug rule for interface %q", entry, interfaceName)
+	cMap, shortcut, err := checkMapOrShortcut(context, constraints)
+	if err != nil {
+		return nil, err
+	}
+	if cMap == nil {
+		if shortcut {
+			return &PlugConnectionConstraints{PlugAttributes: AlwaysMatchAttributes, SlotAttributes: AlwaysMatchAttributes}, nil
+		}
+		return &PlugConnectionConstraints{PlugAttributes: NeverMatchAttributes, SlotAttributes: NeverMatchAttributes}, nil
+	}
+	plugConnCstrs := &PlugConnectionConstraints{}
+	defaultUsed := 0
+	for _, field := range plugIDConstraints {
+		// TODO: check these further against regexps?
+		l, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context))
+		if err != nil {
+			return nil, err
+		}
+		if l == nil {
+			defaultUsed++
+		}
+		plugConnCstrs.setIDConstraints(field, l)
+	}
+	for _, field := range attributeConstraints {
+		cstrs := AlwaysMatchAttributes
+		v := cMap[field]
+		if v != nil {
+			var err error
+			cstrs, err = compileAttributeContraints(cMap[field])
+			if err != nil {
+				return nil, fmt.Errorf("cannot compile %s in %s: %v", field, context, err)
+			}
+		} else {
+			defaultUsed++
+		}
+		plugConnCstrs.setAttributeConstraints(field, cstrs)
+	}
+	if defaultUsed == len(attributeConstraints)+len(plugIDConstraints) {
+		return nil, fmt.Errorf("%s must specify at least one of %s, %s", context, strings.Join(attributeConstraints, ", "), strings.Join(plugIDConstraints, ", "))
+	}
+	return plugConnCstrs, nil
+}
+
+var (
+	defaultAllowRule = map[string]interface{}{
+		"allow-installation":    "true",
+		"allow-connection":      "true",
+		"allow-auto-connection": "true",
+		"deny-installation":     "false",
+		"deny-connection":       "false",
+		"deny-auto-connection":  "false",
+	}
+
+	denyRule = map[string]interface{}{
+		"allow-installation":    "false",
+		"allow-connection":      "false",
+		"allow-auto-connection": "false",
+		"deny-installation":     "true",
+		"deny-connection":       "true",
+		"deny-auto-connection":  "true",
+	}
+
+	installationSubrules = []string{"allow-installation", "deny-installation"}
+	connectionsSubrules  = []string{"allow-connection", "deny-connection", "allow-auto-connection", "deny-auto-connection"}
+)
+
+func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) {
+	context := fmt.Sprintf("plug rule for interface %q", interfaceName)
+	rMap, shortcut, err := checkMapOrShortcut(context, rule)
+	if err != nil {
+		return nil, err
+	}
+	if rMap == nil {
+		if shortcut {
+			rMap = defaultAllowRule
+		} else {
+			rMap = denyRule
+		}
+	}
+	plugRule := &PlugRule{
+		Interface: interfaceName,
+	}
+	defaultUsed := 0
+	// installation subrules
+	for _, subrule := range installationSubrules {
+		v := rMap[subrule]
+		if v == nil {
+			v = defaultAllowRule[subrule]
+			defaultUsed++
+		}
+		cstrs, err := compilePlugInstallationConstraints(interfaceName, subrule, v)
+		if err != nil {
+			return nil, err
+		}
+		plugRule.setPlugInstallationConstraints(subrule, cstrs)
+	}
+	// connection subrules
+	for _, subrule := range connectionsSubrules {
+		v := rMap[subrule]
+		if v == nil {
+			v = defaultAllowRule[subrule]
+			defaultUsed++
+		}
+		cstrs, err := compilePlugConnectionConstraints(interfaceName, subrule, v)
+		if err != nil {
+			return nil, err
+		}
+		plugRule.setPlugConnectionConstraints(subrule, cstrs)
+	}
+	if defaultUsed == len(installationSubrules)+len(connectionsSubrules) {
+		return nil, fmt.Errorf("%s must specify at least one of %s, %s", context, strings.Join(installationSubrules, ", "), strings.Join(connectionsSubrules, ", "))
+	}
+	return plugRule, nil
+}
+

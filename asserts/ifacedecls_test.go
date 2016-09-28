@@ -20,15 +20,20 @@
 package asserts_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
 )
 
-type attrConstraintsSuite struct{}
+var (
+	_ = Suite(&attrConstraintsSuite{})
+	_ = Suite(&plugSlotRulesSuite{})
+)
 
-var _ = Suite(&attrConstraintsSuite{})
+type attrConstraintsSuite struct{}
 
 func attrs(yml string) (r map[string]interface{}) {
 	err := yaml.Unmarshal([]byte(yml), &r)
@@ -267,4 +272,240 @@ foo: [{p: "/foo/x"}, {p: "/foo/y"}]
 foo: [{p: "zzz"}, {p: "/foo/y"}]
 `))
 	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^/foo/\.\*\$`)
+}
+
+func (s *attrConstraintsSuite) TestAlwaysMatchAttributeConstraints(c *C) {
+	c.Check(asserts.AlwaysMatchAttributes.Check(nil), IsNil)
+}
+
+func (s *attrConstraintsSuite) TestNeverMatchAttributeConstraints(c *C) {
+	c.Check(asserts.NeverMatchAttributes.Check(nil), NotNil)
+}
+
+type plugSlotRulesSuite struct{}
+
+func checkAttrs(c *C, attrs *asserts.AttributeConstraints, witness string) {
+	c.Check(attrs.Check(map[string]interface{}{
+		witness: "XYZ",
+	}), ErrorMatches, fmt.Sprintf(`attribute "%s".*does not match.*`, witness))
+}
+
+func checkBoolPlugConnConstraints(c *C, cstrs *asserts.PlugConnectionConstraints, always bool) {
+	expected := asserts.NeverMatchAttributes
+	if always {
+		expected = asserts.AlwaysMatchAttributes
+	}
+	c.Assert(cstrs, NotNil)
+	c.Check(cstrs.PlugAttributes, Equals, expected)
+	c.Check(cstrs.SlotAttributes, Equals, expected)
+	c.Check(cstrs.SlotSnapIDs, HasLen, 0)
+	c.Check(cstrs.SlotPublisherIDs, HasLen, 0)
+
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleFull(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    plug-attributes:
+      a1: A1
+  deny-installation:
+    plug-attributes:
+      a2: A2
+  allow-connection:
+    snap-id:
+      - snapid1
+      - snapid2
+    publisher-id:
+      - pubid1
+      - pubid2
+    plug-attributes:
+      pa3: PA3
+    slot-attributes:
+      sa3: SA3
+  deny-connection:
+    snap-id:
+      - snapid3
+      - snapid4
+    publisher-id:
+      - pubid3
+      - pubid4
+    plug-attributes:
+      pa4: PA5
+    slot-attributes:
+      sa4: SA4
+  allow-auto-connection:
+    snap-id:
+      - snapid5
+      - snapid6
+    publisher-id:
+      - pubid5
+      - pubid6
+    plug-attributes:
+      pa5: PA5
+    slot-attributes:
+      sa5: SA5
+  deny-auto-connection:
+    snap-id:
+      - snapid7
+      - snapid8
+    publisher-id:
+      - pubid7
+      - pubid8
+    plug-attributes:
+      pa6: PA6
+    slot-attributes:
+      sa6: SA6`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompilePlugRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.Interface, Equals, "iface")
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	checkAttrs(c, rule.AllowInstallation.PlugAttributes, "a1")
+	c.Assert(rule.DenyInstallation, NotNil)
+	checkAttrs(c, rule.DenyInstallation.PlugAttributes, "a2")
+	// connection subrules
+	c.Assert(rule.AllowConnection, NotNil)
+	checkAttrs(c, rule.AllowConnection.PlugAttributes, "pa3")
+	checkAttrs(c, rule.AllowConnection.SlotAttributes, "sa3")
+	c.Assert(rule.DenyConnection, NotNil)
+	checkAttrs(c, rule.DenyConnection.PlugAttributes, "pa4")
+	checkAttrs(c, rule.DenyConnection.SlotAttributes, "sa4")
+	// auto-connection subrules
+	c.Assert(rule.AllowAutoConnection, NotNil)
+	checkAttrs(c, rule.AllowAutoConnection.PlugAttributes, "pa5")
+	checkAttrs(c, rule.AllowAutoConnection.SlotAttributes, "sa5")
+	c.Assert(rule.DenyAutoConnection, NotNil)
+	checkAttrs(c, rule.DenyAutoConnection.PlugAttributes, "pa6")
+	checkAttrs(c, rule.DenyAutoConnection.SlotAttributes, "sa6")
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleShortcutTrue(c *C) {
+	rule, err := asserts.CompilePlugRule("iface", "true")
+	c.Assert(err, IsNil)
+
+	c.Check(rule.Interface, Equals, "iface")
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	c.Check(rule.AllowInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Assert(rule.DenyInstallation, NotNil)
+	c.Check(rule.DenyInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
+	// connection subrules
+	checkBoolPlugConnConstraints(c, rule.AllowConnection, true)
+	checkBoolPlugConnConstraints(c, rule.DenyConnection, false)
+	// auto-connection subrules
+	checkBoolPlugConnConstraints(c, rule.AllowAutoConnection, true)
+	checkBoolPlugConnConstraints(c, rule.DenyAutoConnection, false)
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleShortcutFalse(c *C) {
+	rule, err := asserts.CompilePlugRule("iface", "false")
+	c.Assert(err, IsNil)
+
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	c.Check(rule.AllowInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
+	c.Assert(rule.DenyInstallation, NotNil)
+	c.Check(rule.DenyInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	// connection subrules
+	checkBoolPlugConnConstraints(c, rule.AllowConnection, false)
+	checkBoolPlugConnConstraints(c, rule.DenyConnection, true)
+	// auto-connection subrules
+	checkBoolPlugConnConstraints(c, rule.AllowAutoConnection, false)
+	checkBoolPlugConnConstraints(c, rule.DenyAutoConnection, true)
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleDefaults(c *C) {
+	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
+		"deny-auto-connection": "true",
+	})
+	c.Assert(err, IsNil)
+
+	// everything follows the defaults...
+
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	c.Check(rule.AllowInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Assert(rule.DenyInstallation, NotNil)
+	c.Check(rule.DenyInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
+	// connection subrules
+	checkBoolPlugConnConstraints(c, rule.AllowConnection, true)
+	checkBoolPlugConnConstraints(c, rule.DenyConnection, false)
+	// auto-connection subrules
+	checkBoolPlugConnConstraints(c, rule.AllowAutoConnection, true)
+	// ... but deny-auto-connection is on
+	checkBoolPlugConnConstraints(c, rule.DenyAutoConnection, true)
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
+	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
+		"allow-connection": map[string]interface{}{
+			"slot-snap-id":      []interface{}{"snapid1", "snapid2"},
+			"slot-publisher-id": []interface{}{"canonical", "$same"},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	cstrs := rule.AllowConnection
+	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapid1", "snapid2"})
+	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"canonical", "$same"})
+
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsAttributesDefault(c *C) {
+	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
+		"allow-connection": map[string]interface{}{
+			"slot-snap-id": []interface{}{"snapid1"},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// attributes default to always matching here
+	cstrs := rule.AllowConnection
+	c.Check(cstrs.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Check(cstrs.SlotAttributes, Equals, asserts.AlwaysMatchAttributes)
+}
+
+func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
+	tests := []struct {
+		stanza string
+		err    string
+	}{
+		{`iface: foo`, `plug rule for interface "iface" is not a map but is set to a shortcut that is not 'true' nor 'false': "foo"`},
+		{`iface:
+  - allow`, `plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
+  allow-installation: foo`, `allow-installation in plug rule for interface "iface" is not a map but is set to a shortcut that is not 'true' nor 'false': "foo"`},
+		{`iface:
+  allow-connection: foo`, `allow-connection in plug rule for interface "iface" is not a map but is set to a shortcut that is not 'true' nor 'false': "foo"`},
+		{`iface:
+  allow-installation:
+    plug-attributes:
+      a1: [`, `cannot compile plug-attributes in allow-installation in plug rule for interface "iface": cannot compile "a1" constraint .*`},
+		{`iface:
+  allow-connection:
+    slot-attributes:
+      a2: [`, `cannot compile slot-attributes in allow-connection in plug rule for interface "iface": cannot compile "a2" constraint .*`},
+		{`iface:
+  allow-connection:
+    slot-snap-id:
+      -
+        foo: 1`, `slot-snap-id in allow-connection in plug rule for interface "iface" must be a list of strings`},
+		{`iface:
+  allow-connection:
+    slot-snap-ids:
+      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-publisher-id, slot-snap-id`},
+		{`iface:
+  allow-connect: true`, `plug rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
+	}
+
+	for _, t := range tests {
+		m, err := asserts.ParseHeaders([]byte(t.stanza))
+		c.Assert(err, IsNil, Commentf(t.stanza))
+
+		_, err = asserts.CompilePlugRule("iface", m["iface"])
+		c.Check(err, ErrorMatches, t.err, Commentf(t.stanza))
+	}
 }

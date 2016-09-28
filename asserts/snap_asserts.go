@@ -36,6 +36,7 @@ import (
 type SnapDeclaration struct {
 	assertionBase
 	refreshControl []string
+	plugRules      map[string]*PlugRule
 	timestamp      time.Time
 }
 
@@ -67,6 +68,16 @@ func (snapdcl *SnapDeclaration) Timestamp() time.Time {
 // RefreshControl returns the ids of snaps whose updates are controlled by this declaration.
 func (snapdcl *SnapDeclaration) RefreshControl() []string {
 	return snapdcl.refreshControl
+}
+
+// PlugRule returns the plug-side rule about the given interface if one was included in the plugs stanza of the declaration, otherwise it returns nil.
+func (snapdcl *SnapDeclaration) PlugRule(interfaceName string) *PlugRule {
+	return snapdcl.plugRules[interfaceName]
+}
+
+// SlotRule returns the slot-side rule about the given interface if one was included in the slots stanza of the declaration, otherwise it returns nil.
+func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
+	return nil
 }
 
 // Implement further consistency checks.
@@ -108,20 +119,37 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	refControl, err := checkStringList(assert.headers, "refresh-control")
 	if err != nil {
 		return nil, err
 	}
 
-	refControl, err := checkStringList(assert.headers, "refresh-control")
+	var plugRules map[string]*PlugRule
+	plugs, err := checkMap(assert.headers, "plugs")
+	if err != nil {
+		return nil, err
+	}
+	if plugs != nil {
+		plugRules = make(map[string]*PlugRule, len(plugs))
+		for iface, rule := range plugs {
+			plugRule, err := compilePlugRule(iface, rule)
+			if err != nil {
+				return nil, err
+			}
+			plugRules[iface] = plugRule
+		}
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
 	}
 
 	return &SnapDeclaration{
 		assertionBase:  assert,
-		timestamp:      timestamp,
 		refreshControl: refControl,
+		plugRules:      plugRules,
+		timestamp:      timestamp,
 	}, nil
 }
 

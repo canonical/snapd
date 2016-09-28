@@ -125,6 +125,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
+		"plugs:\n  interface1: true\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -141,6 +142,8 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
 		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control: foo\n", `"refresh-control" header must be a list of strings`},
 		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control:\n  -\n    - nested\n", `"refresh-control" header must be a list of strings`},
+		{"plugs:\n  interface1: true\n", "plugs: \n", `"plugs" header must be a map`},
+		{"plugs:\n  interface1: true\n", "plugs:\n  intf1:\n    foo: bar\n", `plug rule for interface "intf1" must specify at least one of.*`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -151,6 +154,44 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		_, err := asserts.Decode([]byte(invalid))
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
 	}
+
+}
+
+func (sds *snapDeclSuite) TestDecodePlugs(c *C) {
+	encoded := `type: snap-declaration
+authority-id: canonical
+series: 16
+snap-id: snap-id-1
+snap-name: first
+publisher-id: dev-id1
+plugs:
+  interface1:
+    allow-auto-connection:
+      slot-attributes:
+        a1: /foo/.*
+  interface2:
+    allow-connection:
+      slot-attributes:
+        a2: /foo/.*
+TSLINE
+body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+	encoded = strings.Replace(encoded, "TSLINE\n", sds.tsLine, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.Series(), Equals, "16")
+	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
+
+	c.Check(snapDecl.PlugRule("interfaceX"), IsNil)
+	plugRule1 := snapDecl.PlugRule("interface1")
+	c.Assert(plugRule1, NotNil)
+	c.Check(plugRule1.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	plugRule2 := snapDecl.PlugRule("interface2")
+	c.Assert(plugRule2, NotNil)
+	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
 
 }
 
