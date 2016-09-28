@@ -225,7 +225,7 @@ func runHookImpl(c *Context, tomb *tomb.Tomb) ([]byte, error) {
 
 var runHook = runHookImpl
 
-// MockRunHook mocks the actual invokcation of hooks for tests.
+// MockRunHook mocks the actual invocation of hooks for tests.
 func MockRunHook(hookInvoke func(c *Context, tomb *tomb.Tomb) ([]byte, error)) (restore func()) {
 	oldRunHook := runHook
 	runHook = hookInvoke
