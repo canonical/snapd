@@ -62,6 +62,11 @@ path: /home/gopath/src/github.com/snapcore/snapd
 exclude:
     - .git
 
+debug-each: |
+    # something went wrong in the test, get some logs
+    echo "Snapd debug log:"
+    journalctl -u snapd
+
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
@@ -117,6 +122,7 @@ prepare: |
 
     # Build fakestore.
     go get ./tests/lib/fakestore/cmd/fakestore
+
 suites:
     tests/main/:
         summary: Full-system tests for snapd
