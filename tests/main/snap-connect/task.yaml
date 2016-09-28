@@ -1,0 +1,23 @@
+summary: Check that snap connect works
+
+systems: [-ubuntu-core-16-64]
+
+environment:
+    SNAP_FILE: "home-consumer_1.0_all.snap"
+
+prepare: |
+    echo "Install a test snap"
+    snapbuild $TESTSLIB/snaps/home-consumer .
+    snap install --dangerous $SNAP_FILE
+
+restore: |
+    rm -f *.snap
+
+execute: |
+    CONNECTED_PATTERN="(?s)Slot +Plug\n\
+    .*?\n\
+    :home +home-consumer"
+
+    echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
+    snap connect home-consumer:home
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
