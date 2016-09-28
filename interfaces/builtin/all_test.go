@@ -76,5 +76,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewCameraInterface())
 	c.Check(all, DeepContains, builtin.NewKernelModuleControlInterface())
 	c.Check(all, DeepContains, builtin.NewFuseSupportInterface())
-	c.Check(all, DeepContains, builtin.NewTimeDateControlInterface())
+	c.Check(all, DeepContains, builtin.NewTimeControlInterface())
 }

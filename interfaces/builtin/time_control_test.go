@@ -51,11 +51,11 @@ var _ = Suite(&TimeControlTestInterfaceSuite{
 	},
 })
 
-func (s *TimeDateControlTestInterfaceSuite) TestName(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "time-control")
 }
 
-func (s *TimeDateControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
 	err := s.iface.SanitizeSlot(s.slot)
 	c.Assert(err, IsNil)
 	err = s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{
@@ -66,19 +66,19 @@ func (s *TimeDateControlTestInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(err, ErrorMatches, "time-control slots are reserved for the operating system snap")
 }
 
-func (s *TimeDateControlTestInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestSanitizePlug(c *C) {
 	err := s.iface.SanitizePlug(s.plug)
 	c.Assert(err, IsNil)
 }
 
-func (s *TimeDateControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestSanitizeIncorrectInterface(c *C) {
 	c.Assert(func() { s.iface.SanitizeSlot(&interfaces.Slot{SlotInfo: &snap.SlotInfo{Interface: "other"}}) },
 		PanicMatches, `slot is not of interface "time-control"`)
 	c.Assert(func() { s.iface.SanitizePlug(&interfaces.Plug{PlugInfo: &snap.PlugInfo{Interface: "other"}}) },
 		PanicMatches, `plug is not of interface "time-control"`)
 }
 
-func (s *TimeDateControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	// connected plugs have a non-nil security snippet for apparmor
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
@@ -89,6 +89,6 @@ func (s *TimeDateControlTestInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *TimeDateControlTestInterfaceSuite) TestAutoConnect(c *C) {
+func (s *TimeControlTestInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, false)
 }
