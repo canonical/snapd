@@ -1219,13 +1219,13 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
 
 	if len(downloadInfo.Deltas) != 1 {
-		return "", errors.New("Store returned more than one delta")
+		return "", errors.New("store returned more than one delta")
 	}
 
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return "", errors.New("Store returned delta with format " + deltaInfo.Format)
+		return "", fmt.Errorf("store returned delta with format %q", deltaInfo.Format)
 	}
 
 	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
@@ -1234,6 +1234,16 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 	if err != nil {
 		return "", err
 	}
+	deltaPath := w.Name()
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		if err != nil {
+			os.Remove(w.Name())
+			deltaPath = ""
+		}
+	}()
 
 	url := deltaInfo.AnonDownloadURL
 	if url == "" || user != nil {
@@ -1244,12 +1254,8 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 	if err != nil {
 		return "", err
 	}
-	err = w.Close()
-	if err != nil {
-		return "", err
-	}
 
-	return w.Name(), nil
+	return deltaPath, nil
 }
 
 type assertionSvcError struct {
