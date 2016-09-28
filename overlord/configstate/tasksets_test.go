@@ -62,7 +62,7 @@ func (s *tasksetsSuite) TestChange(c *C) {
 	c.Check(err, IsNil)
 	c.Check(context.SnapName(), Equals, "test-snap")
 	c.Check(context.SnapRevision(), Equals, snap.Revision{})
-	c.Check(context.HookName(), Equals, "apply-config")
+	c.Check(context.HookName(), Equals, "configure")
 
 	context.Lock()
 	defer context.Unlock()
