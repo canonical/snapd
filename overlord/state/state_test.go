@@ -740,6 +740,26 @@ func (ss *stateSuite) TestPrune(c *C) {
 	c.Check(st.NumTask(), Equals, 3)
 }
 
+func (ss *stateSuite) TestPruneEmptyChange(c *C) {
+	// Empty changes are a bit special because they start out on Hold
+	// which is a Ready status, but the change itself is not considered Ready
+	// explicitly because that's how every change that will have tasks added
+	// to it starts their life.
+	st := state.New(&fakeStateBackend{})
+	st.Lock()
+	defer st.Unlock()
+
+	now := time.Now()
+	pruneWait := 1 * time.Hour
+	abortWait := 3 * time.Hour
+
+	chg := st.NewChange("abort", "...")
+	state.MockChangeTimes(chg, now.Add(-pruneWait), time.Time{})
+
+	st.Prune(pruneWait, abortWait)
+	c.Assert(st.Change(chg.ID()), IsNil)
+}
+
 func (ss *stateSuite) TestRequestRestart(c *C) {
 	b := new(fakeStateBackend)
 	st := state.New(b)
