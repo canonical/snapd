@@ -19,4 +19,4 @@
 
 package configstate
 
-var NewApplyConfigHandler = newApplyConfigHandler
+var NewConfigureHandler = newConfigureHandler
