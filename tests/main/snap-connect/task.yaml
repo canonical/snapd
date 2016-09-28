@@ -21,3 +21,9 @@ execute: |
     echo "The plug can be connected to a matching slot of OS snap without snap:slot argument"
     snap connect home-consumer:home
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+
+    snap disconnect home:consumer ubuntu-core:home
+
+    echo "The plug can be connected to a matching slot of with slot name omitted"
+    snap connect home-consumer:home ubuntu-core
+    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"

@@ -227,6 +227,22 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	// connect OS snap if snap name is omitted
+	if slotRef.Snap == "" {
+		slotRef.Snap = "ubuntu-core"
+	}
+
+	// connect the plug to slot with matching interface if slot is omitted
+	if slotRef.Name == "" {
+		plugIface := m.repo.Plug(plugRef.Snap, plugRef.Name)
+		for _, slot := range m.repo.Slots(slotRef.Snap) {
+			if slot.Interface == plugIface.Interface {
+				slotRef.Name = slot.Name
+				break
+			}
+		}
+	}
+
 	conns, err := getConns(st)
 	if err != nil {
 		return err
