@@ -45,13 +45,6 @@ func (s *transactionSuite) SetUpTest(c *C) {
 	s.transaction = configstate.NewTransaction(s.state)
 }
 
-func (s *transactionSuite) TestNoOptionError(c *C) {
-	var v interface{}
-	err := s.transaction.Get("unknown", "what", &v)
-	c.Assert(err, FitsTypeOf, &configstate.NoOptionError{})
-	c.Check(err, ErrorMatches, `snap "unknown" has no "what" configuration option`)
-}
-
 func (s *transactionSuite) TestSetDoesNotTouchState(c *C) {
 	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
 

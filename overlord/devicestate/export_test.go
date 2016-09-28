@@ -22,10 +22,7 @@ package devicestate
 import (
 	"time"
 
-	"gopkg.in/tomb.v2"
-
 	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/overlord/state"
 )
 
 func MockKeyLength(n int) (restore func()) {
@@ -70,8 +67,4 @@ func MockRepeatRequestSerial(label string) (restore func()) {
 	return func() {
 		repeatRequestSerial = old
 	}
-}
-
-func (m *DeviceManager) AddRunHookTaskHandler(handler func(task *state.Task, _ *tomb.Tomb) error) {
-	m.runner.AddHandler("run-hook", handler, nil)
 }
