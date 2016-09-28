@@ -97,7 +97,9 @@ func HookTask(s *state.State, taskSummary, snapName string, revision snap.Revisi
 
 	// Set the initial context in the task, which will be loaded when Context
 	// is used.
-	task.Set("hook-context", &initialContext)
+	if initialContext != nil {
+		task.Set("hook-context", &initialContext)
+	}
 	return task
 }
 
