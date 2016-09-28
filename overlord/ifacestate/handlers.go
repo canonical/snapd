@@ -237,8 +237,10 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		plugIface := m.repo.Plug(plugRef.Snap, plugRef.Name)
 		for _, slot := range m.repo.Slots(slotRef.Snap) {
 			if slot.Interface == plugIface.Interface {
+				if slotRef.Name != "" {
+					return fmt.Errorf("cannot connect plug %q from snap %q to snap %q, too many matching slots", plugRef.Name, plugRef.Snap, slotRef.Snap)
+				}
 				slotRef.Name = slot.Name
-				break
 			}
 		}
 	}
