@@ -21,7 +21,7 @@ package builtin
 
 import "github.com/snapcore/snapd/interfaces"
 
-const timeDateControlConnectedPlugAppArmor = `
+const timeControlConnectedPlugAppArmor = `
 # Description: Can set time and date via systemd' timedated D-Bus interface.
 # Can read all properties of /org/freedesktop/timedate1 D-Bus object; see
 # https://www.freedesktop.org/wiki/Software/systemd/timedated/
@@ -72,12 +72,12 @@ sendmsg
 socket
 `
 
-// NewTimeDateControlInterface returns a new "timedate-control" interface.
-func NewTimeDateControlInterface() interfaces.Interface {
+// NewTimeDateControlInterface returns a new "time-control" interface.
+func NewTimeControlInterface() interfaces.Interface {
 	return &commonInterface{
-		name: "timedate-control",
-		connectedPlugAppArmor: timeDateControlConnectedPlugAppArmor,
-		connectedPlugSecComp:  timeDateControlConnectedPlugSecComp,
+		name: "time-control",
+		connectedPlugAppArmor: timeControlConnectedPlugAppArmor,
+		connectedPlugSecComp:  timeControlConnectedPlugSecComp,
 		reservedForOS:         true,
 		autoConnect:           false,
 	}
