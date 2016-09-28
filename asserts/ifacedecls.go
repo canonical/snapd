@@ -475,4 +475,3 @@ func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) 
 	}
 	return plugRule, nil
 }
-
