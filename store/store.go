@@ -1061,7 +1061,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		Data:        jsonData,
 	}
 
-	if os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL") == "1" {
+	if os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1" {
 		reqOptions.ExtraHeaders = map[string]string{
 			"X-Ubuntu-Delta-Formats": s.deltaFormat,
 		}
@@ -1133,7 +1133,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		}
 	}()
 
-	if os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL") == "1" && len(downloadInfo.Deltas) == 1 {
+	if os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1" && len(downloadInfo.Deltas) == 1 {
 		downloadDir, err := ioutil.TempDir("", name+"-deltas")
 		if err == nil {
 			defer os.RemoveAll(downloadDir)
@@ -1219,13 +1219,13 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
 
 	if len(downloadInfo.Deltas) != 1 {
-		return "", errors.New("store returned more than one delta")
+		return "", errors.New("store returned more than one download delta")
 	}
 
 	deltaInfo := downloadInfo.Deltas[0]
 
 	if deltaInfo.Format != s.deltaFormat {
-		return "", fmt.Errorf("store returned delta with format %q", deltaInfo.Format)
+		return "", fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
 	}
 
 	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)

@@ -447,9 +447,9 @@ var deltaTests = []struct {
 }}
 
 func (t *remoteRepoTestSuite) TestDownloadWithDeltas(c *C) {
-	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
-	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	for _, testCase := range deltaTests {
 
@@ -531,9 +531,9 @@ var downloadDeltaTests = []struct {
 }}
 
 func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
-	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
-	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	for _, testCase := range downloadDeltaTests {
 		t.store.deltaFormat = testCase.format
@@ -1845,9 +1845,9 @@ var MockUpdatesWithDeltasJSON = `
 `
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
-	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
-	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, `xdelta`)
@@ -1920,9 +1920,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C) {
 	// Verify the X-Delta-Format header is not set.
-	origUseDeltas := os.Getenv("SNAPPY_USE_DELTAS_EXPERIMENTAL")
-	defer os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS_EXPERIMENTAL", "0"), IsNil)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "0"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, ``)
