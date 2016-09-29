@@ -334,7 +334,6 @@ func checkBoolPlugConnConstraints(c *C, cstrs *asserts.PlugConnectionConstraints
 	c.Check(cstrs.SlotAttributes, Equals, expected)
 	c.Check(cstrs.SlotSnapIDs, HasLen, 0)
 	c.Check(cstrs.SlotPublisherIDs, HasLen, 0)
-
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleAllAllowDenyStanzas(c *C) {
