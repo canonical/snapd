@@ -95,6 +95,16 @@ func (s *attrConstraintsSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
 		"bar": "BBAZ",
 	})
 	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
+
+	err = cstrs.Check(map[string]interface{}{
+		"bar": "BABAZ",
+	})
+	c.Check(err, ErrorMatches, `attribute "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
+
+	err = cstrs.Check(map[string]interface{}{
+		"bar": "BARAZ",
+	})
+	c.Check(err, ErrorMatches, `attribute "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestNested(c *C) {
