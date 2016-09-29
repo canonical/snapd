@@ -90,14 +90,13 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 
 	st.Lock()
 	defer st.Unlock()
-	all, err := All(st)
-	if err != nil {
-		return err
-	}
 
 	currentGadget, err := GadgetInfo(st)
+	// FIXME: check that we are in firstboot, only then is the missing
+	//        gagdet ok
+
 	// in firstboot we have no gadget yet - that is ok
-	if err == state.ErrNoState && len(all) == 0 {
+	if err == state.ErrNoState {
 		return nil
 	}
 	if err != nil {
