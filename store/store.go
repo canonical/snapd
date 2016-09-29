@@ -1133,24 +1133,12 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 	}
 	if useDeltas() && len(downloadInfo.Deltas) == 1 {
-		workingDir, err := ioutil.TempDir("", name+"-deltas")
-		deltaInfo := &downloadInfo.Deltas[0]
+		snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user)
 		if err == nil {
-			defer os.RemoveAll(workingDir)
-
-			deltaPath, err := s.downloadDelta(name, workingDir, downloadInfo, pbar, user)
-			if err == nil {
-				logger.Debugf("Successfully downloaded delta for %s at %s", name, deltaPath)
-				snapPath := ""
-				snapPath, err = applyDelta(name, deltaPath, deltaInfo)
-				if err == nil {
-					logger.Debugf("Successfully applied delta for %s at %s. Returning %q instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
-					return snapPath, nil
-				}
-			}
-			// We revert to normal downloads if there is any error.
-			logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
+			return snapPath, nil
 		}
+		// We revert to normal downloads if there is any error.
+		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
 	}
 
 	w, err := ioutil.TempFile("", name)
@@ -1299,19 +1287,39 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 		return "", err
 	}
 
-	xdeltaPath, err := exec.LookPath("xdelta")
-	if err != nil {
-		return "", err
-	}
-
 	xdeltaArgs := []string{"patch", deltaPath, currentSnapPath, targetSnapPath}
-	cmd := exec.Command(xdeltaPath, xdeltaArgs...)
+	cmd := exec.Command("xdelta", xdeltaArgs...)
 
 	if err = cmd.Run(); err != nil {
 		return "", err
 	}
 
 	return targetSnapPath, nil
+}
+
+// downloadAndApplyDelta downloads and then applies the delta to the current snap.
+func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+	deltaInfo := &downloadInfo.Deltas[0]
+	workingDir, err := ioutil.TempDir("", name+"-deltas")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(workingDir)
+
+	deltaPath, err := s.downloadDelta(name, workingDir, downloadInfo, pbar, user)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Debugf("Successfully downloaded delta for %s at %s", name, deltaPath)
+	snapPath := ""
+	snapPath, err = applyDelta(name, deltaPath, deltaInfo)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Debugf("Successfully applied delta for %s at %s. Returning %q instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
+	return snapPath, nil
 }
 
 type assertionSvcError struct {
