@@ -240,19 +240,19 @@ func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
 	return c.matcher.match("", attrs)
 }
 
-func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}, shortcut bool, err error) {
+func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}, outcomeShortcut string, err error) {
 	switch x := v.(type) {
 	case map[string]interface{}:
-		return x, false, nil
+		return x, "", nil
 	case string:
 		switch x {
 		case "true":
-			return nil, true, nil
+			return nil, "true", nil
 		case "false":
-			return nil, false, nil
+			return nil, "false", nil
 		}
 	}
-	return nil, false, fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
+	return nil, "", fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
 
 }
 
@@ -308,9 +308,10 @@ func compilePlugInstallationConstraints(interfaceName string, entry string, cons
 		return nil, err
 	}
 	if cMap == nil {
-		if shortcut {
+		if shortcut == "true" {
 			return &PlugInstallationConstraints{PlugAttributes: AlwaysMatchAttributes}, nil
 		}
+		// "false"
 		return &PlugInstallationConstraints{PlugAttributes: NeverMatchAttributes}, nil
 	}
 	attrs, err := compileAttributeConstraints(cMap["plug-attributes"])
@@ -363,9 +364,10 @@ func compilePlugConnectionConstraints(interfaceName string, entry string, constr
 		return nil, err
 	}
 	if cMap == nil {
-		if shortcut {
+		if shortcut == "true" {
 			return &PlugConnectionConstraints{PlugAttributes: AlwaysMatchAttributes, SlotAttributes: AlwaysMatchAttributes}, nil
 		}
+		// "false"
 		return &PlugConnectionConstraints{PlugAttributes: NeverMatchAttributes, SlotAttributes: NeverMatchAttributes}, nil
 	}
 	plugConnCstrs := &PlugConnectionConstraints{}
@@ -402,7 +404,7 @@ func compilePlugConnectionConstraints(interfaceName string, entry string, constr
 }
 
 var (
-	defaultAllowRule = map[string]interface{}{
+	defaultOutcome = map[string]interface{}{
 		"allow-installation":    "true",
 		"allow-connection":      "true",
 		"allow-auto-connection": "true",
@@ -411,7 +413,7 @@ var (
 		"deny-auto-connection":  "false",
 	}
 
-	denyRule = map[string]interface{}{
+	invertedOutcome = map[string]interface{}{
 		"allow-installation":    "false",
 		"allow-connection":      "false",
 		"allow-auto-connection": "false",
@@ -431,10 +433,10 @@ func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) 
 		return nil, err
 	}
 	if rMap == nil {
-		if shortcut {
-			rMap = defaultAllowRule
-		} else {
-			rMap = denyRule
+		if shortcut == "true" {
+			rMap = defaultOutcome
+		} else { // "false"
+			rMap = invertedOutcome
 		}
 	}
 	plugRule := &PlugRule{
@@ -445,7 +447,7 @@ func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) 
 	for _, subrule := range installationSubrules {
 		v := rMap[subrule]
 		if v == nil {
-			v = defaultAllowRule[subrule]
+			v = defaultOutcome[subrule]
 			defaultUsed++
 		}
 		cstrs, err := compilePlugInstallationConstraints(interfaceName, subrule, v)
@@ -458,7 +460,7 @@ func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) 
 	for _, subrule := range connectionsSubrules {
 		v := rMap[subrule]
 		if v == nil {
-			v = defaultAllowRule[subrule]
+			v = defaultOutcome[subrule]
 			defaultUsed++
 		}
 		cstrs, err := compilePlugConnectionConstraints(interfaceName, subrule, v)
