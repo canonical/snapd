@@ -31,6 +31,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type remoteRepoTestSuite struct {
@@ -56,6 +58,7 @@ type remoteRepoTestSuite struct {
 
 	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
 	origBackoffs     []int
+	mockXDelta       *testutil.MockCmd
 }
 
 func TestStore(t *testing.T) { TestingT(t) }
@@ -224,11 +227,13 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.user, err = createTestUser(1, root, discharge)
 	c.Assert(err, IsNil)
 	t.device = createTestDevice()
+	t.mockXDelta = testutil.MockCommand(c, "xdelta", "")
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
 	downloadBackoffs = t.origBackoffs
+	t.mockXDelta.Restore()
 }
 
 func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
@@ -403,11 +408,10 @@ var deltaTests = []struct {
 	info            snap.DownloadInfo
 	expectedContent string
 }{{
-	// The full snap is downloaded after the delta (currently,
-	// until the code applying the delta lands).
+	// The full snap is not downloaded, but rather the delta
+	// is downloaded and applied.
 	downloads: downloadBehaviour{
 		{url: "delta-url"},
-		{url: "full-snap-url"},
 	},
 	info: snap.DownloadInfo{
 		AnonDownloadURL: "full-snap-url",
@@ -415,7 +419,7 @@ var deltaTests = []struct {
 			{AnonDownloadURL: "delta-url", Format: "xdelta"},
 		},
 	},
-	expectedContent: "full-snap-url-content",
+	expectedContent: "snap-content-via-delta",
 }, {
 	// If there is an error during the delta download, the
 	// full snap is downloaded as per normal.
@@ -446,7 +450,7 @@ var deltaTests = []struct {
 	expectedContent: "full-snap-url-content",
 }}
 
-func (t *remoteRepoTestSuite) TestDownloadWithDeltas(c *C) {
+func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
 	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
 	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
@@ -463,6 +467,14 @@ func (t *remoteRepoTestSuite) TestDownloadWithDeltas(c *C) {
 			w.Write([]byte(testCase.downloads[downloadIndex].url + "-content"))
 			downloadIndex++
 			return nil
+		}
+		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
+			w, err := ioutil.TempFile("", "")
+			defer w.Close()
+			c.Check(err, IsNil)
+			w.Write([]byte("snap-content-via-delta"))
+			return w.Name(), nil
 		}
 
 		path, err := t.store.Download("foo", &testCase.info, nil, nil)
@@ -564,6 +576,53 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 		} else {
 			c.Assert(err, IsNil)
 			c.Assert(deltaPath, Equals, path.Join(downloadDir, testCase.expectedPath))
+		}
+	}
+}
+
+var applyDeltaTests = []struct {
+	deltaInfo       snap.DeltaInfo
+	currentRevision uint
+	error           string
+}{{
+	// A supported delta format can be applied.
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "",
+}, {
+	// An error is returned if the expected current snap does not exist on disk.
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 23,
+	error:           "snap \"foo\" revision 24 not found",
+}, {
+	// An error is returned if the format is not supported.
+	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "unsupported delta format \"nodelta\"",
+}}
+
+func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
+	for _, testCase := range applyDeltaTests {
+		name := "foo"
+		currentSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.currentRevision)
+		currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
+		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
+		c.Assert(err, IsNil)
+
+		snapPath, err := applyDelta(name, "/the/delta/path", &testCase.deltaInfo)
+
+		c.Assert(os.Remove(currentSnapPath), IsNil)
+		if testCase.error == "" {
+			c.Assert(os.Remove(snapPath), IsNil)
+			c.Assert(err, IsNil)
+			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
+				{"xdelta", "patch", "/the/delta/path", currentSnapPath, snapPath},
+			})
+		} else {
+			c.Assert(err, NotNil)
+			c.Assert(err.Error()[0:len(testCase.error)], Equals, testCase.error)
 		}
 	}
 }
