@@ -355,6 +355,11 @@ func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []strin
 var (
 	attributeConstraints = []string{"plug-attributes", "slot-attributes"}
 	plugIDConstraints    = []string{"slot-publisher-id", "slot-snap-id"}
+
+	validPlugIDConstraints = map[string]*regexp.Regexp{
+		"slot-snap-id":      regexp.MustCompile("^[a-z0-9A-Z]{32}$"),                                             // snap-ids look like this
+		"slot-publisher-id": regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[a-z](?:-?[a-z0-9])*)$"), // account ids look like snap-ids or are nice identifiers, support our own special markers $ID
+	}
 )
 
 func compilePlugConnectionConstraints(interfaceName string, entry string, constraints interface{}) (*PlugConnectionConstraints, error) {
@@ -373,8 +378,7 @@ func compilePlugConnectionConstraints(interfaceName string, entry string, constr
 	plugConnCstrs := &PlugConnectionConstraints{}
 	defaultUsed := 0
 	for _, field := range plugIDConstraints {
-		// TODO: check these further against regexps?
-		l, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context))
+		l, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validPlugIDConstraints[field])
 		if err != nil {
 			return nil, err
 		}

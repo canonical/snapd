@@ -180,7 +180,9 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 	return b, nil
 }
 
-func checkStringListInMap(m map[string]interface{}, name, what string) ([]string, error) {
+var anyString = regexp.MustCompile("")
+
+func checkStringListInMap(m map[string]interface{}, name, what string, pattern *regexp.Regexp) ([]string, error) {
 	value, ok := m[name]
 	if !ok {
 		return nil, nil
@@ -198,13 +200,16 @@ func checkStringListInMap(m map[string]interface{}, name, what string) ([]string
 		if !ok {
 			return nil, fmt.Errorf("%s must be a list of strings", what)
 		}
+		if !pattern.MatchString(s) {
+			return nil, fmt.Errorf("%s contains element with invalid format: %q", what, s)
+		}
 		res[i] = s
 	}
 	return res, nil
 }
 
 func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
-	return checkStringListInMap(headers, name, fmt.Sprintf("%q header", name))
+	return checkStringListInMap(headers, name, fmt.Sprintf("%q header", name), anyString)
 }
 
 func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {

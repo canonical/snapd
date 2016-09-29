@@ -312,45 +312,45 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleFull(c *C) {
     plug-attributes:
       a2: A2
   allow-connection:
-    snap-id:
-      - snapid1
-      - snapid2
+    slot-snap-id:
+      - snapidsnapidsnapidsnapidsnapid01
+      - snapidsnapidsnapidsnapidsnapid02
     publisher-id:
-      - pubid1
-      - pubid2
+      - pubidpubidpubidpubidpubidpubid01
+      - pubidpubidpubidpubidpubidpubid02
     plug-attributes:
       pa3: PA3
     slot-attributes:
       sa3: SA3
   deny-connection:
-    snap-id:
-      - snapid3
-      - snapid4
+    slot-snap-id:
+      - snapidsnapidsnapidsnapidsnapid03
+      - snapidsnapidsnapidsnapidsnapid04
     publisher-id:
-      - pubid3
-      - pubid4
+      - pubidpubidpubidpubidpubidpubid03
+      - pubidpubidpubidpubidpubidpubid04
     plug-attributes:
       pa4: PA5
     slot-attributes:
       sa4: SA4
   allow-auto-connection:
-    snap-id:
-      - snapid5
-      - snapid6
+    slot-snap-id:
+      - snapidsnapidsnapidsnapidsnapid05
+      - snapidsnapidsnapidsnapidsnapid06
     publisher-id:
-      - pubid5
-      - pubid6
+      - pubidpubidpubidpubidpubidpubid05
+      - pubidpubidpubidpubidpubidpubid06
     plug-attributes:
       pa5: PA5
     slot-attributes:
       sa5: SA5
   deny-auto-connection:
-    snap-id:
-      - snapid7
-      - snapid8
+    slot-snap-id:
+      - snapidsnapidsnapidsnapidsnapid07
+      - snapidsnapidsnapidsnapidsnapid08
     publisher-id:
-      - pubid7
-      - pubid8
+      - pubidpubidpubidpubidpubidpubid07
+      - pubidpubidpubidpubidpubidpubid08
     plug-attributes:
       pa6: PA6
     slot-attributes:
@@ -442,22 +442,22 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleDefaults(c *C) {
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
-			"slot-snap-id":      []interface{}{"snapid1", "snapid2"},
-			"slot-publisher-id": []interface{}{"canonical", "$same"},
+			"slot-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
+			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"},
 		},
 	})
 	c.Assert(err, IsNil)
 
 	cstrs := rule.AllowConnection
-	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapid1", "snapid2"})
-	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"canonical", "$same"})
+	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
+	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"})
 
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsAttributesDefault(c *C) {
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
-			"slot-snap-id": []interface{}{"snapid1"},
+			"slot-snap-id": []interface{}{"snapidsnapidsnapidsnapidsnapid01"},
 		},
 	})
 	c.Assert(err, IsNil)
