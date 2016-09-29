@@ -54,6 +54,15 @@ func checkAssumes(s *snap.Info) error {
 
 var openSnapFile = backend.OpenSnapFile
 
+// FIXME: drop and get the gadget name from the model assertion instead
+func isFirstBoot(st *state.State) bool {
+	chg := st.Change("1")
+	if chg != nil && !chg.IsReady() {
+		return true
+	}
+	return false
+}
+
 // checkSnap ensures that the snap can be installed.
 func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
 	// This assumes that the snap was already verified or --dangerous was used.
@@ -92,17 +101,16 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 	defer st.Unlock()
 
 	currentGadget, err := GadgetInfo(st)
-	// FIXME: check that we are in firstboot, only then is the missing
-	//        gagdet ok
 
 	// in firstboot we have no gadget yet - that is ok
-	if err == state.ErrNoState {
+	if err == state.ErrNoState && isFirstBoot(st) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("cannot find original gadget snap")
 	}
 
+	// FIXME: drop and get the gadget name from the model assertion instead
 	// TODO: actually compare snap ids, from current gadget and candidate
 	if currentGadget.Name() != s.Name() {
 		return fmt.Errorf("cannot replace gadget snap with a different one")
