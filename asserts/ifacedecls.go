@@ -145,7 +145,7 @@ type regexpAttrMatcher struct {
 }
 
 func compileRegexpAttrMatcher(cc compileContext, s string) (attrMatcher, error) {
-	rx, err := regexp.Compile("^" + s + "$")
+	rx, err := regexp.Compile("^(" + s + ")$")
 	if err != nil {
 		return nil, fmt.Errorf("cannot compile %q constraint %q: %v", cc, s, err)
 	}
@@ -360,7 +360,7 @@ var (
 	plugIDConstraints    = []string{"slot-snap-type", "slot-publisher-id", "slot-snap-id"}
 
 	validPlugIDConstraints = map[string]*regexp.Regexp{
-		"slot-snap-type":    regexp.MustCompile("^os|kernel|gadget|app$"),
+		"slot-snap-type":    regexp.MustCompile("^(?:core|kernel|gadget|app)$"),
 		"slot-snap-id":      regexp.MustCompile("^[a-z0-9A-Z]{32}$"),                                             // snap-ids look like this
 		"slot-publisher-id": regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[a-z](?:-?[a-z0-9])*)$"), // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
 	}

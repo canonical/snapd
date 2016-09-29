@@ -64,13 +64,37 @@ func (s *attrConstraintsSuite) TestSimple(c *C) {
 		"bar": "BAZ",
 		"baz": "BAZ",
 	})
-	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^BAR\$`)
+	c.Check(err, ErrorMatches, `attribute "bar" value "BAZ" does not match \^\(BAR\)\$`)
 
 	err = cstrs.Check(map[string]interface{}{
 		"foo": "FOO",
 		"baz": "BAZ",
 	})
 	c.Check(err, ErrorMatches, `attribute "bar" has constraints but is unset`)
+}
+
+func (s *attrConstraintsSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`attrs:
+  bar: BAR|BAZ`))
+	c.Assert(err, IsNil)
+
+	cstrs, err := asserts.CompileAttributeConstraints(m["attrs"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	err = cstrs.Check(map[string]interface{}{
+		"bar": "BAR",
+	})
+	c.Check(err, IsNil)
+
+	err = cstrs.Check(map[string]interface{}{
+		"bar": "BARR",
+	})
+	c.Check(err, ErrorMatches, `attribute "bar" value "BARR" does not match \^\(BAR|BAZ\)\$`)
+
+	err = cstrs.Check(map[string]interface{}{
+		"bar": "BBAZ",
+	})
+	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestNested(c *C) {
@@ -109,7 +133,7 @@ bar:
   bar3: BAR3
 baz: BAZ
 `))
-	c.Check(err, ErrorMatches, `attribute "bar\.bar2" value "BAR22" does not match \^BAR2\$`)
+	c.Check(err, ErrorMatches, `attribute "bar\.bar2" value "BAR22" does not match \^\(BAR2\)\$`)
 
 	err = cstrs.Check(attrs(`
 foo: FOO
@@ -155,7 +179,7 @@ func (s *attrConstraintsSuite) TestAlternative(c *C) {
 		"bar": "BARR",
 		"baz": "BAR",
 	})
-	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^BAR\$`)
+	c.Check(err, ErrorMatches, `no alternative matches: attribute "bar" value "BARR" does not match \^\(BAR\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestNestedAlternative(c *C) {
@@ -193,7 +217,7 @@ bar:
   bar1: BAR1
   bar2: BAR3
 `))
-	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^BAR2\$`)
+	c.Check(err, ErrorMatches, `no alternative for attribute "bar\.bar2" matches: attribute "bar\.bar2" value "BAR3" does not match \^\(BAR2\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestOtherScalars(c *C) {
@@ -251,7 +275,7 @@ foo: ["/foo/x", "/foo/y"]
 	err = cstrs.Check(attrs(`
 foo: ["/foo/x", "/foo"]
 `))
-	c.Check(err, ErrorMatches, `attribute "foo\.1" value "/foo" does not match \^/foo/\.\*\$`)
+	c.Check(err, ErrorMatches, `attribute "foo\.1" value "/foo" does not match \^\(/foo/\.\*\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestMatchingListsMap(c *C) {
@@ -271,7 +295,7 @@ foo: [{p: "/foo/x"}, {p: "/foo/y"}]
 	err = cstrs.Check(attrs(`
 foo: [{p: "zzz"}, {p: "/foo/y"}]
 `))
-	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^/foo/\.\*\$`)
+	c.Check(err, ErrorMatches, `attribute "foo\.0\.p" value "zzz" does not match \^\(/foo/\.\*\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestAlwaysMatchAttributeConstraints(c *C) {
@@ -418,7 +442,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleDefaults(c *C) {
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
-			"slot-snap-type":    []interface{}{"os", "kernel", "gadget", "app"},
+			"slot-snap-type":    []interface{}{"core", "kernel", "gadget", "app"},
 			"slot-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"},
 		},
@@ -426,7 +450,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstrain
 	c.Assert(err, IsNil)
 
 	cstrs := rule.AllowConnection
-	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"os", "kernel", "gadget", "app"})
+	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
 	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"})
 
@@ -479,6 +503,10 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
   allow-connection:
     slot-snap-type:
       - foo`, `slot-snap-type in allow-connection in plug rule for interface "iface" contains an invalid element: "foo"`},
+		{`iface:
+  allow-connection:
+    slot-snap-type:
+      - xapp`, `slot-snap-type in allow-connection in plug rule for interface "iface" contains an invalid element: "xapp"`},
 		{`iface:
   allow-connection:
     slot-snap-ids:
