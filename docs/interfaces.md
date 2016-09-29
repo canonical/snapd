@@ -243,13 +243,14 @@ bluetooth.
 ### content
 
 Can access content from the providing snap from within the consuming snap's
-filesystem area.
+read-only filesystem area.
 
 * Auto-Connect: yes for snaps from same publisher, no otherwise
 * Attributes:
-    * read (slot): read-only paths from providing snap to expose to the consuming snap
-    * write (slot): read-write paths from providing snap to expose to the consuming snap
-    * target (plug): path in consuming snap to find providing snap's files
+    * read (slot): read-only paths from providing snap to expose to the consuming snap.
+    * target (plug): path in consuming snap to find providing snap's files.
+
+*Note: Paths start from the $SNAP folder. $SNAP_DATA is currently not accessible*
 
 ### cups-control
 
