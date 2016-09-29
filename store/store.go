@@ -1133,7 +1133,8 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 	}
 	if useDeltas() && len(downloadInfo.Deltas) == 1 {
-		if snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user); err == nil {
+		snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user)
+		if err == nil {
 			return snapPath, nil
 		}
 		// We revert to normal downloads if there is any error.
@@ -1261,20 +1262,20 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 	return deltaPath, nil
 }
 
-// applyDelta generates a target snap from the current snap and a downloaded delta.
+// applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
 var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
-	currentSnapName := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
-	currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
+	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
+	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
 
-	if !osutil.FileExists(currentSnapPath) {
-		return "", fmt.Errorf("the source snap at revision %d could not be found at %s", deltaInfo.FromRevision, currentSnapPath)
+	if !osutil.FileExists(snapPath) {
+		return "", fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
 	}
 
 	if deltaInfo.Format != "xdelta" {
 		return "", fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
 	}
 
-	targetSnapName := fmt.Sprintf("%s_%d_via_delta_%d_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision, deltaInfo.ToRevision)
+	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
 
 	// Create a temporary file only to get the unique path.
 	tmpfile, err := ioutil.TempFile("", targetSnapName)
@@ -1286,10 +1287,11 @@ var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) 
 		return "", err
 	}
 
-	xdeltaArgs := []string{"patch", deltaPath, currentSnapPath, targetSnapPath}
+	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
 	cmd := exec.Command("xdelta", xdeltaArgs...)
 
 	if err = cmd.Run(); err != nil {
+		os.Remove(targetSnapPath)
 		return "", err
 	}
 
@@ -1310,13 +1312,13 @@ func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadIn
 		return "", err
 	}
 
-	logger.Debugf("Successfully downloaded delta for %s at %s", name, deltaPath)
+	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
 	snapPath, err := applyDelta(name, deltaPath, deltaInfo)
 	if err != nil {
 		return "", err
 	}
 
-	logger.Debugf("Successfully applied delta for %s at %s. Returning %q instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
+	logger.Debugf("Successfully applied delta for %q at %s. Returning %s instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
 	return snapPath, nil
 }
 
