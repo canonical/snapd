@@ -258,19 +258,19 @@ var (
 	}
 )
 
-func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}, outcomeShortcut string, err error) {
+func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}, invert bool, err error) {
 	switch x := v.(type) {
 	case map[string]interface{}:
-		return x, "", nil
+		return x, false, nil
 	case string:
 		switch x {
 		case "true":
-			return nil, "true", nil
+			return nil, false, nil
 		case "false":
-			return nil, "false", nil
+			return nil, true, nil
 		}
 	}
-	return nil, "", fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
+	return nil, false, fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
 
 }
 
@@ -280,15 +280,13 @@ type constraintsHolder interface {
 }
 
 func baseCompileConstraints(context string, constraints interface{}, target constraintsHolder, attrConstraints, idConstraints []string) error {
-	cMap, shortcut, err := checkMapOrShortcut(context, constraints)
+	cMap, invert, err := checkMapOrShortcut(context, constraints)
 	if err != nil {
 		return err
 	}
 	if cMap == nil {
-		var fixed *AttributeConstraints
-		if shortcut == "true" {
-			fixed = AlwaysMatchAttributes
-		} else { // "false"
+		fixed := AlwaysMatchAttributes // "true"
+		if invert {                    // "false"
 			fixed = NeverMatchAttributes
 		}
 		for _, field := range attrConstraints {
@@ -334,15 +332,14 @@ type rule interface {
 type subruleCompiler func(context string, subrule string, constraints interface{}) (constraintsHolder, error)
 
 func baseCompileRule(context string, rule interface{}, target rule, subrules []string, compilers map[string]subruleCompiler, defaultOutcome, invertedOutcome map[string]interface{}) error {
-	rMap, shortcut, err := checkMapOrShortcut(context, rule)
+	rMap, invert, err := checkMapOrShortcut(context, rule)
 	if err != nil {
 		return err
 	}
 	if rMap == nil {
-		if shortcut == "true" {
-			rMap = defaultOutcome
-		} else { // "false"
-			rMap = invertedOutcome
+		rMap = defaultOutcome // "true"
+		if invert {
+			rMap = invertedOutcome // "false"
 		}
 	}
 	defaultUsed := 0
