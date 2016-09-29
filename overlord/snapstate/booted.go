@@ -90,6 +90,8 @@ func UpdateRevisions(st *state.State) error {
 		for snapName, snapState := range installed {
 			if name == snapName {
 				if rev != snapState.Current {
+					// FIXME: check that there is no task
+					//        for this already in progress
 					ts, err := RevertToRevision(st, name, rev, Flags(0))
 					if err != nil {
 						return err
