@@ -664,7 +664,7 @@ func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 	}
 }
 
-// order encapsulates the purchase data sent to us from the software center agent.
+// ordersResult encapsulates the purchase data sent to us from the software center agent.
 //
 // {
 //   "orders": [
@@ -686,7 +686,7 @@ func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 //     }
 //   ]
 // }
-type orders struct {
+type ordersResult struct {
 	Orders []*order `json:"orders"`
 }
 
@@ -699,7 +699,7 @@ type order struct {
 	PurchaseDate    string `json:"purchase_date"`
 }
 
-func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) (*orders, error) {
+func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) (*ordersResult, error) {
 	if user == nil {
 		return nil, ErrUnauthenticated
 	}
@@ -715,12 +715,12 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 	}
 	defer resp.Body.Close()
 
-	var purchases orders
+	var result ordersResult
 
 	switch resp.StatusCode {
 	case http.StatusOK:
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&purchases); err != nil {
+		if err := dec.Decode(&result); err != nil {
 			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
 		}
 	case http.StatusUnauthorized:
@@ -730,7 +730,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		return nil, respToError(resp, "obtain known purchases from store")
 	}
 
-	return &purchases, nil
+	return &result, nil
 }
 
 func setMustBuy(snaps []*snap.Info) {
@@ -766,32 +766,32 @@ func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth
 
 	var err error
 
-	purchases, err := s.getPurchasesFromURL(s.purchasesURI, channel, user)
+	result, err := s.getPurchasesFromURL(s.purchasesURI, channel, user)
 	if err != nil {
 		return err
 	}
 
-	// Group purchases by snap ID.
-	purchasesByID := make(map[string]bool)
-	for _, purchase := range purchases.Orders {
-		purchasesByID[purchase.SnapID] = true
+	// Group orders by snap ID.
+	ordersByID := make(map[string]bool)
+	for _, order := range result.Orders {
+		ordersByID[order.SnapID] = true
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
+		info.MustBuy = mustBuy(info.Prices, ordersByID[info.SnapID])
 	}
 
 	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
-func mustBuy(prices map[string]float64, purchased bool) bool {
+func mustBuy(prices map[string]float64, bought bool) bool {
 	if len(prices) == 0 {
-		// If the snap is free, then it doesn't need purchasing
+		// If the snap is free, then it doesn't need buying
 		return false
 	}
 
-	return !purchased
+	return !bought
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
