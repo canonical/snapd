@@ -593,7 +593,7 @@ var applyDeltaTests = []struct {
 	// An error is returned if the expected current snap does not exist on disk.
 	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
 	currentRevision: 23,
-	error:           "the source snap at revision 24 could not be found",
+	error:           "snap \"foo\" revision 24 not found",
 }, {
 	// An error is returned if the format is not supported.
 	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
