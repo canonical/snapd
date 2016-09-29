@@ -64,14 +64,13 @@ backends:
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
-            # FIXME: remove the ubuntu-core-16.04-64 dummy system once the runner handles tasks without systems assigned
-            - ubuntu-core-16.04-64:
-                username: test
-                password: ubuntu
             - ubuntu-core-16-device-amd64:
                 username: test
                 password: ubuntu
-            - ubuntu-core-16-arm:
+            - ubuntu-core-16-arm-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-16-arm-32:
                 username: test
                 password: ubuntu
 
