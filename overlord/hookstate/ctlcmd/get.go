@@ -24,6 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/configstate"
 )
 
 type getCommand struct {
@@ -56,16 +57,15 @@ func init() {
 }
 
 func (c *getCommand) Execute(args []string) error {
-	if c.context() == nil {
+	context := c.context()
+	if context == nil {
 		return fmt.Errorf("cannot get without a context")
 	}
 
-	transaction, err := getTransaction(c.context())
-	if err != nil {
-		return err
-	}
-
 	patch := make(map[string]interface{})
+	context.Lock()
+	transaction := configstate.ContextTransaction(context)
+	context.Unlock()
 
 	for _, key := range c.Positional.Keys {
 		var value interface{}

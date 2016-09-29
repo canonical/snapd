@@ -75,6 +75,7 @@ var allInterfaces = []interfaces.Interface{
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
 	NewFuseSupportInterface(),
+	NewTimeControlInterface(),
 	NewLibvirtInterface(),
 }
 

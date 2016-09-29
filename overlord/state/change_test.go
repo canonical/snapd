@@ -195,6 +195,7 @@ func (cs *changeSuite) TestCloseReadyOnExplicitStatus(c *C) {
 		c.Fatalf("Change should not be ready")
 	default:
 	}
+	c.Assert(chg.IsReady(), Equals, false)
 
 	chg.SetStatus(state.ErrorStatus)
 
@@ -203,6 +204,7 @@ func (cs *changeSuite) TestCloseReadyOnExplicitStatus(c *C) {
 	default:
 		c.Fatalf("Change should be ready")
 	}
+	c.Assert(chg.IsReady(), Equals, true)
 }
 
 func (cs *changeSuite) TestCloseReadyWhenTasksReady(c *C) {
@@ -221,6 +223,7 @@ func (cs *changeSuite) TestCloseReadyWhenTasksReady(c *C) {
 		c.Fatalf("Change should not be ready")
 	default:
 	}
+	c.Assert(chg.IsReady(), Equals, false)
 
 	t1.SetStatus(state.DoneStatus)
 
@@ -229,6 +232,7 @@ func (cs *changeSuite) TestCloseReadyWhenTasksReady(c *C) {
 		c.Fatalf("Change should not be ready")
 	default:
 	}
+	c.Assert(chg.IsReady(), Equals, false)
 
 	t2.SetStatus(state.DoneStatus)
 
@@ -237,6 +241,7 @@ func (cs *changeSuite) TestCloseReadyWhenTasksReady(c *C) {
 	default:
 		c.Fatalf("Change should be ready")
 	}
+	c.Assert(chg.IsReady(), Equals, true)
 }
 
 func (cs *changeSuite) TestIsClean(c *C) {

@@ -93,10 +93,9 @@ func (s *BaseSnapSuite) Login(c *C) {
 }
 
 func (s *BaseSnapSuite) Logout(c *C) {
-	c.Assert(s.AuthFile == "", Equals, false)
-	err := os.Remove(s.AuthFile)
-	c.Assert(err, IsNil)
-	c.Assert(osutil.FileExists(s.AuthFile), Equals, false)
+	if osutil.FileExists(s.AuthFile) {
+		c.Assert(os.Remove(s.AuthFile), IsNil)
+	}
 }
 
 type SnapSuite struct {

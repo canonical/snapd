@@ -1,3 +1,103 @@
+snapd (2.16) xenial; urgency=medium
+
+  * New upstream release, LP: #1628425
+    - overlord/state: prune old empty changes
+    - interfaces: ppp: load needed kernel module (#2007)
+    - interfaces/builtin: add missing rule to allow run-parts to
+      execute all resolvconf scripts
+    - many: rename apply-config hook to configure
+    - tests: use new spread `debug` feature
+    - many: finish `snap set` API.
+    - overlord: fix and simplify configstate.Transaction
+    - assertions: add system-user assertion
+    - snap: add `snap known --remote`
+    - tests: replace systemd-run with on-the-fly generation of units.
+    - overlord/boot: switch to using assertstate.Batch
+    - snap, daemon, store: pass through screenshots from store
+    - image: add meta/gadget.yaml infrastructure
+    - tests: add test benchmark script
+    - daemon: add the actual ssh keys that got added to the create-user
+      response
+    - daemon: add REST API behind `snap get`
+    - debian: re-add golang-github-gosexy-gettext-dev
+    - tests: added install_local function
+    - interfaces/builtin: fix resolvconf permissions for network-manager
+      interface
+    - tests: use apt as compatible with trusty
+    - many: discard preserved namespace after removing snap
+    - daemon, overlord, store: add ReadyToBuy API to snapd
+    - many: add support for installing/removing multiple snaps
+    - progress: use New64 and fix output newline
+    - interfaces/builtin: allow network-manager to access netplan conf
+      files
+    - tests: build once and install test snap from cache
+    - overlord/state: introduce cleanup support
+    - snap: move/clarify Info.Broken
+    - ctlcmd: add snapctl get.
+    - overlord,store: clean up serial-proof plumbing code
+    - interfaces/builtin: add network-setup-observe interface
+    - daemon,overlord/assertstate: support streams of assertions with
+      snap ack
+    - snapd: kmod backend
+    - tests: ensure HOME is also set correctly
+    - configstate,hookstate: add snapctl set
+    - tests: disable broken create-key test
+    - interfaces: adjust bluetooth-control to allow getsockopt (LP:
+      #1613572)
+    - tests: add a test for core about device initialization and device
+      registration and auth
+    - many: show snap name before the download progress bar
+    - interfaces/builtin: add rcvfrom for client connected plugs to mir
+      interface
+    - asserts: support for maps in assertions
+    - tests: increase timeout for key generation in create-key test
+    - many: validate refreshes against validation assertions by gating
+      snaps
+    - interfaces/apparmor: allow 'm' in default policy for snap-exec
+    - many: avoid snap.InfoFromSnapYaml in tests
+    - interfaces/builtin: allow /dev/net/tun with network-control
+    - tests: add spread test for snap create-key/snap sign
+    - tests: add missing quotes in security-device-cgroups/task.yaml
+    - interfaces: drop ErrUnknownSecurity
+    - store: add "ready to buy" method
+    - snap/snapenv, tests: use root's data dirs when running via sudo
+    - interfaces/builtin: add initial docker interface
+    - snap: remove extra newline after progress is done
+    - docs: fix formating of HACKING.md "Testing snapd"
+    - store : add requestOptions.ExtraHeaders so that individual
+      requests can customise headers.
+    - many: use unique plug/slot names in tests
+    - tests: add tests for the classic dimension
+    - many: add vendoring of dependencies by default
+    - tests: use in-tree snap{ctl,-exec} for all tests
+    - many: support snapctl -h
+    - tests: adjust regex after changes in stat output
+    - store,snap: initial support for delta downloads
+    - interfaces/builtin: add run/udev/data paths to mir interface
+    - snap: lessen annoyance of implicit interface tests
+    - tests: ensure http{,s}_proxy is defined inside the fake-store
+    - interfaces: allow xdg-open in unity7, unity7 cleanups
+    - daemon,store: move store login user logic to store
+    - tests: replace realpath with readlink -f for trusty support.
+    - tests: add https_proxy into environment as well
+    - interfaces/builtin: allow mmaping pulseaudio buffers
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 28 Sep 2016 11:09:27 +0200
+
+snapd (2.15.2ubuntu1) xenial; urgency=medium
+
+  * New upstream release, LP: #1623579
+    - snap/snapenv, tests: use root's data dirs when running via sudo
+      (cherry pick PR: #1857)
+    - tests: add https_proxy into environment
+      (cherry pick PR: #1926)
+    - interfaces: allow xdg-open in unity7, unity7 cleanups
+      (cherry pick PR: #1946)
+    - tests: ensure http{,s}_proxy is defined inside the fake-store 
+      (cherry pick PR: #1949)
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 21 Sep 2016 17:21:12 +0200
+
 snapd (2.15.2) xenial; urgency=medium
 
   * New upstream release, LP: #1623579

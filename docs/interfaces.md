@@ -463,9 +463,15 @@ trusted apps.
 
 * Auto-Connect: no
 
+### time-control
+
+Can set system time and date and query systemd-timedated for time information.
+
+* Auto-Connect: no
+
 ### timeserver-control
 
-Can manage timeservers directly separate from ``config core``.
+Can manage timeservers via systemd-timedated and directly separate from ``config core``
 
 * Auto-Connect: no
 
