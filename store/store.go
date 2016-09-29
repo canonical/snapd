@@ -1133,8 +1133,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
 	}
 	if useDeltas() && len(downloadInfo.Deltas) == 1 {
-		snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user)
-		if err == nil {
+		if snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user); err == nil {
 			return snapPath, nil
 		}
 		// We revert to normal downloads if there is any error.
@@ -1312,8 +1311,7 @@ func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadIn
 	}
 
 	logger.Debugf("Successfully downloaded delta for %s at %s", name, deltaPath)
-	snapPath := ""
-	snapPath, err = applyDelta(name, deltaPath, deltaInfo)
+	snapPath, err := applyDelta(name, deltaPath, deltaInfo)
 	if err != nil {
 		return "", err
 	}
