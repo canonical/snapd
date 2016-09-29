@@ -213,7 +213,8 @@ type AttributeConstraints struct {
 	matcher attrMatcher
 }
 
-// compileAttributeConstraints checks and compiles a mapping or list from the assertion format into AttributeConstraints.
+// compileAttributeConstraints checks and compiles a mapping or list
+// from the assertion format into AttributeConstraints.
 func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
 	matcher, err := compileAttrMatcher(compileContext{}, constraints)
 	if err != nil {
@@ -256,7 +257,8 @@ func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}
 
 }
 
-// PlugRule holds the rule of what is allowed, wrt installation and connection, for a plug of a specific interface for a snap.
+// PlugRule holds the rule of what is allowed, wrt installation and
+// connection, for a plug of a specific interface for a snap.
 type PlugRule struct {
 	Interface string
 
@@ -296,7 +298,8 @@ func (r *PlugRule) setPlugConnectionConstraints(field string, cstrs *PlugConnect
 	}
 }
 
-// PlugInstallationConstraints specifies a set of constraints on an interface plug relevant to the installation of snap.
+// PlugInstallationConstraints specifies a set of constraints on an
+// interface plug relevant to the installation of snap.
 type PlugInstallationConstraints struct {
 	PlugAttributes *AttributeConstraints
 }
@@ -321,7 +324,9 @@ func compilePlugInstallationConstraints(interfaceName string, entry string, cons
 	return &PlugInstallationConstraints{PlugAttributes: attrs}, nil
 }
 
-// PlugConnectionConstraints specfies a set of constraints on an interface plug for a snap relevant to its connection or auto-connection.
+// PlugConnectionConstraints specfies a set of constraints on an
+// interface plug for a snap relevant to its connection or
+// auto-connection.
 type PlugConnectionConstraints struct {
 	SlotSnapTypes    []string
 	SlotSnapIDs      []string
