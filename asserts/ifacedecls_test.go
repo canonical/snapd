@@ -303,7 +303,7 @@ func checkBoolPlugConnConstraints(c *C, cstrs *asserts.PlugConnectionConstraints
 
 }
 
-func (s *plugSlotRulesSuite) TestCompilePlugRuleFull(c *C) {
+func (s *plugSlotRulesSuite) TestCompilePlugRuleAllAllowDenyStanzas(c *C) {
 	m, err := asserts.ParseHeaders([]byte(`iface:
   allow-installation:
     plug-attributes:
@@ -312,45 +312,21 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleFull(c *C) {
     plug-attributes:
       a2: A2
   allow-connection:
-    slot-snap-id:
-      - snapidsnapidsnapidsnapidsnapid01
-      - snapidsnapidsnapidsnapidsnapid02
-    publisher-id:
-      - pubidpubidpubidpubidpubidpubid01
-      - pubidpubidpubidpubidpubidpubid02
     plug-attributes:
       pa3: PA3
     slot-attributes:
       sa3: SA3
   deny-connection:
-    slot-snap-id:
-      - snapidsnapidsnapidsnapidsnapid03
-      - snapidsnapidsnapidsnapidsnapid04
-    publisher-id:
-      - pubidpubidpubidpubidpubidpubid03
-      - pubidpubidpubidpubidpubidpubid04
     plug-attributes:
       pa4: PA5
     slot-attributes:
       sa4: SA4
   allow-auto-connection:
-    slot-snap-id:
-      - snapidsnapidsnapidsnapidsnapid05
-      - snapidsnapidsnapidsnapidsnapid06
-    publisher-id:
-      - pubidpubidpubidpubidpubidpubid05
-      - pubidpubidpubidpubidpubidpubid06
     plug-attributes:
       pa5: PA5
     slot-attributes:
       sa5: SA5
   deny-auto-connection:
-    slot-snap-id:
-      - snapidsnapidsnapidsnapidsnapid07
-      - snapidsnapidsnapidsnapidsnapid08
-    publisher-id:
-      - pubidpubidpubidpubidpubidpubid07
-      - pubidpubidpubidpubidpubidpubid08
     plug-attributes:
       pa6: PA6
     slot-attributes:
