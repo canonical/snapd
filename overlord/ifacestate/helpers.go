@@ -92,7 +92,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		if snapName != "" && plugRef.Snap != snapName && slotRef.Snap != snapName {
 			continue
 		}
-		err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+		_, _, err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 		if err != nil {
 			logger.Noticef("%s", err)
 		}
@@ -173,7 +173,7 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 			continue
 		}
 		slot := candidates[0]
-		if err := m.repo.Connect(snapName, plug.Name, slot.Snap.Name(), slot.Name); err != nil {
+		if _, _, err := m.repo.Connect(snapName, plug.Name, slot.Snap.Name(), slot.Name); err != nil {
 			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
 				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
 		}

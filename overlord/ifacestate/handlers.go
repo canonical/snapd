@@ -227,30 +227,12 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// connect OS snap if snap name is omitted
-	if slotRef.Snap == "" {
-		slotRef.Snap = "ubuntu-core"
-	}
-
-	// connect the plug to slot with matching interface if slot is omitted
-	if slotRef.Name == "" {
-		plugIface := m.repo.Plug(plugRef.Snap, plugRef.Name)
-		for _, slot := range m.repo.Slots(slotRef.Snap) {
-			if slot.Interface == plugIface.Interface {
-				if slotRef.Name != "" {
-					return fmt.Errorf("cannot connect plug %q from snap %q to snap %q, too many matching slots", plugRef.Name, plugRef.Snap, slotRef.Snap)
-				}
-				slotRef.Name = slot.Name
-			}
-		}
-	}
-
 	conns, err := getConns(st)
 	if err != nil {
 		return err
 	}
 
-	err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	plugRef, slotRef, err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	if err != nil {
 		return err
 	}
