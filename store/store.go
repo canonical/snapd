@@ -23,6 +23,7 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -141,7 +142,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
-	DeltaFormats []string
+	DeltaFormat  string
 }
 
 // Store represents the ubuntu snap store
@@ -160,7 +161,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
-	deltaFormats []string
+	deltaFormat  string
 	// reused http client
 	client *http.Client
 
@@ -312,8 +313,8 @@ type searchResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
-// The default delta formats if none are configured.
-var defaultSupportedDeltaFormats = []string{"xdelta"}
+// The default delta format if not configured.
+var defaultSupportedDeltaFormat = "xdelta"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
@@ -357,9 +358,9 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		series = cfg.Series
 	}
 
-	deltaFormats := cfg.DeltaFormats
-	if deltaFormats == nil {
-		deltaFormats = defaultSupportedDeltaFormats
+	deltaFormat := cfg.DeltaFormat
+	if deltaFormat == "" {
+		deltaFormat = defaultSupportedDeltaFormat
 	}
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
@@ -377,7 +378,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
-		deltaFormats:      deltaFormats,
+		deltaFormat:       deltaFormat,
 	}
 }
 
@@ -1060,9 +1061,9 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		Data:        jsonData,
 	}
 
-	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+	if os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1" {
 		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
+			"X-Ubuntu-Delta-Formats": s.deltaFormat,
 		}
 	}
 
@@ -1132,6 +1133,25 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 		}
 	}()
 
+	if os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1" && len(downloadInfo.Deltas) == 1 {
+		downloadDir, err := ioutil.TempDir("", name+"-deltas")
+		if err == nil {
+			defer os.RemoveAll(downloadDir)
+
+			deltaPath, err := s.downloadDelta(name, downloadDir, downloadInfo, pbar, user)
+			// We revert to normal downloads if there is any error
+			if err != nil {
+				// Just log the error and continue with the normal non-delta
+				// download.
+				logger.Noticef("Cannot download deltas for %s: %v", name, err)
+			} else {
+				// Currently even on successful delta downloads, continue with the
+				// normal full download.
+				logger.Debugf("Successfully downloaded deltas for %s at %s", name, deltaPath)
+			}
+		}
+	}
+
 	url := downloadInfo.AnonDownloadURL
 	if url == "" || user != nil {
 		url = downloadInfo.DownloadURL
@@ -1193,6 +1213,49 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	}
 
 	return err
+}
+
+// downloadDelta downloads the delta for the preferred format, returning the path.
+func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
+
+	if len(downloadInfo.Deltas) != 1 {
+		return "", errors.New("store returned more than one download delta")
+	}
+
+	deltaInfo := downloadInfo.Deltas[0]
+
+	if deltaInfo.Format != s.deltaFormat {
+		return "", fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
+	}
+
+	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
+
+	w, err := os.Create(path.Join(downloadDir, deltaName))
+	if err != nil {
+		return "", err
+	}
+	deltaPath := w.Name()
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		if err != nil {
+			os.Remove(w.Name())
+			deltaPath = ""
+		}
+	}()
+
+	url := deltaInfo.AnonDownloadURL
+	if url == "" || user != nil {
+		url = deltaInfo.DownloadURL
+	}
+
+	err = download(deltaName, url, user, s, w, pbar)
+	if err != nil {
+		return "", err
+	}
+
+	return deltaPath, nil
 }
 
 type assertionSvcError struct {
