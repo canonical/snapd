@@ -473,13 +473,13 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 		stanza string
 		err    string
 	}{
-		{`iface: foo`, `plug rule for interface "iface" is not a map but is set to a shortcut that is not 'true' nor 'false': "foo"`},
+		{`iface: foo`, `plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
   - allow`, `plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
-  allow-installation: foo`, `allow-installation in plug rule for interface "iface" is not a map but is set to a shortcut that is not 'true' nor 'false': "foo"`},
+  allow-installation: foo`, `allow-installation in plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
-  allow-connection: foo`, `allow-connection in plug rule for interface "iface" is not a map but is set to a shortcut that is not 'true' nor 'false': "foo"`},
+  allow-connection: foo`, `allow-connection in plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
   allow-installation:
     plug-attributes:

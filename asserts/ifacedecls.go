@@ -232,7 +232,7 @@ func (matcher fixedAttrMatcher) match(context string, v interface{}) error {
 
 var (
 	AlwaysMatchAttributes = &AttributeConstraints{matcher: fixedAttrMatcher{nil}}
-	NeverMatchAttributes  = &AttributeConstraints{matcher: fixedAttrMatcher{errors.New("not allowed, never matching")}}
+	NeverMatchAttributes  = &AttributeConstraints{matcher: fixedAttrMatcher{errors.New("not allowed")}}
 )
 
 // Check checks whether attrs don't match the constraints.
@@ -250,12 +250,9 @@ func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}
 			return nil, true, nil
 		case "false":
 			return nil, false, nil
-		default:
-			return nil, false, fmt.Errorf("%s is not a map but is set to a shortcut that is not 'true' nor 'false': %q", context, x)
 		}
-	default:
-		return nil, false, fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
 	}
+	return nil, false, fmt.Errorf("%s must be a map or one of the shortcuts 'true' or 'false'", context)
 
 }
 
