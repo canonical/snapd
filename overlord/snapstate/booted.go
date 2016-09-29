@@ -74,7 +74,6 @@ func UpdateRevisions(st *state.State) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	st.Lock()
 	installed, err := All(st)
 	if err != nil {
 		return fmt.Errorf(errorPrefix+"%s", err)
@@ -101,20 +100,16 @@ func UpdateRevisions(st *state.State) error {
 			}
 		}
 	}
-	st.Unlock()
 
 	if len(tsAll) == 0 {
 		return nil
 	}
 
-	st.Lock()
 	msg := fmt.Sprintf("Update kernel and core snap revisions")
 	chg := st.NewChange("update-revisions", msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
-	st.EnsureBefore(0)
-	st.Unlock()
 
 	return nil
 }

@@ -651,13 +651,16 @@ func (m *SnapManager) Ensure() error {
 	m.state.Lock()
 	wasRun := m.state.Cached(cachedUpdateRevisionsWasRun{})
 	m.state.Unlock()
+
 	if wasRun == nil {
-		if err := UpdateRevisions(m.state); err != nil {
-			return err
-		}
 		m.state.Lock()
+		err := UpdateRevisions(m.state)
+		m.state.EnsureBefore(0)
 		m.state.Cache(cachedUpdateRevisionsWasRun{}, true)
 		m.state.Unlock()
+		if err != nil {
+			return err
+		}
 	}
 
 	m.runner.Ensure()

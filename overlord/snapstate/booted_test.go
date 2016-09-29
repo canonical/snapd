@@ -21,16 +21,15 @@ package snapstate_test
 
 // test the boot releated code
 
-/*
 import (
 	"os"
 	"path/filepath"
-	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -39,11 +38,9 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-func TestBoot(t *testing.T) { TestingT(t) }
-
 type bootedSuite struct {
 	bootloader *boottest.MockBootloader
-	state      *state.State
+	overlord   *overlord.Overlord
 }
 
 var _ = Suite(&bootedSuite{})
@@ -61,23 +58,25 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
 	partition.ForceBootloader(bs.bootloader)
 
-	bs.state = state.New(nil)
+	ovld, err := overlord.New()
+	c.Assert(err, IsNil)
+	bs.overlord = ovld
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
+	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
 }
 
-var osSI1 = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(1)}
-var osSI2 = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(2)}
-var kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
-var kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
+var (
+	osSI1     = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(1)}
+	osSI2     = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(2)}
+	kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
+	kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
+)
 
 func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
-	st.Lock()
-	defer st.Unlock()
-
 	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 1", osSI1)
 	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 2", osSI2)
 	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
@@ -99,15 +98,23 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
-	st := bs.state
+	st := bs.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_1.snap"
-	err := snapstate.UpdateRevisions(bs.state)
+	err := snapstate.UpdateRevisions(st)
 	c.Assert(err, IsNil)
 
+	st.Unlock()
+	bs.overlord.Settle()
 	st.Lock()
-	defer st.Unlock()
+
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
+	c.Assert(chg.Err(), IsNil)
 
 	// ubuntu-core "current" got reverted but canonical-pc-linux did not
 	var snapst snapstate.SnapState
@@ -123,15 +130,23 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
-	st := bs.state
+	st := bs.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_1.snap"
-	err := snapstate.UpdateRevisions(bs.state)
+	err := snapstate.UpdateRevisions(st)
 	c.Assert(err, IsNil)
 
+	st.Unlock()
+	bs.overlord.Settle()
 	st.Lock()
-	defer st.Unlock()
+
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
+	c.Assert(chg.Err(), IsNil)
 
 	// canonical-pc-linux "current" got reverted but ubuntu-core did not
 	var snapst snapstate.SnapState
@@ -147,25 +162,34 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
-	bs.makeInstalledKernelOS(c, bs.state)
+	st := bs.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_99.snap"
-	err := snapstate.UpdateRevisions(bs.state)
+	err := snapstate.UpdateRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
-	bs.makeInstalledKernelOS(c, bs.state)
+	st := bs.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_99.snap"
-	err := snapstate.UpdateRevisions(bs.state)
+	err := snapstate.UpdateRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "ubuntu-core"`)
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
-	st := bs.state
-
+	st := bs.overlord.State()
 	st.Lock()
+	defer st.Unlock()
+
 	// put ubuntu-core into the state but add no files on disk
 	// will break in the tasks
 	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
@@ -174,11 +198,18 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 		Sequence: []*snap.SideInfo{osSI1, osSI2},
 		Current:  snap.R(2),
 	})
-	st.Unlock()
 
 	bs.bootloader.BootVars["snap_kernel"] = "ubuntu-core_1.snap"
-	err := snapstate.UpdateRevisions(bs.state)
-	c.Assert(err, ErrorMatches, `(?ms)cannot update revisions after boot changes:.*`)
+	err := snapstate.UpdateRevisions(st)
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	bs.overlord.Settle()
+	st.Lock()
+
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make current revision for snap "ubuntu-core" unavailable.*`)
 }
 
 func (bs *bootedSuite) TestNameAndRevnoFromSnapValid(c *C) {
@@ -192,4 +223,3 @@ func (bs *bootedSuite) TestNameAndRevnoFromSnapInvalidFormat(c *C) {
 	_, _, err := snapstate.NameAndRevnoFromSnap("invalid")
 	c.Assert(err, ErrorMatches, `input "invalid" has invalid format \(not enough '_'\)`)
 }
-*/
