@@ -240,6 +240,23 @@ func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
 	return c.matcher.match("", attrs)
 }
 
+// rules
+
+var (
+	validSnapType  = regexp.MustCompile("^(?:core|kernel|gadget|app)$")
+	validSnapID    = regexp.MustCompile("^[a-z0-9A-Z]{32}$")                                             // snap-ids look like this
+	validPublisher = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[a-z](?:-?[a-z0-9])*)$") // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
+
+	validIDConstraints = map[string]*regexp.Regexp{
+		"slot-snap-type":    validSnapType,
+		"slot-snap-id":      validSnapID,
+		"slot-publisher-id": validPublisher,
+		"plug-snap-type":    validSnapType,
+		"plug-snap-id":      validSnapID,
+		"plug-publisher-id": validPublisher,
+	}
+)
+
 func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}, outcomeShortcut string, err error) {
 	switch x := v.(type) {
 	case map[string]interface{}:
@@ -256,6 +273,101 @@ func checkMapOrShortcut(context string, v interface{}) (m map[string]interface{}
 
 }
 
+type constraintsHolder interface {
+	setAttributeConstraints(field string, cstrs *AttributeConstraints)
+	setIDConstraints(field string, cstrs []string)
+}
+
+func baseCompileConstraints(context string, constraints interface{}, target constraintsHolder, attrConstraints, idConstraints []string) error {
+	cMap, shortcut, err := checkMapOrShortcut(context, constraints)
+	if err != nil {
+		return err
+	}
+	if cMap == nil {
+		var fixed *AttributeConstraints
+		if shortcut == "true" {
+			fixed = AlwaysMatchAttributes
+		} else { // "false"
+			fixed = NeverMatchAttributes
+		}
+		for _, field := range attrConstraints {
+			target.setAttributeConstraints(field, fixed)
+		}
+		return nil
+	}
+	defaultUsed := 0
+	for _, field := range idConstraints {
+		l, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validIDConstraints[field])
+		if err != nil {
+			return err
+		}
+		if l == nil {
+			defaultUsed++
+		}
+		target.setIDConstraints(field, l)
+	}
+	for _, field := range attrConstraints {
+		cstrs := AlwaysMatchAttributes
+		v := cMap[field]
+		if v != nil {
+			var err error
+			cstrs, err = compileAttributeConstraints(cMap[field])
+			if err != nil {
+				return fmt.Errorf("cannot compile %s in %s: %v", field, context, err)
+			}
+		} else {
+			defaultUsed++
+		}
+		target.setAttributeConstraints(field, cstrs)
+	}
+	if defaultUsed == len(attributeConstraints)+len(idConstraints) {
+		return fmt.Errorf("%s must specify at least one of %s, %s", context, strings.Join(attrConstraints, ", "), strings.Join(idConstraints, ", "))
+	}
+	return nil
+}
+
+type rule interface {
+	setConstraints(field string, cstrs constraintsHolder)
+}
+
+type subruleCompiler func(context string, subrule string, constraints interface{}) (constraintsHolder, error)
+
+func baseCompileRule(context string, rule interface{}, target rule, subrules []string, compilers map[string]subruleCompiler, defaultOutcome, invertedOutcome map[string]interface{}) error {
+	rMap, shortcut, err := checkMapOrShortcut(context, rule)
+	if err != nil {
+		return err
+	}
+	if rMap == nil {
+		if shortcut == "true" {
+			rMap = defaultOutcome
+		} else { // "false"
+			rMap = invertedOutcome
+		}
+	}
+	defaultUsed := 0
+	// compile and set subrules
+	for _, subrule := range subrules {
+		v := rMap[subrule]
+		if v == nil {
+			v = defaultOutcome[subrule]
+			defaultUsed++
+		}
+		compiler := compilers[subrule]
+		if compiler == nil {
+			panic(fmt.Sprintf("no compiler for %s in %s", subrule, context))
+		}
+		cstrs, err := compiler(context, subrule, v)
+		if err != nil {
+			return err
+		}
+		target.setConstraints(subrule, cstrs)
+	}
+	if defaultUsed == len(subrules) {
+		return fmt.Errorf("%s must specify at least one of %s", context, strings.Join(subrules, ", "))
+	}
+	return nil
+}
+
 // PlugRule holds the rule of what is allowed, wrt installation and connection, for a plug of a specific interface for a snap.
 type PlugRule struct {
 	Interface string
@@ -270,55 +382,69 @@ type PlugRule struct {
 	DenyAutoConnection  *PlugConnectionConstraints
 }
 
-func (r *PlugRule) setPlugInstallationConstraints(field string, cstrs *PlugInstallationConstraints) {
-	switch field {
-	case "allow-installation":
-		r.AllowInstallation = cstrs
-	case "deny-installation":
-		r.DenyInstallation = cstrs
-	default:
-		panic("unknown PlugRule field " + field)
+func (r *PlugRule) setConstraints(field string, cstrs constraintsHolder) {
+	switch x := cstrs.(type) {
+	case *PlugInstallationConstraints:
+		switch field {
+		case "allow-installation":
+			r.AllowInstallation = x
+			return
+		case "deny-installation":
+			r.DenyInstallation = x
+			return
+		}
+	case *PlugConnectionConstraints:
+		switch field {
+		case "allow-connection":
+			r.AllowConnection = x
+			return
+		case "deny-connection":
+			r.DenyConnection = x
+			return
+		case "allow-auto-connection":
+			r.AllowAutoConnection = x
+			return
+		case "deny-auto-connection":
+			r.DenyAutoConnection = x
+			return
+		}
 	}
-}
-
-func (r *PlugRule) setPlugConnectionConstraints(field string, cstrs *PlugConnectionConstraints) {
-	switch field {
-	case "allow-connection":
-		r.AllowConnection = cstrs
-	case "deny-connection":
-		r.DenyConnection = cstrs
-	case "allow-auto-connection":
-		r.AllowAutoConnection = cstrs
-	case "deny-auto-connection":
-		r.DenyAutoConnection = cstrs
-	default:
-		panic("unknown PlugRule field " + field)
-	}
+	panic(fmt.Sprintf("cannot set PlugRule field %q with %T", field, cstrs))
 }
 
 // PlugInstallationConstraints specifies a set of constraints on an interface plug relevant to the installation of snap.
 type PlugInstallationConstraints struct {
+	PlugSnapTypes []string
+
 	PlugAttributes *AttributeConstraints
 }
 
-func compilePlugInstallationConstraints(interfaceName string, entry string, constraints interface{}) (*PlugInstallationConstraints, error) {
-	context := fmt.Sprintf("%s in plug rule for interface %q", entry, interfaceName)
-	cMap, shortcut, err := checkMapOrShortcut(context, constraints)
+func (c *PlugInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
+	switch field {
+	case "plug-attributes":
+		c.PlugAttributes = cstrs
+	default:
+		panic("unknown PlugInstallationConstraints field " + field)
+	}
+}
+
+func (c *PlugInstallationConstraints) setIDConstraints(field string, cstrs []string) {
+	switch field {
+	case "plug-snap-type":
+		c.PlugSnapTypes = cstrs
+	default:
+		panic("unknown PlugInstallationConstraints field " + field)
+	}
+}
+
+func compilePlugInstallationConstraints(context, entry string, constraints interface{}) (constraintsHolder, error) {
+	context = fmt.Sprintf("%s in %s", entry, context)
+	plugInstCstrs := &PlugInstallationConstraints{}
+	err := baseCompileConstraints(context, constraints, plugInstCstrs, []string{"plug-attributes"}, []string{"plug-snap-type"})
 	if err != nil {
 		return nil, err
 	}
-	if cMap == nil {
-		if shortcut == "true" {
-			return &PlugInstallationConstraints{PlugAttributes: AlwaysMatchAttributes}, nil
-		}
-		// "false"
-		return &PlugInstallationConstraints{PlugAttributes: NeverMatchAttributes}, nil
-	}
-	attrs, err := compileAttributeConstraints(cMap["plug-attributes"])
-	if err != nil {
-		return nil, fmt.Errorf("cannot compile plug-attributes in %s: %v", context, err)
-	}
-	return &PlugInstallationConstraints{PlugAttributes: attrs}, nil
+	return plugInstCstrs, nil
 }
 
 // PlugConnectionConstraints specfies a set of constraints on an interface plug for a snap relevant to its connection or auto-connection.
@@ -358,55 +484,14 @@ func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []strin
 var (
 	attributeConstraints = []string{"plug-attributes", "slot-attributes"}
 	plugIDConstraints    = []string{"slot-snap-type", "slot-publisher-id", "slot-snap-id"}
-
-	validPlugIDConstraints = map[string]*regexp.Regexp{
-		"slot-snap-type":    regexp.MustCompile("^(?:core|kernel|gadget|app)$"),
-		"slot-snap-id":      regexp.MustCompile("^[a-z0-9A-Z]{32}$"),                                             // snap-ids look like this
-		"slot-publisher-id": regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[a-z](?:-?[a-z0-9])*)$"), // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
-	}
 )
 
-func compilePlugConnectionConstraints(interfaceName string, entry string, constraints interface{}) (*PlugConnectionConstraints, error) {
-	context := fmt.Sprintf("%s in plug rule for interface %q", entry, interfaceName)
-	cMap, shortcut, err := checkMapOrShortcut(context, constraints)
+func compilePlugConnectionConstraints(context, entry string, constraints interface{}) (constraintsHolder, error) {
+	context = fmt.Sprintf("%s in %s", entry, context)
+	plugConnCstrs := &PlugConnectionConstraints{}
+	err := baseCompileConstraints(context, constraints, plugConnCstrs, attributeConstraints, plugIDConstraints)
 	if err != nil {
 		return nil, err
-	}
-	if cMap == nil {
-		if shortcut == "true" {
-			return &PlugConnectionConstraints{PlugAttributes: AlwaysMatchAttributes, SlotAttributes: AlwaysMatchAttributes}, nil
-		}
-		// "false"
-		return &PlugConnectionConstraints{PlugAttributes: NeverMatchAttributes, SlotAttributes: NeverMatchAttributes}, nil
-	}
-	plugConnCstrs := &PlugConnectionConstraints{}
-	defaultUsed := 0
-	for _, field := range plugIDConstraints {
-		l, err := checkStringListInMap(cMap, field, fmt.Sprintf("%s in %s", field, context), validPlugIDConstraints[field])
-		if err != nil {
-			return nil, err
-		}
-		if l == nil {
-			defaultUsed++
-		}
-		plugConnCstrs.setIDConstraints(field, l)
-	}
-	for _, field := range attributeConstraints {
-		cstrs := AlwaysMatchAttributes
-		v := cMap[field]
-		if v != nil {
-			var err error
-			cstrs, err = compileAttributeConstraints(cMap[field])
-			if err != nil {
-				return nil, fmt.Errorf("cannot compile %s in %s: %v", field, context, err)
-			}
-		} else {
-			defaultUsed++
-		}
-		plugConnCstrs.setAttributeConstraints(field, cstrs)
-	}
-	if defaultUsed == len(attributeConstraints)+len(plugIDConstraints) {
-		return nil, fmt.Errorf("%s must specify at least one of %s, %s", context, strings.Join(attributeConstraints, ", "), strings.Join(plugIDConstraints, ", "))
 	}
 	return plugConnCstrs, nil
 }
@@ -430,55 +515,174 @@ var (
 		"deny-auto-connection":  "true",
 	}
 
-	installationSubrules = []string{"allow-installation", "deny-installation"}
-	connectionsSubrules  = []string{"allow-connection", "deny-connection", "allow-auto-connection", "deny-auto-connection"}
+	ruleSubrules = []string{"allow-installation", "deny-installation", "allow-connection", "deny-connection", "allow-auto-connection", "deny-auto-connection"}
 )
+
+var plugRuleCompilers = map[string]subruleCompiler{
+	"allow-installation":    compilePlugInstallationConstraints,
+	"deny-installation":     compilePlugInstallationConstraints,
+	"allow-connection":      compilePlugConnectionConstraints,
+	"deny-connection":       compilePlugConnectionConstraints,
+	"allow-auto-connection": compilePlugConnectionConstraints,
+	"deny-auto-connection":  compilePlugConnectionConstraints,
+}
 
 func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) {
 	context := fmt.Sprintf("plug rule for interface %q", interfaceName)
-	rMap, shortcut, err := checkMapOrShortcut(context, rule)
-	if err != nil {
-		return nil, err
-	}
-	if rMap == nil {
-		if shortcut == "true" {
-			rMap = defaultOutcome
-		} else { // "false"
-			rMap = invertedOutcome
-		}
-	}
 	plugRule := &PlugRule{
 		Interface: interfaceName,
 	}
-	defaultUsed := 0
-	// installation subrules
-	for _, subrule := range installationSubrules {
-		v := rMap[subrule]
-		if v == nil {
-			v = defaultOutcome[subrule]
-			defaultUsed++
-		}
-		cstrs, err := compilePlugInstallationConstraints(interfaceName, subrule, v)
-		if err != nil {
-			return nil, err
-		}
-		plugRule.setPlugInstallationConstraints(subrule, cstrs)
-	}
-	// connection subrules
-	for _, subrule := range connectionsSubrules {
-		v := rMap[subrule]
-		if v == nil {
-			v = defaultOutcome[subrule]
-			defaultUsed++
-		}
-		cstrs, err := compilePlugConnectionConstraints(interfaceName, subrule, v)
-		if err != nil {
-			return nil, err
-		}
-		plugRule.setPlugConnectionConstraints(subrule, cstrs)
-	}
-	if defaultUsed == len(installationSubrules)+len(connectionsSubrules) {
-		return nil, fmt.Errorf("%s must specify at least one of %s, %s", context, strings.Join(installationSubrules, ", "), strings.Join(connectionsSubrules, ", "))
+	err := baseCompileRule(context, rule, plugRule, ruleSubrules, plugRuleCompilers, defaultOutcome, invertedOutcome)
+	if err != nil {
+		return nil, err
 	}
 	return plugRule, nil
+}
+
+// SlotRule holds the rule of what is allowed, wrt installation and connection, for a slot of a specific interface for a snap.
+type SlotRule struct {
+	Interface string
+
+	AllowInstallation *SlotInstallationConstraints
+	DenyInstallation  *SlotInstallationConstraints
+
+	AllowConnection *SlotConnectionConstraints
+	DenyConnection  *SlotConnectionConstraints
+
+	AllowAutoConnection *SlotConnectionConstraints
+	DenyAutoConnection  *SlotConnectionConstraints
+}
+
+func (r *SlotRule) setConstraints(field string, cstrs constraintsHolder) {
+	switch x := cstrs.(type) {
+	case *SlotInstallationConstraints:
+		switch field {
+		case "allow-installation":
+			r.AllowInstallation = x
+			return
+		case "deny-installation":
+			r.DenyInstallation = x
+			return
+		}
+	case *SlotConnectionConstraints:
+		switch field {
+		case "allow-connection":
+			r.AllowConnection = x
+			return
+		case "deny-connection":
+			r.DenyConnection = x
+			return
+		case "allow-auto-connection":
+			r.AllowAutoConnection = x
+			return
+		case "deny-auto-connection":
+			r.DenyAutoConnection = x
+			return
+		}
+	}
+	panic(fmt.Sprintf("cannot set SlotRule field %q with %T", field, cstrs))
+}
+
+// SlotInstallationConstraints specifies a set of constraints on an interface slot relevant to the installation of snap.
+type SlotInstallationConstraints struct {
+	SlotSnapTypes []string
+
+	SlotAttributes *AttributeConstraints
+}
+
+func (c *SlotInstallationConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
+	switch field {
+	case "slot-attributes":
+		c.SlotAttributes = cstrs
+	default:
+		panic("unknown SlotInstallationConstraints field " + field)
+	}
+}
+
+func (c *SlotInstallationConstraints) setIDConstraints(field string, cstrs []string) {
+	switch field {
+	case "slot-snap-type":
+		c.SlotSnapTypes = cstrs
+	default:
+		panic("unknown SlotInstallationConstraints field " + field)
+	}
+}
+
+func compileSlotInstallationConstraints(context, entry string, constraints interface{}) (constraintsHolder, error) {
+	context = fmt.Sprintf("%s in %s", entry, context)
+	slotInstCstrs := &SlotInstallationConstraints{}
+	err := baseCompileConstraints(context, constraints, slotInstCstrs, []string{"slot-attributes"}, []string{"slot-snap-type"})
+	if err != nil {
+		return nil, err
+	}
+	return slotInstCstrs, nil
+}
+
+// SlotConnectionConstraints specfies a set of constraints on an interface slot for a snap relevant to its connection or auto-connection.
+type SlotConnectionConstraints struct {
+	PlugSnapTypes    []string
+	PlugSnapIDs      []string
+	PlugPublisherIDs []string
+
+	SlotAttributes *AttributeConstraints
+	PlugAttributes *AttributeConstraints
+}
+
+func (c *SlotConnectionConstraints) setAttributeConstraints(field string, cstrs *AttributeConstraints) {
+	switch field {
+	case "plug-attributes":
+		c.PlugAttributes = cstrs
+	case "slot-attributes":
+		c.SlotAttributes = cstrs
+	default:
+		panic("unknown SlotConnectionConstraints field " + field)
+	}
+}
+
+func (c *SlotConnectionConstraints) setIDConstraints(field string, cstrs []string) {
+	switch field {
+	case "plug-snap-type":
+		c.PlugSnapTypes = cstrs
+	case "plug-snap-id":
+		c.PlugSnapIDs = cstrs
+	case "plug-publisher-id":
+		c.PlugPublisherIDs = cstrs
+	default:
+		panic("unknown SlotConnectionConstraints field " + field)
+	}
+}
+
+var (
+	slotIDConstraints = []string{"plug-snap-type", "plug-publisher-id", "plug-snap-id"}
+)
+
+func compileSlotConnectionConstraints(context, entry string, constraints interface{}) (constraintsHolder, error) {
+	context = fmt.Sprintf("%s in %s", entry, context)
+	slotConnCstrs := &SlotConnectionConstraints{}
+	err := baseCompileConstraints(context, constraints, slotConnCstrs, attributeConstraints, slotIDConstraints)
+	if err != nil {
+		return nil, err
+	}
+	return slotConnCstrs, nil
+}
+
+var slotRuleCompilers = map[string]subruleCompiler{
+	"allow-installation":    compileSlotInstallationConstraints,
+	"deny-installation":     compileSlotInstallationConstraints,
+	"allow-connection":      compileSlotConnectionConstraints,
+	"deny-connection":       compileSlotConnectionConstraints,
+	"allow-auto-connection": compileSlotConnectionConstraints,
+	"deny-auto-connection":  compileSlotConnectionConstraints,
+}
+
+func compileSlotRule(interfaceName string, rule interface{}) (*SlotRule, error) {
+	context := fmt.Sprintf("slot rule for interface %q", interfaceName)
+	slotRule := &SlotRule{
+		Interface: interfaceName,
+	}
+	err := baseCompileRule(context, rule, slotRule, ruleSubrules, slotRuleCompilers, defaultOutcome, invertedOutcome)
+	if err != nil {
+		return nil, err
+	}
+	return slotRule, nil
 }

@@ -126,6 +126,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
 		"plugs:\n  interface1: true\n" +
+		"slots:\n  interface2: true\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -144,6 +145,8 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control:\n  -\n    - nested\n", `"refresh-control" header must be a list of strings`},
 		{"plugs:\n  interface1: true\n", "plugs: \n", `"plugs" header must be a map`},
 		{"plugs:\n  interface1: true\n", "plugs:\n  intf1:\n    foo: bar\n", `plug rule for interface "intf1" must specify at least one of.*`},
+		{"slots:\n  interface2: true\n", "slots: \n", `"slots" header must be a map`},
+		{"slots:\n  interface2: true\n", "slots:\n  intf1:\n    foo: bar\n", `slot rule for interface "intf1" must specify at least one of.*`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -157,7 +160,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 
 }
 
-func (sds *snapDeclSuite) TestDecodePlugs(c *C) {
+func (sds *snapDeclSuite) TestDecodePlugsAndSlots(c *C) {
 	encoded := `type: snap-declaration
 authority-id: canonical
 series: 16
@@ -173,6 +176,11 @@ plugs:
     allow-connection:
       slot-attributes:
         a2: /foo/.*
+slots:
+  interface3:
+    allow-connection:
+      slot-attributes:
+        a3: /foo/.*
 TSLINE
 body-length: 0
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
@@ -186,6 +194,8 @@ AXNpZw==`
 	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
 
 	c.Check(snapDecl.PlugRule("interfaceX"), IsNil)
+	c.Check(snapDecl.SlotRule("interfaceX"), IsNil)
+
 	plugRule1 := snapDecl.PlugRule("interface1")
 	c.Assert(plugRule1, NotNil)
 	c.Check(plugRule1.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
@@ -193,6 +203,9 @@ AXNpZw==`
 	c.Assert(plugRule2, NotNil)
 	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
 
+	slotRule3 := snapDecl.SlotRule("interface3")
+	c.Assert(slotRule3, NotNil)
+	c.Check(slotRule3.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a3".*`)
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
