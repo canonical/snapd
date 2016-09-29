@@ -95,6 +95,16 @@ func (s *attrConstraintsSuite) TestSimpleAnchorsVsRegexpAlt(c *C) {
 		"bar": "BBAZ",
 	})
 	c.Check(err, ErrorMatches, `attribute "bar" value "BAZZ" does not match \^\(BAR|BAZ\)\$`)
+
+	err = cstrs.Check(map[string]interface{}{
+		"bar": "BABAZ",
+	})
+	c.Check(err, ErrorMatches, `attribute "bar" value "BABAZ" does not match \^\(BAR|BAZ\)\$`)
+
+	err = cstrs.Check(map[string]interface{}{
+		"bar": "BARAZ",
+	})
+	c.Check(err, ErrorMatches, `attribute "bar" value "BARAZ" does not match \^\(BAR|BAZ\)\$`)
 }
 
 func (s *attrConstraintsSuite) TestNested(c *C) {
@@ -506,6 +516,8 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 		{`iface:
   allow-installation: foo`, `allow-installation in plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
+  deny-installation: foo`, `deny-installation in plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
   allow-connection: foo`, `allow-connection in plug rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
   allow-installation:
@@ -536,6 +548,18 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
   allow-connection:
     slot-snap-ids:
       - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
+		{`iface:
+  deny-connection:
+    slot-snap-ids:
+      - foo`, `deny-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
+		{`iface:
+  allow-auto-connection:
+    slot-snap-ids:
+      - foo`, `allow-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
+		{`iface:
+  deny-auto-connection:
+    slot-snap-ids:
+      - foo`, `deny-auto-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
 		{`iface:
   allow-connect: true`, `plug rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 	}
@@ -700,6 +724,8 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
 		{`iface:
   allow-installation: foo`, `allow-installation in slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
+  deny-installation: foo`, `deny-installation in slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
   allow-connection: foo`, `allow-connection in slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
 		{`iface:
   allow-installation:
@@ -707,8 +733,8 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
       a1: [`, `cannot compile slot-attributes in allow-installation in slot rule for interface "iface": cannot compile "a1" constraint .*`},
 		{`iface:
   allow-connection:
-    slot-attributes:
-      a2: [`, `cannot compile slot-attributes in allow-connection in slot rule for interface "iface": cannot compile "a2" constraint .*`},
+    plug-attributes:
+      a2: [`, `cannot compile plug-attributes in allow-connection in slot rule for interface "iface": cannot compile "a2" constraint .*`},
 		{`iface:
   allow-connection:
     plug-snap-id:
@@ -731,13 +757,24 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
     plug-snap-ids:
       - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
 		{`iface:
+  deny-connection:
+    plug-snap-ids:
+      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+		{`iface:
+  allow-auto-connection:
+    plug-snap-ids:
+      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+		{`iface:
+  deny-auto-connection:
+    plug-snap-ids:
+      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+		{`iface:
   allow-connect: true`, `slot rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 	}
 
 	for _, t := range tests {
 		m, err := asserts.ParseHeaders([]byte(t.stanza))
 		c.Assert(err, IsNil, Commentf(t.stanza))
-
 		_, err = asserts.CompileSlotRule("iface", m["iface"])
 		c.Check(err, ErrorMatches, t.err, Commentf(t.stanza))
 	}

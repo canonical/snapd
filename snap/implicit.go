@@ -55,11 +55,11 @@ var implicitSlots = []string{
 	"timezone-control",
 	"tpm",
 	"kernel-module-control",
+	"camera",
 }
 
 var implicitClassicSlots = []string{
 	"browser-support",
-	"camera",
 	"cups-control",
 	"gsettings",
 	"libvirt",

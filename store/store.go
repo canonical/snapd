@@ -23,13 +23,16 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"sync"
@@ -37,7 +40,9 @@ import (
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -141,7 +146,7 @@ type Config struct {
 	Series       string
 
 	DetailFields []string
-	DeltaFormats []string
+	DeltaFormat  string
 }
 
 // Store represents the ubuntu snap store
@@ -160,7 +165,7 @@ type Store struct {
 	fallbackStoreID string
 
 	detailFields []string
-	deltaFormats []string
+	deltaFormat  string
 	// reused http client
 	client *http.Client
 
@@ -196,6 +201,10 @@ func getStructFields(s interface{}) []string {
 	}
 
 	return fields
+}
+
+func useDeltas() bool {
+	return os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL") == "1"
 }
 
 func useStaging() bool {
@@ -312,8 +321,8 @@ type searchResults struct {
 // The fields we are interested in
 var detailFields = getStructFields(snapDetails{})
 
-// The default delta formats if none are configured.
-var defaultSupportedDeltaFormats = []string{"xdelta"}
+// The default delta format if not configured.
+var defaultSupportedDeltaFormat = "xdelta"
 
 // New creates a new Store with the given access configuration and for given the store id.
 func New(cfg *Config, authContext auth.AuthContext) *Store {
@@ -357,9 +366,9 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		series = cfg.Series
 	}
 
-	deltaFormats := cfg.DeltaFormats
-	if deltaFormats == nil {
-		deltaFormats = defaultSupportedDeltaFormats
+	deltaFormat := cfg.DeltaFormat
+	if deltaFormat == "" {
+		deltaFormat = defaultSupportedDeltaFormat
 	}
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
@@ -377,7 +386,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailFields:      fields,
 		client:            newHTTPClient(),
 		authContext:       authContext,
-		deltaFormats:      deltaFormats,
+		deltaFormat:       deltaFormat,
 	}
 }
 
@@ -1060,9 +1069,10 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		Data:        jsonData,
 	}
 
-	if os.Getenv("SNAPPY_USE_DELTAS") == "1" {
+	if useDeltas() {
+		logger.Debugf("Deltas enabled. Adding header X-Ubuntu-Delta-Formats: %v", s.deltaFormat)
 		reqOptions.ExtraHeaders = map[string]string{
-			"X-Ubuntu-Delta-Formats": strings.Join(s.deltaFormats, ","),
+			"X-Ubuntu-Delta-Formats": s.deltaFormat,
 		}
 	}
 
@@ -1118,6 +1128,19 @@ func findRev(needle snap.Revision, haystack []snap.Revision) bool {
 // The file is saved in temporary storage, and should be removed
 // after use to prevent the disk from running out of space.
 func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+
+	if useDeltas() {
+		logger.Debugf("Available deltas returned by store: %v", downloadInfo.Deltas)
+	}
+	if useDeltas() && len(downloadInfo.Deltas) == 1 {
+		snapPath, err := s.downloadAndApplyDelta(name, downloadInfo, pbar, user)
+		if err == nil {
+			return snapPath, nil
+		}
+		// We revert to normal downloads if there is any error.
+		logger.Noticef("Cannot download or apply deltas for %s: %v", name, err)
+	}
+
 	w, err := ioutil.TempFile("", name)
 	if err != nil {
 		return "", err
@@ -1193,6 +1216,110 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	}
 
 	return err
+}
+
+// downloadDelta downloads the delta for the preferred format, returning the path.
+func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (string, error) {
+
+	if len(downloadInfo.Deltas) != 1 {
+		return "", errors.New("store returned more than one download delta")
+	}
+
+	deltaInfo := downloadInfo.Deltas[0]
+
+	if deltaInfo.Format != s.deltaFormat {
+		return "", fmt.Errorf("store returned a download delta with the wrong format (%q instead of the configured %s format)", deltaInfo.Format, s.deltaFormat)
+	}
+
+	deltaName := fmt.Sprintf("%s_%d_%d_delta.%s", name, deltaInfo.FromRevision, deltaInfo.ToRevision, deltaInfo.Format)
+
+	w, err := os.Create(path.Join(downloadDir, deltaName))
+	if err != nil {
+		return "", err
+	}
+	deltaPath := w.Name()
+	defer func() {
+		if cerr := w.Close(); cerr != nil && err == nil {
+			err = cerr
+		}
+		if err != nil {
+			os.Remove(w.Name())
+			deltaPath = ""
+		}
+	}()
+
+	url := deltaInfo.AnonDownloadURL
+	if url == "" || user != nil {
+		url = deltaInfo.DownloadURL
+	}
+
+	err = download(deltaName, url, user, s, w, pbar)
+	if err != nil {
+		return "", err
+	}
+
+	// TODO: Check sha3_384
+	return deltaPath, nil
+}
+
+// applyDelta generates a target snap from a previously downloaded snap and a downloaded delta.
+var applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+	snapBase := fmt.Sprintf("%s_%d.snap", name, deltaInfo.FromRevision)
+	snapPath := filepath.Join(dirs.SnapBlobDir, snapBase)
+
+	if !osutil.FileExists(snapPath) {
+		return "", fmt.Errorf("snap %q revision %d not found at %s", name, deltaInfo.FromRevision, snapPath)
+	}
+
+	if deltaInfo.Format != "xdelta" {
+		return "", fmt.Errorf("unsupported delta format %q. Currently only \"xdelta\" format is supported", deltaInfo.Format)
+	}
+
+	targetSnapName := fmt.Sprintf("%s_%d_patched_from_%d.snap", name, deltaInfo.ToRevision, deltaInfo.FromRevision)
+
+	// Create a temporary file only to get the unique path.
+	tmpfile, err := ioutil.TempFile("", targetSnapName)
+	if err != nil {
+		return "", err
+	}
+	targetSnapPath := tmpfile.Name()
+	if err = tmpfile.Close(); err != nil {
+		return "", err
+	}
+
+	xdeltaArgs := []string{"patch", deltaPath, snapPath, targetSnapPath}
+	cmd := exec.Command("xdelta", xdeltaArgs...)
+
+	if err = cmd.Run(); err != nil {
+		os.Remove(targetSnapPath)
+		return "", err
+	}
+
+	return targetSnapPath, nil
+}
+
+// downloadAndApplyDelta downloads and then applies the delta to the current snap.
+func (s *Store) downloadAndApplyDelta(name string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState) (path string, err error) {
+	deltaInfo := &downloadInfo.Deltas[0]
+	workingDir, err := ioutil.TempDir("", name+"-deltas")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(workingDir)
+
+	deltaPath, err := s.downloadDelta(name, workingDir, downloadInfo, pbar, user)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Debugf("Successfully downloaded delta for %q at %s", name, deltaPath)
+	snapPath, err := applyDelta(name, deltaPath, deltaInfo)
+	if err != nil {
+		return "", err
+	}
+
+	logger.Debugf("Successfully applied delta for %q at %s. Returning %s instead of full download and saving %d bytes.", name, deltaPath, snapPath, downloadInfo.Size-deltaInfo.Size)
+	return snapPath, nil
 }
 
 type assertionSvcError struct {

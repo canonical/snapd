@@ -22,10 +22,9 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"strconv"
 	"strings"
-	"text/tabwriter"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/store"
 
@@ -103,74 +102,23 @@ func buySnap(opts *store.BuyOptions) error {
 		return fmt.Errorf(i18n.G("cannot buy snap %q: it has already been bought"), opts.SnapName)
 	}
 
-	// TODO Change to use the new /buy/ready endpoint instead of checking payment methods
-	paymentInfo, err := cli.PaymentMethods()
+	err = cli.ReadyToBuy()
 	if err != nil {
-		return err
-	}
-
-	var methods []*store.PaymentMethod
-	for _, method := range paymentInfo.Methods {
-		if !method.RequiresInteraction {
-			methods = append(methods, method)
+		if e, ok := err.(*client.Error); ok {
+			switch e.Kind {
+			case client.ErrorKindNoPaymentMethods:
+				return fmt.Errorf(i18n.G(`You do not have a payment method associated with your account, visit https://my.ubuntu.com/payment/edit to add one.
+Once completed, return here and run 'snap buy %s' again.`), snap.Name)
+			case client.ErrorKindTermsNotAccepted:
+				return fmt.Errorf(i18n.G(`Please visit https://my.ubuntu.com/terms to agree to the latest terms and conditions.
+Once completed, return here and run 'snap buy %s' again.`), snap.Name)
+			}
 		}
-	}
-
-	if len(methods) == 0 {
-		return fmt.Errorf(i18n.G("cannot buy snap %q: no payment methods registered"), opts.SnapName)
+		return err
 	}
 
 	reader := bufio.NewReader(nil)
 	reader.Reset(Stdin)
-
-	// Unless the user has enabled automatic payments, we must prompt for a payment method.
-	if !paymentInfo.AllowsAutomaticPayment {
-		w := tabwriter.NewWriter(Stdout, 0, 3, 2, ' ', 0)
-
-		index := -1
-
-		fmt.Fprintln(w, i18n.G("\tSelection\tDescription"))
-		for i, method := range methods {
-			preferred := ""
-			if method.Preferred {
-				preferred = "*"
-				index = i + 1
-			}
-			fmt.Fprintf(w, "%s\t%d\t%s\n", preferred, i+1, method.Description)
-		}
-		w.Flush()
-
-		if index > 0 {
-			// If the user has a preferred payment method
-			fmt.Fprintf(Stdout, i18n.G("Press <enter> to use your default[*], or type a number to select payment method: "))
-		} else {
-			fmt.Fprintf(Stdout, i18n.G("Type a number to select payment method: "))
-		}
-
-		response, _, err := reader.ReadLine()
-		if err != nil {
-			return err
-		}
-
-		stringResponse := string(response)
-
-		if !(stringResponse == "" && index > 0) {
-			// If the user answered and also has no preferred method, we need to parse the response.
-			index, err = strconv.Atoi(stringResponse)
-			if err != nil {
-				return fmt.Errorf(i18n.G("cannot buy snap %q: invalid payment method selection %q"), snap.Name, stringResponse)
-			}
-
-			if index <= 0 || index > len(methods) {
-				return fmt.Errorf(i18n.G("cannot buy snap %q: unknown payment method selection %d"), snap.Name, index)
-			}
-		}
-
-		// Convert the payment selection to a zero-index
-		paymentMethod := methods[index-1]
-		opts.BackendID = paymentMethod.BackendID
-		opts.MethodID = paymentMethod.ID
-	}
 
 	fmt.Fprintf(Stdout, i18n.G("Do you want to buy %q from %q for %s? (Y/n): "), snap.Name,
 		snap.Developer, formatPrice(opts.Price, opts.Currency))
@@ -195,7 +143,7 @@ func buySnap(opts *store.BuyOptions) error {
 	}
 
 	// TRANSLATORS: %s is a snap name
-	fmt.Fprintf(Stdout, i18n.G("%s bought\n"), opts.SnapName)
+	fmt.Fprintf(Stdout, i18n.G("Thanks for purchasing %s. You may now install it on any of your devices with 'snap install %s'.\n"), opts.SnapName, opts.SnapName)
 
 	return nil
 }

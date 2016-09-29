@@ -169,13 +169,36 @@ snap-name: first
 publisher-id: dev-id1
 plugs:
   interface1:
+    deny-installation: false
     allow-auto-connection:
+      slot-snap-type:
+        - app
+      slot-publisher-id:
+        - acme
       slot-attributes:
         a1: /foo/.*
-  interface2:
-    allow-connection:
+      plug-attributes:
+        b1: B1
+    deny-auto-connection:
       slot-attributes:
-        a2: /foo/.*
+        a1: !A1
+      plug-attributes:
+        b1: !B1
+  interface2:
+    allow-installation: true
+    allow-connection:
+      plug-attributes:
+        a2: A2
+      slot-attributes:
+        b2: B2
+    deny-connection:
+      slot-snap-id:
+        - snapidsnapidsnapidsnapidsnapid01
+        - snapidsnapidsnapidsnapidsnapid02
+      plug-attributes:
+        a2: !A2
+      slot-attributes:
+        b2: !B2
 slots:
   interface3:
     allow-connection:
@@ -198,14 +221,26 @@ AXNpZw==`
 
 	plugRule1 := snapDecl.PlugRule("interface1")
 	c.Assert(plugRule1, NotNil)
+	c.Check(plugRule1.DenyInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
 	c.Check(plugRule1.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.AllowAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
+	c.Check(plugRule1.AllowAutoConnection.SlotSnapTypes, DeepEquals, []string{"app"})
+	c.Check(plugRule1.AllowAutoConnection.SlotPublisherIDs, DeepEquals, []string{"acme"})
+	c.Check(plugRule1.DenyAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.DenyAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
 	plugRule2 := snapDecl.PlugRule("interface2")
 	c.Assert(plugRule2, NotNil)
-	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.AllowInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Check(plugRule2.AllowConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.DenyConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 
 	slotRule3 := snapDecl.SlotRule("interface3")
 	c.Assert(slotRule3, NotNil)
 	c.Check(slotRule3.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a3".*`)
+
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {

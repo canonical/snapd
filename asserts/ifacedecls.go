@@ -213,7 +213,8 @@ type AttributeConstraints struct {
 	matcher attrMatcher
 }
 
-// compileAttributeConstraints checks and compiles a mapping or list from the assertion format into AttributeConstraints.
+// compileAttributeConstraints checks and compiles a mapping or list
+// from the assertion format into AttributeConstraints.
 func compileAttributeConstraints(constraints interface{}) (*AttributeConstraints, error) {
 	matcher, err := compileAttrMatcher(compileContext{}, constraints)
 	if err != nil {
@@ -368,7 +369,8 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 	return nil
 }
 
-// PlugRule holds the rule of what is allowed, wrt installation and connection, for a plug of a specific interface for a snap.
+// PlugRule holds the rule of what is allowed, wrt installation and
+// connection, for a plug of a specific interface for a snap.
 type PlugRule struct {
 	Interface string
 
@@ -447,7 +449,9 @@ func compilePlugInstallationConstraints(context, entry string, constraints inter
 	return plugInstCstrs, nil
 }
 
-// PlugConnectionConstraints specfies a set of constraints on an interface plug for a snap relevant to its connection or auto-connection.
+// PlugConnectionConstraints specfies a set of constraints on an
+// interface plug for a snap relevant to its connection or
+// auto-connection.
 type PlugConnectionConstraints struct {
 	SlotSnapTypes    []string
 	SlotSnapIDs      []string
@@ -539,7 +543,8 @@ func compilePlugRule(interfaceName string, rule interface{}) (*PlugRule, error) 
 	return plugRule, nil
 }
 
-// SlotRule holds the rule of what is allowed, wrt installation and connection, for a slot of a specific interface for a snap.
+// SlotRule holds the rule of what is allowed, wrt installation and
+// connection, for a slot of a specific interface for a snap.
 type SlotRule struct {
 	Interface string
 
@@ -583,7 +588,8 @@ func (r *SlotRule) setConstraints(field string, cstrs constraintsHolder) {
 	panic(fmt.Sprintf("cannot set SlotRule field %q with %T", field, cstrs))
 }
 
-// SlotInstallationConstraints specifies a set of constraints on an interface slot relevant to the installation of snap.
+// SlotInstallationConstraints specifies a set of constraints on an
+// interface slot relevant to the installation of snap.
 type SlotInstallationConstraints struct {
 	SlotSnapTypes []string
 
@@ -618,7 +624,9 @@ func compileSlotInstallationConstraints(context, entry string, constraints inter
 	return slotInstCstrs, nil
 }
 
-// SlotConnectionConstraints specfies a set of constraints on an interface slot for a snap relevant to its connection or auto-connection.
+// SlotConnectionConstraints specfies a set of constraints on an
+// interface slot for a snap relevant to its connection or
+// auto-connection.
 type SlotConnectionConstraints struct {
 	PlugSnapTypes    []string
 	PlugSnapIDs      []string
