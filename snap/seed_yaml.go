@@ -22,7 +22,6 @@ package snap
 import (
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
 
 	"gopkg.in/yaml.v2"
@@ -57,9 +56,6 @@ type Seed struct {
 
 func ReadSeedYaml(fn string) (*Seed, error) {
 	yamlData, err := ioutil.ReadFile(fn)
-	if os.IsNotExist(err) {
-		return &Seed{}, nil
-	}
 	if err != nil {
 		return nil, fmt.Errorf("cannot read seed yaml: %s", fn)
 	}

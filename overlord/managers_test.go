@@ -144,6 +144,21 @@ func makeTestSnap(c *C, snapYamlContent string) string {
 	return snaptest.MakeTestSnapWithFiles(c, snapYamlContent, nil)
 }
 
+func (ms *mgrsSuite) makePopulatedState(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "not-firstboot", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "not-firstboot", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+
+}
+
 func (ms *mgrsSuite) TestHappyLocalInstall(c *C) {
 	snapYamlContent := `name: foo
 apps:
@@ -680,6 +695,8 @@ version: @VERSION@
 // core & kernel
 
 func (ms *mgrsSuite) TestInstallCoreSnapUpdatesBootloader(c *C) {
+	ms.makePopulatedState(c)
+
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
@@ -718,6 +735,8 @@ type: os
 }
 
 func (ms *mgrsSuite) TestInstallKernelSnapUpdatesBootloader(c *C) {
+	ms.makePopulatedState(c)
+
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
