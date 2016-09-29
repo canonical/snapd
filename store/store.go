@@ -771,14 +771,14 @@ func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth
 		return err
 	}
 
-	// Group orders by snap ID.
-	ordersByID := make(map[string]bool)
+	// Make a map of the IDs of bought snaps
+	bought := make(map[string]bool)
 	for _, order := range result.Orders {
-		ordersByID[order.SnapID] = true
+		bought[order.SnapID] = true
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, ordersByID[info.SnapID])
+		info.MustBuy = mustBuy(info.Prices, bought[info.SnapID])
 	}
 
 	return nil
