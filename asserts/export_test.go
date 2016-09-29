@@ -174,3 +174,8 @@ var (
 func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name string) string {
 	return gkm.parametersForGenerate(passphrase, name)
 }
+
+// ifacedecls tests
+var (
+	CompileAttributeConstraints = compileAttributeConstraints
+)
