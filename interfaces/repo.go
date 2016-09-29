@@ -289,6 +289,7 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 							return nil, nil, fmt.Errorf("cannot connect plug %q from snap %q to snap %q, too many matching slots", plugName, plugSnapName, slotSnapName)
 						}
 						slot = s
+						slotName = s.Name
 						slotSnapName = s.Snap.Name()
 					}
 				}
@@ -300,6 +301,7 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 						return nil, nil, fmt.Errorf("cannot connect plug %q from snap %q to snap %q, too many matching slots", plugName, plugSnapName, slotSnapName)
 					}
 					slot = s
+					slotName = s.Name
 				}
 			}
 		}
