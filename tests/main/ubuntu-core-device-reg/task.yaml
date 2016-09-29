@@ -1,7 +1,7 @@
 summary: |
     Ensure after device initialisation registration worked and
     we have a serial and can acquire a session macaroon
-systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-64]
 execute: |
     echo "We have a model assertion"
     snap known model|grep "brand-id: canonical"
