@@ -586,6 +586,65 @@ func (s *RepositorySuite) TestConnectSucceeds(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *RepositorySuite) TestConnectToMatchingSlot(c *C) {
+	err := s.testRepo.AddPlug(s.plug)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+
+	// slot name missing
+	plugref, slotref, err := s.testRepo.Connect(s.plug.Snap.Name(), s.plug.Name, s.slot.Snap.Name(), "")
+	c.Assert(err, IsNil)
+	c.Assert(plugref.Snap, Equals, s.plug.Snap.Name())
+	c.Assert(plugref.Name, Equals, s.plug.Name)
+	c.Assert(slotref.Snap, Equals, s.slot.Snap.Name())
+	c.Assert(slotref.Name, Equals, s.slot.Name)
+}
+
+func (s *RepositorySuite) TestConnectToOsIfSlotAndSnapAreOmitted(c *C) {
+	err := s.testRepo.AddPlug(s.plug)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(&Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "foo-core", Type: snap.TypeOS},
+			Name:      "foo-slot",
+			Interface: "interface",
+		},
+	})
+	c.Assert(err, IsNil)
+	// slot and slot snap name missing
+	plugref, slotref, err := s.testRepo.Connect(s.plug.Snap.Name(), s.plug.Name, "", "")
+	c.Assert(err, IsNil)
+	c.Assert(plugref.Snap, Equals, s.plug.Snap.Name())
+	c.Assert(plugref.Name, Equals, s.plug.Name)
+	c.Assert(slotref.Snap, Equals, "foo-core")
+	c.Assert(slotref.Name, Equals, "foo-slot")
+}
+
+func (s *RepositorySuite) TestConnectToOsIfSlotNameOmitted(c *C) {
+	err := s.testRepo.AddPlug(s.plug)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(s.slot)
+	c.Assert(err, IsNil)
+	err = s.testRepo.AddSlot(&Slot{
+		SlotInfo: &snap.SlotInfo{
+			Snap:      &snap.Info{SuggestedName: "foo-core", Type: snap.TypeOS},
+			Name:      "foo-slot",
+			Interface: "interface",
+		},
+	})
+	c.Assert(err, IsNil)
+	// slot name missing
+	plugref, slotref, err := s.testRepo.Connect(s.plug.Snap.Name(), s.plug.Name, "foo-core", "")
+	c.Assert(err, IsNil)
+	c.Assert(plugref.Snap, Equals, s.plug.Snap.Name())
+	c.Assert(plugref.Name, Equals, s.plug.Name)
+	c.Assert(slotref.Snap, Equals, "foo-core")
+	c.Assert(slotref.Name, Equals, "foo-slot")
+}
+
 // Tests for Repository.Disconnect()
 
 func (s *RepositorySuite) TestDisconnectFailsWhenPlugDoesNotExist(c *C) {
