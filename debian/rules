@@ -142,9 +142,7 @@ override_dh_install:
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.target debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.boot-ok.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.firstboot.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 ifeq ($(RELEASE),trusty)
-	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.firstboot.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.firstboot.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.boot-ok.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.boot-ok.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service
 endif
