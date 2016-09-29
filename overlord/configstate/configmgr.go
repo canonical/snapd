@@ -40,7 +40,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*ConfigManager
 		state: s,
 	}
 
-	hookManager.Register(regexp.MustCompile("^configure$"), newApplyConfigHandler)
+	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
 
 	return manager, nil
 }

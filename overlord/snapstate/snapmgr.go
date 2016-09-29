@@ -329,6 +329,9 @@ func updateInfo(st *state.State, snapst *SnapState, channel string, userID int, 
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, err := theStore.ListRefresh([]*store.RefreshCandidate{refreshCand}, user)
 	st.Lock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get refresh information for snap %q: %s", curInfo.Name(), err)
+	}
 	if len(res) == 0 {
 		return nil, fmt.Errorf("snap %q has no updates available", curInfo.Name())
 	}

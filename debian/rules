@@ -12,6 +12,21 @@ export PATH:=${PATH}:${CURDIR}
 
 RELEASE = $(shell lsb_release -c -s)
 
+SYSTEMD_UNITS_DESTDIR=
+ifeq ($(RELEASE),trusty)
+	# We are relying on a deputy systemd setup for trusty,
+	# in which systemd does not run as PID 1. To solve the
+	# problem of services shipping systemd units and upstart jobs
+	# being started twice, we altered systemd on trusty to ignore
+	# /lib/systemd/system and instead consider only selected units from
+	# /lib/systemd/upstart.
+	SYSTEMD_UNITS_DESTDIR="lib/systemd/upstart/"
+	# make sure that trusty's golang-1.6 is picked up correctly.
+	export PATH:=/usr/lib/go-1.6/bin:${PATH}
+else
+	SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
+endif
+
 # The go tool does not fully support vendoring with gccgo, but we can
 # work around that by constructing the appropriate -I flag by hand.
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
@@ -92,16 +107,50 @@ override_dh_systemd_start:
 		-psnapd \
 		snapd.service
 
-override_dh_auto_install: snap.8
-	dh_auto_install -O--buildsystem=golang
+override_dh_install:
 	# we do not need this in the package, its just needed during build
 	rm -rf ${CURDIR}/debian/tmp/usr/bin/xgettext-go
-	# Making the packages private
-	rm -rf ${CURDIR}/debian/snapd/usr/share/gocode
+	# uboot-go is not shippable
+	rm -f ${CURDIR}/debian/tmp/usr/bin/uboot-go
+	# toolbelt is not shippable
+	rm -f ${CURDIR}/debian/tmp/usr/bin/toolbelt
 	# we do not like /usr/bin/snappy anymore
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
-	# no uboot-go
-	rm -f ${CURDIR}/debian/tmp/usr/bin/uboot-go
+	# install dev package files
+	mkdir -p debian/golang-github-snapcore-snapd-dev/usr/share
+	cp -R debian/tmp/usr/share/gocode debian/golang-github-snapcore-snapd-dev/usr/share
+	# install binaries and needed files
+	install debian/tmp/usr/bin/snap -D debian/snapd/usr/bin/snap
+	install debian/tmp/usr/bin/snapctl -D debian/snapd/usr/bin/snapctl
+	install debian/tmp/usr/bin/snapd -D debian/snapd/usr/lib/snapd
+	install debian/tmp/usr/bin/snap-exec -D debian/snapd/usr/lib/snapd
+	install --mode=0644 data/completion/snap -D debian/snapd/usr/share/bash-completion/completions/snap
+	# i18n stuff
+	mkdir -p debian/snapd/usr/share
+	cp -R share/locale debian/snapd/usr/share
+	# etc/profile.d contains the PATH extension for snap packages
+	mkdir -p debian/snapd/etc
+	cp -R etc/profile.d debian/snapd/etc
+	# etc/X11/Xsession.d will add to XDG_DATA_DIRS so that we have .desktop support
+	mkdir -p debian/snapd/etc
+	cp -R etc/X11 debian/snapd/etc
+	# we conditionally install snapd's systemd units
+	mkdir -p debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/snapd.refresh.timer debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/snapd.refresh.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/*.target debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/snapd.boot-ok.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+	install --mode=0644 debian/snapd.firstboot.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
+ifeq ($(RELEASE),trusty)
+	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.firstboot.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.firstboot.service
+	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.boot-ok.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.boot-ok.service
+	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service
+endif
+
+override_dh_auto_install: snap.8
+	dh_auto_install -O--buildsystem=golang
 
 snap.8:
 	$(CURDIR)/_build/bin/snap help --man > $@
