@@ -442,6 +442,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleDefaults(c *C) {
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
+			"slot-snap-type":    []interface{}{"os", "kernel", "gadget", "app"},
 			"slot-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
 			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"},
 		},
@@ -449,6 +450,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstrain
 	c.Assert(err, IsNil)
 
 	cstrs := rule.AllowConnection
+	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"os", "kernel", "gadget", "app"})
 	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"})
 
@@ -495,8 +497,16 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
         foo: 1`, `slot-snap-id in allow-connection in plug rule for interface "iface" must be a list of strings`},
 		{`iface:
   allow-connection:
+    slot-snap-id:
+      - foo`, `slot-snap-id in allow-connection in plug rule for interface "iface" contains an invalid element: "foo"`},
+		{`iface:
+  allow-connection:
+    slot-snap-type:
+      - foo`, `slot-snap-type in allow-connection in plug rule for interface "iface" contains an invalid element: "foo"`},
+		{`iface:
+  allow-connection:
     slot-snap-ids:
-      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-publisher-id, slot-snap-id`},
+      - foo`, `allow-connection in plug rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, slot-snap-type, slot-publisher-id, slot-snap-id`},
 		{`iface:
   allow-connect: true`, `plug rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
 	}

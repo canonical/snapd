@@ -323,6 +323,7 @@ func compilePlugInstallationConstraints(interfaceName string, entry string, cons
 
 // PlugConnectionConstraints specfies a set of constraints on an interface plug for a snap relevant to its connection or auto-connection.
 type PlugConnectionConstraints struct {
+	SlotSnapTypes    []string
 	SlotSnapIDs      []string
 	SlotPublisherIDs []string
 
@@ -343,6 +344,8 @@ func (c *PlugConnectionConstraints) setAttributeConstraints(field string, cstrs 
 
 func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []string) {
 	switch field {
+	case "slot-snap-type":
+		c.SlotSnapTypes = cstrs
 	case "slot-snap-id":
 		c.SlotSnapIDs = cstrs
 	case "slot-publisher-id":
@@ -354,11 +357,12 @@ func (c *PlugConnectionConstraints) setIDConstraints(field string, cstrs []strin
 
 var (
 	attributeConstraints = []string{"plug-attributes", "slot-attributes"}
-	plugIDConstraints    = []string{"slot-publisher-id", "slot-snap-id"}
+	plugIDConstraints    = []string{"slot-snap-type", "slot-publisher-id", "slot-snap-id"}
 
 	validPlugIDConstraints = map[string]*regexp.Regexp{
+		"slot-snap-type":    regexp.MustCompile("^os|kernel|gadget|app$"),
 		"slot-snap-id":      regexp.MustCompile("^[a-z0-9A-Z]{32}$"),                                             // snap-ids look like this
-		"slot-publisher-id": regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[a-z](?:-?[a-z0-9])*)$"), // account ids look like snap-ids or are nice identifiers, support our own special markers $ID
+		"slot-publisher-id": regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[a-z](?:-?[a-z0-9])*)$"), // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
 	}
 )
 

@@ -201,7 +201,7 @@ func checkStringListInMap(m map[string]interface{}, name, what string, pattern *
 			return nil, fmt.Errorf("%s must be a list of strings", what)
 		}
 		if !pattern.MatchString(s) {
-			return nil, fmt.Errorf("%s contains element with invalid format: %q", what, s)
+			return nil, fmt.Errorf("%s contains an invalid element: %q", what, s)
 		}
 		res[i] = s
 	}
