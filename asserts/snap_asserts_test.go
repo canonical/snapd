@@ -166,6 +166,7 @@ snap-name: first
 publisher-id: dev-id1
 plugs:
   interface1:
+    deny-installation: false
     allow-auto-connection:
       slot-snap-type:
         - app
@@ -181,6 +182,7 @@ plugs:
       plug-attributes:
         b1: !B1
   interface2:
+    allow-installation: true
     allow-connection:
       plug-attributes:
         a2: A2
@@ -209,6 +211,7 @@ AXNpZw==`
 	c.Check(snapDecl.PlugRule("interfaceX"), IsNil)
 	plugRule1 := snapDecl.PlugRule("interface1")
 	c.Assert(plugRule1, NotNil)
+	c.Check(plugRule1.DenyInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
 	c.Check(plugRule1.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
 	c.Check(plugRule1.AllowAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
 	c.Check(plugRule1.AllowAutoConnection.SlotSnapTypes, DeepEquals, []string{"app"})
@@ -217,6 +220,7 @@ AXNpZw==`
 	c.Check(plugRule1.DenyAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
 	plugRule2 := snapDecl.PlugRule("interface2")
 	c.Assert(plugRule2, NotNil)
+	c.Check(plugRule2.AllowInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
 	c.Check(plugRule2.AllowConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
 	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
 	c.Check(plugRule2.DenyConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
