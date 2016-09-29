@@ -196,12 +196,16 @@ snaps:
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
+	defer st.Unlock()
 	err = boot.PopulateStateFromSeed(st)
-	st.Unlock()
 	c.Assert(err, IsNil)
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
 
-	// run the changes
-	//s.overlord.Settle()
+	st.Unlock()
+	s.overlord.Settle()
+	st.Lock()
+	c.Assert(chg.Err(), IsNil)
 
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)
@@ -339,11 +343,17 @@ snaps:
 	// run the firstboot stuff
 	st := s.overlord.State()
 	st.Lock()
+	defer st.Unlock()
+
 	err = boot.PopulateStateFromSeed(st)
-	st.Unlock()
+	c.Assert(st.Changes(), HasLen, 1)
+	chg := st.Changes()[0]
 	c.Assert(err, IsNil)
 
-	//s.overlord.Settle()
+	st.Unlock()
+	s.overlord.Settle()
+	st.Lock()
+	c.Assert(chg.Err(), IsNil)
 
 	// and check the snap got correctly installed
 	c.Check(osutil.FileExists(filepath.Join(dirs.SnapMountDir, "foo", "128", "meta", "snap.yaml")), Equals, true)

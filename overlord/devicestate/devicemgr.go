@@ -202,7 +202,12 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		}
 	}
 
-	return boot.PopulateStateFromSeed(m.state)
+	if err := boot.PopulateStateFromSeed(m.state); err != nil {
+		return err
+	}
+	m.state.EnsureBefore(0)
+
+	return nil
 }
 
 // Ensure implements StateManager.Ensure.
