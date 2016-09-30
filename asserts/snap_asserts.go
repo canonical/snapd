@@ -582,6 +582,15 @@ func BuiltinBaseDeclaration() *BaseDeclaration {
 	return builtinBaseDeclaration
 }
 
+var (
+	builtinBaseDeclarationCheckOrder      = []string{"type", "authority-id", "series"}
+	builtinBaseDeclarationExpectedHeaders = map[string]interface{}{
+		"type":         "base-declaration",
+		"authority-id": "canonical",
+		"series":       release.Series,
+	}
+)
+
 // InitBuiltinBaseDeclaration initializes the builtin base-declaration based on headers (or resets it if headers is nil).
 func InitBuiltinBaseDeclaration(headers []byte) error {
 	if headers == nil {
@@ -593,14 +602,26 @@ func InitBuiltinBaseDeclaration(headers []byte) error {
 	if err != nil {
 		return err
 	}
-	if h["type"] != "base-declaration" {
-		return fmt.Errorf("the builtin base-declaration headers sport the wrong type")
+	for _, name := range builtinBaseDeclarationCheckOrder {
+		expected := builtinBaseDeclarationExpectedHeaders[name]
+		if h[name] != expected {
+			return fmt.Errorf("the builtin base-declaration %q header is not set to expected value %q", name, expected)
+		}
+	}
+	revision, err := checkRevision(h)
+	if err != nil {
+		return fmt.Errorf("cannot assemble the builtin-base declaration: %v", err)
 	}
 	h["timestamp"] = time.Now().UTC().Format(time.RFC3339)
-	h["sign-key-sha3-384"] = "lhSOrK6PQ22AJBuQ6btNW2NGAs-lZd4zsd6O5qRY7ylFDQVCD_0rurr66osdF-n9" // sha3-384("$builtin")
-	a, err := Assemble(h, nil, trimmed, []byte("$builtin"))
+	a, err := assembleBaseDeclaration(assertionBase{
+		headers:   h,
+		body:      nil,
+		revision:  revision,
+		content:   trimmed,
+		signature: []byte("$builtin"),
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot assemble the builtin base-declaration: %v", err)
 	}
 	builtinBaseDeclaration = a.(*BaseDeclaration)
 	return nil

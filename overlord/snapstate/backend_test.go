@@ -226,10 +226,6 @@ func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
 	panic("Never expected fakeStore.ReadyToBuy to be called")
 }
 
-func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
-	panic("Never expected fakeStore.PaymentMethods to be called")
-}
-
 func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Never expected fakeStore.Assertion to be called")
 }

@@ -73,7 +73,6 @@ type apiSuite struct {
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
-	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 }
@@ -121,11 +120,6 @@ func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
 	return s.err
 }
 
-func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
-	s.user = user
-	return s.paymentMethods, s.err
-}
-
 func (s *apiSuite) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Assertion not expected to be called")
 }
@@ -166,7 +160,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.buyOptions = nil
 	s.buyResult = nil
-	s.paymentMethods = nil
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
@@ -315,7 +308,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -521,6 +514,9 @@ func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string,
 }
 
 func (s *apiSuite) TestLoginUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
 	serializedMacaroon, err := s.makeStoreMacaroon()
 	c.Assert(err, check.IsNil)
 	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
@@ -536,7 +532,7 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := loginUser(snapCmd, req, nil).(*resp)
+	rsp := loginUser(loginCmd, req, nil).(*resp)
 
 	expected := loginResponseData{
 		Macaroon:   serializedMacaroon,
@@ -549,14 +545,61 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	expectedUser := auth.UserState{
 		ID:         1,
-		Username:   "email@.com",
+		Username:   "",
+		Email:      "email@.com",
 		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
 	expectedUser.StoreMacaroon = expectedUser.Macaroon
 	expectedUser.StoreDischarges = expectedUser.Discharges
 
-	state := snapCmd.d.overlord.State()
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(*user, check.DeepEquals, expectedUser)
+}
+
+func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := loginUser(loginCmd, req, nil).(*resp)
+
+	expected := loginResponseData{
+		Macaroon:   serializedMacaroon,
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	expectedUser := auth.UserState{
+		ID:         1,
+		Username:   "username",
+		Email:      "email@.com",
+		Macaroon:   serializedMacaroon,
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
+	expectedUser.StoreMacaroon = expectedUser.Macaroon
+	expectedUser.StoreDischarges = expectedUser.Discharges
+
 	state.Lock()
 	user, err := auth.User(state, 1)
 	state.Unlock()
@@ -568,7 +611,7 @@ func (s *apiSuite) TestLogoutUser(c *check.C) {
 	d := s.daemon(c)
 	state := d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -736,7 +779,7 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -754,7 +797,7 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	expectedUser, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1139,7 +1182,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1328,7 +1371,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3667,7 +3710,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3705,7 +3748,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3780,7 +3823,7 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 
 		state := snapCmd.d.overlord.State()
 		state.Lock()
-		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+		user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 		state.Unlock()
 		c.Check(err, check.IsNil)
 
@@ -3790,39 +3833,6 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
 		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
-}
-
-func (s *apiSuite) TestPaymentMethods(c *check.C) {
-	s.paymentMethods = &store.PaymentInformation{
-		AllowsAutomaticPayment: true,
-		Methods: []*store.PaymentMethod{
-			{
-				BackendID:           "credit_card",
-				Currencies:          []string{"GBP", "USD"},
-				Description:         "**** **** **** 1234 (exp 20/2020)",
-				ID:                  123,
-				Preferred:           true,
-				RequiresInteraction: false,
-			},
-		},
-	}
-	s.err = nil
-
-	req, err := http.NewRequest("GET", "/v2/buy/methods", nil)
-	c.Assert(err, check.IsNil)
-
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	rsp := getPaymentMethods(paymentMethodsCmd, req, user).(*resp)
-
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
-	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
 }
 
 func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
