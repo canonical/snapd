@@ -1,0 +1,7 @@
+summary: The snap named 'core' is preferred to the snap 'ubuntu-core'
+prepare: |
+    snap install --devmode snapd-hacker-toolbelt
+execute: |
+    snapd-hacker-toolbelt.busybox cat /meta/snap.yaml | grep -q -F 'name: core'
+restore: |
+    snap remove snapd-hacker-toolbelt
