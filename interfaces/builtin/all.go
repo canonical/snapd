@@ -77,6 +77,7 @@ var allInterfaces = []interfaces.Interface{
 	NewFuseSupportInterface(),
 	NewTimeControlInterface(),
 	NewLibvirtInterface(),
+	NewAutopilotIntrospectionInterface(),
 }
 
 // Interfaces returns all of the built-in interfaces.
