@@ -193,6 +193,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 						if !configstate.IsNoOption(err) {
 							c.Fatalf("Expected %q key to not exist, but it has value %v", k, obtained)
 						}
+						c.Assert(err, ErrorMatches, fmt.Sprintf("snap %q has no %q configuration option", snap, k))
 						var nothing interface{}
 						c.Assert(t.GetMaybe(snap, k, &nothing), IsNil)
 						c.Assert(nothing, IsNil)
