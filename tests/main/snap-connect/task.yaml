@@ -24,6 +24,6 @@ execute: |
 
     snap disconnect home-consumer:home ubuntu-core:home
 
-    echo "The plug can be connected to a matching slot of with slot name omitted"
+    echo "The plug can be connected to a matching slot with slot name omitted"
     snap connect home-consumer:home ubuntu-core
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
