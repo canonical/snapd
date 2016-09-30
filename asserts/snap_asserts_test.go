@@ -125,6 +125,7 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
+		"plugs:\n  interface1: true\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -141,6 +142,8 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
 		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control: foo\n", `"refresh-control" header must be a list of strings`},
 		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control:\n  -\n    - nested\n", `"refresh-control" header must be a list of strings`},
+		{"plugs:\n  interface1: true\n", "plugs: \n", `"plugs" header must be a map`},
+		{"plugs:\n  interface1: true\n", "plugs:\n  intf1:\n    foo: bar\n", `plug rule for interface "intf1" must specify at least one of.*`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -152,6 +155,77 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
 	}
 
+}
+
+func (sds *snapDeclSuite) TestDecodePlugs(c *C) {
+	encoded := `type: snap-declaration
+authority-id: canonical
+series: 16
+snap-id: snap-id-1
+snap-name: first
+publisher-id: dev-id1
+plugs:
+  interface1:
+    deny-installation: false
+    allow-auto-connection:
+      slot-snap-type:
+        - app
+      slot-publisher-id:
+        - acme
+      slot-attributes:
+        a1: /foo/.*
+      plug-attributes:
+        b1: B1
+    deny-auto-connection:
+      slot-attributes:
+        a1: !A1
+      plug-attributes:
+        b1: !B1
+  interface2:
+    allow-installation: true
+    allow-connection:
+      plug-attributes:
+        a2: A2
+      slot-attributes:
+        b2: B2
+    deny-connection:
+      slot-snap-id:
+        - snapidsnapidsnapidsnapidsnapid01
+        - snapidsnapidsnapidsnapidsnapid02
+      plug-attributes:
+        a2: !A2
+      slot-attributes:
+        b2: !B2
+TSLINE
+body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+	encoded = strings.Replace(encoded, "TSLINE\n", sds.tsLine, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.Series(), Equals, "16")
+	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
+
+	c.Check(snapDecl.PlugRule("interfaceX"), IsNil)
+	plugRule1 := snapDecl.PlugRule("interface1")
+	c.Assert(plugRule1, NotNil)
+	c.Check(plugRule1.DenyInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
+	c.Check(plugRule1.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.AllowAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
+	c.Check(plugRule1.AllowAutoConnection.SlotSnapTypes, DeepEquals, []string{"app"})
+	c.Check(plugRule1.AllowAutoConnection.SlotPublisherIDs, DeepEquals, []string{"acme"})
+	c.Check(plugRule1.DenyAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.DenyAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
+	plugRule2 := snapDecl.PlugRule("interface2")
+	c.Assert(plugRule2, NotNil)
+	c.Check(plugRule2.AllowInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Check(plugRule2.AllowConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.DenyConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {

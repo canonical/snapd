@@ -234,6 +234,10 @@ type DownloadInfo struct {
 	Size     int64  `json:"size,omitempty"`
 	Sha3_384 string `json:"sha3-384,omitempty"`
 
+	// The server can include information about available deltas for a given
+	// snap at a specific revision during refresh. Currently during refresh the
+	// server will provide single matching deltas only, from the clients
+	// revision to the target revision when available, per requested format.
 	Deltas []DeltaInfo `json:"deltas,omitempty"`
 }
 

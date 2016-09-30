@@ -122,7 +122,10 @@ func (c *Context) Set(key string, value interface{}) {
 	c.writing()
 
 	var data map[string]*json.RawMessage
-	if err := c.task.Get("hook-context", &data); err != nil {
+	if err := c.task.Get("hook-context", &data); err != nil && err != state.ErrNoState {
+		panic(fmt.Sprintf("internal error: cannot unmarshal context: %v", err))
+	}
+	if data == nil {
 		data = make(map[string]*json.RawMessage)
 	}
 
