@@ -16,11 +16,6 @@ restore: |
 execute: |
     DISCONNECTED_PATTERN="\-\s+home-consumer:home"
 
-    echo "Disconnect everything connected to given snap"
-    snap connect home-consumer:home ubuntu-core:home
-    snap disconnect ubuntu-core
-    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
-
     echo "Disconnect everything from given slot"
     snap connect home-consumer:home ubuntu-core:home
     snap disconnect ubuntu-core:home
