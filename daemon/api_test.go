@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -401,6 +402,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
+		"setupLocalUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
@@ -498,7 +500,7 @@ func (s *apiSuite) makeStoreMacaroon() (string, error) {
 		return "", err
 	}
 
-	return store.MacaroonSerialize(m)
+	return auth.MacaroonSerialize(m)
 }
 
 func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string, error) {
@@ -544,14 +546,14 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
 	expectedUser := auth.UserState{
-		ID:         1,
-		Username:   "",
-		Email:      "email@.com",
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+		ID:              1,
+		Username:        "",
+		Email:           "email@.com",
+		Macaroon:        serializedMacaroon,
+		Discharges:      nil,
+		StoreMacaroon:   serializedMacaroon,
+		StoreDischarges: []string{"the-discharge-macaroon-serialized-data"},
 	}
-	expectedUser.StoreMacaroon = expectedUser.Macaroon
-	expectedUser.StoreDischarges = expectedUser.Discharges
 
 	state.Lock()
 	user, err := auth.User(state, 1)
@@ -590,21 +592,70 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	expectedUser := auth.UserState{
-		ID:         1,
-		Username:   "username",
-		Email:      "email@.com",
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
-	}
-	expectedUser.StoreMacaroon = expectedUser.Macaroon
-	expectedUser.StoreDischarges = expectedUser.Discharges
-
 	state.Lock()
 	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
-	c.Check(*user, check.DeepEquals, expectedUser)
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "username")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
+
+func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := loginUser(loginCmd, req, nil).(*resp)
+
+	expected := loginResponseData{
+		Macaroon:   serializedMacaroon,
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
 }
 
 func (s *apiSuite) TestLogoutUser(c *check.C) {
@@ -752,7 +803,7 @@ func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
 
 func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
+	req.Header.Set("Authorization", `Macaroon root=""`)
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -784,7 +835,7 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, expectedUser.Macaroon))
 
 	state.Lock()
 	user, err := UserFromRequest(state, req)
@@ -794,15 +845,15 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	c.Check(user, check.DeepEquals, expectedUser)
 }
 
-func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
+func (s *apiSuite) TestUserFromRequestHeaderValidUserWithoutUsername(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
+	expectedUser, err := auth.NewUser(state, "", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge1", discharge="discharge2"`)
+	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
 
 	state.Lock()
 	user, err := UserFromRequest(state, req)
@@ -3714,6 +3765,15 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
+	userHomeDir := c.MkDir()
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  userHomeDir,
+		}, nil
+	}
 
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
@@ -3721,6 +3781,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
 	}()
 
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
@@ -3737,6 +3798,22 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// user was setup in state
+	state := d.overlord.State()
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "karl")
+	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
+	c.Check(user.Macaroon, check.NotNil)
+	// auth saved to user home dir
+	outfile := filepath.Join(userHomeDir, ".snap", "auth.json")
+	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	content, err := ioutil.ReadFile(outfile)
+	c.Check(err, check.IsNil)
+	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
 }
 
 func (s *apiSuite) TestBuySnap(c *check.C) {

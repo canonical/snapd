@@ -298,11 +298,23 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
-	state.Unlock()
-	if err != nil {
-		return InternalError("cannot persist authentication details: %v", err)
+	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
+	localUser, _ := UserFromRequest(state, r)
+	if localUser != nil {
+		// local user logged-in, set its store macaroons
+		localUser.StoreMacaroon = macaroon
+		localUser.StoreDischarges = []string{discharge}
+		err := auth.UpdateUser(state, localUser)
+		if err != nil {
+			return InternalError("cannot persist authentication details: %v", err)
+		}
+	} else {
+		_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		if err != nil {
+			return InternalError("cannot persist authentication details: %v", err)
+		}
 	}
+	state.Unlock()
 
 	result := loginResponseData{
 		Macaroon:   macaroon,
@@ -353,7 +365,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 		}
 	}
 
-	if macaroon == "" || len(discharges) == 0 {
+	if macaroon == "" {
 		return nil, fmt.Errorf("invalid authorization header")
 	}
 
@@ -1792,6 +1804,49 @@ type postUserCreateData struct {
 	ForceManaged bool   `json:"force-managed"`
 }
 
+var userLookup = user.Lookup
+
+func setupLocalUser(st *state.State, username, email string) error {
+	user, err := userLookup(username)
+	if err != nil {
+		return fmt.Errorf("cannot lookup user %q: %s", username, err)
+	}
+	uid, err := strconv.Atoi(user.Uid)
+	if err != nil {
+		return fmt.Errorf("cannot get uid of user %q: %s", username, err)
+	}
+	gid, err := strconv.Atoi(user.Gid)
+	if err != nil {
+		return fmt.Errorf("cannot get gid of user %q: %s", username, err)
+	}
+	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
+	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
+		return err
+	}
+
+	// setup new user, local-only
+	st.Lock()
+	authUser, err := auth.NewUser(st, username, email, "", nil)
+	st.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot persist authentication details: %v", err)
+	}
+	// store macaroon auth in auth.json in the new users home dir
+	outStr, err := json.Marshal(struct {
+		Macaroon string `json:"macaroon"`
+	}{
+		Macaroon: authUser.Macaroon,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot marshal auth data: %s", err)
+	}
+	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
+		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
+	}
+
+	return nil
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1844,6 +1899,10 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 
 	if err := osutilAddUser(username, opts); err != nil {
 		return BadRequest("cannot create user %s: %s", username, err)
+	}
+
+	if err := setupLocalUser(c.d.overlord.State(), username, createData.Email); err != nil {
+		return InternalError("%s", err)
 	}
 
 	return SyncResponse(&createResponseData{
