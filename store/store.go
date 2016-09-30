@@ -1417,6 +1417,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, ErrUnauthenticated
 	}
 
+	// FIXME Would really rather not to do this, and have the same meaningful errors from the POST to order.
 	err := s.ReadyToBuy(user)
 	if err != nil {
 		return nil, err

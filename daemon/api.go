@@ -1784,8 +1784,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 
 func convertBuyError(err error) Response {
 	switch err {
-	default:
-		return InternalError("%v", err)
+	case nil:
+		return nil
 	case store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	case store.ErrUnauthenticated:
@@ -1815,8 +1815,8 @@ func convertBuyError(err error) Response {
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
-	case nil:
-		return nil
+	default:
+		return InternalError("%v", err)
 	}
 }
 
@@ -1833,8 +1833,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	buyResult, err := s.Buy(&opts, user)
 
-	resp := convertBuyError(err)
-	if resp != nil {
+	if resp := convertBuyError(err); resp != nil {
 		return resp
 	}
 
@@ -1871,9 +1870,7 @@ func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Respon
 func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	s := getStore(c)
 
-	err := s.ReadyToBuy(user)
-	resp := convertBuyError(err)
-	if resp != nil {
+	if resp := convertBuyError(s.ReadyToBuy(user)); resp != nil {
 		return resp
 	}
 
