@@ -470,3 +470,14 @@ func init() {
 	// hook validation of refreshes into snapstate logic
 	snapstate.ValidateRefreshes = ValidateRefreshes
 }
+
+// BaseDeclaration returns the base-declaration assertion with policies governing all snaps.
+func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
+	// TODO: switch keeping this in the DB and have it revisioned/updated
+	// via the store
+	baseDecl := asserts.BuiltinBaseDeclaration()
+	if baseDecl == nil {
+		return nil, asserts.ErrNotFound
+	}
+	return baseDecl, nil
+}
