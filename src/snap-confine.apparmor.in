@@ -107,7 +107,7 @@
 
     # mount calls to setup the pivot_root based chroot with the core snap as
     # the root filesystem.
-    mount options=(rw bind) @SNAP_MOUNT_DIR@/ubuntu-core/*/ -> /tmp/snap.rootfs_*/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/ -> /tmp/snap.rootfs_*/,
 
     mount options=(rw rbind) /dev/ -> /tmp/snap.rootfs_*/dev/,
     mount options=(rw rbind) /etc/ -> /tmp/snap.rootfs_*/etc/,
@@ -125,7 +125,7 @@
     mount options=(rw rbind) {/usr,}/lib/modules/ -> /tmp/snap.rootfs_*/lib/modules/,
     mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
     mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,
-    mount options=(rw bind) @SNAP_MOUNT_DIR@/ubuntu-core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
+    mount options=(rw bind) @SNAP_MOUNT_DIR@/{,ubuntu-}core/*/etc/alternatives/ -> /tmp/snap.rootfs_*/etc/alternatives/,
 
     # Allow to mkdir /var/lib/snapd/hostfs
     /var/lib/snapd/hostfs/ rw,
@@ -189,7 +189,7 @@
     /tmp/snapd.quirks_*/ rw,
     mount options=(move) /var/lib/snapd/ -> /tmp/snapd.quirks_*/,
     mount fstype=tmpfs options=(rw nodev nosuid) none -> /var/lib/,
-    mount options=(ro rbind) /snap/ubuntu-core/*/var/lib/** -> /var/lib/**,
+    mount options=(ro rbind) /snap/{,ubuntu-}core/*/var/lib/** -> /var/lib/**,
     umount /var/lib/snapd/,
     mount options=(move) /tmp/snapd.quirks_*/ -> /var/lib/snapd/,
 
