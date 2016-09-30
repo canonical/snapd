@@ -20,6 +20,7 @@
 package asserts
 
 import (
+	"bytes"
 	"crypto"
 	"fmt"
 	"time"
@@ -484,4 +485,144 @@ func assembleValidation(assert assertionBase) (Assertion, error) {
 		timestamp:            timestamp,
 		approvedSnapRevision: approvedSnapRevision,
 	}, nil
+}
+
+// BaseDeclaration holds a base-declaration assertion, declaring the
+// policies (to start with interface ones) applying to all snaps of
+// a series.
+type BaseDeclaration struct {
+	assertionBase
+	plugRules map[string]*PlugRule
+	slotRules map[string]*SlotRule
+	timestamp time.Time
+}
+
+// Series returns the series whose snaps are governed by the declaration.
+func (basedcl *BaseDeclaration) Series() string {
+	return basedcl.HeaderString("series")
+}
+
+// Timestamp returns the time when the base-declaration was issued.
+func (basedcl *BaseDeclaration) Timestamp() time.Time {
+	return basedcl.timestamp
+}
+
+// PlugRule returns the plug-side rule about the given interface if one was included in the plugs stanza of the declaration, otherwise it returns nil.
+func (basedcl *BaseDeclaration) PlugRule(interfaceName string) *PlugRule {
+	return basedcl.plugRules[interfaceName]
+}
+
+// SlotRule returns the slot-side rule about the given interface if one was included in the slots stanza of the declaration, otherwise it returns nil.
+func (basedcl *BaseDeclaration) SlotRule(interfaceName string) *SlotRule {
+	return basedcl.slotRules[interfaceName]
+}
+
+// Implement further consistency checks.
+func (basedcl *BaseDeclaration) checkConsistency(db RODatabase, acck *AccountKey) error {
+	// XXX: not signed or stored yet in a db, but being ready for that
+	if !db.IsTrustedAccount(basedcl.AuthorityID()) {
+		return fmt.Errorf("base-declaration assertion for series %s is not signed by a directly trusted authority: %s", basedcl.Series(), basedcl.AuthorityID())
+	}
+	return nil
+}
+
+// sanity
+var _ consistencyChecker = (*BaseDeclaration)(nil)
+
+func assembleBaseDeclaration(assert assertionBase) (Assertion, error) {
+	var plugRules map[string]*PlugRule
+	plugs, err := checkMap(assert.headers, "plugs")
+	if err != nil {
+		return nil, err
+	}
+	if plugs != nil {
+		plugRules = make(map[string]*PlugRule, len(plugs))
+		for iface, rule := range plugs {
+			plugRule, err := compilePlugRule(iface, rule)
+			if err != nil {
+				return nil, err
+			}
+			plugRules[iface] = plugRule
+		}
+	}
+
+	var slotRules map[string]*SlotRule
+	slots, err := checkMap(assert.headers, "slots")
+	if err != nil {
+		return nil, err
+	}
+	if slots != nil {
+		slotRules = make(map[string]*SlotRule, len(slots))
+		for iface, rule := range slots {
+			slotRule, err := compileSlotRule(iface, rule)
+			if err != nil {
+				return nil, err
+			}
+			slotRules[iface] = slotRule
+		}
+	}
+
+	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
+	if err != nil {
+		return nil, err
+	}
+
+	return &BaseDeclaration{
+		assertionBase: assert,
+		plugRules:     plugRules,
+		slotRules:     slotRules,
+		timestamp:     timestamp,
+	}, nil
+}
+
+var builtinBaseDeclaration *BaseDeclaration
+
+// BuiltinBaseDeclaration exposes the initialized builtin base-declaration assertion. This is used by overlord/assertstate, other code should use assertstate.BaseDeclaration.
+func BuiltinBaseDeclaration() *BaseDeclaration {
+	return builtinBaseDeclaration
+}
+
+var (
+	builtinBaseDeclarationCheckOrder      = []string{"type", "authority-id", "series"}
+	builtinBaseDeclarationExpectedHeaders = map[string]interface{}{
+		"type":         "base-declaration",
+		"authority-id": "canonical",
+		"series":       release.Series,
+	}
+)
+
+// InitBuiltinBaseDeclaration initializes the builtin base-declaration based on headers (or resets it if headers is nil).
+func InitBuiltinBaseDeclaration(headers []byte) error {
+	if headers == nil {
+		builtinBaseDeclaration = nil
+		return nil
+	}
+	trimmed := bytes.TrimSpace(headers)
+	h, err := parseHeaders(trimmed)
+	if err != nil {
+		return err
+	}
+	for _, name := range builtinBaseDeclarationCheckOrder {
+		expected := builtinBaseDeclarationExpectedHeaders[name]
+		if h[name] != expected {
+			return fmt.Errorf("the builtin base-declaration %q header is not set to expected value %q", name, expected)
+		}
+	}
+	revision, err := checkRevision(h)
+	if err != nil {
+		return fmt.Errorf("cannot assemble the builtin-base declaration: %v", err)
+	}
+	h["timestamp"] = time.Now().UTC().Format(time.RFC3339)
+	a, err := assembleBaseDeclaration(assertionBase{
+		headers:   h,
+		body:      nil,
+		revision:  revision,
+		content:   trimmed,
+		signature: []byte("$builtin"),
+	})
+	if err != nil {
+		return fmt.Errorf("cannot assemble the builtin base-declaration: %v", err)
+	}
+	builtinBaseDeclaration = a.(*BaseDeclaration)
+	return nil
 }
