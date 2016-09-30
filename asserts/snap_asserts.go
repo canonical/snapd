@@ -37,6 +37,7 @@ type SnapDeclaration struct {
 	assertionBase
 	refreshControl []string
 	plugRules      map[string]*PlugRule
+	slotRules      map[string]*SlotRule
 	timestamp      time.Time
 }
 
@@ -73,6 +74,11 @@ func (snapdcl *SnapDeclaration) RefreshControl() []string {
 // PlugRule returns the plug-side rule about the given interface if one was included in the plugs stanza of the declaration, otherwise it returns nil.
 func (snapdcl *SnapDeclaration) PlugRule(interfaceName string) *PlugRule {
 	return snapdcl.plugRules[interfaceName]
+}
+
+// SlotRule returns the slot-side rule about the given interface if one was included in the slots stanza of the declaration, otherwise it returns nil.
+func (snapdcl *SnapDeclaration) SlotRule(interfaceName string) *SlotRule {
+	return snapdcl.slotRules[interfaceName]
 }
 
 // Implement further consistency checks.
@@ -135,6 +141,22 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		}
 	}
 
+	var slotRules map[string]*SlotRule
+	slots, err := checkMap(assert.headers, "slots")
+	if err != nil {
+		return nil, err
+	}
+	if slots != nil {
+		slotRules = make(map[string]*SlotRule, len(slots))
+		for iface, rule := range slots {
+			slotRule, err := compileSlotRule(iface, rule)
+			if err != nil {
+				return nil, err
+			}
+			slotRules[iface] = slotRule
+		}
+	}
+
 	timestamp, err := checkRFC3339Date(assert.headers, "timestamp")
 	if err != nil {
 		return nil, err
@@ -144,6 +166,7 @@ func assembleSnapDeclaration(assert assertionBase) (Assertion, error) {
 		assertionBase:  assert,
 		refreshControl: refControl,
 		plugRules:      plugRules,
+		slotRules:      slotRules,
 		timestamp:      timestamp,
 	}, nil
 }
