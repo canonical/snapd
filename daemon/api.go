@@ -248,7 +248,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode login data from request body: %v", err)
 	}
 
-	if loginData.Email == "" {
+	if loginData.Email == "" && isEmailish(loginData.Username) {
 		// for backwards compatibility, if no email is provided assume username is the email
 		loginData.Email = loginData.Username
 		loginData.Username = ""
