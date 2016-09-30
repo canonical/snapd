@@ -613,7 +613,7 @@ func (s *RepositorySuite) TestDisconnectFromSlotFailsWhenSlotDoesNotExist(c *C) 
 	c.Assert(err, IsNil)
 	// Disconnecting everything form an unknown slot returns an appropriate error
 	conns, snaps, err := s.testRepo.Disconnect("", "", s.slot.Snap.Name(), s.slot.Name)
-	c.Assert(err, ErrorMatches, `cannot disconnect plug from slot "slot" from snap "producer", no such slot`)
+	c.Assert(err, ErrorMatches, `cannot disconnect plug or slot \"slot\" from snap \"producer\", no such plug/slot`)
 	c.Check(conns, IsNil)
 	c.Check(snaps, IsNil)
 }
@@ -749,7 +749,7 @@ func (s *RepositorySuite) TestDisconnectPlugOrSlot(c *C) {
 	c.Assert(err, IsNil)
 
 	// slot and snap name omitted
-	conns, snaps, err := s.testRepo.Disconnect(s.plug.Snap.Name(), s.plug.Name, "", "")
+	conns, snaps, err := s.testRepo.Disconnect("", "", s.plug.Snap.Name(), s.plug.Name)
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 	c.Check(conns, DeepEquals, []ConnRef{{PlugRef: s.plug.Ref(), SlotRef: coreSlot.Ref()}})
@@ -764,7 +764,7 @@ func (s *RepositorySuite) TestDisconnectPlugOrSlot(c *C) {
 	c.Assert(err, IsNil)
 
 	// plug and snap name omitted
-	conns, snaps, err = s.testRepo.Disconnect(coreSlot.Snap.Name(), coreSlot.Name, "", "")
+	conns, snaps, err = s.testRepo.Disconnect("", "", coreSlot.Snap.Name(), coreSlot.Name)
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 	c.Check(conns, DeepEquals, []ConnRef{{PlugRef: s.plug.Ref(), SlotRef: coreSlot.Ref()}})

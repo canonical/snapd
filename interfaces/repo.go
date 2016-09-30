@@ -338,7 +338,7 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 		// Disconnect everything from slotSnapName
 		conns, snaps, err = r.disconnectEverythingFromSnap(slotSnapName)
 	case plugSnapName == "" && plugName == "":
-		// Disconnect everything from slotSnapName:slotName
+		// Disconnect everything from either slot or plug
 		conns, snaps, err = r.disconnectPlugOrSlot(slotSnapName, slotName)
 	default:
 		conns, snaps, err = r.disconnectPlugFromSlot(plugSnapName, plugName, slotSnapName, slotName)
@@ -387,6 +387,12 @@ func (r *Repository) disconnectPlugOrSlot(snapName, plugOrSlotName string) ([]Co
 		// TODO: teach the repository about the OS snap
 		snapName = "ubuntu-core"
 	}
+
+	if r.slots[snapName][plugOrSlotName] == nil && r.plugs[snapName][plugOrSlotName] == nil {
+		err := fmt.Errorf("cannot disconnect plug or slot %q from snap %q, no such plug/slot", plugOrSlotName, snapName)
+		return nil, nil, err
+	}
+
 	var conns []ConnRef
 	snaps := make(map[string]*snap.Info)
 	d := func(plug *Plug, slot *Slot) {
