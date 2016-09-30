@@ -3965,3 +3965,226 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	})
 	c.Check(err, check.IsNil)
 }
+
+func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
+	// this must be done very early
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	s.daemon(c)
+	st := s.d.overlord.State()
+
+	// create fake brand signature
+	// FIXME: move out into a  helper
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+
+	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	model = model.(*asserts.Model)
+
+	// now add model related stuff to the system
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+	assertAdd(st, brandAcct)
+	assertAdd(st, brandAccKey)
+	assertAdd(st, model)
+
+	// and the system-user
+	su, err := brandSigning.Sign(asserts.SystemUserType, map[string]interface{}{
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"series":       []interface{}{"16", "18"},
+		"models":       []interface{}{"my-model", "other-model"},
+		"name":         "Boring Guy",
+		"username":     "guy",
+		"password":     "$6$salt$hash",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	su = su.(*asserts.SystemUser)
+	// now add system-user assertion to the system
+	assertAdd(st, su)
+
+	// create fake device
+	st.Lock()
+	err = auth.SetDevice(st, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		osutilAddUser = osutil.AddUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := &createResponseData{
+		Username:    "guy",
+		SSHKeyCount: 0,
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
+	// this must be done very early
+	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer restore()
+
+	s.daemon(c)
+	st := s.d.overlord.State()
+
+	// create fake brand signature
+	// FIXME: move out into a  helper
+	brandPrivKey, _ := assertstest.GenerateKey(752)
+	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
+
+	brandAcct := assertstest.NewAccount(s.storeSigning, "my-brand", map[string]interface{}{
+		"account-id":   "my-brand",
+		"verification": "certified",
+	}, "")
+	s.storeSigning.Add(brandAcct)
+
+	brandAccKey := assertstest.NewAccountKey(s.storeSigning, brandAcct, nil, brandPrivKey.PublicKey(), "")
+	s.storeSigning.Add(brandAccKey)
+
+	model, err := brandSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"series":         "16",
+		"authority-id":   "my-brand",
+		"brand-id":       "my-brand",
+		"model":          "my-model",
+		"architecture":   "amd64",
+		"gadget":         "pc",
+		"kernel":         "pc-kernel",
+		"required-snaps": []interface{}{"required-snap1"},
+		"timestamp":      time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	model = model.(*asserts.Model)
+
+	// now add model related stuff to the system
+	assertAdd(st, s.storeSigning.StoreAccountKey(""))
+	assertAdd(st, brandAcct)
+	assertAdd(st, brandAccKey)
+	assertAdd(st, model)
+
+	// and a valid system-user
+	su, err := brandSigning.Sign(asserts.SystemUserType, map[string]interface{}{
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foo@bar.com",
+		"series":       []interface{}{"16", "18"},
+		"models":       []interface{}{"my-model", "other-model"},
+		"name":         "Boring Guy",
+		"username":     "guy",
+		"password":     "$6$salt$hash",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	su = su.(*asserts.SystemUser)
+	// now add system-user assertion to the system
+	assertAdd(st, su)
+
+	// and a in-valid system-user
+	su, err = brandSigning.Sign(asserts.SystemUserType, map[string]interface{}{
+		"authority-id": "my-brand",
+		"brand-id":     "my-brand",
+		"email":        "foobar@bar.com",
+		"series":       []interface{}{"16", "18"},
+		"models":       []interface{}{"non-of-the-models-i-have"},
+		"name":         "Random Gal",
+		"username":     "gal",
+		"password":     "$6$salt$hash",
+		"since":        time.Now().Format(time.RFC3339),
+		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, check.IsNil)
+	su = su.(*asserts.SystemUser)
+	// now add system-user assertion to the system
+	assertAdd(st, su)
+
+	// create fake device
+	st.Lock()
+	err = auth.SetDevice(st, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "my-model",
+	})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		osutilAddUser = osutil.AddUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := []createResponseData{
+		{Username: "guy", SSHKeyCount: 0},
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
