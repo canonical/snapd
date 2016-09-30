@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/jessevdk/go-flags"
 
@@ -116,6 +117,10 @@ func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
+
+	// SUCKS: racy because the mount is not done when the script is
+	//        called
+	time.Sleep(1 * time.Second)
 
 	return autoImportFromAllMounts()
 }

@@ -1,2 +1,2 @@
-ACTION=="add", SUBSYSTEM=="block" \
+ACTION=="add", SUBSYSTEM=="block" ENV{ID_FS_USAGE}=="filesystem"\
     ENV{SYSTEMD_WANTS}="snapd.autoimport.service"
