@@ -57,6 +57,9 @@ func (op setGetOp) args() map[string]interface{} {
 	m := make(map[string]interface{})
 	args := strings.Fields(string(op))
 	for _, pair := range args[1:] {
+		if pair == "=>" {
+			break
+		}
 		kv := strings.SplitN(pair, "=", 2)
 		var v interface{}
 		err := json.Unmarshal([]byte(kv[1]), &v)
@@ -66,6 +69,17 @@ func (op setGetOp) args() map[string]interface{} {
 		m[kv[0]] = v
 	}
 	return m
+}
+
+func (op setGetOp) error() string {
+	if i := strings.Index(string(op), " => "); i >= 0 {
+		return string(op[i+4:])
+	}
+	return ""
+}
+
+func (op setGetOp) fails() bool {
+	return op.error() != ""
 }
 
 var setGetTests = [][]setGetOp{{
@@ -113,6 +127,33 @@ var setGetTests = [][]setGetOp{{
 	`setunder one={"two":{"four":4},"six":6}`,
 	`commit`,
 	`getunder one={"two":{"three":3},"five":5}`,
+}, {
+	// Cannot go through known scalar implicitly.
+	`set one.two=2`,
+	`set one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one={"two":2}`,
+	`commit`,
+	`set one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one={"two":2}`,
+	`getunder one={"two":2}`,
+}, {
+	// Unknown scalars may be overwritten though.
+	`setunder one={"two":2}`,
+	`set one.two.three=3`,
+	`commit`,
+	`getunder one={"two":{"three":3}}`,
+}, {
+	// Invalid option names.
+	`set BAD=1 => invalid option name: "BAD"`,
+	`set 42=1 => invalid option name: "42"`,
+	`set .bad=1 => invalid option name: ""`,
+	`set bad.=1 => invalid option name: ""`,
+	`set bad..bad=1 => invalid option name: ""`,
+	`set one.bad--bad.two=1 => invalid option name: "bad--bad"`,
+	`set one.-bad.two=1 => invalid option name: "-bad"`,
+	`set one.bad-.two=1 => invalid option name: "bad-"`,
 }}
 
 func (s *transactionSuite) TestSetGet(c *C) {
@@ -121,6 +162,7 @@ func (s *transactionSuite) TestSetGet(c *C) {
 
 	for _, test := range setGetTests {
 		c.Logf("-----")
+		s.state.Set("config", map[string]interface{}{})
 		t := configstate.NewTransaction(s.state)
 		snap := "core"
 		for _, op := range test {
@@ -129,13 +171,24 @@ func (s *transactionSuite) TestSetGet(c *C) {
 			case "set":
 				for k, v := range op.args() {
 					err := t.Set(snap, k, v)
-					c.Assert(err, IsNil)
+					if op.fails() {
+						c.Assert(err, ErrorMatches, op.error())
+					} else {
+						c.Assert(err, IsNil)
+					}
 				}
 
 			case "get":
 				for k, expected := range op.args() {
 					var obtained interface{}
 					err := t.Get(snap, k, &obtained)
+					if op.fails() {
+						c.Assert(err, ErrorMatches, op.error())
+						var nothing interface{}
+						c.Assert(t.GetMaybe(snap, k, &nothing), ErrorMatches, op.error())
+						c.Assert(nothing, IsNil)
+						continue
+					}
 					if expected == "-" {
 						if !configstate.IsNoOption(err) {
 							c.Fatalf("Expected %q key to not exist, but it has value %v", k, obtained)

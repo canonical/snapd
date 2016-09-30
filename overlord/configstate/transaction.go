@@ -22,10 +22,11 @@ package configstate
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/snapcore/snapd/overlord/state"
-	"strings"
 )
 
 // Transaction holds a copy of the configuration originally present in the
@@ -59,6 +60,18 @@ func NewTransaction(st *state.State) *Transaction {
 	return transaction
 }
 
+var validKey = regexp.MustCompile("^(?:[a-z0-9]+-?)*[a-z](?:-?[a-z0-9])*$")
+
+func parseKey(key string) (subkeys []string, err error) {
+	subkeys = strings.Split(key, ".")
+	for _, subkey := range subkeys {
+		if !validKey.MatchString(subkey) {
+			return nil, fmt.Errorf("invalid option name: %q", subkey)
+		}
+	}
+	return subkeys, nil
+}
+
 // Set sets the provided snap's configuration key to the given value.
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
@@ -82,7 +95,24 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 	}
 	raw := json.RawMessage(data)
 
-	_, err = patchConfig(snapName, strings.Split(key, "."), 0, config, &raw)
+	subkeys, err := parseKey(key)
+	if err != nil {
+		return err
+	}
+
+	// Check whether it's trying to traverse a non-map from pristine. This
+	// would go unperceived by the configuration patching below.
+	if len(subkeys) > 1 {
+		var result interface{}
+		err = getFromPristine(snapName, subkeys, 0, t.pristine[snapName], &result)
+		if err != nil && !IsNoOption(err) {
+			return err
+		}
+	}
+	_, err = patchConfig(snapName, subkeys, 0, config, &raw)
+	if err != nil {
+		return err
+	}
 
 	t.changes[snapName] = config
 	return nil
@@ -97,8 +127,13 @@ func (t *Transaction) Set(snapName, key string, value interface{}) error {
 func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	subkeys := strings.Split(key, ".")
-	err := getFromChange(snapName, subkeys, 0, t.changes[snapName], result)
+
+	subkeys, err := parseKey(key)
+	if err != nil {
+		return err
+	}
+
+	err = getFromChange(snapName, subkeys, 0, t.changes[snapName], result)
 	if IsNoOption(err) {
 		err = getFromPristine(snapName, subkeys, 0, t.pristine[snapName], result)
 	}
@@ -190,7 +225,7 @@ func patchConfig(snapName string, subkeys []string, pos int, config interface{},
 		var configm map[string]interface{}
 		err := json.Unmarshal([]byte(*config), &configm)
 		if err != nil {
-			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos+1], "."))
+			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
 		_, err = patchConfig(snapName, subkeys, pos, configm, value)
 		if err != nil {
@@ -204,11 +239,11 @@ func patchConfig(snapName string, subkeys []string, pos int, config interface{},
 			config[subkeys[pos]] = value
 			return config, nil
 		} else {
-			var err error
-			config[subkeys[pos]], err = patchConfig(snapName, subkeys, pos+1, config[subkeys[pos]], value)
+			result, err := patchConfig(snapName, subkeys, pos+1, config[subkeys[pos]], value)
 			if err != nil {
 				return nil, err
 			}
+			config[subkeys[pos]] = result
 			return config, nil
 		}
 	}
