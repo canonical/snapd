@@ -465,6 +465,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"version-id": "1.2",
 		},
 		"on-classic": true,
+		"user-count": float64(0),
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)

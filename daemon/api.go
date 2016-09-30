@@ -213,11 +213,17 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	userCount, _ := auth.UserCount(st)
+	st.Unlock()
+
 	m := map[string]interface{}{
 		"series":     release.Series,
 		"version":    c.d.Version,
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
+		"user-count": userCount,
 	}
 
 	// TODO: set the store-id here from the model information
