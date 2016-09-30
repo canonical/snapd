@@ -730,7 +730,7 @@ func (s *RepositorySuite) TestDisconnectFromSlot(c *C) {
 	})
 }
 
-func (s *RepositorySuite) TestDisconnectFromOsSlot(c *C) {
+func (s *RepositorySuite) TestDisconnectPlugOrSlot(c *C) {
 	err := s.testRepo.AddPlug(s.plug)
 	c.Assert(err, IsNil)
 	err = s.testRepo.AddSlot(s.slot)
@@ -748,8 +748,23 @@ func (s *RepositorySuite) TestDisconnectFromOsSlot(c *C) {
 	err = s.testRepo.Connect(s.plug.Snap.Name(), s.plug.Name, coreSlot.Snap.Name(), coreSlot.Name)
 	c.Assert(err, IsNil)
 
-	// slot snap name omitted
-	conns, snaps, err := s.testRepo.Disconnect(s.plug.Snap.Name(), s.plug.Name, "", "foo-slot")
+	// slot and snap name omitted
+	conns, snaps, err := s.testRepo.Disconnect(s.plug.Snap.Name(), s.plug.Name, "", "")
+	c.Assert(err, IsNil)
+	c.Assert(conns, HasLen, 1)
+	c.Check(conns, DeepEquals, []ConnRef{{PlugRef: s.plug.Ref(), SlotRef: coreSlot.Ref()}})
+
+	c.Assert(snaps, HasLen, 2)
+	// beware, the snaps are sorted by name
+	c.Check(snaps[0], Equals, s.plug.Snap)
+	c.Check(snaps[1], Equals, coreSlot.Snap)
+
+	// connect again
+	err = s.testRepo.Connect(s.plug.Snap.Name(), s.plug.Name, coreSlot.Snap.Name(), coreSlot.Name)
+	c.Assert(err, IsNil)
+
+	// plug and snap name omitted
+	conns, snaps, err = s.testRepo.Disconnect(coreSlot.Snap.Name(), coreSlot.Name, "", "")
 	c.Assert(err, IsNil)
 	c.Assert(conns, HasLen, 1)
 	c.Check(conns, DeepEquals, []ConnRef{{PlugRef: s.plug.Ref(), SlotRef: coreSlot.Ref()}})

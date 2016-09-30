@@ -26,7 +26,12 @@ execute: |
     snap disconnect ubuntu-core:home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
-    echo "The plug can be disconnected from the OS snap without OS snap name"
+    echo "Disconnect everything from given plug"
     snap connect home-consumer:home ubuntu-core:home
-    snap disconnect home-consumer:home :home
+    snap disconnect home-consumer:home
+    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+
+    echo "Disconnect everything from given slot of OS snap"
+    snap connect home-consumer:home ubuntu-core:home
+    snap disconnect :home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"

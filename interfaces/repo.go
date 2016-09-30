@@ -340,8 +340,8 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	case plugSnapName == "" && plugName == "":
 		// Disconnect everything from slotSnapName:slotName
 		conns, snaps, err = r.disconnectEverythingFromSlot(slotSnapName, slotName)
-	case slotSnapName == "":
-		conns, snaps, err = r.disconnectPlugFromOsSlot(plugSnapName, plugName, slotName)
+	case slotSnapName == "" && slotName == "":
+		conns, snaps, err = r.disconnectPlugOrSlot(plugSnapName, plugName)
 	default:
 		conns, snaps, err = r.disconnectPlugFromSlot(plugSnapName, plugName, slotSnapName, slotName)
 	}
@@ -406,28 +406,30 @@ func (r *Repository) disconnectEverythingFromSlot(slotSnapName, slotName string)
 	return conns, snaps, nil
 }
 
-// disconnectPlugFromOsSlot finds specific slot in the OS snap and disconnects the plug from it.
-func (r *Repository) disconnectPlugFromOsSlot(plugSnapName, plugName, slotName string) ([]ConnRef, map[string]*snap.Info, error) {
-	// Ensure that such plug exists
-	plug := r.plugs[plugSnapName][plugName]
-	if plug == nil {
-		err := fmt.Errorf("cannot disconnect plug %q from snap %q, no such plug", plugName, plugSnapName)
-		return nil, nil, err
+func (r *Repository) disconnectPlugOrSlot(snapName, plugOrSlotName string) ([]ConnRef, map[string]*snap.Info, error) {
+	if snapName == "" {
+		// TODO: teach the repository about the OS snap
+		snapName = "ubuntu-core"
 	}
-
-	for slot := range r.plugSlots[plug] {
-		if slot.Snap.Type == snap.TypeOS && slot.Name == slotName {
-			r.disconnect(plug, slot)
-			conns := []ConnRef{{PlugRef: plug.Ref(), SlotRef: slot.Ref()}}
-			snaps := map[string]*snap.Info{
-				plug.Snap.Name(): plug.Snap,
-				slot.Snap.Name(): slot.Snap,
-			}
-			return conns, snaps, nil
+	var conns []ConnRef
+	snaps := make(map[string]*snap.Info)
+	d := func(plug *Plug, slot *Slot) {
+		r.disconnect(plug, slot)
+		snaps[plug.Snap.Name()] = plug.Snap
+		snaps[slot.Snap.Name()] = slot.Snap
+		conns = append(conns, ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()})
+	}
+	if slot := r.slots[snapName][plugOrSlotName]; slot != nil {
+		for plug := range r.slotPlugs[slot] {
+			d(plug, slot)
 		}
 	}
-	err := fmt.Errorf("cannot disconnect plug %q from snap %q from core snap, no matching slot", plugName, plugSnapName)
-	return nil, nil, err
+	if plug := r.plugs[snapName][plugOrSlotName]; plug != nil {
+		for slot := range r.plugSlots[plug] {
+			d(plug, slot)
+		}
+	}
+	return conns, snaps, nil
 }
 
 // disconnectPlugFromSlot finds a specific plug slot and plug and disconnects it.
