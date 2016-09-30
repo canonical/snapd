@@ -475,6 +475,12 @@ Can manage timeservers via systemd-timedated and directly separate from ``config
 
 * Auto-Connect: no
 
+### timezone-control
+
+Can manage timezone via systemd-timedated and directly separate from ``config core``
+
+* Auto-Connect: no
+
 ### tpm
 
 Can access the tpm device /dev/tpm0.

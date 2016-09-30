@@ -238,6 +238,7 @@ var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	var loginData struct {
 		Username string `json:"username"`
+		Email    string `json:"email"`
 		Password string `json:"password"`
 		Otp      string `json:"otp"`
 	}
@@ -247,8 +248,13 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode login data from request body: %v", err)
 	}
 
+	if loginData.Email == "" && isEmailish(loginData.Username) {
+		// for backwards compatibility, if no email is provided assume username is the email
+		loginData.Email = loginData.Username
+		loginData.Username = ""
+	}
 	// the "username" needs to look a lot like an email address
-	if !isEmailish(loginData.Username) {
+	if !isEmailish(loginData.Email) {
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
@@ -260,7 +266,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	macaroon, discharge, err := store.LoginUser(loginData.Username, loginData.Password, loginData.Otp)
+	macaroon, discharge, err := store.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -296,11 +302,10 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// continue
 	}
-
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)

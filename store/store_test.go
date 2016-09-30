@@ -22,6 +22,7 @@ package store
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -29,6 +30,8 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -44,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type remoteRepoTestSuite struct {
@@ -54,6 +58,7 @@ type remoteRepoTestSuite struct {
 
 	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
 	origBackoffs     []int
+	mockXDelta       *testutil.MockCmd
 }
 
 func TestStore(t *testing.T) { TestingT(t) }
@@ -222,11 +227,13 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.user, err = createTestUser(1, root, discharge)
 	c.Assert(err, IsNil)
 	t.device = createTestDevice()
+	t.mockXDelta = testutil.MockCommand(c, "xdelta", "")
 }
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
 	downloadBackoffs = t.origBackoffs
+	t.mockXDelta.Restore()
 }
 
 func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
@@ -389,6 +396,235 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
 	c.Check(n, Equals, len(downloadBackoffs)) // woo!!
+}
+
+type downloadBehaviour []struct {
+	url   string
+	error bool
+}
+
+var deltaTests = []struct {
+	downloads       downloadBehaviour
+	info            snap.DownloadInfo
+	expectedContent string
+}{{
+	// The full snap is not downloaded, but rather the delta
+	// is downloaded and applied.
+	downloads: downloadBehaviour{
+		{url: "delta-url"},
+	},
+	info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+		},
+	},
+	expectedContent: "snap-content-via-delta",
+}, {
+	// If there is an error during the delta download, the
+	// full snap is downloaded as per normal.
+	downloads: downloadBehaviour{
+		{error: true},
+		{url: "full-snap-url"},
+	},
+	info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+		},
+	},
+	expectedContent: "full-snap-url-content",
+}, {
+	// If more than one matching delta is returned by the store
+	// we ignore deltas and do the full download.
+	downloads: downloadBehaviour{
+		{url: "full-snap-url"},
+	},
+	info: snap.DownloadInfo{
+		AnonDownloadURL: "full-snap-url",
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "delta-url", Format: "xdelta"},
+			{AnonDownloadURL: "delta-url-2", Format: "xdelta"},
+		},
+	},
+	expectedContent: "full-snap-url-content",
+}}
+
+func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+
+	for _, testCase := range deltaTests {
+
+		downloadIndex := 0
+		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+			if testCase.downloads[downloadIndex].error {
+				downloadIndex++
+				return errors.New("Bang")
+			}
+			c.Check(url, Equals, testCase.downloads[downloadIndex].url)
+			w.Write([]byte(testCase.downloads[downloadIndex].url + "-content"))
+			downloadIndex++
+			return nil
+		}
+		applyDelta = func(name string, deltaPath string, deltaInfo *snap.DeltaInfo) (string, error) {
+			c.Check(deltaInfo, Equals, &testCase.info.Deltas[0])
+			w, err := ioutil.TempFile("", "")
+			defer w.Close()
+			c.Check(err, IsNil)
+			w.Write([]byte("snap-content-via-delta"))
+			return w.Name(), nil
+		}
+
+		path, err := t.store.Download("foo", &testCase.info, nil, nil)
+
+		c.Assert(err, IsNil)
+		defer os.Remove(path)
+		content, err := ioutil.ReadFile(path)
+		c.Assert(err, IsNil)
+		c.Assert(string(content), Equals, testCase.expectedContent)
+	}
+}
+
+var downloadDeltaTests = []struct {
+	info          snap.DownloadInfo
+	authenticated bool
+	format        string
+	expectedURL   string
+	expectedPath  string
+}{{
+	// An unauthenticated request downloads the anonymous delta url.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: false,
+	format:        "xdelta",
+	expectedURL:   "anon-delta-url",
+	expectedPath:  "snapname_24_26_delta.xdelta",
+}, {
+	// An authenticated request downloads the authenticated delta url.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "auth-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: true,
+	format:        "xdelta",
+	expectedURL:   "auth-delta-url",
+	expectedPath:  "snapname_24_26_delta.xdelta",
+}, {
+	// An error is returned if more than one matching delta is returned by the store,
+	// though this may be handled in the future.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 25},
+			{DownloadURL: "bsdiff-delta-url", Format: "xdelta", FromRevision: 25, ToRevision: 26},
+		},
+	},
+	authenticated: false,
+	format:        "xdelta",
+	expectedURL:   "",
+	expectedPath:  "",
+}, {
+	// If the supported format isn't available, an error is returned.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{DownloadURL: "xdelta-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+			{DownloadURL: "ydelta-delta-url", Format: "ydelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: false,
+	format:        "bsdiff",
+	expectedURL:   "",
+	expectedPath:  "",
+}}
+
+func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
+
+	for _, testCase := range downloadDeltaTests {
+		t.store.deltaFormat = testCase.format
+		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+			expectedUser := t.user
+			if !testCase.authenticated {
+				expectedUser = nil
+			}
+			c.Check(user, Equals, expectedUser)
+			c.Check(url, Equals, testCase.expectedURL)
+			return nil
+		}
+
+		downloadDir, err := ioutil.TempDir("", "")
+		c.Assert(err, IsNil)
+		defer os.RemoveAll(downloadDir)
+
+		authedUser := t.user
+		if !testCase.authenticated {
+			authedUser = nil
+		}
+
+		deltaPath, err := t.store.downloadDelta("snapname", downloadDir, &testCase.info, nil, authedUser)
+
+		if testCase.expectedPath == "" {
+			c.Assert(deltaPath, Equals, "")
+			c.Assert(err, NotNil)
+		} else {
+			c.Assert(err, IsNil)
+			c.Assert(deltaPath, Equals, path.Join(downloadDir, testCase.expectedPath))
+		}
+	}
+}
+
+var applyDeltaTests = []struct {
+	deltaInfo       snap.DeltaInfo
+	currentRevision uint
+	error           string
+}{{
+	// A supported delta format can be applied.
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "",
+}, {
+	// An error is returned if the expected current snap does not exist on disk.
+	deltaInfo:       snap.DeltaInfo{Format: "xdelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 23,
+	error:           "snap \"foo\" revision 24 not found",
+}, {
+	// An error is returned if the format is not supported.
+	deltaInfo:       snap.DeltaInfo{Format: "nodelta", FromRevision: 24, ToRevision: 26},
+	currentRevision: 24,
+	error:           "unsupported delta format \"nodelta\"",
+}}
+
+func (t *remoteRepoTestSuite) TestApplyDelta(c *C) {
+	for _, testCase := range applyDeltaTests {
+		name := "foo"
+		currentSnapName := fmt.Sprintf("%s_%d.snap", name, testCase.currentRevision)
+		currentSnapPath := filepath.Join(dirs.SnapBlobDir, currentSnapName)
+		err := os.MkdirAll(filepath.Dir(currentSnapPath), 0755)
+		c.Assert(err, IsNil)
+		err = ioutil.WriteFile(currentSnapPath, nil, 0644)
+		c.Assert(err, IsNil)
+
+		snapPath, err := applyDelta(name, "/the/delta/path", &testCase.deltaInfo)
+
+		c.Assert(os.Remove(currentSnapPath), IsNil)
+		if testCase.error == "" {
+			c.Assert(os.Remove(snapPath), IsNil)
+			c.Assert(err, IsNil)
+			c.Assert(t.mockXDelta.Calls(), DeepEquals, [][]string{
+				{"xdelta", "patch", "/the/delta/path", currentSnapPath, snapPath},
+			})
+		} else {
+			c.Assert(err, NotNil)
+			c.Assert(err.Error()[0:len(testCase.error)], Equals, testCase.error)
+		}
+	}
 }
 
 func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
@@ -1668,9 +1904,9 @@ var MockUpdatesWithDeltasJSON = `
 `
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *C) {
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "1"), IsNil)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "1"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, `xdelta`)
@@ -1743,9 +1979,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithDeltas(c *
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreRepositoryListRefreshWithoutDeltas(c *C) {
 	// Verify the X-Delta-Format header is not set.
-	orig_use_deltas := os.Getenv("SNAPPY_USE_DELTAS")
-	defer os.Setenv("SNAPPY_USE_DELTAS", orig_use_deltas)
-	c.Assert(os.Setenv("SNAPPY_USE_DELTAS", "0"), IsNil)
+	origUseDeltas := os.Getenv("SNAPD_USE_DELTAS_EXPERIMENTAL")
+	defer os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", origUseDeltas)
+	c.Assert(os.Setenv("SNAPD_USE_DELTAS_EXPERIMENTAL", "0"), IsNil)
 
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.Header.Get("X-Ubuntu-Delta-Formats"), Equals, ``)

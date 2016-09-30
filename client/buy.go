@@ -56,3 +56,9 @@ func (client *Client) PaymentMethods() (*store.PaymentInformation, error) {
 
 	return &result, nil
 }
+
+func (client *Client) ReadyToBuy() error {
+	var result bool
+	_, err := client.doSync("GET", "/v2/buy/ready", nil, nil, nil, &result)
+	return err
+}
