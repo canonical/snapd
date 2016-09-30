@@ -14,6 +14,7 @@ reset_classic() {
         exit 1
     fi
 
+    rm -rf /root/.snap/gnupg
     rm -f /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then

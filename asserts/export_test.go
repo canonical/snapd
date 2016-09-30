@@ -178,4 +178,5 @@ func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name stri
 // ifacedecls tests
 var (
 	CompileAttributeConstraints = compileAttributeConstraints
+	CompilePlugRule             = compilePlugRule
 )

@@ -249,6 +249,11 @@ func (sreq *SerialRequest) Model() string {
 	return sreq.HeaderString("model")
 }
 
+// Serial returns the optional proposed serial identifier for the device, the service taking the request might use it or ignore it.
+func (sreq *SerialRequest) Serial() string {
+	return sreq.HeaderString("serial")
+}
+
 // RequestID returns the id for the request, obtained from and to be presented to the serial signing service.
 func (sreq *SerialRequest) RequestID() string {
 	return sreq.HeaderString("request-id")
@@ -271,6 +276,11 @@ func assembleSerialRequest(assert assertionBase) (Assertion, error) {
 	}
 
 	_, err = checkNotEmptyString(assert.headers, "request-id")
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkOptionalString(assert.headers, "serial")
 	if err != nil {
 		return nil, err
 	}

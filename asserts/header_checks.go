@@ -180,14 +180,16 @@ func checkDigest(headers map[string]interface{}, name string, h crypto.Hash) ([]
 	return b, nil
 }
 
-func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
-	value, ok := headers[name]
+var anyString = regexp.MustCompile("")
+
+func checkStringListInMap(m map[string]interface{}, name, what string, pattern *regexp.Regexp) ([]string, error) {
+	value, ok := m[name]
 	if !ok {
 		return nil, nil
 	}
 	lst, ok := value.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("%q header must be a list of strings", name)
+		return nil, fmt.Errorf("%s must be a list of strings", what)
 	}
 	if len(lst) == 0 {
 		return nil, nil
@@ -196,11 +198,18 @@ func checkStringList(headers map[string]interface{}, name string) ([]string, err
 	for i, v := range lst {
 		s, ok := v.(string)
 		if !ok {
-			return nil, fmt.Errorf("%q header must be a list of strings", name)
+			return nil, fmt.Errorf("%s must be a list of strings", what)
+		}
+		if !pattern.MatchString(s) {
+			return nil, fmt.Errorf("%s contains an invalid element: %q", what, s)
 		}
 		res[i] = s
 	}
 	return res, nil
+}
+
+func checkStringList(headers map[string]interface{}, name string) ([]string, error) {
+	return checkStringListInMap(headers, name, fmt.Sprintf("%q header", name), anyString)
 }
 
 func checkStringMatches(headers map[string]interface{}, name string, pattern *regexp.Regexp) (string, error) {
@@ -224,4 +233,16 @@ func checkOptionalBool(headers map[string]interface{}, name string) (bool, error
 		return false, fmt.Errorf("%q header must be 'true' or 'false'", name)
 	}
 	return s == "true", nil
+}
+
+func checkMap(headers map[string]interface{}, name string) (map[string]interface{}, error) {
+	value, ok := headers[name]
+	if !ok {
+		return nil, nil
+	}
+	m, ok := value.(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("%q header must be a map", name)
+	}
+	return m, nil
 }

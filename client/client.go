@@ -294,6 +294,8 @@ const (
 	ErrorKindTwoFactorRequired = "two-factor-required"
 	ErrorKindTwoFactorFailed   = "two-factor-failed"
 	ErrorKindLoginRequired     = "login-required"
+	ErrorKindTermsNotAccepted  = "terms-not-accepted"
+	ErrorKindNoPaymentMethods  = "no-payment-methods"
 )
 
 // IsTwoFactorError returns whether the given error is due to problems
@@ -374,6 +376,7 @@ type CreateUserResult struct {
 type CreateUserRequest struct {
 	Email  string `json:"email"`
 	Sudoer bool   `json:"sudoer"`
+	Known  bool   `json:"known"`
 }
 
 // CreateUser creates a user from the given mail address
