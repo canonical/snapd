@@ -179,4 +179,5 @@ func (gkm *GPGKeypairManager) ParametersForGenerate(passphrase string, name stri
 var (
 	CompileAttributeConstraints = compileAttributeConstraints
 	CompilePlugRule             = compilePlugRule
+	CompileSlotRule             = compileSlotRule
 )
