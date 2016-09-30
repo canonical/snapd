@@ -135,7 +135,7 @@ type Config struct {
 	DetailsURI        *url.URL
 	BulkURI           *url.URL
 	AssertionsURI     *url.URL
-	PurchasesURI      *url.URL
+	OrdersURI         *url.URL
 	CustomersMeURI    *url.URL
 	PaymentMethodsURI *url.URL
 
@@ -155,7 +155,7 @@ type Store struct {
 	detailsURI        *url.URL
 	bulkURI           *url.URL
 	assertionsURI     *url.URL
-	purchasesURI      *url.URL
+	ordersURI         *url.URL
 	customersMeURI    *url.URL
 	paymentMethodsURI *url.URL
 
@@ -296,7 +296,7 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
+	defaultConfig.OrdersURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
 	if err != nil {
 		panic(err)
 	}
@@ -377,7 +377,7 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 		detailsURI:        detailsURI,
 		bulkURI:           cfg.BulkURI,
 		assertionsURI:     cfg.AssertionsURI,
-		purchasesURI:      cfg.PurchasesURI,
+		ordersURI:         cfg.OrdersURI,
 		customersMeURI:    cfg.CustomersMeURI,
 		paymentMethodsURI: cfg.PaymentMethodsURI,
 		series:            series,
@@ -664,7 +664,7 @@ func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 	}
 }
 
-// ordersResult encapsulates the purchase data sent to us from the software center agent.
+// ordersResult encapsulates the order data sent to us from the software center agent.
 //
 // {
 //   "orders": [
@@ -699,19 +699,35 @@ type order struct {
 	PurchaseDate    string `json:"purchase_date"`
 }
 
-func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) (*ordersResult, error) {
-	if user == nil {
-		return nil, ErrUnauthenticated
+// decorateOrders sets the MustBuy property of each snap in the given list according to the user's known orders.
+func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.UserState) error {
+	// Mark every non-free snap as must buy until we know better.
+	hasPriced := false
+	for _, info := range snaps {
+		if len(info.Prices) != 0 {
+			info.MustBuy = true
+			hasPriced = true
+		}
 	}
+
+	if user == nil {
+		return nil
+	}
+
+	if !hasPriced {
+		return nil
+	}
+
+	var err error
 
 	reqOptions := &requestOptions{
 		Method: "GET",
-		URL:    url,
+		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 
@@ -721,54 +737,13 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 	case http.StatusOK:
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&result); err != nil {
-			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
+			return fmt.Errorf("cannot decode known orders from store: %v", err)
 		}
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
-		return nil, ErrInvalidCredentials
+		return ErrInvalidCredentials
 	default:
-		return nil, respToError(resp, "obtain known purchases from store")
-	}
-
-	return &result, nil
-}
-
-func setMustBuy(snaps []*snap.Info) {
-	for _, info := range snaps {
-		if len(info.Prices) != 0 {
-			info.MustBuy = true
-		}
-	}
-}
-
-func hasPriced(snaps []*snap.Info) bool {
-	// Search through the list of snaps to see if any are priced
-	for _, info := range snaps {
-		if len(info.Prices) != 0 {
-			return true
-		}
-	}
-	return false
-}
-
-// decorateAllPurchases sets the MustBuy property of each snap in the given list according to the user's known purchases.
-func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth.UserState) error {
-	// Mark every non-free snap as must buy until we know better.
-	setMustBuy(snaps)
-
-	if user == nil {
-		return nil
-	}
-
-	if !hasPriced(snaps) {
-		return nil
-	}
-
-	var err error
-
-	result, err := s.getPurchasesFromURL(s.purchasesURI, channel, user)
-	if err != nil {
-		return err
+		return respToError(resp, "obtain known orders from store")
 	}
 
 	// Make a map of the IDs of bought snaps
@@ -851,9 +826,9 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 
 	info := infoFromRemote(remote)
 
-	err = s.decoratePurchases([]*snap.Info{info}, channel, user)
+	err = s.decorateOrders([]*snap.Info{info}, channel, user)
 	if err != nil {
-		logger.Noticef("cannot get user purchases: %v", err)
+		logger.Noticef("cannot get user orders: %v", err)
 	}
 
 	s.extractSuggestedCurrency(resp)
@@ -946,9 +921,9 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		snaps[i] = infoFromRemote(pkg)
 	}
 
-	err = s.decoratePurchases(snaps, "", user)
+	err = s.decorateOrders(snaps, "", user)
 	if err != nil {
-		logger.Noticef("cannot get user purchases: %v", err)
+		logger.Noticef("cannot get user orders: %v", err)
 	}
 
 	s.extractSuggestedCurrency(resp)
@@ -1346,7 +1321,7 @@ func (s *Store) SuggestedCurrency() string {
 	return s.suggestedCurrency
 }
 
-// BuyOptions specifies parameters for store purchases.
+// BuyOptions specifies parameters to buy from the store.
 type BuyOptions struct {
 	SnapID   string  `json:"snap-id"`
 	SnapName string  `json:"snap-name"`
@@ -1354,14 +1329,13 @@ type BuyOptions struct {
 	Currency string  `json:"currency"` // ISO 4217 code as string
 }
 
-// BuyResult holds the state of a purchase attempt.
+// BuyResult holds the state of a buy attempt.
 type BuyResult struct {
 	State string `json:"state,omitempty"`
 }
 
-// purchaseInstruction holds data sent to the store for purchases.
-// X-Device-Id and X-Partner-Id (e.g. "bq") may be sent as headers.
-type purchaseInstruction struct {
+// orderInstruction holds data sent to the store for orders.
+type orderInstruction struct {
 	SnapID   string  `json:"snap_id"`
 	Amount   float64 `json:"amount,omitempty"`
 	Currency string  `json:"currency,omitempty"`
@@ -1398,8 +1372,8 @@ func buyOptionError(options *BuyOptions, message string) (*BuyResult, error) {
 	return nil, fmt.Errorf("cannot buy snap%s: %s", identifier, message)
 }
 
-// Buy sends a purchase request for the specified snap.
-// Returns the state of the purchase: Complete, Cancelled, InProgress or Pending.
+// Buy sends a buy request for the specified snap.
+// Returns the state of the order: Complete, Cancelled.
 func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, error) {
 	if options.SnapID == "" {
 		return buyOptionError(options, "snap ID missing")
@@ -1423,7 +1397,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, err
 	}
 
-	instruction := purchaseInstruction{
+	instruction := orderInstruction{
 		SnapID:   options.SnapID,
 		Amount:   options.Price,
 		Currency: options.Currency,
@@ -1436,7 +1410,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	reqOptions := &requestOptions{
 		Method:      "POST",
-		URL:         s.purchasesURI,
+		URL:         s.ordersURI,
 		Accept:      jsonContentType,
 		ContentType: jsonContentType,
 		Data:        jsonData,
@@ -1449,19 +1423,19 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
-		// user already purchased or purchase successful
-		var purchaseDetails order
+		// user already ordered or order successful
+		var orderDetails order
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&purchaseDetails); err != nil {
+		if err := dec.Decode(&orderDetails); err != nil {
 			return nil, err
 		}
 
-		if purchaseDetails.State == "Cancelled" {
+		if orderDetails.State == "Cancelled" {
 			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
 		}
 
 		return &BuyResult{
-			State: purchaseDetails.State,
+			State: orderDetails.State,
 		}, nil
 	case http.StatusBadRequest:
 		// Invalid price was specified, etc.
