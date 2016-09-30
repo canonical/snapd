@@ -79,7 +79,6 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	readyToBuyCmd,
-	paymentMethodsCmd,
 	snapctlCmd,
 }
 
@@ -192,13 +191,6 @@ var (
 		Path:   "/v2/buy/ready",
 		UserOK: false,
 		GET:    readyToBuy,
-	}
-
-	// TODO Remove once the CLI is using the new /buy/ready endpoint
-	paymentMethodsCmd = &Command{
-		Path:   "/v2/buy/methods",
-		UserOK: false,
-		GET:    getPaymentMethods,
 	}
 
 	snapctlCmd = &Command{
@@ -1843,33 +1835,6 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(buyResult, nil)
-}
-
-// TODO Remove once the CLI is using the new /buy/ready endpoint
-func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	paymentMethods, err := s.PaymentMethods(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
-	case store.ErrUnauthenticated:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindLoginRequired,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	case nil:
-		// continue
-	}
-
-	return SyncResponse(paymentMethods, nil)
 }
 
 func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
