@@ -90,7 +90,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 
 	s.state.Lock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)
-	s.user, err = auth.NewUser(s.state, "username", "macaroon", []string{"discharge"})
+	s.user, err = auth.NewUser(s.state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	c.Assert(err, IsNil)
 	s.state.Unlock()
 }

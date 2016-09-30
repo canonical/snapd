@@ -20,6 +20,9 @@ execute: |
     echo "Ensure the user is a sudo user"
     sudo -u mvo sudo true
 
+    echo "Snaps can be installed without an extra `snap login` by the created user"
+    su -l -c "snap install test-snapd-tools" mvo
+
 
     echo "Adding invalid user"
     expected='error: bad user result: cannot create user "nosuchuser@example.com"'
@@ -31,3 +34,4 @@ execute: |
         echo "Unexpected output $output"
         exit 1
     fi
+

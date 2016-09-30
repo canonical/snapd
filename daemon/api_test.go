@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -315,7 +316,7 @@ func (s *apiSuite) TestSnapInfoOneIntegration(c *check.C) {
 func (s *apiSuite) TestSnapInfoWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -411,6 +412,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
+		"userLookup",
 	}
 	c.Check(found, check.Equals, len(api)+len(exceptions),
 		check.Commentf(`At a glance it looks like you've not added all the Commands defined in api to the api list. If that is not the case, please add the exception to the "exceptions" list in this test.`))
@@ -568,7 +570,7 @@ func (s *apiSuite) TestLogoutUser(c *check.C) {
 	d := s.daemon(c)
 	state := d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -707,19 +709,6 @@ func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
 	c.Check(user, check.IsNil)
 }
 
-func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
-
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := UserFromRequest(state, req)
-	state.Unlock()
-
-	c.Check(err, check.ErrorMatches, "invalid authorization header")
-	c.Check(user, check.IsNil)
-}
-
 func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
 	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
@@ -736,7 +725,7 @@ func (s *apiSuite) TestUserFromRequestHeaderCorrectMissingUser(c *check.C) {
 func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -754,7 +743,7 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	expectedUser, err := auth.NewUser(state, "username", "macaroon", []string{"discharge2", "discharge1"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1139,7 +1128,7 @@ func (s *apiSuite) TestSnapsStoreConfinement(c *check.C) {
 func (s *apiSuite) TestSnapsInfoStoreWithAuth(c *check.C) {
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -1328,7 +1317,7 @@ func (s *apiSuite) TestPostSnapSetsUser(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3626,6 +3615,14 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  c.MkDir(),
+		}, nil
+	}
 
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
@@ -3633,6 +3630,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
 	}()
 
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
@@ -3667,7 +3665,7 @@ func (s *apiSuite) TestBuySnap(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3705,7 +3703,7 @@ func (s *apiSuite) TestBuyFailMissingParameter(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
@@ -3780,7 +3778,7 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 
 		state := snapCmd.d.overlord.State()
 		state.Lock()
-		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+		user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 		state.Unlock()
 		c.Check(err, check.IsNil)
 
@@ -3813,7 +3811,7 @@ func (s *apiSuite) TestPaymentMethods(c *check.C) {
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
-	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(state, "username", "macaroon", []string{"discharge"}, "macaroon", []string{"discharge"})
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
