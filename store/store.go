@@ -699,22 +699,14 @@ type order struct {
 	PurchaseDate    string `json:"purchase_date"`
 }
 
-func hasPriced(snaps []*snap.Info) bool {
-	// Search through the list of snaps to see if any are priced
-	for _, info := range snaps {
-		if len(info.Prices) != 0 {
-			return true
-		}
-	}
-	return false
-}
-
 // decorateOrders sets the MustBuy property of each snap in the given list according to the user's known orders.
 func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.UserState) error {
 	// Mark every non-free snap as must buy until we know better.
+	hasPriced := false
 	for _, info := range snaps {
 		if len(info.Prices) != 0 {
 			info.MustBuy = true
+			hasPriced = true
 		}
 	}
 
@@ -722,7 +714,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		return nil
 	}
 
-	if !hasPriced(snaps) {
+	if !hasPriced {
 		return nil
 	}
 
