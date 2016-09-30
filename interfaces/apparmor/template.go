@@ -39,6 +39,10 @@ var defaultTemplate = []byte(`
   #include <abstractions/consoles>
   #include <abstractions/openssl>
 
+  # While in later versions of the base abstraction, include this explicitly
+  # for series 16 and cross-distro
+  /etc/ld.so.preload r,
+
   # for python apps/services
   #include <abstractions/python>
   /usr/bin/python{,2,2.[0-9]*,3,3.[0-9]*} ixr,
