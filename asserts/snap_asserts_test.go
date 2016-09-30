@@ -1061,7 +1061,7 @@ slots:
 timestamp: 2016-09-29T19:50:49Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-$builtin`
+AXNpZw==`
 	a, err := asserts.Decode([]byte(encoded))
 	c.Assert(err, IsNil)
 	baseDecl := a.(*asserts.BaseDeclaration)
@@ -1142,7 +1142,7 @@ func (s *baseDeclSuite) TestDecodeInvalid(c *C) {
 		tsLine +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
 		"\n\n" +
-		"$builtin"
+		"AXNpZw=="
 
 	invalidTests := []struct{ original, invalid, expectedErr string }{
 		{"series: 16\n", "", `"series" header is mandatory`},
