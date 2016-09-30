@@ -296,7 +296,7 @@ func init() {
 		panic(err)
 	}
 
-	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "dev/api/snap-purchases/")
+	defaultConfig.PurchasesURI, err = url.Parse(myappsURL() + "purchases/v1/orders")
 	if err != nil {
 		panic(err)
 	}
@@ -664,58 +664,50 @@ func (s *Store) extractSuggestedCurrency(resp *http.Response) {
 	}
 }
 
-// purchase encapsulates the purchase data sent to us from the software center agent.
+// ordersResult encapsulates the purchase data sent to us from the software center agent.
 //
-// When making a purchase request, the State "InProgress", together with a RedirectTo
-// URL may be received. In-this case, the user must be directed to that webpage in
-// order to complete the purchase (e.g. to enter 3D-secure credentials).
-// Additionally, Partner ID may be recieved as an extended header "X-Partner-Id",
-// this should be included in the follow-on requests to the redirect URL.
-//
-// HTTP/1.1 200 OK
-// Content-Type: application/json; charset=utf-8
-//
-// [
-//   {
-//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "8nzc1x4iim2xj1g2ul64",
-//     "refundable_until": "2015-07-15 18:46:21",
-//     "state": "Complete"
-//   },
-//   {
-//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "8nzc1x4iim2xj1g2ul64",
-//     "item_sku": "item-1-sku",
-//     "purchase_id": "1",
-//     "refundable_until": null,
-//     "state": "Complete"
-//   },
-//   {
-//     "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-//     "snap_id": "12jdhg1j2dgj12dgk1jh",
-//     "refundable_until": "2015-07-17 11:33:29",
-//     "state": "Complete"
-//   }
-// ]
-type purchase struct {
-	OpenID          string `json:"open_id"`
-	SnapID          string `json:"snap_id"`
-	RefundableUntil string `json:"refundable_until"`
-	State           string `json:"state"`
-	ItemSKU         string `json:"item_sku,omitempty"`
-	PurchaseID      string `json:"purchase_id,omitempty"`
-	RedirectTo      string `json:"redirect_to,omitempty"`
+// {
+//   "orders": [
+//     {
+//       "snap_id": "abcd1234efgh5678ijkl9012",
+//       "currency": "USD",
+//       "amount": "2.99",
+//       "state": "Complete",
+//       "refundable_until": null,
+//       "purchase_date": "2016-09-20T15:00:00+00:00"
+//     },
+//     {
+//       "snap_id": "abcd1234efgh5678ijkl9012",
+//       "currency": null,
+//       "amount": null,
+//       "state": "Complete",
+//       "refundable_until": null,
+//       "purchase_date": "2016-09-20T15:00:00+00:00"
+//     }
+//   ]
+// }
+type ordersResult struct {
+	Orders []*order `json:"orders"`
 }
 
-func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) ([]*purchase, error) {
+type order struct {
+	SnapID          string `json:"snap_id"`
+	Currency        string `json:"currency"`
+	Amount          string `json:"amount"`
+	State           string `json:"state"`
+	RefundableUntil string `json:"refundable_until"`
+	PurchaseDate    string `json:"purchase_date"`
+}
+
+func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.UserState) (*ordersResult, error) {
 	if user == nil {
-		return nil, fmt.Errorf("cannot obtain known purchases from store: no authentication credentials provided")
+		return nil, ErrUnauthenticated
 	}
 
 	reqOptions := &requestOptions{
 		Method: "GET",
 		URL:    url,
-		Accept: halJsonContentType,
+		Accept: jsonContentType,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
 	if err != nil {
@@ -723,12 +715,12 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 	}
 	defer resp.Body.Close()
 
-	var purchases []*purchase
+	var result ordersResult
 
 	switch resp.StatusCode {
 	case http.StatusOK:
 		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&purchases); err != nil {
+		if err := dec.Decode(&result); err != nil {
 			return nil, fmt.Errorf("cannot decode known purchases from store: %v", err)
 		}
 	case http.StatusUnauthorized:
@@ -738,7 +730,7 @@ func (s *Store) getPurchasesFromURL(url *url.URL, channel string, user *auth.Use
 		return nil, respToError(resp, "obtain known purchases from store")
 	}
 
-	return purchases, nil
+	return &result, nil
 }
 
 func setMustBuy(snaps []*snap.Info) {
@@ -773,58 +765,33 @@ func (s *Store) decoratePurchases(snaps []*snap.Info, channel string, user *auth
 	}
 
 	var err error
-	var purchasesURL *url.URL
 
-	if len(snaps) == 1 {
-		// If we only have a single snap, we should only find the purchases for that snap
-		purchasesURL, err = s.purchasesURI.Parse(snaps[0].SnapID + "/")
-		if err != nil {
-			return err
-		}
-		q := purchasesURL.Query()
-		q.Set("include_item_purchases", "true")
-		purchasesURL.RawQuery = q.Encode()
-	} else {
-		// Inconsistently, global search implies include_item_purchases.
-		purchasesURL = s.purchasesURI
-	}
-
-	purchases, err := s.getPurchasesFromURL(purchasesURL, channel, user)
+	result, err := s.getPurchasesFromURL(s.purchasesURI, channel, user)
 	if err != nil {
 		return err
 	}
 
-	// Group purchases by snap ID.
-	purchasesByID := make(map[string][]*purchase)
-	for _, purchase := range purchases {
-		purchasesByID[purchase.SnapID] = append(purchasesByID[purchase.SnapID], purchase)
+	// Make a map of the IDs of bought snaps
+	bought := make(map[string]bool)
+	for _, order := range result.Orders {
+		bought[order.SnapID] = true
 	}
 
 	for _, info := range snaps {
-		info.MustBuy = mustBuy(info.Prices, purchasesByID[info.SnapID])
+		info.MustBuy = mustBuy(info.Prices, bought[info.SnapID])
 	}
 
 	return nil
 }
 
 // mustBuy determines if a snap requires a payment, based on if it is non-free and if the user has already bought it
-func mustBuy(prices map[string]float64, purchases []*purchase) bool {
+func mustBuy(prices map[string]float64, bought bool) bool {
 	if len(prices) == 0 {
-		// If the snap is free, then it doesn't need purchasing
+		// If the snap is free, then it doesn't need buying
 		return false
 	}
 
-	// Search through all the purchases for a snap to see if there are any
-	// that are for the whole snap, and not an "in-app" purchase.
-	for _, purchase := range purchases {
-		if purchase.ItemSKU == "" {
-			// Purchase is for the whole snap.
-			return false
-		}
-	}
-
-	// The snap is not free, and we couldn't find a purchase for the whole snap.
-	return true
+	return !bought
 }
 
 // Snap returns the snap.Info for the store hosted snap with the given name or an error.
@@ -1065,7 +1032,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		Method:      "POST",
 		URL:         s.bulkURI,
 		Accept:      halJsonContentType,
-		ContentType: "application/json",
+		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
 
@@ -1349,7 +1316,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 
 	if resp.StatusCode != 200 {
 		contentType := resp.Header.Get("Content-Type")
-		if contentType == "application/json" || contentType == "application/problem+json" {
+		if contentType == jsonContentType || contentType == "application/problem+json" {
 			var svcErr assertionSvcError
 			dec := json.NewDecoder(resp.Body)
 			if err := dec.Decode(&svcErr); err != nil {
@@ -1381,38 +1348,23 @@ func (s *Store) SuggestedCurrency() string {
 
 // BuyOptions specifies parameters for store purchases.
 type BuyOptions struct {
-	// Required
 	SnapID   string  `json:"snap-id"`
 	SnapName string  `json:"snap-name"`
 	Price    float64 `json:"price"`
 	Currency string  `json:"currency"` // ISO 4217 code as string
-
-	// Optional
-	BackendID string `json:"backend-id"` // e.g. "credit_card", "paypal"
-	MethodID  int    `json:"method-id"`  // e.g. a particular credit card or paypal account
 }
 
-// BuyResult holds information required to complete the purchase when state
-// is "InProgress", in which case it requires user interaction to complete.
+// BuyResult holds the state of a purchase attempt.
 type BuyResult struct {
-	State      string `json:"state,omitempty"`
-	RedirectTo string `json:"redirect-to,omitempty"`
-	PartnerID  string `json:"partner-id,omitempty"`
+	State string `json:"state,omitempty"`
 }
 
 // purchaseInstruction holds data sent to the store for purchases.
 // X-Device-Id and X-Partner-Id (e.g. "bq") may be sent as headers.
 type purchaseInstruction struct {
-	SnapID    string  `json:"snap_id"`
-	ItemSKU   string  `json:"item_sku,omitempty"`
-	Amount    float64 `json:"amount,omitempty"`
-	Currency  string  `json:"currency,omitempty"`
-	BackendID string  `json:"backend_id,omitempty"`
-	MethodID  int     `json:"method_id,omitempty"`
-}
-
-type buyError struct {
-	ErrorMessage string `json:"error_message"`
+	SnapID   string  `json:"snap_id"`
+	Amount   float64 `json:"amount,omitempty"`
+	Currency string  `json:"currency,omitempty"`
 }
 
 type storeError struct {
@@ -1462,15 +1414,19 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return buyOptionError(options, "currency missing")
 	}
 	if user == nil {
-		return buyOptionError(options, "authentication credentials missing")
+		return nil, ErrUnauthenticated
+	}
+
+	// FIXME Would really rather not to do this, and have the same meaningful errors from the POST to order.
+	err := s.ReadyToBuy(user)
+	if err != nil {
+		return nil, err
 	}
 
 	instruction := purchaseInstruction{
-		SnapID:    options.SnapID,
-		Amount:    options.Price,
-		Currency:  options.Currency,
-		BackendID: options.BackendID,
-		MethodID:  options.MethodID,
+		SnapID:   options.SnapID,
+		Amount:   options.Price,
+		Currency: options.Currency,
 	}
 
 	jsonData, err := json.Marshal(instruction)
@@ -1481,8 +1437,8 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	reqOptions := &requestOptions{
 		Method:      "POST",
 		URL:         s.purchasesURI,
-		Accept:      halJsonContentType,
-		ContentType: "application/json",
+		Accept:      jsonContentType,
+		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
 	resp, err := s.doRequest(s.client, reqOptions, user)
@@ -1494,7 +1450,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	switch resp.StatusCode {
 	case http.StatusOK, http.StatusCreated:
 		// user already purchased or purchase successful
-		var purchaseDetails purchase
+		var purchaseDetails order
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&purchaseDetails); err != nil {
 			return nil, err
@@ -1504,24 +1460,17 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 			return nil, fmt.Errorf("cannot buy snap %q: payment cancelled", options.SnapName)
 		}
 
-		redirectTo := ""
-		if purchaseDetails.RedirectTo != "" {
-			redirectTo = fmt.Sprintf("%s://%s%s", s.purchasesURI.Scheme, s.purchasesURI.Host, purchaseDetails.RedirectTo)
-		}
-
 		return &BuyResult{
-			State:      purchaseDetails.State,
-			RedirectTo: redirectTo,
-			PartnerID:  resp.Header.Get("X-Partner-Id"),
+			State: purchaseDetails.State,
 		}, nil
 	case http.StatusBadRequest:
 		// Invalid price was specified, etc.
-		var errorInfo buyError
+		var errorInfo storeErrors
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errorInfo); err != nil {
 			return nil, err
 		}
-		return nil, fmt.Errorf("cannot buy snap %q: bad request: %s", options.SnapName, errorInfo.ErrorMessage)
+		return nil, fmt.Errorf("cannot buy snap %q: bad request: %v", options.SnapName, errorInfo.Error())
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
 		return nil, fmt.Errorf("cannot buy snap %q: server says not found (snap got removed?)", options.SnapName)
@@ -1529,16 +1478,12 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
 	default:
-		var errorInfo buyError
+		var errorInfo storeErrors
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errorInfo); err != nil {
 			return nil, err
 		}
-		details := ""
-		if errorInfo.ErrorMessage != "" {
-			details = ": " + errorInfo.ErrorMessage
-		}
-		return nil, respToError(resp, fmt.Sprintf("buy snap %q%s", options.SnapName, details))
+		return nil, respToError(resp, fmt.Sprintf("buy snap %q: %v", options.SnapName, errorInfo))
 	}
 }
 
@@ -1581,7 +1526,7 @@ type storeCustomer struct {
 // ReadyToBuy returns nil if the user's account has accepted T&Cs and has a payment method registered, and an error otherwise
 func (s *Store) ReadyToBuy(user *auth.UserState) error {
 	if user == nil {
-		return ErrInvalidCredentials
+		return ErrUnauthenticated
 	}
 
 	reqOptions := &requestOptions{
@@ -1631,7 +1576,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 // TODO Remove once the CLI is using the new /buy/ready endpoint
 func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
 	if user == nil {
-		return nil, ErrInvalidCredentials
+		return nil, ErrUnauthenticated
 	}
 
 	reqOptions := &requestOptions{
@@ -1681,15 +1626,11 @@ func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error
 	case http.StatusUnauthorized:
 		return nil, ErrInvalidCredentials
 	default:
-		var errorInfo buyError
+		var errorInfo storeErrors
 		dec := json.NewDecoder(resp.Body)
 		if err := dec.Decode(&errorInfo); err != nil {
 			return nil, err
 		}
-		details := ""
-		if errorInfo.ErrorMessage != "" {
-			details = ": " + errorInfo.ErrorMessage
-		}
-		return nil, fmt.Errorf("cannot get payment methods: unexpected HTTP code %d%s", resp.StatusCode, details)
+		return nil, fmt.Errorf("cannot get payment methods: unexpected HTTP code %d: %v", resp.StatusCode, errorInfo)
 	}
 }
