@@ -1211,8 +1211,11 @@ func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
 		err     string
 	}{
 		{"", `header entry missing ':' separator: ""`},
-		{"type: foo\n", `the builtin base-declaration headers sport the wrong type`},
-		{"type: base-declaration", `assertion: "authority-id" header is mandatory`},
+		{"type: foo\n", `the builtin base-declaration "type" header is not set to expected value "base-declaration"`},
+		{"type: base-declaration", `the builtin base-declaration "authority-id" header is not set to expected value "canonical"`},
+		{"type: base-declaration\nauthority-id: canonical", `the builtin base-declaration "series" header is not set to expected value "16"`},
+		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nrevision: zzz", `cannot assemble the builtin-base declaration: "revision" header is not an integer: zzz`},
+		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nplugs: foo", `cannot assemble the builtin base-declaration: "plugs" header must be a map`},
 	}
 
 	for _, t := range tests {
