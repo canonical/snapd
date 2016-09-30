@@ -22,10 +22,12 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
-	"time"
+	"syscall"
 
 	"github.com/jessevdk/go-flags"
 
@@ -97,6 +99,30 @@ func autoImportFromAllMounts() error {
 	return nil
 }
 
+func tryUnshareAndMount(deviceName string) (string, error) {
+	// FIXME: use unshare
+
+	tmpMountTarget, err := ioutil.TempDir("", "snapd-auto-import-mount-")
+	if err != nil {
+		return "", fmt.Errorf("cannot create tmp mount point")
+	}
+	// not using syscall.Mount() because we don't know the fs type in
+	// advance
+	cmd := exec.Command("mount", "-o", "ro", "--make-private", deviceName, tmpMountTarget)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", osutil.OutputErr(output, err)
+	}
+
+	return tmpMountTarget, nil
+}
+
+func doUmount(mp string) error {
+	if err := syscall.Unmount(mp, 0); err != nil {
+		return err
+	}
+	return os.Remove(mp)
+}
+
 type cmdAutoImport struct{}
 
 var shortAutoImportHelp = i18n.G("Auto import assertions")
@@ -114,13 +140,16 @@ func init() {
 }
 
 func (x *cmdAutoImport) Execute(args []string) error {
-	if len(args) > 0 {
+	if len(args) > 1 {
 		return ErrExtraArgs
 	}
-
-	// SUCKS: racy because the mount is not done when the script is
-	//        called
-	time.Sleep(1 * time.Second)
+	if len(args) > 0 {
+		mp, err := tryUnshareAndMount(args[0])
+		if err != nil {
+			return err
+		}
+		defer doUmount(mp)
+	}
 
 	return autoImportFromAllMounts()
 }
