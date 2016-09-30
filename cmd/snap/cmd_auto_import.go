@@ -32,6 +32,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -57,14 +58,6 @@ func autoImportCandidates() ([]string, error) {
 			continue
 		}
 		mountPoint := l[4]
-		mountSrc := l[9]
-		// FIXME: premature optimization?
-		if !strings.HasPrefix(mountSrc, "/dev/") {
-			continue
-		}
-		if strings.HasPrefix(mountSrc, "/dev/loop") {
-			continue
-		}
 		cand := filepath.Join(mountPoint, autoImportsName)
 		if osutil.FileExists(cand) {
 			cands = append(cands, cand)
@@ -84,10 +77,11 @@ func autoImportFromAllMounts() error {
 	added := 0
 	for _, cand := range cands {
 		if err := ackFile(cand); err != nil {
-			fmt.Fprintf(Stderr, "cannot import %q: %s\n", cand, err)
+			logger.Noticef("cannot import %q: %s\n", cand, err)
 			continue
 		}
-		fmt.Fprintf(Stdout, "acked %q\n", cand)
+		logger.Noticef("acked %q\n", cand)
+
 	}
 
 	// FIXME: once we have a way to know if a device is owned
@@ -99,18 +93,24 @@ func autoImportFromAllMounts() error {
 	return nil
 }
 
-func tryUnshareAndMount(deviceName string) (string, error) {
-	// FIXME: use unshare
-
+func tryMount(deviceName string) (string, error) {
 	tmpMountTarget, err := ioutil.TempDir("", "snapd-auto-import-mount-")
 	if err != nil {
-		return "", fmt.Errorf("cannot create tmp mount point")
+		msg := "cannot create tmp mount point"
+		logger.Noticef(msg)
+		return "", fmt.Errorf(msg)
+	}
+	// udev does not provide much environment ;)
+	if os.Getenv("PATH") == "" {
+		os.Setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
 	}
 	// not using syscall.Mount() because we don't know the fs type in
 	// advance
 	cmd := exec.Command("mount", "-o", "ro", "--make-private", deviceName, tmpMountTarget)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", osutil.OutputErr(output, err)
+		msg := fmt.Sprintf("cannot mount %q: %s", deviceName, osutil.OutputErr(output, err))
+		logger.Panicf(msg)
+		return "", fmt.Errorf(msg)
 	}
 
 	return tmpMountTarget, nil
@@ -144,7 +144,7 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	if len(args) > 0 {
-		mp, err := tryUnshareAndMount(args[0])
+		mp, err := tryMount(args[0])
 		if err != nil {
 			return err
 		}

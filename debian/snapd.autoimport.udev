@@ -1,2 +1,3 @@
-ACTION=="add", SUBSYSTEM=="block" ENV{ID_FS_USAGE}=="filesystem"\
-    ENV{SYSTEMD_WANTS}="snapd.autoimport@%k.service"
+# probe for assertions, must run before udisks2
+ACTION=="add", SUBSYSTEM=="block" \
+    RUN+="/usr/bin/unshare -m /usr/bin/snap auto-import /dev/%k"

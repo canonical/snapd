@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/logger"
 )
 
 var mockMountInfoFmt = `
@@ -68,10 +69,14 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
 	snap.MockMountInfoPath(makeMockMountInfo(c, content))
 
+	l, err := logger.NewConsoleLog(s.stderr, 0)
+	c.Assert(err, IsNil)
+	logger.SetLogger(l)
+
 	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, fmt.Sprintf("acked %q\n", fakeAssertsFn))
-	c.Check(s.Stderr(), Equals, "")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, fmt.Sprintf("acked %q\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 }
