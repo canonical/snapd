@@ -4080,6 +4080,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
+	// note that we get a list here instead of a single
+	// createResponseData item
 	expected := []createResponseData{
 		{Username: "guy", SSHKeyCount: 0},
 	}
