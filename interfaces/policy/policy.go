@@ -59,10 +59,10 @@ func (connc *ConnectCandidate) slotSnapType() snap.Type {
 	return connc.Slot.Snap.Type
 }
 
-func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, snapDecl *asserts.SnapDeclaration) error {
+func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, snapRule bool) error {
 	context := ""
-	if snapDecl != nil {
-		context = fmt.Sprintf(" for %q snap", snapDecl.SnapName())
+	if snapRule {
+		context = fmt.Sprintf(" for %q snap", connc.PlugSnapDeclaration.SnapName())
 	}
 	if checkPlugConnectionConstraints(connc, rule.DenyConnection) == nil {
 		return fmt.Errorf("connection denied by plug rule of interface %q%s", connc.Plug.Interface, context)
@@ -73,10 +73,10 @@ func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, snapDecl *a
 	return nil
 }
 
-func (connc *ConnectCandidate) checkSlotRule(rule *asserts.SlotRule, snapDecl *asserts.SnapDeclaration) error {
+func (connc *ConnectCandidate) checkSlotRule(rule *asserts.SlotRule, snapRule bool) error {
 	context := ""
-	if snapDecl != nil {
-		context = fmt.Sprintf(" for %q snap", snapDecl.SnapName())
+	if snapRule {
+		context = fmt.Sprintf(" for %q snap", connc.SlotSnapDeclaration.SnapName())
 	}
 	if checkSlotConnectionConstraints(connc, rule.DenyConnection) == nil {
 		return fmt.Errorf("connection denied by slot rule of interface %q%s", connc.Plug.Interface, context)
@@ -97,19 +97,19 @@ func (connc *ConnectCandidate) Check() error {
 
 	if plugDecl := connc.PlugSnapDeclaration; plugDecl != nil {
 		if rule := plugDecl.PlugRule(iface); rule != nil {
-			return connc.checkPlugRule(rule, plugDecl)
+			return connc.checkPlugRule(rule, true)
 		}
 	}
 	if slotDecl := connc.SlotSnapDeclaration; slotDecl != nil {
 		if rule := slotDecl.SlotRule(iface); rule != nil {
-			return connc.checkSlotRule(rule, slotDecl)
+			return connc.checkSlotRule(rule, true)
 		}
 	}
 	if rule := baseDecl.PlugRule(iface); rule != nil {
-		return connc.checkPlugRule(rule, nil)
+		return connc.checkPlugRule(rule, false)
 	}
 	if rule := baseDecl.SlotRule(iface); rule != nil {
-		return connc.checkSlotRule(rule, nil)
+		return connc.checkSlotRule(rule, false)
 	}
 	return nil
 }
