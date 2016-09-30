@@ -339,9 +339,7 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 		conns, snaps, err = r.disconnectEverythingFromSnap(slotSnapName)
 	case plugSnapName == "" && plugName == "":
 		// Disconnect everything from slotSnapName:slotName
-		conns, snaps, err = r.disconnectEverythingFromSlot(slotSnapName, slotName)
-	case slotSnapName == "" && slotName == "":
-		conns, snaps, err = r.disconnectPlugOrSlot(plugSnapName, plugName)
+		conns, snaps, err = r.disconnectPlugOrSlot(slotSnapName, slotName)
 	default:
 		conns, snaps, err = r.disconnectPlugFromSlot(plugSnapName, plugName, slotSnapName, slotName)
 	}
@@ -380,28 +378,6 @@ func (r *Repository) disconnectEverythingFromSnap(slotSnapName string) ([]ConnRe
 			snaps[slot.Snap.Name()] = slot.Snap
 			conns = append(conns, ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()})
 		}
-	}
-	return conns, snaps, nil
-}
-
-// disconnectEverythingFromSlot finds a specific plug slot and disconnects all the plugs connected there.
-func (r *Repository) disconnectEverythingFromSlot(slotSnapName, slotName string) ([]ConnRef, map[string]*snap.Info, error) {
-	// Ensure that such slot exists
-	slot := r.slots[slotSnapName][slotName]
-	if slot == nil {
-		err := fmt.Errorf("cannot disconnect plug from slot %q from snap %q, no such slot", slotName, slotSnapName)
-		return nil, nil, err
-	}
-	if _, ok := r.slots[slotSnapName]; !ok {
-		return nil, nil, nil
-	}
-	conns := make([]ConnRef, 0, len(r.slotPlugs[slot]))
-	snaps := make(map[string]*snap.Info)
-	for plug := range r.slotPlugs[slot] {
-		r.disconnect(plug, slot)
-		snaps[plug.Snap.Name()] = plug.Snap
-		snaps[slot.Snap.Name()] = slot.Snap
-		conns = append(conns, ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()})
 	}
 	return conns, snaps, nil
 }

@@ -35,3 +35,8 @@ execute: |
     snap connect home-consumer:home ubuntu-core:home
     snap disconnect :home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+
+    echo "Disconnect specific plug and slot"
+    snap connect home-consumer:home ubuntu-core:home
+    snap disconnect home-consumer:home ubuntu-core:home
+    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
