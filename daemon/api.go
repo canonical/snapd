@@ -79,7 +79,6 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	readyToBuyCmd,
-	paymentMethodsCmd,
 	snapctlCmd,
 }
 
@@ -192,13 +191,6 @@ var (
 		Path:   "/v2/buy/ready",
 		UserOK: false,
 		GET:    readyToBuy,
-	}
-
-	// TODO Remove once the CLI is using the new /buy/ready endpoint
-	paymentMethodsCmd = &Command{
-		Path:   "/v2/buy/methods",
-		UserOK: false,
-		GET:    getPaymentMethods,
 	}
 
 	snapctlCmd = &Command{
@@ -1787,59 +1779,21 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}, nil)
 }
 
-func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts store.BuyOptions
-
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&opts)
-	if err != nil {
-		return BadRequest("cannot decode buy options from request body: %v", err)
-	}
-
-	s := getStore(c)
-
-	buyResult, err := s.Buy(&opts, user)
-
+func convertBuyError(err error) Response {
 	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
 	case nil:
-		// continue
-	}
-
-	return SyncResponse(buyResult, nil)
-}
-
-// TODO Remove once the CLI is using the new /buy/ready endpoint
-func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	paymentMethods, err := s.PaymentMethods(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
+		return nil
 	case store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
-	case nil:
-		// continue
-	}
-
-	return SyncResponse(paymentMethods, nil)
-}
-
-func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	err := s.ReadyToBuy(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
+	case store.ErrUnauthenticated:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindLoginRequired,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
 	case store.ErrTOSNotAccepted:
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
@@ -1858,8 +1812,36 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
-	case nil:
-		// continue
+	default:
+		return InternalError("%v", err)
+	}
+}
+
+func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	var opts store.BuyOptions
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&opts)
+	if err != nil {
+		return BadRequest("cannot decode buy options from request body: %v", err)
+	}
+
+	s := getStore(c)
+
+	buyResult, err := s.Buy(&opts, user)
+
+	if resp := convertBuyError(err); resp != nil {
+		return resp
+	}
+
+	return SyncResponse(buyResult, nil)
+}
+
+func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	if resp := convertBuyError(s.ReadyToBuy(user)); resp != nil {
+		return resp
 	}
 
 	return SyncResponse(true, nil)

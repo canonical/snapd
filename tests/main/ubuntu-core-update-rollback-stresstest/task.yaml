@@ -1,5 +1,5 @@
 summary: Run update/rollback tests
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 restore: |
     rm -f nextBoot
 execute: |
@@ -13,8 +13,13 @@ execute: |
     }
     check_boot() {
         # debug output
-        grub-editenv list
-        grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+        if [ $(which grub-editenv) ]; then
+            grub-editenv list
+            grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+        else
+            fw_printenv
+            fw_printenv snap_core | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+        fi
     }
     store_next_boot() {
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot
@@ -59,5 +64,9 @@ execute: |
     if [ "$SPREAD_REBOOT" = "4" ]; then
         wait_boot_ok
         check_boot
-        grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+        if [ $(which grub-editenv) ]; then
+            grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+        else
+            fw_printenv snap_core | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+        fi
     fi

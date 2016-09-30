@@ -113,10 +113,6 @@ func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
 }
 
-func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
-	panic("fakeStore.PaymentMethods not expected")
-}
-
 func (s *deviceMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
