@@ -327,6 +327,14 @@ slots:
       slot-snap-type:
         - core
     deny-auto-connection: true
+  ofono:
+    allow-installation:
+      slot-snap-type:
+        - app
+        - core
+    deny-auto-connection: true
+    deny-connection:
+      on-classic: false
   opengl:
     allow-installation:
       slot-snap-type:
