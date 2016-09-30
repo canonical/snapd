@@ -78,7 +78,7 @@ slots:
     deny-connection: true
   base-deny-snap-slot-allow: false
   base-deny-snap-plug-allow: false
-  base-allow-snap-slot-deny: true
+  base-allow-snap-slot-not-allow: true
   gadgethelp:
     allow-connection:
       plug-snap-type:
@@ -86,7 +86,7 @@ slots:
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
-$builtin`))
+AXNpZw==`))
 	c.Assert(err, IsNil)
 	s.baseDecl = a.(*asserts.BaseDeclaration)
 
@@ -117,7 +117,7 @@ plugs:
 
    base-deny-snap-slot-allow:
    base-deny-snap-plug-allow:
-   base-allow-snap-slot-deny:
+   base-allow-snap-slot-not-allow:
 
    snap-slot-deny-snap-plug-allow:
 
@@ -152,7 +152,7 @@ slots:
 
    base-deny-snap-slot-allow:
    base-deny-snap-plug-allow:
-   base-allow-snap-slot-deny:
+   base-allow-snap-slot-not-allow:
 
    snap-slot-deny-snap-plug-allow:
 
@@ -199,7 +199,7 @@ slots:
   base-deny-snap-slot-allow: true
   snap-slot-deny-snap-plug-allow:
     deny-connection: true
-  base-allow-snap-slot-deny:
+  base-allow-snap-slot-not-allow:
     allow-connection: false
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
@@ -225,15 +225,15 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 		expected string // "" => no error
 	}{
 		{"base-plug-allow", ""},
-		{"base-plug-deny", `connection denied because it matches deny-connection in plug rule for interface "base-plug-deny" from base-declaration`},
-		{"base-plug-not-allow", `connection denied because it does not match allow-connection in plug rule for interface "base-plug-not-allow" from base-declaration`},
+		{"base-plug-deny", `connection denied by plug rule of interface "base-plug-deny"`},
+		{"base-plug-not-allow", `connection not allowed by plug rule of interface "base-plug-not-allow"`},
 		{"base-slot-allow", ""},
-		{"base-slot-deny", `connection denied because it matches deny-connection in slot rule for interface "base-slot-deny" from base-declaration.*`},
-		{"base-slot-not-allow", `connection denied because it does not match allow-connection in slot rule for interface "base-slot-not-allow" from base-declaration.*`},
-		{"base-plug-not-allow-slots", `connection denied.*`},
-		{"base-slot-not-allow-slots", `connection denied.*`},
-		{"base-plug-not-allow-plugs", `connection denied.*`},
-		{"base-slot-not-allow-plugs", `connection denied.*`},
+		{"base-slot-deny", `connection denied by slot rule of interface "base-slot-deny"`},
+		{"base-slot-not-allow", `connection not allowed by slot rule of interface "base-slot-not-allow"`},
+		{"base-plug-not-allow-slots", `connection not allowed.*`},
+		{"base-slot-not-allow-slots", `connection not allowed.*`},
+		{"base-plug-not-allow-plugs", `connection not allowed.*`},
+		{"base-slot-not-allow-plugs", `connection not allowed.*`},
 	}
 
 	for _, t := range tests {
@@ -259,15 +259,15 @@ func (s *policySuite) TestSnapDeclAllowDenyConnection(c *C) {
 	}{
 		{"random", ""},
 		{"snap-plug-allow", ""},
-		{"snap-plug-deny", `connection denied because it matches deny-connection in plug rule for interface "snap-plug-deny" from snap-declaration for snap "plug-snap" \(id plugsnapidid.*\)`},
-		{"snap-plug-not-allow", `connection denied because it does not match allow-connection in plug rule for interface "snap-plug-not-allow" from snap-declaration for snap "plug-snap" \(id plugsnapidid.*\)`},
+		{"snap-plug-deny", `connection denied by plug rule of interface "snap-plug-deny" for "plug-snap" snap`},
+		{"snap-plug-not-allow", `connection not allowed by plug rule of interface "snap-plug-not-allow" for "plug-snap" snap`},
 		{"snap-slot-allow", ""},
-		{"snap-slot-deny", `connection denied because it matches deny-connection in slot rule for interface "snap-slot-deny" from snap-declaration for snap "slot-snap" \(id slotsnapid.*\)`},
-		{"snap-slot-not-allow", `connection denied because it does not match allow-connection in slot rule for interface "snap-slot-not-allow" from snap-declaration for snap "slot-snap" \(id slotsnap.*\)`},
+		{"snap-slot-deny", `connection denied by slot rule of interface "snap-slot-deny" for "slot-snap" snap`},
+		{"snap-slot-not-allow", `connection not allowed by slot rule of interface "snap-slot-not-allow" for "slot-snap" snap`},
 		{"base-deny-snap-slot-allow", ""},
 		{"base-deny-snap-plug-allow", ""},
 		{"snap-slot-deny-snap-plug-allow", ""},
-		{"base-allow-snap-slot-deny", `connection denied.*`},
+		{"base-allow-snap-slot-not-allow", `connection not allowed.*`},
 	}
 
 	for _, t := range tests {
@@ -318,7 +318,7 @@ slots:
 		Slot:            coreSnap.Slots["gadgethelp"],
 		BaseDeclaration: s.baseDecl,
 	}
-	c.Check(cand.Check(), ErrorMatches, "connection denied.*")
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 	for _, trustedSide := range []*snap.Info{coreSnap, gadgetSnap} {
 		cand = policy.ConnectCandidate{
@@ -336,6 +336,6 @@ slots:
 		Slot:                s.slotSnap.Slots["trustedhelp"],
 		BaseDeclaration:     s.baseDecl,
 	}
-	c.Check(cand.Check(), ErrorMatches, "connection denied.*")
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
 
 }

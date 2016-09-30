@@ -59,22 +59,30 @@ func (connc *ConnectCandidate) slotSnapType() snap.Type {
 	return connc.Slot.Snap.Type
 }
 
-func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, whichDecl string) error {
+func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, snapDecl *asserts.SnapDeclaration) error {
+	context := ""
+	if snapDecl != nil {
+		context = fmt.Sprintf(" for %q snap", snapDecl.SnapName())
+	}
 	if checkPlugConnectionConstraints(connc, rule.DenyConnection) == nil {
-		return fmt.Errorf("connection denied because it matches deny-connection in plug rule for interface %q from %s", connc.Plug.Interface, whichDecl)
+		return fmt.Errorf("connection denied by plug rule of interface %q%s", connc.Plug.Interface, context)
 	}
 	if checkPlugConnectionConstraints(connc, rule.AllowConnection) != nil {
-		return fmt.Errorf("connection denied because it does not match allow-connection in plug rule for interface %q from %s", connc.Plug.Interface, whichDecl)
+		return fmt.Errorf("connection not allowed by plug rule of interface %q%s", connc.Plug.Interface, context)
 	}
 	return nil
 }
 
-func (connc *ConnectCandidate) checkSlotRule(rule *asserts.SlotRule, whichDecl string) error {
+func (connc *ConnectCandidate) checkSlotRule(rule *asserts.SlotRule, snapDecl *asserts.SnapDeclaration) error {
+	context := ""
+	if snapDecl != nil {
+		context = fmt.Sprintf(" for %q snap", snapDecl.SnapName())
+	}
 	if checkSlotConnectionConstraints(connc, rule.DenyConnection) == nil {
-		return fmt.Errorf("connection denied because it matches deny-connection in slot rule for interface %q from %s", connc.Plug.Interface, whichDecl)
+		return fmt.Errorf("connection denied by slot rule of interface %q%s", connc.Plug.Interface, context)
 	}
 	if checkSlotConnectionConstraints(connc, rule.AllowConnection) != nil {
-		return fmt.Errorf("connection denied because it does not match allow-connection in slot rule for interface %q from %s", connc.Plug.Interface, whichDecl)
+		return fmt.Errorf("connection not allowed by slot rule of interface %q%s", connc.Plug.Interface, context)
 	}
 	return nil
 }
@@ -88,22 +96,20 @@ func (connc *ConnectCandidate) Check() error {
 	iface := connc.Plug.Interface
 
 	if plugDecl := connc.PlugSnapDeclaration; plugDecl != nil {
-		which := fmt.Sprintf("snap-declaration for snap %q (id %s)", plugDecl.SnapName(), plugDecl.SnapID())
 		if rule := plugDecl.PlugRule(iface); rule != nil {
-			return connc.checkPlugRule(rule, which)
+			return connc.checkPlugRule(rule, plugDecl)
 		}
 	}
 	if slotDecl := connc.SlotSnapDeclaration; slotDecl != nil {
-		which := fmt.Sprintf("snap-declaration for snap %q (id %s)", slotDecl.SnapName(), slotDecl.SnapID())
 		if rule := slotDecl.SlotRule(iface); rule != nil {
-			return connc.checkSlotRule(rule, which)
+			return connc.checkSlotRule(rule, slotDecl)
 		}
 	}
 	if rule := baseDecl.PlugRule(iface); rule != nil {
-		return connc.checkPlugRule(rule, "base-declaration")
+		return connc.checkPlugRule(rule, nil)
 	}
 	if rule := baseDecl.SlotRule(iface); rule != nil {
-		return connc.checkSlotRule(rule, "base-declaration")
+		return connc.checkSlotRule(rule, nil)
 	}
 	return nil
 }
