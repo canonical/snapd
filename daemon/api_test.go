@@ -73,7 +73,6 @@ type apiSuite struct {
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
-	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 }
@@ -121,11 +120,6 @@ func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
 	return s.err
 }
 
-func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
-	s.user = user
-	return s.paymentMethods, s.err
-}
-
 func (s *apiSuite) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Assertion not expected to be called")
 }
@@ -166,7 +160,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.buyOptions = nil
 	s.buyResult = nil
-	s.paymentMethods = nil
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
@@ -3840,39 +3833,6 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 		c.Assert(rsp.Result, check.FitsTypeOf, test.response)
 		c.Check(rsp.Result, check.DeepEquals, test.response)
 	}
-}
-
-func (s *apiSuite) TestPaymentMethods(c *check.C) {
-	s.paymentMethods = &store.PaymentInformation{
-		AllowsAutomaticPayment: true,
-		Methods: []*store.PaymentMethod{
-			{
-				BackendID:           "credit_card",
-				Currencies:          []string{"GBP", "USD"},
-				Description:         "**** **** **** 1234 (exp 20/2020)",
-				ID:                  123,
-				Preferred:           true,
-				RequiresInteraction: false,
-			},
-		},
-	}
-	s.err = nil
-
-	req, err := http.NewRequest("GET", "/v2/buy/methods", nil)
-	c.Assert(err, check.IsNil)
-
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	rsp := getPaymentMethods(paymentMethodsCmd, req, user).(*resp)
-
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
-	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
 }
 
 func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
