@@ -47,12 +47,13 @@ func (as *authSuite) SetUpTest(c *C) {
 
 func (as *authSuite) TestNewUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	expected := &auth.UserState{
 		ID:              1,
 		Username:        "username",
+		Email:           "email@test.com",
 		Macaroon:        "macaroon",
 		Discharges:      []string{"discharge"},
 		StoreMacaroon:   "macaroon",
@@ -70,12 +71,13 @@ func (as *authSuite) TestNewUser(c *C) {
 
 func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge2", "discharge1"})
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
 	as.state.Unlock()
 
 	expected := &auth.UserState{
 		ID:              1,
 		Username:        "username",
+		Email:           "email@test.com",
 		Macaroon:        "macaroon",
 		Discharges:      []string{"discharge1", "discharge2"},
 		StoreMacaroon:   "macaroon",
@@ -93,17 +95,18 @@ func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Lock()
-	firstUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	firstUser, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
 	// adding a new one
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "new_username", "new_macaroon", []string{"new_discharge"})
+	user, err := auth.NewUser(as.state, "new_username", "new_email@test.com", "new_macaroon", []string{"new_discharge"})
 	as.state.Unlock()
 	expected := &auth.UserState{
 		ID:              2,
 		Username:        "new_username",
+		Email:           "new_email@test.com",
 		Macaroon:        "new_macaroon",
 		Discharges:      []string{"new_discharge"},
 		StoreMacaroon:   "new_macaroon",
@@ -144,7 +147,7 @@ func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
 	c.Check(user, IsNil)
 
 	as.state.Lock()
-	_, err = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, err = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -158,7 +161,7 @@ func (as *authSuite) TestCheckMacaroonInvalidAuth(c *C) {
 
 func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
 	as.state.Lock()
-	expectedUser, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	expectedUser, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -180,7 +183,7 @@ func (as *authSuite) TestUserForNoAuthInState(c *C) {
 
 func (as *authSuite) TestUserForNonExistent(c *C) {
 	as.state.Lock()
-	_, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -192,7 +195,7 @@ func (as *authSuite) TestUserForNonExistent(c *C) {
 
 func (as *authSuite) TestUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -205,7 +208,7 @@ func (as *authSuite) TestUser(c *C) {
 
 func (as *authSuite) TestUpdateUser(c *C) {
 	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	user.Username = "different"
@@ -225,7 +228,7 @@ func (as *authSuite) TestUpdateUser(c *C) {
 
 func (as *authSuite) TestUpdateUserInvalid(c *C) {
 	as.state.Lock()
-	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, _ = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	user := &auth.UserState{
@@ -242,7 +245,7 @@ func (as *authSuite) TestUpdateUserInvalid(c *C) {
 
 func (as *authSuite) TestRemove(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
@@ -285,7 +288,7 @@ func (as *authSuite) TestSetDevice(c *C) {
 
 func (as *authSuite) TestAuthContextUpdateUserAuth(c *C) {
 	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	newDischarges := []string{"updated-discharge"}
@@ -305,7 +308,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuth(c *C) {
 
 func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
 	as.state.Lock()
-	user, _ := auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	user, _ := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	otherUpdateUser := *user
 	otherUpdateUser.Macaroon = "macaroon2"
 	otherUpdateUser.StoreDischarges = []string{"other-discharges"}
@@ -328,6 +331,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
 	c.Check(curUser, DeepEquals, &auth.UserState{
 		ID:              user.ID,
 		Username:        "username",
+		Email:           "email@test.com",
 		Macaroon:        "macaroon2",
 		Discharges:      []string{"discharge"},
 		StoreMacaroon:   "macaroon",
@@ -337,7 +341,7 @@ func (as *authSuite) TestAuthContextUpdateUserAuthOtherUpdate(c *C) {
 
 func (as *authSuite) TestAuthContextUpdateUserAuthInvalid(c *C) {
 	as.state.Lock()
-	_, _ = auth.NewUser(as.state, "username", "macaroon", []string{"discharge"})
+	_, _ = auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 
 	user := &auth.UserState{

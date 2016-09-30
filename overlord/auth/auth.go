@@ -51,6 +51,7 @@ type DeviceState struct {
 type UserState struct {
 	ID              int      `json:"id"`
 	Username        string   `json:"username,omitempty"`
+	Email           string   `json:"email,omitempty"`
 	Macaroon        string   `json:"macaroon,omitempty"`
 	Discharges      []string `json:"discharges,omitempty"`
 	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
@@ -58,7 +59,7 @@ type UserState struct {
 }
 
 // NewUser tracks a new authenticated user and saves its details in the state
-func NewUser(st *state.State, username, macaroon string, discharges []string) (*UserState, error) {
+func NewUser(st *state.State, username, email, macaroon string, discharges []string) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -73,6 +74,7 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
 		Username:        username,
+		Email:           email,
 		Macaroon:        macaroon,
 		Discharges:      discharges,
 		StoreMacaroon:   macaroon,
