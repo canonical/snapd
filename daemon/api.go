@@ -1825,10 +1825,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	var username string
-	opts := &osutil.AddUserOptions{
-		Sudoer:     createData.Sudoer,
-		ExtraUsers: !release.OnClassic,
-	}
+	var opts *osutil.AddUserOptions
 	if createData.Known {
 		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
@@ -1837,6 +1834,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return BadRequest("%s", err)
 	}
+	opts.Sudoer = createData.Sudoer
+	opts.ExtraUsers = !release.OnClassic
 
 	if err := osutilAddUser(username, opts); err != nil {
 		return BadRequest("cannot create user %s: %s", username, err)
