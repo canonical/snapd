@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 )
 
-const testabilityConnectedPlugAppArmor = `
+const introspectionConnectedPlugAppArmor = `
 # Description: Can introspect an application with a testability library.
 # Restricted because this gives privileged access to the application which
 # enabled testability
@@ -84,7 +84,7 @@ dbus (send, receive)
 deny /{,var/}run/shm/lttng-ust-* r,
 `
 
-const testabilityConnectedPlugSecComp = `
+const introspectionConnectedPlugSecComp = `
 # Description: Can introspect an application
 
 # dbus
@@ -100,8 +100,8 @@ sendmsg
 func NewAutopilotIntrospectionInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "autopilot-introspection",
-		connectedPlugAppArmor: testabilityConnectedPlugAppArmor,
-		connectedPlugSecComp:  testabilityConnectedPlugSecComp,
+		connectedPlugAppArmor: introspectionConnectedPlugAppArmor,
+		connectedPlugSecComp:  introspectionConnectedPlugSecComp,
 		reservedForOS:         false,
 		autoConnect:           false,
 	}
