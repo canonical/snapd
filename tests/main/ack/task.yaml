@@ -1,6 +1,10 @@
 summary: Check snap ack
-systems: [-ubuntu-core-16-device-amd64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
+systems: [-ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 execute: |
+    if [ "$SPREAD_BACKEND" = "external" ]; then
+        echo "This test can only run on a customized image"
+        exit
+    fi
     echo "Ack the test store key in case"
     snap ack $TESTSLIB/assertions/testrootorg-store.account-key
 

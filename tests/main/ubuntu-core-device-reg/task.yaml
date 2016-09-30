@@ -3,6 +3,10 @@ summary: |
     we have a serial and can acquire a session macaroon
 systems: [ubuntu-core-16-64]
 execute: |
+    if [ "$SPREAD_BACKEND" = "external" ]; then
+        echo "This test can only run on a customized image"
+        exit
+    fi
     echo "We have a model assertion"
     snap known model|grep "brand-id: canonical"
 

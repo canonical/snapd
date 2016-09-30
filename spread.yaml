@@ -64,7 +64,7 @@ backends:
         allocate: |
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
-            - ubuntu-core-16-device-amd64:
+            - ubuntu-core-16-64:
                 username: test
                 password: ubuntu
             - ubuntu-core-16-arm-64:
@@ -96,6 +96,11 @@ prepare: |
     [Service]
     Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
     EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    EOF
 
     if [ "$SPREAD_BACKEND" = external ]; then
         # build test binaries
@@ -103,14 +108,9 @@ prepare: |
             mkdir -p $GOPATH/bin
             snap install --devmode --edge classic
             classic "sudo apt update && apt install -y git golang-go"
-            classic "GOPATH=$GOPATH go get ..${PROJECT_PATH}/tests/lib/snapbuild"
+            classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
             snap remove classic
         fi
-        mkdir -p /etc/systemd/system/snapd.socket.d
-        cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    EOF
         exit 0
     fi
 

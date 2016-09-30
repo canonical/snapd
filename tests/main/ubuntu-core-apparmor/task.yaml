@@ -1,5 +1,5 @@
 summary: Ensure appamror profiles are still loaded after reboot
-systems: [ubuntu-core-16-64, ubuntu-core-16-device-amd64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 execute: |
     ensure_apparmor_profile_loaded() {
         for app in success fail echo head env block cat; do
