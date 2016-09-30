@@ -82,6 +82,9 @@ path: /home/gopath/src/github.com/snapcore/snapd
 exclude:
     - .git
 
+debug: |
+    cat /var/lib/snapd/state.json|python3 -m json.tool
+
 debug-each: |
     # something went wrong in the test, get some logs
     echo "Snapd debug log:"
