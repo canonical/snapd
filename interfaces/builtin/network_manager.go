@@ -74,7 +74,7 @@ network packet,
 /run/NetworkManager/{,**} r,
 
 # Allow writing dhcp lease files outside of the snap
-/run/NetworkManager/dhcp/ rw,
+/run/NetworkManager/dhcp/{,**} w,
 
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
