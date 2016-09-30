@@ -41,9 +41,10 @@ func makeCreateUserChecker(c *check.C, n *int, sudoer, known bool) func(w http.R
 			err := dec.Decode(&body)
 			c.Assert(err, check.IsNil)
 			c.Check(body, check.DeepEquals, map[string]interface{}{
-				"email":  "popper@lse.ac.uk",
-				"sudoer": sudoer,
-				"known":  known,
+				"email":         "popper@lse.ac.uk",
+				"sudoer":        sudoer,
+				"known":         known,
+				"force-managed": false,
 			})
 			fmt.Fprintln(w, `{"type": "sync", "result": {"username": "karl", "ssh-key-count": 1}}`)
 		default:
