@@ -42,17 +42,19 @@ type cmdCreateUser struct {
 		Email string
 	} `positional-args:"yes"`
 
-	JSON   bool `long:"json"`
-	Sudoer bool `long:"sudoer"`
-	Known  bool `long:"known"`
+	JSON         bool `long:"json"`
+	Sudoer       bool `long:"sudoer"`
+	Known        bool `long:"known"`
+	ForceManaged bool `long:"force-managed"`
 }
 
 func init() {
 	addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} },
 		map[string]string{
-			"json":   i18n.G("Output results in JSON format"),
-			"sudoer": i18n.G("Grant sudo access to the created user"),
-			"known":  i18n.G("Use known assertions for user creation"),
+			"json":          i18n.G("Output results in JSON format"),
+			"sudoer":        i18n.G("Grant sudo access to the created user"),
+			"known":         i18n.G("Use known assertions for user creation"),
+			"force-managed": i18n.G("Force adding the user, even if the device is already managed"),
 		}, []argDesc{{
 			// TRANSLATORS: noun
 			name: i18n.G("<email>"),
@@ -69,9 +71,10 @@ func (x *cmdCreateUser) Execute(args []string) error {
 	cli := Client()
 
 	request := client.CreateUserRequest{
-		Email:  x.Positional.Email,
-		Sudoer: x.Sudoer,
-		Known:  x.Known,
+		Email:        x.Positional.Email,
+		Sudoer:       x.Sudoer,
+		Known:        x.Known,
+		ForceManaged: x.ForceManaged,
 	}
 
 	rsp, err := cli.CreateUser(&request)

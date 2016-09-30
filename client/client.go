@@ -374,9 +374,10 @@ type CreateUserResult struct {
 
 // createUserRequest holds the user creation request
 type CreateUserRequest struct {
-	Email  string `json:"email"`
-	Sudoer bool   `json:"sudoer"`
-	Known  bool   `json:"known"`
+	Email        string `json:"email"`
+	Sudoer       bool   `json:"sudoer"`
+	Known        bool   `json:"known"`
+	ForceManaged bool   `json:"force-managed"`
 }
 
 // CreateUser creates a user from the given mail address

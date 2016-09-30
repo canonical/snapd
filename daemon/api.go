@@ -213,11 +213,17 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	userCount, _ := auth.UserCount(st)
+	st.Unlock()
+
 	m := map[string]interface{}{
 		"series":     release.Series,
 		"version":    c.d.Version,
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
+		"user-count": userCount,
 	}
 
 	// TODO: set the store-id here from the model information
@@ -1679,6 +1685,42 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 	return v.Username, opts, nil
 }
 
+func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
+	var createdUsers []createResponseData
+
+	st.Lock()
+	db := assertstate.DB(st)
+	assertions, err := db.FindMany(asserts.SystemUserType, nil)
+	st.Unlock()
+	if err != nil {
+		return BadRequest("cannot find system-user assertion: %s", err)
+	}
+	for _, as := range assertions {
+		email := as.(*asserts.SystemUser).Email()
+		// we need to use getUserDetailsFromAssertion as this verifies
+		// the assertion against the current brand/model/time
+		username, opts, err := getUserDetailsFromAssertion(st, email)
+		if err != nil {
+			logger.Debugf("ignoring system-user assertion for %q: %s", email, err)
+			continue
+		}
+		// FIXME: duplicated code
+		opts.Sudoer = createData.Sudoer
+		opts.ExtraUsers = !release.OnClassic
+
+		if err := osutilAddUser(username, opts); err != nil {
+			return InternalError("cannot add user %q: %s", username, err)
+		}
+		createdUsers = append(createdUsers, createResponseData{
+			Username:    username,
+			SSHKeys:     opts.SSHKeys,
+			SSHKeyCount: len(opts.SSHKeys),
+		})
+	}
+
+	return SyncResponse(createdUsers, nil)
+}
+
 func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
@@ -1739,6 +1781,13 @@ type createResponseData struct {
 	SSHKeyCount int `json:"ssh-key-count"`
 }
 
+type postUserCreateData struct {
+	Email        string `json:"email"`
+	Sudoer       bool   `json:"sudoer"`
+	Known        bool   `json:"known"`
+	ForceManaged bool   `json:"force-managed"`
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1748,17 +1797,29 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot use create-user as non-root")
 	}
 
-	var createData struct {
-		Email  string `json:"email"`
-		Sudoer bool   `json:"sudoer"`
-		Known  bool   `json:"known"`
-	}
-
+	var createData postUserCreateData
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
+	// verify request
+	st := c.d.overlord.State()
+	st.Lock()
+	userCount, err := auth.UserCount(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get user count: %s", err)
+	}
+	if userCount > 0 && !createData.ForceManaged {
+		return BadRequest("cannot create user: device already managed")
+	}
+
+	// special case: the user requested the creation of all known
+	// system-users
+	if createData.Email == "" && createData.Known {
+		return createAllKnownSystemUsers(c.d.overlord.State(), &createData)
+	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
@@ -1766,7 +1827,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var username string
 	var opts *osutil.AddUserOptions
 	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
+		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(createData.Email)
 	}

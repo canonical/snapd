@@ -111,6 +111,20 @@ func RemoveUser(st *state.State, userID int) error {
 	return fmt.Errorf("invalid user")
 }
 
+func UserCount(st *state.State) (int, error) {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return 0, nil
+	}
+	if err != nil {
+		return -1, err
+	}
+
+	return len(authStateData.Users), nil
+}
+
 // User returns a user from the state given its ID
 func User(st *state.State, id int) (*UserState, error) {
 	var authStateData AuthState
