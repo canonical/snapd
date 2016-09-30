@@ -14,6 +14,7 @@ environment:
     # important to ensure adhoc and linode/qemu behave the same
     SUDO_USER: ""
     SUDO_UID: ""
+    TRUST_TEST_KEYS: "true"
 
 backends:
     linode:
@@ -57,6 +58,25 @@ backends:
                 username: ubuntu
                 password: ubuntu
 
+    external:
+        type: adhoc
+        environment:
+            SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
+        allocate: |
+            ADDRESS $SPREAD_EXTERNAL_ADDRESS
+        systems:
+            - ubuntu-core-16-64:
+                environment:
+                    TRUST_TEST_KEYS: "false"
+                username: test
+                password: ubuntu
+            - ubuntu-core-16-arm-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-16-arm-32:
+                username: test
+                password: ubuntu
+
 path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
@@ -70,6 +90,32 @@ debug-each: |
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    # Disable burst limit so resetting the state quickly doesn't create problems.
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    [Service]
+    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+    EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    EOF
+
+    if [ "$SPREAD_BACKEND" = external ]; then
+        # build test binaries
+        if [ ! -f $GOPATH/bin/snapbuild ]; then
+            mkdir -p $GOPATH/bin
+            snap install --devmode --edge classic
+            classic "sudo apt update && apt install -y git golang-go"
+            classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
+            snap remove classic
+        fi
+        exit 0
+    fi
 
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
@@ -107,15 +153,6 @@ prepare: |
     chown test.test -R ..
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
 
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
-    EOF
-
     # Build snapbuild.
     apt-get install -y git
     go get ./tests/lib/snapbuild
@@ -126,16 +163,17 @@ prepare: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+
         prepare: |
             . $TESTSLIB/prepare.sh
-            if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+            if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
                 prepare_all_snap
             else
                 prepare_classic
             fi
         restore: |
             $TESTSLIB/reset.sh
-            if [ "$SPREAD_SYSTEM" != "ubuntu-core-16-64" ]; then
+            if [[ ! "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd || true
             fi
         restore-each: |

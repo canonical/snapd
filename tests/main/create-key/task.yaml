@@ -1,6 +1,6 @@
 summary: Checks for snap create-key
 
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 prepare: |
     echo "setup fake gpg pinentry environment"
