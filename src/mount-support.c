@@ -48,6 +48,32 @@
  **/
 #define SC_VOID_DIR "/var/lib/snapd/void"
 
+/**
+ * Get the path to the mounted core snap on the host distribution.
+ *
+ * The core snap may be named just "core" (preferred) or "ubuntu-core"
+ * (legacy).  The mount point dependes on build-time configuration and may
+ * differ from distribution to distribution.
+ **/
+static const char *sc_get_outer_core_mount_point()
+{
+	const char *core_path = SNAP_MOUNT_DIR "/core/current/";
+	const char *ubuntu_core_path = SNAP_MOUNT_DIR "/ubuntu-core/current/";
+	static const char *result = NULL;
+	if (result == NULL) {
+		if (access(core_path, F_OK) == 0) {
+			// Use the "core" snap if available.
+			result = core_path;
+		} else if (access(ubuntu_core_path, F_OK) == 0) {
+			// If not try to fall back to the "ubuntu-core" snap.
+			result = ubuntu_core_path;
+		} else {
+			die("cannot locate the core snap");
+		}
+	}
+	return result;
+}
+
 static void setup_private_mount(const char *security_tag)
 {
 	uid_t uid = getuid();
@@ -254,7 +280,7 @@ static void setup_snappy_os_mounts()
 		die("cannot create temporary directory for the root file system");
 	}
 	// Bind mount the OS snap into the rootfs directory.
-	const char *core_snap_dir = SNAP_MOUNT_DIR "/ubuntu-core/current";
+	const char *core_snap_dir = sc_get_outer_core_mount_point();
 	debug("bind mounting core snap: %s -> %s", core_snap_dir, rootfs_dir);
 	if (mount(core_snap_dir, rootfs_dir, NULL, MS_BIND, NULL) != 0) {
 		die("cannot bind mount core snap: %s to %s", core_snap_dir,
