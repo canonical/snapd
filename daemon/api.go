@@ -633,11 +633,12 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string        `json:"action"`
-	Channel  string        `json:"channel"`
-	Revision snap.Revision `json:"revision"`
-	DevMode  bool          `json:"devmode"`
-	JailMode bool          `json:"jailmode"`
+	Action           string        `json:"action"`
+	Channel          string        `json:"channel"`
+	Revision         snap.Revision `json:"revision"`
+	DevMode          bool          `json:"devmode"`
+	JailMode         bool          `json:"jailmode"`
+	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -811,6 +812,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
+	}
+	if inst.IgnoreValidation {
+		flags |= snapstate.IgnoreValidation
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
