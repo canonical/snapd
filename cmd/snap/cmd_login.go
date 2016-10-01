@@ -32,7 +32,7 @@ import (
 
 type cmdLogin struct {
 	Positional struct {
-		UserName string
+		Email string
 	} `positional-args:"yes" required:"yes"`
 }
 
@@ -61,7 +61,7 @@ func init() {
 		}})
 }
 
-func requestLoginWith2faRetry(username, password string) error {
+func requestLoginWith2faRetry(email, password string) error {
 	var otp []byte
 	var err error
 
@@ -76,7 +76,7 @@ func requestLoginWith2faRetry(username, password string) error {
 
 	for i := 0; ; i++ {
 		// first try is without otp
-		_, err = cli.Login(username, password, string(otp))
+		_, err = cli.Login(email, password, string(otp))
 		if i >= len(msgs) || !client.IsTwoFactorError(err) {
 			return err
 		}
@@ -96,7 +96,7 @@ func (x *cmdLogin) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	username := x.Positional.UserName
+	email := x.Positional.Email
 	fmt.Fprint(Stdout, i18n.G("Password: "))
 	password, err := terminal.ReadPassword(0)
 	fmt.Fprint(Stdout, "\n")
@@ -104,7 +104,7 @@ func (x *cmdLogin) Execute(args []string) error {
 		return err
 	}
 
-	err = requestLoginWith2faRetry(username, string(password))
+	err = requestLoginWith2faRetry(email, string(password))
 	if err != nil {
 		return err
 	}

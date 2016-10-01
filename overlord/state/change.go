@@ -328,12 +328,8 @@ func (c *Change) taskStatusChanged(t *Task, old, new Status) {
 	// Here is the exact moment when a change goes from unready to ready,
 	// and from ready to unready. For now handle only the first of those.
 	// For the latter the channel might be replaced in the future.
-	select {
-	case <-c.ready:
-		if !c.Status().Ready() {
-			panic(fmt.Errorf("change %s unexpectedly became unready (%s)", c.ID(), c.Status()))
-		}
-	default:
+	if c.IsReady() && !c.Status().Ready() {
+		panic(fmt.Errorf("change %s unexpectedly became unready (%s)", c.ID(), c.Status()))
 	}
 	c.markReady()
 }
@@ -344,10 +340,27 @@ func (c *Change) IsClean() bool {
 	return c.clean
 }
 
-func (c *Change) taskCleanChanged() {
+// IsReady returns whether the change is considered ready.
+//
+// The result is similar to calling Ready on the status returned by the Status
+// method, but this function is more efficient as it doesn't need to recompute
+// the aggregated state of tasks on every call.
+//
+// As an exception, IsReady returns false for a Change without any tasks that
+// never had its status explicitly set and was never unmarshalled out of the
+// persistent state, despite its initial status being Hold. This is how the
+// system represents changes right after they are created.
+func (c *Change) IsReady() bool {
 	select {
-	case <-c.Ready():
+	case <-c.ready:
+		return true
 	default:
+	}
+	return false
+}
+
+func (c *Change) taskCleanChanged() {
+	if !c.IsReady() {
 		panic("internal error: attempted to set a task clean while change not ready")
 	}
 	for _, tid := range c.taskIDs {

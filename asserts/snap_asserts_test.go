@@ -39,6 +39,7 @@ var (
 	_ = Suite(&snapBuildSuite{})
 	_ = Suite(&snapRevSuite{})
 	_ = Suite(&validationSuite{})
+	_ = Suite(&baseDeclSuite{})
 )
 
 type snapDeclSuite struct {
@@ -125,6 +126,8 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		"snap-name: first\n" +
 		"publisher-id: dev-id1\n" +
 		"refresh-control:\n  - foo\n  - bar\n" +
+		"plugs:\n  interface1: true\n" +
+		"slots:\n  interface2: true\n" +
 		sds.tsLine +
 		"body-length: 0\n" +
 		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
@@ -141,6 +144,10 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		{"publisher-id: dev-id1\n", "publisher-id: \n", `"publisher-id" header should not be empty`},
 		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control: foo\n", `"refresh-control" header must be a list of strings`},
 		{"refresh-control:\n  - foo\n  - bar\n", "refresh-control:\n  -\n    - nested\n", `"refresh-control" header must be a list of strings`},
+		{"plugs:\n  interface1: true\n", "plugs: \n", `"plugs" header must be a map`},
+		{"plugs:\n  interface1: true\n", "plugs:\n  intf1:\n    foo: bar\n", `plug rule for interface "intf1" must specify at least one of.*`},
+		{"slots:\n  interface2: true\n", "slots: \n", `"slots" header must be a map`},
+		{"slots:\n  interface2: true\n", "slots:\n  intf1:\n    foo: bar\n", `slot rule for interface "intf1" must specify at least one of.*`},
 		{sds.tsLine, "", `"timestamp" header is mandatory`},
 		{sds.tsLine, "timestamp: \n", `"timestamp" header should not be empty`},
 		{sds.tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
@@ -152,6 +159,134 @@ func (sds *snapDeclSuite) TestDecodeInvalid(c *C) {
 		c.Check(err, ErrorMatches, snapDeclErrPrefix+test.expectedErr)
 	}
 
+}
+
+func (sds *snapDeclSuite) TestDecodePlugsAndSlots(c *C) {
+	encoded := `type: snap-declaration
+authority-id: canonical
+series: 16
+snap-id: snap-id-1
+snap-name: first
+publisher-id: dev-id1
+plugs:
+  interface1:
+    deny-installation: false
+    allow-auto-connection:
+      slot-snap-type:
+        - app
+      slot-publisher-id:
+        - acme
+      slot-attributes:
+        a1: /foo/.*
+      plug-attributes:
+        b1: B1
+    deny-auto-connection:
+      slot-attributes:
+        a1: !A1
+      plug-attributes:
+        b1: !B1
+  interface2:
+    allow-installation: true
+    allow-connection:
+      plug-attributes:
+        a2: A2
+      slot-attributes:
+        b2: B2
+    deny-connection:
+      slot-snap-id:
+        - snapidsnapidsnapidsnapidsnapid01
+        - snapidsnapidsnapidsnapidsnapid02
+      plug-attributes:
+        a2: !A2
+      slot-attributes:
+        b2: !B2
+slots:
+  interface3:
+    deny-installation: false
+    allow-auto-connection:
+      plug-snap-type:
+        - app
+      plug-publisher-id:
+        - acme
+      slot-attributes:
+        c1: /foo/.*
+      plug-attributes:
+        d1: C1
+    deny-auto-connection:
+      slot-attributes:
+        c1: !C1
+      plug-attributes:
+        d1: !D1
+  interface4:
+    allow-connection:
+      plug-attributes:
+        c2: C2
+      slot-attributes:
+        d2: D2
+    deny-connection:
+      plug-snap-id:
+        - snapidsnapidsnapidsnapidsnapid01
+        - snapidsnapidsnapidsnapidsnapid02
+      plug-attributes:
+        c2: !D2
+      slot-attributes:
+        d2: !D2
+    allow-installation:
+      slot-snap-type:
+        - app
+      slot-attributes:
+        e1: E1
+TSLINE
+body-length: 0
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+	encoded = strings.Replace(encoded, "TSLINE\n", sds.tsLine, 1)
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	snapDecl := a.(*asserts.SnapDeclaration)
+	c.Check(snapDecl.Series(), Equals, "16")
+	c.Check(snapDecl.SnapID(), Equals, "snap-id-1")
+
+	c.Check(snapDecl.PlugRule("interfaceX"), IsNil)
+	c.Check(snapDecl.SlotRule("interfaceX"), IsNil)
+
+	plugRule1 := snapDecl.PlugRule("interface1")
+	c.Assert(plugRule1, NotNil)
+	c.Check(plugRule1.DenyInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
+	c.Check(plugRule1.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.AllowAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
+	c.Check(plugRule1.AllowAutoConnection.SlotSnapTypes, DeepEquals, []string{"app"})
+	c.Check(plugRule1.AllowAutoConnection.SlotPublisherIDs, DeepEquals, []string{"acme"})
+	c.Check(plugRule1.DenyAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.DenyAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
+	plugRule2 := snapDecl.PlugRule("interface2")
+	c.Assert(plugRule2, NotNil)
+	c.Check(plugRule2.AllowInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Check(plugRule2.AllowConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.DenyConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
+
+	slotRule3 := snapDecl.SlotRule("interface3")
+	c.Assert(slotRule3, NotNil)
+	c.Check(slotRule3.DenyInstallation.SlotAttributes, Equals, asserts.NeverMatchAttributes)
+	c.Check(slotRule3.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "c1".*`)
+	c.Check(slotRule3.AllowAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "d1".*`)
+	c.Check(slotRule3.AllowAutoConnection.PlugSnapTypes, DeepEquals, []string{"app"})
+	c.Check(slotRule3.AllowAutoConnection.PlugPublisherIDs, DeepEquals, []string{"acme"})
+	c.Check(slotRule3.DenyAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "c1".*`)
+	c.Check(slotRule3.DenyAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "d1".*`)
+	slotRule4 := snapDecl.SlotRule("interface4")
+	c.Assert(slotRule4, NotNil)
+	c.Check(slotRule4.AllowConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "c2".*`)
+	c.Check(slotRule4.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "d2".*`)
+	c.Check(slotRule4.DenyConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "c2".*`)
+	c.Check(slotRule4.DenyConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "d2".*`)
+	c.Check(slotRule4.DenyConnection.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
+	c.Check(slotRule4.AllowInstallation.SlotAttributes.Check(nil), ErrorMatches, `attribute "e1".*`)
+	c.Check(slotRule4.AllowInstallation.SlotSnapTypes, DeepEquals, []string{"app"})
 }
 
 func prereqDevAccount(c *C, storeDB assertstest.SignerDB, db *asserts.Database) {
@@ -847,5 +982,244 @@ func (vs *validationSuite) TestPrerequisites(c *C) {
 		Type:       asserts.SnapDeclarationType,
 		PrimaryKey: []string{"16", "snap-id-2"},
 	})
+}
 
+type baseDeclSuite struct{}
+
+func (s *baseDeclSuite) TestDecodeOK(c *C) {
+	encoded := `type: base-declaration
+authority-id: canonical
+series: 16
+plugs:
+  interface1:
+    deny-installation: false
+    allow-auto-connection:
+      slot-snap-type:
+        - app
+      slot-publisher-id:
+        - acme
+      slot-attributes:
+        a1: /foo/.*
+      plug-attributes:
+        b1: B1
+    deny-auto-connection:
+      slot-attributes:
+        a1: !A1
+      plug-attributes:
+        b1: !B1
+  interface2:
+    allow-installation: true
+    allow-connection:
+      plug-attributes:
+        a2: A2
+      slot-attributes:
+        b2: B2
+    deny-connection:
+      slot-snap-id:
+        - snapidsnapidsnapidsnapidsnapid01
+        - snapidsnapidsnapidsnapidsnapid02
+      plug-attributes:
+        a2: !A2
+      slot-attributes:
+        b2: !B2
+slots:
+  interface3:
+    deny-installation: false
+    allow-auto-connection:
+      plug-snap-type:
+        - app
+      plug-publisher-id:
+        - acme
+      slot-attributes:
+        c1: /foo/.*
+      plug-attributes:
+        d1: C1
+    deny-auto-connection:
+      slot-attributes:
+        c1: !C1
+      plug-attributes:
+        d1: !D1
+  interface4:
+    allow-connection:
+      plug-attributes:
+        c2: C2
+      slot-attributes:
+        d2: D2
+    deny-connection:
+      plug-snap-id:
+        - snapidsnapidsnapidsnapidsnapid01
+        - snapidsnapidsnapidsnapidsnapid02
+      plug-attributes:
+        c2: !D2
+      slot-attributes:
+        d2: !D2
+    allow-installation:
+      slot-snap-type:
+        - app
+      slot-attributes:
+        e1: E1
+timestamp: 2016-09-29T19:50:49Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+$builtin`
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	baseDecl := a.(*asserts.BaseDeclaration)
+	c.Check(baseDecl.Series(), Equals, "16")
+	ts, err := time.Parse(time.RFC3339, "2016-09-29T19:50:49Z")
+	c.Check(baseDecl.Timestamp().Equal(ts), Equals, true)
+
+	c.Check(baseDecl.PlugRule("interfaceX"), IsNil)
+	c.Check(baseDecl.SlotRule("interfaceX"), IsNil)
+
+	plugRule1 := baseDecl.PlugRule("interface1")
+	c.Assert(plugRule1, NotNil)
+	c.Check(plugRule1.DenyInstallation.PlugAttributes, Equals, asserts.NeverMatchAttributes)
+	c.Check(plugRule1.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.AllowAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
+	c.Check(plugRule1.AllowAutoConnection.SlotSnapTypes, DeepEquals, []string{"app"})
+	c.Check(plugRule1.AllowAutoConnection.SlotPublisherIDs, DeepEquals, []string{"acme"})
+	c.Check(plugRule1.DenyAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "a1".*`)
+	c.Check(plugRule1.DenyAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "b1".*`)
+	plugRule2 := baseDecl.PlugRule("interface2")
+	c.Assert(plugRule2, NotNil)
+	c.Check(plugRule2.AllowInstallation.PlugAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Check(plugRule2.AllowConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "a2".*`)
+	c.Check(plugRule2.DenyConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "b2".*`)
+	c.Check(plugRule2.DenyConnection.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
+
+	slotRule3 := baseDecl.SlotRule("interface3")
+	c.Assert(slotRule3, NotNil)
+	c.Check(slotRule3.DenyInstallation.SlotAttributes, Equals, asserts.NeverMatchAttributes)
+	c.Check(slotRule3.AllowAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "c1".*`)
+	c.Check(slotRule3.AllowAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "d1".*`)
+	c.Check(slotRule3.AllowAutoConnection.PlugSnapTypes, DeepEquals, []string{"app"})
+	c.Check(slotRule3.AllowAutoConnection.PlugPublisherIDs, DeepEquals, []string{"acme"})
+	c.Check(slotRule3.DenyAutoConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "c1".*`)
+	c.Check(slotRule3.DenyAutoConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "d1".*`)
+	slotRule4 := baseDecl.SlotRule("interface4")
+	c.Assert(slotRule4, NotNil)
+	c.Check(slotRule4.AllowConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "c2".*`)
+	c.Check(slotRule4.AllowConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "d2".*`)
+	c.Check(slotRule4.DenyConnection.PlugAttributes.Check(nil), ErrorMatches, `attribute "c2".*`)
+	c.Check(slotRule4.DenyConnection.SlotAttributes.Check(nil), ErrorMatches, `attribute "d2".*`)
+	c.Check(slotRule4.DenyConnection.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
+	c.Check(slotRule4.AllowInstallation.SlotAttributes.Check(nil), ErrorMatches, `attribute "e1".*`)
+	c.Check(slotRule4.AllowInstallation.SlotSnapTypes, DeepEquals, []string{"app"})
+
+}
+
+func (s *baseDeclSuite) TestBaseDeclarationCheckUntrustedAuthority(c *C) {
+	storeDB, db := makeStoreAndCheckDB(c)
+
+	otherDB := setup3rdPartySigning(c, "other", storeDB, db)
+
+	headers := map[string]interface{}{
+		"series":    "16",
+		"timestamp": time.Now().Format(time.RFC3339),
+	}
+	baseDecl, err := otherDB.Sign(asserts.BaseDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+
+	err = db.Check(baseDecl)
+	c.Assert(err, ErrorMatches, `base-declaration assertion for series 16 is not signed by a directly trusted authority: other`)
+}
+
+const (
+	baseDeclErrPrefix = "assertion base-declaration: "
+)
+
+func (s *baseDeclSuite) TestDecodeInvalid(c *C) {
+	tsLine := "timestamp: 2016-09-29T19:50:49Z\n"
+
+	encoded := "type: base-declaration\n" +
+		"authority-id: canonical\n" +
+		"series: 16\n" +
+		"plugs:\n  interface1: true\n" +
+		"slots:\n  interface2: true\n" +
+		tsLine +
+		"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij" +
+		"\n\n" +
+		"$builtin"
+
+	invalidTests := []struct{ original, invalid, expectedErr string }{
+		{"series: 16\n", "", `"series" header is mandatory`},
+		{"series: 16\n", "series: \n", `"series" header should not be empty`},
+		{"plugs:\n  interface1: true\n", "plugs: \n", `"plugs" header must be a map`},
+		{"plugs:\n  interface1: true\n", "plugs:\n  intf1:\n    foo: bar\n", `plug rule for interface "intf1" must specify at least one of.*`},
+		{"slots:\n  interface2: true\n", "slots: \n", `"slots" header must be a map`},
+		{"slots:\n  interface2: true\n", "slots:\n  intf1:\n    foo: bar\n", `slot rule for interface "intf1" must specify at least one of.*`},
+		{tsLine, "", `"timestamp" header is mandatory`},
+		{tsLine, "timestamp: 12:30\n", `"timestamp" header is not a RFC3339 date: .*`},
+	}
+
+	for _, test := range invalidTests {
+		invalid := strings.Replace(encoded, test.original, test.invalid, 1)
+		_, err := asserts.Decode([]byte(invalid))
+		c.Check(err, ErrorMatches, baseDeclErrPrefix+test.expectedErr)
+	}
+
+}
+
+func (s *baseDeclSuite) TestBuiltin(c *C) {
+	baseDecl := asserts.BuiltinBaseDeclaration()
+	c.Check(baseDecl, IsNil)
+
+	defer asserts.InitBuiltinBaseDeclaration(nil)
+
+	const headers = `
+type: base-declaration
+authority-id: canonical
+series: 16
+revision: 0
+plugs:
+  network: true
+slots:
+  network:
+    allow-installation:
+      slot-snap-type:
+        - core
+`
+
+	err := asserts.InitBuiltinBaseDeclaration([]byte(headers))
+	c.Assert(err, IsNil)
+
+	baseDecl = asserts.BuiltinBaseDeclaration()
+	c.Assert(baseDecl, NotNil)
+
+	cont, _ := baseDecl.Signature()
+	c.Check(string(cont), Equals, strings.TrimSpace(headers))
+
+	c.Check(baseDecl.AuthorityID(), Equals, "canonical")
+	c.Check(baseDecl.Series(), Equals, "16")
+	c.Check(baseDecl.PlugRule("network").AllowAutoConnection.SlotAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Check(baseDecl.SlotRule("network").AllowInstallation.SlotSnapTypes, DeepEquals, []string{"core"})
+
+	enc := asserts.Encode(baseDecl)
+	// it's expected that it cannot be decoded
+	_, err = asserts.Decode(enc)
+	c.Check(err, NotNil)
+}
+
+func (s *baseDeclSuite) TestBuiltinInitErrors(c *C) {
+	defer asserts.InitBuiltinBaseDeclaration(nil)
+
+	tests := []struct {
+		headers string
+		err     string
+	}{
+		{"", `header entry missing ':' separator: ""`},
+		{"type: foo\n", `the builtin base-declaration "type" header is not set to expected value "base-declaration"`},
+		{"type: base-declaration", `the builtin base-declaration "authority-id" header is not set to expected value "canonical"`},
+		{"type: base-declaration\nauthority-id: canonical", `the builtin base-declaration "series" header is not set to expected value "16"`},
+		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nrevision: zzz", `cannot assemble the builtin-base declaration: "revision" header is not an integer: zzz`},
+		{"type: base-declaration\nauthority-id: canonical\nseries: 16\nplugs: foo", `cannot assemble the builtin base-declaration: "plugs" header must be a map`},
+	}
+
+	for _, t := range tests {
+		err := asserts.InitBuiltinBaseDeclaration([]byte(t.headers))
+		c.Check(err, ErrorMatches, t.err, Commentf(t.headers))
+	}
 }

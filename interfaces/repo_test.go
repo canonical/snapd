@@ -51,7 +51,7 @@ name: consumer
 apps:
     app:
 hooks:
-    apply-config:
+    configure:
 plugs:
     plug:
         interface: interface
@@ -64,7 +64,7 @@ name: producer
 apps:
     app:
 hooks:
-    apply-config:
+    configure:
 slots:
     slot:
         interface: interface
@@ -813,7 +813,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 		"snap.consumer.app": {
 			[]byte(`static plug snippet`),
 		},
-		"snap.consumer.hook.apply-config": {
+		"snap.consumer.hook.configure": {
 			[]byte(`static plug snippet`),
 		},
 	})
@@ -834,7 +834,7 @@ func (s *RepositorySuite) TestSlotSnippetsForSnapSuccess(c *C) {
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},
-		"snap.consumer.hook.apply-config": {
+		"snap.consumer.hook.configure": {
 			[]byte(`static plug snippet`),
 			[]byte(`connection-specific plug snippet`),
 		},

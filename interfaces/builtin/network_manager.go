@@ -73,6 +73,9 @@ network packet,
 # from netplan
 /run/NetworkManager/{,**} r,
 
+# Allow writing dhcp files to a well-known system location
+/run/NetworkManager/dhcp/{,**} w,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
@@ -84,10 +87,10 @@ network packet,
 /run/resolvconf/{,**} r,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
-/etc/resolvconf/** w,
 /lib/resolvconf/* ix,
 # Required by resolvconf
 /bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
 

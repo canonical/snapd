@@ -110,10 +110,6 @@ func (sto *fakeStore) ReadyToBuy(*auth.UserState) error {
 	panic("fakeStore.ReadyToBuy not expected")
 }
 
-func (sto *fakeStore) PaymentMethods(*auth.UserState) (*store.PaymentInformation, error) {
-	panic("fakeStore.PaymentMethods not expected")
-}
-
 func (s *assertMgrSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
@@ -771,4 +767,30 @@ func (s *assertMgrSuite) TestValidateRefreshesRevokedValidation(c *C) {
 	validated, err := assertstate.ValidateRefreshes(s.state, []*snap.Info{fooRefresh}, 0)
 	c.Assert(err, ErrorMatches, `(?s).*cannot refresh "foo" to revision 9: validation by "baz" \(id "baz-id"\) revoked.*`)
 	c.Check(validated, HasLen, 0)
+}
+
+func (s *assertMgrSuite) TestBaseSnapDeclaration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r1 := assertstest.MockBuiltinBaseDeclaration(nil)
+	defer r1()
+
+	baseDecl, err := assertstate.BaseDeclaration(s.state)
+	c.Assert(err, Equals, asserts.ErrNotFound)
+	c.Check(baseDecl, IsNil)
+
+	r2 := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+plugs:
+  iface: true
+`))
+	defer r2()
+
+	baseDecl, err = assertstate.BaseDeclaration(s.state)
+	c.Assert(err, IsNil)
+	c.Check(baseDecl, NotNil)
+	c.Check(baseDecl.PlugRule("iface"), NotNil)
 }

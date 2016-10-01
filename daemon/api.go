@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -78,7 +79,6 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	readyToBuyCmd,
-	paymentMethodsCmd,
 	snapctlCmd,
 }
 
@@ -193,13 +193,6 @@ var (
 		GET:    readyToBuy,
 	}
 
-	// TODO Remove once the CLI is using the new /buy/ready endpoint
-	paymentMethodsCmd = &Command{
-		Path:   "/v2/buy/methods",
-		UserOK: false,
-		GET:    getPaymentMethods,
-	}
-
 	snapctlCmd = &Command{
 		Path:   "/v2/snapctl",
 		SnapOK: true,
@@ -237,6 +230,7 @@ var isEmailish = regexp.MustCompile(`.@.*\..`).MatchString
 func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	var loginData struct {
 		Username string `json:"username"`
+		Email    string `json:"email"`
 		Password string `json:"password"`
 		Otp      string `json:"otp"`
 	}
@@ -246,8 +240,13 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode login data from request body: %v", err)
 	}
 
+	if loginData.Email == "" && isEmailish(loginData.Username) {
+		// for backwards compatibility, if no email is provided assume username is the email
+		loginData.Email = loginData.Username
+		loginData.Username = ""
+	}
 	// the "username" needs to look a lot like an email address
-	if !isEmailish(loginData.Username) {
+	if !isEmailish(loginData.Email) {
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
 			Result: &errorResult{
@@ -259,7 +258,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		}, nil)
 	}
 
-	macaroon, discharge, err := store.LoginUser(loginData.Username, loginData.Password, loginData.Otp)
+	macaroon, discharge, err := store.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
 		return SyncResponse(&resp{
@@ -295,11 +294,10 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// continue
 	}
-
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, macaroon, []string{discharge})
+	_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
@@ -1656,6 +1654,76 @@ var (
 	osutilAddUser                = osutil.AddUser
 )
 
+func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, error) {
+	v, err := storeUserInfo(email)
+	if err != nil {
+		return "", nil, fmt.Errorf("cannot create user %q: %s", email, err)
+	}
+	if len(v.SSHKeys) == 0 {
+		return "", nil, fmt.Errorf("cannot create user for %q: no ssh keys found", email)
+	}
+
+	gecos := fmt.Sprintf("%s,%s", email, v.OpenIDIdentifier)
+	opts := &osutil.AddUserOptions{
+		SSHKeys: v.SSHKeys,
+		Gecos:   gecos,
+	}
+	return v.Username, opts, nil
+}
+
+func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
+	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
+
+	st.Lock()
+	db := assertstate.DB(st)
+	modelAs, err := devicestate.Model(st)
+	st.Unlock()
+	if err != nil {
+		return "", nil, fmt.Errorf(errorPrefix+"cannot get model assertion: %s", err)
+	}
+
+	brandID := modelAs.BrandID()
+	series := modelAs.Series()
+	model := modelAs.Model()
+
+	a, err := db.Find(asserts.SystemUserType, map[string]string{
+		"brand-id": brandID,
+		"email":    email,
+	})
+	if err != nil {
+		return "", nil, fmt.Errorf(errorPrefix+"%v", err)
+	}
+	// the asserts package guarantees that this cast will work
+	su := a.(*asserts.SystemUser)
+
+	// cross check that the assertion is valid for the given series/model
+	contains := func(needle string, haystack []string) bool {
+		for _, s := range haystack {
+			if needle == s {
+				return true
+			}
+		}
+		return false
+	}
+	if len(su.Series()) > 0 && !contains(series, su.Series()) {
+		return "", nil, fmt.Errorf(errorPrefix+"%q not in series %q", email, series, su.Series())
+	}
+	if len(su.Models()) > 0 && !contains(model, su.Models()) {
+		return "", nil, fmt.Errorf(errorPrefix+"%q not in models %q", model, su.Models())
+	}
+	if !su.ValidAt(time.Now()) {
+		return "", nil, fmt.Errorf(errorPrefix + "assertion not valid anymore")
+	}
+
+	gecos := fmt.Sprintf("%s,%s", email, su.Name())
+	opts := &osutil.AddUserOptions{
+		SSHKeys:  su.SSHKeys(),
+		Gecos:    gecos,
+		Password: su.Password(),
+	}
+	return su.Username(), opts, nil
+}
+
 type createResponseData struct {
 	Username string   `json:"username"`
 	SSHKeys  []string `json:"ssh-keys"`
@@ -1675,6 +1743,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var createData struct {
 		Email  string `json:"email"`
 		Sudoer bool   `json:"sudoer"`
+		Known  bool   `json:"known"`
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -1686,85 +1755,45 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
 
-	v, err := storeUserInfo(createData.Email)
+	var username string
+	var opts *osutil.AddUserOptions
+	if createData.Known {
+		username, opts, err = getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
+	} else {
+		username, opts, err = getUserDetailsFromStore(createData.Email)
+	}
 	if err != nil {
-		return BadRequest("cannot create user %q: %s", createData.Email, err)
+		return BadRequest("%s", err)
 	}
-	if len(v.SSHKeys) == 0 {
-		return BadRequest("cannot create user for %s: no ssh keys found", createData.Email)
-	}
+	opts.Sudoer = createData.Sudoer
+	opts.ExtraUsers = !release.OnClassic
 
-	gecos := fmt.Sprintf("%s,%s", createData.Email, v.OpenIDIdentifier)
-	opts := &osutil.AddUserOptions{
-		SSHKeys:    v.SSHKeys,
-		Gecos:      gecos,
-		Sudoer:     createData.Sudoer,
-		ExtraUsers: !release.OnClassic,
-	}
-	if err := osutilAddUser(v.Username, opts); err != nil {
-		return BadRequest("cannot create user %s: %s", v.Username, err)
+	if err := osutilAddUser(username, opts); err != nil {
+		return BadRequest("cannot create user %s: %s", username, err)
 	}
 
 	return SyncResponse(&createResponseData{
-		Username:    v.Username,
-		SSHKeys:     v.SSHKeys,
-		SSHKeyCount: len(v.SSHKeys),
+		Username:    username,
+		SSHKeys:     opts.SSHKeys,
+		SSHKeyCount: len(opts.SSHKeys),
 	}, nil)
 }
 
-func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts store.BuyOptions
-
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&opts)
-	if err != nil {
-		return BadRequest("cannot decode buy options from request body: %v", err)
-	}
-
-	s := getStore(c)
-
-	buyResult, err := s.Buy(&opts, user)
-
+func convertBuyError(err error) Response {
 	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
 	case nil:
-		// continue
-	}
-
-	return SyncResponse(buyResult, nil)
-}
-
-// TODO Remove once the CLI is using the new /buy/ready endpoint
-func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	paymentMethods, err := s.PaymentMethods(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
+		return nil
 	case store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
-	case nil:
-		// continue
-	}
-
-	return SyncResponse(paymentMethods, nil)
-}
-
-func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	err := s.ReadyToBuy(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
+	case store.ErrUnauthenticated:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindLoginRequired,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
 	case store.ErrTOSNotAccepted:
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
@@ -1783,8 +1812,36 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
-	case nil:
-		// continue
+	default:
+		return InternalError("%v", err)
+	}
+}
+
+func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	var opts store.BuyOptions
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&opts)
+	if err != nil {
+		return BadRequest("cannot decode buy options from request body: %v", err)
+	}
+
+	s := getStore(c)
+
+	buyResult, err := s.Buy(&opts, user)
+
+	if resp := convertBuyError(err); resp != nil {
+		return resp
+	}
+
+	return SyncResponse(buyResult, nil)
+}
+
+func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	if resp := convertBuyError(s.ReadyToBuy(user)); resp != nil {
+		return resp
 	}
 
 	return SyncResponse(true, nil)
