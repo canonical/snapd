@@ -94,7 +94,7 @@ func PopulateStateFromSeed(st *state.State) error {
 		return nil
 	}
 
-	msg := fmt.Sprintf("First boot seeding")
+	msg := fmt.Sprintf("Initialize system state")
 	chg := st.NewChange("seed", msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
