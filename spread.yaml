@@ -82,9 +82,10 @@ path: /home/gopath/src/github.com/snapcore/snapd
 exclude:
     - .git
 
+prepare-each: |
+    journalctl --vacuum-time=1s
+
 debug-each: |
-    # something went wrong in the test, get some logs
-    echo "Snapd debug log:"
     journalctl -u snapd
 
 prepare: |
