@@ -23,6 +23,12 @@ execute: |
     echo "assertions from the $SEED_DIR/assertions subdirectory."
     systemctl start snapd.service
 
+    echo "Wait for Seed change to be finished"
+    while !snap changes|grep "1.*Done"; do
+        snap changes
+        sleep 1
+    done
+
     echo "Verifying the imported assertions"
     if [ $(snap known model|grep "type: model"|wc -l) != "1" ]; then
         echo "Model assertion was not imported on firstboot"
