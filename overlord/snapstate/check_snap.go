@@ -54,15 +54,6 @@ func checkAssumes(s *snap.Info) error {
 
 var openSnapFile = backend.OpenSnapFile
 
-// FIXME: drop and get the gadget name from the model assertion instead
-func isFirstBoot(st *state.State) bool {
-	chg := st.Change("1")
-	if chg != nil && !chg.IsReady() {
-		return true
-	}
-	return false
-}
-
 // checkSnap ensures that the snap can be installed.
 func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
 	// This assumes that the snap was already verified or --dangerous was used.
@@ -102,8 +93,10 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 
 	currentGadget, err := GadgetInfo(st)
 
+	// FIXME: check from the model assertion that its the right gadget
+	//
 	// in firstboot we have no gadget yet - that is ok
-	if err == state.ErrNoState && isFirstBoot(st) {
+	if err == state.ErrNoState {
 		return nil
 	}
 	if err != nil {

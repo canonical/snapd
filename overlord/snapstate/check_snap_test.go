@@ -188,7 +188,10 @@ version: 2
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
 
+// FIXME: re-enable once we have the check again
 func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
+	c.Skip("gadget check disabled right now")
+
 	reset := release.MockOnClassic(false)
 	defer reset()
 
