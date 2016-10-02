@@ -20,6 +20,7 @@
 package policy_test
 
 import (
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -69,6 +70,18 @@ plugs:
     allow-connection:
       slot-publisher-id:
         - $plug_publisher_id
+  install-plug-attr-ok:
+    allow-installation:
+      plug-attributes:
+        attr: ok
+  install-plug-gadget-only:
+    allow-installation:
+      plug-snap-type:
+        - gadget
+  install-plug-base-deny-snap-allow:
+    deny-installation:
+      plug-attributes:
+        attr: attrvalue
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -94,6 +107,22 @@ slots:
     allow-connection:
       plug-publisher-id:
         - $slot_publisher_id
+  install-slot-coreonly:
+    allow-installation:
+      slot-snap-type:
+        - core
+  install-slot-attr-ok:
+    allow-installation:
+      slot-attributes:
+        attr: ok
+  install-slot-attr-deny:
+    deny-installation:
+      slot-attributes:
+        trust: trusted
+  install-slot-base-deny-snap-allow:
+    deny-installation:
+      slot-attributes:
+        have: true
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -646,5 +675,179 @@ AXNpZw==`))
 		BaseDeclaration:     s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
+}
 
+func (s *policySuite) TestBaselineDefaultIsAllowInstallation(c *C) {
+	installSnap := snaptest.MockInfo(c, `
+name: install-slot-snap
+slots:
+  random1:
+plugs:
+  random2:
+`, nil)
+
+	cand := policy.InstallCandidate{
+		Snap:            installSnap,
+		BaseDeclaration: s.baseDecl,
+	}
+
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestBaseDeclAllowDenyInstallation(c *C) {
+
+	tests := []struct {
+		installYaml string
+		expected    string // "" => no error
+	}{
+		{`name: install-snap
+slots:
+  innocuous:
+  install-slot-coreonly:
+`, `installation not allowed over slot "install-slot-coreonly" by rule of interface "install-slot-coreonly"`},
+		{`name: install-snap
+slots:
+  install-slot-attr-ok:
+    attr: ok
+`, ""},
+		{`name: install-snap
+slots:
+  install-slot-attr-deny:
+    trust: trusted
+`, `installation denied over slot "install-slot-attr-deny" by rule of interface "install-slot-attr-deny"`},
+		{`name: install-snap
+plugs:
+  install-plug-attr-ok:
+    attr: ok
+`, ""},
+		{`name: install-snap
+plugs:
+  install-plug-attr-ok:
+    attr: not-ok
+`, `installation not allowed over plug "install-plug-attr-ok" by rule of interface "install-plug-attr-ok"`},
+		{`name: install-snap
+plugs:
+  install-plug-gadget-only:
+`, `installation not allowed over plug "install-plug-gadget-only" by rule of interface "install-plug-gadget-only"`},
+		{`name: install-gadget
+type: gadget
+plugs:
+  install-plug-gadget-only:
+`, ""},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err := cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestSnapDeclAllowDenyInstallation(c *C) {
+
+	tests := []struct {
+		installYaml string
+		plugsSlots  string
+		expected    string // "" => no error
+	}{
+		{`name: install-snap
+slots:
+  install-slot-base-allow-snap-deny:
+    have: yes # bool
+`, `slots:
+  install-slot-base-allow-snap-deny:
+    deny-installation:
+      slot-attributes:
+        have: true
+`, `installation denied over slot "install-slot-base-allow-snap-deny" by rule of interface "install-slot-base-allow-snap-deny" for "install-snap" snap`},
+		{`name: install-snap
+slots:
+  install-slot-base-allow-snap-not-allow:
+    have: yes # bool
+`, `slots:
+  install-slot-base-allow-snap-not-allow:
+    allow-installation:
+      slot-attributes:
+        have: false
+`, `installation not allowed over slot "install-slot-base-allow-snap-not-allow" by rule of interface "install-slot-base-allow-snap-not-allow" for "install-snap" snap`},
+		{`name: install-snap
+slots:
+  install-slot-base-deny-snap-allow:
+    have: yes
+`, `slots:
+  install-slot-base-deny-snap-allow:
+    allow-installation: true
+`, ""},
+		{`name: install-snap
+plugs:
+  install-plug-base-allow-snap-deny:
+    attr: give-me
+`, `plugs:
+  install-plug-base-allow-snap-deny:
+    deny-installation:
+      plug-attributes:
+        attr: .*
+`, `installation denied over plug "install-plug-base-allow-snap-deny" by rule of interface "install-plug-base-allow-snap-deny" for "install-snap" snap`},
+		{`name: install-snap
+plugs:
+  install-plug-base-allow-snap-not-allow:
+    attr: give-me
+`, `plugs:
+  install-plug-base-allow-snap-not-allow:
+    allow-installation:
+      plug-attributes:
+        attr: minimal
+`, `installation not allowed over plug "install-plug-base-allow-snap-not-allow" by rule of interface "install-plug-base-allow-snap-not-allow" for "install-snap" snap`},
+		{`name: install-snap
+plugs:
+  install-plug-base-deny-snap-allow:
+    attr: attrvalue
+`, `plugs:
+  install-plug-base-deny-snap-allow:
+    allow-installation:
+      plug-attributes:
+        attr: attrvalue
+`, ""},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: publisher
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
+		c.Assert(err, IsNil)
+		snapDecl := a.(*asserts.SnapDeclaration)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err = cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
 }

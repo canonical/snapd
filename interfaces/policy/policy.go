@@ -29,7 +29,88 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-// TODO: InstallCandidate
+// InstallCandidate represents a candidate snap for installation.
+type InstallCandidate struct {
+	Snap            *snap.Info
+	SnapDeclaration *asserts.SnapDeclaration
+	BaseDeclaration *asserts.BaseDeclaration
+}
+
+func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.SlotRule, snapRule bool) error {
+	context := ""
+	if snapRule {
+		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
+	}
+	if checkSlotInstallationConstraints(slot, rule.DenyInstallation) == nil {
+		return fmt.Errorf("installation denied over slot %q by rule of interface %q%s", slot.Name, slot.Interface, context)
+	}
+	if checkSlotInstallationConstraints(slot, rule.AllowInstallation) != nil {
+		return fmt.Errorf("installation not allowed over slot %q by rule of interface %q%s", slot.Name, slot.Interface, context)
+	}
+	return nil
+}
+
+func (ic *InstallCandidate) checkPlugRule(plug *snap.PlugInfo, rule *asserts.PlugRule, snapRule bool) error {
+	context := ""
+	if snapRule {
+		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
+	}
+	if checkPlugInstallationConstraints(plug, rule.DenyInstallation) == nil {
+		return fmt.Errorf("installation denied over plug %q by rule of interface %q%s", plug.Name, plug.Interface, context)
+	}
+	if checkPlugInstallationConstraints(plug, rule.AllowInstallation) != nil {
+		return fmt.Errorf("installation not allowed over plug %q by rule of interface %q%s", plug.Name, plug.Interface, context)
+	}
+	return nil
+}
+
+func (ic *InstallCandidate) checkSlot(slot *snap.SlotInfo) error {
+	iface := slot.Interface
+	if snapDecl := ic.SnapDeclaration; snapDecl != nil {
+		if rule := snapDecl.SlotRule(iface); rule != nil {
+			return ic.checkSlotRule(slot, rule, true)
+		}
+	}
+	if rule := ic.BaseDeclaration.SlotRule(iface); rule != nil {
+		return ic.checkSlotRule(slot, rule, false)
+	}
+	return nil
+}
+
+func (ic *InstallCandidate) checkPlug(plug *snap.PlugInfo) error {
+	iface := plug.Interface
+	if snapDecl := ic.SnapDeclaration; snapDecl != nil {
+		if rule := snapDecl.PlugRule(iface); rule != nil {
+			return ic.checkPlugRule(plug, rule, true)
+		}
+	}
+	if rule := ic.BaseDeclaration.PlugRule(iface); rule != nil {
+		return ic.checkPlugRule(plug, rule, false)
+	}
+	return nil
+}
+
+func (ic *InstallCandidate) Check() error {
+	if ic.BaseDeclaration == nil {
+		return fmt.Errorf("internal error: improperly initialized InstallCandidate")
+	}
+
+	for _, slot := range ic.Snap.Slots {
+		err := ic.checkSlot(slot)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, plug := range ic.Snap.Plugs {
+		err := ic.checkPlug(plug)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // ConnectCandidate represents a candidate connection.
 type ConnectCandidate struct {
@@ -106,6 +187,7 @@ func (connc *ConnectCandidate) checkSlotRule(rule *asserts.SlotRule, snapRule bo
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", connc.SlotSnapDeclaration.SnapName())
 	}
+	// TODO: show interface only if != name
 	if checkSlotConnectionConstraints(connc, rule.DenyConnection) == nil {
 		return fmt.Errorf("connection denied by slot rule of interface %q%s", connc.Plug.Interface, context)
 	}
