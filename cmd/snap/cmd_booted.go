@@ -56,5 +56,9 @@ func (x *cmdBooted) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
 	}
 
-	return partition.MarkBootSuccessful(bootloader)
+	if err := partition.MarkBootSuccessful(bootloader); err != nil {
+		return err
+	}
+
+	return Client().UpdateRevisions()
 }

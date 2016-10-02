@@ -80,6 +80,7 @@ var api = []*Command{
 	buyCmd,
 	readyToBuyCmd,
 	snapctlCmd,
+	updateRevisionsCmd,
 }
 
 var (
@@ -197,6 +198,12 @@ var (
 		Path:   "/v2/snapctl",
 		SnapOK: true,
 		POST:   runSnapctl,
+	}
+
+	updateRevisionsCmd = &Command{
+		Path:   "/v2/update-revisions",
+		UserOK: true,
+		POST:   postUpdateRevisions,
 	}
 )
 
@@ -1777,6 +1784,26 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		SSHKeys:     opts.SSHKeys,
 		SSHKeyCount: len(opts.SSHKeys),
 	}, nil)
+}
+
+func postUpdateRevisions(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use update-revisions as non-root")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	if err := snapstate.UpdateRevisions(st); err != nil {
+		return InternalError("cannot update revisions: %s", err)
+	}
+
+	return SyncResponse(true, nil)
 }
 
 func convertBuyError(err error) Response {

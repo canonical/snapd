@@ -393,3 +393,14 @@ func (client *Client) CreateUser(request *CreateUserRequest) (*CreateUserResult,
 
 	return &createResult, nil
 }
+
+// UpdateRevisions asks the daemon to sync the core/kernel snap revisions
+// with what was booted
+func (client *Client) UpdateRevisions() error {
+	var rsp interface{}
+	if _, err := client.doSync("POST", "/v2/update-revisions", nil, nil, nil, &rsp); err != nil {
+		return fmt.Errorf("cannot update revisions: %v", err)
+	}
+
+	return nil
+}

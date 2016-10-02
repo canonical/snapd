@@ -110,6 +110,7 @@ func UpdateRevisions(st *state.State) error {
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
+	st.EnsureBefore(0)
 
 	return nil
 }

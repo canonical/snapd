@@ -640,29 +640,8 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-type cachedUpdateRevisionsWasRun struct{}
-
 // Ensure implements StateManager.Ensure.
 func (m *SnapManager) Ensure() error {
-	// ensure the core/kernel revisions that we booted with match
-	// the active revision on disk (they may get out of sync on
-	// a failed boot that falls back to the previous version for
-	// example)
-	m.state.Lock()
-	wasRun := m.state.Cached(cachedUpdateRevisionsWasRun{})
-	m.state.Unlock()
-
-	if wasRun == nil {
-		m.state.Lock()
-		err := UpdateRevisions(m.state)
-		m.state.EnsureBefore(0)
-		m.state.Cache(cachedUpdateRevisionsWasRun{}, true)
-		m.state.Unlock()
-		if err != nil {
-			return err
-		}
-	}
-
 	m.runner.Ensure()
 	return nil
 }

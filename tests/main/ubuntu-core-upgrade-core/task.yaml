@@ -8,6 +8,7 @@ debug: |
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot
+        cat firstBoot
         echo "Ensure we are with the right sideloaded core"
         snap list |grep "ubuntu-core.*$(cat firstBoot)"
         grep "snap_core=ubuntu-core_$(cat firstBoot).snap" /proc/cmdline
@@ -15,8 +16,9 @@ execute: |
         echo "Install a new ubuntu-core"
         snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot
+        cat nextBoot
         echo "Ensure we have next installed now"
-        snap list |grep "ubuntu-core.*$(nextBoot)"
+        snap list |grep "ubuntu-core.*$nextBoot"
         if cmp firstBoot nextBoot; then
             echo "Current and next boot version are identical"
             cat firstBoot
