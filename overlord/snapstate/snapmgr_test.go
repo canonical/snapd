@@ -1401,6 +1401,38 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNo(c *C) {
 	c.Assert(err, Equals, validateErr)
 }
 
+func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationIsSet(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(7),
+	}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+	})
+
+	validateErr := errors.New("refresh control error")
+	validateRefreshes := func(s *state.State, refreshes []*snap.Info, userID int) ([]*snap.Info, error) {
+		return nil, validateErr
+	}
+	// hook it up
+	snapstate.ValidateRefreshes = validateRefreshes
+
+	ts, err := snapstate.Update(s.state, "some-snap", "stable", snap.R(0), s.user.ID, snapstate.IgnoreValidation|snapstate.JailMode)
+	c.Assert(err, IsNil)
+
+	var ss snapstate.SnapSetup
+	err = ts.Tasks()[0].Get("snap-setup", &ss)
+	c.Assert(err, IsNil)
+	c.Check(ss.Flags, Equals, snapstate.SnapSetupFlags(snapstate.JailMode))
+}
+
 func (s *snapmgrTestSuite) TestUpdateBlockedRevision(c *C) {
 	si7 := snap.SideInfo{
 		RealName: "some-snap",

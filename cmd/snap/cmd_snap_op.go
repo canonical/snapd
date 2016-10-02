@@ -445,9 +445,10 @@ type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
-	Revision   string `long:"revision"`
-	List       bool   `long:"list"`
-	Positional struct {
+	Revision         string `long:"revision"`
+	List             bool   `long:"list"`
+	IgnoreValidation bool   `long:"ignore-validation"`
+	Positional       struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
@@ -539,16 +540,21 @@ func (x *cmdRefresh) Execute([]string) error {
 	}
 	if len(x.Positional.Snaps) == 1 {
 		opts := &client.SnapOptions{
-			Channel:  x.Channel,
-			DevMode:  x.DevMode,
-			JailMode: x.JailMode,
-			Revision: x.Revision,
+			Channel:          x.Channel,
+			DevMode:          x.DevMode,
+			JailMode:         x.JailMode,
+			IgnoreValidation: x.IgnoreValidation,
+			Revision:         x.Revision,
 		}
 		return refreshOne(x.Positional.Snaps[0], opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	}
+
+	if x.IgnoreValidation {
+		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
 	}
 
 	return refreshMany(x.Positional.Snaps, nil)
@@ -723,8 +729,9 @@ func init() {
 		}), nil)
 	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
 		channelDescs.also(modeDescs).also(map[string]string{
-			"revision": i18n.G("Refresh to the given revision"),
-			"list":     i18n.G("Show available snaps for refresh"),
+			"revision":          i18n.G("Refresh to the given revision"),
+			"list":              i18n.G("Show available snaps for refresh"),
+			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
 		}), nil)
 	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, modeDescs, nil)
 	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, nil, nil)
