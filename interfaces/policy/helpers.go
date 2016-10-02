@@ -109,3 +109,23 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Slot
 	}
 	return nil
 }
+
+func checkSlotInstallationConstraints(slot *snap.SlotInfo, cstrs *asserts.SlotInstallationConstraints) error {
+	if err := cstrs.SlotAttributes.Check(slot.Attrs); err != nil {
+		return err
+	}
+	if err := checkSnapType(slot.Snap.Type, cstrs.SlotSnapTypes); err != nil {
+		return err
+	}
+	return nil
+}
+
+func checkPlugInstallationConstraints(plug *snap.PlugInfo, cstrs *asserts.PlugInstallationConstraints) error {
+	if err := cstrs.PlugAttributes.Check(plug.Attrs); err != nil {
+		return err
+	}
+	if err := checkSnapType(plug.Snap.Type, cstrs.PlugSnapTypes); err != nil {
+		return err
+	}
+	return nil
+}
