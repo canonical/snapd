@@ -20,6 +20,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jessevdk/go-flags"
 )
 
