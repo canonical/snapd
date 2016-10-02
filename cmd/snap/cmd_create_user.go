@@ -68,25 +68,42 @@ func (x *cmdCreateUser) Execute(args []string) error {
 
 	cli := Client()
 
-	request := client.CreateUserRequest{
+	options := client.CreateUserOptions{
 		Email:  x.Positional.Email,
 		Sudoer: x.Sudoer,
 		Known:  x.Known,
 	}
 
-	rsp, err := cli.CreateUser(&request)
-	if err != nil {
-		return err
-	}
-	if x.JSON {
-		y, err := json.Marshal(rsp)
-		if err != nil {
-			return nil
-		}
-		fmt.Fprintf(Stdout, "%s\n", y)
+	var results []*client.CreateUserResult
+	var result *client.CreateUserResult
+	var err error
+
+	if options.Email == "" && options.Known {
+		results, err = cli.CreateUsers([]*client.CreateUserOptions{&options})
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Created user %q and imported SSH keys.\n"), rsp.Username)
+		result, err = cli.CreateUser(&options)
+		results = append(results, result)
 	}
 
-	return nil
+	createErr := err
+
+	// Print results regardless of error because some users may have been created.
+	if x.JSON {
+		var data []byte
+		if result != nil {
+			data, err = json.Marshal(result)
+		} else if len(results) > 0 {
+			data, err = json.Marshal(results)
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stdout, "%s\n", data)
+	} else {
+		for _, result := range results {
+			fmt.Fprintf(Stdout, i18n.G("created user %q\n"), result.Username)
+		}
+	}
+
+	return createErr
 }

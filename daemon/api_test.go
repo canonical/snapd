@@ -3685,9 +3685,8 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &createResponseData{
-		Username:    "karl",
-		SSHKeys:     []string{"ssh1", "ssh2"},
-		SSHKeyCount: 2,
+		Username: "karl",
+		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -3976,8 +3975,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &createResponseData{
-		Username:    "guy",
-		SSHKeyCount: 0,
+		Username: "guy",
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -4043,7 +4041,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	// note that we get a list here instead of a single
 	// createResponseData item
 	expected := []createResponseData{
-		{Username: "guy", SSHKeyCount: 0},
+		{Username: "guy"},
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
