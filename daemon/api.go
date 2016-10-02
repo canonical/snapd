@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -1698,6 +1699,11 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 			logger.Debugf("ignoring system-user assertion for %q: %s", email, err)
 			continue
 		}
+		// ignore already existing users
+		if _, err := user.Lookup(username); err == nil {
+			continue
+		}
+
 		// FIXME: duplicated code
 		opts.Sudoer = createData.Sudoer
 		opts.ExtraUsers = !release.OnClassic
