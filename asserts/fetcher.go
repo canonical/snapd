@@ -70,6 +70,7 @@ func (f *fetcher) chase(ref *Ref, a Assertion) error {
 		return err
 	}
 	u := ref.Unique()
+	fmt.Println(ref)
 	switch f.fetched[u] {
 	case fetchSaved:
 		return nil // nothing to do
