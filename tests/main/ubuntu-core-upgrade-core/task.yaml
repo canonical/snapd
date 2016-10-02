@@ -18,7 +18,7 @@ execute: |
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot
         cat nextBoot
         echo "Ensure we have next installed now"
-        snap list |grep "ubuntu-core.*$nextBoot"
+        snap list |grep "ubuntu-core.*$(cat nextBoot)"
         if cmp firstBoot nextBoot; then
             echo "Current and next boot version are identical"
             cat firstBoot
