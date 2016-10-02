@@ -225,7 +225,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(change.Err(), ErrorMatches, `(?s).*Connect consumer:plug to producer:whatslot \(no such slot\).*`)
+	c.Check(change.Err(), ErrorMatches, `(?s).*Connect consumer:plug to producer:whatslot \(snap "producer" has no "whatslot" slot\).*`)
 	c.Check(change.Status(), Equals, state.ErrorStatus)
 }
 
@@ -254,7 +254,7 @@ func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Check(change.Err(), ErrorMatches, `(?s).*no such plug.*`)
+	c.Check(change.Err(), ErrorMatches, `(?s).*snap "consumer" has no "whatplug" plug.*`)
 	c.Check(change.Status(), Equals, state.ErrorStatus)
 }
 

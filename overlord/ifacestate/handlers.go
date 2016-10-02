@@ -237,7 +237,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
 	if plug == nil {
-		return fmt.Errorf("no such plug")
+		return fmt.Errorf("snap %q has no %q plug", plugRef.Snap, plugRef.Name)
 	}
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap.SnapID != "" {
@@ -250,7 +250,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 
 	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
 	if slot == nil {
-		return fmt.Errorf("no such slot")
+		return fmt.Errorf("snap %q has no %q slot", slotRef.Snap, slotRef.Name)
 	}
 	var slotDecl *asserts.SnapDeclaration
 	if slot.Snap.SnapID != "" {
