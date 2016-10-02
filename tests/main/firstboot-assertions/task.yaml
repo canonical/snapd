@@ -10,6 +10,7 @@ prepare: |
     touch $SEED_DIR/seed.yaml
     # pretend to be not classic :)
     mv /var/lib/dpkg/status /var/lib/dpkg/status.save
+
     echo Copy the needed assertions to /var/lib/snapd/
     cp $TESTSLIB/assertions/developer1.account $SEED_DIR/assertions
     cp $TESTSLIB/assertions/developer1.account-key $SEED_DIR/assertions
@@ -24,8 +25,7 @@ execute: |
     systemctl start snapd.service
 
     echo "Wait for Seed change to be finished"
-    while !snap changes|grep "1.*Done"; do
-        snap changes
+    while ! snap known model|grep "type: model"; do
         sleep 1
     done
 
