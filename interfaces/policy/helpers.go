@@ -80,7 +80,7 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Plug
 		return err
 	}
 	err := checkID("publisher id", connc.slotPublisherID(), cstrs.SlotPublisherIDs, map[string]string{
-		"$plug-publisher-id": connc.plugPublisherID(),
+		"$plug_publisher_id": connc.plugPublisherID(),
 	})
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Slot
 		return err
 	}
 	err := checkID("publisher id", connc.plugPublisherID(), cstrs.PlugPublisherIDs, map[string]string{
-		"$slot-publisher-id": connc.slotPublisherID(),
+		"$slot_publisher_id": connc.slotPublisherID(),
 	})
 	if err != nil {
 		return err
