@@ -61,12 +61,14 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	ovld, err := overlord.New()
 	c.Assert(err, IsNil)
 	bs.overlord = ovld
+	bs.overlord.Loop()
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
+	bs.overlord.Stop()
 }
 
 var (
@@ -75,6 +77,13 @@ var (
 	kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
 	kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
 )
+
+func (bs *bootedSuite) settle() {
+	for i := 0; i < 50; i++ {
+		s.snapmgr.Ensure()
+		s.snapmgr.Wait()
+	}
+}
 
 func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 1", osSI1)
@@ -109,7 +118,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	bs.overlord.Settle()
+	bs.settle()
 	st.Lock()
 
 	c.Assert(st.Changes(), HasLen, 1)
@@ -141,7 +150,7 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	bs.overlord.Settle()
+	bs.settle()
 	st.Lock()
 
 	c.Assert(st.Changes(), HasLen, 1)
@@ -204,7 +213,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 	c.Assert(err, IsNil)
 
 	st.Unlock()
-	bs.overlord.Settle()
+	bs.settle()
 	st.Lock()
 
 	c.Assert(st.Changes(), HasLen, 1)
