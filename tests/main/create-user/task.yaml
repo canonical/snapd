@@ -7,21 +7,21 @@ environment:
     USER_NAME: mvo
 
 restore: |
-    userdel -r $USER_NAME
+    userdel -r $USER_NAME || true
     rm -rf /etc/sudoers.d/create-user-$USER_NAME
 
 execute: |
-    echo "snap create-user -- ensure failure when no email address provided"
-    expected="error: while creating user: cannot create user: 'email' field is empty"
-    snap create-user 2>&1 | grep -q "$expected"
-
     echo "snap create-user -- ensure failure when run as non-root user without sudo"
     expected="error: while creating user: access denied"
-    su - test /bin/sh -c "SNAP_REEXEC=0 snap create-user $USER_EMAIL 2>&1" | grep -q "$expected"
+    if obtained=$(su - test /bin/sh -c "snap create-user $USER_EMAIL 2>&1"); then
+        echo "create-user command should have failed"
+    fi
+    [[ "$obtained" =~ "$expected" ]]
 
     echo "snap create-user -- ensure success when run as non-root user with sudo"
     expected="created user \"$USER_NAME\""
-    su - test /bin/sh -c "sudo SNAP_REEXEC=0 snap create-user --sudoer $USER_EMAIL 2>&1" | grep -q "$expected"
+    obtained=$(su - test /bin/sh -c "sudo snap create-user --sudoer $USER_EMAIL 2>&1")
+    [[ "$obtained" =~ "$expected" ]]
 
     echo "ensure user exists in /etc/passwd"
     grep -qE "^$USER_NAME:x:[0-9]+:[0-9]+:$USER_EMAIL" /etc/passwd

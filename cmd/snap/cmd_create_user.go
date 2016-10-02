@@ -82,7 +82,9 @@ func (x *cmdCreateUser) Execute(args []string) error {
 		results, err = cli.CreateUsers([]*client.CreateUserOptions{&options})
 	} else {
 		result, err = cli.CreateUser(&options)
-		results = append(results, result)
+		if err == nil {
+			results = append(results, result)
+		}
 	}
 
 	createErr := err
