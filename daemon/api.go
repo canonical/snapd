@@ -1685,18 +1685,29 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 
 	st.Lock()
 	db := assertstate.DB(st)
-	assertions, err := db.FindMany(asserts.SystemUserType, nil)
+	modelAs, err := devicestate.Model(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get model assertion")
+	}
+
+	headers := map[string]string{
+		"brand-id": modelAs.BrandID(),
+	}
+	st.Lock()
+	assertions, err := db.FindMany(asserts.SystemUserType, headers)
 	st.Unlock()
 	if err != nil {
 		return BadRequest("cannot find system-user assertion: %s", err)
 	}
+
 	for _, as := range assertions {
 		email := as.(*asserts.SystemUser).Email()
 		// we need to use getUserDetailsFromAssertion as this verifies
 		// the assertion against the current brand/model/time
 		username, opts, err := getUserDetailsFromAssertion(st, email)
 		if err != nil {
-			logger.Debugf("ignoring system-user assertion for %q: %s", email, err)
+			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 			continue
 		}
 		// ignore already existing users
