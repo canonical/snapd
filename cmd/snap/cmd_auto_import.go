@@ -33,7 +33,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const autoImportsName = "auto-imports.asserts"
+const autoImportsName = "auto-imports.assert"
 
 var mountInfoPath = "/proc/self/mountinfo"
 
@@ -56,10 +56,11 @@ func autoImportCandidates() ([]string, error) {
 		}
 		mountPoint := l[4]
 		mountSrc := l[9]
-		// FIXME: premature optimization?
+		// skip internal mounts
 		if !strings.HasPrefix(mountSrc, "/dev/") {
 			continue
 		}
+		// skip snaps
 		if strings.HasPrefix(mountSrc, "/dev/loop") {
 			continue
 		}
@@ -99,9 +100,9 @@ func autoImportFromAllMounts() error {
 
 type cmdAutoImport struct{}
 
-var shortAutoImportHelp = i18n.G("Auto import assertions")
+var shortAutoImportHelp = i18n.G("Imports assertions from mounted devices")
 
-var longAutoImportHelp = i18n.G("This command imports all assertions from block devices that are called 'auto-imports.assertions'")
+var longAutoImportHelp = i18n.G("The auto-import command imports assertions found in the auto-import.assert file in mounted devices.")
 
 func init() {
 	cmd := addCommand("auto-import",
