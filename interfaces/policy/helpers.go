@@ -20,7 +20,8 @@
 package policy
 
 import (
-	"fmt"
+	"errors"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
@@ -41,7 +42,30 @@ func checkSnapType(snapType snap.Type, types []string) error {
 			return nil
 		}
 	}
-	return fmt.Errorf("snap type does not match")
+	return errors.New("snap type does not match")
+}
+
+var noIDMatchErr = errors.New("id does not match")
+
+func checkID(id string, ids []string, special map[string]string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	if id == "" { // unset never matches
+		return noIDMatchErr
+	}
+	for _, cand := range ids {
+		if strings.HasPrefix(cand, "$") {
+			cand = special[cand]
+			if cand == "" {
+				continue
+			}
+		}
+		if id == cand {
+			return nil
+		}
+	}
+	return noIDMatchErr
 }
 
 func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
@@ -54,7 +78,14 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Plug
 	if err := checkSnapType(connc.slotSnapType(), cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
-	// TODO: IDs constraints
+	if err := checkID(connc.slotSnapID(), cstrs.SlotSnapIDs, nil); err != nil {
+		return err
+	}
+	if err := checkID(connc.slotPublisherID(), cstrs.SlotPublisherIDs, map[string]string{
+		"$plug-publisher-id": connc.plugPublisherID(),
+	}); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -68,6 +99,13 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Slot
 	if err := checkSnapType(connc.plugSnapType(), cstrs.PlugSnapTypes); err != nil {
 		return err
 	}
-	// TODO: IDs constraints
+	if err := checkID(connc.plugSnapID(), cstrs.PlugSnapIDs, nil); err != nil {
+		return err
+	}
+	if err := checkID(connc.plugPublisherID(), cstrs.PlugPublisherIDs, map[string]string{
+		"$slot-publisher-id": connc.slotPublisherID(),
+	}); err != nil {
+		return err
+	}
 	return nil
 }
