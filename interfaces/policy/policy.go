@@ -59,6 +59,34 @@ func (connc *ConnectCandidate) slotSnapType() snap.Type {
 	return connc.Slot.Snap.Type
 }
 
+func (connc *ConnectCandidate) plugSnapID() string {
+	if connc.PlugSnapDeclaration != nil {
+		return connc.PlugSnapDeclaration.SnapID()
+	}
+	return "" // unset
+}
+
+func (connc *ConnectCandidate) slotSnapID() string {
+	if connc.SlotSnapDeclaration != nil {
+		return connc.SlotSnapDeclaration.SnapID()
+	}
+	return "" // unset
+}
+
+func (connc *ConnectCandidate) plugPublisherID() string {
+	if connc.PlugSnapDeclaration != nil {
+		return connc.PlugSnapDeclaration.PublisherID()
+	}
+	return "" // unset
+}
+
+func (connc *ConnectCandidate) slotPublisherID() string {
+	if connc.SlotSnapDeclaration != nil {
+		return connc.SlotSnapDeclaration.PublisherID()
+	}
+	return "" // unset
+}
+
 func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, snapRule bool) error {
 	context := ""
 	if snapRule {
