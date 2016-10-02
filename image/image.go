@@ -38,6 +38,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/store"
+
+	// important so that the testkeys get imported
+	_ "github.com/snapcore/snapd/overlord/assertstate"
 )
 
 var (
