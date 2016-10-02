@@ -3977,6 +3977,9 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
+// FIXME: These tests all look similar, with small deltas. Would be
+// nice to transform them into a table that is just the deltas, and
+// run on a loop.
 func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
