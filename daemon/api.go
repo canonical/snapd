@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -1671,6 +1672,58 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 	return v.Username, opts, nil
 }
 
+func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
+	var createdUsers []createResponseData
+
+	st.Lock()
+	db := assertstate.DB(st)
+	modelAs, err := devicestate.Model(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get model assertion")
+	}
+
+	headers := map[string]string{
+		"brand-id": modelAs.BrandID(),
+	}
+	st.Lock()
+	assertions, err := db.FindMany(asserts.SystemUserType, headers)
+	st.Unlock()
+	if err != nil {
+		return BadRequest("cannot find system-user assertion: %s", err)
+	}
+
+	for _, as := range assertions {
+		email := as.(*asserts.SystemUser).Email()
+		// we need to use getUserDetailsFromAssertion as this verifies
+		// the assertion against the current brand/model/time
+		username, opts, err := getUserDetailsFromAssertion(st, email)
+		if err != nil {
+			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
+			continue
+		}
+		// ignore already existing users
+		if _, err := user.Lookup(username); err == nil {
+			continue
+		}
+
+		// FIXME: duplicated code
+		opts.Sudoer = createData.Sudoer
+		opts.ExtraUsers = !release.OnClassic
+
+		if err := osutilAddUser(username, opts); err != nil {
+			return InternalError("cannot add user %q: %s", username, err)
+		}
+		createdUsers = append(createdUsers, createResponseData{
+			Username:    username,
+			SSHKeys:     opts.SSHKeys,
+			SSHKeyCount: len(opts.SSHKeys),
+		})
+	}
+
+	return SyncResponse(createdUsers, nil)
+}
+
 func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
@@ -1731,6 +1784,12 @@ type createResponseData struct {
 	SSHKeyCount int `json:"ssh-key-count"`
 }
 
+type postUserCreateData struct {
+	Email  string `json:"email"`
+	Sudoer bool   `json:"sudoer"`
+	Known  bool   `json:"known"`
+}
+
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -1740,17 +1799,18 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot use create-user as non-root")
 	}
 
-	var createData struct {
-		Email  string `json:"email"`
-		Sudoer bool   `json:"sudoer"`
-		Known  bool   `json:"known"`
-	}
+	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
+	// special case: the user requested the creation of all known
+	// system-users
+	if createData.Email == "" && createData.Known {
+		return createAllKnownSystemUsers(c.d.overlord.State(), &createData)
+	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
