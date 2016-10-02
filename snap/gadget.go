@@ -27,29 +27,32 @@ import (
 	"gopkg.in/yaml.v2"
 )
 
-type gadgetYaml struct {
-	Volumes map[string]volume `yaml:"volumes,omitempty"`
+type GadgetInfo struct {
+	Volumes map[string]GadgetVolume `yaml:"volumes,omitempty"`
+
+	// Default configuration for snaps (snap-id => key => value).
+	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 }
 
-type volume struct {
-	Schema     string      `yaml:"schema"`
-	Bootloader string      `yaml:"bootloader"`
-	ID         string      `yaml:"id"`
-	Structure  []structure `yaml:"structure"`
+type GadgetVolume struct {
+	Schema     string            `yaml:"schema"`
+	Bootloader string            `yaml:"bootloader"`
+	ID         string            `yaml:"id"`
+	Structure  []VolumeStructure `yaml:"structure"`
 }
 
-type structure struct {
-	Label       string    `yaml:"label"`
-	Offset      int64     `yaml:"offset"`
-	OffsetWrite int64     `yaml:"offset-write"`
-	Size        int64     `yaml:"size"`
-	Type        string    `yaml:"type"`
-	ID          string    `yaml:"id"`
-	Filesystem  string    `yaml:"filesystem"`
-	Content     []content `yaml:"content"`
+type VolumeStructure struct {
+	Label       string          `yaml:"label"`
+	Offset      int64           `yaml:"offset"`
+	OffsetWrite int64           `yaml:"offset-write"`
+	Size        int64           `yaml:"size"`
+	Type        string          `yaml:"type"`
+	ID          string          `yaml:"id"`
+	Filesystem  string          `yaml:"filesystem"`
+	Content     []VolumeContent `yaml:"content"`
 }
 
-type content struct {
+type VolumeContent struct {
 	Source string `yaml:"source"`
 	Target string `yaml:"target"`
 
@@ -61,39 +64,6 @@ type content struct {
 	Unpack bool `yaml:"unpack"`
 }
 
-type GadgetInfo struct {
-	Volumes map[string]Volume
-}
-
-type Volume struct {
-	Schema     string
-	Bootloader string
-	ID         string
-	Structure  []Structure
-}
-
-type Structure struct {
-	Label       string
-	Offset      int64
-	OffsetWrite int64
-	Size        int64
-	Type        string
-	ID          string
-	Filesystem  string
-	Content     []Content
-}
-type Content struct {
-	Source string
-	Target string
-
-	Image       string
-	Offset      int64
-	OffsetWrite int64
-	Size        int64
-
-	Unpack bool
-}
-
 func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 	const errorFormat = "cannot read gadget snap details: %s"
 
@@ -103,14 +73,14 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 		return nil, fmt.Errorf(errorFormat, err)
 	}
 
-	var gy gadgetYaml
-	if err := yaml.Unmarshal(gmeta, &gy); err != nil {
+	var gi GadgetInfo
+	if err := yaml.Unmarshal(gmeta, &gi); err != nil {
 		return nil, fmt.Errorf(errorFormat, err)
 	}
 
 	// basic validation
 	foundBootloader := false
-	for _, v := range gy.Volumes {
+	for _, v := range gi.Volumes {
 		if foundBootloader {
 			return nil, fmt.Errorf(errorFormat, "bootloader already declared")
 		}
@@ -127,40 +97,5 @@ func ReadGadgetInfo(info *Info) (*GadgetInfo, error) {
 		return nil, fmt.Errorf(errorFormat, "bootloader not declared in any volume")
 	}
 
-	gi := &GadgetInfo{
-		Volumes: make(map[string]Volume),
-	}
-	for k, v := range gy.Volumes {
-		gi.Volumes[k] = Volume{
-			Schema:     v.Schema,
-			Bootloader: v.Bootloader,
-			ID:         v.ID,
-			Structure:  make([]Structure, len(v.Structure)),
-		}
-		for si, sv := range v.Structure {
-			gi.Volumes[k].Structure[si] = Structure{
-				Label:       sv.Label,
-				Offset:      sv.Offset,
-				OffsetWrite: sv.OffsetWrite,
-				Size:        sv.Size,
-				Type:        sv.Type,
-				ID:          sv.ID,
-				Filesystem:  sv.Filesystem,
-				Content:     make([]Content, len(sv.Content)),
-			}
-			for ci, cv := range sv.Content {
-				gi.Volumes[k].Structure[si].Content[ci] = Content{
-					Source:      cv.Source,
-					Target:      cv.Target,
-					Image:       cv.Image,
-					Offset:      cv.Offset,
-					OffsetWrite: cv.OffsetWrite,
-					Size:        cv.Size,
-					Unpack:      cv.Unpack,
-				}
-			}
-		}
-	}
-
-	return gi, nil
+	return &gi, nil
 }

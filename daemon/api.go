@@ -372,7 +372,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
-			return NotFound("cannot find snap %q", name)
+			return NotFound("cannot find %q snap", name)
 		}
 
 		return InternalError("%v", err)
@@ -380,12 +380,12 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError("cannot find route for snap %s", name)
+		return InternalError("cannot find route for %q snap", name)
 	}
 
 	url, err := route.URL("name", name)
 	if err != nil {
-		return InternalError("cannot build URL for snap %s: %v", name, err)
+		return InternalError("cannot build URL for %q snap: %v", name, err)
 	}
 
 	result := webify(mapLocal(localSnap, active), url.String())
@@ -1008,7 +1008,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
-	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.Name(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets}, []string{info.Name()})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
@@ -1307,15 +1307,23 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
-	s := c.d.overlord.State()
-	s.Lock()
-	defer s.Unlock()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
-	taskset := configstate.Change(s, snapName, patchValues)
-	change := s.NewChange("configure-snap", fmt.Sprintf("Setting config for %s", snapName))
-	change.AddAll(taskset)
+	var ss snapstate.SnapState
+	if err := snapstateGet(st, snapName, &ss); err == state.ErrNoState {
+		return NotFound("cannot find %q snap", snapName)
+	} else if err != nil {
+		return InternalError("%v", err)
+	}
 
-	s.EnsureBefore(0)
+	taskset := configstate.Configure(st, snapName, patchValues)
+
+	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
+	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
+
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }

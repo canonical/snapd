@@ -1688,7 +1688,7 @@ func (s *apiSuite) TestTrySnap(c *check.C) {
 	st.Lock()
 
 	c.Check(chg.Kind(), check.Equals, "try-snap")
-	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %q`, "foo", tryDir))
+	c.Check(chg.Summary(), check.Equals, fmt.Sprintf(`Try "%s" snap from %s`, "foo", tryDir))
 	var names []string
 	err = chg.Get("snap-names", &names)
 	c.Assert(err, check.IsNil)
