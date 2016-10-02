@@ -20,8 +20,6 @@
 package policy_test
 
 import (
-	//"fmt"
-
 	"testing"
 
 	. "gopkg.in/check.v1"
