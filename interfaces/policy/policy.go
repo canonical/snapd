@@ -121,7 +121,12 @@ func (connc *ConnectCandidate) Check() error {
 	if baseDecl == nil {
 		return fmt.Errorf("internal error: improperly initialized ConnectCandidate")
 	}
+
 	iface := connc.Plug.Interface
+
+	if connc.Slot.Interface != iface {
+		return fmt.Errorf("cannot connect mismatched plug interface %q to slot interface %q", iface, connc.Slot.Interface)
+	}
 
 	if plugDecl := connc.PlugSnapDeclaration; plugDecl != nil {
 		if rule := plugDecl.PlugRule(iface); rule != nil {

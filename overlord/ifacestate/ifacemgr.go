@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
+
 	"github.com/snapcore/snapd/overlord/state"
 )
 
