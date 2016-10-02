@@ -207,8 +207,7 @@ func makeFetcher(sto Store, dlOpts *DownloadOptions, db *asserts.Database) *addi
 
 }
 
-// one and only core snap for now
-const defaultCore = "ubuntu-core"
+const defaultCore = "core"
 
 func bootstrapToRootDir(sto Store, model *asserts.Model, opts *Options, local *localInfos) error {
 	// FIXME: try to avoid doing this
