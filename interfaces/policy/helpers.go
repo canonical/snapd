@@ -20,7 +20,7 @@
 package policy
 
 import (
-	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
@@ -42,17 +42,15 @@ func checkSnapType(snapType snap.Type, types []string) error {
 			return nil
 		}
 	}
-	return errors.New("snap type does not match")
+	return fmt.Errorf("snap type does not match")
 }
 
-var noIDMatchErr = errors.New("id does not match")
-
-func checkID(id string, ids []string, special map[string]string) error {
+func checkID(kind, id string, ids []string, special map[string]string) error {
 	if len(ids) == 0 {
 		return nil
 	}
-	if id == "" { // unset never matches
-		return noIDMatchErr
+	if id == "" { // unset values never match
+		return fmt.Errorf("%s does not match", kind)
 	}
 	for _, cand := range ids {
 		if strings.HasPrefix(cand, "$") {
@@ -65,7 +63,7 @@ func checkID(id string, ids []string, special map[string]string) error {
 			return nil
 		}
 	}
-	return noIDMatchErr
+	return fmt.Errorf("%s does not match", kind)
 }
 
 func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.PlugConnectionConstraints) error {
@@ -78,12 +76,13 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Plug
 	if err := checkSnapType(connc.slotSnapType(), cstrs.SlotSnapTypes); err != nil {
 		return err
 	}
-	if err := checkID(connc.slotSnapID(), cstrs.SlotSnapIDs, nil); err != nil {
+	if err := checkID("snap id", connc.slotSnapID(), cstrs.SlotSnapIDs, nil); err != nil {
 		return err
 	}
-	if err := checkID(connc.slotPublisherID(), cstrs.SlotPublisherIDs, map[string]string{
+	err := checkID("publisher id", connc.slotPublisherID(), cstrs.SlotPublisherIDs, map[string]string{
 		"$plug-publisher-id": connc.plugPublisherID(),
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 	return nil
@@ -99,12 +98,13 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Slot
 	if err := checkSnapType(connc.plugSnapType(), cstrs.PlugSnapTypes); err != nil {
 		return err
 	}
-	if err := checkID(connc.plugSnapID(), cstrs.PlugSnapIDs, nil); err != nil {
+	if err := checkID("snap id", connc.plugSnapID(), cstrs.PlugSnapIDs, nil); err != nil {
 		return err
 	}
-	if err := checkID(connc.plugPublisherID(), cstrs.PlugPublisherIDs, map[string]string{
+	err := checkID("publisher id", connc.plugPublisherID(), cstrs.PlugPublisherIDs, map[string]string{
 		"$slot-publisher-id": connc.slotPublisherID(),
-	}); err != nil {
+	})
+	if err != nil {
 		return err
 	}
 	return nil
