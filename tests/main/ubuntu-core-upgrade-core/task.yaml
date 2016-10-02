@@ -2,6 +2,9 @@ summary: Ensure that a ubuntu-core refresh works
 
 systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 
+debug: |
+    cat /proc/cmdline
+
 execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot
