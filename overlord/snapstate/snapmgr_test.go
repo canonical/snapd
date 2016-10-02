@@ -770,6 +770,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
 		macaroon: s.user.Macaroon,
 		name:     "some-snap",

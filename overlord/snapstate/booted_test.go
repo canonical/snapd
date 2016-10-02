@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/partition"
@@ -40,7 +39,10 @@ import (
 
 type bootedSuite struct {
 	bootloader *boottest.MockBootloader
-	overlord   *overlord.Overlord
+
+	state       *state.State
+	snapmgr     *snapstate.SnapManager
+	fakeBackend *fakeSnappyBackend
 }
 
 var _ = Suite(&bootedSuite{})
@@ -58,17 +60,19 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
 	partition.ForceBootloader(bs.bootloader)
 
-	ovld, err := overlord.New()
+	bs.fakeBackend = &fakeSnappyBackend{}
+	bs.state = state.New(nil)
+	bs.snapmgr, err = snapstate.Manager(bs.state)
 	c.Assert(err, IsNil)
-	bs.overlord = ovld
-	bs.overlord.Loop()
+	bs.snapmgr.AddForeignTaskHandlers(bs.fakeBackend)
+
+	snapstate.SetSnapManagerBackend(bs.snapmgr, bs.fakeBackend)
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {
 	release.MockOnClassic(true)
 	dirs.SetRootDir("")
 	partition.ForceBootloader(nil)
-	bs.overlord.Stop()
 }
 
 var (
@@ -80,8 +84,8 @@ var (
 
 func (bs *bootedSuite) settle() {
 	for i := 0; i < 50; i++ {
-		s.snapmgr.Ensure()
-		s.snapmgr.Wait()
+		bs.snapmgr.Ensure()
+		bs.snapmgr.Wait()
 	}
 }
 
@@ -107,7 +111,7 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
-	st := bs.overlord.State()
+	st := bs.state
 	st.Lock()
 	defer st.Unlock()
 
@@ -124,6 +128,8 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	c.Assert(st.Changes(), HasLen, 1)
 	chg := st.Changes()[0]
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Kind(), Equals, "update-revisions")
+	c.Assert(chg.IsReady(), Equals, true)
 
 	// ubuntu-core "current" got reverted but canonical-pc-linux did not
 	var snapst snapstate.SnapState
@@ -139,7 +145,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
-	st := bs.overlord.State()
+	st := bs.state
 	st.Lock()
 	defer st.Unlock()
 
@@ -156,6 +162,8 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	c.Assert(st.Changes(), HasLen, 1)
 	chg := st.Changes()[0]
 	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Kind(), Equals, "update-revisions")
+	c.Assert(chg.IsReady(), Equals, true)
 
 	// canonical-pc-linux "current" got reverted but ubuntu-core did not
 	var snapst snapstate.SnapState
@@ -171,7 +179,7 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
-	st := bs.overlord.State()
+	st := bs.state
 	st.Lock()
 	defer st.Unlock()
 
@@ -183,7 +191,7 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
-	st := bs.overlord.State()
+	st := bs.state
 	st.Lock()
 	defer st.Unlock()
 
@@ -195,7 +203,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
-	st := bs.overlord.State()
+	st := bs.state
 	st.Lock()
 	defer st.Unlock()
 
@@ -207,6 +215,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 		Sequence: []*snap.SideInfo{osSI1, osSI2},
 		Current:  snap.R(2),
 	})
+	bs.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/ubuntu-core/1")
 
 	bs.bootloader.BootVars["snap_kernel"] = "ubuntu-core_1.snap"
 	err := snapstate.UpdateRevisions(st)
@@ -218,7 +227,9 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 
 	c.Assert(st.Changes(), HasLen, 1)
 	chg := st.Changes()[0]
-	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make current revision for snap "ubuntu-core" unavailable.*`)
+	c.Assert(chg.Kind(), Equals, "update-revisions")
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Make snap "ubuntu-core" \(1\) available to the system \(fail\).*`)
 }
 
 func (bs *bootedSuite) TestNameAndRevnoFromSnapValid(c *C) {
