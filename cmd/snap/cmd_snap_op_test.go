@@ -386,6 +386,20 @@ func (s *SnapOpSuite) TestRefreshOneJailmode(c *check.C) {
 	c.Assert(err, check.IsNil)
 }
 
+func (s *SnapOpSuite) TestRefreshOneIgnoreValidation(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/one")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":            "refresh",
+			"ignore-validation": true,
+		})
+	}
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--ignore-validation", "one"})
+	c.Assert(err, check.IsNil)
+}
+
 func (s *SnapOpSuite) TestRefreshOneModeErr(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--jailmode", "--devmode", "one"})
@@ -408,6 +422,12 @@ func (s *SnapOpSuite) TestRefreshManyChannel(c *check.C) {
 	s.RedirectClientToTestServer(nil)
 	_, err := snap.Parser().ParseArgs([]string{"refresh", "--beta", "one", "two"})
 	c.Assert(err, check.ErrorMatches, `a single snap name is needed to specify mode or channel flags`)
+}
+
+func (s *SnapOpSuite) TestRefreshManyIgnoreValidation(c *check.C) {
+	s.RedirectClientToTestServer(nil)
+	_, err := snap.Parser().ParseArgs([]string{"refresh", "--ignore-validation", "one", "two"})
+	c.Assert(err, check.ErrorMatches, `a single snap name must be specified when ignoring validation`)
 }
 
 func (s *SnapOpSuite) TestRefreshAllModeFlags(c *check.C) {

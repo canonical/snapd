@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -79,7 +80,6 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	readyToBuyCmd,
-	paymentMethodsCmd,
 	snapctlCmd,
 }
 
@@ -192,13 +192,6 @@ var (
 		Path:   "/v2/buy/ready",
 		UserOK: false,
 		GET:    readyToBuy,
-	}
-
-	// TODO Remove once the CLI is using the new /buy/ready endpoint
-	paymentMethodsCmd = &Command{
-		Path:   "/v2/buy/methods",
-		UserOK: false,
-		GET:    getPaymentMethods,
 	}
 
 	snapctlCmd = &Command{
@@ -641,11 +634,12 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string        `json:"action"`
-	Channel  string        `json:"channel"`
-	Revision snap.Revision `json:"revision"`
-	DevMode  bool          `json:"devmode"`
-	JailMode bool          `json:"jailmode"`
+	Action           string        `json:"action"`
+	Channel          string        `json:"channel"`
+	Revision         snap.Revision `json:"revision"`
+	DevMode          bool          `json:"devmode"`
+	JailMode         bool          `json:"jailmode"`
+	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -819,6 +813,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
+	}
+	if inst.IgnoreValidation {
+		flags |= snapstate.IgnoreValidation
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
@@ -1684,20 +1681,36 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 
 	st.Lock()
 	db := assertstate.DB(st)
-	assertions, err := db.FindMany(asserts.SystemUserType, nil)
+	modelAs, err := devicestate.Model(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get model assertion")
+	}
+
+	headers := map[string]string{
+		"brand-id": modelAs.BrandID(),
+	}
+	st.Lock()
+	assertions, err := db.FindMany(asserts.SystemUserType, headers)
 	st.Unlock()
 	if err != nil {
 		return BadRequest("cannot find system-user assertion: %s", err)
 	}
+
 	for _, as := range assertions {
 		email := as.(*asserts.SystemUser).Email()
 		// we need to use getUserDetailsFromAssertion as this verifies
 		// the assertion against the current brand/model/time
 		username, opts, err := getUserDetailsFromAssertion(st, email)
 		if err != nil {
-			logger.Debugf("ignoring system-user assertion for %q: %s", email, err)
+			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
 			continue
 		}
+		// ignore already existing users
+		if _, err := user.Lookup(username); err == nil {
+			continue
+		}
+
 		// FIXME: duplicated code
 		opts.Sudoer = createData.Sudoer
 		opts.ExtraUsers = !release.OnClassic
@@ -1706,9 +1719,8 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 			return InternalError("cannot add user %q: %s", username, err)
 		}
 		createdUsers = append(createdUsers, createResponseData{
-			Username:    username,
-			SSHKeys:     opts.SSHKeys,
-			SSHKeyCount: len(opts.SSHKeys),
+			Username: username,
+			SSHKeys:  opts.SSHKeys,
 		})
 	}
 
@@ -1771,8 +1783,6 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 type createResponseData struct {
 	Username string   `json:"username"`
 	SSHKeys  []string `json:"ssh-keys"`
-	// deprecated
-	SSHKeyCount int `json:"ssh-key-count"`
 }
 
 type postUserCreateData struct {
@@ -1792,6 +1802,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	var createData postUserCreateData
+
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
@@ -1836,65 +1847,26 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	return SyncResponse(&createResponseData{
-		Username:    username,
-		SSHKeys:     opts.SSHKeys,
-		SSHKeyCount: len(opts.SSHKeys),
+		Username: username,
+		SSHKeys:  opts.SSHKeys,
 	}, nil)
 }
 
-func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	var opts store.BuyOptions
-
-	decoder := json.NewDecoder(r.Body)
-	err := decoder.Decode(&opts)
-	if err != nil {
-		return BadRequest("cannot decode buy options from request body: %v", err)
-	}
-
-	s := getStore(c)
-
-	buyResult, err := s.Buy(&opts, user)
-
+func convertBuyError(err error) Response {
 	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
 	case nil:
-		// continue
-	}
-
-	return SyncResponse(buyResult, nil)
-}
-
-// TODO Remove once the CLI is using the new /buy/ready endpoint
-func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	paymentMethods, err := s.PaymentMethods(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
+		return nil
 	case store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
-	case nil:
-		// continue
-	}
-
-	return SyncResponse(paymentMethods, nil)
-}
-
-func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	err := s.ReadyToBuy(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
+	case store.ErrUnauthenticated:
+		return SyncResponse(&resp{
+			Type: ResponseTypeError,
+			Result: &errorResult{
+				Message: err.Error(),
+				Kind:    errorKindLoginRequired,
+			},
+			Status: http.StatusBadRequest,
+		}, nil)
 	case store.ErrTOSNotAccepted:
 		return SyncResponse(&resp{
 			Type: ResponseTypeError,
@@ -1913,8 +1885,36 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 			},
 			Status: http.StatusBadRequest,
 		}, nil)
-	case nil:
-		// continue
+	default:
+		return InternalError("%v", err)
+	}
+}
+
+func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	var opts store.BuyOptions
+
+	decoder := json.NewDecoder(r.Body)
+	err := decoder.Decode(&opts)
+	if err != nil {
+		return BadRequest("cannot decode buy options from request body: %v", err)
+	}
+
+	s := getStore(c)
+
+	buyResult, err := s.Buy(&opts, user)
+
+	if resp := convertBuyError(err); resp != nil {
+		return resp
+	}
+
+	return SyncResponse(buyResult, nil)
+}
+
+func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
+	s := getStore(c)
+
+	if resp := convertBuyError(s.ReadyToBuy(user)); resp != nil {
+		return resp
 	}
 
 	return SyncResponse(true, nil)

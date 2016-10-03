@@ -73,7 +73,6 @@ type apiSuite struct {
 	refreshCandidates []*store.RefreshCandidate
 	buyOptions        *store.BuyOptions
 	buyResult         *store.BuyResult
-	paymentMethods    *store.PaymentInformation
 	storeSigning      *assertstest.StoreStack
 	restoreRelease    func()
 }
@@ -121,11 +120,6 @@ func (s *apiSuite) ReadyToBuy(user *auth.UserState) error {
 	return s.err
 }
 
-func (s *apiSuite) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
-	s.user = user
-	return s.paymentMethods, s.err
-}
-
 func (s *apiSuite) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
 	panic("Assertion not expected to be called")
 }
@@ -166,7 +160,6 @@ func (s *apiSuite) SetUpTest(c *check.C) {
 
 	s.buyOptions = nil
 	s.buyResult = nil
-	s.paymentMethods = nil
 	rootPrivKey, _ := assertstest.GenerateKey(1024)
 	storePrivKey, _ := assertstest.GenerateKey(752)
 	s.storeSigning = assertstest.NewStoreStack("can0nical", rootPrivKey, storePrivKey)
@@ -2180,6 +2173,48 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
+	calledFlags := snapstate.Flags(42)
+	calledUserID := 0
+	installQueue := []string{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		calledUserID = userID
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:           "refresh",
+		IgnoreValidation: true,
+		Snaps:            []string{"some-snap"},
+		userID:           17,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.IgnoreValidation))
+	c.Check(calledUserID, check.Equals, 17)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
@@ -3695,9 +3730,8 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &createResponseData{
-		Username:    "karl",
-		SSHKeys:     []string{"ssh1", "ssh2"},
-		SSHKeyCount: 2,
+		Username: "karl",
+		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -3845,39 +3879,6 @@ func (s *apiSuite) TestReadyToBuy(c *check.C) {
 	}
 }
 
-func (s *apiSuite) TestPaymentMethods(c *check.C) {
-	s.paymentMethods = &store.PaymentInformation{
-		AllowsAutomaticPayment: true,
-		Methods: []*store.PaymentMethod{
-			{
-				BackendID:           "credit_card",
-				Currencies:          []string{"GBP", "USD"},
-				Description:         "**** **** **** 1234 (exp 20/2020)",
-				ID:                  123,
-				Preferred:           true,
-				RequiresInteraction: false,
-			},
-		},
-	}
-	s.err = nil
-
-	req, err := http.NewRequest("GET", "/v2/buy/methods", nil)
-	c.Assert(err, check.IsNil)
-
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	rsp := getPaymentMethods(paymentMethodsCmd, req, user).(*resp)
-
-	c.Check(rsp.Status, check.Equals, http.StatusOK)
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Assert(rsp.Result, check.FitsTypeOf, s.paymentMethods)
-	c.Check(rsp.Result, check.DeepEquals, s.paymentMethods)
-}
-
 func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	s.daemon(c)
 	st := s.d.overlord.State()
@@ -4022,8 +4023,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &createResponseData{
-		Username:    "guy",
-		SSHKeyCount: 0,
+		Username: "guy",
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -4089,7 +4089,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	// note that we get a list here instead of a single
 	// createResponseData item
 	expected := []createResponseData{
-		{Username: "guy", SSHKeyCount: 0},
+		{Username: "guy"},
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -4189,7 +4189,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	// note that we get a list here instead of a single
 	// createResponseData item
 	expected := []createResponseData{
-		{Username: "guy", SSHKeyCount: 0},
+		{Username: "guy"},
 	}
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)

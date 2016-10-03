@@ -37,6 +37,7 @@ import (
 // Flags are used to pass additional flags to operations and to keep track of snap modes.
 type Flags int
 
+// Flags that will be stored in SnapState.
 const (
 	// DevMode switches confinement to non-enforcing mode.
 	DevMode = 1 << iota
@@ -46,6 +47,15 @@ const (
 	// JailMode is set when the user has requested confinement
 	// always be enforcing, even if the snap requests otherwise.
 	JailMode
+
+	// TODO: migrate away from this bit flags based approach in API and state
+)
+
+// Flags affecting operations but not stored in state.
+const (
+	// IgnoreValidation is set when the user requested as one-off
+	// to ignore refresh control validation.
+	IgnoreValidation = 0x10000
 )
 
 func (f Flags) DevModeAllowed() bool {
@@ -60,6 +70,10 @@ func (f Flags) JailMode() bool {
 	return f&JailMode != 0
 }
 
+func (f Flags) IgnoreValidation() bool {
+	return f&IgnoreValidation != 0
+}
+
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name(), snapst); err != nil {
 		return nil, err
@@ -68,6 +82,9 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	if ss.SnapPath == "" && ss.Channel == "" {
 		ss.Channel = "stable"
 	}
+
+	// clear out IgnoreValidation
+	ss.Flags &= ^IgnoreValidation
 
 	revisionStr := ""
 	if ss.SideInfo != nil {
@@ -480,7 +497,7 @@ func infoForUpdate(s *state.State, snapst *SnapState, name, channel string, revi
 		if err != nil {
 			return nil, err
 		}
-		if ValidateRefreshes != nil {
+		if ValidateRefreshes != nil && !flags.IgnoreValidation() {
 			_, err := ValidateRefreshes(s, []*snap.Info{info}, userID)
 			if err != nil {
 				return nil, err
