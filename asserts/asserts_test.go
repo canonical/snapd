@@ -701,6 +701,7 @@ func (as *assertsSuite) TestWithAuthority(c *C) {
 	withAuthority := []string{
 		"account",
 		"account-key",
+		"base-declaration",
 		"snap-declaration",
 		"snap-build",
 		"snap-revision",

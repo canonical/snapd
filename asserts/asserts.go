@@ -55,6 +55,7 @@ var (
 	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
+	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
@@ -77,6 +78,7 @@ var typeRegistry = map[string]*AssertionType{
 	AccountKeyType.Name:      AccountKeyType,
 	ModelType.Name:           ModelType,
 	SerialType.Name:          SerialType,
+	BaseDeclarationType.Name: BaseDeclarationType,
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,

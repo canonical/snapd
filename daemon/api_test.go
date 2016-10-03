@@ -2173,6 +2173,48 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
+	calledFlags := snapstate.Flags(42)
+	calledUserID := 0
+	installQueue := []string{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		calledUserID = userID
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:           "refresh",
+		IgnoreValidation: true,
+		Snaps:            []string{"some-snap"},
+		userID:           17,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.IgnoreValidation))
+	c.Check(calledUserID, check.Equals, 17)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
@@ -3685,9 +3727,8 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &createResponseData{
-		Username:    "karl",
-		SSHKeys:     []string{"ssh1", "ssh2"},
-		SSHKeyCount: 2,
+		Username: "karl",
+		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -3846,16 +3887,14 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionModelNotFound(c *check.C) {
 	c.Check(err, check.ErrorMatches, `cannot add system-user "foo@example.com": cannot get model assertion: no state entry for key`)
 }
 
-func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
+func (s *apiSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interface{}) (restorer func()) {
 	// this must be done very early
-	restore := sysdb.InjectTrusted(s.storeSigning.Trusted)
-	defer restore()
+	restorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
 
 	s.daemon(c)
 	st := s.d.overlord.State()
 
 	// create fake brand signature
-	// FIXME: move out into a  helper
 	brandPrivKey, _ := assertstest.GenerateKey(752)
 	brandSigning := assertstest.NewSigningDB("my-brand", brandPrivKey)
 
@@ -3888,24 +3927,13 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	assertAdd(st, brandAccKey)
 	assertAdd(st, model)
 
-	// and the system-user
-	su, err := brandSigning.Sign(asserts.SystemUserType, map[string]interface{}{
-		"authority-id": "my-brand",
-		"brand-id":     "my-brand",
-		"email":        "foo@bar.com",
-		"series":       []interface{}{"16", "18"},
-		"models":       []interface{}{"my-model", "other-model"},
-		"name":         "Boring Guy",
-		"username":     "guy",
-		"password":     "$6$salt$hash",
-		"since":        time.Now().Format(time.RFC3339),
-		"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, check.IsNil)
-	su = su.(*asserts.SystemUser)
-	// now add system-user assertion to the system
-	assertAdd(st, su)
-
+	for _, suMap := range systemUsers {
+		su, err := brandSigning.Sign(asserts.SystemUserType, suMap, nil, "")
+		c.Assert(err, check.IsNil)
+		su = su.(*asserts.SystemUser)
+		// now add system-user assertion to the system
+		assertAdd(st, su)
+	}
 	// create fake device
 	st.Lock()
 	err = auth.SetDevice(st, &auth.DeviceState{
@@ -3915,8 +3943,29 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
+	return restorer
+}
+
+func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
 	// ensure that if we query the details from the assert DB we get
 	// the expected user
+	st := s.d.overlord.State()
 	username, opts, err := getUserDetailsFromAssertion(st, "foo@bar.com")
 	c.Check(username, check.Equals, "guy")
 	c.Check(opts, check.DeepEquals, &osutil.AddUserOptions{
@@ -3924,4 +3973,120 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 		Password: "$6$salt$hash",
 	})
 	c.Check(err, check.IsNil)
+}
+
+func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		osutilAddUser = osutil.AddUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"email": "foo@bar.com","known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	expected := &createResponseData{
+		Username: "guy",
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+		{
+			// bad user (not valid for this model)
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foobar@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"non-of-the-models-i-have"},
+			"name":         "Random Gal",
+			"username":     "gal",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		osutilAddUser = osutil.AddUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	// note that we get a list here instead of a single
+	// createResponseData item
+	expected := []createResponseData{
+		{Username: "guy"},
+	}
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
 }
