@@ -357,6 +357,57 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	return conns, result, nil
 }
 
+// DisconnectAll disconnects everything from a given snap and plug or slot.
+func (r *Repository) DisconnectAll(snapName, plugOrSlotName string) (severed []ConnRef, affectedSnaps []string, _ error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	var conns []ConnRef
+	var snaps map[string]*snap.Info
+	var err error
+
+	if snapName == "" {
+		// TODO: teach the repository about the OS snap
+		snapName = "ubuntu-core"
+	}
+
+	var conns []ConnRef
+	snaps := make(map[string]bool)
+	d := func(plug *Plug, slot *Slot) {
+		r.disconnect(plug, slot)
+		snaps[plug.Snap.Name()] = true
+		snaps[slot.Snap.Name()] = true
+		conns = append(conns, ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()})
+	}
+	if slot := r.slots[snapName][plugOrSlotName]; slot != nil {
+		for plug := range r.slotPlugs[slot] {
+			d(plug, slot)
+		}
+	}
+	if plug := r.plugs[snapName][plugOrSlotName]; plug != nil {
+		for slot := range r.plugSlots[plug] {
+			d(plug, slot)
+		}
+	}
+	return conns, snaps, nil
+
+
+	if err != nil {
+		return nil, nil, err
+	}
+	// Flatten map of snaps into a sorted list
+	names := make([]string, 0, len(snaps))
+	for snapName := range snaps {
+		names = append(names, snapName)
+	}
+	sort.Strings(names)
+	result := make([]*snap.Info, 0, len(snaps))
+	for _, snapName := range names {
+		result = append(result, snaps[snapName])
+	}
+	return conns, affected, nil
+}
+
 func (r *Repository) disconnectPlugOrSlot(snapName, plugOrSlotName string) ([]ConnRef, map[string]*snap.Info, error) {
 	if snapName == "" {
 		// TODO: teach the repository about the OS snap
