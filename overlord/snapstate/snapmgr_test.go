@@ -771,7 +771,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
-		macaroon: s.user.Macaroon,
+		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, fakeOps{
@@ -985,7 +985,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
-		macaroon: s.user.Macaroon,
+		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -1163,7 +1163,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
-		macaroon: s.user.Macaroon,
+		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 	}})
 	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
@@ -1328,7 +1328,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
-		macaroon: s.user.Macaroon,
+		macaroon: s.user.StoreMacaroon,
 		name:     "some-snap",
 	}})
 	// friendlier failure first

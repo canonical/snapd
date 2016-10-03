@@ -20,6 +20,7 @@
 package policy_test
 
 import (
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -40,6 +41,9 @@ type policySuite struct {
 
 	plugDecl *asserts.SnapDeclaration
 	slotDecl *asserts.SnapDeclaration
+
+	randomSnap *snap.Info
+	randomDecl *asserts.SnapDeclaration
 }
 
 var _ = Suite(&policySuite{})
@@ -62,6 +66,22 @@ plugs:
         p: P
   base-plug-deny:
     deny-connection: true
+  same-plug-publisher-id:
+    allow-connection:
+      slot-publisher-id:
+        - $PLUG_PUBLISHER_ID
+  install-plug-attr-ok:
+    allow-installation:
+      plug-attributes:
+        attr: ok
+  install-plug-gadget-only:
+    allow-installation:
+      plug-snap-type:
+        - gadget
+  install-plug-base-deny-snap-allow:
+    deny-installation:
+      plug-attributes:
+        attr: attrvalue
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -83,6 +103,26 @@ slots:
     allow-connection:
       plug-snap-type:
         - gadget
+  same-slot-publisher-id:
+    allow-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+  install-slot-coreonly:
+    allow-installation:
+      slot-snap-type:
+        - core
+  install-slot-attr-ok:
+    allow-installation:
+      slot-attributes:
+        attr: ok
+  install-slot-attr-deny:
+    deny-installation:
+      slot-attributes:
+        trust: trusted
+  install-slot-base-deny-snap-allow:
+    deny-installation:
+      slot-attributes:
+        have: true
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -94,6 +134,8 @@ AXNpZw==`))
 name: plug-snap
 plugs:
    random:
+   mismatchy:
+     interface: bar
 
    base-plug-allow:
    base-plug-not-allow:
@@ -123,12 +165,22 @@ plugs:
 
    gadgethelp:
    trustedhelp:
+
+   precise-plug-snap-id:
+   precise-slot-snap-id:
+
+   checked-plug-publisher-id:
+   checked-slot-publisher-id:
+
+   same-plug-publisher-id:
 `, nil)
 
 	s.slotSnap = snaptest.MockInfo(c, `
 name: slot-snap
 slots:
    random:
+   mismatchy:
+     interface: baz
 
    base-plug-allow:
    base-plug-not-allow:
@@ -157,6 +209,14 @@ slots:
    snap-slot-deny-snap-plug-allow:
 
    trustedhelp:
+
+   precise-plug-snap-id:
+   precise-slot-snap-id:
+
+   checked-plug-publisher-id:
+   checked-slot-publisher-id:
+
+   same-slot-publisher-id:
 `, nil)
 
 	a, err = asserts.Decode([]byte(`type: snap-declaration
@@ -178,6 +238,15 @@ plugs:
       slot-snap-type:
         - core
         - gadget
+  precise-slot-snap-id:
+    allow-connection:
+      slot-snap-id:
+        - slotsnapidididididididididididid
+  checked-slot-publisher-id:
+    allow-connection:
+      slot-publisher-id:
+        - slot-publisher
+        - $PLUG_PUBLISHER_ID
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -201,12 +270,45 @@ slots:
     deny-connection: true
   base-allow-snap-slot-not-allow:
     allow-connection: false
+  precise-plug-snap-id:
+    allow-connection:
+      plug-snap-id:
+        - plugsnapidididididididididididid
+  checked-plug-publisher-id:
+    allow-connection:
+      plug-publisher-id:
+        - plug-publisher
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
 AXNpZw==`))
 	c.Assert(err, IsNil)
 	s.slotDecl = a.(*asserts.SnapDeclaration)
+
+	s.randomSnap = snaptest.MockInfo(c, `
+name: random-snap
+plugs:
+  precise-plug-snap-id:
+  checked-plug-publisher-id:
+  same-slot-publisher-id:
+slots:
+  precise-slot-snap-id:
+  checked-slot-publisher-id:
+  same-plug-publisher-id:
+`, nil)
+
+	a, err = asserts.Decode([]byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: random-snap
+snap-id: randomsnapididididididididid
+publisher-id: random-publisher
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	s.randomDecl = a.(*asserts.SnapDeclaration)
 }
 
 func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
@@ -217,6 +319,16 @@ func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 	}
 
 	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestInterfaceMismatch(c *C) {
+	cand := policy.ConnectCandidate{
+		Plug:            s.plugSnap.Plugs["mismatchy"],
+		Slot:            s.slotSnap.Slots["mismatchy"],
+		BaseDeclaration: s.baseDecl,
+	}
+
+	c.Check(cand.Check(), ErrorMatches, `cannot connect mismatched plug interface "bar" to slot interface "baz"`)
 }
 
 func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
@@ -337,5 +449,419 @@ slots:
 		BaseDeclaration:     s.baseDecl,
 	}
 	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+}
 
+func (s *policySuite) TestPlugSnapIDCheckConnection(c *C) {
+	// no plug-side declaration
+	cand := policy.ConnectCandidate{
+		Plug:                s.randomSnap.Plugs["precise-plug-snap-id"],
+		Slot:                s.slotSnap.Slots["precise-plug-snap-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug-side declaration, wrong snap-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.randomSnap.Plugs["precise-plug-snap-id"],
+		PlugSnapDeclaration: s.randomDecl,
+		Slot:                s.slotSnap.Slots["precise-plug-snap-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// right snap-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["precise-plug-snap-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.slotSnap.Slots["precise-plug-snap-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestSlotSnapIDCheckConnection(c *C) {
+	// no slot-side declaration
+	cand := policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["precise-slot-snap-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.randomSnap.Slots["precise-slot-snap-id"],
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// slot-side declaration, wrong snap-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["precise-slot-snap-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.randomSnap.Slots["precise-slot-snap-id"],
+		SlotSnapDeclaration: s.randomDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// right snap-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["precise-slot-snap-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.slotSnap.Slots["precise-slot-snap-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestPlugPublisherIDCheckConnection(c *C) {
+	// no plug-side declaration
+	cand := policy.ConnectCandidate{
+		Plug:                s.randomSnap.Plugs["checked-plug-publisher-id"],
+		Slot:                s.slotSnap.Slots["checked-plug-publisher-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug-side declaration, wrong publisher-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.randomSnap.Plugs["checked-plug-publisher-id"],
+		PlugSnapDeclaration: s.randomDecl,
+		Slot:                s.slotSnap.Slots["checked-plug-publisher-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// right publisher-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["checked-plug-publisher-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.slotSnap.Slots["checked-plug-publisher-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestSlotPublisherIDCheckConnection(c *C) {
+	// no slot-side declaration
+	cand := policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["checked-slot-publisher-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.randomSnap.Slots["checked-slot-publisher-id"],
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// slot-side declaration, wrong publisher-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["checked-slot-publisher-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.randomSnap.Slots["checked-slot-publisher-id"],
+		SlotSnapDeclaration: s.randomDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// right publisher-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["checked-slot-publisher-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.slotSnap.Slots["checked-slot-publisher-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestDollarPlugPublisherIDCheckConnection(c *C) {
+	// no known publishers
+	cand := policy.ConnectCandidate{
+		Plug:            s.plugSnap.Plugs["same-plug-publisher-id"],
+		Slot:            s.randomSnap.Slots["same-plug-publisher-id"],
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// no slot-side declaration
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["same-plug-publisher-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.randomSnap.Slots["same-plug-publisher-id"],
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// slot-side declaration, wrong publisher-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["same-plug-publisher-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                s.randomSnap.Slots["same-plug-publisher-id"],
+		SlotSnapDeclaration: s.randomDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// slot publisher id == plug publisher id
+	samePubSlotSnap := snaptest.MockInfo(c, `
+name: same-pub-slot-snap
+slots:
+  same-plug-publisher-id:
+`, nil)
+
+	a, err := asserts.Decode([]byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: same-pub-slot-snap
+snap-id: samepublslotsnapidididididididid
+publisher-id: plug-publisher
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	samePubSlotDecl := a.(*asserts.SnapDeclaration)
+
+	cand = policy.ConnectCandidate{
+		Plug:                s.plugSnap.Plugs["same-plug-publisher-id"],
+		PlugSnapDeclaration: s.plugDecl,
+		Slot:                samePubSlotSnap.Slots["same-plug-publisher-id"],
+		SlotSnapDeclaration: samePubSlotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestDollarSlotPublisherIDCheckConnection(c *C) {
+	// no known publishers
+	cand := policy.ConnectCandidate{
+		Plug:            s.randomSnap.Plugs["same-slot-publisher-id"],
+		Slot:            s.slotSnap.Slots["same-slot-publisher-id"],
+		BaseDeclaration: s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// no plug-side declaration
+	cand = policy.ConnectCandidate{
+		Plug:                s.randomSnap.Plugs["same-slot-publisher-id"],
+		Slot:                s.slotSnap.Slots["same-slot-publisher-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug-side declaration, wrong publisher-id
+	cand = policy.ConnectCandidate{
+		Plug:                s.randomSnap.Plugs["same-slot-publisher-id"],
+		PlugSnapDeclaration: s.randomDecl,
+		Slot:                s.slotSnap.Slots["same-slot-publisher-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), ErrorMatches, "connection not allowed.*")
+
+	// plug publisher id == slot publisher id
+	samePubPlugSnap := snaptest.MockInfo(c, `
+name: same-pub-plug-snap
+plugs:
+  same-slot-publisher-id:
+`, nil)
+
+	a, err := asserts.Decode([]byte(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: same-pub-plug-snap
+snap-id: samepublplugsnapidididididididid
+publisher-id: slot-publisher
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`))
+	c.Assert(err, IsNil)
+	samePubPlugDecl := a.(*asserts.SnapDeclaration)
+
+	cand = policy.ConnectCandidate{
+		Plug:                samePubPlugSnap.Plugs["same-slot-publisher-id"],
+		PlugSnapDeclaration: samePubPlugDecl,
+		Slot:                s.slotSnap.Slots["same-slot-publisher-id"],
+		SlotSnapDeclaration: s.slotDecl,
+		BaseDeclaration:     s.baseDecl,
+	}
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestBaselineDefaultIsAllowInstallation(c *C) {
+	installSnap := snaptest.MockInfo(c, `
+name: install-slot-snap
+slots:
+  random1:
+plugs:
+  random2:
+`, nil)
+
+	cand := policy.InstallCandidate{
+		Snap:            installSnap,
+		BaseDeclaration: s.baseDecl,
+	}
+
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestBaseDeclAllowDenyInstallation(c *C) {
+
+	tests := []struct {
+		installYaml string
+		expected    string // "" => no error
+	}{
+		{`name: install-snap
+slots:
+  innocuous:
+  install-slot-coreonly:
+`, `installation not allowed by "install-slot-coreonly" slot rule of interface "install-slot-coreonly"`},
+		{`name: install-snap
+slots:
+  install-slot-attr-ok:
+    attr: ok
+`, ""},
+		{`name: install-snap
+slots:
+  install-slot-attr-deny:
+    trust: trusted
+`, `installation denied by "install-slot-attr-deny" slot rule of interface "install-slot-attr-deny"`},
+		{`name: install-snap
+plugs:
+  install-plug-attr-ok:
+    attr: ok
+`, ""},
+		{`name: install-snap
+plugs:
+  install-plug-attr-ok:
+    attr: not-ok
+`, `installation not allowed by "install-plug-attr-ok" plug rule of interface "install-plug-attr-ok"`},
+		{`name: install-snap
+plugs:
+  install-plug-gadget-only:
+`, `installation not allowed by "install-plug-gadget-only" plug rule of interface "install-plug-gadget-only"`},
+		{`name: install-gadget
+type: gadget
+plugs:
+  install-plug-gadget-only:
+`, ""},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err := cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestSnapDeclAllowDenyInstallation(c *C) {
+
+	tests := []struct {
+		installYaml string
+		plugsSlots  string
+		expected    string // "" => no error
+	}{
+		{`name: install-snap
+slots:
+  install-slot-base-allow-snap-deny:
+    have: yes # bool
+`, `slots:
+  install-slot-base-allow-snap-deny:
+    deny-installation:
+      slot-attributes:
+        have: true
+`, `installation denied by "install-slot-base-allow-snap-deny" slot rule of interface "install-slot-base-allow-snap-deny" for "install-snap" snap`},
+		{`name: install-snap
+slots:
+  install-slot-base-allow-snap-not-allow:
+    have: yes # bool
+`, `slots:
+  install-slot-base-allow-snap-not-allow:
+    allow-installation:
+      slot-attributes:
+        have: false
+`, `installation not allowed by "install-slot-base-allow-snap-not-allow" slot rule of interface "install-slot-base-allow-snap-not-allow" for "install-snap" snap`},
+		{`name: install-snap
+slots:
+  install-slot-base-deny-snap-allow:
+    have: yes
+`, `slots:
+  install-slot-base-deny-snap-allow:
+    allow-installation: true
+`, ""},
+		{`name: install-snap
+plugs:
+  install-plug-base-allow-snap-deny:
+    attr: give-me
+`, `plugs:
+  install-plug-base-allow-snap-deny:
+    deny-installation:
+      plug-attributes:
+        attr: .*
+`, `installation denied by "install-plug-base-allow-snap-deny" plug rule of interface "install-plug-base-allow-snap-deny" for "install-snap" snap`},
+		{`name: install-snap
+plugs:
+  install-plug-base-allow-snap-not-allow:
+    attr: give-me
+`, `plugs:
+  install-plug-base-allow-snap-not-allow:
+    allow-installation:
+      plug-attributes:
+        attr: minimal
+`, `installation not allowed by "install-plug-base-allow-snap-not-allow" plug rule of interface "install-plug-base-allow-snap-not-allow" for "install-snap" snap`},
+		{`name: install-snap
+plugs:
+  install-plug-base-deny-snap-allow:
+    attr: attrvalue
+`, `plugs:
+  install-plug-base-deny-snap-allow:
+    allow-installation:
+      plug-attributes:
+        attr: attrvalue
+`, ""},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: publisher
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
+		c.Assert(err, IsNil)
+		snapDecl := a.(*asserts.SnapDeclaration)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err = cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
 }
