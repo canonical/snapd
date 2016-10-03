@@ -89,30 +89,6 @@ func (s *authSuite) TestMacaroonDeserializeInvalidData(c *C) {
 
 func (as *authSuite) TestNewUser(c *C) {
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "", "email@test.com", "macaroon", []string{"discharge"})
-	as.state.Unlock()
-	c.Check(err, IsNil)
-
-	expected := &auth.UserState{
-		ID:              1,
-		Username:        "",
-		Email:           "email@test.com",
-		Macaroon:        "macaroon",
-		Discharges:      nil,
-		StoreMacaroon:   "macaroon",
-		StoreDischarges: []string{"discharge"},
-	}
-	c.Check(user, DeepEquals, expected)
-
-	as.state.Lock()
-	userFromState, err := auth.User(as.state, 1)
-	as.state.Unlock()
-	c.Check(err, IsNil)
-	c.Check(userFromState, DeepEquals, expected)
-}
-
-func (as *authSuite) TestNewUserWithUsernameSetsSnapdMacaroon(c *C) {
-	as.state.Lock()
 	user, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
@@ -124,7 +100,7 @@ func (as *authSuite) TestNewUserWithUsernameSetsSnapdMacaroon(c *C) {
 	as.state.Unlock()
 	c.Check(err, IsNil)
 	c.Check(authStateData.MacaroonKey, NotNil)
-	expectedMacaroon, err := macaroon.New(authStateData.MacaroonKey, "username", "snapd")
+	expectedMacaroon, err := macaroon.New(authStateData.MacaroonKey, "1", "snapd")
 	c.Check(err, IsNil)
 	expectedSerializedMacaroon, err := auth.MacaroonSerialize(expectedMacaroon)
 	c.Check(err, IsNil)
@@ -146,52 +122,38 @@ func (as *authSuite) TestNewUserSortsDischarges(c *C) {
 	user, err := auth.NewUser(as.state, "", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
 	as.state.Unlock()
 
-	expected := &auth.UserState{
-		ID:              1,
-		Username:        "",
-		Email:           "email@test.com",
-		Macaroon:        "macaroon",
-		Discharges:      nil,
-		StoreMacaroon:   "macaroon",
-		StoreDischarges: []string{"discharge1", "discharge2"},
-	}
-	c.Check(err, IsNil)
-	c.Check(user, DeepEquals, expected)
+	expected := []string{"discharge1", "discharge2"}
+	c.Check(user.StoreDischarges, DeepEquals, expected)
 
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 1)
 	as.state.Unlock()
 	c.Check(err, IsNil)
-	c.Check(userFromState, DeepEquals, expected)
+	c.Check(userFromState.StoreDischarges, DeepEquals, expected)
 }
 
 func (as *authSuite) TestNewUserAddsToExistent(c *C) {
 	as.state.Lock()
-	firstUser, err := auth.NewUser(as.state, "", "email@test.com", "macaroon", []string{"discharge"})
+	firstUser, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	as.state.Unlock()
 	c.Check(err, IsNil)
 
 	// adding a new one
 	as.state.Lock()
-	user, err := auth.NewUser(as.state, "", "new_email@test.com", "new_macaroon", []string{"new_discharge"})
+	user, err := auth.NewUser(as.state, "new_username", "new_email@test.com", "new_macaroon", []string{"new_discharge"})
 	as.state.Unlock()
-	expected := &auth.UserState{
-		ID:              2,
-		Username:        "",
-		Email:           "new_email@test.com",
-		Macaroon:        "new_macaroon",
-		Discharges:      nil,
-		StoreMacaroon:   "new_macaroon",
-		StoreDischarges: []string{"new_discharge"},
-	}
 	c.Check(err, IsNil)
-	c.Check(user, DeepEquals, expected)
+	c.Check(user.ID, Equals, 2)
+	c.Check(user.Username, Equals, "new_username")
+	c.Check(user.Email, Equals, "new_email@test.com")
 
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 2)
 	as.state.Unlock()
 	c.Check(err, IsNil)
-	c.Check(userFromState, DeepEquals, expected)
+	c.Check(userFromState.ID, Equals, 2)
+	c.Check(userFromState.Username, Equals, "new_username")
+	c.Check(userFromState.Email, Equals, "new_email@test.com")
 
 	// first user is still in the state
 	as.state.Lock()

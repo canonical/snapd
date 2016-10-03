@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 
 	"gopkg.in/macaroon.v1"
 
@@ -97,8 +98,8 @@ func generateMacaroonKey() ([]byte, error) {
 }
 
 // newUserMacaroon returns a snapd macaroon for the given username
-func newUserMacaroon(macaroonKey []byte, username string) (string, error) {
-	userMacaroon, err := macaroon.New(macaroonKey, username, "snapd")
+func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
+	userMacaroon, err := macaroon.New(macaroonKey, strconv.Itoa(userID), "snapd")
 	if err != nil {
 		return "", fmt.Errorf("cannot create macaroon for snapd user: %s", err)
 	}
@@ -129,16 +130,14 @@ func NewUser(st *state.State, username, email, macaroon string, discharges []str
 		}
 	}
 
-	localMacaroon := macaroon
-	if username != "" {
-		localMacaroon, err = newUserMacaroon(authStateData.MacaroonKey, username)
-		if err != nil {
-			return nil, err
-		}
+	authStateData.LastID++
+
+	localMacaroon, err := newUserMacaroon(authStateData.MacaroonKey, authStateData.LastID)
+	if err != nil {
+		return nil, err
 	}
 
 	sort.Strings(discharges)
-	authStateData.LastID++
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
 		Username:        username,
