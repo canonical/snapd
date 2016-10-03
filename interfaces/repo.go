@@ -265,6 +265,15 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	return nil
 }
 
+// ResolveConnect (dummy version)
+func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotName string) (*ConnRef, error) {
+	// TODO: replace with the real thing!
+	return &ConnRef{
+		PlugRef: PlugRef{Snap: plugSnapName, Name: plugName},
+		SlotRef: SlotRef{Snap: slotSnapName, Name: slotName},
+	}, nil
+}
+
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
 func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName string) error {
