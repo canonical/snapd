@@ -69,7 +69,7 @@ plugs:
   same-plug-publisher-id:
     allow-connection:
       slot-publisher-id:
-        - $plug_publisher_id
+        - $PLUG_PUBLISHER_ID
   install-plug-attr-ok:
     allow-installation:
       plug-attributes:
@@ -106,7 +106,7 @@ slots:
   same-slot-publisher-id:
     allow-connection:
       plug-publisher-id:
-        - $slot_publisher_id
+        - $SLOT_PUBLISHER_ID
   install-slot-coreonly:
     allow-installation:
       slot-snap-type:
@@ -242,7 +242,7 @@ plugs:
     allow-connection:
       slot-publisher-id:
         - slot-publisher
-        - $plug_publisher_id
+        - $PLUG_PUBLISHER_ID
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -704,7 +704,7 @@ func (s *policySuite) TestBaseDeclAllowDenyInstallation(c *C) {
 slots:
   innocuous:
   install-slot-coreonly:
-`, `installation not allowed over slot "install-slot-coreonly" by rule of interface "install-slot-coreonly"`},
+`, `installation not allowed by "install-slot-coreonly" slot rule of interface "install-slot-coreonly"`},
 		{`name: install-snap
 slots:
   install-slot-attr-ok:
@@ -714,7 +714,7 @@ slots:
 slots:
   install-slot-attr-deny:
     trust: trusted
-`, `installation denied over slot "install-slot-attr-deny" by rule of interface "install-slot-attr-deny"`},
+`, `installation denied by "install-slot-attr-deny" slot rule of interface "install-slot-attr-deny"`},
 		{`name: install-snap
 plugs:
   install-plug-attr-ok:
@@ -724,11 +724,11 @@ plugs:
 plugs:
   install-plug-attr-ok:
     attr: not-ok
-`, `installation not allowed over plug "install-plug-attr-ok" by rule of interface "install-plug-attr-ok"`},
+`, `installation not allowed by "install-plug-attr-ok" plug rule of interface "install-plug-attr-ok"`},
 		{`name: install-snap
 plugs:
   install-plug-gadget-only:
-`, `installation not allowed over plug "install-plug-gadget-only" by rule of interface "install-plug-gadget-only"`},
+`, `installation not allowed by "install-plug-gadget-only" plug rule of interface "install-plug-gadget-only"`},
 		{`name: install-gadget
 type: gadget
 plugs:
@@ -769,7 +769,7 @@ slots:
     deny-installation:
       slot-attributes:
         have: true
-`, `installation denied over slot "install-slot-base-allow-snap-deny" by rule of interface "install-slot-base-allow-snap-deny" for "install-snap" snap`},
+`, `installation denied by "install-slot-base-allow-snap-deny" slot rule of interface "install-slot-base-allow-snap-deny" for "install-snap" snap`},
 		{`name: install-snap
 slots:
   install-slot-base-allow-snap-not-allow:
@@ -779,7 +779,7 @@ slots:
     allow-installation:
       slot-attributes:
         have: false
-`, `installation not allowed over slot "install-slot-base-allow-snap-not-allow" by rule of interface "install-slot-base-allow-snap-not-allow" for "install-snap" snap`},
+`, `installation not allowed by "install-slot-base-allow-snap-not-allow" slot rule of interface "install-slot-base-allow-snap-not-allow" for "install-snap" snap`},
 		{`name: install-snap
 slots:
   install-slot-base-deny-snap-allow:
@@ -797,7 +797,7 @@ plugs:
     deny-installation:
       plug-attributes:
         attr: .*
-`, `installation denied over plug "install-plug-base-allow-snap-deny" by rule of interface "install-plug-base-allow-snap-deny" for "install-snap" snap`},
+`, `installation denied by "install-plug-base-allow-snap-deny" plug rule of interface "install-plug-base-allow-snap-deny" for "install-snap" snap`},
 		{`name: install-snap
 plugs:
   install-plug-base-allow-snap-not-allow:
@@ -807,7 +807,7 @@ plugs:
     allow-installation:
       plug-attributes:
         attr: minimal
-`, `installation not allowed over plug "install-plug-base-allow-snap-not-allow" by rule of interface "install-plug-base-allow-snap-not-allow" for "install-snap" snap`},
+`, `installation not allowed by "install-plug-base-allow-snap-not-allow" plug rule of interface "install-plug-base-allow-snap-not-allow" for "install-snap" snap`},
 		{`name: install-snap
 plugs:
   install-plug-base-deny-snap-allow:

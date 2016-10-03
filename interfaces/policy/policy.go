@@ -42,10 +42,10 @@ func (ic *InstallCandidate) checkSlotRule(slot *snap.SlotInfo, rule *asserts.Slo
 		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
 	}
 	if checkSlotInstallationConstraints(slot, rule.DenyInstallation) == nil {
-		return fmt.Errorf("installation denied over slot %q by rule of interface %q%s", slot.Name, slot.Interface, context)
+		return fmt.Errorf("installation denied by %q slot rule of interface %q%s", slot.Name, slot.Interface, context)
 	}
 	if checkSlotInstallationConstraints(slot, rule.AllowInstallation) != nil {
-		return fmt.Errorf("installation not allowed over slot %q by rule of interface %q%s", slot.Name, slot.Interface, context)
+		return fmt.Errorf("installation not allowed by %q slot rule of interface %q%s", slot.Name, slot.Interface, context)
 	}
 	return nil
 }
@@ -56,10 +56,10 @@ func (ic *InstallCandidate) checkPlugRule(plug *snap.PlugInfo, rule *asserts.Plu
 		context = fmt.Sprintf(" for %q snap", ic.SnapDeclaration.SnapName())
 	}
 	if checkPlugInstallationConstraints(plug, rule.DenyInstallation) == nil {
-		return fmt.Errorf("installation denied over plug %q by rule of interface %q%s", plug.Name, plug.Interface, context)
+		return fmt.Errorf("installation denied by %q plug rule of interface %q%s", plug.Name, plug.Interface, context)
 	}
 	if checkPlugInstallationConstraints(plug, rule.AllowInstallation) != nil {
-		return fmt.Errorf("installation not allowed over plug %q by rule of interface %q%s", plug.Name, plug.Interface, context)
+		return fmt.Errorf("installation not allowed by %q plug rule of interface %q%s", plug.Name, plug.Interface, context)
 	}
 	return nil
 }
