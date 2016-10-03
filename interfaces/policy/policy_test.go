@@ -105,6 +105,8 @@ AXNpZw==`))
 name: plug-snap
 plugs:
    random:
+   mismatchy:
+     interface: bar
 
    base-plug-allow:
    base-plug-not-allow:
@@ -148,6 +150,8 @@ plugs:
 name: slot-snap
 slots:
    random:
+   mismatchy:
+     interface: baz
 
    base-plug-allow:
    base-plug-not-allow:
@@ -286,6 +290,16 @@ func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 	}
 
 	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestInterfaceMismatch(c *C) {
+	cand := policy.ConnectCandidate{
+		Plug:            s.plugSnap.Plugs["mismatchy"],
+		Slot:            s.slotSnap.Slots["mismatchy"],
+		BaseDeclaration: s.baseDecl,
+	}
+
+	c.Check(cand.Check(), ErrorMatches, `cannot connect mismatched plug interface "bar" to slot interface "baz"`)
 }
 
 func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
