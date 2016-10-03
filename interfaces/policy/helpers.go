@@ -55,7 +55,7 @@ func checkID(kind, id string, ids []string, special map[string]string) error {
 	for _, cand := range ids {
 		if strings.HasPrefix(cand, "$") {
 			cand = special[cand]
-			if cand == "" {
+			if cand == "" { // we ignore unknown special "ids"
 				continue
 			}
 		}
