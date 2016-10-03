@@ -176,15 +176,15 @@ func makeTestRefreshDischargeResponse() (string, error) {
 		return "", err
 	}
 
-	return MacaroonSerialize(m)
+	return auth.MacaroonSerialize(m)
 }
 
 func createTestUser(userID int, root, discharge *macaroon.Macaroon) (*auth.UserState, error) {
-	serializedMacaroon, err := MacaroonSerialize(root)
+	serializedMacaroon, err := auth.MacaroonSerialize(root)
 	if err != nil {
 		return nil, err
 	}
-	serializedDischarge, err := MacaroonSerialize(discharge)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	if err != nil {
 		return nil, err
 	}
@@ -243,15 +243,15 @@ func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
 func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
 	var buf bytes.Buffer
 
-	root, err := MacaroonDeserialize(user.StoreMacaroon)
+	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
 	c.Assert(err, IsNil)
-	discharge, err := MacaroonDeserialize(user.StoreDischarges[0])
+	discharge, err := auth.MacaroonDeserialize(user.StoreDischarges[0])
 	c.Assert(err, IsNil)
 	discharge.Bind(root.Signature())
 
-	serializedMacaroon, err := MacaroonSerialize(root)
+	serializedMacaroon, err := auth.MacaroonSerialize(root)
 	c.Assert(err, IsNil)
-	serializedDischarge, err := MacaroonSerialize(discharge)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	c.Assert(err, IsNil)
 
 	fmt.Fprintf(&buf, `Macaroon root="%s", discharge="%s"`, serializedMacaroon, serializedDischarge)
@@ -839,7 +839,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	macaroon, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
-	serializedMacaroon, err := MacaroonSerialize(macaroon)
+	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -851,7 +851,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 
 	discharge, err := makeTestDischarge()
 	c.Assert(err, IsNil)
-	serializedDischarge, err := MacaroonSerialize(discharge)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	c.Assert(err, IsNil)
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -887,7 +887,7 @@ func (t *remoteRepoTestSuite) TestLoginUserMyAppsError(c *C) {
 func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
 	macaroon, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
-	serializedMacaroon, err := MacaroonSerialize(macaroon)
+	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

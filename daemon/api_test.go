@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -401,6 +402,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"assertstateRefreshSnapDeclarations",
 		"unsafeReadSnapInfo",
 		"osutilAddUser",
+		"setupLocalUser",
 		"storeUserInfo",
 		"postCreateUserUcrednetGetUID",
 		"ensureStateSoon",
@@ -498,7 +500,7 @@ func (s *apiSuite) makeStoreMacaroon() (string, error) {
 		return "", err
 	}
 
-	return store.MacaroonSerialize(m)
+	return auth.MacaroonSerialize(m)
 }
 
 func (s *apiSuite) makeStoreMacaroonResponse(serializedMacaroon string) (string, error) {
@@ -543,21 +545,21 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	expectedUser := auth.UserState{
-		ID:         1,
-		Username:   "",
-		Email:      "email@.com",
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
-	}
-	expectedUser.StoreMacaroon = expectedUser.Macaroon
-	expectedUser.StoreDischarges = expectedUser.Discharges
-
 	state.Lock()
 	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
-	c.Check(*user, check.DeepEquals, expectedUser)
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
 }
 
 func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
@@ -590,21 +592,70 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	expectedUser := auth.UserState{
-		ID:         1,
-		Username:   "username",
-		Email:      "email@.com",
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
-	}
-	expectedUser.StoreMacaroon = expectedUser.Macaroon
-	expectedUser.StoreDischarges = expectedUser.Discharges
-
 	state.Lock()
 	user, err := auth.User(state, 1)
 	state.Unlock()
 	c.Check(err, check.IsNil)
-	c.Check(*user, check.DeepEquals, expectedUser)
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
+
+func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
+	d := s.daemon(c)
+	state := d.overlord.State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	serializedMacaroon, err := s.makeStoreMacaroon()
+	c.Assert(err, check.IsNil)
+	responseData, err := s.makeStoreMacaroonResponse(serializedMacaroon)
+	c.Assert(err, check.IsNil)
+	mockMyAppsServer := s.makeMyAppsServer(200, responseData)
+	defer mockMyAppsServer.Close()
+
+	discharge := `{"discharge_macaroon": "the-discharge-macaroon-serialized-data"}`
+	mockSSOServer := s.makeSSOServer(200, discharge)
+	defer mockSSOServer.Close()
+
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := loginUser(loginCmd, req, localUser).(*resp)
+
+	expected := loginResponseData{
+		Macaroon:   serializedMacaroon,
+		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, serializedMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
 }
 
 func (s *apiSuite) TestLogoutUser(c *check.C) {
@@ -752,7 +803,7 @@ func (s *apiSuite) TestUserFromRequestHeaderNoMacaroons(c *check.C) {
 
 func (s *apiSuite) TestUserFromRequestHeaderIncomplete(c *check.C) {
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon"`)
+	req.Header.Set("Authorization", `Macaroon root=""`)
 
 	state := snapCmd.d.overlord.State()
 	state.Lock()
@@ -784,25 +835,7 @@ func (s *apiSuite) TestUserFromRequestHeaderValidUser(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
-
-	state.Lock()
-	user, err := UserFromRequest(state, req)
-	state.Unlock()
-
-	c.Check(err, check.IsNil)
-	c.Check(user, check.DeepEquals, expectedUser)
-}
-
-func (s *apiSuite) TestUserFromRequestHeaderValidUserMultipleDischarges(c *check.C) {
-	state := snapCmd.d.overlord.State()
-	state.Lock()
-	expectedUser, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge2", "discharge1"})
-	state.Unlock()
-	c.Check(err, check.IsNil)
-
-	req, _ := http.NewRequest("GET", "http://example.com", nil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge1", discharge="discharge2"`)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, expectedUser.Macaroon))
 
 	state.Lock()
 	user, err := UserFromRequest(state, req)
@@ -2173,6 +2206,48 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
 }
 
+func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
+	calledFlags := snapstate.Flags(42)
+	calledUserID := 0
+	installQueue := []string{}
+
+	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+		// we have ubuntu-core
+		return nil
+	}
+	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		calledFlags = flags
+		calledUserID = userID
+		installQueue = append(installQueue, name)
+
+		t := s.NewTask("fake-refresh-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	}
+	assertstateRefreshSnapDeclarations = func(s *state.State, userID int) error {
+		return nil
+	}
+
+	d := s.daemon(c)
+	inst := &snapInstruction{
+		Action:           "refresh",
+		IgnoreValidation: true,
+		Snaps:            []string{"some-snap"},
+		userID:           17,
+	}
+
+	st := d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	c.Check(calledFlags, check.Equals, snapstate.Flags(snapstate.IgnoreValidation))
+	c.Check(calledUserID, check.Equals, 17)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Refresh "some-snap" snap`)
+}
+
 func (s *apiSuite) TestPostSnapsOp(c *check.C) {
 	snapstateUpdateMany = func(s *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
 		c.Check(names, check.HasLen, 0)
@@ -2570,7 +2645,11 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	repo.Connect("consumer", "plug", "producer", "slot")
+	connRef := interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Assert(repo.Connect(connRef), check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -2822,7 +2901,11 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	repo.Connect("consumer", "plug", "producer", "slot")
+	connRef := interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Assert(repo.Connect(connRef), check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -3629,6 +3712,7 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 }
 
 func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
+	s.daemon(c)
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -3654,6 +3738,8 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 }
 
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
+	d := s.daemon(c)
+
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -3669,6 +3755,15 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		c.Check(opts.Sudoer, check.Equals, false)
 		return nil
 	}
+	userHomeDir := c.MkDir()
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  userHomeDir,
+		}, nil
+	}
 
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
@@ -3676,6 +3771,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
 	}()
 
 	buf := bytes.NewBufferString(`{"email": "popper@lse.ac.uk"}`)
@@ -3685,14 +3781,29 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &createResponseData{
-		Username:    "karl",
-		SSHKeys:     []string{"ssh1", "ssh2"},
-		SSHKeyCount: 2,
+		Username: "karl",
+		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// user was setup in state
+	state := d.overlord.State()
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "karl")
+	c.Check(user.Email, check.Equals, "popper@lse.ac.uk")
+	c.Check(user.Macaroon, check.NotNil)
+	// auth saved to user home dir
+	outfile := filepath.Join(userHomeDir, ".snap", "auth.json")
+	c.Check(osutil.FileExists(outfile), check.Equals, true)
+	content, err := ioutil.ReadFile(outfile)
+	c.Check(err, check.IsNil)
+	c.Check(string(content), check.Equals, fmt.Sprintf(`{"macaroon":"%s"}`, user.Macaroon))
 }
 
 func (s *apiSuite) TestBuySnap(c *check.C) {
@@ -3934,6 +4045,9 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
+// FIXME: These tests all look similar, with small deltas. Would be
+// nice to transform them into a table that is just the deltas, and
+// run on a loop.
 func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
@@ -3960,12 +4074,22 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		return nil
 	}
 
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  c.MkDir(),
+		}, nil
+	}
+
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
 	}()
 
 	// do it!
@@ -3976,8 +4100,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	expected := &createResponseData{
-		Username:    "guy",
-		SSHKeyCount: 0,
+		Username: "guy",
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -4025,12 +4148,22 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 		return nil
 	}
 
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  c.MkDir(),
+		}, nil
+	}
+
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
 	}()
 
 	// do it!
@@ -4043,9 +4176,119 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	// note that we get a list here instead of a single
 	// createResponseData item
 	expected := []createResponseData{
-		{Username: "guy", SSHKeyCount: 0},
+		{Username: "guy"},
 	}
 
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device already managed`)
+}
+
+func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  c.MkDir(),
+		}, nil
+	}
+
+	defer func() {
+		osutilAddUser = osutil.AddUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true,"force-managed":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	// note that we get a list here instead of a single
+	// createResponseData item
+	expected := []createResponseData{
+		{Username: "guy"},
+	}
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)

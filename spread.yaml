@@ -83,7 +83,8 @@ exclude:
     - .git
 
 prepare-each: |
-    journalctl --vacuum-time=1s
+    journalctl --rotate
+    journalctl --vacuum-time=1ms
 
 debug-each: |
     journalctl -u snapd
