@@ -20,12 +20,17 @@
 package ifacestate_test
 
 import (
+	"strings"
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -35,20 +40,43 @@ import (
 
 func TestInterfaceManager(t *testing.T) { TestingT(t) }
 
+var (
+	rootKey, _  = assertstest.GenerateKey(752)
+	storeKey, _ = assertstest.GenerateKey(752)
+)
+
 type interfaceManagerSuite struct {
 	state           *state.State
+	db              *asserts.Database
 	privateMgr      *ifacestate.InterfaceManager
 	extraIfaces     []interfaces.Interface
 	secBackend      *interfaces.TestSecurityBackend
 	restoreBackends func()
+
+	storeSigning *assertstest.StoreStack
 }
 
 var _ = Suite(&interfaceManagerSuite{})
 
 func (s *interfaceManagerSuite) SetUpTest(c *C) {
+	s.storeSigning = assertstest.NewStoreStack("canonical", rootKey, storeKey)
+
 	dirs.SetRootDir(c.MkDir())
 	state := state.New(nil)
 	s.state = state
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   s.storeSigning.Trusted,
+	})
+	c.Assert(err, IsNil)
+	s.db = db
+	err = db.Add(s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	assertstate.ReplaceDB(state, s.db)
+	s.state.Unlock()
+
 	s.privateMgr = nil
 	s.extraIfaces = nil
 	s.secBackend = &interfaces.TestSecurityBackend{}
@@ -139,6 +167,188 @@ func (s *interfaceManagerSuite) TestEnsureProcessesConnectTask(c *C) {
 	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
+func (s *interfaceManagerSuite) TestConnectTaskCheckInterfaceMismatch(c *C) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test2"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "otherplug", "producer", "slot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	mgr.Ensure()
+	mgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Err(), ErrorMatches, `(?s).*cannot connect mismatched plug interface "test2" to slot interface "test.*`)
+	task := change.Tasks()[0]
+	c.Check(task.Kind(), Equals, "connect")
+	c.Check(task.Status(), Equals, state.ErrorStatus)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskNoSuchSlot(c *C) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "whatslot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	mgr.Ensure()
+	mgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Err(), ErrorMatches, `(?s).*Connect consumer:plug to producer:whatslot \(snap "producer" has no "whatslot" slot\).*`)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskNoSuchPlug(c *C) {
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "whatplug", "producer", "slot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	mgr.Ensure()
+	mgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Err(), ErrorMatches, `(?s).*snap "consumer" has no "whatplug" plug.*`)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskCheckNotAllowed(c *C) {
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+`))
+	defer restore()
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnapDecl(c, "consumer", "consumer-publisher")
+	s.mockSnap(c, consumerYaml)
+	s.mockSnapDecl(c, "producer", "producer-publisher")
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	mgr.Ensure()
+	mgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(change.Err(), ErrorMatches, `(?s).*connection not allowed by slot rule of interface "test".*`)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+}
+
+func (s *interfaceManagerSuite) TestConnectTaskCheckAllowed(c *C) {
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+`))
+	defer restore()
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnapDecl(c, "consumer", "one-publisher")
+	s.mockSnap(c, consumerYaml)
+	s.mockSnapDecl(c, "producer", "one-publisher")
+	s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	change := s.state.NewChange("kind", "summary")
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	mgr := s.manager(c)
+	mgr.Ensure()
+	mgr.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(change.Err(), IsNil)
+	c.Check(change.Status(), Equals, state.DoneStatus)
+
+	repo := mgr.Repository()
+	plug := repo.Plug("consumer", "plug")
+	slot := repo.Slot("producer", "slot")
+	c.Assert(plug.Connections, HasLen, 1)
+	c.Check(plug.Connections[0], DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
+	c.Check(slot.Connections[0], DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
+}
+
 func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -208,12 +418,48 @@ func (s *interfaceManagerSuite) mockIface(c *C, iface interfaces.Interface) {
 	s.extraIfaces = append(s.extraIfaces, iface)
 }
 
+func (s *interfaceManagerSuite) mockSnapDecl(c *C, name, publisher string) {
+	_, err := s.db.Find(asserts.AccountType, map[string]string{
+		"account-id": publisher,
+	})
+	if err == asserts.ErrNotFound {
+		acct := assertstest.NewAccount(s.storeSigning, publisher, map[string]interface{}{
+			"account-id": publisher,
+		}, "")
+		err = s.db.Add(acct)
+	}
+	c.Assert(err, IsNil)
+
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    name,
+		"publisher-id": publisher,
+		"snap-id":      (name + strings.Repeat("id", 16))[:32],
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+
+	err = s.db.Add(snapDecl)
+	c.Assert(err, IsNil)
+}
+
 func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	sideInfo := &snap.SideInfo{
 		Revision: snap.R(1),
 	}
 	snapInfo := snaptest.MockSnap(c, yamlText, sideInfo)
 	sideInfo.RealName = snapInfo.Name()
+
+	a, err := s.db.FindMany(asserts.SnapDeclarationType, map[string]string{
+		"snap-name": sideInfo.RealName,
+	})
+	if err == nil {
+		decl := a[0].(*asserts.SnapDeclaration)
+		sideInfo.SnapID = decl.SnapID()
+	} else if err == asserts.ErrNotFound {
+		err = nil
+	}
+	c.Assert(err, IsNil)
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -314,6 +560,8 @@ version: 1
 plugs:
  plug:
   interface: test
+ otherplug:
+  interface: test2
 `
 
 var producerYaml = `
@@ -1003,7 +1251,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	err = repo.Connect(siP.Name(), "plug", siC.Name(), "slot")
+	connRef := interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: siP.Name(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: siC.Name(), Name: "slot"},
+	}
+	err = repo.Connect(connRef)
 	c.Assert(err, IsNil)
 
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{

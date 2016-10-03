@@ -216,7 +216,6 @@ func (d *Daemon) addRoutes() {
 
 	for _, c := range api {
 		c.d = d
-		logger.Debugf("adding %s", c.Path)
 		d.router.Handle(c.Path, c).Name(c.Path)
 	}
 

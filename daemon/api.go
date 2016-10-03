@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -304,7 +305,14 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+	if user != nil {
+		// local user logged-in, set its store macaroons
+		user.StoreMacaroon = macaroon
+		user.StoreDischarges = []string{discharge}
+		err = auth.UpdateUser(state, user)
+	} else {
+		_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+	}
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
@@ -359,7 +367,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 		}
 	}
 
-	if macaroon == "" || len(discharges) == 0 {
+	if macaroon == "" {
 		return nil, fmt.Errorf("invalid authorization header")
 	}
 
@@ -640,11 +648,12 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string        `json:"action"`
-	Channel  string        `json:"channel"`
-	Revision snap.Revision `json:"revision"`
-	DevMode  bool          `json:"devmode"`
-	JailMode bool          `json:"jailmode"`
+	Action           string        `json:"action"`
+	Channel          string        `json:"channel"`
+	Revision         snap.Revision `json:"revision"`
+	DevMode          bool          `json:"devmode"`
+	JailMode         bool          `json:"jailmode"`
+	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -818,6 +827,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
+	}
+	if inst.IgnoreValidation {
+		flags |= snapstate.IgnoreValidation
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
@@ -1678,6 +1690,57 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 	return v.Username, opts, nil
 }
 
+func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
+	var createdUsers []createResponseData
+
+	st.Lock()
+	db := assertstate.DB(st)
+	modelAs, err := devicestate.Model(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get model assertion")
+	}
+
+	headers := map[string]string{
+		"brand-id": modelAs.BrandID(),
+	}
+	st.Lock()
+	assertions, err := db.FindMany(asserts.SystemUserType, headers)
+	st.Unlock()
+	if err != nil {
+		return BadRequest("cannot find system-user assertion: %s", err)
+	}
+
+	for _, as := range assertions {
+		email := as.(*asserts.SystemUser).Email()
+		// we need to use getUserDetailsFromAssertion as this verifies
+		// the assertion against the current brand/model/time
+		username, opts, err := getUserDetailsFromAssertion(st, email)
+		if err != nil {
+			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
+			continue
+		}
+		// ignore already existing users
+		if _, err := user.Lookup(username); err == nil {
+			continue
+		}
+
+		// FIXME: duplicated code
+		opts.Sudoer = createData.Sudoer
+		opts.ExtraUsers = !release.OnClassic
+
+		if err := osutilAddUser(username, opts); err != nil {
+			return InternalError("cannot add user %q: %s", username, err)
+		}
+		createdUsers = append(createdUsers, createResponseData{
+			Username: username,
+			SSHKeys:  opts.SSHKeys,
+		})
+	}
+
+	return SyncResponse(createdUsers, nil)
+}
+
 func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
@@ -1734,8 +1797,56 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 type createResponseData struct {
 	Username string   `json:"username"`
 	SSHKeys  []string `json:"ssh-keys"`
-	// deprecated
-	SSHKeyCount int `json:"ssh-key-count"`
+}
+
+type postUserCreateData struct {
+	Email        string `json:"email"`
+	Sudoer       bool   `json:"sudoer"`
+	Known        bool   `json:"known"`
+	ForceManaged bool   `json:"force-managed"`
+}
+
+var userLookup = user.Lookup
+
+func setupLocalUser(st *state.State, username, email string) error {
+	user, err := userLookup(username)
+	if err != nil {
+		return fmt.Errorf("cannot lookup user %q: %s", username, err)
+	}
+	uid, err := strconv.Atoi(user.Uid)
+	if err != nil {
+		return fmt.Errorf("cannot get uid of user %q: %s", username, err)
+	}
+	gid, err := strconv.Atoi(user.Gid)
+	if err != nil {
+		return fmt.Errorf("cannot get gid of user %q: %s", username, err)
+	}
+	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
+	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
+		return err
+	}
+
+	// setup new user, local-only
+	st.Lock()
+	authUser, err := auth.NewUser(st, username, email, "", nil)
+	st.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot persist authentication details: %v", err)
+	}
+	// store macaroon auth in auth.json in the new users home dir
+	outStr, err := json.Marshal(struct {
+		Macaroon string `json:"macaroon"`
+	}{
+		Macaroon: authUser.Macaroon,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot marshal auth data: %s", err)
+	}
+	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
+		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
+	}
+
+	return nil
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1747,17 +1858,30 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot use create-user as non-root")
 	}
 
-	var createData struct {
-		Email  string `json:"email"`
-		Sudoer bool   `json:"sudoer"`
-		Known  bool   `json:"known"`
-	}
+	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
+	// verify request
+	st := c.d.overlord.State()
+	st.Lock()
+	userCount, err := auth.UserCount(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get user count: %s", err)
+	}
+	if userCount > 0 && !createData.ForceManaged {
+		return BadRequest("cannot create user: device already managed")
+	}
+
+	// special case: the user requested the creation of all known
+	// system-users
+	if createData.Email == "" && createData.Known {
+		return createAllKnownSystemUsers(c.d.overlord.State(), &createData)
+	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
@@ -1765,7 +1889,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var username string
 	var opts *osutil.AddUserOptions
 	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
+		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(createData.Email)
 	}
@@ -1779,10 +1903,13 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user %s: %s", username, err)
 	}
 
+	if err := setupLocalUser(c.d.overlord.State(), username, createData.Email); err != nil {
+		return InternalError("%s", err)
+	}
+
 	return SyncResponse(&createResponseData{
-		Username:    username,
-		SSHKeys:     opts.SSHKeys,
-		SSHKeyCount: len(opts.SSHKeys),
+		Username: username,
+		SSHKeys:  opts.SSHKeys,
 	}, nil)
 }
 

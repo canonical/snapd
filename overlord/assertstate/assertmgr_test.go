@@ -794,3 +794,24 @@ plugs:
 	c.Check(baseDecl, NotNil)
 	c.Check(baseDecl.PlugRule("iface"), NotNil)
 }
+
+func (s *assertMgrSuite) TestSnapDeclaration(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a declaration in the system db
+	err := assertstate.Add(s.state, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(s.state, s.dev1Acct)
+	c.Assert(err, IsNil)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+	err = assertstate.Add(s.state, snapDeclFoo)
+	c.Assert(err, IsNil)
+
+	_, err = assertstate.SnapDeclaration(s.state, "snap-id-other")
+	c.Check(err, Equals, asserts.ErrNotFound)
+
+	snapDecl, err := assertstate.SnapDeclaration(s.state, "foo-id")
+	c.Assert(err, IsNil)
+	c.Check(snapDecl.SnapName(), Equals, "foo")
+}

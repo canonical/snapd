@@ -21,7 +21,6 @@ package store
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -62,30 +61,6 @@ func httpStatusCodeSuccess(httpStatusCode int) bool {
 // returns true if the http status code is in the "client-error" range (4xx)
 func httpStatusCodeClientError(httpStatusCode int) bool {
 	return httpStatusCode/100 == 4
-}
-
-// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
-func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
-	marshalled, err := m.MarshalBinary()
-	if err != nil {
-		return "", err
-	}
-	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
-	return encoded, nil
-}
-
-// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
-func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
-	var m macaroon.Macaroon
-	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
-	if err != nil {
-		return nil, err
-	}
-	err = m.UnmarshalBinary(decoded)
-	if err != nil {
-		return nil, err
-	}
-	return &m, nil
 }
 
 // loginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
