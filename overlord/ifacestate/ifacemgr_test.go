@@ -267,7 +267,7 @@ slots:
   test:
     allow-connection:
       plug-publisher-id:
-        - $slot-publisher-id
+        - $SLOT_PUBLISHER_ID
 `))
 	defer restore()
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
@@ -309,7 +309,7 @@ slots:
   test:
     allow-connection:
       plug-publisher-id:
-        - $slot-publisher-id
+        - $SLOT_PUBLISHER_ID
 `))
 	defer restore()
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
