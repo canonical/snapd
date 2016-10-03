@@ -63,28 +63,28 @@ func (connc *ConnectCandidate) plugSnapID() string {
 	if connc.PlugSnapDeclaration != nil {
 		return connc.PlugSnapDeclaration.SnapID()
 	}
-	return "" // unset
+	return "" // never a valid snap-id
 }
 
 func (connc *ConnectCandidate) slotSnapID() string {
 	if connc.SlotSnapDeclaration != nil {
 		return connc.SlotSnapDeclaration.SnapID()
 	}
-	return "" // unset
+	return "" // never a valid snap-id
 }
 
 func (connc *ConnectCandidate) plugPublisherID() string {
 	if connc.PlugSnapDeclaration != nil {
 		return connc.PlugSnapDeclaration.PublisherID()
 	}
-	return "" // unset
+	return "" // never a valid publisher-id
 }
 
 func (connc *ConnectCandidate) slotPublisherID() string {
 	if connc.SlotSnapDeclaration != nil {
 		return connc.SlotSnapDeclaration.PublisherID()
 	}
-	return "" // unset
+	return "" // never a valid publisher-id
 }
 
 func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, snapRule bool) error {
