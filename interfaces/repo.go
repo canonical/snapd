@@ -282,7 +282,7 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return ref, fmt.Errorf("cannot resolve connection, plug %q from snap %q, no such plug", plugName, plugSnapName)
+		return ref, fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
 	}
 
 	if slotSnapName == "" {
@@ -309,23 +309,23 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 		}
 		switch len(candidates) {
 		case 0:
-			return ref, fmt.Errorf("cannot resolve connection, slot name is empty and there are no valid candidates")
+			return ref, fmt.Errorf("snap %q has no %q interface slots", slotSnapName, plug.Interface)
 		case 1:
 			slotName = candidates[0]
 		default:
-			return ref, fmt.Errorf("cannot resolve connection, more than one slot is a valid candidate")
+			sort.Strings(candidates)
+			return ref, fmt.Errorf("snap %q has multiple %q interface slots: %s", slotSnapName, plug.Interface, strings.Join(candidates, ", "))
 		}
 	}
 
 	// Ensure that such slot exists
 	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return ref, fmt.Errorf("cannot resolve connection, slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return ref, fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 	}
 	// Ensure that plug and slot are compatible
-	// XXX: should we do this or should this be only done in Connect?
 	if slot.Interface != plug.Interface {
-		return ref, fmt.Errorf(`cannot resolve connection, plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+		return ref, fmt.Errorf("cannot connect %s:%s (%q interface) to %s:%s (%q interface)",
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
 	ref = ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
