@@ -12,6 +12,7 @@ Build-Depends: bash-completion,
                golang (>=2:1.6) | golang-1.6,
                golang-github-gosexy-gettext-dev,
                python3,
+               lsb-release,
                python3-markdown,
                squashfs-tools
 Standards-Version: 3.9.7

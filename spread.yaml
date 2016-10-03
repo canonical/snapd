@@ -21,6 +21,8 @@ backends:
         key: "$(HOST: echo $SPREAD_LINODE_KEY)"
         halt-timeout: 2h
         systems:
+            - ubuntu-14.04-64:
+                kernel: GRUB 2
             - ubuntu-16.04-64:
                 kernel: GRUB 2
                 workers: 2
@@ -32,6 +34,9 @@ backends:
                 image: ubuntu-16.04-64
     qemu:
         systems:
+            - ubuntu-14.04-64:
+                username: ubuntu
+                password: ubuntu
             - ubuntu-16.04-64:
                 username: ubuntu
                 password: ubuntu
@@ -123,10 +128,20 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
+    if [ $(lsb_release -c -s) = trusty ]; then
+         add-apt-repository ppa:thomas-voss/trusty
+         apt-get update
+         apt-get install -y rsyslog
+         apt-get install -y cgroup-lite apparmor libapparmor1 seccomp libseccomp2 sudo systemd
+
+         # make sure that go is available in the path on trusty.
+         export PATH=/usr/lib/go-1.6/bin:${PATH}
+    fi
+
     apt-get purge -y snapd || true
     apt-get update
     # utilities
-    apt-get install -y devscripts expect gdebi-core jq rng-tools software-properties-common git
+    apt-get install -y curl devscripts expect gdebi-core jq rng-tools software-properties-common git
 
     # needed so that we have golang-gopkg-macaroon.v1 which is not (yet)
     # in trusty
