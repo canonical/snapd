@@ -1719,9 +1719,8 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 			return InternalError("cannot add user %q: %s", username, err)
 		}
 		createdUsers = append(createdUsers, createResponseData{
-			Username:    username,
-			SSHKeys:     opts.SSHKeys,
-			SSHKeyCount: len(opts.SSHKeys),
+			Username: username,
+			SSHKeys:  opts.SSHKeys,
 		})
 	}
 
@@ -1784,8 +1783,6 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 type createResponseData struct {
 	Username string   `json:"username"`
 	SSHKeys  []string `json:"ssh-keys"`
-	// deprecated
-	SSHKeyCount int `json:"ssh-key-count"`
 }
 
 type postUserCreateData struct {
@@ -1837,9 +1834,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	}
 
 	return SyncResponse(&createResponseData{
-		Username:    username,
-		SSHKeys:     opts.SSHKeys,
-		SSHKeyCount: len(opts.SSHKeys),
+		Username: username,
+		SSHKeys:  opts.SSHKeys,
 	}, nil)
 }
 

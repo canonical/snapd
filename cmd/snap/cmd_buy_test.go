@@ -30,7 +30,7 @@ import (
 )
 
 type BuySnapSuite struct {
-	SnapSuite
+	BaseSnapSuite
 }
 
 var _ = check.Suite(&BuySnapSuite{})
@@ -79,13 +79,13 @@ func (s *buyTestMockSnapServer) checkCounts() {
 }
 
 func (s *BuySnapSuite) SetUpTest(c *check.C) {
-	s.SnapSuite.SetUpTest(c)
+	s.BaseSnapSuite.SetUpTest(c)
 	s.Login(c)
 }
 
 func (s *BuySnapSuite) TearDownTest(c *check.C) {
 	s.Logout(c)
-	s.SnapSuite.TearDownTest(c)
+	s.BaseSnapSuite.TearDownTest(c)
 }
 
 func (s *BuySnapSuite) TestBuyHelp(c *check.C) {
