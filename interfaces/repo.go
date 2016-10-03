@@ -267,9 +267,14 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName string) error {
+func (r *Repository) Connect(ref ConnRef) error {
 	r.m.Lock()
 	defer r.m.Unlock()
+
+	plugSnapName := ref.PlugRef.Snap
+	plugName := ref.PlugRef.Name
+	slotSnapName := ref.SlotRef.Snap
+	slotName := ref.SlotRef.Name
 
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
