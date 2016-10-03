@@ -207,6 +207,56 @@ func (as *authSuite) TestCheckMacaroonValidUser(c *C) {
 	c.Check(user, DeepEquals, expectedUser)
 }
 
+func (as *authSuite) TestCheckMacaroonValidUserOldStyle(c *C) {
+	// create a fake store-deserializable macaroon
+	m, err := macaroon.New([]byte("secret"), "some-id", "location")
+	c.Check(err, IsNil)
+	serializedMacaroon, err := auth.MacaroonSerialize(m)
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	expectedUser, err := auth.NewUser(as.state, "username", "email@test.com", serializedMacaroon, []string{"discharge"})
+	c.Check(err, IsNil)
+	// set user local macaroons with store macaroons
+	expectedUser.Macaroon = expectedUser.StoreMacaroon
+	expectedUser.Discharges = expectedUser.StoreDischarges
+	err = auth.UpdateUser(as.state, expectedUser)
+	c.Check(err, IsNil)
+	as.state.Unlock()
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, expectedUser.Macaroon, expectedUser.Discharges)
+	as.state.Unlock()
+
+	c.Check(err, IsNil)
+	c.Check(user, DeepEquals, expectedUser)
+}
+
+func (as *authSuite) TestCheckMacaroonInvalidAuthMalformedMacaroon(c *C) {
+	var authStateData auth.AuthState
+	as.state.Lock()
+	// create a new user to ensure there is a MacaroonKey setup
+	_, err := auth.NewUser(as.state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	c.Check(err, IsNil)
+	// get AuthState to get signing MacaroonKey
+	err = as.state.Get("auth", &authStateData)
+	c.Check(err, IsNil)
+	as.state.Unlock()
+
+	// setup a macaroon for an invalid user
+	invalidMacaroon, err := macaroon.New(authStateData.MacaroonKey, "invalid", "snapd")
+	c.Check(err, IsNil)
+	serializedInvalidMacaroon, err := auth.MacaroonSerialize(invalidMacaroon)
+	c.Check(err, IsNil)
+
+	as.state.Lock()
+	user, err := auth.CheckMacaroon(as.state, serializedInvalidMacaroon, nil)
+	as.state.Unlock()
+
+	c.Check(err, Equals, auth.ErrInvalidAuth)
+	c.Check(user, IsNil)
+}
+
 func (as *authSuite) TestUserForNoAuthInState(c *C) {
 	as.state.Lock()
 	userFromState, err := auth.User(as.state, 42)
