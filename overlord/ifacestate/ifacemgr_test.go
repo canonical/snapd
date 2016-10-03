@@ -1003,7 +1003,11 @@ func (s *interfaceManagerSuite) TestSetupProfilesDevModeMultiple(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	err = repo.Connect(siP.Name(), "plug", siC.Name(), "slot")
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: siP.Name(), Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: siC.Name(), Name: "slot"},
+	}
+	err = repo.Connect(connRef)
 	c.Assert(err, IsNil)
 
 	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
