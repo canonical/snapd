@@ -3730,7 +3730,7 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 }
 
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
-	s.daemon(c)
+	d := s.daemon(c)
 
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
@@ -4253,9 +4253,20 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 		c.Check(opts.Password, check.Equals, "$6$salt$hash")
 		return nil
 	}
+
+	userLookup = func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      "1000",
+			Gid:      "1000",
+			HomeDir:  c.MkDir(),
+		}, nil
+	}
+
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
+		userLookup = user.Lookup
 	}()
 
 	// do it!

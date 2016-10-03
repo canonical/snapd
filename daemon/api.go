@@ -306,10 +306,10 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	} else {
 		_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
+	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
-	state.Unlock()
 
 	result := loginResponseData{
 		Macaroon:   macaroon,
