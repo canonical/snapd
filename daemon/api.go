@@ -1786,9 +1786,10 @@ type createResponseData struct {
 }
 
 type postUserCreateData struct {
-	Email  string `json:"email"`
-	Sudoer bool   `json:"sudoer"`
-	Known  bool   `json:"known"`
+	Email        string `json:"email"`
+	Sudoer       bool   `json:"sudoer"`
+	Known        bool   `json:"known"`
+	ForceManaged bool   `json:"force-managed"`
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1807,6 +1808,18 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
+	// verify request
+	st := c.d.overlord.State()
+	st.Lock()
+	userCount, err := auth.UserCount(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get user count: %s", err)
+	}
+	if userCount > 0 && !createData.ForceManaged {
+		return BadRequest("cannot create user: device already managed")
+	}
+
 	// special case: the user requested the creation of all known
 	// system-users
 	if createData.Email == "" && createData.Known {
@@ -1819,7 +1832,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var username string
 	var opts *osutil.AddUserOptions
 	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
+		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(createData.Email)
 	}

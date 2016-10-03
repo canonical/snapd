@@ -3671,6 +3671,7 @@ func (s *apiSuite) TestStateChangeAbortIsReady(c *check.C) {
 }
 
 func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
+	s.daemon(c)
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -3696,6 +3697,8 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 }
 
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
+	s.daemon(c)
+
 	storeUserInfo = func(user string) (*store.User, error) {
 		c.Check(user, check.Equals, "popper@lse.ac.uk")
 		return &store.User{
@@ -3975,6 +3978,9 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 	c.Check(err, check.IsNil)
 }
 
+// FIXME: These tests all look similar, with small deltas. Would be
+// nice to transform them into a table that is just the deltas, and
+// run on a loop.
 func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
@@ -4086,6 +4092,105 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 		{Username: "guy"},
 	}
 
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device already managed`)
+}
+
+func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Check(err, check.IsNil)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	// mock the calls that create the user
+	osutilAddUser = func(username string, opts *osutil.AddUserOptions) error {
+		c.Check(username, check.Equals, "guy")
+		c.Check(opts.Gecos, check.Equals, "foo@bar.com,Boring Guy")
+		c.Check(opts.Sudoer, check.Equals, false)
+		c.Check(opts.Password, check.Equals, "$6$salt$hash")
+		return nil
+	}
+	defer func() {
+		osutilAddUser = osutil.AddUser
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true,"force-managed":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	// note that we get a list here instead of a single
+	// createResponseData item
+	expected := []createResponseData{
+		{Username: "guy"},
+	}
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
