@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/snap"
 )
 
 // ContentInterface allows sharing content between snaps
@@ -108,10 +109,27 @@ func (iface *ContentInterface) path(slot *interfaces.Slot, name string) []string
 	return out
 }
 
+// resolveSpecialVariable resolves one of the three $SNAP* variables at the
+// beginning of a given path.  The variables are $SNAP, $SNAP_DATA and
+// $SNAP_COMMON. If there are no variables then $SNAP is implicitly assumed
+// (this is the behavior that was used before the variables were supporter).
+func resolveSpecialVariable(path string, snapInfo *snap.Info) string {
+	if strings.HasPrefix(path, "$SNAP/") || path == "$SNAP" {
+		return strings.Replace(path, "$SNAP", snapInfo.MountDir(), 1)
+	}
+	if strings.HasPrefix(path, "$SNAP_DATA/") || path == "$SNAP_DATA" {
+		return strings.Replace(path, "$SNAP_DATA", snapInfo.DataDir(), 1)
+	}
+	if strings.HasPrefix(path, "$SNAP_COMMON/") || path == "$SNAP_COMMON" {
+		return strings.Replace(path, "$SNAP_COMMON", snapInfo.CommonDataDir(), 1)
+	}
+	// NOTE: assume $SNAP by default if nothing else is provided, for compatibility
+	return filepath.Join(snapInfo.MountDir(), path)
+}
+
 func mountEntry(plug *interfaces.Plug, slot *interfaces.Slot, relSrc string, mntOpts string) string {
-	dst := plug.Attrs["target"].(string)
-	dst = filepath.Join(plug.Snap.MountDir(), dst)
-	src := filepath.Join(slot.Snap.MountDir(), relSrc)
+	dst := resolveSpecialVariable(plug.Attrs["target"].(string), plug.Snap)
+	src := resolveSpecialVariable(relSrc, slot.Snap)
 	return fmt.Sprintf("%s %s none bind%s 0 0", src, dst, mntOpts)
 }
 

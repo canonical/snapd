@@ -75,3 +75,11 @@ func MockStoreNew(f func(*store.Config, auth.AuthContext) *store.Store) (restore
 		storeNew = storeNewOrig
 	}
 }
+
+func MockMountInfoPath(newMountInfoPath string) (restore func()) {
+	mountInfoPathOrig := mountInfoPath
+	mountInfoPath = newMountInfoPath
+	return func() {
+		mountInfoPath = mountInfoPathOrig
+	}
+}
