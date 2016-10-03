@@ -302,15 +302,12 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		// local user logged-in, set its store macaroons
 		user.StoreMacaroon = macaroon
 		user.StoreDischarges = []string{discharge}
-		err := auth.UpdateUser(state, user)
-		if err != nil {
-			return InternalError("cannot persist authentication details: %v", err)
-		}
+		err = auth.UpdateUser(state, user)
 	} else {
 		_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
-		if err != nil {
-			return InternalError("cannot persist authentication details: %v", err)
-		}
+	}
+	if err != nil {
+		return InternalError("cannot persist authentication details: %v", err)
 	}
 	state.Unlock()
 
