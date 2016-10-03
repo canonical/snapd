@@ -68,7 +68,7 @@ plugs:
   same-plug-publisher-id:
     allow-connection:
       slot-publisher-id:
-        - $plug_publisher_id
+        - $PLUG_PUBLISHER_ID
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -93,7 +93,7 @@ slots:
   same-slot-publisher-id:
     allow-connection:
       plug-publisher-id:
-        - $slot_publisher_id
+        - $SLOT_PUBLISHER_ID
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -213,7 +213,7 @@ plugs:
     allow-connection:
       slot-publisher-id:
         - slot-publisher
-        - $plug_publisher_id
+        - $PLUG_PUBLISHER_ID
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
