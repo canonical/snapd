@@ -388,7 +388,7 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	deserializedMacaroon, err := MacaroonDeserialize(macaroon)
+	deserializedMacaroon, err := auth.MacaroonDeserialize(macaroon)
 	if err != nil {
 		return "", "", err
 	}
@@ -413,7 +413,7 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
 
 	// deserialize root macaroon (we need its signature to do the discharge binding)
-	root, err := MacaroonDeserialize(user.StoreMacaroon)
+	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
 	if err != nil {
 		logger.Debugf("cannot deserialize root macaroon: %v", err)
 		return
@@ -421,14 +421,14 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 
 	for _, d := range user.StoreDischarges {
 		// prepare discharge for request
-		discharge, err := MacaroonDeserialize(d)
+		discharge, err := auth.MacaroonDeserialize(d)
 		if err != nil {
 			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
 			return
 		}
 		discharge.Bind(root.Signature())
 
-		serializedDischarge, err := MacaroonSerialize(discharge)
+		serializedDischarge, err := auth.MacaroonSerialize(discharge)
 		if err != nil {
 			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
 			return
@@ -442,7 +442,7 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 func refreshDischarges(user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
-		discharge, err := MacaroonDeserialize(d)
+		discharge, err := auth.MacaroonDeserialize(d)
 		if err != nil {
 			return nil, err
 		}
