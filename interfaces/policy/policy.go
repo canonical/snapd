@@ -168,37 +168,47 @@ func (connc *ConnectCandidate) slotPublisherID() string {
 	return "" // never a valid publisher-id
 }
 
-func (connc *ConnectCandidate) checkPlugRule(rule *asserts.PlugRule, snapRule bool) error {
+func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule, snapRule bool) error {
 	context := ""
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", connc.PlugSnapDeclaration.SnapName())
 	}
-	if checkPlugConnectionConstraints(connc, rule.DenyConnection) == nil {
-		return fmt.Errorf("connection denied by plug rule of interface %q%s", connc.Plug.Interface, context)
+	denyCstrsSel := asserts.ConstraintsDenyConnection
+	allowCstrsSel := asserts.ConstraintsAllowConnection
+	if kind == "auto-connection" {
+		denyCstrsSel = asserts.ConstraintsDenyAutoConnection
+		allowCstrsSel = asserts.ConstraintsAllowAutoConnection
 	}
-	if checkPlugConnectionConstraints(connc, rule.AllowConnection) != nil {
-		return fmt.Errorf("connection not allowed by plug rule of interface %q%s", connc.Plug.Interface, context)
+	if checkPlugConnectionConstraints(connc, rule.GetConnectionConstraints(denyCstrsSel)) == nil {
+		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
+	}
+	if checkPlugConnectionConstraints(connc, rule.GetConnectionConstraints(allowCstrsSel)) != nil {
+		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
 	}
 	return nil
 }
 
-func (connc *ConnectCandidate) checkSlotRule(rule *asserts.SlotRule, snapRule bool) error {
+func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule, snapRule bool) error {
 	context := ""
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", connc.SlotSnapDeclaration.SnapName())
 	}
-	// TODO: show interface only if != name
-	if checkSlotConnectionConstraints(connc, rule.DenyConnection) == nil {
-		return fmt.Errorf("connection denied by slot rule of interface %q%s", connc.Plug.Interface, context)
+	denyCstrsSel := asserts.ConstraintsDenyConnection
+	allowCstrsSel := asserts.ConstraintsAllowConnection
+	if kind == "auto-connection" {
+		denyCstrsSel = asserts.ConstraintsDenyAutoConnection
+		allowCstrsSel = asserts.ConstraintsAllowAutoConnection
 	}
-	if checkSlotConnectionConstraints(connc, rule.AllowConnection) != nil {
-		return fmt.Errorf("connection not allowed by slot rule of interface %q%s", connc.Plug.Interface, context)
+	if checkSlotConnectionConstraints(connc, rule.GetConnectionConstraints(denyCstrsSel)) == nil {
+		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
+	}
+	if checkSlotConnectionConstraints(connc, rule.GetConnectionConstraints(allowCstrsSel)) != nil {
+		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
 	}
 	return nil
 }
 
-// Check checks whether the connection is allowed.
-func (connc *ConnectCandidate) Check() error {
+func (connc *ConnectCandidate) check(kind string) error {
 	baseDecl := connc.BaseDeclaration
 	if baseDecl == nil {
 		return fmt.Errorf("internal error: improperly initialized ConnectCandidate")
@@ -212,21 +222,29 @@ func (connc *ConnectCandidate) Check() error {
 
 	if plugDecl := connc.PlugSnapDeclaration; plugDecl != nil {
 		if rule := plugDecl.PlugRule(iface); rule != nil {
-			return connc.checkPlugRule(rule, true)
+			return connc.checkPlugRule(kind, rule, true)
 		}
 	}
 	if slotDecl := connc.SlotSnapDeclaration; slotDecl != nil {
 		if rule := slotDecl.SlotRule(iface); rule != nil {
-			return connc.checkSlotRule(rule, true)
+			return connc.checkSlotRule(kind, rule, true)
 		}
 	}
 	if rule := baseDecl.PlugRule(iface); rule != nil {
-		return connc.checkPlugRule(rule, false)
+		return connc.checkPlugRule(kind, rule, false)
 	}
 	if rule := baseDecl.SlotRule(iface); rule != nil {
-		return connc.checkSlotRule(rule, false)
+		return connc.checkSlotRule(kind, rule, false)
 	}
 	return nil
 }
 
-// TODO: CheckAutoConnect()
+// Check checks whether the connection is allowed.
+func (connc *ConnectCandidate) Check() error {
+	return connc.check("connection")
+}
+
+// Check checks whether the connection is allowed to auto-connect.
+func (connc *ConnectCandidate) CheckAutoConnect() error {
+	return connc.check("auto-connection")
+}

@@ -70,6 +70,19 @@ plugs:
     allow-connection:
       slot-publisher-id:
         - $PLUG_PUBLISHER_ID
+  auto-base-plug-allow: true
+  auto-base-plug-not-allow:
+    allow-auto-connection: false
+  auto-base-plug-not-allow-slots:
+    allow-auto-connection:
+      slot-attributes:
+        s: S
+  auto-base-plug-not-allow-plugs:
+    allow-auto-connection:
+      plug-attributes:
+        p: P
+  auto-base-plug-deny:
+    deny-auto-connection: true
   install-plug-attr-ok:
     allow-installation:
       plug-attributes:
@@ -107,6 +120,22 @@ slots:
     allow-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+  auto-base-slot-allow: true
+  auto-base-slot-not-allow:
+    allow-auto-connection: false
+  auto-base-slot-not-allow-slots:
+    allow-auto-connection:
+      slot-attributes:
+        s: S
+  auto-base-slot-not-allow-plugs:
+    allow-auto-connection:
+      plug-attributes:
+        p: P
+  auto-base-slot-deny:
+    deny-auto-connection: true
+  auto-base-deny-snap-slot-allow: false
+  auto-base-deny-snap-plug-allow: false
+  auto-base-allow-snap-slot-not-allow: true
   install-slot-coreonly:
     allow-installation:
       slot-snap-type:
@@ -149,6 +178,18 @@ plugs:
    base-slot-not-allow-plugs:
    base-slot-deny:
 
+   auto-base-plug-allow:
+   auto-base-plug-not-allow:
+   auto-base-plug-not-allow-slots:
+   auto-base-plug-not-allow-plugs:
+   auto-base-plug-deny:
+
+   auto-base-slot-allow:
+   auto-base-slot-not-allow:
+   auto-base-slot-not-allow-slots:
+   auto-base-slot-not-allow-plugs:
+   auto-base-slot-deny:
+
    snap-plug-allow:
    snap-plug-not-allow:
    snap-plug-deny:
@@ -162,6 +203,20 @@ plugs:
    base-allow-snap-slot-not-allow:
 
    snap-slot-deny-snap-plug-allow:
+
+   auto-snap-plug-allow:
+   auto-snap-plug-not-allow:
+   auto-snap-plug-deny:
+
+   auto-snap-slot-allow:
+   auto-snap-slot-not-allow:
+   auto-snap-slot-deny:
+
+   auto-base-deny-snap-slot-allow:
+   auto-base-deny-snap-plug-allow:
+   auto-base-allow-snap-slot-not-allow:
+
+   auto-snap-slot-deny-snap-plug-allow:
 
    gadgethelp:
    trustedhelp:
@@ -194,6 +249,18 @@ slots:
    base-slot-not-allow-plugs:
    base-slot-deny:
 
+   auto-base-plug-allow:
+   auto-base-plug-not-allow:
+   auto-base-plug-not-allow-slots:
+   auto-base-plug-not-allow-plugs:
+   auto-base-plug-deny:
+
+   auto-base-slot-allow:
+   auto-base-slot-not-allow:
+   auto-base-slot-not-allow-slots:
+   auto-base-slot-not-allow-plugs:
+   auto-base-slot-deny:
+
    snap-plug-allow:
    snap-plug-not-allow:
    snap-plug-deny:
@@ -207,6 +274,20 @@ slots:
    base-allow-snap-slot-not-allow:
 
    snap-slot-deny-snap-plug-allow:
+
+   auto-snap-plug-allow:
+   auto-snap-plug-not-allow:
+   auto-snap-plug-deny:
+
+   auto-snap-slot-allow:
+   auto-snap-slot-not-allow:
+   auto-snap-slot-deny:
+
+   auto-base-deny-snap-slot-allow:
+   auto-base-deny-snap-plug-allow:
+   auto-base-allow-snap-slot-not-allow:
+
+   auto-snap-slot-deny-snap-plug-allow:
 
    trustedhelp:
 
@@ -247,6 +328,13 @@ plugs:
       slot-publisher-id:
         - slot-publisher
         - $PLUG_PUBLISHER_ID
+  auto-snap-plug-allow: true
+  auto-snap-plug-deny: false
+  auto-snap-plug-not-allow:
+    allow-auto-connection: false
+  auto-snap-slot-deny-snap-plug-allow:
+    deny-auto-connection: false
+  auto-base-deny-snap-plug-allow: true
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -278,6 +366,15 @@ slots:
     allow-connection:
       plug-publisher-id:
         - plug-publisher
+  auto-snap-slot-allow: true
+  auto-snap-slot-deny: false
+  auto-snap-slot-not-allow:
+    allow-auto-connection: false
+  auto-base-deny-snap-slot-allow: true
+  auto-snap-slot-deny-snap-plug-allow:
+    deny-auto-connection: true
+  auto-base-allow-snap-slot-not-allow:
+    allow-auto-connection: false
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -319,6 +416,7 @@ func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 	}
 
 	c.Check(cand.Check(), IsNil)
+	c.Check(cand.CheckAutoConnect(), IsNil)
 }
 
 func (s *policySuite) TestInterfaceMismatch(c *C) {
@@ -364,6 +462,39 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 	}
 }
 
+func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
+	tests := []struct {
+		iface    string
+		expected string // "" => no error
+	}{
+		{"auto-base-plug-allow", ""},
+		{"auto-base-plug-deny", `auto-connection denied by plug rule of interface "auto-base-plug-deny"`},
+		{"auto-base-plug-not-allow", `auto-connection not allowed by plug rule of interface "auto-base-plug-not-allow"`},
+		{"auto-base-slot-allow", ""},
+		{"auto-base-slot-deny", `auto-connection denied by slot rule of interface "auto-base-slot-deny"`},
+		{"auto-base-slot-not-allow", `auto-connection not allowed by slot rule of interface "auto-base-slot-not-allow"`},
+		{"auto-base-plug-not-allow-slots", `auto-connection not allowed.*`},
+		{"auto-base-slot-not-allow-slots", `auto-connection not allowed.*`},
+		{"auto-base-plug-not-allow-plugs", `auto-connection not allowed.*`},
+		{"auto-base-slot-not-allow-plugs", `auto-connection not allowed.*`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:            s.plugSnap.Plugs[t.iface],
+			Slot:            s.slotSnap.Slots[t.iface],
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err := cand.CheckAutoConnect()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
 func (s *policySuite) TestSnapDeclAllowDenyConnection(c *C) {
 	tests := []struct {
 		iface    string
@@ -392,6 +523,42 @@ func (s *policySuite) TestSnapDeclAllowDenyConnection(c *C) {
 		}
 
 		err := cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestSnapDeclAllowDenyAutoConnection(c *C) {
+	tests := []struct {
+		iface    string
+		expected string // "" => no error
+	}{
+		{"random", ""},
+		{"auto-snap-plug-allow", ""},
+		{"auto-snap-plug-deny", `auto-connection denied by plug rule of interface "auto-snap-plug-deny" for "plug-snap" snap`},
+		{"auto-snap-plug-not-allow", `auto-connection not allowed by plug rule of interface "auto-snap-plug-not-allow" for "plug-snap" snap`},
+		{"auto-snap-slot-allow", ""},
+		{"auto-snap-slot-deny", `auto-connection denied by slot rule of interface "auto-snap-slot-deny" for "slot-snap" snap`},
+		{"auto-snap-slot-not-allow", `auto-connection not allowed by slot rule of interface "auto-snap-slot-not-allow" for "slot-snap" snap`},
+		{"auto-base-deny-snap-slot-allow", ""},
+		{"auto-base-deny-snap-plug-allow", ""},
+		{"auto-snap-slot-deny-snap-plug-allow", ""},
+		{"auto-base-allow-snap-slot-not-allow", `auto-connection not allowed.*`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                s.plugSnap.Plugs[t.iface],
+			Slot:                s.slotSnap.Slots[t.iface],
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+			BaseDeclaration:     s.baseDecl,
+		}
+
+		err := cand.CheckAutoConnect()
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
