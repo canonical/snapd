@@ -8,7 +8,7 @@ restore: |
     rm -rf /home/mvo
 execute: |
     echo "Adding valid user"
-    expected='Created user "mvo" and imported SSH keys.'
+    expected='created user "mvo"'
     output=$(snap create-user --sudoer mvo@ubuntu.com)
     if [ "$output" != "$expected" ]; then
         echo "Unexpected output $output"
@@ -22,7 +22,7 @@ execute: |
 
 
     echo "Adding invalid user"
-    expected='error: bad user result: cannot create user "nosuchuser@example.com"'
+    expected='error: while creating user: cannot create user "nosuchuser@example.com"'
     if output=$(snap create-user nosuchuser@example.com); then
         echo "snap create-user should fail for unknown users but it did not"
         exit 1
