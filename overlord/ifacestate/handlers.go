@@ -237,7 +237,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = m.repo.Connect(*connRef)
+	err = m.repo.Connect(connRef)
 	if err != nil {
 		return err
 	}
