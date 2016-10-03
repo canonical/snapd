@@ -41,10 +41,16 @@ $ snap connect <snap>:<plug> <snap>:<slot>
 
 Connects the provided plug to the given slot.
 
+$ snap connect <snap>:<plug> <snap>
+
+Connects the specific plug to the only slot in the provided snap that matches
+the connected interface. If more than one potential slot exists, the command
+fails.
+
 $ snap connect <snap>:<plug>
 
-Connects the provided plug to the slot in the OS snap
-with a name matching the plug name.
+Connects the provided plug to the slot in the OS snap with a name matching
+the plug name.
 `)
 
 func init() {

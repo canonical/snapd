@@ -267,6 +267,8 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
+// If the slot snap name is empty, the core snap is used to resolve the slot name.
+// If the slot name is empty, it's automatically resolved if unambiguous, or an error is returned if ambiguous.
 func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName string) (*PlugRef, *SlotRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -280,21 +282,18 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	var slot *Slot
 	// connect the plug to slot with matching interface if slot is omitted
 	if slotName == "" {
-		// connect OS snap if snap name is omitted
+		// connect OS snap if slot snap name is omitted
 		if slotSnapName == "" {
 			for _, slots := range r.slots {
 				for _, s := range slots {
-					if s.Snap.Type == snap.TypeOS && s.Interface == plug.Interface {
-						if slot != nil {
-							return nil, nil, fmt.Errorf("cannot connect plug %q from snap %q to snap %q, too many matching slots", plugName, plugSnapName, slotSnapName)
-						}
-						slot = s
-						slotName = s.Name
+					if s.Snap.Type == snap.TypeOS {
 						slotSnapName = s.Snap.Name()
+						break
 					}
 				}
 			}
-		} else {
+		}
+		if slotSnapName != "" {
 			for _, s := range r.slots[slotSnapName] {
 				if s.Interface == plug.Interface {
 					if slot != nil {
