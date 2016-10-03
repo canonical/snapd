@@ -232,21 +232,24 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connRef := &interfaces.ConnRef{PlugRef: *plugRef, SlotRef: *slotRef}
-	err = m.repo.Connect(connRef)
-
+	connRef, err := m.repo.ResolveConnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
 	if err != nil {
 		return err
 	}
 
-	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+	err = m.repo.Connect(connRef)
+	if err != nil {
 		return err
 	}
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
+		return err
+	}
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
@@ -257,7 +260,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
+	conns[connRef.ID()] = connState{Interface: plug.Interface}
 	setConns(st, conns)
 
 	return nil
