@@ -413,7 +413,7 @@ func (r *Repository) unlockedResolveDisconnectAll(snapName, plugOrSlotName strin
 		}
 		// Check if plugOrSlotName actually maps to anything
 		if len(conns) == 0 {
-			return nil, fmt.Errorf("cannot resolve disconnect, snap %q does not have plug or slot named %q", snapName, plugOrSlotName)
+			return nil, fmt.Errorf("snap %q has no plug or slot name %q", snapName, plugOrSlotName)
 		}
 	}
 	return conns, nil
