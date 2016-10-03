@@ -481,3 +481,16 @@ func BaseDeclaration(s *state.State) (*asserts.BaseDeclaration, error) {
 	}
 	return baseDecl, nil
 }
+
+// SnapDeclaration returns the snap-declaration for the given snap-id if it is present in the system assertion database.
+func SnapDeclaration(s *state.State, snapID string) (*asserts.SnapDeclaration, error) {
+	db := DB(s)
+	a, err := db.Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  release.Series,
+		"snap-id": snapID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return a.(*asserts.SnapDeclaration), nil
+}
