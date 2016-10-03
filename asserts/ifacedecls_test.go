@@ -479,7 +479,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstrain
 		"allow-connection": map[string]interface{}{
 			"slot-snap-type":    []interface{}{"core", "kernel", "gadget", "app"},
 			"slot-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
-			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"},
+			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -487,7 +487,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstrain
 	cstrs := rule.AllowConnection
 	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
 	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
-	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"})
+	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"})
 
 }
 
@@ -702,7 +702,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstrain
 		"allow-connection": map[string]interface{}{
 			"plug-snap-type":    []interface{}{"core", "kernel", "gadget", "app"},
 			"plug-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
-			"plug-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"},
+			"plug-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -710,7 +710,7 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstrain
 	cstrs := rule.AllowConnection
 	c.Check(cstrs.PlugSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
 	c.Check(cstrs.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
-	c.Check(cstrs.PlugPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"})
+	c.Check(cstrs.PlugPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"})
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
