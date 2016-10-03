@@ -62,7 +62,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 
 	})
 
-	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-imports.assert")
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
 	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
 	c.Assert(err, IsNil)
 
@@ -77,6 +77,6 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
-	c.Check(s.Stderr(), Equals, fmt.Sprintf("acked %q\n", fakeAssertsFn))
+	c.Check(s.Stderr(), Equals, fmt.Sprintf("imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 }
