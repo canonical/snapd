@@ -357,55 +357,86 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	return conns, result, nil
 }
 
-// DisconnectAll disconnects everything from a given snap and plug or slot.
-func (r *Repository) DisconnectAll(snapName, plugOrSlotName string) (severed []ConnRef, affectedSnaps []string, _ error) {
+// ResolveDisconnectAll finds all of the connections that would be disconnected by DisconnectAll()
+func (r *Repository) ResolveDisconnectAll(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var conns []ConnRef
-	var snaps map[string]*snap.Info
-	var err error
+	return r.unlockedResolveDisconnectAll(snapName, plugOrSlotName)
+}
 
+func (r *Repository) unlockedResolveDisconnectAll(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	if snapName == "" {
-		// TODO: teach the repository about the OS snap
-		snapName = "ubuntu-core"
+		// Look up the core snap if no snap name was given
+		switch {
+		case r.slots["core"] != nil:
+			snapName = "core"
+		case r.slots["ubuntu-core"] != nil:
+			snapName = "ubuntu-core"
+		default:
+			return nil, fmt.Errorf("cannot resolve disconnect, snap name is empty")
+		}
 	}
-
 	var conns []ConnRef
+	if plugOrSlotName == "" {
+		// "wildcard" mode, affect all the plugs or slots in this snap
+		for _, plug := range r.plugs[snapName] {
+			for _, slotRef := range plug.Connections {
+				connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
+				conns = append(conns, connRef)
+			}
+		}
+		for _, slot := range r.slots[snapName] {
+			for _, plugRef := range slot.Connections {
+				connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
+				conns = append(conns, connRef)
+			}
+		}
+	} else {
+		// Precise mode, affect specific plug or slot in this snap
+		if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
+			for _, slotRef := range plug.Connections {
+				connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
+				conns = append(conns, connRef)
+			}
+		}
+		if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
+			for _, plugRef := range slot.Connections {
+				connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
+				conns = append(conns, connRef)
+			}
+		}
+		// Check if plugOrSlotName actually maps to anything
+		if len(conns) == 0 {
+			return nil, fmt.Errorf("cannot resolve disconnect, snap %q does not have plug or slot named %q", snapName, plugOrSlotName)
+		}
+	}
+	return conns, nil
+}
+
+// DisconnectAll disconnects all of the given connections, returning the list of affected snap names.
+func (r *Repository) DisconnectAll(conns []ConnRef) []string {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	// Sever all the connections, keeping track of affected snaps
 	snaps := make(map[string]bool)
-	d := func(plug *Plug, slot *Slot) {
-		r.disconnect(plug, slot)
-		snaps[plug.Snap.Name()] = true
-		snaps[slot.Snap.Name()] = true
-		conns = append(conns, ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()})
-	}
-	if slot := r.slots[snapName][plugOrSlotName]; slot != nil {
-		for plug := range r.slotPlugs[slot] {
-			d(plug, slot)
+	for _, conn := range conns {
+		plug := r.plugs[conn.PlugRef.Snap][conn.PlugRef.Name]
+		slot := r.slots[conn.SlotRef.Snap][conn.SlotRef.Name]
+		if plug != nil && slot != nil {
+			snaps[plug.Snap.Name()] = true
+			snaps[slot.Snap.Name()] = true
+			r.disconnect(plug, slot)
 		}
 	}
-	if plug := r.plugs[snapName][plugOrSlotName]; plug != nil {
-		for slot := range r.plugSlots[plug] {
-			d(plug, slot)
-		}
-	}
-	return conns, snaps, nil
-
-
-	if err != nil {
-		return nil, nil, err
-	}
-	// Flatten map of snaps into a sorted list
+	// Flatten map of affected snaps into a sorted list
 	names := make([]string, 0, len(snaps))
 	for snapName := range snaps {
 		names = append(names, snapName)
 	}
 	sort.Strings(names)
-	result := make([]*snap.Info, 0, len(snaps))
-	for _, snapName := range names {
-		result = append(result, snaps[snapName])
-	}
-	return conns, affected, nil
+	return names
 }
 
 func (r *Repository) disconnectPlugOrSlot(snapName, plugOrSlotName string) ([]ConnRef, map[string]*snap.Info, error) {
