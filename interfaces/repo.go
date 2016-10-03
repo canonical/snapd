@@ -265,6 +265,71 @@ func (r *Repository) RemoveSlot(snapName, slotName string) error {
 	return nil
 }
 
+// ResolveConnect resolves potentially missing plug or slot names and returns a
+// fully populated connection reference.
+func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotName string) (*ConnRef, error) {
+	r.m.Lock()
+	defer r.m.Unlock()
+
+	if plugSnapName == "" {
+		return nil, fmt.Errorf("cannot resolve connection, plug snap name is empty")
+	}
+	if plugName == "" {
+		return nil, fmt.Errorf("cannot resolve connection, plug name is empty")
+	}
+	// Ensure that such plug exists
+	plug := r.plugs[plugSnapName][plugName]
+	if plug == nil {
+		return nil, fmt.Errorf("cannot resolve connection, plug %q from snap %q, no such plug", plugName, plugSnapName)
+	}
+
+	if slotSnapName == "" {
+		// Use the core snap if the slot-side snap name is empty
+		switch {
+		case r.slots["core"] != nil:
+			slotSnapName = "core"
+		case r.slots["ubuntu-core"] != nil:
+			slotSnapName = "ubuntu-core"
+		default:
+			// XXX: perhaps this should not be an error and instead it should
+			// silently assume "core" now?
+			return nil, fmt.Errorf("cannot resolve connection, slot snap name is empty")
+		}
+	}
+	if slotName == "" {
+		// Find the unambiguous slot that satisfies plug requirements
+		var candidates []string
+		for candidateSlotName, candidateSlot := range r.slots[slotSnapName] {
+			// TODO: use some smarter matching (e.g. against $attrs)
+			if candidateSlot.Interface == plug.Interface {
+				candidates = append(candidates, candidateSlotName)
+			}
+		}
+		switch len(candidates) {
+		case 0:
+			return nil, fmt.Errorf("cannot resolve connection, slot name is empty and there are no valid candidates")
+		case 1:
+			slotName = candidates[0]
+		default:
+			return nil, fmt.Errorf("cannot resolve connection, more than one slot is a valid candidate")
+		}
+	}
+
+	// Ensure that such slot exists
+	slot := r.slots[slotSnapName][slotName]
+	if slot == nil {
+		return nil, fmt.Errorf("cannot resolve connection, slot %q from snap %q, no such slot", slotName, slotSnapName)
+	}
+	// Ensure that plug and slot are compatible
+	// XXX: should we do this or should this be only done in Connect?
+	if slot.Interface != plug.Interface {
+		return nil, fmt.Errorf(`cannot resolve connection, plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
+	}
+	conn := &ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()}
+	return conn, nil
+}
+
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
 // If the slot snap name is empty, the core snap is used to resolve the slot name.

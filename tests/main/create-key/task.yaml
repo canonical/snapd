@@ -1,9 +1,6 @@
 summary: Checks for snap create-key
 
-systems: [-ubuntu-core-16-64]
-
-restore: |
-    rm -rf $HOME/.snap/gnupg
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 prepare: |
     echo "setup fake gpg pinentry environment"
@@ -33,9 +30,6 @@ prepare: |
     echo pinentry-program /tmp/pinentry-fake > /root/.snap/gnupg/gpg-agent.conf
 
 execute: |
-    # Test is broken: http://paste.ubuntu.com/23217619/
-    exit 0
-
     echo "Checking passphrase mismatch error"
     expect -d -f passphrase_mismatch.exp
 
