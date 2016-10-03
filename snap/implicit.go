@@ -56,7 +56,6 @@ var implicitSlots = []string{
 	"tpm",
 	"kernel-module-control",
 	"camera",
-	"autopilot-introspection",
 }
 
 var implicitClassicSlots = []string{
