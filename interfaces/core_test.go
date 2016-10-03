@@ -83,3 +83,12 @@ func (s *CoreSuite) TestSlotRef(c *C) {
 	c.Check(ref.Snap, Equals, "producer")
 	c.Check(ref.Name, Equals, "slot")
 }
+
+// ConnRef.ID works as expected
+func (s *CoreSuite) TestConnRefID(c *C) {
+	conn := &ConnRef{
+		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Check(conn.ID(), Equals, "consumer:plug producer:slot")
+}
