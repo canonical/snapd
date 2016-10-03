@@ -33,6 +33,9 @@ const systemTraceConnectedPlugAppArmor = `
   capability sys_admin,
   capability sys_resource,
 
+  # Enable ptrace from/to a peer in the same profile.
+  ptrace (trace, tracedby) peer=snap.@{SNAP_NAME}.**,
+
   # For kernel probes, etc
   /sys/kernel/debug/kprobes/ r,
   /sys/kernel/debug/kprobes/** r,

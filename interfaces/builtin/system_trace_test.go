@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type SystemTraceInterfaceSuite struct {
@@ -83,6 +84,7 @@ func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, interfaces.SecurityAppArmor)
 	c.Assert(err, IsNil)
 	c.Assert(snippet, Not(IsNil))
+	c.Assert(string(snippet), testutil.Contains, `ptrace (trace, tracedby) peer=snap.@{SNAP_NAME}.**`)
 }
 
 func (s *SystemTraceInterfaceSuite) TestAutoConnect(c *C) {
