@@ -245,7 +245,7 @@ func (c *AttributeConstraints) Check(attrs map[string]interface{}) error {
 
 var (
 	validSnapType  = regexp.MustCompile("^(?:core|kernel|gadget|app)$")
-	validSnapID    = regexp.MustCompile("^[a-z0-9A-Z]{32}$")                                             // snap-ids look like this
+	validSnapID    = regexp.MustCompile("^[a-z0-9A-Z]{32}$")                                        // snap-ids look like this
 	validPublisher = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[A-Z][A-Z0-9_]*)$") // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
 
 	validIDConstraints = map[string]*regexp.Regexp{
