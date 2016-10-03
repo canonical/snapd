@@ -4,6 +4,7 @@ restore: |
     rm -f nextBoot
 execute: |
     . "$TESTSLIB/names.sh"
+    . "$TESTSLIB/boot.sh"
 
     wait_boot_ok() {
         echo "Waiting for boot-ok to finish"
@@ -15,13 +16,8 @@ execute: |
     }
     check_boot() {
         # debug output
-        if command -v grub-editenv >/dev/null; then
-            grub-editenv list
-            grub-editenv list | grep "snap_core=${core_name}_$(cat nextBoot).snap"
-        else
-            fw_printenv
-            fw_printenv snap_core | grep "snap_core=${core_name}_$(cat nextBoot).snap"
-        fi
+        bootenv
+        test "$(bootenv snap_core)" = "${core_name}_$(cat nextBoot).snap"
     }
     store_next_boot() {
         snap list|grep ${core_name}|tr -s " "|cut -f3 -d' ' > nextBoot
@@ -66,9 +62,6 @@ execute: |
     if [ "$SPREAD_REBOOT" = "4" ]; then
         wait_boot_ok
         check_boot
-        if command -v grub-editenv >/dev/null; then
-            grub-editenv list | grep "snap_core=${core_name}_$(cat firstBoot).snap"
-        else
-            fw_printenv snap_core | grep "snap_core=${core_name}_$(cat firstBoot).snap"
-        fi
+
+        test "$(bootenv snap_core)" = "${core_name}_$(cat firstBoot).snap"
     fi

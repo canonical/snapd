@@ -17,14 +17,14 @@ update_core_snap_with_snap_exec_snapctl() {
     # Now unpack the core, inject the new snap-exec and snapctl into it, and
     # repack it.
     unsquashfs "$snap"
-    cp -v /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
-    cp -v /usr/bin/snapctl squashfs-root/usr/bin/
-    mv -v "$snap" "${snap}.orig"
+    cp /usr/lib/snapd/snap-exec squashfs-root/usr/lib/snapd/
+    cp /usr/bin/snapctl squashfs-root/usr/bin/
+    mv "$snap" "${snap}.orig"
     mksquashfs squashfs-root "$snap" -comp xz
     rm -rf squashfs-root
 
     # Now mount the new core snap
-    mount --verbose "$snap" "$core"
+    mount "$snap" "$core"
 
     # Make sure we're running with the correct snap-exec
     if ! cmp /usr/lib/snapd/snap-exec ${core}/usr/lib/snapd/snap-exec; then
@@ -91,7 +91,7 @@ setup_reflash_magic() {
         # needs to be under /home because ubuntu-device-flash
         # uses snap-confine and that will hide parts of the hostfs
         IMAGE_HOME=/home/image
-        mkdir -pv $IMAGE_HOME
+        mkdir -p $IMAGE_HOME
 
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
@@ -99,7 +99,7 @@ setup_reflash_magic() {
         unsquashfs -d $UNPACKD /var/lib/snapd/snaps/core_*.snap
 
         # FIXME: netplan workaround
-        mkdir -pv $UNPACKD/etc/netplan
+        mkdir -p $UNPACKD/etc/netplan
 
         # set root pw by concating root line from host and rest from core
         want_pw="$(grep ^root /etc/shadow)"
@@ -161,19 +161,19 @@ EOF
         # test keys and not the bundled version of usr/bin/snap from the snap.
         # Note that we can not put it into /usr/bin as '/usr' is different
         # when the snap uses confinement.
-        cp -v /usr/bin/snap $IMAGE_HOME
+        cp /usr/bin/snap $IMAGE_HOME
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
         /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
         # FIXME: hardcoded mapper location, parse from kpartx
-        mount --verbose /dev/mapper/loop2p3 /mnt
+        mount /dev/mapper/loop2p3 /mnt
         mkdir -p /mnt/user-data/
-        cp -arv /home/gopath /mnt/user-data/
+        cp -ar /home/gopath /mnt/user-data/
 
         # create test user home dir
-        mkdir -pv /mnt/user-data/test
+        mkdir -p /mnt/user-data/test
         # using symbolic names requires test:test have the same ids
         # inside and outside which is a pain (see 12345 above), but
         # using the ids directly is the wrong kind of fragile
@@ -182,19 +182,19 @@ EOF
         # we do what sync-dirs is normally doing on boot, but because
         # we have subdirs/files in /etc/systemd/system (created below)
         # the writeable-path sync-boot won't work
-        mkdir -pv /mnt/system-data/etc/systemd
+        mkdir -p /mnt/system-data/etc/systemd
         (cd /tmp ; unsquashfs -v $IMAGE_HOME/core_*.snap etc/systemd/system)
         cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 
         # FIXUP silly systemd
-        mkdir -pv /mnt/system-data/etc/systemd/system/snapd.service.d
+        mkdir -p /mnt/system-data/etc/systemd/system/snapd.service.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.service.d/local.conf
 [Unit]
 StartLimitInterval=0
 [Service]
 Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
 EOF
-        mkdir -pv /mnt/system-data/etc/systemd/system/snapd.socket.d
+        mkdir -p /mnt/system-data/etc/systemd/system/snapd.socket.d
         cat <<EOF > /mnt/system-data/etc/systemd/system/snapd.socket.d/local.conf
 [Unit]
 StartLimitInterval=0
@@ -234,7 +234,6 @@ EOF
 prepare_all_snap() {
     # we are still a "classic" image, prepare the surgery
     if [ -e /var/lib/dpkg/status ]; then
-        tune2fs /dev/sda -m 0
         setup_reflash_magic
         REBOOT
     fi
@@ -250,7 +249,7 @@ prepare_all_snap() {
 
     echo "Ensure fundamental snaps are still present"
     . $TESTSLIB/names.sh
-    for name in $gadget_name $kernel_name core; do
+    for name in $gadget_name $kernel_name $core_name; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
