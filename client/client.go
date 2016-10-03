@@ -382,9 +382,10 @@ type CreateUserResult struct {
 // empty then all such assertions are considered and multiple users may
 // be created.
 type CreateUserOptions struct {
-	Email  string `json:"email,omitempty"`
-	Sudoer bool   `json:"sudoer,omitempty"`
-	Known  bool   `json:"known,omitempty"`
+	Email        string `json:"email,omitempty"`
+	Sudoer       bool   `json:"sudoer,omitempty"`
+	Known        bool   `json:"known,omitempty"`
+	ForceManaged bool   `json:"force-managed,omitempty"`
 }
 
 // CreateUser creates a local system user. See CreateUserOptions for details.
