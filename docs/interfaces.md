@@ -251,6 +251,11 @@ filesystem area.
     * write (slot): read-write paths from providing snap to expose to the consuming snap
     * target (plug): path in consuming snap to find providing snap's files
 
+The all of the three attributes can start with either ``$SNAP``, ``$SNAP_DATA``
+or ``$SNAP_COMMON`` to refer to the designated directory. By default, if no
+other variable is used then ``$SNAP`` is implicitly assumed. This is the same
+syntax that was used when the content interface was originally introduced.
+
 ### cups-control
 
 Can access cups control socket which gives privileged access to configure
