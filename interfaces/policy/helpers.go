@@ -55,7 +55,7 @@ func checkID(kind, id string, ids []string, special map[string]string) error {
 	for _, cand := range ids {
 		if strings.HasPrefix(cand, "$") {
 			cand = special[cand]
-			if cand == "" {
+			if cand == "" { // we ignore unknown special "ids"
 				continue
 			}
 		}
@@ -80,7 +80,7 @@ func checkPlugConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Plug
 		return err
 	}
 	err := checkID("publisher id", connc.slotPublisherID(), cstrs.SlotPublisherIDs, map[string]string{
-		"$plug_publisher_id": connc.plugPublisherID(),
+		"$PLUG_PUBLISHER_ID": connc.plugPublisherID(),
 	})
 	if err != nil {
 		return err
@@ -102,7 +102,7 @@ func checkSlotConnectionConstraints(connc *ConnectCandidate, cstrs *asserts.Slot
 		return err
 	}
 	err := checkID("publisher id", connc.plugPublisherID(), cstrs.PlugPublisherIDs, map[string]string{
-		"$slot_publisher_id": connc.slotPublisherID(),
+		"$SLOT_PUBLISHER_ID": connc.slotPublisherID(),
 	})
 	if err != nil {
 		return err
