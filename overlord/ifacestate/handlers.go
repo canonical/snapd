@@ -232,7 +232,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	plugRef, slotRef, err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	connRef := &interfaces.ConnRef{PlugRef: *plugRef, SlotRef: *slotRef}
+	err = m.repo.Connect(connRef)
+
 	if err != nil {
 		return err
 	}

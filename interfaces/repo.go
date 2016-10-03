@@ -332,65 +332,34 @@ func (r *Repository) ResolveConnect(plugSnapName, plugName, slotSnapName, slotNa
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-// If the slot snap name is empty, the core snap is used to resolve the slot name.
-// If the slot name is empty, it's automatically resolved if unambiguous, or an error is returned if ambiguous.
-func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName string) (*PlugRef, *SlotRef, error) {
+func (r *Repository) Connect(ref *ConnRef) error {
 	r.m.Lock()
 	defer r.m.Unlock()
+
+	plugSnapName := ref.PlugRef.Snap
+	plugName := ref.PlugRef.Name
+	slotSnapName := ref.SlotRef.Snap
+	slotName := ref.SlotRef.Name
 
 	// Ensure that such plug exists
 	plug := r.plugs[plugSnapName][plugName]
 	if plug == nil {
-		return nil, nil, fmt.Errorf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)
+		return fmt.Errorf("cannot connect plug %q from snap %q, no such plug", plugName, plugSnapName)
 	}
-
-	var slot *Slot
-	// connect the plug to slot with matching interface if slot is omitted
-	if slotName == "" {
-		// connect OS snap if slot snap name is omitted
-		if slotSnapName == "" {
-			for _, slots := range r.slots {
-				for _, s := range slots {
-					if s.Snap.Type == snap.TypeOS {
-						slotSnapName = s.Snap.Name()
-						break
-					}
-				}
-			}
-		}
-		if slotSnapName != "" {
-			for _, s := range r.slots[slotSnapName] {
-				if s.Interface == plug.Interface {
-					if slot != nil {
-						return nil, nil, fmt.Errorf("cannot connect plug %q from snap %q to snap %q, too many matching slots", plugName, plugSnapName, slotSnapName)
-					}
-					slot = s
-					slotName = s.Name
-				}
-			}
-		}
-	} else {
-		slot = r.slots[slotSnapName][slotName]
-	}
-
 	// Ensure that such slot exists
+	slot := r.slots[slotSnapName][slotName]
 	if slot == nil {
-		return nil, nil, fmt.Errorf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)
+		return fmt.Errorf("cannot connect plug to slot %q from snap %q, no such slot", slotName, slotSnapName)
 	}
-
 	// Ensure that plug and slot are compatible
 	if slot.Interface != plug.Interface {
-		return nil, nil, fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
+		return fmt.Errorf(`cannot connect plug "%s:%s" (interface %q) to "%s:%s" (interface %q)`,
 			plugSnapName, plugName, plug.Interface, slotSnapName, slotName, slot.Interface)
 	}
-
-	plugref := PlugRef{plugSnapName, plugName}
-	slotref := SlotRef{slotSnapName, slotName}
-
 	// Ensure that slot and plug are not connected yet
 	if r.slotPlugs[slot][plug] {
 		// But if they are don't treat this as an error.
-		return &plugref, &slotref, nil
+		return nil
 	}
 	// Connect the plug
 	if r.slotPlugs[slot] == nil {
@@ -403,8 +372,7 @@ func (r *Repository) Connect(plugSnapName, plugName, slotSnapName, slotName stri
 	r.plugSlots[plug][slot] = true
 	slot.Connections = append(slot.Connections, PlugRef{plug.Snap.Name(), plug.Name})
 	plug.Connections = append(plug.Connections, SlotRef{slot.Snap.Name(), slot.Name})
-
-	return &plugref, &slotref, nil
+	return nil
 }
 
 // Disconnect disconnects the named plug from the slot of the given snap.

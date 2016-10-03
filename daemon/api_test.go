@@ -2612,7 +2612,11 @@ func (s *apiSuite) TestInterfaces(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	repo.Connect("consumer", "plug", "producer", "slot")
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Assert(repo.Connect(connRef), check.IsNil)
 
 	req, err := http.NewRequest("GET", "/v2/interfaces", nil)
 	c.Assert(err, check.IsNil)
@@ -2864,7 +2868,11 @@ func (s *apiSuite) TestDisconnectPlugSuccess(c *check.C) {
 	s.mockSnap(c, producerYaml)
 
 	repo := d.overlord.InterfaceManager().Repository()
-	repo.Connect("consumer", "plug", "producer", "slot")
+	connRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
+	}
+	c.Assert(repo.Connect(connRef), check.IsNil)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
