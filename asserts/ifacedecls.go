@@ -366,6 +366,16 @@ func baseCompileRule(context string, rule interface{}, target rule, subrules []s
 	return nil
 }
 
+type whichConnectionConstraints int
+
+// Selectors to use with GetConnectionConstraints
+const (
+	ConstraintsAllowConnection whichConnectionConstraints = iota
+	ConstraintsDenyConnection
+	ConstraintsAllowAutoConnection
+	ConstraintsDenyAutoConnection
+)
+
 // PlugRule holds the rule of what is allowed, wrt installation and
 // connection, for a plug of a specific interface for a snap.
 type PlugRule struct {
@@ -379,6 +389,21 @@ type PlugRule struct {
 
 	AllowAutoConnection *PlugConnectionConstraints
 	DenyAutoConnection  *PlugConnectionConstraints
+}
+
+// GetConnectionConstraints returns the rule's PlugConnectionConstraints identified by one of the Constraints* selectors (for example ConstraintsAllowAutoConnection)
+func (r *PlugRule) GetConnectionConstraints(which whichConnectionConstraints) *PlugConnectionConstraints {
+	switch which {
+	case ConstraintsAllowConnection:
+		return r.AllowConnection
+	case ConstraintsDenyConnection:
+		return r.DenyConnection
+	case ConstraintsAllowAutoConnection:
+		return r.AllowAutoConnection
+	case ConstraintsDenyAutoConnection:
+		return r.DenyAutoConnection
+	}
+	panic(fmt.Sprintf("internal error: unknown whichConnectionConstraints selector: %d", which))
 }
 
 func (r *PlugRule) setConstraints(field string, cstrs constraintsHolder) {
@@ -553,6 +578,21 @@ type SlotRule struct {
 
 	AllowAutoConnection *SlotConnectionConstraints
 	DenyAutoConnection  *SlotConnectionConstraints
+}
+
+// GetConnectionConstraints returns the rule's PlugConnectionConstraints identified by one of the Constraints* selectors (for example ConstraintsAllowAutoConnection)
+func (r *SlotRule) GetConnectionConstraints(which whichConnectionConstraints) *SlotConnectionConstraints {
+	switch which {
+	case ConstraintsAllowConnection:
+		return r.AllowConnection
+	case ConstraintsDenyConnection:
+		return r.DenyConnection
+	case ConstraintsAllowAutoConnection:
+		return r.AllowAutoConnection
+	case ConstraintsDenyAutoConnection:
+		return r.DenyAutoConnection
+	}
+	panic(fmt.Sprintf("internal error: unknown whichConnectionConstraints selector: %d", which))
 }
 
 func (r *SlotRule) setConstraints(field string, cstrs constraintsHolder) {
