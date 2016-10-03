@@ -524,7 +524,7 @@ func (s *RepositorySuite) TestResolveConnectExplicit(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "slot")
 	c.Check(err, IsNil)
-	c.Check(conn, DeepEquals, &ConnRef{
+	c.Check(conn, Equals, ConnRef{
 		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
 	})
@@ -543,7 +543,7 @@ slots:
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, IsNil)
-	c.Check(conn, DeepEquals, &ConnRef{
+	c.Check(conn, Equals, ConnRef{
 		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: SlotRef{Snap: "core", Name: "slot"},
 	})
@@ -562,7 +562,7 @@ slots:
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, IsNil)
-	c.Check(conn, DeepEquals, &ConnRef{
+	c.Check(conn, Equals, ConnRef{
 		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: SlotRef{Snap: "ubuntu-core", Name: "slot"},
 	})
@@ -605,8 +605,8 @@ slots:
 	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "")
-	c.Check(err, ErrorMatches, "cannot resolve connection, slot name is empty and there are no valid candidates")
-	c.Check(conn, IsNil)
+	c.Check(err, ErrorMatches, `snap "core" has no "interface" interface slots`)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // ResolveConnect detects ambiguities when slot snap name is empty
@@ -624,29 +624,29 @@ slots:
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "")
-	c.Check(err, ErrorMatches, "cannot resolve connection, more than one slot is a valid candidate")
-	c.Check(conn, IsNil)
+	c.Check(err, ErrorMatches, `snap "core" has multiple "interface" interface slots: slot-a, slot-b`)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Pug snap name cannot be empty
 func (s *RepositorySuite) TestResolveConnectEmptyPlugSnapName(c *C) {
 	conn, err := s.testRepo.ResolveConnect("", "plug", "producer", "slot")
 	c.Check(err, ErrorMatches, "cannot resolve connection, plug snap name is empty")
-	c.Check(conn, IsNil)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Plug name cannot be empty
 func (s *RepositorySuite) TestResolveConnectEmptyPlugName(c *C) {
 	conn, err := s.testRepo.ResolveConnect("consumer", "", "producer", "slot")
 	c.Check(err, ErrorMatches, "cannot resolve connection, plug name is empty")
-	c.Check(conn, IsNil)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Plug must exist
 func (s *RepositorySuite) TestResolveNoSuchPlug(c *C) {
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "consumer", "slot")
-	c.Check(err, ErrorMatches, `cannot resolve connection, plug "plug" from snap "consumer", no such plug`)
-	c.Check(conn, IsNil)
+	c.Check(err, ErrorMatches, `snap "consumer" has no plug named "plug"`)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Slot snap name cannot be empty if there's no core snap around
@@ -654,23 +654,23 @@ func (s *RepositorySuite) TestResolveConnectEmptySlotSnapName(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
 	c.Check(err, ErrorMatches, "cannot resolve connection, slot snap name is empty")
-	c.Check(conn, IsNil)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Slot name cannot be empty if there's no core snap around
 func (s *RepositorySuite) TestResolveConnectEmptySlotName(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "")
-	c.Check(err, ErrorMatches, "cannot resolve connection, slot name is empty and there are no valid candidates")
-	c.Check(conn, IsNil)
+	c.Check(err, ErrorMatches, `snap "producer" has no "interface" interface slots`)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Slot must exists
 func (s *RepositorySuite) TestResolveNoSuchSlot(c *C) {
 	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "slot")
-	c.Check(err, ErrorMatches, `cannot resolve connection, slot "slot" from snap "producer", no such slot`)
-	c.Check(conn, IsNil)
+	c.Check(err, ErrorMatches, `snap "producer" has no slot named "slot"`)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Plug and slot must have matching types
@@ -687,8 +687,9 @@ func (s *RepositorySuite) TestResolveIncompatibleTypes(c *C) {
 	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
 	// Connecting a plug to an incompatible slot fails with an appropriate error
 	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "slot")
-	c.Check(err, ErrorMatches, `cannot resolve connection, plug "consumer:plug" \(interface "other-interface"\) to "producer:slot" \(interface "interface"\)`)
-	c.Check(conn, IsNil)
+	c.Check(err, ErrorMatches,
+		`cannot connect consumer:plug \("other-interface" interface\) to producer:slot \("interface" interface\)`)
+	c.Check(conn, Equals, ConnRef{})
 }
 
 // Tests for Repository.Connect()
