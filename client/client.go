@@ -366,30 +366,90 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	return &sysInfo, nil
 }
 
-// CreateUserResult holds the result of a user creation
+// CreateUserResult holds the result of a user creation.
 type CreateUserResult struct {
-	Username    string `json:"username"`
-	SSHKeyCount int    `json:"ssh-key-count"`
+	Username string   `json:"username"`
+	SSHKeys  []string `json:"ssh-keys"`
 }
 
-// createUserRequest holds the user creation request
-type CreateUserRequest struct {
-	Email  string `json:"email"`
-	Sudoer bool   `json:"sudoer"`
-	Known  bool   `json:"known"`
+// CreateUserOptions holds options for creating a local system user.
+//
+// If Known is false, the provided email is used to query the store for
+// username and SSH key details.
+//
+// If Known is true, the user will be created by looking through existing
+// system-user assertions and looking for a matching email. If Email is
+// empty then all such assertions are considered and multiple users may
+// be created.
+type CreateUserOptions struct {
+	Email  string `json:"email,omitempty"`
+	Sudoer bool   `json:"sudoer,omitempty"`
+	Known  bool   `json:"known,omitempty"`
 }
 
-// CreateUser creates a user from the given mail address
-func (client *Client) CreateUser(request *CreateUserRequest) (*CreateUserResult, error) {
-	var createResult CreateUserResult
-	b, err := json.Marshal(request)
+// CreateUser creates a local system user. See CreateUserOptions for details.
+func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
+	if options.Email == "" {
+		return nil, fmt.Errorf("cannot create a user without providing an email")
+	}
+
+	var result CreateUserResult
+	data, err := json.Marshal(options)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(b), &createResult); err != nil {
-		return nil, fmt.Errorf("bad user result: %v", err)
+	if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
+		return nil, fmt.Errorf("while creating user: %v", err)
+	}
+	return &result, nil
+}
+
+// CreateUsers creates multiple local system users. See CreateUserOptions for details.
+//
+// Results may be provided even if there are errors.
+func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
+	for _, opts := range options {
+		if opts.Email == "" && !opts.Known {
+			return nil, fmt.Errorf("cannot create user from store details without an email to query for")
+		}
 	}
 
-	return &createResult, nil
+	var results []*CreateUserResult
+	var errs []error
+
+	for _, opts := range options {
+		data, err := json.Marshal(opts)
+		if err != nil {
+			return nil, err
+		}
+
+		if opts.Email == "" {
+			var result []*CreateUserResult
+			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
+				errs = append(errs, err)
+			} else {
+				results = append(results, result...)
+			}
+		} else {
+			var result *CreateUserResult
+			if _, err := client.doSync("POST", "/v2/create-user", nil, nil, bytes.NewReader(data), &result); err != nil {
+				errs = append(errs, err)
+			} else {
+				results = append(results, result)
+			}
+		}
+	}
+
+	if len(errs) == 1 {
+		return results, errs[0]
+	}
+	if len(errs) > 1 {
+		var buf bytes.Buffer
+		for _, err := range errs {
+			fmt.Fprintf(&buf, "\n- %s", err)
+		}
+		return results, fmt.Errorf("while creating users:%s", buf.Bytes())
+	}
+	return results, nil
 }
