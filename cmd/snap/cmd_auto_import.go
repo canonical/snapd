@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-const autoImportsName = "auto-imports.assert"
+const autoImportsName = "auto-import.assert"
 
 var mountInfoPath = "/proc/self/mountinfo"
 
@@ -77,15 +77,14 @@ func autoImportFromAllMounts() error {
 	added := 0
 	for _, cand := range cands {
 		if err := ackFile(cand); err != nil {
-			logger.Noticef("cannot import %q: %s\n", cand, err)
-			continue
+			logger.Noticef("error: cannot import %s: %s", cand, err)
+		} else {
+			logger.Noticef("imported %s", cand)
 		}
-		logger.Noticef("acked %q\n", cand)
-
 	}
 
-	// FIXME: once we have a way to know if a device is owned
-	//        do no longer call this unconditionally
+	// FIXME: once we have a way to know if a device is owned,
+	//        no longer call this unconditionally
 	if added > 0 {
 		// FIXME: run `snap create-users --known`
 	}
@@ -96,21 +95,21 @@ func autoImportFromAllMounts() error {
 func tryMount(deviceName string) (string, error) {
 	tmpMountTarget, err := ioutil.TempDir("", "snapd-auto-import-mount-")
 	if err != nil {
-		msg := "cannot create tmp mount point"
-		logger.Noticef(msg)
-		return "", fmt.Errorf(msg)
+		err = fmt.Errorf("cannot create temporary mount point: %v", err)
+		logger.Noticef("error: %v", err)
+		return "", err
 	}
 	// udev does not provide much environment ;)
 	if os.Getenv("PATH") == "" {
 		os.Setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin")
 	}
-	// not using syscall.Mount() because we don't know the fs type in
-	// advance
+	// not using syscall.Mount() because we don't know the fs type in advance
 	cmd := exec.Command("mount", "-o", "ro", "--make-private", deviceName, tmpMountTarget)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		msg := fmt.Sprintf("cannot mount %q: %s", deviceName, osutil.OutputErr(output, err))
-		logger.Panicf(msg)
-		return "", fmt.Errorf(msg)
+		os.Remove(tmpMountTarget)
+		err = fmt.Errorf("cannot mount %s: %s", deviceName, osutil.OutputErr(output, err))
+		logger.Noticef("error: %v", err)
+		return "", err
 	}
 
 	return tmpMountTarget, nil
@@ -125,9 +124,16 @@ func doUmount(mp string) error {
 
 type cmdAutoImport struct{}
 
-var shortAutoImportHelp = i18n.G("Imports assertions from mounted devices")
+var shortAutoImportHelp = i18n.G("Searches devices for actionable information")
 
-var longAutoImportHelp = i18n.G("The auto-import command imports assertions found in the auto-import.assert file in mounted devices.")
+var longAutoImportHelp = i18n.G(`
+The auto-import command searches available devices and mounts them looking
+for assertions that are signed by trusted authorities, and potentially
+performs system changes based on them.
+
+Imported assertions must be made available in the auto-import.assert file
+in the root of the filesystem.
+`)
 
 func init() {
 	cmd := addCommand("auto-import",
