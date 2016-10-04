@@ -120,7 +120,7 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: baz/3000\n", `"model" primary key header cannot contain '/'`},
 		// lift this restriction at a later point
-		{"model: baz-3000\n", "model: BAZ-3000\n", `"model" header contains invalid characters: "BAZ-3000"`},
+		{"model: baz-3000\n", "model: BAZ-3000\n", `"model" header cannot contain uppercase letters`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},

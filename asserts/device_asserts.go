@@ -22,6 +22,7 @@ package asserts
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -88,11 +89,18 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 var _ consistencyChecker = (*Model)(nil)
 
 // limit model to only lowercase for now
-// TODO: support the concept of case insensitive/preserving string headers
-var validModel = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
+var validModel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])*$")
 
 func checkModel(headers map[string]interface{}) (string, error) {
-	return checkStringMatches(headers, "model", validModel)
+	s, err := checkStringMatches(headers, "model", validModel)
+	if err != nil {
+		return "", err
+	}
+	// TODO: support the concept of case insensitive/preserving string headers
+	if strings.ToLower(s) != s {
+		return "", fmt.Errorf(`"model" header cannot contain uppercase letters`)
+	}
+	return s, nil
 }
 
 func checkAuthorityMatchesBrand(a Assertion) error {
