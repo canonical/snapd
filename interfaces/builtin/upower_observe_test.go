@@ -37,7 +37,7 @@ var _ = Suite(&UPowerObserveInterfaceSuite{
 	iface: builtin.NewUPowerObserveInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "upower-observe",
 			Interface: "upower-observe",
 		},

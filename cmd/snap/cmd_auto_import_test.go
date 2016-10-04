@@ -87,6 +87,9 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, `created user "foo"`+"\n")
-	c.Check(s.Stderr(), Equals, fmt.Sprintf("imported %s\n", fakeAssertsFn))
+	// matches because we may get a:
+	//   "WARNING: cannot create syslog logger\n"
+	// in the output
+	c.Check(s.Stderr(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 }

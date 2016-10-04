@@ -37,7 +37,7 @@ var _ = Suite(&SystemTraceInterfaceSuite{
 	iface: builtin.NewSystemTraceInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "system-trace",
 			Interface: "system-trace",
 		},
