@@ -80,6 +80,7 @@ func autoImportFromAllMounts() error {
 		if err := ackFile(cand); err != nil {
 			logger.Noticef("error: cannot import %s: %s", cand, err)
 		} else {
+			added += 1
 			logger.Noticef("imported %s", cand)
 		}
 	}

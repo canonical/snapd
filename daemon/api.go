@@ -77,6 +77,7 @@ var api = []*Command{
 	eventsCmd,
 	stateChangeCmd,
 	stateChangesCmd,
+	isManagedCmd,
 	createUserCmd,
 	buyCmd,
 	readyToBuyCmd,
@@ -176,7 +177,7 @@ var (
 		GET:    getChanges,
 	}
 
-	createUserCmd = &Command{
+	isManagedCmd = &Command{
 		Path:   "/v2/is-managed",
 		UserOK: true,
 		GET:    getIsManaged,
@@ -1730,6 +1731,10 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 
 		if err := osutilAddUser(username, opts); err != nil {
 			return InternalError("cannot add user %q: %s", username, err)
+		}
+
+		if err := setupLocalUser(st, username, email); err != nil {
+			return InternalError("%s", err)
 		}
 		createdUsers = append(createdUsers, createResponseData{
 			Username: username,
