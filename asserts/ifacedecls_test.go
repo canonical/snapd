@@ -403,12 +403,6 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleAllAllowDenyStanzas(c *C) {
 	c.Assert(rule.DenyAutoConnection, NotNil)
 	checkAttrs(c, rule.DenyAutoConnection.PlugAttributes, "pa6")
 	checkAttrs(c, rule.DenyAutoConnection.SlotAttributes, "sa6")
-
-	// accessors
-	c.Check(rule.AllowConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsAllowConnection))
-	c.Check(rule.DenyConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsDenyConnection))
-	c.Check(rule.AllowAutoConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsAllowAutoConnection))
-	c.Check(rule.DenyAutoConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsDenyAutoConnection))
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleShortcutTrue(c *C) {
@@ -632,12 +626,6 @@ func (s *plugSlotRulesSuite) TestCompileSlotRuleAllAllowDenyStanzas(c *C) {
 	c.Assert(rule.DenyAutoConnection, NotNil)
 	checkAttrs(c, rule.DenyAutoConnection.PlugAttributes, "pa6")
 	checkAttrs(c, rule.DenyAutoConnection.SlotAttributes, "sa6")
-
-	// accessors
-	c.Check(rule.AllowConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsAllowConnection))
-	c.Check(rule.DenyConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsDenyConnection))
-	c.Check(rule.AllowAutoConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsAllowAutoConnection))
-	c.Check(rule.DenyAutoConnection, Equals, rule.GetConnectionConstraints(asserts.ConstraintsDenyAutoConnection))
 }
 
 func (s *plugSlotRulesSuite) TestCompileSlotRuleShortcutTrue(c *C) {
