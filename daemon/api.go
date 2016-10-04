@@ -304,7 +304,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		user.StoreDischarges = []string{discharge}
 		err = auth.UpdateUser(state, user)
 	} else {
-		_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
 	state.Unlock()
 	if err != nil {
@@ -312,8 +312,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	result := loginResponseData{
-		Macaroon:   macaroon,
-		Discharges: []string{discharge},
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	return SyncResponse(result, nil)
 }
