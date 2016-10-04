@@ -21,6 +21,7 @@ package asserts
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 )
 
@@ -86,6 +87,14 @@ func (mod *Model) checkConsistency(db RODatabase, acck *AccountKey) error {
 // sanity
 var _ consistencyChecker = (*Model)(nil)
 
+// limit model to only lowercase for now
+// TODO: support the concept of case insensitive/preserving string headers
+var validModel = regexp.MustCompile("^[a-z0-9](?:-?[a-z0-9])*$")
+
+func checkModel(headers map[string]interface{}) (string, error) {
+	return checkStringMatches(headers, "model", validModel)
+}
+
 func checkAuthorityMatchesBrand(a Assertion) error {
 	typeName := a.Type().Name
 	authorityID := a.AuthorityID()
@@ -100,6 +109,11 @@ var modelMandatory = []string{"architecture", "gadget", "kernel"}
 
 func assembleModel(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -179,6 +193,11 @@ func (ser *Serial) Timestamp() time.Time {
 
 func assembleSerial(assert assertionBase) (Assertion, error) {
 	err := checkAuthorityMatchesBrand(&assert)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +289,7 @@ func assembleSerialRequest(assert assertionBase) (Assertion, error) {
 		return nil, err
 	}
 
-	_, err = checkNotEmptyString(assert.headers, "model")
+	_, err = checkModel(assert.headers)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +358,12 @@ func (req *DeviceSessionRequest) Timestamp() time.Time {
 }
 
 func assembleDeviceSessionRequest(assert assertionBase) (Assertion, error) {
-	_, err := checkNotEmptyString(assert.headers, "nonce")
+	_, err := checkModel(assert.headers)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = checkNotEmptyString(assert.headers, "nonce")
 	if err != nil {
 		return nil, err
 	}
