@@ -200,10 +200,9 @@ var (
 	unconstrained = []string{"core", "kernel", "gadget", "app"}
 
 	slotInstallation = map[string][]string{
-		// snowflakes
-		"docker": nil, // TODO: we want slots: docker: false
 		// unconstrained
 		"bluez":            unconstrained,
+		"docker":           unconstrained, // TODO: we want slots: docker: false
 		"fwupd":            unconstrained,
 		"location-control": unconstrained,
 		"location-observe": unconstrained,
