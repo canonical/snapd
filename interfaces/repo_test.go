@@ -1460,7 +1460,7 @@ plugs:
 		DeveloperID: developer,
 	})
 	slotSnap := snaptest.MockInfo(c, `
-name: ubuntu-core
+name: core
 type: os
 slots:
   restricted:
@@ -1491,7 +1491,7 @@ func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted", livePatchPolicyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "restricted")
 }
@@ -1501,7 +1501,7 @@ func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted", livePatchPolicyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
 }
@@ -1511,7 +1511,7 @@ func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "someone-else")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted", livePatchPolicyCheck)
 	c.Assert(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
 }
