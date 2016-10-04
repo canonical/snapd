@@ -4,6 +4,8 @@ systems: [-ubuntu-core-16-64]
 restore: |
     rm -f test-snapd-tools_*.snap
 execute: |
+    export PATH=/usr/lib/go-1.6/bin:${PATH}
+
     echo "Get the snap"
     snap download test-snapd-tools
 

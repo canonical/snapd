@@ -153,6 +153,7 @@ ifeq ($(RELEASE),trusty)
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.firstboot.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.firstboot.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.boot-ok.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.boot-ok.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service
+	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/sockets.target.wants/snapd.service
 endif
 
 override_dh_auto_install: snap.8
