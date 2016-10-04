@@ -102,8 +102,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 				Structure: []snap.VolumeStructure{
 					{
 						Label:       "system-boot",
-						Offset:      12345,
-						OffsetWrite: 777,
+						Offset:      "12345",
+						OffsetWrite: "777",
 						Size:        "88888",
 						Type:        "id,guid",
 						ID:          "id,guid",
@@ -116,8 +116,8 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 							},
 							{
 								Image:       "foo.img",
-								Offset:      4321,
-								OffsetWrite: 8888,
+								Offset:      "4321",
+								OffsetWrite: "8888",
 								Size:        "88888",
 								Unpack:      false,
 							},
