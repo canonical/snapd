@@ -235,9 +235,13 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
+	connRef, err := m.repo.ResolveConnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
+	}
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	if plug == nil {
-		return fmt.Errorf("snap %q has no %q plug", plugRef.Snap, plugRef.Name)
+		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
 	}
 	var plugDecl *asserts.SnapDeclaration
 	if plug.Snap.SnapID != "" {
@@ -248,9 +252,9 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	if slot == nil {
-		return fmt.Errorf("snap %q has no %q slot", slotRef.Snap, slotRef.Name)
+		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
 	}
 	var slotDecl *asserts.SnapDeclaration
 	if slot.Snap.SnapID != "" {
@@ -280,18 +284,18 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	connRef := interfaces.ConnRef{PlugRef: *plugRef, SlotRef: *slotRef}
 	err = m.repo.Connect(connRef)
 	if err != nil {
 		return err
 	}
 
 	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
 		return err
 	}
+
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
@@ -302,7 +306,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
+	conns[connRef.ID()] = connState{Interface: plug.Interface}
 	setConns(st, conns)
 
 	return nil

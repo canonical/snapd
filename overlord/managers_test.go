@@ -150,7 +150,8 @@ func (ms *mgrsSuite) makePopulatedState(c *C) {
 	defer st.Unlock()
 
 	snapstate.Set(st, "not-firstboot", &snapstate.SnapState{
-		Active: true,
+		Active:   true,
+		SnapType: "app",
 		Sequence: []*snap.SideInfo{
 			{RealName: "not-firstboot", SnapID: "some-snap-id", Revision: snap.R(1)},
 		},

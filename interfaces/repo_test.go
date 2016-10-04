@@ -517,6 +517,181 @@ func (s *RepositorySuite) TestRemoveSlotFailsWhenSlotIsConnected(c *C) {
 	c.Assert(slot, Not(IsNil))
 }
 
+// Tests for Repository.ResolveConnect()
+
+func (s *RepositorySuite) TestResolveConnectExplicit(c *C) {
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "slot")
+	c.Check(err, IsNil)
+	c.Check(conn, Equals, ConnRef{
+		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	})
+}
+
+// ResolveConnect uses the "core" snap when slot snap name is empty
+func (s *RepositorySuite) TestResolveConnectImplicitCoreSlot(c *C) {
+	coreSnap := snaptest.MockInfo(c, `
+name: core
+type: os
+slots:
+    slot:
+        interface: interface
+`, nil)
+	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
+	c.Check(err, IsNil)
+	c.Check(conn, Equals, ConnRef{
+		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: SlotRef{Snap: "core", Name: "slot"},
+	})
+}
+
+// ResolveConnect uses the "ubuntu-core" snap when slot snap name is empty
+func (s *RepositorySuite) TestResolveConnectImplicitUbuntuCoreSlot(c *C) {
+	ubuntuCoreSnap := snaptest.MockInfo(c, `
+name: ubuntu-core
+type: os
+slots:
+    slot:
+        interface: interface
+`, nil)
+	c.Assert(s.testRepo.AddSnap(ubuntuCoreSnap), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
+	c.Check(err, IsNil)
+	c.Check(conn, Equals, ConnRef{
+		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: SlotRef{Snap: "ubuntu-core", Name: "slot"},
+	})
+}
+
+// ResolveConnect prefers the "core" snap if (by any chance) both are available
+func (s *RepositorySuite) TestResolveConnectImplicitSlotPrefersCore(c *C) {
+	coreSnap := snaptest.MockInfo(c, `
+name: core
+type: os
+slots:
+    slot:
+        interface: interface
+`, nil)
+	ubuntuCoreSnap := snaptest.MockInfo(c, `
+name: ubuntu-core
+type: os
+slots:
+    slot:
+        interface: interface
+`, nil)
+	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
+	c.Assert(s.testRepo.AddSnap(ubuntuCoreSnap), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
+	c.Check(err, IsNil)
+	c.Check(conn.SlotRef.Snap, Equals, "core")
+}
+
+// ResolveConnect detects lack of candidates
+func (s *RepositorySuite) TestResolveConnectNoImplicitCandidates(c *C) {
+	err := s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"})
+	coreSnap := snaptest.MockInfo(c, `
+name: core
+type: os
+slots:
+    slot:
+        interface: other-interface
+`, nil)
+	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "")
+	c.Check(err, ErrorMatches, `snap "core" has no "interface" interface slots`)
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// ResolveConnect detects ambiguities when slot snap name is empty
+func (s *RepositorySuite) TestResolveConnectAmbiguity(c *C) {
+	coreSnap := snaptest.MockInfo(c, `
+name: core
+type: os
+slots:
+    slot-a:
+        interface: interface
+    slot-b:
+        interface: interface
+`, nil)
+	c.Assert(s.testRepo.AddSnap(coreSnap), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "")
+	c.Check(err, ErrorMatches, `snap "core" has multiple "interface" interface slots: slot-a, slot-b`)
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// Pug snap name cannot be empty
+func (s *RepositorySuite) TestResolveConnectEmptyPlugSnapName(c *C) {
+	conn, err := s.testRepo.ResolveConnect("", "plug", "producer", "slot")
+	c.Check(err, ErrorMatches, "cannot resolve connection, plug snap name is empty")
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// Plug name cannot be empty
+func (s *RepositorySuite) TestResolveConnectEmptyPlugName(c *C) {
+	conn, err := s.testRepo.ResolveConnect("consumer", "", "producer", "slot")
+	c.Check(err, ErrorMatches, "cannot resolve connection, plug name is empty")
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// Plug must exist
+func (s *RepositorySuite) TestResolveNoSuchPlug(c *C) {
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "consumer", "slot")
+	c.Check(err, ErrorMatches, `snap "consumer" has no plug named "plug"`)
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// Slot snap name cannot be empty if there's no core snap around
+func (s *RepositorySuite) TestResolveConnectEmptySlotSnapName(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "", "slot")
+	c.Check(err, ErrorMatches, "cannot resolve connection, slot snap name is empty")
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// Slot name cannot be empty if there's no core snap around
+func (s *RepositorySuite) TestResolveConnectEmptySlotName(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "")
+	c.Check(err, ErrorMatches, `snap "producer" has no "interface" interface slots`)
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// Slot must exists
+func (s *RepositorySuite) TestResolveNoSuchSlot(c *C) {
+	c.Assert(s.testRepo.AddPlug(s.plug), IsNil)
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "slot")
+	c.Check(err, ErrorMatches, `snap "producer" has no slot named "slot"`)
+	c.Check(conn, Equals, ConnRef{})
+}
+
+// Plug and slot must have matching types
+func (s *RepositorySuite) TestResolveIncompatibleTypes(c *C) {
+	c.Assert(s.testRepo.AddInterface(&TestInterface{InterfaceName: "other-interface"}), IsNil)
+	plug := &Plug{
+		PlugInfo: &snap.PlugInfo{
+			Snap:      &snap.Info{SuggestedName: "consumer"},
+			Name:      "plug",
+			Interface: "other-interface",
+		},
+	}
+	c.Assert(s.testRepo.AddPlug(plug), IsNil)
+	c.Assert(s.testRepo.AddSlot(s.slot), IsNil)
+	// Connecting a plug to an incompatible slot fails with an appropriate error
+	conn, err := s.testRepo.ResolveConnect("consumer", "plug", "producer", "slot")
+	c.Check(err, ErrorMatches,
+		`cannot connect consumer:plug \("other-interface" interface\) to producer:slot \("interface" interface\)`)
+	c.Check(conn, Equals, ConnRef{})
+}
+
 // Tests for Repository.Connect()
 
 func (s *RepositorySuite) TestConnectFailsWhenPlugDoesNotExist(c *C) {
@@ -1273,7 +1448,7 @@ plugs:
 		DeveloperID: developer,
 	})
 	slotSnap := snaptest.MockInfo(c, `
-name: ubuntu-core
+name: core
 type: os
 slots:
   restricted:
@@ -1297,7 +1472,7 @@ func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
 	c.Check(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "restricted")
 }
@@ -1307,7 +1482,7 @@ func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
 	c.Check(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
 }
@@ -1317,7 +1492,7 @@ func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "someone-else")
 	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
 	c.Check(candidateSlots, HasLen, 1)
-	c.Check(candidateSlots[0].Snap.Name(), Equals, "ubuntu-core")
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
 }

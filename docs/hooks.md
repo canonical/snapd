@@ -68,3 +68,38 @@ echo "user=$username" > $SNAP_DATA/credentials
 echo "password=$password" >> $SNAP_DATA/credentials
 chmod 600 $SNAP_DATA/credentials
 ```
+
+### `prepare-device` (gadget hook)
+
+The optional `prepare-device` hook will be called on the gadget if
+present at the start fo the device initialisation process, once the
+device has first booted and the gadget snap has been installed. The
+hook will also be called if this process is retried later from scratch
+in case of initialisation failures.
+
+The device initialisation process is for example responsible of
+setting the serial indentification of the device through an exchange
+with a device service. The `prepare-device` hook can for example
+redirect this exchange and dynamically set options relevant to it.
+
+#### `prepare-device` example
+
+```bash
+#!/bin/sh
+
+# optionally set the url of the service
+snapctl set device-service.url="https://device-service"
+# set optional extra HTTP headers for requests to the service
+snapctl set device-service.headers='{"token": "TOKEN"}'
+
+# set an optional proposed serial identifier, depending on the service
+# this can end up being ignored;
+# this might need to be obtained dynamically
+snapctl set registration.proposed-serial="DEVICE-SERIAL"
+
+# optionally pass details of the device as the body of registration request,
+# the body is text, typically YAML;
+# this might need to be obtained dynamically
+snapctl set registration.body='mac: "00:00:00:00:ff:00"'
+
+```

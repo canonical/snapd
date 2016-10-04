@@ -97,9 +97,11 @@ func generateMacaroonKey() ([]byte, error) {
 	return key, nil
 }
 
+const snapdMacaroonLocation = "snapd"
+
 // newUserMacaroon returns a snapd macaroon for the given username
 func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
-	userMacaroon, err := macaroon.New(macaroonKey, strconv.Itoa(userID), "snapd")
+	userMacaroon, err := macaroon.New(macaroonKey, strconv.Itoa(userID), snapdMacaroonLocation)
 	if err != nil {
 		return "", fmt.Errorf("cannot create macaroon for snapd user: %s", err)
 	}
@@ -274,6 +276,35 @@ func CheckMacaroon(st *state.State, macaroon string, discharges []string) (*User
 		return nil, ErrInvalidAuth
 	}
 
+	snapdMacaroon, err := MacaroonDeserialize(macaroon)
+	if err != nil {
+		return nil, ErrInvalidAuth
+	}
+	// attempt snapd macaroon verification
+	if snapdMacaroon.Location() == snapdMacaroonLocation {
+		// no caveats to check so far
+		check := func(caveat string) error { return nil }
+		// ignoring discharges, unused for snapd macaroons atm
+		err = snapdMacaroon.Verify(authStateData.MacaroonKey, check, nil)
+		if err != nil {
+			return nil, ErrInvalidAuth
+		}
+		macaroonID := snapdMacaroon.Id()
+		userID, err := strconv.Atoi(macaroonID)
+		if err != nil {
+			return nil, ErrInvalidAuth
+		}
+		user, err := User(st, userID)
+		if err != nil {
+			return nil, ErrInvalidAuth
+		}
+		if macaroon != user.Macaroon {
+			return nil, ErrInvalidAuth
+		}
+		return user, nil
+	}
+
+	// if macaroon is not a snapd macaroon, fallback to previous token-style check
 NextUser:
 	for _, user := range authStateData.Users {
 		if user.Macaroon != macaroon {

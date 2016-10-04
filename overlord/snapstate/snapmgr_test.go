@@ -3112,37 +3112,50 @@ func (s *snapmgrQuerySuite) TestActiveInfos(c *C) {
 	c.Check(infos[0].Description(), Equals, "Lots of text")
 }
 
-func (s *snapmgrQuerySuite) TestGadgetInfo(c *C) {
+func (s *snapmgrQuerySuite) TestTypeInfo(c *C) {
 	st := s.st
 	st.Lock()
 	defer st.Unlock()
 
-	_, err := snapstate.GadgetInfo(st)
-	c.Assert(err, Equals, state.ErrNoState)
+	for _, x := range []struct {
+		snapName string
+		snapType snap.Type
+		getInfo  func(*state.State) (*snap.Info, error)
+	}{
+		{
+			snapName: "gadget",
+			snapType: snap.TypeGadget,
+			getInfo:  snapstate.GadgetInfo,
+		},
+		{
+			snapName: "core",
+			snapType: snap.TypeOS,
+			getInfo:  snapstate.CoreInfo,
+		},
+	} {
+		_, err := x.getInfo(st)
+		c.Assert(err, Equals, state.ErrNoState)
 
-	sideInfoGadget := &snap.SideInfo{
-		RealName: "gadget",
-		Revision: snap.R(2),
+		sideInfo := &snap.SideInfo{
+			RealName: x.snapName,
+			Revision: snap.R(2),
+		}
+		snaptest.MockSnap(c, fmt.Sprintf("name: %q\ntype: %q\nversion: %q\n", x.snapName, x.snapType, x.snapName), sideInfo)
+		snapstate.Set(st, x.snapName, &snapstate.SnapState{
+			SnapType: string(x.snapType),
+			Active:   true,
+			Sequence: []*snap.SideInfo{sideInfo},
+			Current:  sideInfo.Revision,
+		})
+
+		info, err := x.getInfo(st)
+		c.Assert(err, IsNil)
+
+		c.Check(info.Name(), Equals, x.snapName)
+		c.Check(info.Revision, Equals, snap.R(2))
+		c.Check(info.Version, Equals, x.snapName)
+		c.Check(info.Type, Equals, x.snapType)
 	}
-	snaptest.MockSnap(c, `
-name: gadget
-type: gadget
-version: gadget
-`, sideInfoGadget)
-	snapstate.Set(st, "gadget", &snapstate.SnapState{
-		SnapType: "gadget",
-		Active:   true,
-		Sequence: []*snap.SideInfo{sideInfoGadget},
-		Current:  sideInfoGadget.Revision,
-	})
-
-	info, err := snapstate.GadgetInfo(st)
-	c.Assert(err, IsNil)
-
-	c.Check(info.Name(), Equals, "gadget")
-	c.Check(info.Revision, Equals, snap.R(2))
-	c.Check(info.Version, Equals, "gadget")
-	c.Check(info.Type, Equals, snap.TypeGadget)
 }
 
 func (s *snapmgrQuerySuite) TestPreviousSideInfo(c *C) {

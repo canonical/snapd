@@ -3,7 +3,7 @@ systems: [-ubuntu-core-16-64, -ubuntu-core-16-device-amd64, -ubuntu-core-16-arm-
 restore: |
     rm -f /var/tmp/myevil.txt
 execute: |
-    . $TESTSLIB/apt.sh
+    . "$TESTSLIB/apt.sh"
 
     echo Install previous version...
     apt-get install -y snapd
@@ -37,8 +37,10 @@ execute: |
     echo Hello > /var/tmp/myevil.txt
     test-snapd-tools.cat /var/tmp/myevil.txt && exit 1 || true
 
+    . "$TESTSLIB/names.sh"
+
     echo Check migrating to types in state
-    coreType=$(jq -r '.data.snaps["ubuntu-core"].type' /var/lib/snapd/state.json)
+    coreType=$(jq -r '.data.snaps["'${core_name}'"].type' /var/lib/snapd/state.json)
     testSnapType=$(jq -r '.data.snaps["test-snapd-tools"].type' /var/lib/snapd/state.json)
     [ "$coreType" = "os" ]
     [ "$testSnapType" = "app" ]

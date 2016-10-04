@@ -62,7 +62,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 
 	})
 
-	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-imports.assert")
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
 	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
 	c.Assert(err, IsNil)
 
@@ -77,6 +77,9 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
 	c.Check(s.Stdout(), Equals, "")
-	c.Check(s.Stderr(), Equals, fmt.Sprintf("acked %q\n", fakeAssertsFn))
+	// matches because we may get a:
+	//   "WARNING: cannot create syslog logger\n"
+	// in the output
+	c.Check(s.Stderr(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 }

@@ -10,9 +10,9 @@ update_core_snap_with_snap_exec_snapctl() {
     # shove the new snap-exec and snapctl in there, and repack it.
 
     # First of all, unmount the core
-    core="$(readlink -f /snap/ubuntu-core/current)"
+    core="$(readlink -f /snap/core/current || readlink -f /snap/ubuntu-core/current)"
     snap="$(mount | grep " $core" | awk '{print $1}')"
-    umount "$core"
+    umount --verbose "$core"
 
     # Now unpack the core, inject the new snap-exec and snapctl into it, and
     # repack it.
@@ -47,7 +47,7 @@ prepare_classic() {
         ! snap list | grep core || exit 1
         # FIXME: go back to stable once we have a stable release with
         #        the snap-exec fix
-        snap install --candidate ubuntu-core
+        snap install --candidate core
         snap list | grep core
 
         echo "Ensure that the grub-editenv list output is empty on classic"
@@ -81,8 +81,9 @@ setup_reflash_magic() {
         # install the stuff we need
         apt-get install -y kpartx busybox-static
         apt_install_local ${SPREAD_PATH}/../snapd_*.deb
+        apt-get clean
 
-        snap install --edge ubuntu-core
+        snap install --edge core
 
         # install ubuntu-image
         snap install --devmode --edge ubuntu-image
@@ -94,8 +95,8 @@ setup_reflash_magic() {
 
         # modify the core snap so that the current root-pw works there
         # for spread to do the first login
-        UNPACKD="/tmp/ubuntu-core-snap"
-        unsquashfs -d $UNPACKD /var/lib/snapd/snaps/ubuntu-core_*.snap
+        UNPACKD="/tmp/core-snap"
+        unsquashfs -d $UNPACKD /var/lib/snapd/snaps/core_*.snap
 
         # FIXME: netplan workaround
         mkdir -p $UNPACKD/etc/netplan
@@ -112,7 +113,9 @@ setup_reflash_magic() {
         fi
 
         # we need the test user in the image
-        chroot $UNPACKD adduser --quiet --no-create-home --disabled-password --gecos '' test
+        # see the comment in spread.yaml about 12345
+        chroot $UNPACKD addgroup --quiet --gid 12345 test
+        chroot $UNPACKD adduser --quiet --no-create-home --uid 12345 --gid 12345 --disabled-password --gecos '' test
         echo 'test ALL=(ALL) NOPASSWD:ALL' >> $UNPACKD/etc/sudoers.d/99-test-user
 
         # modify sshd so that we can connect as root
@@ -160,7 +163,7 @@ EOF
         # when the snap uses confinement.
         cp /usr/bin/snap $IMAGE_HOME
         export UBUNTU_IMAGE_SNAP_CMD=$IMAGE_HOME/snap
-        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/ubuntu-core_*.snap  --output $IMAGE_HOME/$IMAGE
+        /snap/bin/ubuntu-image -w $IMAGE_HOME $IMAGE_HOME/pc.model --channel edge --extra-snaps $IMAGE_HOME/core_*.snap  --output $IMAGE_HOME/$IMAGE
 
         # mount fresh image and add all our SPREAD_PROJECT data
         kpartx -avs $IMAGE_HOME/$IMAGE
@@ -171,13 +174,16 @@ EOF
 
         # create test user home dir
         mkdir -p /mnt/user-data/test
-        chown 1000:1000 /mnt/user-data/test
+        # using symbolic names requires test:test have the same ids
+        # inside and outside which is a pain (see 12345 above), but
+        # using the ids directly is the wrong kind of fragile
+        chown --verbose test:test /mnt/user-data/test
 
         # we do what sync-dirs is normally doing on boot, but because
         # we have subdirs/files in /etc/systemd/system (created below)
         # the writeable-path sync-boot won't work
         mkdir -p /mnt/system-data/etc/systemd
-        (cd /tmp ; unsquashfs -v $IMAGE_HOME/ubuntu-core_*.snap etc/systemd/system)
+        (cd /tmp ; unsquashfs -v $IMAGE_HOME/core_*.snap etc/systemd/system)
         cp -avr /tmp/squashfs-root/etc/systemd/system /mnt/system-data/etc/systemd/
 
         # FIXUP silly systemd
@@ -249,7 +255,7 @@ prepare_all_snap() {
  
     echo "Ensure fundamental snaps are still present"
     . $TESTSLIB/names.sh
-    for name in $gadget_name $kernel_name ubuntu-core; do
+    for name in $gadget_name $kernel_name $core_name; do
         if ! snap list | grep $name; then
             echo "Not all fundamental snaps are available, all-snap image not valid"
             echo "Currently installed snaps"
