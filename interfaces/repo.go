@@ -379,54 +379,44 @@ func (r *Repository) Connect(ref ConnRef) error {
 
 // Disconnect disconnects the named plug from the slot of the given snap.
 //
-// Disconnect has three modes of operation that depend on the passed arguments:
-//
-// - If all the arguments are specified then Disconnect() finds a specific slot
-//   and a specific plug and disconnects that plug from that slot. It is
-//   an error if plug or slot cannot be found or if the connect does not
-//   exist.
-// - If plugSnapName and plugName are empty then Disconnect() finds the specified
-//   slot and disconnects all the plugs connected there. It is not an error if
-//   there are no such plugs but it is still an error if the slot does
-//   not exist.
-// - If plugSnapName, plugName and slotName are all empty then Disconnect finds
-//   the specified snap (designated by slotSnapName) and disconnects all the plugs
-//   from all the slots found therein. It is not an error if there are no
-//   such plugs but it is still an error if the snap does not exist or has no
-//   slots at all.
-//
-// Disconnect returns the list of severed connections, the list of affected snaps
-// and an error if one occurred.
-func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) ([]ConnRef, []*snap.Info, error) {
+// Disconnect() finds a specific slot and a specific plug and disconnects that
+// plug from that slot. It is an error if plug or slot cannot be found or if
+// the connect does not exist.
+func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName string) error {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	var conns []ConnRef
-	var snaps map[string]*snap.Info
-	var err error
-
-	switch {
-	case plugSnapName == "" && plugName == "":
-		// Disconnect everything from either slot or plug
-		conns, snaps, err = r.disconnectPlugOrSlot(slotSnapName, slotName)
-	default:
-		conns, snaps, err = r.disconnectPlugFromSlot(plugSnapName, plugName, slotSnapName, slotName)
+	// Sanity check
+	if plugSnapName == "" {
+		return fmt.Errorf("cannot disconnect, plug snap name is empty")
+	}
+	if plugName == "" {
+		return fmt.Errorf("cannot disconnect, plug name is empty")
+	}
+	if slotSnapName == "" {
+		return fmt.Errorf("cannot disconnect, slot snap name is empty")
+	}
+	if slotName == "" {
+		return fmt.Errorf("cannot disconnect, slot name is empty")
 	}
 
-	if err != nil {
-		return nil, nil, err
+	// Ensure that such plug exists
+	plug := r.plugs[plugSnapName][plugName]
+	if plug == nil {
+		return fmt.Errorf("snap %q has no plug named %q", plugSnapName, plugName)
 	}
-	// Flatten map of snaps into a sorted list
-	names := make([]string, 0, len(snaps))
-	for snapName := range snaps {
-		names = append(names, snapName)
+	// Ensure that such slot exists
+	slot := r.slots[slotSnapName][slotName]
+	if slot == nil {
+		return fmt.Errorf("snap %q has no slot named %q", slotSnapName, slotName)
 	}
-	sort.Strings(names)
-	result := make([]*snap.Info, 0, len(snaps))
-	for _, snapName := range names {
-		result = append(result, snaps[snapName])
+	// Ensure that slot and plug are connected
+	if !r.slotPlugs[slot][plug] {
+		return fmt.Errorf("cannot disconnect %s:%s from %s:%s, it is not connected",
+			plugSnapName, plugName, slotSnapName, slotName)
 	}
-	return conns, result, nil
+	r.disconnect(plug, slot)
+	return nil
 }
 
 // Connected returns references for all connections that are currently
@@ -482,67 +472,6 @@ func (r *Repository) DisconnectAll(conns []ConnRef) {
 			r.disconnect(plug, slot)
 		}
 	}
-}
-
-func (r *Repository) disconnectPlugOrSlot(snapName, plugOrSlotName string) ([]ConnRef, map[string]*snap.Info, error) {
-	if snapName == "" {
-		// TODO: teach the repository about the OS snap
-		snapName = "ubuntu-core"
-	}
-
-	if r.slots[snapName][plugOrSlotName] == nil && r.plugs[snapName][plugOrSlotName] == nil {
-		err := fmt.Errorf("cannot disconnect plug or slot %q from snap %q, no such plug/slot", plugOrSlotName, snapName)
-		return nil, nil, err
-	}
-
-	var conns []ConnRef
-	snaps := make(map[string]*snap.Info)
-	d := func(plug *Plug, slot *Slot) {
-		r.disconnect(plug, slot)
-		snaps[plug.Snap.Name()] = plug.Snap
-		snaps[slot.Snap.Name()] = slot.Snap
-		conns = append(conns, ConnRef{PlugRef: plug.Ref(), SlotRef: slot.Ref()})
-	}
-	if slot := r.slots[snapName][plugOrSlotName]; slot != nil {
-		for plug := range r.slotPlugs[slot] {
-			d(plug, slot)
-		}
-	}
-	if plug := r.plugs[snapName][plugOrSlotName]; plug != nil {
-		for slot := range r.plugSlots[plug] {
-			d(plug, slot)
-		}
-	}
-	return conns, snaps, nil
-}
-
-// disconnectPlugFromSlot finds a specific plug slot and plug and disconnects it.
-func (r *Repository) disconnectPlugFromSlot(plugSnapName, plugName, slotSnapName, slotName string) ([]ConnRef, map[string]*snap.Info, error) {
-	// Ensure that such plug exists
-	plug := r.plugs[plugSnapName][plugName]
-	if plug == nil {
-		err := fmt.Errorf("cannot disconnect plug %q from snap %q, no such plug", plugName, plugSnapName)
-		return nil, nil, err
-	}
-	// Ensure that such slot exists
-	slot := r.slots[slotSnapName][slotName]
-	if slot == nil {
-		err := fmt.Errorf("cannot disconnect plug from slot %q from snap %q, no such slot", slotName, slotSnapName)
-		return nil, nil, err
-	}
-	// Ensure that slot and plug are connected
-	if !r.slotPlugs[slot][plug] {
-		err := fmt.Errorf("cannot disconnect plug %q from snap %q from slot %q from snap %q, it is not connected",
-			plugName, plugSnapName, slotName, slotSnapName)
-		return nil, nil, err
-	}
-	r.disconnect(plug, slot)
-	conns := []ConnRef{{PlugRef: plug.Ref(), SlotRef: slot.Ref()}}
-	snaps := map[string]*snap.Info{
-		plug.Snap.Name(): plug.Snap,
-		slot.Snap.Name(): slot.Snap,
-	}
-	return conns, snaps, nil
 }
 
 // disconnect disconnects a plug from a slot.
