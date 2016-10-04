@@ -42,6 +42,11 @@ test_snapctl_get_foo() {
 	fi
 }
 
+test_exit_one() {
+	echo "Failing as requested."
+	exit 1
+}
+
 case $command in
 	'""')
 		;;
@@ -53,6 +58,9 @@ case $command in
 		;;
 	'"test-snapctl-get-foo"')
 		test_snapctl_get_foo
+		;;
+	'"test-exit-one"')
+		test_exit_one
 		;;
 	*)
 		echo "Invalid command: '$command'"
