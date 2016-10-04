@@ -87,7 +87,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	// - restore connections based on what is kept in the state
 	//   - if a connection cannot be restored then remove it from the state
 	// - setup the security of all the affected snaps
-	blacklist := m.repo.AutoConnectBlacklist(snapName)
+	//blacklist := m.repo.AutoConnectBlacklist(snapName)
 	affectedSnaps, err := m.repo.DisconnectSnap(snapName)
 	if err != nil {
 		return err
@@ -107,7 +107,7 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.reloadConnections(snapName); err != nil {
 		return err
 	}
-	if err := m.autoConnect(task, snapName, blacklist); err != nil {
+	if err := m.autoConnect(task, snapName, nil); err != nil {
 		return err
 	}
 	if err := setupSnapSecurity(task, snapInfo, ss.DevModeAllowed(), m.repo); err != nil {

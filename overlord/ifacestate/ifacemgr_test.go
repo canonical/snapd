@@ -620,6 +620,7 @@ slots:
 // The setup-profiles task will not auto-connect an plug that was previously
 // explicitly disconnected by the user.
 func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
+	c.Skip("feature disabled until redesign/reimpl")
 	// Add an OS snap as well as a sample snap with a "network" plug.
 	// The plug is normally auto-connected.
 	s.mockSnap(c, osSnapYaml)
