@@ -268,16 +268,16 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 	return nil
 }
 
-func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
+func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
 	var plugRef interfaces.PlugRef
 	var slotRef interfaces.SlotRef
 	if err := task.Get("plug", &plugRef); err != nil {
-		return nil, nil, err
+		return plugRef, slotRef, err
 	}
 	if err := task.Get("slot", &slotRef); err != nil {
-		return nil, nil, err
+		return plugRef, slotRef, err
 	}
-	return &plugRef, &slotRef, nil
+	return plugRef, slotRef, nil
 }
 
 func getConns(st *state.State) (map[string]connState, error) {

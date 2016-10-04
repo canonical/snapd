@@ -21,6 +21,7 @@ package ifacestate
 
 import (
 	"fmt"
+	"sort"
 
 	"gopkg.in/tomb.v2"
 
@@ -312,6 +313,20 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func snapNamesFromConns(conns []interfaces.ConnRef) []string {
+	m := make(map[string]bool)
+	for _, conn := range conns {
+		m[conn.PlugRef.Snap] = true
+		m[conn.SlotRef.Snap] = true
+	}
+	l := make([]string, 0, len(m))
+	for name := range m {
+		l = append(l, name)
+	}
+	sort.Strings(l)
+	return l
+}
+
 func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 	st := task.State()
 	st.Lock()
@@ -327,30 +342,47 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
-	if err != nil {
-		return err
+	var affectedConns []interfaces.ConnRef
+	if plugRef.Snap != "" && plugRef.Name != "" && slotRef.Snap != "" && slotRef.Name != "" {
+		if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+			return err
+		}
+		affectedConns = []interfaces.ConnRef{{plugRef, slotRef}}
+	} else if plugRef.Name != "" && slotRef.Snap == "" && slotRef.Name == "" {
+		// NOTE: plugRef.Snap can be either empty or not, Connected handles both
+		affectedConns, err = m.repo.Connected(plugRef.Snap, plugRef.Name)
+		if err != nil {
+			return err
+		}
+		m.repo.DisconnectAll(affectedConns)
+	} else if plugRef.Snap == "" && plugRef.Name == "" && slotRef.Name != "" {
+		// Symmetrically, slotRef.Snap can be either empty or not
+		affectedConns, err = m.repo.Connected(slotRef.Snap, slotRef.Name)
+		if err != nil {
+			return err
+		}
+		m.repo.DisconnectAll(affectedConns)
+	} else {
+		return fmt.Errorf("internal error, unhandled disconnect case plug: %q, slot: %q", plugRef, slotRef)
+	}
+	affectedSnaps := snapNamesFromConns(affectedConns)
+	for _, snapName := range affectedSnaps {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+			return err
+		}
+		snapInfo, err := snapst.CurrentInfo()
+		if err != nil {
+			return err
+		}
+		if err := setupSnapSecurity(task, snapInfo, snapst.DevModeAllowed(), m.repo); err != nil {
+			return &state.Retry{}
+		}
+	}
+	for _, conn := range affectedConns {
+		delete(conns, conn.ID())
 	}
 
-	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
-		return err
-	}
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
-	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
-		return err
-	}
-
-	if err := setupSnapSecurity(task, plug.Snap, plugSnapst.DevModeAllowed(), m.repo); err != nil {
-		return err
-	}
-	if err := setupSnapSecurity(task, slot.Snap, slotSnapst.DevModeAllowed(), m.repo); err != nil {
-		return err
-	}
-
-	delete(conns, connID(plugRef, slotRef))
 	setConns(st, conns)
 	return nil
 }
