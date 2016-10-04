@@ -40,9 +40,10 @@ import (
 
 // Standard streams, redirected for testing.
 var (
-	Stdin  io.Reader = os.Stdin
-	Stdout io.Writer = os.Stdout
-	Stderr io.Writer = os.Stderr
+	Stdin    io.Reader = os.Stdin
+	Stdout   io.Writer = os.Stdout
+	Stderr   io.Writer = os.Stderr
+	Terminal int       = 0
 )
 
 type options struct {

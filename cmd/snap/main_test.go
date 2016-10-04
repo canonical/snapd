@@ -27,7 +27,10 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
+	"syscall"
 	"testing"
+	"unsafe"
 
 	. "gopkg.in/check.v1"
 
@@ -41,11 +44,59 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
+func openPty() (pty, tty *os.File, err error) {
+	p, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	sname, err := ptsname(p)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	err = unlockpt(p)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	t, err := os.OpenFile(sname, os.O_RDWR|syscall.O_NOCTTY, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+	return p, t, nil
+}
+
+func ptsname(f *os.File) (string, error) {
+	var n uint32
+	err := ioctl(f.Fd(), syscall.TIOCGPTN, uintptr(unsafe.Pointer(&n)))
+	if err != nil {
+		return "", err
+	}
+	return "/dev/pts/" + strconv.Itoa(int(n)), nil
+}
+
+func unlockpt(f *os.File) error {
+	var u uint32
+	// use TIOCSPTLCK with a zero valued arg to clear the slave pty lock
+	return ioctl(f.Fd(), syscall.TIOCSPTLCK, uintptr(unsafe.Pointer(&u)))
+}
+
+func ioctl(fd, cmd, ptr uintptr) error {
+	_, _, e := syscall.Syscall(syscall.SYS_IOCTL, fd, cmd, ptr)
+	if e != 0 {
+		return e
+	}
+	return nil
+}
+
 type BaseSnapSuite struct {
 	testutil.BaseTest
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
+	term   *os.File
+	file   *os.File
 
 	AuthFile string
 }
@@ -55,9 +106,16 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
+
+	p, f, err := openPty()
+	c.Assert(err, IsNil)
+	s.term = p
+	s.file = f
+
 	snap.Stdin = s.stdin
 	snap.Stdout = s.stdout
 	snap.Stderr = s.stderr
+	snap.Terminal = int(s.term.Fd())
 	s.AuthFile = filepath.Join(c.MkDir(), "json")
 	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 }
@@ -66,6 +124,11 @@ func (s *BaseSnapSuite) TearDownTest(c *C) {
 	snap.Stdin = os.Stdin
 	snap.Stdout = os.Stdout
 	snap.Stderr = os.Stderr
+	snap.Terminal = 0
+
+	s.file.Close()
+	s.term.Close()
+
 	c.Assert(s.AuthFile == "", Equals, false)
 	err := os.Unsetenv(TestAuthFileEnvKey)
 	c.Assert(err, IsNil)
