@@ -177,6 +177,12 @@ var (
 	}
 
 	createUserCmd = &Command{
+		Path:   "/v2/is-managed",
+		UserOK: true,
+		GET:    getIsManaged,
+	}
+
+	createUserCmd = &Command{
 		Path:   "/v2/create-user",
 		UserOK: false,
 		POST:   postCreateUser,
@@ -1904,6 +1910,18 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
 	}, nil)
+}
+
+func getIsManaged(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	userCount, err := auth.UserCount(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get user count: %s", err)
+	}
+
+	return SyncResponse(userCount > 0, nil)
 }
 
 func convertBuyError(err error) Response {

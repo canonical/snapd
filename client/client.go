@@ -454,3 +454,13 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 	}
 	return results, nil
 }
+
+func (client *Client) IsManaged() (bool, error) {
+	var result bool
+
+	if _, err := client.doSync("GET", "/v2/is-managed", nil, nil, nil, &result); err != nil {
+		return false, err
+	}
+
+	return result, nil
+}
