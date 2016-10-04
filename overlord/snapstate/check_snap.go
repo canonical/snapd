@@ -79,6 +79,12 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 		return err
 	}
 
+	if CheckInterfaces != nil {
+		if err := CheckInterfaces(st, s); err != nil {
+			return err
+		}
+	}
+
 	if s.Type != snap.TypeGadget {
 		return nil
 	}
@@ -107,3 +113,6 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 
 	return nil
 }
+
+// CheckInterfaces allows to hook into snap checking to verify interfaces.
+var CheckInterfaces func(s *state.State, snap *snap.Info) error

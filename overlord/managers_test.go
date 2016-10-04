@@ -560,6 +560,42 @@ apps:
 	c.Assert(string(content), Matches, "(?ms).*^What=/var/lib/snapd/snaps/foo_55.snap")
 }
 
+func (ms *mgrsSuite) TestCheckInterfaces(c *C) {
+	snapYamlContent := `name: foo
+apps:
+ bar:
+  command: bin/bar
+slots:
+ network:
+`
+	snapPath := makeTestSnap(c, snapYamlContent+"version: 1.5")
+
+	si := &snap.SideInfo{
+		RealName:    "foo",
+		SnapID:      fooSnapID,
+		Revision:    snap.R(55),
+		DeveloperID: "devdevdevID",
+		Developer:   "devdevdev",
+	}
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
+	c.Assert(err, IsNil)
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*installation not allowed by "network" slot rule of interface "network".*`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+}
+
 func (ms *mgrsSuite) TestHappyRefreshControl(c *C) {
 	// test install through store and update, plus some mechanics
 	// of update

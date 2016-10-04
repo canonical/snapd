@@ -295,3 +295,33 @@ func getConns(st *state.State) (map[string]connState, error) {
 func setConns(st *state.State, conns map[string]connState) {
 	st.Set("conns", conns)
 }
+
+// CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
+func CheckInterfaces(st *state.State, snap *snap.Info) error {
+	baseDecl, err := assertstate.BaseDeclaration(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+
+	var snapDecl *asserts.SnapDeclaration
+	if snap.SnapID != "" {
+		var err error
+		snapDecl, err = assertstate.SnapDeclaration(st, snap.SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", snap.Name(), err)
+		}
+	}
+
+	ic := policy.InstallCandidate{
+		Snap:            snap,
+		SnapDeclaration: snapDecl,
+		BaseDeclaration: baseDecl,
+	}
+
+	return ic.Check()
+}
+
+func init() {
+	// hook interface checks into snapstate installation logic
+	snapstate.CheckInterfaces = CheckInterfaces
+}
