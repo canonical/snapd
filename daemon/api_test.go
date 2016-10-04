@@ -536,19 +536,20 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	rsp := loginUser(loginCmd, req, nil).(*resp)
 
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
 	expected := loginResponseData{
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	state.Lock()
-	user, err := auth.User(state, 1)
-	state.Unlock()
-	c.Check(err, check.IsNil)
 	c.Check(user.ID, check.Equals, 1)
 	c.Check(user.Username, check.Equals, "")
 	c.Check(user.Email, check.Equals, "email@.com")
@@ -583,19 +584,20 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 
 	rsp := loginUser(loginCmd, req, nil).(*resp)
 
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
 	expected := loginResponseData{
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	state.Lock()
-	user, err := auth.User(state, 1)
-	state.Unlock()
-	c.Check(err, check.IsNil)
 	c.Check(user.ID, check.Equals, 1)
 	c.Check(user.Username, check.Equals, "username")
 	c.Check(user.Email, check.Equals, "email@.com")
@@ -638,8 +640,8 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	rsp := loginUser(loginCmd, req, localUser).(*resp)
 
 	expected := loginResponseData{
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
