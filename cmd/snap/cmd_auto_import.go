@@ -31,6 +31,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -68,10 +69,10 @@ func autoImportCandidates() ([]string, error) {
 
 }
 
-func autoImportFromAllMounts() error {
+func autoImportFromAllMounts() (int, error) {
 	cands, err := autoImportCandidates()
 	if err != nil {
-		return err
+		return -1, err
 	}
 
 	added := 0
@@ -83,13 +84,7 @@ func autoImportFromAllMounts() error {
 		}
 	}
 
-	// FIXME: once we have a way to know if a device is owned,
-	//        no longer call this unconditionally
-	if added > 0 {
-		// FIXME: run `snap create-users --known`
-	}
-
-	return nil
+	return added, nil
 }
 
 func tryMount(deviceName string) (string, error) {
@@ -153,6 +148,20 @@ func init() {
 	cmd.hidden = true
 }
 
+func isOwned() (bool, error) {
+	users, err := Client().Users()
+	if err != nil {
+		return false, err
+	}
+
+	return len(users) > 0, nil
+}
+
+func autoAddUsers() error {
+	_, err := Client().CreateUsers([]*client.CreateUserOptions{{Known: true}})
+	return err
+}
+
 func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -165,5 +174,19 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		defer doUmount(mp)
 	}
 
-	return autoImportFromAllMounts()
+	added, err := autoImportFromAllMounts()
+	if err != nil {
+		return err
+	}
+
+	isOwned, err := isOwned()
+	if err != nil {
+		return err
+	}
+
+	if added > 0 && !isOwned {
+		return autoAddUsers()
+	}
+
+	return nil
 }

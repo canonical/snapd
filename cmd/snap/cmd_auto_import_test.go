@@ -46,15 +46,21 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	fakeAssertData := []byte("my-assertion")
 
 	n := 0
-	total := 1
+	total := 2
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
 			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/assertions")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
 			c.Check(postData, DeepEquals, fakeAssertData)
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+			n++
+		case 1:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/users")
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo","ssh-keys":[]}]}`)
 			n++
 		default:
 			c.Fatalf("unexpected request: %v (expected %d got %d)", r, total, n)
