@@ -433,12 +433,12 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 		case r.slots["ubuntu-core"] != nil:
 			snapName = "ubuntu-core"
 		default:
-			return nil, fmt.Errorf("cannot resolve disconnect, snap name is empty")
+			return nil, fmt.Errorf("snap name is empty")
 		}
 	}
 	var conns []ConnRef
 	if plugOrSlotName == "" {
-		return nil, fmt.Errorf("cannot resolve disconnect, plug or slot name is empty")
+		return nil, fmt.Errorf("plug or slot name is empty")
 	}
 	// Check if plugOrSlotName actually maps to anything
 	if r.plugs[snapName][plugOrSlotName] == nil && r.slots[snapName][plugOrSlotName] == nil {
@@ -806,7 +806,7 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 
 // isLivePatchSnap checks special Name/Developer combinations to see
 // if this particular snap's connections should be automatically connected even
-// if the interfaces are not autoconnect and the snap is not an OS snap.
+// if the interfaces are not autoconnect and the snap is not an core snap.
 // FIXME: remove once we have assertions that provide this feature
 func isLivePatchSnap(snap *snap.Info) bool {
 	if snap.Name() == "canonical-livepatch" && snap.DeveloperID == "canonical" {
@@ -858,7 +858,7 @@ func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
 		if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
 			return true
 		}
-		// we need to stop here to avoid the OS snap autoconnecting
+		// we need to stop here to avoid the core snap autoconnecting
 		// any content later
 		return false
 	}
