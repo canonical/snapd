@@ -649,3 +649,18 @@ func (as *authSuite) TestAuthContextWithDeviceAssertions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(storeID, Equals, "my-brand-store-id")
 }
+
+func (as *authSuite) TestUsers(c *C) {
+	as.state.Lock()
+	user1, err1 := auth.NewUser(as.state, "user1", "email1@test.com", "macaroon", []string{"discharge"})
+	user2, err2 := auth.NewUser(as.state, "user2", "email2@test.com", "macaroon", []string{"discharge"})
+	as.state.Unlock()
+	c.Check(err1, IsNil)
+	c.Check(err2, IsNil)
+
+	as.state.Lock()
+	users, err := auth.Users(as.state)
+	as.state.Unlock()
+	c.Check(err, IsNil)
+	c.Check(users, DeepEquals, []*auth.UserState{user1, user2})
+}
