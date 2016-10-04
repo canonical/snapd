@@ -31,7 +31,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -72,7 +71,7 @@ func autoImportCandidates() ([]string, error) {
 func autoImportFromAllMounts() (int, error) {
 	cands, err := autoImportCandidates()
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	added := 0
@@ -82,6 +81,7 @@ func autoImportFromAllMounts() (int, error) {
 		} else {
 			logger.Noticef("imported %s", cand)
 		}
+		added++
 	}
 
 	return added, nil
@@ -148,18 +148,11 @@ func init() {
 	cmd.hidden = true
 }
 
-func isOwned() (bool, error) {
-	users, err := Client().Users()
-	if err != nil {
-		return false, err
-	}
-
-	return len(users) > 0, nil
-}
-
 func autoAddUsers() error {
-	_, err := Client().CreateUsers([]*client.CreateUserOptions{{Known: true}})
-	return err
+	cmd := cmdCreateUser{
+		Known: true,
+	}
+	return cmd.Execute(nil)
 }
 
 func (x *cmdAutoImport) Execute(args []string) error {
@@ -179,12 +172,7 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return err
 	}
 
-	isOwned, err := isOwned()
-	if err != nil {
-		return err
-	}
-
-	if added > 0 && !isOwned {
+	if added > 0 {
 		return autoAddUsers()
 	}
 

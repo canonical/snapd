@@ -456,8 +456,8 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 }
 
 // Users returns the local users.
-func (client *Client) Users() ([]User, error) {
-	var result []User
+func (client *Client) Users() ([]*User, error) {
+	var result []*User
 
 	if _, err := client.doSync("GET", "/v2/users", nil, nil, nil, &result); err != nil {
 		return nil, fmt.Errorf("while getting users: %v", err)

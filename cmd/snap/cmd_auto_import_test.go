@@ -58,9 +58,13 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
 			n++
 		case 1:
-			c.Check(r.Method, Equals, "GET")
-			c.Check(r.URL.Path, Equals, "/v2/users")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo","ssh-keys":[]}]}`)
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/create-user")
+			postData, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(postData, DeepEquals, []byte(`{"known":true}`))
+
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
 		default:
 			c.Fatalf("unexpected request: %v (expected %d got %d)", r, total, n)
@@ -82,7 +86,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stdout(), Equals, `created user "foo"`+"\n")
 	c.Check(s.Stderr(), Equals, fmt.Sprintf("imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
 }
