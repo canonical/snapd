@@ -1408,6 +1408,7 @@ func (s *snapmgrTestSuite) TestUpdateValidateRefreshesSaysNoButIgnoreValidationI
 		Active:   true,
 		Sequence: []*snap.SideInfo{&si},
 		Current:  si.Revision,
+		SnapType: "app",
 	})
 
 	validateErr := errors.New("refresh control error")

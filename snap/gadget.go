@@ -45,7 +45,7 @@ type VolumeStructure struct {
 	Label       string          `yaml:"label"`
 	Offset      int64           `yaml:"offset"`
 	OffsetWrite int64           `yaml:"offset-write"`
-	Size        int64           `yaml:"size"`
+	Size        string          `yaml:"size"`
 	Type        string          `yaml:"type"`
 	ID          string          `yaml:"id"`
 	Filesystem  string          `yaml:"filesystem"`
@@ -59,7 +59,7 @@ type VolumeContent struct {
 	Image       string `yaml:"image"`
 	Offset      int64  `yaml:"offset"`
 	OffsetWrite int64  `yaml:"offset-write"`
-	Size        int64  `yaml:"size"`
+	Size        string `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
 }
