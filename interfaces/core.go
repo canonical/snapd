@@ -153,7 +153,14 @@ type Interface interface {
 	// AutoConnect returns whether plugs and slots should be implicitly
 	// auto-connected when an unambiguous connection candidate is available in
 	// the OS snap.
+	// TODO: make this completely obsolete
 	AutoConnect() bool
+
+	// AutoConnectPair returns whether plug and slot should be
+	// implicitly auto-connected assuming they will be an
+	// unambiguous connection candidate and declaration-based checks
+	// allow.
+	AutoConnectPair(plug *Plug, slot *Slot) bool
 }
 
 // SecuritySystem is a name of a security system.

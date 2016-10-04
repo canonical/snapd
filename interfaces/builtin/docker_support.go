@@ -583,3 +583,8 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 func (iface *DockerSupportInterface) AutoConnect() bool {
 	return false
 }
+
+func (iface *DockerSupportInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}
