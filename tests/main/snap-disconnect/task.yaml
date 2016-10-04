@@ -29,7 +29,7 @@ execute: |
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
     echo "Disconnect everything from given slot of core snap"
-    snap connect home-consumer:home ${core_name}-core:home
+    snap connect home-consumer:home ${core_name}:home
     snap disconnect :home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
