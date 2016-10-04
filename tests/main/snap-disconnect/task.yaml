@@ -14,24 +14,26 @@ restore: |
     rm -f *.snap
 
 execute: |
+    . $TESTLIB/names.sh
+
     DISCONNECTED_PATTERN="\-\s+home-consumer:home"
 
     echo "Disconnect everything from given slot"
-    snap connect home-consumer:home ubuntu-core:home
-    snap disconnect ubuntu-core:home
+    snap connect home-consumer:home ${core_name}:home
+    snap disconnect ${core_name}:home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
     echo "Disconnect everything from given plug"
-    snap connect home-consumer:home ubuntu-core:home
+    snap connect home-consumer:home ${core_name}:home
     snap disconnect home-consumer:home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
-    echo "Disconnect everything from given slot of OS snap"
-    snap connect home-consumer:home ubuntu-core:home
+    echo "Disconnect everything from given slot of core snap"
+    snap connect home-consumer:home ${core_name}-core:home
     snap disconnect :home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
 
     echo "Disconnect specific plug and slot"
-    snap connect home-consumer:home ubuntu-core:home
-    snap disconnect home-consumer:home ubuntu-core:home
+    snap connect home-consumer:home ${core_name}:home
+    snap disconnect home-consumer:home ${core_name}:home
     snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
