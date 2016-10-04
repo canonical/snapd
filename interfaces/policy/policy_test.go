@@ -20,6 +20,7 @@
 package policy_test
 
 import (
+	"strings"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -69,6 +70,31 @@ plugs:
     allow-connection:
       slot-publisher-id:
         - $PLUG_PUBLISHER_ID
+  auto-base-plug-allow: true
+  auto-base-plug-not-allow:
+    allow-auto-connection: false
+  auto-base-plug-not-allow-slots:
+    allow-auto-connection:
+      slot-attributes:
+        s: S
+  auto-base-plug-not-allow-plugs:
+    allow-auto-connection:
+      plug-attributes:
+        p: P
+  auto-base-plug-deny:
+    deny-auto-connection: true
+  install-plug-attr-ok:
+    allow-installation:
+      plug-attributes:
+        attr: ok
+  install-plug-gadget-only:
+    allow-installation:
+      plug-snap-type:
+        - gadget
+  install-plug-base-deny-snap-allow:
+    deny-installation:
+      plug-attributes:
+        attr: attrvalue
 slots:
   base-slot-allow: true
   base-slot-not-allow:
@@ -94,6 +120,38 @@ slots:
     allow-connection:
       plug-publisher-id:
         - $SLOT_PUBLISHER_ID
+  auto-base-slot-allow: true
+  auto-base-slot-not-allow:
+    allow-auto-connection: false
+  auto-base-slot-not-allow-slots:
+    allow-auto-connection:
+      slot-attributes:
+        s: S
+  auto-base-slot-not-allow-plugs:
+    allow-auto-connection:
+      plug-attributes:
+        p: P
+  auto-base-slot-deny:
+    deny-auto-connection: true
+  auto-base-deny-snap-slot-allow: false
+  auto-base-deny-snap-plug-allow: false
+  auto-base-allow-snap-slot-not-allow: true
+  install-slot-coreonly:
+    allow-installation:
+      slot-snap-type:
+        - core
+  install-slot-attr-ok:
+    allow-installation:
+      slot-attributes:
+        attr: ok
+  install-slot-attr-deny:
+    deny-installation:
+      slot-attributes:
+        trust: trusted
+  install-slot-base-deny-snap-allow:
+    deny-installation:
+      slot-attributes:
+        have: true
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -105,6 +163,8 @@ AXNpZw==`))
 name: plug-snap
 plugs:
    random:
+   mismatchy:
+     interface: bar
 
    base-plug-allow:
    base-plug-not-allow:
@@ -117,6 +177,18 @@ plugs:
    base-slot-not-allow-slots:
    base-slot-not-allow-plugs:
    base-slot-deny:
+
+   auto-base-plug-allow:
+   auto-base-plug-not-allow:
+   auto-base-plug-not-allow-slots:
+   auto-base-plug-not-allow-plugs:
+   auto-base-plug-deny:
+
+   auto-base-slot-allow:
+   auto-base-slot-not-allow:
+   auto-base-slot-not-allow-slots:
+   auto-base-slot-not-allow-plugs:
+   auto-base-slot-deny:
 
    snap-plug-allow:
    snap-plug-not-allow:
@@ -131,6 +203,20 @@ plugs:
    base-allow-snap-slot-not-allow:
 
    snap-slot-deny-snap-plug-allow:
+
+   auto-snap-plug-allow:
+   auto-snap-plug-not-allow:
+   auto-snap-plug-deny:
+
+   auto-snap-slot-allow:
+   auto-snap-slot-not-allow:
+   auto-snap-slot-deny:
+
+   auto-base-deny-snap-slot-allow:
+   auto-base-deny-snap-plug-allow:
+   auto-base-allow-snap-slot-not-allow:
+
+   auto-snap-slot-deny-snap-plug-allow:
 
    gadgethelp:
    trustedhelp:
@@ -148,6 +234,8 @@ plugs:
 name: slot-snap
 slots:
    random:
+   mismatchy:
+     interface: baz
 
    base-plug-allow:
    base-plug-not-allow:
@@ -160,6 +248,18 @@ slots:
    base-slot-not-allow-slots:
    base-slot-not-allow-plugs:
    base-slot-deny:
+
+   auto-base-plug-allow:
+   auto-base-plug-not-allow:
+   auto-base-plug-not-allow-slots:
+   auto-base-plug-not-allow-plugs:
+   auto-base-plug-deny:
+
+   auto-base-slot-allow:
+   auto-base-slot-not-allow:
+   auto-base-slot-not-allow-slots:
+   auto-base-slot-not-allow-plugs:
+   auto-base-slot-deny:
 
    snap-plug-allow:
    snap-plug-not-allow:
@@ -174,6 +274,20 @@ slots:
    base-allow-snap-slot-not-allow:
 
    snap-slot-deny-snap-plug-allow:
+
+   auto-snap-plug-allow:
+   auto-snap-plug-not-allow:
+   auto-snap-plug-deny:
+
+   auto-snap-slot-allow:
+   auto-snap-slot-not-allow:
+   auto-snap-slot-deny:
+
+   auto-base-deny-snap-slot-allow:
+   auto-base-deny-snap-plug-allow:
+   auto-base-allow-snap-slot-not-allow:
+
+   auto-snap-slot-deny-snap-plug-allow:
 
    trustedhelp:
 
@@ -214,6 +328,13 @@ plugs:
       slot-publisher-id:
         - slot-publisher
         - $PLUG_PUBLISHER_ID
+  auto-snap-plug-allow: true
+  auto-snap-plug-deny: false
+  auto-snap-plug-not-allow:
+    allow-auto-connection: false
+  auto-snap-slot-deny-snap-plug-allow:
+    deny-auto-connection: false
+  auto-base-deny-snap-plug-allow: true
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -245,6 +366,15 @@ slots:
     allow-connection:
       plug-publisher-id:
         - plug-publisher
+  auto-snap-slot-allow: true
+  auto-snap-slot-deny: false
+  auto-snap-slot-not-allow:
+    allow-auto-connection: false
+  auto-base-deny-snap-slot-allow: true
+  auto-snap-slot-deny-snap-plug-allow:
+    deny-auto-connection: true
+  auto-base-allow-snap-slot-not-allow:
+    allow-auto-connection: false
 timestamp: 2016-09-30T12:00:00Z
 sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 
@@ -286,6 +416,17 @@ func (s *policySuite) TestBaselineDefaultIsAllow(c *C) {
 	}
 
 	c.Check(cand.Check(), IsNil)
+	c.Check(cand.CheckAutoConnect(), IsNil)
+}
+
+func (s *policySuite) TestInterfaceMismatch(c *C) {
+	cand := policy.ConnectCandidate{
+		Plug:            s.plugSnap.Plugs["mismatchy"],
+		Slot:            s.slotSnap.Slots["mismatchy"],
+		BaseDeclaration: s.baseDecl,
+	}
+
+	c.Check(cand.Check(), ErrorMatches, `cannot connect mismatched plug interface "bar" to slot interface "baz"`)
 }
 
 func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
@@ -313,6 +454,39 @@ func (s *policySuite) TestBaseDeclAllowDenyConnection(c *C) {
 		}
 
 		err := cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestBaseDeclAllowDenyAutoConnection(c *C) {
+	tests := []struct {
+		iface    string
+		expected string // "" => no error
+	}{
+		{"auto-base-plug-allow", ""},
+		{"auto-base-plug-deny", `auto-connection denied by plug rule of interface "auto-base-plug-deny"`},
+		{"auto-base-plug-not-allow", `auto-connection not allowed by plug rule of interface "auto-base-plug-not-allow"`},
+		{"auto-base-slot-allow", ""},
+		{"auto-base-slot-deny", `auto-connection denied by slot rule of interface "auto-base-slot-deny"`},
+		{"auto-base-slot-not-allow", `auto-connection not allowed by slot rule of interface "auto-base-slot-not-allow"`},
+		{"auto-base-plug-not-allow-slots", `auto-connection not allowed.*`},
+		{"auto-base-slot-not-allow-slots", `auto-connection not allowed.*`},
+		{"auto-base-plug-not-allow-plugs", `auto-connection not allowed.*`},
+		{"auto-base-slot-not-allow-plugs", `auto-connection not allowed.*`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:            s.plugSnap.Plugs[t.iface],
+			Slot:            s.slotSnap.Slots[t.iface],
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err := cand.CheckAutoConnect()
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -349,6 +523,42 @@ func (s *policySuite) TestSnapDeclAllowDenyConnection(c *C) {
 		}
 
 		err := cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestSnapDeclAllowDenyAutoConnection(c *C) {
+	tests := []struct {
+		iface    string
+		expected string // "" => no error
+	}{
+		{"random", ""},
+		{"auto-snap-plug-allow", ""},
+		{"auto-snap-plug-deny", `auto-connection denied by plug rule of interface "auto-snap-plug-deny" for "plug-snap" snap`},
+		{"auto-snap-plug-not-allow", `auto-connection not allowed by plug rule of interface "auto-snap-plug-not-allow" for "plug-snap" snap`},
+		{"auto-snap-slot-allow", ""},
+		{"auto-snap-slot-deny", `auto-connection denied by slot rule of interface "auto-snap-slot-deny" for "slot-snap" snap`},
+		{"auto-snap-slot-not-allow", `auto-connection not allowed by slot rule of interface "auto-snap-slot-not-allow" for "slot-snap" snap`},
+		{"auto-base-deny-snap-slot-allow", ""},
+		{"auto-base-deny-snap-plug-allow", ""},
+		{"auto-snap-slot-deny-snap-plug-allow", ""},
+		{"auto-base-allow-snap-slot-not-allow", `auto-connection not allowed.*`},
+	}
+
+	for _, t := range tests {
+		cand := policy.ConnectCandidate{
+			Plug:                s.plugSnap.Plugs[t.iface],
+			Slot:                s.slotSnap.Slots[t.iface],
+			PlugSnapDeclaration: s.plugDecl,
+			SlotSnapDeclaration: s.slotDecl,
+			BaseDeclaration:     s.baseDecl,
+		}
+
+		err := cand.CheckAutoConnect()
 		if t.expected == "" {
 			c.Check(err, IsNil)
 		} else {
@@ -646,5 +856,179 @@ AXNpZw==`))
 		BaseDeclaration:     s.baseDecl,
 	}
 	c.Check(cand.Check(), IsNil)
+}
 
+func (s *policySuite) TestBaselineDefaultIsAllowInstallation(c *C) {
+	installSnap := snaptest.MockInfo(c, `
+name: install-slot-snap
+slots:
+  random1:
+plugs:
+  random2:
+`, nil)
+
+	cand := policy.InstallCandidate{
+		Snap:            installSnap,
+		BaseDeclaration: s.baseDecl,
+	}
+
+	c.Check(cand.Check(), IsNil)
+}
+
+func (s *policySuite) TestBaseDeclAllowDenyInstallation(c *C) {
+
+	tests := []struct {
+		installYaml string
+		expected    string // "" => no error
+	}{
+		{`name: install-snap
+slots:
+  innocuous:
+  install-slot-coreonly:
+`, `installation not allowed by "install-slot-coreonly" slot rule of interface "install-slot-coreonly"`},
+		{`name: install-snap
+slots:
+  install-slot-attr-ok:
+    attr: ok
+`, ""},
+		{`name: install-snap
+slots:
+  install-slot-attr-deny:
+    trust: trusted
+`, `installation denied by "install-slot-attr-deny" slot rule of interface "install-slot-attr-deny"`},
+		{`name: install-snap
+plugs:
+  install-plug-attr-ok:
+    attr: ok
+`, ""},
+		{`name: install-snap
+plugs:
+  install-plug-attr-ok:
+    attr: not-ok
+`, `installation not allowed by "install-plug-attr-ok" plug rule of interface "install-plug-attr-ok"`},
+		{`name: install-snap
+plugs:
+  install-plug-gadget-only:
+`, `installation not allowed by "install-plug-gadget-only" plug rule of interface "install-plug-gadget-only"`},
+		{`name: install-gadget
+type: gadget
+plugs:
+  install-plug-gadget-only:
+`, ""},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err := cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
+}
+
+func (s *policySuite) TestSnapDeclAllowDenyInstallation(c *C) {
+
+	tests := []struct {
+		installYaml string
+		plugsSlots  string
+		expected    string // "" => no error
+	}{
+		{`name: install-snap
+slots:
+  install-slot-base-allow-snap-deny:
+    have: yes # bool
+`, `slots:
+  install-slot-base-allow-snap-deny:
+    deny-installation:
+      slot-attributes:
+        have: true
+`, `installation denied by "install-slot-base-allow-snap-deny" slot rule of interface "install-slot-base-allow-snap-deny" for "install-snap" snap`},
+		{`name: install-snap
+slots:
+  install-slot-base-allow-snap-not-allow:
+    have: yes # bool
+`, `slots:
+  install-slot-base-allow-snap-not-allow:
+    allow-installation:
+      slot-attributes:
+        have: false
+`, `installation not allowed by "install-slot-base-allow-snap-not-allow" slot rule of interface "install-slot-base-allow-snap-not-allow" for "install-snap" snap`},
+		{`name: install-snap
+slots:
+  install-slot-base-deny-snap-allow:
+    have: yes
+`, `slots:
+  install-slot-base-deny-snap-allow:
+    allow-installation: true
+`, ""},
+		{`name: install-snap
+plugs:
+  install-plug-base-allow-snap-deny:
+    attr: give-me
+`, `plugs:
+  install-plug-base-allow-snap-deny:
+    deny-installation:
+      plug-attributes:
+        attr: .*
+`, `installation denied by "install-plug-base-allow-snap-deny" plug rule of interface "install-plug-base-allow-snap-deny" for "install-snap" snap`},
+		{`name: install-snap
+plugs:
+  install-plug-base-allow-snap-not-allow:
+    attr: give-me
+`, `plugs:
+  install-plug-base-allow-snap-not-allow:
+    allow-installation:
+      plug-attributes:
+        attr: minimal
+`, `installation not allowed by "install-plug-base-allow-snap-not-allow" plug rule of interface "install-plug-base-allow-snap-not-allow" for "install-snap" snap`},
+		{`name: install-snap
+plugs:
+  install-plug-base-deny-snap-allow:
+    attr: attrvalue
+`, `plugs:
+  install-plug-base-deny-snap-allow:
+    allow-installation:
+      plug-attributes:
+        attr: attrvalue
+`, ""},
+	}
+
+	for _, t := range tests {
+		installSnap := snaptest.MockInfo(c, t.installYaml, nil)
+
+		a, err := asserts.Decode([]byte(strings.Replace(`type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: install-snap
+snap-id: installsnap6idididididididididid
+publisher-id: publisher
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`, "@plugsSlots@", strings.TrimSpace(t.plugsSlots), 1)))
+		c.Assert(err, IsNil)
+		snapDecl := a.(*asserts.SnapDeclaration)
+
+		cand := policy.InstallCandidate{
+			Snap:            installSnap,
+			SnapDeclaration: snapDecl,
+			BaseDeclaration: s.baseDecl,
+		}
+
+		err = cand.Check()
+		if t.expected == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, t.expected)
+		}
+	}
 }

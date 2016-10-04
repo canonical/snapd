@@ -2788,7 +2788,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug "consumer:plug" (interface "test") to "producer:slot" (interface "different"))`)
+- Connect consumer:plug to producer:slot (cannot connect consumer:plug ("test" interface) to producer:slot ("different" interface))`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -2838,7 +2838,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug "plug" from snap "consumer", no such plug)`)
+- Connect consumer:plug to producer:slot (snap "consumer" has no plug named "plug")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -2886,7 +2886,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect plug to slot "slot" from snap "producer", no such slot)`)
+- Connect consumer:plug to producer:slot (snap "producer" has no slot named "slot")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
