@@ -448,37 +448,24 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	}
 	var conns []ConnRef
 	if plugOrSlotName == "" {
-		// "wildcard" mode, affect all the plugs or slots in this snap
-		for _, plug := range r.plugs[snapName] {
-			for _, slotRef := range plug.Connections {
-				connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
-				conns = append(conns, connRef)
-			}
+		return nil, fmt.Errorf("cannot resolve disconnect, plug or slot name is empty")
+	}
+	// Precise mode, affect specific plug or slot in this snap
+	if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
+		for _, slotRef := range plug.Connections {
+			connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
+			conns = append(conns, connRef)
 		}
-		for _, slot := range r.slots[snapName] {
-			for _, plugRef := range slot.Connections {
-				connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
-				conns = append(conns, connRef)
-			}
+	}
+	if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
+		for _, plugRef := range slot.Connections {
+			connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
+			conns = append(conns, connRef)
 		}
-	} else {
-		// Precise mode, affect specific plug or slot in this snap
-		if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
-			for _, slotRef := range plug.Connections {
-				connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
-				conns = append(conns, connRef)
-			}
-		}
-		if slot, ok := r.slots[snapName][plugOrSlotName]; ok {
-			for _, plugRef := range slot.Connections {
-				connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
-				conns = append(conns, connRef)
-			}
-		}
-		// Check if plugOrSlotName actually maps to anything
-		if len(conns) == 0 {
-			return nil, fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlotName)
-		}
+	}
+	// Check if plugOrSlotName actually maps to anything
+	if len(conns) == 0 {
+		return nil, fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlotName)
 	}
 	return conns, nil
 }
