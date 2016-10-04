@@ -429,8 +429,9 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 	return conns, result, nil
 }
 
-// ResolveDisconnectAll finds all of the connections that would be disconnected by DisconnectAll()
-func (r *Repository) ResolveDisconnectAll(snapName, plugOrSlotName string) ([]ConnRef, error) {
+// Connected returns references for all connections that are currently
+// established with the provided plug or slot.
+func (r *Repository) Connecte(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -482,7 +483,7 @@ func (r *Repository) ResolveDisconnectAll(snapName, plugOrSlotName string) ([]Co
 	return conns, nil
 }
 
-// DisconnectAll disconnects all of the given connections, returning the list of affected snap names.
+// DisconnectAll disconnects all provided connection references.
 func (r *Repository) DisconnectAll(conns []ConnRef) {
 	r.m.Lock()
 	defer r.m.Unlock()
