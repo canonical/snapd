@@ -47,6 +47,7 @@ test_exit_one() {
 	exit 1
 }
 
+command=$(snapctl get command)
 case $command in
 	'')
 		;;
