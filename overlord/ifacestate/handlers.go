@@ -24,8 +24,11 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -232,19 +235,67 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	connRef, err := m.repo.ResolveConnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+	if err != nil {
+		return err
+	}
+	plug := m.repo.Plug(connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	if plug == nil {
+		return fmt.Errorf("snap %q has no %q plug", connRef.PlugRef.Snap, connRef.PlugRef.Name)
+	}
+	var plugDecl *asserts.SnapDeclaration
+	if plug.Snap.SnapID != "" {
+		var err error
+		plugDecl, err = assertstate.SnapDeclaration(st, plug.Snap.SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", plug.Snap.Name(), err)
+		}
+	}
+
+	slot := m.repo.Slot(connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	if slot == nil {
+		return fmt.Errorf("snap %q has no %q slot", connRef.SlotRef.Snap, connRef.SlotRef.Name)
+	}
+	var slotDecl *asserts.SnapDeclaration
+	if slot.Snap.SnapID != "" {
+		var err error
+		slotDecl, err = assertstate.SnapDeclaration(st, slot.Snap.SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
+		}
+	}
+
+	baseDecl, err := assertstate.BaseDeclaration(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+
+	// check the connection against the declarations' rules
+	ic := policy.ConnectCandidate{
+		Plug:                plug.PlugInfo,
+		PlugSnapDeclaration: plugDecl,
+		Slot:                slot.SlotInfo,
+		SlotSnapDeclaration: slotDecl,
+		BaseDeclaration:     baseDecl,
+	}
+
+	err = ic.Check()
 	if err != nil {
 		return err
 	}
 
-	plug := m.repo.Plug(plugRef.Snap, plugRef.Name)
-	var plugSnapst snapstate.SnapState
-	if err := snapstate.Get(st, plugRef.Snap, &plugSnapst); err != nil {
+	err = m.repo.Connect(connRef)
+	if err != nil {
 		return err
 	}
-	slot := m.repo.Slot(slotRef.Snap, slotRef.Name)
+
+	var plugSnapst snapstate.SnapState
+	if err := snapstate.Get(st, connRef.PlugRef.Snap, &plugSnapst); err != nil {
+		return err
+	}
+
 	var slotSnapst snapstate.SnapState
-	if err := snapstate.Get(st, slotRef.Snap, &slotSnapst); err != nil {
+	if err := snapstate.Get(st, connRef.SlotRef.Snap, &slotSnapst); err != nil {
 		return err
 	}
 
@@ -255,7 +306,7 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	conns[connID(plugRef, slotRef)] = connState{Interface: plug.Interface}
+	conns[connRef.ID()] = connState{Interface: plug.Interface}
 	setConns(st, conns)
 
 	return nil
