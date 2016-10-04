@@ -1,4 +1,4 @@
-name: content-plug
+name: test-snapd-content-plug
 version: 1.0
 apps:
     content-plug:
