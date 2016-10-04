@@ -3737,6 +3737,20 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 }
 
+func makeFakeUserLookup(c *check.C, fakeHome string) func(username string) (*user.User, error) {
+	u, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	return func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      u.Uid,
+			Gid:      u.Gid,
+			HomeDir:  fakeHome,
+		}, nil
+	}
+}
+
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	d := s.daemon(c)
 
@@ -3756,15 +3770,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return nil
 	}
 	userHomeDir := c.MkDir()
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  userHomeDir,
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, userHomeDir)
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4074,15 +4080,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		return nil
 	}
 
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  c.MkDir(),
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, c.MkDir())
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4148,15 +4146,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 		return nil
 	}
 
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  c.MkDir(),
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, c.MkDir())
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4262,15 +4252,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 		return nil
 	}
 
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  c.MkDir(),
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, c.MkDir())
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
