@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/store"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -215,6 +216,8 @@ var ClientConfig client.Config
 func Client() *client.Client {
 	return client.New(&ClientConfig)
 }
+
+var storeNew = store.New
 
 func init() {
 	err := logger.SimpleSetup()

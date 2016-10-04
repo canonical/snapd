@@ -21,16 +21,21 @@ package main
 
 import (
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/store"
 )
 
 type cmdExportKey struct {
 	Account    string `long:"account"`
+	Revoke     bool   `long:"revoke"`
 	Positional struct {
 		KeyName string
 	} `positional-args:"true"`
@@ -44,11 +49,44 @@ func init() {
 			return &cmdExportKey{}
 		}, map[string]string{
 			"account": i18n.G("Format public key material as a request for an account-key for this account-id"),
+			"revoke":  i18n.G("Export a revocation request for this account-key"),
 		}, []argDesc{{
 			name: i18n.G("<key-name>"),
 			desc: i18n.G("Name of key to export"),
 		}})
 	cmd.hidden = true
+}
+
+func fetchAccountKeyAssertion(sto *store.Store, pubKey asserts.PublicKey) (asserts.Assertion, error) {
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   sysdb.Trusted(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+		return sto.Assertion(ref.Type, ref.PrimaryKey, nil)
+	}
+	save := func(a asserts.Assertion) error {
+		err := db.Add(a)
+		if err != nil {
+			return fmt.Errorf("cannot add assertion %v: %v", a.Ref(), err)
+		}
+		return nil
+	}
+	f := asserts.NewFetcher(db, retrieve, save)
+	ref := &asserts.Ref{
+		Type:       asserts.AccountKeyType,
+		PrimaryKey: []string{pubKey.ID()},
+	}
+	err = f.Fetch(ref)
+	if err != nil {
+		return nil, err
+	}
+	return db.Find(asserts.AccountKeyType, map[string]string{
+		"public-key-sha3-384": pubKey.ID(),
+	})
 }
 
 func (x *cmdExportKey) Execute(args []string) error {
@@ -73,7 +111,20 @@ func (x *cmdExportKey) Execute(args []string) error {
 			"name":                keyName,
 			"public-key-sha3-384": pubKey.ID(),
 			"since":               time.Now().UTC().Format(time.RFC3339),
-			// XXX: To support revocation, we need to check for matching known assertions and set a suitable revision if we find one.
+		}
+		if x.Revoke {
+			headers["until"] = headers["since"]
+			var authContext auth.AuthContext
+			sto := storeNew(nil, authContext)
+			// XXX A missing assertion isn't an error here,
+			// since we will just export a new one.  However, it
+			// isn't currently possible to distinguish between
+			// "assertion not found" and other errors at this
+			// point.
+			previousAssertion, _ := fetchAccountKeyAssertion(sto, pubKey)
+			if previousAssertion != nil {
+				headers["revision"] = strconv.Itoa(previousAssertion.Revision() + 1)
+			}
 		}
 		body, err := asserts.EncodePublicKey(pubKey)
 		if err != nil {

@@ -26,7 +26,6 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/store"
 
 	"github.com/jessevdk/go-flags"
 )
@@ -62,8 +61,6 @@ func init() {
 }
 
 var nl = []byte{'\n'}
-
-var storeNew = store.New
 
 func downloadAssertion(typeName string, headers map[string]string) ([]asserts.Assertion, error) {
 	var user *auth.UserState
