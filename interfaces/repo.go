@@ -431,7 +431,7 @@ func (r *Repository) Disconnect(plugSnapName, plugName, slotSnapName, slotName s
 
 // Connected returns references for all connections that are currently
 // established with the provided plug or slot.
-func (r *Repository) Connecte(snapName, plugOrSlotName string) ([]ConnRef, error) {
+func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
