@@ -31,9 +31,11 @@ setup_fake_store(){
 }
 
 setup_staging_store(){
-    echo "Given ubuntu-core snap is available before switching to staging"
-    if ! snap list | grep -q ubuntu-core; then
-        snap install ubuntu-core
+    . "$TESTSLIB/names.sh"
+    echo "Given the core snap is available before switching to staging"
+
+    if [ -z "${core_name}" ]; then
+        snap install core
     fi
 
     echo "And snapd is configured to use the staging store"
