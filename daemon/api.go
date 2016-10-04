@@ -337,8 +337,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		ID:         user.ID,
 		Username:   user.Username,
 		Email:      user.Email,
-		Macaroon:   macaroon,
-		Discharges: []string{discharge},
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	return SyncResponse(result, nil)
 }

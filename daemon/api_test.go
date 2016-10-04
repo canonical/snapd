@@ -537,22 +537,24 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	rsp := loginUser(loginCmd, req, nil).(*resp)
 
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
 	expected := userResponseData{
 		ID:    1,
 		Email: "email@.com",
 
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
+
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	state.Lock()
-	user, err := auth.User(state, 1)
-	state.Unlock()
-	c.Check(err, check.IsNil)
 	c.Check(user.ID, check.Equals, 1)
 	c.Check(user.Username, check.Equals, "")
 	c.Check(user.Email, check.Equals, "email@.com")
@@ -587,22 +589,23 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 
 	rsp := loginUser(loginCmd, req, nil).(*resp)
 
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
 	expected := userResponseData{
 		ID:         1,
 		Username:   "username",
 		Email:      "email@.com",
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
-	state.Lock()
-	user, err := auth.User(state, 1)
-	state.Unlock()
-	c.Check(err, check.IsNil)
 	c.Check(user.ID, check.Equals, 1)
 	c.Check(user.Username, check.Equals, "username")
 	c.Check(user.Email, check.Equals, "email@.com")
@@ -649,8 +652,8 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 		Username: "username",
 		Email:    "email@test.com",
 
-		Macaroon:   serializedMacaroon,
-		Discharges: []string{"the-discharge-macaroon-serialized-data"},
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
 	}
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -2799,7 +2802,7 @@ func (s *apiSuite) TestConnectPlugFailureInterfaceMismatch(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (cannot connect mismatched plug interface "test" to slot interface "different")`)
+- Connect consumer:plug to producer:slot (cannot connect consumer:plug ("test" interface) to producer:slot ("different" interface))`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -2849,7 +2852,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (snap "consumer" has no "plug" plug)`)
+- Connect consumer:plug to producer:slot (snap "consumer" has no plug named "plug")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -2897,7 +2900,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Connect consumer:plug to producer:slot (snap "producer" has no "slot" slot)`)
+- Connect consumer:plug to producer:slot (snap "producer" has no slot named "slot")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -3748,6 +3751,20 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 }
 
+func makeFakeUserLookup(c *check.C, fakeHome string) func(username string) (*user.User, error) {
+	u, err := user.Current()
+	c.Assert(err, check.IsNil)
+
+	return func(username string) (*user.User, error) {
+		return &user.User{
+			Username: username,
+			Uid:      u.Uid,
+			Gid:      u.Gid,
+			HomeDir:  fakeHome,
+		}, nil
+	}
+}
+
 func (s *apiSuite) TestPostCreateUser(c *check.C) {
 	d := s.daemon(c)
 
@@ -3767,15 +3784,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return nil
 	}
 	userHomeDir := c.MkDir()
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  userHomeDir,
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, userHomeDir)
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4085,15 +4094,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		return nil
 	}
 
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  c.MkDir(),
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, c.MkDir())
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4159,15 +4160,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 		return nil
 	}
 
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  c.MkDir(),
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, c.MkDir())
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4273,15 +4266,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 		return nil
 	}
 
-	userLookup = func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      "1000",
-			Gid:      "1000",
-			HomeDir:  c.MkDir(),
-		}, nil
-	}
-
+	userLookup = makeFakeUserLookup(c, c.MkDir())
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID

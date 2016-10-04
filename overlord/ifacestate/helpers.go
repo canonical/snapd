@@ -92,6 +92,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		if snapName != "" && plugRef.Snap != snapName && slotRef.Snap != snapName {
 			continue
 		}
+
 		connRef := interfaces.ConnRef{PlugRef: *plugRef, SlotRef: *slotRef}
 		err = m.repo.Connect(connRef)
 		if err != nil {
