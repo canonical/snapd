@@ -174,7 +174,6 @@ func (s *baseDeclSuite) TestAutoConnectContent(c *C) {
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
-	// TODO: AutoConnectPair(plug, slot)
 }
 
 func (s *baseDeclSuite) TestAutoConnectLxdSupport(c *C) {

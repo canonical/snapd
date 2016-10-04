@@ -28,7 +28,7 @@ prepare: |
     echo "And a service is listening"
     printf "#!/bin/sh -e\nwhile true; do echo \"HTTP/1.1 200 OK\n\nok\n\" |  nc -l -p $PORT -q 1; done" > $SERVICE_FILE
     chmod a+x $SERVICE_FILE
-    . $TESTSLIB/systemd.sh
+    . "$TESTSLIB/systemd.sh"
     systemd_create_and_start_unit $SERVICE_NAME "$(readlink -f $SERVICE_FILE)"
 
     while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
@@ -40,13 +40,14 @@ prepare: |
     EOF
 
 restore: |
-    . $TESTSLIB/systemd.sh
+    . "$TESTSLIB/systemd.sh"
     systemd_stop_and_destroy_unit $SERVICE_NAME
     rm -f firewall-control-consumer_1.0_all.snap firewall-create.error $SERVICE_FILE $REQUEST_FILE
 
 execute: |
     CONNECTED_PATTERN=":firewall-control +firewall-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +firewall-control-consumer:firewall-control"
+    . "$TESTSLIB/names.sh"
 
     echo "Then it is not connected by default"
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
@@ -54,7 +55,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect firewall-control-consumer:firewall-control ubuntu-core:firewall-control
+    snap connect firewall-control-consumer:firewall-control ${core_name}:firewall-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "And the snap creates a firewall rule"
@@ -72,7 +73,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect firewall-control-consumer:firewall-control ubuntu-core:firewall-control
+    snap disconnect firewall-control-consumer:firewall-control ${core_name}:firewall-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to configure the firewall"

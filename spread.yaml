@@ -84,6 +84,7 @@ exclude:
 
 prepare-each: |
     journalctl --rotate
+    sleep .1
     journalctl --vacuum-time=1ms
 
 debug-each: |
@@ -150,7 +151,23 @@ prepare: |
     # increment version so upgrade can work
     dch -i "testing build"
 
-    test -d /home/test || adduser --quiet --disabled-password --gecos '' test
+    if ! id test >& /dev/null; then
+        # manually setting the UID and GID to 12345 because we need to
+        # know the numbers match for when we set up the user inside
+        # the all-snap, which has its own user & group database.
+        # Nothing special about 12345 beyond it being high enough it's
+        # unlikely to ever clash with anything, and easy to remember.
+        addgroup --quiet --gid 12345 test
+        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+    fi
+
+    owner=$( stat -c "%U:%G" /home/test )
+    if [ "$owner" != "test:test" ]; then
+        echo "expected /home/test to be test:test but it's $owner"
+        exit 1
+    fi
+    unset owner
+
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
@@ -168,14 +185,14 @@ suites:
 
         prepare: |
             . $TESTSLIB/prepare.sh
-            if [[ "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
                 prepare_all_snap
             else
                 prepare_classic
             fi
         restore: |
             $TESTSLIB/reset.sh
-            if [[ ! "$SPREAD_SYSTEM" =~ ubuntu-core-16-* ]]; then
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd || true
             fi
         restore-each: |

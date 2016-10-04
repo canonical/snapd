@@ -333,11 +333,11 @@ Sample result:
       "icon": "",                  // core might not have an icon
       "installed-size": 67784704,
       "install-date": "2016-03-08T11:29:21Z",
-      "name": "ubuntu-core",
+      "name": "core",
       "developer": "canonical",
       "resource": "/v2/snaps/ubuntu-core",
       "status": "active",
-      "type": "os",
+      "type": "core",
       "update-available": 247,
       "version": "241",
       "revision": 99,

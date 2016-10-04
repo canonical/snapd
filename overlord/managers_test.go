@@ -255,7 +255,7 @@ const (
 	fooSnapID = "idididididididididididididididid"
 )
 
-func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
+func (ms *mgrsSuite) prereqSnapAssertions(c *C) *asserts.SnapDeclaration {
 	headers := map[string]interface{}{
 		"series":       "16",
 		"snap-id":      fooSnapID,
@@ -267,6 +267,7 @@ func (ms *mgrsSuite) prereqSnapAssertions(c *C) {
 	c.Assert(err, IsNil)
 	err = ms.storeSigning.Add(snapDecl)
 	c.Assert(err, IsNil)
+	return snapDecl.(*asserts.SnapDeclaration)
 }
 
 func (ms *mgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
@@ -499,6 +500,8 @@ apps:
 }
 
 func (ms *mgrsSuite) TestHappyLocalInstallWithStoreMetadata(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
 	snapYamlContent := `name: foo
 apps:
  bar:
@@ -517,6 +520,14 @@ apps:
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
 
 	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
 	c.Assert(err, IsNil)
@@ -561,6 +572,8 @@ apps:
 }
 
 func (ms *mgrsSuite) TestCheckInterfaces(c *C) {
+	snapDecl := ms.prereqSnapAssertions(c)
+
 	snapYamlContent := `name: foo
 apps:
  bar:
@@ -581,6 +594,14 @@ slots:
 	st := ms.o.State()
 	st.Lock()
 	defer st.Unlock()
+
+	// have the snap-declaration in the system db
+	err := assertstate.Add(st, ms.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, ms.devAcct)
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, snapDecl)
+	c.Assert(err, IsNil)
 
 	ts, err := snapstate.InstallPath(st, si, snapPath, "", snapstate.DevMode)
 	c.Assert(err, IsNil)
