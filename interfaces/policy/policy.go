@@ -173,16 +173,16 @@ func (connc *ConnectCandidate) checkPlugRule(kind string, rule *asserts.PlugRule
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", connc.PlugSnapDeclaration.SnapName())
 	}
-	denyCstrsSel := asserts.ConstraintsDenyConnection
-	allowCstrsSel := asserts.ConstraintsAllowConnection
+	denyConst := rule.DenyConnection
+	allowConst := rule.AllowConnection
 	if kind == "auto-connection" {
-		denyCstrsSel = asserts.ConstraintsDenyAutoConnection
-		allowCstrsSel = asserts.ConstraintsAllowAutoConnection
+		denyConst = rule.DenyAutoConnection
+		allowConst = rule.AllowAutoConnection
 	}
-	if checkPlugConnectionConstraints(connc, rule.GetConnectionConstraints(denyCstrsSel)) == nil {
+	if checkPlugConnectionConstraints(connc, denyConst) == nil {
 		return fmt.Errorf("%s denied by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
 	}
-	if checkPlugConnectionConstraints(connc, rule.GetConnectionConstraints(allowCstrsSel)) != nil {
+	if checkPlugConnectionConstraints(connc, allowConst) != nil {
 		return fmt.Errorf("%s not allowed by plug rule of interface %q%s", kind, connc.Plug.Interface, context)
 	}
 	return nil
@@ -193,16 +193,16 @@ func (connc *ConnectCandidate) checkSlotRule(kind string, rule *asserts.SlotRule
 	if snapRule {
 		context = fmt.Sprintf(" for %q snap", connc.SlotSnapDeclaration.SnapName())
 	}
-	denyCstrsSel := asserts.ConstraintsDenyConnection
-	allowCstrsSel := asserts.ConstraintsAllowConnection
+	denyConst := rule.DenyConnection
+	allowConst := rule.AllowConnection
 	if kind == "auto-connection" {
-		denyCstrsSel = asserts.ConstraintsDenyAutoConnection
-		allowCstrsSel = asserts.ConstraintsAllowAutoConnection
+		denyConst = rule.DenyAutoConnection
+		allowConst = rule.AllowAutoConnection
 	}
-	if checkSlotConnectionConstraints(connc, rule.GetConnectionConstraints(denyCstrsSel)) == nil {
+	if checkSlotConnectionConstraints(connc, denyConst) == nil {
 		return fmt.Errorf("%s denied by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
 	}
-	if checkSlotConnectionConstraints(connc, rule.GetConnectionConstraints(allowCstrsSel)) != nil {
+	if checkSlotConnectionConstraints(connc, allowConst) != nil {
 		return fmt.Errorf("%s not allowed by slot rule of interface %q%s", kind, connc.Plug.Interface, context)
 	}
 	return nil
