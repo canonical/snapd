@@ -483,28 +483,17 @@ func (r *Repository) ResolveDisconnectAll(snapName, plugOrSlotName string) ([]Co
 }
 
 // DisconnectAll disconnects all of the given connections, returning the list of affected snap names.
-func (r *Repository) DisconnectAll(conns []ConnRef) []string {
+func (r *Repository) DisconnectAll(conns []ConnRef) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	// Sever all the connections, keeping track of affected snaps
-	snaps := make(map[string]bool)
 	for _, conn := range conns {
 		plug := r.plugs[conn.PlugRef.Snap][conn.PlugRef.Name]
 		slot := r.slots[conn.SlotRef.Snap][conn.SlotRef.Name]
 		if plug != nil && slot != nil {
-			snaps[plug.Snap.Name()] = true
-			snaps[slot.Snap.Name()] = true
 			r.disconnect(plug, slot)
 		}
 	}
-	// Flatten map of affected snaps into a sorted list
-	names := make([]string, 0, len(snaps))
-	for snapName := range snaps {
-		names = append(names, snapName)
-	}
-	sort.Strings(names)
-	return names
 }
 
 func (r *Repository) disconnectPlugOrSlot(snapName, plugOrSlotName string) ([]ConnRef, map[string]*snap.Info, error) {
