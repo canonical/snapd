@@ -1741,6 +1741,9 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 		if err := osutilAddUser(username, opts); err != nil {
 			return InternalError("cannot add user %q: %s", username, err)
 		}
+		if err := setupLocalUser(st, username, email); err != nil {
+			return InternalError("%s", err)
+		}
 		createdUsers = append(createdUsers, userResponseData{
 			Username: username,
 			SSHKeys:  opts.SSHKeys,
@@ -1900,6 +1903,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return BadRequest("%s", err)
 	}
+
+	// FIXME: duplicated code
 	opts.Sudoer = createData.Sudoer
 	opts.ExtraUsers = !release.OnClassic
 
