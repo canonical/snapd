@@ -81,6 +81,7 @@ var api = []*Command{
 	buyCmd,
 	readyToBuyCmd,
 	snapctlCmd,
+	usersCmd,
 }
 
 var (
@@ -199,6 +200,12 @@ var (
 		SnapOK: true,
 		POST:   runSnapctl,
 	}
+
+	usersCmd = &Command{
+		Path:   "/v2/users",
+		UserOK: false,
+		GET:    getUsers,
+	}
 )
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -206,11 +213,20 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return InternalError("cannot get user auth data: %s", err)
+	}
+
 	m := map[string]interface{}{
 		"series":     release.Series,
 		"version":    c.d.Version,
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
+		"managed":    len(users) > 0,
 	}
 
 	// TODO: set the store-id here from the model information
@@ -221,7 +237,13 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(m, nil)
 }
 
-type loginResponseData struct {
+// userResponseData contains the data releated to user creation/login/query
+type userResponseData struct {
+	ID       int      `json:"id,omitempty"`
+	Username string   `json:"username,omitempty"`
+	Email    string   `json:"email,omitempty"`
+	SSHKeys  []string `json:"ssh-keys,omitempty"`
+
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
@@ -311,7 +333,10 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
-	result := loginResponseData{
+	result := userResponseData{
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
 		Macaroon:   user.Macaroon,
 		Discharges: user.Discharges,
 	}
@@ -1691,7 +1716,7 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 }
 
 func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
-	var createdUsers []createResponseData
+	var createdUsers []userResponseData
 
 	st.Lock()
 	db := assertstate.DB(st)
@@ -1732,7 +1757,10 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 		if err := osutilAddUser(username, opts); err != nil {
 			return InternalError("cannot add user %q: %s", username, err)
 		}
-		createdUsers = append(createdUsers, createResponseData{
+		if err := setupLocalUser(st, username, email); err != nil {
+			return InternalError("%s", err)
+		}
+		createdUsers = append(createdUsers, userResponseData{
 			Username: username,
 			SSHKeys:  opts.SSHKeys,
 		})
@@ -1792,11 +1820,6 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		Password: su.Password(),
 	}
 	return su.Username(), opts, nil
-}
-
-type createResponseData struct {
-	Username string   `json:"username"`
-	SSHKeys  []string `json:"ssh-keys"`
 }
 
 type postUserCreateData struct {
@@ -1868,12 +1891,12 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	// verify request
 	st := c.d.overlord.State()
 	st.Lock()
-	userCount, err := auth.UserCount(st)
+	users, err := auth.Users(st)
 	st.Unlock()
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
 	}
-	if userCount > 0 && !createData.ForceManaged {
+	if len(users) > 0 && !createData.ForceManaged {
 		return BadRequest("cannot create user: device already managed")
 	}
 
@@ -1896,6 +1919,8 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return BadRequest("%s", err)
 	}
+
+	// FIXME: duplicated code
 	opts.Sudoer = createData.Sudoer
 	opts.ExtraUsers = !release.OnClassic
 
@@ -1907,7 +1932,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return InternalError("%s", err)
 	}
 
-	return SyncResponse(&createResponseData{
+	return SyncResponse(&userResponseData{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
 	}, nil)
@@ -2010,4 +2035,32 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(result, nil)
+}
+
+func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use create-user as non-root")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get users: %s", err)
+	}
+
+	resp := make([]userResponseData, len(users))
+	for i, u := range users {
+		resp[i] = userResponseData{
+			Username: u.Username,
+			Email:    u.Email,
+			ID:       u.ID,
+		}
+	}
+	return SyncResponse(resp, nil)
 }

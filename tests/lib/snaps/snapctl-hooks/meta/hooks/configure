@@ -48,7 +48,7 @@ test_exit_one() {
 }
 
 case $command in
-	'""')
+	'')
 		;;
 	'"test-nonexisting"')
 		test_nonexisting

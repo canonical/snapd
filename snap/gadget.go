@@ -41,10 +41,14 @@ type GadgetVolume struct {
 	Structure  []VolumeStructure `yaml:"structure"`
 }
 
+// TODO Offsets and sizes are strings to support unit suffixes.
+// Is that a good idea? *2^N or *10^N? We'll probably want a richer
+// type when we actually handle these.
+
 type VolumeStructure struct {
 	Label       string          `yaml:"label"`
-	Offset      int64           `yaml:"offset"`
-	OffsetWrite int64           `yaml:"offset-write"`
+	Offset      string          `yaml:"offset"`
+	OffsetWrite string          `yaml:"offset-write"`
 	Size        string          `yaml:"size"`
 	Type        string          `yaml:"type"`
 	ID          string          `yaml:"id"`
@@ -57,8 +61,8 @@ type VolumeContent struct {
 	Target string `yaml:"target"`
 
 	Image       string `yaml:"image"`
-	Offset      int64  `yaml:"offset"`
-	OffsetWrite int64  `yaml:"offset-write"`
+	Offset      string `yaml:"offset"`
+	OffsetWrite string `yaml:"offset-write"`
 	Size        string `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
