@@ -38,12 +38,15 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 )
 
-type checkSnapSuite struct{}
+type checkSnapSuite struct {
+	st *state.State
+}
 
 var _ = Suite(&checkSnapSuite{})
 
 func (s *checkSnapSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.st = state.New(nil)
 }
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
@@ -69,7 +72,7 @@ architectures:
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
 
 	errorMsg := fmt.Sprintf(`snap "hello" supported architectures (yadayada, blahblah) are incompatible with this system (%s)`, arch.UbuntuArchitecture())
 	c.Assert(err.Error(), Equals, errorMsg)
@@ -89,7 +92,7 @@ assumes: [f1, f2]`
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
 	c.Check(err, ErrorMatches, `snap "foo" assumes unsupported features: f1, f2.*`)
 }
 
@@ -107,7 +110,7 @@ assumes: [common-data-dir]`
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
 	c.Check(err, IsNil)
 }
 
@@ -115,10 +118,12 @@ func (s *checkSnapSuite) TestCheckSnapCheckInterfacesOK(c *C) {
 	const yaml = `name: foo
 version: 1.0`
 
-	info, err := snap.InfoFromSnapYaml([]byte(yaml))
-	c.Assert(err, IsNil)
+	si := &snap.SideInfo{
+		SnapID: "snap-id",
+	}
 
 	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		info := snaptest.MockInfo(c, yaml, si)
 		return info, nil, nil
 	}
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
@@ -126,12 +131,13 @@ version: 1.0`
 
 	checkInterfacesCalled := false
 	snapstate.CheckInterfaces = func(st *state.State, s *snap.Info) error {
-		c.Assert(s, Equals, info)
+		c.Assert(s.Name(), Equals, "foo")
+		c.Assert(s.SnapID, Equals, "snap-id")
 		checkInterfacesCalled = true
 		return nil
 	}
 
-	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	err := snapstate.CheckSnap(s.st, "snap-path", si, nil, 0)
 	c.Check(err, IsNil)
 
 	c.Check(checkInterfacesCalled, Equals, true)
@@ -156,7 +162,7 @@ version: 1.0`
 
 	}
 
-	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
 	c.Check(err, Equals, fail)
 }
 
@@ -196,7 +202,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
 	st.Lock()
 	c.Check(err, IsNil)
 }
@@ -237,7 +243,7 @@ version: 2
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
@@ -270,7 +276,7 @@ version: 1
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot find original gadget snap")
 }
@@ -298,7 +304,7 @@ version: 1
 	defer restore()
 
 	st.Unlock()
-	err = snapstate.CheckSnap(st, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(st, "snap-path", nil, nil, 0)
 	st.Lock()
 	c.Check(err, ErrorMatches, "cannot install a gadget snap on classic")
 }
@@ -319,7 +325,7 @@ confinement: devmode
 	restore := snapstate.MockOpenSnapFile(openSnapFile)
 	defer restore()
 
-	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	err = snapstate.CheckSnap(s.st, "snap-path", nil, nil, 0)
 
 	c.Assert(err, ErrorMatches, ".* requires devmode or confinement override")
 }

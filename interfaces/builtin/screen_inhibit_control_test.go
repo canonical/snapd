@@ -37,7 +37,7 @@ var _ = Suite(&ScreenInhibitControlInterfaceSuite{
 	iface: builtin.NewScreenInhibitControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "screen-inhibit-control",
 			Interface: "screen-inhibit-control",
 		},

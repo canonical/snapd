@@ -37,7 +37,7 @@ var _ = Suite(&KernelModuleControlInterfaceSuite{
 	iface: builtin.NewKernelModuleControlInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "kernel-module-control",
 			Interface: "kernel-module-control",
 		},

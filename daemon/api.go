@@ -304,7 +304,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		user.StoreDischarges = []string{discharge}
 		err = auth.UpdateUser(state, user)
 	} else {
-		_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
 	state.Unlock()
 	if err != nil {
@@ -312,8 +312,8 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	result := loginResponseData{
-		Macaroon:   macaroon,
-		Discharges: []string{discharge},
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	return SyncResponse(result, nil)
 }
@@ -658,7 +658,7 @@ type snapInstruction struct {
 }
 
 var (
-	snapstateGet               = snapstate.Get
+	snapstateCoreInfo          = snapstate.CoreInfo
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
@@ -679,21 +679,20 @@ var ensureStateSoon = ensureStateSoonImpl
 
 var errNothingToInstall = errors.New("nothing to install")
 
-func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
-	ubuntuCore := "ubuntu-core"
+const oldDefaultSnapCoreName = "ubuntu-core"
+const defaultCoreSnapName = "core"
 
-	if targetSnap == ubuntuCore {
+func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
+	if targetSnap == defaultCoreSnapName || targetSnap == oldDefaultSnapCoreName {
 		return nil, errNothingToInstall
 	}
 
-	var ss snapstate.SnapState
-
-	err := snapstateGet(st, ubuntuCore, &ss)
+	_, err := snapstateCoreInfo(st)
 	if err != state.ErrNoState {
 		return nil, err
 	}
 
-	return snapstateInstall(st, ubuntuCore, "stable", snap.R(0), userID, 0)
+	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, 0)
 }
 
 func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {

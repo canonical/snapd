@@ -56,10 +56,10 @@ func checkAssumes(s *snap.Info) error {
 var openSnapFile = backend.OpenSnapFile
 
 // checkSnap ensures that the snap can be installed.
-func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags Flags) error {
+func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo *snap.Info, flags Flags) error {
 	// This assumes that the snap was already verified or --dangerous was used.
 
-	s, _, err := openSnapFile(snapFilePath, nil)
+	s, _, err := openSnapFile(snapFilePath, si)
 	if err != nil {
 		return err
 	}
@@ -79,39 +79,59 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 		return err
 	}
 
+	st.Lock()
+	defer st.Unlock()
+
 	if CheckInterfaces != nil {
 		if err := CheckInterfaces(st, s); err != nil {
 			return err
 		}
 	}
 
-	if s.Type != snap.TypeGadget {
+	switch s.Type {
+	case snap.Type(""), snap.TypeApp, snap.TypeKernel:
+		// "" used in a lot of tests :-/
+
+		return nil
+	case snap.TypeOS:
+		if curInfo != nil {
+			// already one of these installed
+			return nil
+		}
+		core, err := CoreInfo(st)
+		if err == state.ErrNoState {
+			return nil
+		}
+		if core.Name() != s.Name() {
+			return fmt.Errorf("cannot install core snap %q when core snap %q is already present", s.Name(), core.Name())
+		}
+
+		return nil
+	case snap.TypeGadget:
+		// gadget specific checks
+		if release.OnClassic {
+			// for the time being
+			return fmt.Errorf("cannot install a gadget snap on classic")
+		}
+
+		currentGadget, err := GadgetInfo(st)
+		// in firstboot we have no gadget yet - that is ok
+		if err == state.ErrNoState && !firstboot.HasRun() {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("cannot find original gadget snap")
+		}
+
+		// TODO: actually compare snap ids, from current gadget and candidate
+		if currentGadget.Name() != s.Name() {
+			return fmt.Errorf("cannot replace gadget snap with a different one")
+		}
+
 		return nil
 	}
 
-	// gadget specific checks
-	if release.OnClassic {
-		// for the time being
-		return fmt.Errorf("cannot install a gadget snap on classic")
-	}
-
-	st.Lock()
-	defer st.Unlock()
-	currentGadget, err := GadgetInfo(st)
-	// in firstboot we have no gadget yet - that is ok
-	if err == state.ErrNoState && !firstboot.HasRun() {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("cannot find original gadget snap")
-	}
-
-	// TODO: actually compare snap ids, from current gadget and candidate
-	if currentGadget.Name() != s.Name() {
-		return fmt.Errorf("cannot replace gadget snap with a different one")
-	}
-
-	return nil
+	panic("unknown type")
 }
 
 // CheckInterfaces allows to hook into snap checking to verify interfaces.
