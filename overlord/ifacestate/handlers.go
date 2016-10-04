@@ -348,18 +348,22 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 		affectedConns = []interfaces.ConnRef{{*plugRef, *slotRef}}
-	} else if plugRef.Name != "" {
+	} else if plugRef.Name != "" && slotRef.Snap == "" && slotRef.Name == "" {
+		// NOTE: plugRef.Snap can be either empty or not, Connected handles both
 		affectedConns, err = m.repo.Connected(plugRef.Snap, plugRef.Name)
 		if err != nil {
 			return err
 		}
 		m.repo.DisconnectAll(affectedConns)
-	} else {
+	} else if plugRef.Snap == "" && plugRef.Name == "" && slotRef.Name != "" {
+		// Symmetrically, slotRef.Snap can be either empty or not
 		affectedConns, err = m.repo.Connected(slotRef.Snap, slotRef.Name)
 		if err != nil {
 			return err
 		}
 		m.repo.DisconnectAll(affectedConns)
+	} else {
+		return fmt.Errorf("internal error, unhandled disconnect case plug: %q, slot: %q", plugRef, slotRef)
 	}
 	affectedSnaps := snapNamesFromConns(affectedConns)
 	for _, snapName := range affectedSnaps {
