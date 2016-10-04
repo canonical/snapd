@@ -273,12 +273,14 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Confirm the purchase.
-	fmt.Fprint(s.stdin, "y\n")
+	fmt.Fprint(s.stdin, "the password\n")
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Do you want to buy \"hello\" from \"canonical\" for 2.99GBP? (Y/n): Thanks for purchasing hello. You may now install it on any of your devices with 'snap install hello'.\n")
+	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase 'hello' from 'canonical' for 2.99GBP. Press ctrl-c to cancel.
+Password: 
+`)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -364,13 +366,15 @@ func (s *BuySnapSuite) TestBuyCancel(c *check.C) {
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Decline the payment
-	fmt.Fprint(s.stdin, "no\n")
+	//	fmt.Fprint(s.stdin, "no\n")
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "aborting")
 	c.Check(rest, check.DeepEquals, []string{"hello"})
-	c.Check(s.Stdout(), check.Equals, `Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): `)
+	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase 'hello' from 'canonical' for 2.99GBP. Press ctrl-c to cancel.
+Password: 
+`)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 

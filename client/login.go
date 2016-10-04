@@ -132,8 +132,8 @@ func writeAuthData(user User) error {
 	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
 }
 
-// readAuthData reads previously written authentication details
-func readAuthData() (*User, error) {
+// ReadAuthData reads previously written authentication details
+func ReadAuthData() (*User, error) {
 	sourceFile := storeAuthDataFilename("")
 	f, err := os.Open(sourceFile)
 	if err != nil {
