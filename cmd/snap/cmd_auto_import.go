@@ -150,7 +150,7 @@ func init() {
 
 func autoAddUsers() error {
 	cmd := cmdCreateUser{
-		Known: true,
+		Known: true, Sudoer: true,
 	}
 	return cmd.Execute(nil)
 }

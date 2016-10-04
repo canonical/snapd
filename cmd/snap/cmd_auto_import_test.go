@@ -62,7 +62,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/create-user")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(postData, DeepEquals, []byte(`{"known":true}`))
+			c.Check(string(postData), Equals, `{"sudoer":true,"known":true}`)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
