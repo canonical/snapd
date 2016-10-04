@@ -921,8 +921,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-// GadgetInfo finds the current gadget snap's info.
-func GadgetInfo(s *state.State) (*snap.Info, error) {
+func infoForType(s *state.State, snapType snap.Type) (*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
@@ -935,13 +934,23 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		if typ != snap.TypeGadget {
+		if typ != snapType {
 			continue
 		}
 		return snapState.CurrentInfo()
 	}
 
 	return nil, state.ErrNoState
+}
+
+// GadgetInfo finds the current gadget snap's info.
+func GadgetInfo(s *state.State) (*snap.Info, error) {
+	return infoForType(s, snap.TypeGadget)
+}
+
+// CoreInfo finds the current OS snap's info.
+func CoreInfo(s *state.State) (*snap.Info, error) {
+	return infoForType(s, snap.TypeOS)
 }
 
 // InstallMany installs everything from the given list of names.

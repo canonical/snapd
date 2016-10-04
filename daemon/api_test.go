@@ -170,7 +170,7 @@ func (s *apiSuite) TearDownTest(c *check.C) {
 	s.d = nil
 	s.restoreBackends()
 	snapstateInstall = snapstate.Install
-	snapstateGet = snapstate.Get
+	snapstateCoreInfo = snapstate.CoreInfo
 	snapstateInstallPath = snapstate.InstallPath
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 	unsafeReadSnapInfo = unsafeReadSnapInfoImpl
@@ -386,6 +386,8 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"maxReadBuflen",
 		"muxVars",
 		"errNothingToInstall",
+		"defaultCoreSnapName",
+		"oldDefaultSnapCoreName",
 		"errModeConflict",
 		"errNoJailMode",
 		// snapInstruction vars:
@@ -394,7 +396,7 @@ func (s *apiSuite) TestListIncludesAll(c *check.C) {
 		"snapstateUpdate",
 		"snapstateInstallPath",
 		"snapstateTryPath",
-		"snapstateGet",
+		"snapstateCoreInfo",
 		"snapstateUpdateMany",
 		"snapstateInstallMany",
 		"snapstateRemoveMany",
@@ -1639,8 +1641,8 @@ func (s *apiSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		return nil, nil
 	}
 	snapstateInstallPath = func(s *state.State, si *snap.SideInfo, path, channel string, flags snapstate.Flags) (*state.TaskSet, error) {
 		c.Check(flags, check.Equals, snapstate.Flags(0))
@@ -1799,7 +1801,7 @@ func (s *apiSuite) TestTrySnapNotDir(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, testutil.Contains, "not a snap directory")
 }
 
-func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasUbuntuCore bool) string {
+func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]string, expectedFlags snapstate.Flags, hasCoreSnap bool) string {
 	d := newTestDaemon(c)
 	d.overlord.Loop()
 	defer d.overlord.Stop()
@@ -1816,12 +1818,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 		return &snap.Info{SuggestedName: "local"}, nil
 	}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		if hasUbuntuCore {
-			return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		if hasCoreSnap {
+			return nil, nil
 		}
 		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+		return nil, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		// NOTE: ubuntu-core is not installed in developer mode
@@ -1854,12 +1856,12 @@ func (s *apiSuite) sideloadCheck(c *check.C, content string, head map[string]str
 	rsp := postSnaps(snapsCmd, req, nil).(*resp)
 	c.Assert(rsp.Type, check.Equals, ResponseTypeAsync)
 	n := 1
-	if !hasUbuntuCore {
+	if !hasCoreSnap {
 		n++
 	}
 	c.Assert(installQueue, check.HasLen, n)
-	if !hasUbuntuCore {
-		c.Check(installQueue[0], check.Equals, "ubuntu-core")
+	if !hasCoreSnap {
+		c.Check(installQueue[0], check.Equals, defaultCoreSnapName)
 	}
 	c.Check(installQueue[n-1], check.Matches, "local::.*/snapd-sideload-pkg-.*")
 
@@ -2070,9 +2072,9 @@ func (s *apiSuite) testInstall(c *check.C, releaseInfo *release.OS, flags snapst
 	restore := release.MockReleaseInfo(releaseInfo)
 	defer restore()
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revno snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -2128,9 +2130,9 @@ func (s *apiSuite) TestRefresh(c *check.C) {
 	installQueue := []string{}
 	assertstateCalledUserID := 0
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -2171,9 +2173,9 @@ func (s *apiSuite) TestRefreshDevMode(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -2213,9 +2215,9 @@ func (s *apiSuite) TestRefreshIgnoreValidation(c *check.C) {
 	calledUserID := 0
 	installQueue := []string{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
 		// we have ubuntu-core
-		return nil
+		return nil, nil
 	}
 	snapstateUpdate = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		calledFlags = flags
@@ -2390,12 +2392,12 @@ func (s *apiSuite) TestRemoveMany(c *check.C) {
 	c.Check(removes, check.DeepEquals, inst.Snaps)
 }
 
-func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
+func (s *apiSuite) TestInstallMissingCoreSnap(c *check.C) {
 	installQueue := []*state.Task{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// pretend we do not have a core
+		return nil, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
@@ -2427,8 +2429,8 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 	c.Check(chg.Tasks(), check.HasLen, 4)
 
 	c.Check(installQueue, check.HasLen, 4)
-	// the two "ubuntu-core" install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	// the two OS snap install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, defaultCoreSnapName)
 	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
 	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 	// the two "some-snap" install tasks
@@ -2439,12 +2441,12 @@ func (s *apiSuite) TestInstallMissingUbuntuCore(c *check.C) {
 
 // Installing ubuntu-core when not having ubuntu-core doesn't misbehave and try
 // to install ubuntu-core twice.
-func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
+func (s *apiSuite) TestInstallCoreSnapWhenMissing(c *check.C) {
 	installQueue := []*state.Task{}
 
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// pretend we do not have a state for ubuntu-core
-		return state.ErrNoState
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// pretend we do not have a core
+		return nil, state.ErrNoState
 	}
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
 		t1 := s.NewTask("fake-install-snap", name)
@@ -2456,7 +2458,7 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	d := s.daemon(c)
 	inst := &snapInstruction{
 		Action: "install",
-		Snaps:  []string{"ubuntu-core"},
+		Snaps:  []string{defaultCoreSnapName},
 	}
 
 	st := d.overlord.State()
@@ -2466,16 +2468,16 @@ func (s *apiSuite) TestInstallUbuntuCoreWhenMissing(c *check.C) {
 	c.Check(err, check.IsNil)
 
 	c.Check(installQueue, check.HasLen, 2)
-	// the only "ubuntu-core" install tasks
-	c.Check(installQueue[0].Summary(), check.Equals, "ubuntu-core")
+	// the only OS snap install tasks
+	c.Check(installQueue[0].Summary(), check.Equals, defaultCoreSnapName)
 	c.Check(installQueue[0].WaitTasks(), check.HasLen, 0)
 	c.Check(installQueue[1].WaitTasks(), check.HasLen, 0)
 }
 
 func (s *apiSuite) TestInstallFails(c *check.C) {
-	snapstateGet = func(s *state.State, name string, snapst *snapstate.SnapState) error {
-		// we have ubuntu-core
-		return nil
+	snapstateCoreInfo = func(s *state.State) (*snap.Info, error) {
+		// we have core
+		return nil, nil
 	}
 
 	snapstateInstall = func(s *state.State, name, channel string, revision snap.Revision, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
@@ -3739,17 +3741,12 @@ func (s *apiSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 }
 
-func makeFakeUserLookup(c *check.C, fakeHome string) func(username string) (*user.User, error) {
-	u, err := user.Current()
-	c.Assert(err, check.IsNil)
-
+func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 	return func(username string) (*user.User, error) {
-		return &user.User{
-			Username: username,
-			Uid:      u.Uid,
-			Gid:      u.Gid,
-			HomeDir:  fakeHome,
-		}, nil
+		cur, err := user.Current()
+		cur.Username = username
+		cur.HomeDir = userHomeDir
+		return cur, err
 	}
 }
 
@@ -3772,7 +3769,8 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 		return nil
 	}
 	userHomeDir := c.MkDir()
-	userLookup = makeFakeUserLookup(c, userHomeDir)
+	userLookup = mkUserLookup(userHomeDir)
+
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4082,7 +4080,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 		return nil
 	}
 
-	userLookup = makeFakeUserLookup(c, c.MkDir())
+	userLookup = mkUserLookup(c.MkDir())
+
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4148,7 +4147,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 		return nil
 	}
 
-	userLookup = makeFakeUserLookup(c, c.MkDir())
+	userLookup = mkUserLookup(c.MkDir())
+
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
 		return 0, nil
 	}
@@ -4254,7 +4254,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 		return nil
 	}
 
-	userLookup = makeFakeUserLookup(c, c.MkDir())
+	userLookup = mkUserLookup(c.MkDir())
+
 	defer func() {
 		osutilAddUser = osutil.AddUser
 		postCreateUserUcrednetGetUID = ucrednetGetUID
