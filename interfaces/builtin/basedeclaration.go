@@ -125,7 +125,7 @@ slots:
 
 /* TODO:
 
- * we want snap-control to be deny-auto-connection once we can set snap decls
+ * we want snapd-control to be deny-auto-connection once we can set snap decls
 
  */
 
