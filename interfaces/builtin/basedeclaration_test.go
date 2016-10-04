@@ -20,17 +20,134 @@
 package builtin_test
 
 import (
-	"github.com/snapcore/snapd/asserts"
+	"fmt"
+	"strings"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
-type baseDeclSuite struct{}
+type baseDeclSuite struct {
+	baseDecl *asserts.BaseDeclaration
+}
 
 var _ = Suite(&baseDeclSuite{})
 
-func (s *baseDeclSuite) TestSanity(c *C) {
-	baseDecl := asserts.BuiltinBaseDeclaration()
-	c.Check(baseDecl.PlugRule("network"), NotNil)
-	c.Check(baseDecl.SlotRule("network"), NotNil)
+func (s *baseDeclSuite) SetUpSuite(c *C) {
+	s.baseDecl = asserts.BuiltinBaseDeclaration()
+}
+
+func (s *baseDeclSuite) connectCand(c *C, iface, slotYaml, plugYaml string) *policy.ConnectCandidate {
+	if slotYaml == "" {
+		slotYaml = fmt.Sprintf(`name: slot-snap
+slots:
+  %s:
+`, iface)
+	}
+	if plugYaml == "" {
+		plugYaml = fmt.Sprintf(`name: plug-snap
+plugs:
+  %s:
+`, iface)
+	}
+	slotSnap := snaptest.MockInfo(c, slotYaml, nil)
+	plugSnap := snaptest.MockInfo(c, plugYaml, nil)
+	return &policy.ConnectCandidate{
+		Plug:            plugSnap.Plugs[iface],
+		Slot:            slotSnap.Slots[iface],
+		BaseDeclaration: s.baseDecl,
+	}
+}
+
+const declTempl = `type: snap-declaration
+authority-id: canonical
+series: 16
+snap-name: @name@
+snap-id: @snapid@
+publisher-id: @publisher@
+@plugsSlots@
+timestamp: 2016-09-30T12:00:00Z
+sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
+
+AXNpZw==`
+
+func (s *baseDeclSuite) mockSnapDecl(c *C, name, snapID, publisher string, plugsSlots string) *asserts.SnapDeclaration {
+	encoded := strings.Replace(declTempl, "@name@", name, 1)
+	encoded = strings.Replace(encoded, "@snapid@", snapID, 1)
+	encoded = strings.Replace(encoded, "@publisher@", publisher, 1)
+	if plugsSlots != "" {
+		encoded = strings.Replace(encoded, "@plugsSlots@", strings.TrimSpace(plugsSlots), 1)
+	} else {
+		encoded = strings.Replace(encoded, "@plugsSlots@\n", "", 1)
+	}
+	a, err := asserts.Decode([]byte(encoded))
+	c.Assert(err, IsNil)
+	return a.(*asserts.SnapDeclaration)
+}
+
+func (s *baseDeclSuite) TestAutoConnection(c *C) {
+	all := builtin.Interfaces()
+
+	snowflakes := map[string]bool{
+		"content":       true,
+		"home":          true,
+		"lxd-support":   true,
+		"snapd-control": true,
+	}
+
+	for _, iface := range all {
+		if snowflakes[iface.Name()] {
+			continue
+		}
+		expected := iface.AutoConnect()
+		cand := s.connectCand(c, iface.Name(), "", "")
+		err := cand.CheckAutoConnect()
+		if expected {
+			c.Check(err, IsNil, Commentf(iface.Name()))
+		} else {
+			c.Check(err, NotNil, Commentf(iface.Name()))
+		}
+	}
+}
+
+func (s *baseDeclSuite) TestInterimAutoConnectHome(c *C) {
+	// home will be controlled by AutoConnect(plug, slot) until
+	// we have on-classic support in decls
+	// to stop it from working on non-classic
+	cand := s.connectCand(c, "home", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+	// TODO: AutoConnect(plug, slot)
+}
+
+func (s *baseDeclSuite) TestInterimAutoConnectSnapdControl(c *C) {
+	// snapd-control is auto-connect until we have snap declaration editing
+	cand := s.connectCand(c, "snapd-control", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
+
+func (s *baseDeclSuite) TestAutoConnectContent(c *C) {
+	// content will also depend for now AutoConnect(plug, slot)
+	// random snaps cannot connect with content
+	cand := s.connectCand(c, "content", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	// TODO: AutoConnect(plug, slot)
+}
+
+func (s *baseDeclSuite) TestAutoConnectLxdSupport(c *C) {
+	cand := s.connectCand(c, "lxd-support", "", "")
+	err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+
+	// TODO: have the real snap-decl allow things and not the base-decl
+	lxdDecl := s.mockSnapDecl(c, "lxd", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", "")
+	cand.PlugSnapDeclaration = lxdDecl
+	err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }
