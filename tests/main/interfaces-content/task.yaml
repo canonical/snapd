@@ -26,7 +26,7 @@ execute: |
     [ $(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l) -gt 0 ]
 
     echo "And we can use the shared content"
-    test-snapd-content-plug | grep "Some shared content"
+    test-snapd-content-plug.content-plug | grep "Some shared content"
 
     echo "============================================"
 
