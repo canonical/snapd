@@ -1430,3 +1430,13 @@ slots:
 	defer s.state.Unlock()
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
 }
+
+func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) {
+	snapInfo := s.mockSnap(c, osSnapYaml)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
+	c.Check(snapInfo.Slots["home"], NotNil)
+}
+
