@@ -81,6 +81,7 @@ var api = []*Command{
 	buyCmd,
 	readyToBuyCmd,
 	snapctlCmd,
+	usersCmd,
 }
 
 var (
@@ -198,6 +199,12 @@ var (
 		Path:   "/v2/snapctl",
 		SnapOK: true,
 		POST:   runSnapctl,
+	}
+
+	usersCmd = &Command{
+		Path:   "/v2/users",
+		UserOK: false,
+		GET:    getUsers,
 	}
 )
 
@@ -1861,12 +1868,12 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	// verify request
 	st := c.d.overlord.State()
 	st.Lock()
-	userCount, err := auth.UserCount(st)
+	users, err := auth.Users(st)
 	st.Unlock()
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
 	}
-	if userCount > 0 && !createData.ForceManaged {
+	if len(users) > 0 && !createData.ForceManaged {
 		return BadRequest("cannot create user: device already managed")
 	}
 
@@ -2003,4 +2010,36 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(result, nil)
+}
+
+type userResponseData struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+}
+
+func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use create-user as non-root")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get users: %s", err)
+	}
+
+	resp := make([]userResponseData, len(users))
+	for i, u := range users {
+		resp[i] = userResponseData{
+			Username: u.Username,
+			Email:    u.Email,
+		}
+	}
+	return SyncResponse(resp, nil)
 }
