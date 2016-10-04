@@ -180,7 +180,7 @@ func RemoveUser(st *state.State, userID int) error {
 	return fmt.Errorf("invalid user")
 }
 
-func Users(st *state.State) ([]UserState, error) {
+func Users(st *state.State) ([]*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -191,7 +191,11 @@ func Users(st *state.State) ([]UserState, error) {
 		return nil, err
 	}
 
-	return authStateData.Users, nil
+	users := make([]*UserState, len(authStateData.Users))
+	for i, _ := range authStateData.Users {
+		users[i] = &authStateData.Users[i]
+	}
+	return users, nil
 }
 
 // User returns a user from the state given its ID
