@@ -31,6 +31,7 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -79,17 +80,27 @@ func autoImportFromAllMounts() error {
 		if err := ackFile(cand); err != nil {
 			logger.Noticef("error: cannot import %s: %s", cand, err)
 		} else {
+			added += 1
 			logger.Noticef("imported %s", cand)
 		}
 	}
 
-	// FIXME: once we have a way to know if a device is owned,
-	//        no longer call this unconditionally
 	if added > 0 {
-		// FIXME: run `snap create-users --known`
+		cli := Client()
+		isManaged, err := cli.IsManaged()
+		if err != nil {
+			logger.Noticef("error calling IsManaged: %v", err)
+		} else if !isManaged {
+			options := client.CreateUserOptions{
+				Sudoer: true,
+				Known:  true,
+			}
+
+			_, err = cli.CreateUsers([]*client.CreateUserOptions{&options})
+		}
 	}
 
-	return nil
+	return err
 }
 
 func tryMount(deviceName string) (string, error) {
