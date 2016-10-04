@@ -14,7 +14,7 @@ restore: |
     rm -f *.snap
 
 execute: |
-    . $TESTLIB/names.sh
+    . $TESTSLIB/names.sh
 
     DISCONNECTED_PATTERN="\-\s+home-consumer:home"
 
