@@ -32,6 +32,10 @@ import (
 
 // User holds logged in user information.
 type User struct {
+	ID       int    `json:"id,omitempty"`
+	Username string `json:"username,omitempty"`
+	Email    string `json:"email,omitempty"`
+
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
