@@ -370,14 +370,19 @@ func (s *interfaceManagerSuite) TestDisconnectTask(c *C) {
 	c.Assert(slot.Name, Equals, "slot")
 }
 
-// Disconnect works when used with the fully-spelled-out form.
+// Disconnect works when both plug and slot are specified
 func (s *interfaceManagerSuite) TestDisconnectFull(c *C) {
 	s.testDisconnect(c, "consumer", "plug", "producer", "slot")
 }
 
-// Disconnect works when only the slot is fully specified.
+// Disconnect works when just the slot is fully specified.
 func (s *interfaceManagerSuite) TestDisconnectSlot(c *C) {
 	s.testDisconnect(c, "", "", "producer", "slot")
+}
+
+// Disconnect works when just the plug is fully specified.
+func (s *interfaceManagerSuite) TestDisconnectPlug(c *C) {
+	s.testDisconnect(c, "consumer", "plug", "", "")
 }
 
 func (s *interfaceManagerSuite) testDisconnect(c *C, plugSnap, plugName, slotSnap, slotName string) {
