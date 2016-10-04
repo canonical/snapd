@@ -73,10 +73,6 @@ func (sn *SnapAndName) UnmarshalFlag(value string) error {
 	case 2:
 		sn.Snap = parts[0]
 		sn.Name = parts[1]
-		// Reject ":name" (that is invalid)
-		if sn.Snap == "" {
-			sn.Name = ""
-		}
 		// Reject "snap:" (that should be spelled as "snap")
 		if sn.Name == "" {
 			sn.Snap = ""

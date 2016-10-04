@@ -1,0 +1,37 @@
+summary: Check that snap disconnect works
+
+systems: [-ubuntu-core-16-64]
+
+environment:
+    SNAP_FILE: "home-consumer_1.0_all.snap"
+
+prepare: |
+    echo "Install a test snap"
+    snapbuild $TESTSLIB/snaps/home-consumer .
+    snap install --dangerous $SNAP_FILE
+
+restore: |
+    rm -f *.snap
+
+execute: |
+    DISCONNECTED_PATTERN="\-\s+home-consumer:home"
+
+    echo "Disconnect everything from given slot"
+    snap connect home-consumer:home ubuntu-core:home
+    snap disconnect ubuntu-core:home
+    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+
+    echo "Disconnect everything from given plug"
+    snap connect home-consumer:home ubuntu-core:home
+    snap disconnect home-consumer:home
+    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+
+    echo "Disconnect everything from given slot of OS snap"
+    snap connect home-consumer:home ubuntu-core:home
+    snap disconnect :home
+    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"
+
+    echo "Disconnect specific plug and slot"
+    snap connect home-consumer:home ubuntu-core:home
+    snap disconnect home-consumer:home ubuntu-core:home
+    snap interfaces | grep -Pzqe "$DISCONNECTED_PATTERN"

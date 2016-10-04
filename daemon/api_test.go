@@ -462,6 +462,7 @@ func (s *apiSuite) TestSysInfo(c *check.C) {
 			"version-id": "1.2",
 		},
 		"on-classic": true,
+		"managed":    false,
 	}
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
@@ -543,10 +544,14 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	expected := loginResponseData{
+	expected := userResponseData{
+		ID:    1,
+		Email: "email@.com",
+
 		Macaroon:   user.Macaroon,
 		Discharges: user.Discharges,
 	}
+
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, expected)
@@ -591,7 +596,10 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 	state.Unlock()
 	c.Check(err, check.IsNil)
 
-	expected := loginResponseData{
+	expected := userResponseData{
+		ID:         1,
+		Username:   "username",
+		Email:      "email@.com",
 		Macaroon:   user.Macaroon,
 		Discharges: user.Discharges,
 	}
@@ -634,14 +642,18 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	mockSSOServer := s.makeSSOServer(200, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := loginUser(loginCmd, req, localUser).(*resp)
 
-	expected := loginResponseData{
+	expected := userResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
 		Macaroon:   localUser.Macaroon,
 		Discharges: localUser.Discharges,
 	}
@@ -2992,7 +3004,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer", no such plug)`)
+- Disconnect consumer:plug from producer:slot (snap "consumer" has no plug named "plug")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	slot := repo.Slot("producer", "slot")
@@ -3040,7 +3052,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug from slot "slot" from snap "producer", no such slot)`)
+- Disconnect consumer:plug from producer:slot (snap "producer" has no slot named "slot")`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -3088,7 +3100,7 @@ func (s *apiSuite) TestDisconnectPlugFailureNotConnected(c *check.C) {
 	st.Unlock()
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, `cannot perform the following tasks:
-- Disconnect consumer:plug from producer:slot (cannot disconnect plug "plug" from snap "consumer" from slot "slot" from snap "producer", it is not connected)`)
+- Disconnect consumer:plug from producer:slot (cannot disconnect consumer:plug from producer:slot, it is not connected)`)
 
 	repo := d.overlord.InterfaceManager().Repository()
 	plug := repo.Plug("consumer", "plug")
@@ -3786,7 +3798,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
-	expected := &createResponseData{
+	expected := &userResponseData{
 		Username: "karl",
 		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
@@ -4098,13 +4110,20 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
-	expected := &createResponseData{
+	expected := &userResponseData{
 		Username: "guy",
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure the user was added to the state
+	st := s.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	c.Check(users, check.HasLen, 1)
 }
 
 func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
@@ -4166,14 +4185,21 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	// note that we get a list here instead of a single
-	// createResponseData item
-	expected := []createResponseData{
+	// userResponseData item
+	expected := []userResponseData{
 		{Username: "guy"},
 	}
 
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure the user was added to the state
+	st := s.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	c.Check(users, check.HasLen, 1)
 }
 
 func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
@@ -4270,11 +4296,75 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	// note that we get a list here instead of a single
-	// createResponseData item
-	expected := []createResponseData{
+	// userResponseData item
+	expected := []userResponseData{
 		{Username: "guy"},
 	}
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestUsersEmpty(c *check.C) {
+	s.daemon(c)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() { userLookup = user.Lookup }()
+
+	req, err := http.NewRequest("GET", "/v2/users", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getUsers(usersCmd, req, nil).(*resp)
+
+	expected := []userResponseData{}
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestUsersHasUser(c *check.C) {
+	s.daemon(c)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() { userLookup = user.Lookup }()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	u, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/users", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getUsers(usersCmd, req, nil).(*resp)
+
+	expected := []userResponseData{
+		{ID: u.ID, Username: u.Username, Email: u.Email},
+	}
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestSysinfoIsManaged(c *check.C) {
+	s.daemon(c)
+
+	st := s.d.overlord.State()
+	st.Lock()
+	_, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/system-info", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := sysInfo(sysInfoCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result.(map[string]interface{})["managed"], check.Equals, true)
 }
