@@ -39,13 +39,10 @@ $ snap disconnect <snap>:<plug> <snap>:<slot>
 
 Disconnects the specific plug from the specific slot.
 
-$ snap disconnect <snap>:<slot>
+$ snap disconnect <snap>:<slot or plug>
 
-Disconnects any previously connected plugs from the provided slot.
-
-$ snap disconnect <snap>
-
-Disconnects all plugs from the provided snap.
+Disconnects everything from the provided plug or slot.
+The snap name may be omitted for the OS snap.
 
 Application Options:
       --version            Print the version and exit
