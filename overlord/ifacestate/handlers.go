@@ -347,7 +347,7 @@ func (m *InterfaceManager) doDisconnect(task *state.Task, _ *tomb.Tomb) error {
 		if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
 			return err
 		}
-		affectedConns = []interfaces.ConnRef{{*plugRef, *slotRef}}
+		affectedConns = []interfaces.ConnRef{{plugRef, slotRef}}
 	} else if plugRef.Name != "" && slotRef.Snap == "" && slotRef.Name == "" {
 		// NOTE: plugRef.Snap can be either empty or not, Connected handles both
 		affectedConns, err = m.repo.Connected(plugRef.Snap, plugRef.Name)
