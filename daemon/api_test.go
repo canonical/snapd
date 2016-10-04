@@ -4293,3 +4293,49 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
+
+func (s *apiSuite) TestUsersEmpty(c *check.C) {
+	s.daemon(c)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() { userLookup = user.Lookup }()
+
+	req, err := http.NewRequest("GET", "/v2/users", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getUsers(usersCmd, req, nil).(*resp)
+
+	expected := []userResponseData{}
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *apiSuite) TestUsersHasUser(c *check.C) {
+	s.daemon(c)
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() { userLookup = user.Lookup }()
+
+	st := s.d.overlord.State()
+	st.Lock()
+	u, err := auth.NewUser(st, "someuser", "mymail@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("GET", "/v2/users", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := getUsers(usersCmd, req, nil).(*resp)
+
+	expected := []userResponseData{
+		{Username: u.Username, Email: u.Email},
+	}
+	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+}
