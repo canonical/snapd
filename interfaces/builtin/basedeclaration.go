@@ -69,7 +69,6 @@ slots:
         - core
     deny-auto-connection: true
   docker:
-    allow-installation: false
     deny-auto-connection: true
   docker-support:
     allow-installation:
