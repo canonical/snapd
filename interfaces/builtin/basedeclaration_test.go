@@ -92,6 +92,8 @@ func (s *baseDeclSuite) mockSnapDecl(c *C, name, snapID, publisher string, plugs
 func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	all := builtin.Interfaces()
 
+	// these have more complex or in flux policies and have their
+	// own separate tests
 	snowflakes := map[string]bool{
 		"content":       true,
 		"home":          true,
@@ -114,14 +116,32 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestAutoConnectPair(c *C) {
+	all := builtin.Interfaces()
+
+	// these have more complex or in flux policies and have their
+	// own separate tests
+	snowflakes := map[string]bool{
+		"content":     true,
+		"home":        true,
+		"lxd-support": true,
+	}
+
+	for _, iface := range all {
+		if snowflakes[iface.Name()] {
+			continue
+		}
+		c.Check(iface.AutoConnectPair(nil, nil), Equals, true)
+	}
+}
+
 func (s *baseDeclSuite) TestInterimAutoConnectHome(c *C) {
-	// home will be controlled by AutoConnect(plug, slot) until
+	// home will be controlled by AutoConnectPair(plug, slot) until
 	// we have on-classic support in decls
 	// to stop it from working on non-classic
 	cand := s.connectCand(c, "home", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
-	// TODO: AutoConnect(plug, slot)
 }
 
 func (s *baseDeclSuite) TestInterimAutoConnectSnapdControl(c *C) {
@@ -137,7 +157,7 @@ func (s *baseDeclSuite) TestAutoConnectContent(c *C) {
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
-	// TODO: AutoConnect(plug, slot)
+	// TODO: AutoConnectPair(plug, slot)
 }
 
 func (s *baseDeclSuite) TestAutoConnectLxdSupport(c *C) {
