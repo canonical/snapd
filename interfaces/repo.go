@@ -450,7 +450,11 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 	if plugOrSlotName == "" {
 		return nil, fmt.Errorf("cannot resolve disconnect, plug or slot name is empty")
 	}
-	// Precise mode, affect specific plug or slot in this snap
+	// Check if plugOrSlotName actually maps to anything
+	if r.plugs[snapName][plugOrSlotName] == nil && r.slots[snapName][plugOrSlotName] == nil {
+		return nil, fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlotName)
+	}
+	// Collect all the relevant connections
 	if plug, ok := r.plugs[snapName][plugOrSlotName]; ok {
 		for _, slotRef := range plug.Connections {
 			connRef := ConnRef{PlugRef: plug.Ref(), SlotRef: slotRef}
@@ -462,10 +466,6 @@ func (r *Repository) Connected(snapName, plugOrSlotName string) ([]ConnRef, erro
 			connRef := ConnRef{PlugRef: plugRef, SlotRef: slot.Ref()}
 			conns = append(conns, connRef)
 		}
-	}
-	// Check if plugOrSlotName actually maps to anything
-	if len(conns) == 0 {
-		return nil, fmt.Errorf("snap %q has no plug or slot named %q", snapName, plugOrSlotName)
 	}
 	return conns, nil
 }
