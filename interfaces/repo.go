@@ -434,10 +434,6 @@ func (r *Repository) ResolveDisconnectAll(snapName, plugOrSlotName string) ([]Co
 	r.m.Lock()
 	defer r.m.Unlock()
 
-	return r.unlockedResolveDisconnectAll(snapName, plugOrSlotName)
-}
-
-func (r *Repository) unlockedResolveDisconnectAll(snapName, plugOrSlotName string) ([]ConnRef, error) {
 	if snapName == "" {
 		// Look up the core snap if no snap name was given
 		switch {
