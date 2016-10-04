@@ -837,32 +837,4 @@ func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot, policyCheck 
 	}
 
 	return r.ifaces[plug.Interface].AutoConnectPair(plug, slot)
-
-	/*
-		// FIXME: remove once we have assertions that provide this feature
-		if isLivePatchSnap(plug.Snap) {
-			return true
-		}
-
-		if !r.ifaces[plug.Interface].AutoConnect() {
-			return false
-		}
-
-		// content sharing auto connect candidates
-		if slot.Interface == "content" {
-			if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
-				return true
-			}
-			// we need to stop here to avoid the OS snap autoconnecting
-			// any content later
-			return false
-		}
-
-		// OS snap auto connect candidates
-		if slot.Snap.Type == snap.TypeOS {
-			return true
-		}
-
-		return false
-	*/
 }
