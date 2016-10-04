@@ -26,8 +26,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/policy"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -59,6 +61,21 @@ plugs:
 	return &policy.ConnectCandidate{
 		Plug:            plugSnap.Plugs[iface],
 		Slot:            slotSnap.Slots[iface],
+		BaseDeclaration: s.baseDecl,
+	}
+}
+
+func (s *baseDeclSuite) installSlotCand(c *C, iface string, snapType snap.Type, yaml string) *policy.InstallCandidate {
+	if yaml == "" {
+		yaml = fmt.Sprintf(`name: install-slot-snap
+type: %s
+slots:
+  %s:
+`, snapType, iface)
+	}
+	snap := snaptest.MockInfo(c, yaml, nil)
+	return &policy.InstallCandidate{
+		Snap:            snap,
 		BaseDeclaration: s.baseDecl,
 	}
 }
@@ -170,4 +187,96 @@ func (s *baseDeclSuite) TestAutoConnectLxdSupport(c *C) {
 	cand.PlugSnapDeclaration = lxdDecl
 	err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
+}
+
+// describe installation rules for slots succinctly for cross-checking,
+// if an interface is not mentioned here a slot of its type can only
+// be installed by a core snap (and this was taken care by
+// SanitizeSlot),
+// otherwise the entry for the interface is the list of snap types it
+// can be installed by (using the declaration naming);
+// ATM a nil entry means even stricter rules that would need be tested
+// separately and whose implementation is in flux for now
+var (
+	unconstrained = []string{"core", "kernel", "gadget", "app"}
+
+	slotInstallation = map[string][]string{
+		// snowflakes
+		"docker": nil, // TODO: we want slots: docker: false
+		// unconstrained
+		"bluez":            unconstrained,
+		"fwupd":            unconstrained,
+		"location-control": unconstrained,
+		"location-observe": unconstrained,
+		"modem-manager":    unconstrained,
+		"network-manager":  unconstrained,
+		"udisks2":          unconstrained,
+		// other
+		"bool-file":       []string{"core", "gadget"},
+		"browser-support": []string{"core"},
+		"content":         []string{"app", "gadget"},
+		"docker-support":  []string{"core"},
+		"gpio":            []string{"core", "gadget"},
+		"hidraw":          []string{"core", "gadget"},
+		"lxd-support":     []string{"core"},
+		"mir":             []string{"app"},
+		"mpris":           []string{"app"},
+		"ppp":             []string{"core"},
+		"pulseaudio":      []string{"core"},
+		"serial-port":     []string{"core", "gadget"},
+	}
+)
+
+func contains(l []string, s string) bool {
+	for _, s1 := range l {
+		if s == s1 {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *baseDeclSuite) TestSlotInstallation(c *C) {
+	typMap := map[string]snap.Type{
+		"core":   snap.TypeOS,
+		"app":    snap.TypeApp,
+		"kernel": snap.TypeKernel,
+		"gadget": snap.TypeGadget,
+	}
+
+	all := builtin.Interfaces()
+
+	for _, iface := range all {
+		types, ok := slotInstallation[iface.Name()]
+		compareWithSanitize := false
+		if !ok { // common ones, only core can install them,
+			// their plain SanitizeSlot checked for that
+			types = []string{"core"}
+			compareWithSanitize = true
+		}
+		if types == nil {
+			// snowflake needs to be tested specially
+			continue
+		}
+		for name, snapType := range typMap {
+			ok := contains(types, name)
+			ic := s.installSlotCand(c, iface.Name(), snapType, ``)
+			slotInfo := ic.Snap.Slots[iface.Name()]
+			err := ic.Check()
+			comm := Commentf("%s by %s snap", iface.Name(), name)
+			if ok {
+				c.Check(err, IsNil, comm)
+			} else {
+				c.Check(err, NotNil, comm)
+			}
+			if compareWithSanitize {
+				sanitizeErr := iface.SanitizeSlot(&interfaces.Slot{SlotInfo: slotInfo})
+				if err == nil {
+					c.Check(sanitizeErr, IsNil, comm)
+				} else {
+					c.Check(sanitizeErr, NotNil, comm)
+				}
+			}
+		}
+	}
 }

@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -47,6 +48,7 @@ func (s *checkSnapSuite) SetUpTest(c *C) {
 
 func (s *checkSnapSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
+	snapstate.CheckInterfaces = nil
 }
 
 func (s *checkSnapSuite) TestCheckSnapErrorOnUnsupportedArchitecture(c *C) {
@@ -107,6 +109,55 @@ assumes: [common-data-dir]`
 
 	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
 	c.Check(err, IsNil)
+}
+
+func (s *checkSnapSuite) TestCheckSnapCheckInterfacesOK(c *C) {
+	const yaml = `name: foo
+version: 1.0`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	checkInterfacesCalled := false
+	snapstate.CheckInterfaces = func(st *state.State, s *snap.Info) error {
+		c.Assert(s, Equals, info)
+		checkInterfacesCalled = true
+		return nil
+	}
+
+	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	c.Check(err, IsNil)
+
+	c.Check(checkInterfacesCalled, Equals, true)
+}
+
+func (s *checkSnapSuite) TestCheckSnapCheckInterfacesFail(c *C) {
+	const yaml = `name: foo
+version: 1.0`
+
+	info, err := snap.InfoFromSnapYaml([]byte(yaml))
+	c.Assert(err, IsNil)
+
+	var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+		return info, nil, nil
+	}
+	restore := snapstate.MockOpenSnapFile(openSnapFile)
+	defer restore()
+
+	fail := errors.New("bad interfaces")
+	snapstate.CheckInterfaces = func(st *state.State, s *snap.Info) error {
+		return fail
+
+	}
+
+	err = snapstate.CheckSnap(nil, "snap-path", nil, 0)
+	c.Check(err, Equals, fail)
 }
 
 func (s *checkSnapSuite) TestCheckSnapGadgetUpdate(c *C) {
