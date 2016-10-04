@@ -79,31 +79,51 @@ func checkSnap(st *state.State, snapFilePath string, curInfo *snap.Info, flags F
 		return err
 	}
 
-	if s.Type != snap.TypeGadget {
+	switch s.Type {
+	case snap.Type(""), snap.TypeApp, snap.TypeKernel:
+		// "" used in a lot of tests :-/
+		return nil
+	case snap.TypeOS:
+		if curInfo != nil {
+			// already one of these installed
+			return nil
+		}
+		st.Lock()
+		defer st.Unlock()
+		core, err := CoreInfo(st)
+		if err == state.ErrNoState {
+			return nil
+		}
+		if core.Name() != s.Name() {
+			return fmt.Errorf("cannot install core snap %q when core snap %q is already present", s.Name(), core.Name())
+		}
+
+		return nil
+	case snap.TypeGadget:
+		// gadget specific checks
+		if release.OnClassic {
+			// for the time being
+			return fmt.Errorf("cannot install a gadget snap on classic")
+		}
+
+		st.Lock()
+		defer st.Unlock()
+		currentGadget, err := GadgetInfo(st)
+		// in firstboot we have no gadget yet - that is ok
+		if err == state.ErrNoState && !firstboot.HasRun() {
+			return nil
+		}
+		if err != nil {
+			return fmt.Errorf("cannot find original gadget snap")
+		}
+
+		// TODO: actually compare snap ids, from current gadget and candidate
+		if currentGadget.Name() != s.Name() {
+			return fmt.Errorf("cannot replace gadget snap with a different one")
+		}
+
 		return nil
 	}
 
-	// gadget specific checks
-	if release.OnClassic {
-		// for the time being
-		return fmt.Errorf("cannot install a gadget snap on classic")
-	}
-
-	st.Lock()
-	defer st.Unlock()
-	currentGadget, err := GadgetInfo(st)
-	// in firstboot we have no gadget yet - that is ok
-	if err == state.ErrNoState && !firstboot.HasRun() {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("cannot find original gadget snap")
-	}
-
-	// TODO: actually compare snap ids, from current gadget and candidate
-	if currentGadget.Name() != s.Name() {
-		return fmt.Errorf("cannot replace gadget snap with a different one")
-	}
-
-	return nil
+	panic("unknown type")
 }

@@ -37,7 +37,7 @@ var _ = Suite(&GsettingsInterfaceSuite{
 	iface: builtin.NewGsettingsInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "gsettings",
 			Interface: "gsettings",
 		},
