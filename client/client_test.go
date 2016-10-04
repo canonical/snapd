@@ -416,7 +416,7 @@ func (cs *clientSuite) TestUsers(c *C) {
                       {"username": "bar","email":"bar@example.com"}]}`
 	sysInfo, err := cs.cli.Users()
 	c.Check(err, IsNil)
-	c.Check(sysInfo, DeepEquals, []client.DeviceUser{
+	c.Check(sysInfo, DeepEquals, []client.User{
 		{Username: "foo", Email: "foo@example.com"},
 		{Username: "bar", Email: "bar@example.com"},
 	})

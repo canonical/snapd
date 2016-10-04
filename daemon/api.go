@@ -228,7 +228,13 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(m, nil)
 }
 
-type loginResponseData struct {
+// userResponseData contains the data releated to user creation/login/query
+type userResponseData struct {
+	ID       int      `json:"id,omitempty"`
+	Username string   `json:"username,omitempty"`
+	Email    string   `json:"email,omitempty"`
+	SSHKeys  []string `json:"ssh-keys,omitempty"`
+
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
@@ -311,14 +317,17 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		user.StoreDischarges = []string{discharge}
 		err = auth.UpdateUser(state, user)
 	} else {
-		_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
 	}
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
-	result := loginResponseData{
+	result := userResponseData{
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
 		Macaroon:   macaroon,
 		Discharges: []string{discharge},
 	}
@@ -1691,7 +1700,7 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 }
 
 func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
-	var createdUsers []createResponseData
+	var createdUsers []userResponseData
 
 	st.Lock()
 	db := assertstate.DB(st)
@@ -1732,7 +1741,7 @@ func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) 
 		if err := osutilAddUser(username, opts); err != nil {
 			return InternalError("cannot add user %q: %s", username, err)
 		}
-		createdUsers = append(createdUsers, createResponseData{
+		createdUsers = append(createdUsers, userResponseData{
 			Username: username,
 			SSHKeys:  opts.SSHKeys,
 		})
@@ -1792,11 +1801,6 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 		Password: su.Password(),
 	}
 	return su.Username(), opts, nil
-}
-
-type createResponseData struct {
-	Username string   `json:"username"`
-	SSHKeys  []string `json:"ssh-keys"`
 }
 
 type postUserCreateData struct {
@@ -1907,7 +1911,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return InternalError("%s", err)
 	}
 
-	return SyncResponse(&createResponseData{
+	return SyncResponse(&userResponseData{
 		Username: username,
 		SSHKeys:  opts.SSHKeys,
 	}, nil)
@@ -2012,11 +2016,6 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(result, nil)
 }
 
-type userResponseData struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-}
-
 func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
 	if err != nil {
@@ -2039,6 +2038,7 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 		resp[i] = userResponseData{
 			Username: u.Username,
 			Email:    u.Email,
+			ID:       u.ID,
 		}
 	}
 	return SyncResponse(resp, nil)

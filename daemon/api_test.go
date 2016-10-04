@@ -536,7 +536,10 @@ func (s *apiSuite) TestLoginUser(c *check.C) {
 
 	rsp := loginUser(loginCmd, req, nil).(*resp)
 
-	expected := loginResponseData{
+	expected := userResponseData{
+		ID:    1,
+		Email: "email@.com",
+
 		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
@@ -583,7 +586,10 @@ func (s *apiSuite) TestLoginUserWithUsername(c *check.C) {
 
 	rsp := loginUser(loginCmd, req, nil).(*resp)
 
-	expected := loginResponseData{
+	expected := userResponseData{
+		ID:         1,
+		Username:   "username",
+		Email:      "email@.com",
 		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
@@ -630,14 +636,18 @@ func (s *apiSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	mockSSOServer := s.makeSSOServer(200, discharge)
 	defer mockSSOServer.Close()
 
-	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := loginUser(loginCmd, req, localUser).(*resp)
 
-	expected := loginResponseData{
+	expected := userResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
 		Macaroon:   serializedMacaroon,
 		Discharges: []string{"the-discharge-macaroon-serialized-data"},
 	}
@@ -3780,7 +3790,7 @@ func (s *apiSuite) TestPostCreateUser(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
-	expected := &createResponseData{
+	expected := &userResponseData{
 		Username: "karl",
 		SSHKeys:  []string{"ssh1", "ssh2"},
 	}
@@ -4099,7 +4109,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
-	expected := &createResponseData{
+	expected := &userResponseData{
 		Username: "guy",
 	}
 
@@ -4174,8 +4184,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	// note that we get a list here instead of a single
-	// createResponseData item
-	expected := []createResponseData{
+	// userResponseData item
+	expected := []userResponseData{
 		{Username: "guy"},
 	}
 
@@ -4285,8 +4295,8 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
 
 	// note that we get a list here instead of a single
-	// createResponseData item
-	expected := []createResponseData{
+	// userResponseData item
+	expected := []userResponseData{
 		{Username: "guy"},
 	}
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
@@ -4333,7 +4343,7 @@ func (s *apiSuite) TestUsersHasUser(c *check.C) {
 	rsp := getUsers(usersCmd, req, nil).(*resp)
 
 	expected := []userResponseData{
-		{Username: u.Username, Email: u.Email},
+		{ID: u.ID, Username: u.Username, Email: u.Email},
 	}
 	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
