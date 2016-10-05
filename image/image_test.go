@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot/boottest"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -529,6 +530,9 @@ func (s *imageSuite) TestBootstrapToRootDirLocalCore(c *C) {
 	cv, err = s.bootloader.GetBootVar("snap_core")
 	c.Assert(err, IsNil)
 	c.Check(cv, Equals, "core_x1.snap")
+
+	// check that cloud-init is setup correctly
+	c.Check(osutil.FileExists(filepath.Join(rootdir, "etc/cloud/cloud-init.disabled")), Equals, true)
 }
 
 func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
@@ -593,4 +597,30 @@ func (s *imageSuite) TestBootstrapToRootDirDevmodeSnap(c *C) {
 		DevMode:    true,
 		Unasserted: true,
 	})
+}
+
+func (s *imageSuite) TestInstallCloudConfigNoConfig(c *C) {
+	targetDir := c.MkDir()
+	emptyGadgetDir := c.MkDir()
+
+	dirs.SetRootDir(targetDir)
+	err := image.InstallCloudConfig(emptyGadgetDir)
+	c.Assert(err, IsNil)
+	c.Check(osutil.FileExists(filepath.Join(targetDir, "etc/cloud/cloud-init.disabled")), Equals, true)
+}
+
+func (s *imageSuite) TestInstallCloudConfigWithCloudConfig(c *C) {
+	canary := []byte("ni! ni! ni!")
+
+	targetDir := c.MkDir()
+	gadgetDir := c.MkDir()
+	err := ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), canary, 0644)
+	c.Assert(err, IsNil)
+
+	dirs.SetRootDir(targetDir)
+	err = image.InstallCloudConfig(gadgetDir)
+	c.Assert(err, IsNil)
+	content, err := ioutil.ReadFile(filepath.Join(targetDir, "etc/cloud/cloud.cfg"))
+	c.Assert(err, IsNil)
+	c.Check(content, DeepEquals, canary)
 }
