@@ -246,7 +246,7 @@ slots:
 	c.Assert(string(content), Equals, expected)
 }
 
-func (s *ContentSuite) TestAutoConnectPair(c *C) {
+func (s *ContentSuite) TestLegacyAutoConnect(c *C) {
 	const plugSnapYaml = `name: content-slot-snap
 version: 1.0
 plugs:
@@ -267,7 +267,7 @@ slots:
 	info = snaptest.MockInfo(c, slotSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
 
-	c.Check(s.iface.AutoConnectPair(plug, slot), Equals, true)
+	c.Check(s.iface.AutoConnect(plug, slot), Equals, true)
 
 	const otherSnapYaml = `name: content-other-snap
 version: 1.0
@@ -279,5 +279,5 @@ slots:
 	info = snaptest.MockInfo(c, otherSnapYaml, nil)
 	otherslot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
 
-	c.Check(s.iface.AutoConnectPair(plug, otherslot), Equals, false)
+	c.Check(s.iface.AutoConnect(plug, otherslot), Equals, false)
 }
