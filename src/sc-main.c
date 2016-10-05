@@ -97,6 +97,13 @@ int sc_main(int argc, char **argv)
 		}
 		sc_unlock_ns_mutex(group);
 		sc_close_ns_group(group);
+		// Reset path as we cannot rely on the path from the host OS to
+		// make sense. The classic distribution may use any PATH that makes
+		// sense but we cannot assume it makes sense for the core snap
+		// layout. Note that the /usr/local directories are explicitly
+		// left out as they are not part of the core snap.
+		debug("resetting PATH to values in sync with core snap");
+		setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
 		struct snappy_udev udev_s;
 		if (snappy_udev_init(security_tag, &udev_s) == 0)
 			setup_devices_cgroup(security_tag, &udev_s);

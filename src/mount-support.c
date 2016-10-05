@@ -349,13 +349,6 @@ static void setup_snappy_os_mounts()
 	sc_bind_mount_hostfs(rootfs_dir);
 	sc_mount_nvidia_driver(rootfs_dir);
 	sc_pivot_to_new_rootfs(rootfs_dir);
-	// Reset path as we cannot rely on the path from the host OS to
-	// make sense. The classic distribution may use any PATH that makes
-	// sense but we cannot assume it makes sense for the core snap
-	// layout. Note that the /usr/local directories are explicitly
-	// left out as they are not part of the core snap.
-	debug("resetting PATH to values in sync with core snap");
-	setenv("PATH", "/usr/sbin:/usr/bin:/sbin:/bin:/usr/games", 1);
 }
 
 /**
