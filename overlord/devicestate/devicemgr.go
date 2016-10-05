@@ -97,6 +97,16 @@ func (h prepareDeviceHandler) Error(err error) error {
 	return nil
 }
 
+func (m *DeviceManager) changeInFlight(kind string) bool {
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == kind && !chg.Status().Ready() {
+			// change already in motion
+			return true
+		}
+	}
+	return false
+}
+
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -122,11 +132,8 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "become-operational" && !chg.Status().Ready() {
-			// change already in motion
-			return nil
-		}
+	if m.changeInFlight("become-operational") {
+		return nil
 	}
 
 	if serialRequestURL == "" {
@@ -201,11 +208,8 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "seed" && !chg.Status().Ready() {
-			// change already in motion
-			return nil
-		}
+	if m.changeInFlight("seed") {
+		return nil
 	}
 
 	if err := boot.PopulateStateFromSeed(m.state); err != nil {
