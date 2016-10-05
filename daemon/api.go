@@ -269,7 +269,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		loginData.Username = ""
 	}
 
-	if loginData.Email == "" && user.Email != "" {
+	if loginData.Email == "" && user != nil && user.Email != "" {
 		loginData.Email = user.Email
 	}
 
