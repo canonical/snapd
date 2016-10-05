@@ -20,7 +20,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"strings"
 
@@ -35,12 +34,6 @@ var shortBuyHelp = i18n.G("Buys a snap")
 var longBuyHelp = i18n.G(`
 The buy command buys a snap from the store.
 `)
-
-var positiveResponse = map[string]bool{
-	"":            true,
-	i18n.G("y"):   true,
-	i18n.G("yes"): true,
-}
 
 type cmdBuy struct {
 	Currency string `long:"currency"`
@@ -117,33 +110,25 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 		return err
 	}
 
-	reader := bufio.NewReader(nil)
-	reader.Reset(Stdin)
+	// TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
+	fmt.Fprintf(Stdout, i18n.G(`Please re-enter your Ubuntu One password to purchase %q from %q
+for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency))
+	fmt.Fprint(Stdout, "\n")
 
-	fmt.Fprintf(Stdout, i18n.G("Do you want to buy %q from %q for %s? (Y/n): "), snap.Name,
-		snap.Developer, formatPrice(opts.Price, opts.Currency))
-
-	response, _, err := reader.ReadLine()
+	err = requestLogin("")
 	if err != nil {
 		return err
 	}
 
-	if !positiveResponse[strings.ToLower(string(response))] {
-		return fmt.Errorf(i18n.G("aborting"))
-	}
-
-	result, err := cli.Buy(opts)
+	_, err = cli.Buy(opts)
 	if err != nil {
 		return err
 	}
 
-	if result.State == "InProgress" {
-		// TODO Support interactive purchases on the CLI
-		return fmt.Errorf(i18n.G("cannot buy snap %q: the command line tools do not support interactive purchases"), snap.Name)
-	}
-
-	// TRANSLATORS: %s is a snap name
-	fmt.Fprintf(Stdout, i18n.G("Thanks for purchasing %s. You may now install it on any of your devices with 'snap install %s'.\n"), opts.SnapName, opts.SnapName)
+	// TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
+	fmt.Fprintf(Stdout, i18n.G(`Thanks for purchasing %q. You may now install it on any of your devices
+with 'snap install %s'.`), opts.SnapName, opts.SnapName)
+	fmt.Fprint(Stdout, "\n")
 
 	return nil
 }
