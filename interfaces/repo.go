@@ -803,25 +803,19 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policy
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if r.isAutoConnectCandidate(plug, slot, policyCheck) {
+			if slot.Interface != plug.Interface {
+				continue
+			}
+
+			// declaration based checks disallow
+			if !policyCheck(plug, slot) {
+				continue
+			}
+
+			if r.ifaces[plug.Interface].AutoConnect(plug, slot) {
 				candidates = append(candidates, slot)
 			}
 		}
 	}
 	return candidates
-}
-
-// isAutoConnectCandidate returns true if the plug is a candidate to
-// automatically connect to the given slot.
-func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot, policyCheck func(*Plug, *Slot) bool) bool {
-	if slot.Interface != plug.Interface {
-		return false
-	}
-
-	// declaration based checks disallow
-	if !policyCheck(plug, slot) {
-		return false
-	}
-
-	return r.ifaces[plug.Interface].AutoConnect(plug, slot)
 }
