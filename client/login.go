@@ -48,6 +48,14 @@ type loginData struct {
 
 // Login logs user in.
 func (client *Client) Login(email, password, otp string) (*User, error) {
+	if email == "" {
+		user, err := readAuthData()
+		if err != nil {
+			return nil, err
+		}
+		email = user.Email
+	}
+
 	postData := loginData{
 		Email:    email,
 		Password: password,
@@ -132,8 +140,8 @@ func writeAuthData(user User) error {
 	return osutil.AtomicWriteFileChown(targetFile, []byte(outStr), 0600, 0, uid, gid)
 }
 
-// ReadAuthData reads previously written authentication details
-func ReadAuthData() (*User, error) {
+// readAuthData reads previously written authentication details
+func readAuthData() (*User, error) {
 	sourceFile := storeAuthDataFilename("")
 	f, err := os.Open(sourceFile)
 	if err != nil {

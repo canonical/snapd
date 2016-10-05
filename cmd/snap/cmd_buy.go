@@ -114,12 +114,7 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 		snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency))
 	fmt.Fprint(Stdout, "\n")
 
-	user, err := client.ReadAuthData()
-	if err != nil {
-		return err
-	}
-
-	err = requestLogin(user.Email)
+	err = requestLogin("")
 	if err != nil {
 		return err
 	}

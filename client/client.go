@@ -96,7 +96,7 @@ func New(config *Config) *Client {
 }
 
 func (client *Client) setAuthorization(req *http.Request) error {
-	user, err := ReadAuthData()
+	user, err := readAuthData()
 	if os.IsNotExist(err) {
 		return nil
 	}
