@@ -455,17 +455,6 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 	return results, nil
 }
 
-// UpdateRevisions asks the daemon to sync the core/kernel snap revisions
-// with what was booted
-func (client *Client) UpdateRevisions() error {
-	var rsp interface{}
-	if _, err := client.doSync("POST", "/v2/update-revisions", nil, nil, nil, &rsp); err != nil {
-		return fmt.Errorf("cannot update revisions: %v", err)
-	}
-
-	return nil
-}
-
 // Users returns the local users.
 func (client *Client) Users() ([]*User, error) {
 	var result []*User

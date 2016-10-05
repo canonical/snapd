@@ -23,10 +23,6 @@ import (
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
-
-	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/partition"
-	"github.com/snapcore/snapd/release"
 )
 
 type cmdBooted struct{}
@@ -45,20 +41,6 @@ func (x *cmdBooted) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-
-	if release.OnClassic {
-		fmt.Fprintf(Stdout, i18n.G("Ignoring 'booted' on classic"))
-		return nil
-	}
-
-	bootloader, err := partition.FindBootloader()
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
-	}
-
-	if err := partition.MarkBootSuccessful(bootloader); err != nil {
-		return err
-	}
-
-	return Client().UpdateRevisions()
+	fmt.Fprintf(Stderr, "firstboot command is deprecated")
+	return nil
 }

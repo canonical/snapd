@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/boot"
@@ -46,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -213,6 +215,27 @@ func (m *DeviceManager) ensureSeedYaml() error {
 	return nil
 }
 
+func (m *DeviceManager) ensureBootOk() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		logger.Debugf("Ignoring 'booted' on classic")
+		return nil
+	}
+
+	bootloader, err := partition.FindBootloader()
+	if err != nil {
+		return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
+	}
+
+	if err := partition.MarkBootSuccessful(bootloader); err != nil {
+		return err
+	}
+
+	return snapstate.UpdateRevisions(m.state)
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
 	if err := m.ensureSeedYaml(); err != nil {
@@ -221,6 +244,10 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureOperational(); err != nil {
 		return err
 	}
+	if err := m.ensureBootOk(); err != nil {
+		return err
+	}
+
 	m.runner.Ensure()
 	return nil
 }
