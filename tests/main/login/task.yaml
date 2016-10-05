@@ -17,3 +17,10 @@ execute: |
         expect -f successful_login.exp
         snap logout
     fi
+
+    output=$(snap is-managed)
+    if [ "$output" != "system is managed" ]; then
+        echo "Unexpected output from 'snap is-managed'"
+        echo $output
+        exit 1
+    fi

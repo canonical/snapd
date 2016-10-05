@@ -321,6 +321,7 @@ type SysInfo struct {
 	Version   string    `json:"version,omitempty"`
 	OSRelease OSRelease `json:"os-release"`
 	OnClassic bool      `json:"on-classic"`
+	Managed   bool      `json:"managed"`
 }
 
 func (rsp *response) err() error {
