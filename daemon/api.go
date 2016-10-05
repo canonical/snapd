@@ -268,6 +268,11 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		loginData.Email = loginData.Username
 		loginData.Username = ""
 	}
+
+	if loginData.Email == "" && user.Email != "" {
+		loginData.Email = user.Email
+	}
+
 	// the "username" needs to look a lot like an email address
 	if !isEmailish(loginData.Email) {
 		return SyncResponse(&resp{

@@ -48,14 +48,6 @@ type loginData struct {
 
 // Login logs user in.
 func (client *Client) Login(email, password, otp string) (*User, error) {
-	if email == "" {
-		user, err := readAuthData()
-		if err != nil {
-			return nil, err
-		}
-		email = user.Email
-	}
-
 	postData := loginData{
 		Email:    email,
 		Password: password,
