@@ -75,6 +75,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
 	return m, nil
 }
@@ -212,9 +213,24 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	if err := boot.PopulateStateFromSeed(m.state); err != nil {
+	tsAll, err := boot.PopulateStateFromSeed(m.state)
+	if err != nil {
 		return err
 	}
+	if len(tsAll) == 0 {
+		return nil
+	}
+
+	msg := fmt.Sprintf("Initialize system state")
+	chg := m.state.NewChange("seed", msg)
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	ts := tsAll[len(tsAll)-1]
+	markSeeded := m.state.NewTask("mark-seeded", i18n.G("Mark system seeded"))
+	markSeeded.WaitAll(ts)
+	chg.AddTask(markSeeded)
+
 	m.state.EnsureBefore(0)
 
 	return nil
@@ -667,6 +683,15 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	auth.SetDevice(st, device)
 
 	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("seeded", true)
 	return nil
 }
 

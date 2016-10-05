@@ -35,25 +35,25 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func PopulateStateFromSeed(st *state.State) error {
+func PopulateStateFromSeed(st *state.State) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
-		return err
+		return nil, err
 	}
 	if seeded {
-		return fmt.Errorf("cannot populate state: already seeded")
+		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
 	// ack all initial assertions
 	if err := importAssertionsFromSeed(st); err != nil {
-		return err
+		return nil, err
 	}
 
 	seed, err := snap.ReadSeedYaml(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tsAll := []*state.TaskSet{}
@@ -71,10 +71,10 @@ func PopulateStateFromSeed(st *state.State) error {
 		} else {
 			si, err := snapasserts.DeriveSideInfo(path, assertstate.DB(st))
 			if err == asserts.ErrNotFound {
-				return fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
+				return nil, fmt.Errorf("cannot find signatures with metadata for snap %q (%q)", sn.Name, path)
 			}
 			if err != nil {
-				return err
+				return nil, err
 			}
 			sideInfo = *si
 			sideInfo.Private = sn.Private
@@ -86,25 +86,12 @@ func PopulateStateFromSeed(st *state.State) error {
 		}
 
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		tsAll = append(tsAll, ts)
 	}
-	if len(tsAll) == 0 {
-		return nil
-	}
-
-	msg := fmt.Sprintf("Initialize system state")
-	chg := st.NewChange("seed", msg)
-	for _, ts := range tsAll {
-		chg.AddAll(ts)
-	}
-
-	// FIXME: make the last thing that runs in the "seed" change
-	st.Set("seeded", true)
-
-	return nil
+	return tsAll, nil
 }
 
 func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
