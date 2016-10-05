@@ -30,8 +30,8 @@ execute: |
 
     echo "Test that snap run cannot call invalid hooks"
 
-    if ! output="$(snap run --hook=invalid-hook basic-hooks)"; then
-        echo "Expected snap run to exit successfully upon missing hook"
+    if output="$(snap run --hook=invalid-hook basic-hooks)"; then
+        echo "Expected snap run to fail upon missing hook, but it was '$output'"
         exit 1
     fi
 

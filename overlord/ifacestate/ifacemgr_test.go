@@ -1439,4 +1439,3 @@ func (s *interfaceManagerSuite) TestCheckInterfacesConsidersImplicitSlots(c *C) 
 	c.Check(ifacestate.CheckInterfaces(s.state, snapInfo), IsNil)
 	c.Check(snapInfo.Slots["home"], NotNil)
 }
-
