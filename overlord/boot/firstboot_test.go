@@ -108,13 +108,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	snapstate.Set(st, "not-firstboot-anymore", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "not-firstboot-anymore", Revision: snap.R(7)},
-		},
-		Current: snap.R(7),
-	})
+	snapstate.SetGlobalFlag(st, snapstate.Seeded)
 
 	err := boot.PopulateStateFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot populate state: state not empty")

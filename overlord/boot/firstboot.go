@@ -37,11 +37,11 @@ import (
 
 func PopulateStateFromSeed(st *state.State) error {
 	// check that the state is empty
-	all, err := snapstate.All(st)
+	flags, err := snapstate.GlobalFlags(st)
 	if err != nil {
 		return err
 	}
-	if len(all) > 0 {
+	if (flags & snapstate.Seeded) != 0 {
 		return fmt.Errorf("cannot populate state: state not empty")
 	}
 
@@ -99,6 +99,7 @@ func PopulateStateFromSeed(st *state.State) error {
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
+	snapstate.SetGlobalFlag(st, snapstate.Seeded)
 
 	return nil
 }
