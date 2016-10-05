@@ -100,6 +100,7 @@ func PopulateStateFromSeed(st *state.State) error {
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
+
 	// FIXME: make the last thing that runs in the "seed" change
 	st.Set("seeded", true)
 

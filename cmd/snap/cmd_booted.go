@@ -37,10 +37,14 @@ func init() {
 	cmd.hidden = true
 }
 
+// WARNING: do not remove this command, older systems may still have
+//          a systemd snapd.firstboot.service job in /etc/systemd/system
+//          that we did not cleanup. so we need this dummy command or
+//          those units will start failing.
 func (x *cmdBooted) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	fmt.Fprintf(Stderr, "firstboot command is deprecated")
+	fmt.Fprintf(Stderr, "booted command is deprecated")
 	return nil
 }

@@ -192,11 +192,12 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	all, err := snapstate.All(m.state)
-	if err != nil {
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if len(all) > 0 {
+	if seeded {
 		return nil
 	}
 
