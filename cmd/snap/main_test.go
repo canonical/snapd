@@ -42,11 +42,7 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 func openPty() (*os.File, error) {
-	pty, err := os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
-	if err != nil {
-		return nil, err
-	}
-	return pty, nil
+	return os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
 }
 
 type BaseSnapSuite struct {
