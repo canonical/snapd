@@ -1126,6 +1126,10 @@ func (s *RepositorySuite) TestAutoConnectBlacklist(c *C) {
 	err = repo.AddInterface(&TestInterface{InterfaceName: "manual"})
 	c.Assert(err, IsNil)
 
+	policyCheck := func(plug *Plug, slot *Slot) bool {
+		return slot.Interface == "auto"
+	}
+
 	// Add a pair of snaps with plugs/slots using those two interfaces
 	consumer := snaptest.MockInfo(c, `
 name: consumer
@@ -1147,7 +1151,7 @@ slots:
 
 	// Sanity check, our test is valid because plug "auto" is a candidate
 	// for auto-connection
-	c.Assert(repo.AutoConnectCandidates("consumer", "auto"), HasLen, 1)
+	c.Assert(repo.AutoConnectCandidates("consumer", "auto", policyCheck), HasLen, 1)
 
 	// Without any connections in place, the plug "auto" is blacklisted
 	// because in normal circumstances it would be auto-connected.
@@ -1379,11 +1383,19 @@ func (s *DisconnectSnapSuite) TestCrossConnection(c *C) {
 	}
 }
 
+func contentPolicyCheck(plug *Plug, slot *Slot) bool {
+	return plug.Snap.Developer == slot.Snap.Developer
+}
+
+func contentAutoConnectPair(plug *Plug, slot *Slot) bool {
+	return plug.Attrs["content"] == slot.Attrs["content"]
+}
+
 // internal helper that creates a new repository with two snaps, one
 // is a content plug and one a content slot
 func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
-	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectFlag: true})
+	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectPairHook: contentAutoConnectPair})
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap
@@ -1410,8 +1422,8 @@ slots:
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceSimple(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "mylib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
-	c.Check(candidateSlots, HasLen, 1)
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Name, Equals, "exported-content")
 }
 
@@ -1419,13 +1431,13 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceOSWorksCorrectly(c *C) 
 	repo, _, slotSnap := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
 	slotSnap.Type = snap.TypeOS
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingContent(c *C) {
 	repo, _, _ := makeContentConnectionTestSnaps(c, "mylib", "otherlib")
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }
 
@@ -1435,7 +1447,7 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 	plugSnap.Developer = "foo"
 	slotSnap.Developer = "bar"
 
-	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content")
+	candidateSlots := repo.AutoConnectCandidates("content-plug-snap", "import-content", contentPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }
 
@@ -1477,11 +1489,18 @@ slots:
 	return repo, plugSnap, slotSnap
 }
 
+func livePatchPolicyCheck(plug *Plug, slot *Slot) bool {
+	if IsLivePatchSnap(plug.Snap) {
+		return true
+	}
+	return slot.Interface == "non-restricted"
+}
+
 // test auto-connecting livepatch interfaces for special snaps
 func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
-	c.Check(candidateSlots, HasLen, 1)
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted", livePatchPolicyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "restricted")
@@ -1490,8 +1509,8 @@ func (s *RepositorySuite) TestAutoConnectLivepatchInterfaces(c *C) {
 // test auto-connecting unrestricted (auto-connect) interfaces for special snaps
 func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "canonical")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
-	c.Check(candidateSlots, HasLen, 1)
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted", livePatchPolicyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
@@ -1500,8 +1519,8 @@ func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfaces(c *C) {
 // test auto-connecting unrestricted (auto-connect) interfaces for non-special snaps
 func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "someone-else")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted")
-	c.Check(candidateSlots, HasLen, 1)
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "non-restricted", livePatchPolicyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
 	c.Check(candidateSlots[0].Snap.Name(), Equals, "core")
 	c.Check(candidateSlots[0].Snap.DeveloperID, Equals, "canonical")
 	c.Check(candidateSlots[0].Name, Equals, "non-restricted")
@@ -1509,12 +1528,12 @@ func (s *RepositorySuite) TestAutoConnectNonRestrictedInterfacesNonSpecialSnap2(
 
 func (s *RepositorySuite) TestAutoConnectLivepatchWrongDeveloper(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "canonical-livepatch", "somebody")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted", livePatchPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }
 
 func (s *RepositorySuite) TestAutoConnectLivepatchWrongName(c *C) {
 	repo, _, _ := makeLivepatchConnectionTestSnaps(c, "something", "canonical")
-	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted")
+	candidateSlots := repo.AutoConnectCandidates("canonical-livepatch", "restricted", livePatchPolicyCheck)
 	c.Check(candidateSlots, HasLen, 0)
 }

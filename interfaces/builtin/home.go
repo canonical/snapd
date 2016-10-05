@@ -54,8 +54,9 @@ owner /run/user/[0-9]*/gvfs/*/** w,
 func NewHomeInterface() interfaces.Interface {
 	return &commonInterface{
 		name: "home",
-		connectedPlugAppArmor: homeConnectedPlugAppArmor,
-		reservedForOS:         true,
-		autoConnect:           release.OnClassic,
+		connectedPlugAppArmor:  homeConnectedPlugAppArmor,
+		reservedForOS:          true,
+		autoConnect:            release.OnClassic,
+		rejectAutoConnectPairs: !release.OnClassic,
 	}
 }

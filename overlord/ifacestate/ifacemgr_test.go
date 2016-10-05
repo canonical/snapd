@@ -494,6 +494,7 @@ func (s *interfaceManagerSuite) mockSnap(c *C, yamlText string) *snap.Info {
 	})
 	if err == nil {
 		decl := a[0].(*asserts.SnapDeclaration)
+		snapInfo.SnapID = decl.SnapID()
 		sideInfo.SnapID = decl.SnapID()
 	} else if err == asserts.ErrNotFound {
 		err = nil
@@ -653,7 +654,7 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecurityHonorsDisconnect(c *C) {
 }
 
 // The setup-profiles task will auto-connect plugs with viable candidates.
-func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnects(c *C) {
 	// Add an OS snap.
 	s.mockSnap(c, osSnapYaml)
 
@@ -693,6 +694,64 @@ func (s *interfaceManagerSuite) TestDoSetupSnapSecuirtyAutoConnects(c *C) {
 	// Ensure that "network" is really connected.
 	repo := mgr.Repository()
 	plug := repo.Plug("snap", "network")
+	c.Assert(plug, Not(IsNil))
+	c.Check(plug.Connections, HasLen, 1)
+}
+
+// The setup-profiles task will auto-connect plugs with viable candidates also condidering snap declarations.
+func (s *interfaceManagerSuite) TestDoSetupSnapSecurityAutoConnectsDeclBased(c *C) {
+	restore := assertstest.MockBuiltinBaseDeclaration([]byte(`
+type: base-declaration
+authority-id: canonical
+series: 16
+slots:
+  test:
+    allow-auto-connection:
+      plug-publisher-id:
+        - $SLOT_PUBLISHER_ID
+`))
+	defer restore()
+	// Add the producer snap
+	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
+	s.mockSnapDecl(c, "producer", "one-publisher")
+	s.mockSnap(c, producerYaml)
+
+	// Initialize the manager. This registers the producer snap.
+	mgr := s.manager(c)
+
+	// Add a sample snap with a plug with the "test" interface which should be auto-connected.
+	s.mockSnapDecl(c, "consumer", "one-publisher")
+	snapInfo := s.mockSnap(c, consumerYaml)
+
+	// Run the setup-snap-security task and let it finish.
+	change := s.addSetupSnapSecurityChange(c, &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: snapInfo.Name(),
+			SnapID:   snapInfo.SnapID,
+			Revision: snapInfo.Revision,
+		},
+	})
+	mgr.Ensure()
+	mgr.Wait()
+	mgr.Stop()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// Ensure that the task succeeded.
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+
+	// Ensure that "test" plug is now saved in the state as auto-connected.
+	var conns map[string]interface{}
+	err := s.state.Get("conns", &conns)
+	c.Assert(err, IsNil)
+	c.Check(conns, DeepEquals, map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"auto": true, "interface": "test"},
+	})
+
+	// Ensure that "test" is really connected.
+	repo := mgr.Repository()
+	plug := repo.Plug("consumer", "plug")
 	c.Assert(plug, Not(IsNil))
 	c.Check(plug.Connections, HasLen, 1)
 }

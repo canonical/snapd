@@ -195,3 +195,8 @@ func (iface *LocationControlInterface) SanitizeSlot(slot *interfaces.Slot) error
 func (iface *LocationControlInterface) AutoConnect() bool {
 	return false
 }
+
+func (iface *LocationControlInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}
