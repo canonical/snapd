@@ -2634,270 +2634,188 @@ const customersMeValid = `
 }
 `
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
-	searchServerCalled := false
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/hello-world")
-		w.Header().Set("Content-Type", "application/hal+json")
-		w.Header().Set("X-Suggested-Currency", "EUR")
-		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, MockDetailsJSON)
-		searchServerCalled = true
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	purchaseServerGetCalled := false
-	purchaseServerPostCalled := false
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			// check device authorization is set, implicitly checking doRequest was used
-			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-			c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			switch r.URL.Path {
-			case ordersPath:
-				io.WriteString(w, `{"orders": []}`)
-			case customersMePath:
-				io.WriteString(w, customersMeValid)
-			default:
-				c.Fail()
-			}
-			purchaseServerGetCalled = true
-		case "POST":
-			// check device authorization is set, implicitly checking doRequest was used
-			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
-			c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
-			c.Check(r.URL.Path, Equals, ordersPath)
-			jsonReq, err := ioutil.ReadAll(r.Body)
-			c.Assert(err, IsNil)
-			c.Check(string(jsonReq), Equals, `{"snap_id":"`+helloWorldSnapID+`","amount":"0.99","currency":"EUR"}`)
+var buyTests = []struct {
+	SuggestedCurrency string
+	ExpectedInput     string
+	BuyResponse       func(http.ResponseWriter)
+	SnapID            string
+	Price             float64
+	Currency          string
+	ExpectedResult    *BuyResult
+	ExpectedError     string
+}{
+	{
+		// successful buying
+		SuggestedCurrency: "EUR",
+		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"0.99","currency":"EUR"}`,
+		BuyResponse: func(w http.ResponseWriter) {
 			io.WriteString(w, mockOrderResponseJSON)
-			purchaseServerPostCalled = true
-		default:
-			c.Error("Unexpected request method: ", r.Method)
-		}
-	}))
-
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	detailsURI, err := url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
-	c.Assert(err, IsNil)
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		CustomersMeURI: customersMeURI,
-		DetailsURI:     detailsURI,
-		OrdersURI:      ordersURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	// Find the snap first
-	snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
-	c.Assert(err, IsNil)
-
-	// Now buy the snap using the suggested currency
-	result, err := repo.Buy(&BuyOptions{
-		SnapID:   snap.SnapID,
-		SnapName: snap.Name(),
-		Currency: repo.SuggestedCurrency(),
-		Price:    snap.Prices[repo.SuggestedCurrency()],
-	}, t.user)
-
-	c.Assert(result, NotNil)
-	c.Check(result.State, Equals, "Complete")
-	c.Assert(err, IsNil)
-
-	c.Check(searchServerCalled, Equals, true)
-	c.Check(purchaseServerGetCalled, Equals, true)
-	c.Check(purchaseServerPostCalled, Equals, true)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
-	searchServerCalled := false
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/hello-world")
-		w.Header().Set("Content-Type", "application/hal+json")
-		w.Header().Set("X-Suggested-Currency", "EUR")
-		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, MockDetailsJSON)
-		searchServerCalled = true
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
-
-	purchaseServerGetCalled := false
-	purchaseServerPostCalled := false
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
-			switch r.URL.Path {
-			case ordersPath:
-				io.WriteString(w, "{}")
-			case customersMePath:
-				io.WriteString(w, customersMeValid)
-			default:
-				c.Fail()
-			}
-			purchaseServerGetCalled = true
-		case "POST":
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
-			c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
-			c.Check(r.URL.Path, Equals, ordersPath)
-			jsonReq, err := ioutil.ReadAll(r.Body)
-			c.Assert(err, IsNil)
-			c.Check(string(jsonReq), Equals, `{"snap_id":"`+helloWorldSnapID+`","amount":"0.99","currency":"USD"}`)
+		},
+		ExpectedResult: &BuyResult{State: "Complete"},
+	},
+	{
+		// failure due to invalid price
+		SuggestedCurrency: "USD",
+		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"5.99","currency":"USD"}`,
+		BuyResponse: func(w http.ResponseWriter) {
 			w.WriteHeader(http.StatusBadRequest)
 			io.WriteString(w, `
-{
-	"error_list": [
-		{
-			"code": "xxx",
-			"message": "invalid price specified"
-		}
-	]
-}`)
-			purchaseServerPostCalled = true
-		default:
-			c.Error("Unexpected request method: ", r.Method)
-		}
-	}))
-
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	detailsURI, err := url.Parse(mockServer.URL)
-	c.Assert(err, IsNil)
-	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
-	c.Assert(err, IsNil)
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
-	c.Assert(err, IsNil)
-	cfg := Config{
-		CustomersMeURI: customersMeURI,
-		DetailsURI:     detailsURI,
-		OrdersURI:      ordersURI,
-	}
-	repo := New(&cfg, nil)
-	c.Assert(repo, NotNil)
-
-	// Find the snap first
-	snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
-	c.Assert(err, IsNil)
-
-	// Attempt to buy the snap using the wrong price in USD
-	result, err := repo.Buy(&BuyOptions{
-		SnapID:   snap.SnapID,
-		SnapName: snap.Name(),
-		Price:    0.99,
-		Currency: "USD",
-	}, t.user)
-
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified")
-
-	c.Check(searchServerCalled, Equals, true)
-	c.Check(purchaseServerGetCalled, Equals, true)
-	c.Check(purchaseServerPostCalled, Equals, true)
+	{
+		"error_list": [
+			{
+				"code": "invalid-field",
+				"message": "invalid price specified"
+			}
+		]
+	}`)
+		},
+		Price:         5.99,
+		ExpectedError: "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified",
+	},
+	{
+		// failure due to unknown snap ID
+		SuggestedCurrency: "USD",
+		ExpectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
+		BuyResponse: func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusNotFound)
+			io.WriteString(w, `
+	{
+		"error_list": [
+			{
+				"code": "not-found",
+				"message": "Not found"
+			}
+		]
+	}`)
+		},
+		SnapID:        "invalid snap ID",
+		Price:         0.99,
+		Currency:      "EUR",
+		ExpectedError: "cannot buy snap \"hello-world\": server says not found (snap got removed?)",
+	},
+	{
+		// failure due to "Purchase failed"
+		SuggestedCurrency: "USD",
+		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		BuyResponse: func(w http.ResponseWriter) {
+			w.WriteHeader(http.StatusPaymentRequired)
+			io.WriteString(w, `
+	{
+		"error_list": [
+			{
+				"code": "request-failed",
+				"message": "Purchase failed"
+			}
+		]
+	}`)
+		},
+		ExpectedError: "cannot buy snap \"hello-world\": payment failed: store reported an error: Purchase failed",
+	},
 }
 
-func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
-	searchServerCalled := false
-	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		c.Check(r.Method, Equals, "GET")
-		c.Check(r.URL.Path, Equals, "/details/hello-world")
-		q := r.URL.Query()
-		c.Check(q.Get("channel"), Equals, "edge")
-		w.Header().Set("Content-Type", "application/hal+json")
-		w.Header().Set("X-Suggested-Currency", "EUR")
-		w.WriteHeader(http.StatusOK)
-		io.WriteString(w, MockDetailsJSON)
-		searchServerCalled = true
-	}))
-	c.Assert(mockServer, NotNil)
-	defer mockServer.Close()
+func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
+	for _, test := range buyTests {
+		searchServerCalled := false
+		mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/hello-world")
+			w.Header().Set("Content-Type", "application/hal+json")
+			w.Header().Set("X-Suggested-Currency", test.SuggestedCurrency)
+			w.WriteHeader(http.StatusOK)
+			io.WriteString(w, MockDetailsJSON)
+			searchServerCalled = true
+		}))
+		c.Assert(mockServer, NotNil)
+		defer mockServer.Close()
 
-	purchaseServerGetCalled := false
-	purchaseServerPostCalled := false
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
-			switch r.URL.Path {
-			case ordersPath:
-				io.WriteString(w, "{}")
-			case customersMePath:
-				io.WriteString(w, customersMeValid)
+		purchaseServerGetCalled := false
+		purchaseServerPostCalled := false
+		mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case "GET":
+				// check device authorization is set, implicitly checking doRequest was used
+				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+				c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+				switch r.URL.Path {
+				case ordersPath:
+					io.WriteString(w, `{"orders": []}`)
+				case customersMePath:
+					io.WriteString(w, customersMeValid)
+				default:
+					c.Fail()
+				}
+				purchaseServerGetCalled = true
+			case "POST":
+				// check device authorization is set, implicitly checking doRequest was used
+				c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+				c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
+				c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
+				c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
+				c.Check(r.URL.Path, Equals, ordersPath)
+				jsonReq, err := ioutil.ReadAll(r.Body)
+				c.Assert(err, IsNil)
+				c.Check(string(jsonReq), Equals, test.ExpectedInput)
+				test.BuyResponse(w)
+				purchaseServerPostCalled = true
 			default:
-				c.Fail()
+				c.Error("Unexpected request method: ", r.Method)
 			}
-			purchaseServerGetCalled = true
-		case "POST":
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.Header.Get("Accept"), Equals, jsonContentType)
-			c.Check(r.Header.Get("Content-Type"), Equals, jsonContentType)
-			c.Check(r.URL.Path, Equals, ordersPath)
-			jsonReq, err := ioutil.ReadAll(r.Body)
-			c.Assert(err, IsNil)
-			c.Check(string(jsonReq), Equals, `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`)
-			w.WriteHeader(http.StatusNotFound)
-			io.WriteString(w, "{\"error_message\":\"Not found\"}")
-			purchaseServerPostCalled = true
-		default:
-			c.Error("Unexpected request method: ", r.Method)
+		}))
+
+		c.Assert(mockPurchasesServer, NotNil)
+		defer mockPurchasesServer.Close()
+
+		detailsURI, err := url.Parse(mockServer.URL)
+		c.Assert(err, IsNil)
+		ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
+		c.Assert(err, IsNil)
+		customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
+		c.Assert(err, IsNil)
+
+		authContext := &testAuthContext{c: c, device: t.device, user: t.user}
+		cfg := Config{
+			CustomersMeURI: customersMeURI,
+			DetailsURI:     detailsURI,
+			OrdersURI:      ordersURI,
 		}
-	}))
+		repo := New(&cfg, authContext)
+		c.Assert(repo, NotNil)
 
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
+		// Find the snap first
+		snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
+		c.Assert(snap, NotNil)
+		c.Assert(err, IsNil)
 
-	detailsURI, err := url.Parse(mockServer.URL + "/details/")
-	c.Assert(err, IsNil)
-	ordersURI, err := url.Parse(mockPurchasesServer.URL + ordersPath)
-	c.Assert(err, IsNil)
-	customersMeURI, err := url.Parse(mockPurchasesServer.URL + customersMePath)
-	c.Assert(err, IsNil)
-	cfg := Config{
-		CustomersMeURI: customersMeURI,
-		DetailsURI:     detailsURI,
-		OrdersURI:      ordersURI,
+		buyOptions := &BuyOptions{
+			SnapID:   snap.SnapID,
+			SnapName: snap.Name(),
+			Currency: repo.SuggestedCurrency(),
+			Price:    snap.Prices[repo.SuggestedCurrency()],
+		}
+		if test.SnapID != "" {
+			buyOptions.SnapID = test.SnapID
+		}
+		if test.Currency != "" {
+			buyOptions.Currency = test.Currency
+		}
+		if test.Price > 0 {
+			buyOptions.Price = test.Price
+		}
+		result, err := repo.Buy(buyOptions, t.user)
+
+		c.Check(result, DeepEquals, test.ExpectedResult)
+		if test.ExpectedError == "" {
+			c.Check(err, IsNil)
+		} else {
+			c.Assert(err, NotNil)
+			c.Check(err.Error(), Equals, test.ExpectedError)
+		}
+
+		c.Check(searchServerCalled, Equals, true)
+		c.Check(purchaseServerGetCalled, Equals, true)
+		c.Check(purchaseServerPostCalled, Equals, true)
 	}
-	repo := New(&cfg, nil)
-	c.Assert(repo, NotNil)
-
-	// Find the snap first
-	snap, err := repo.Snap("hello-world", "edge", false, snap.R(0), t.user)
-	c.Assert(err, IsNil)
-
-	// Now try and buy the snap, but with an invalid ID
-	result, err := repo.Buy(&BuyOptions{
-		SnapID:   "invalid snap ID",
-		SnapName: snap.Name(),
-		Price:    snap.Prices[repo.SuggestedCurrency()],
-		Currency: repo.SuggestedCurrency(),
-	}, t.user)
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "cannot buy snap \"hello-world\": server says not found (snap got removed?)")
-
-	c.Check(searchServerCalled, Equals, true)
-	c.Check(purchaseServerGetCalled, Equals, true)
-	c.Check(purchaseServerPostCalled, Equals, true)
 }
 
 func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
