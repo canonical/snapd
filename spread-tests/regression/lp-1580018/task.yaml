@@ -8,7 +8,11 @@ execute: |
     cd /
     echo "We can check the inode number of /etc/alternatives" 
     host_inode="$(stat -c '%i' /etc/alternatives)"
-    core_inode="$(stat -c '%i' /snap/ubuntu-core/current/etc/alternatives)"
+    if [ -e /snap/core/current ]; then
+        core_inode="$(stat -c '%i' /snap/core/current/etc/alternatives)"
+    else
+        core_inode="$(stat -c '%i' /snap/ubuntu-core/current/etc/alternatives)"
+    fi
     effective_inode="$(/snap/bin/snapd-hacker-toolbelt.busybox stat -c '%i' /etc/alternatives)"
     echo "The inode number as seen from a confined snap should be that of the /etc/alternatives from the core snap"
     [ "$host_inode" != "$core_inode" ]
