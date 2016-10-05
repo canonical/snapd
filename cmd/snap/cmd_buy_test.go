@@ -248,7 +248,7 @@ const loginJson = `
     "username": "username",
     "email": "hello@mail.com",
     "macaroon": "1234abcd",
-    "discharhes": ["a", "b", "c"]
+    "discharges": ["a", "b", "c"]
   },
   "sources": [
     "store"
