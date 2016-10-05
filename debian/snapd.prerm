@@ -3,8 +3,6 @@
 
 set -e
 
-echo "prerm called with $1"
-
 if [ "$1" = "remove" -o "$1" = "upgrade" ]; then
     echo "prerm called with $1"
     if [ -d /run/systemd/system ]; then
