@@ -375,32 +375,6 @@ Once completed, return here and run 'snap buy hello' again.`)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-//func (s *BuySnapSuite) TestBuyCancel(c *check.C) {
-//	mockServer := &buyTestMockSnapServer{
-//		ExpectedMethods: expectedMethods{
-//			"GET": &expectedMethod{
-//				"/v2/find":      buySnapFindURL(c),
-//				"/v2/buy/ready": buyReady(c),
-//			},
-//		},
-//		Checker: c,
-//	}
-//	defer mockServer.checkCounts()
-//	s.RedirectClientToTestServer(mockServer.serveHttp)
-//
-//	// Decline the payment
-////	fmt.Fprint(s.term, "\n")
-//
-//	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
-//	c.Assert(err, check.NotNil)
-//	c.Check(err.Error(), check.Equals, "aborting")
-//	c.Check(rest, check.DeepEquals, []string{"hello"})
-//	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase 'hello' from 'canonical' for 2.99GBP. Press ctrl-c to cancel.
-//Password:
-//`)
-//	c.Check(s.Stderr(), check.Equals, "")
-//}
-
 func (s *BuySnapSuite) TestBuyFailsWithoutLogin(c *check.C) {
 	// We don't login here
 	s.Logout(c)
