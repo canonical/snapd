@@ -85,6 +85,6 @@ func (s *LocaleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *LocaleControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+func (s *LocaleControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

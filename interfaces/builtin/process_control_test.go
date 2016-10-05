@@ -88,6 +88,6 @@ func (s *ProcessControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *ProcessControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+func (s *ProcessControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

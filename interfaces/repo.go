@@ -745,35 +745,6 @@ func (r *Repository) RemoveSnap(snapName string) error {
 	return nil
 }
 
-// AutoConnectBlacklist returns plug names that should not be auto-connected.
-//
-// Plug is blacklisted if it has no connections despite using an auto-connected
-// interface. That implies it was manually disconnected.
-func (r *Repository) AutoConnectBlacklist(snapName string) map[string]bool {
-	r.m.Lock()
-	defer r.m.Unlock()
-
-	var blacklist map[string]bool
-
-	for plugName, plug := range r.plugs[snapName] {
-		iface := r.ifaces[plug.Interface]
-		// XXX: what do about this? it's mostly an optimisation,
-		// anyway this is logic is probably already doing the wrong
-		// thing in some corner cases
-		if !iface.AutoConnect() {
-			continue
-		}
-		if len(r.plugSlots[plug]) != 0 {
-			continue
-		}
-		if blacklist == nil {
-			blacklist = make(map[string]bool)
-		}
-		blacklist[plugName] = true
-	}
-	return blacklist
-}
-
 // DisconnectSnap disconnects all the connections to and from a given snap.
 //
 // The return value is a list of names that were affected.
@@ -832,25 +803,19 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policy
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if r.isAutoConnectCandidate(plug, slot, policyCheck) {
+			if slot.Interface != plug.Interface {
+				continue
+			}
+
+			// declaration based checks disallow
+			if !policyCheck(plug, slot) {
+				continue
+			}
+
+			if r.ifaces[plug.Interface].AutoConnect(plug, slot) {
 				candidates = append(candidates, slot)
 			}
 		}
 	}
 	return candidates
-}
-
-// isAutoConnectCandidate returns true if the plug is a candidate to
-// automatically connect to the given slot.
-func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot, policyCheck func(*Plug, *Slot) bool) bool {
-	if slot.Interface != plug.Interface {
-		return false
-	}
-
-	// declaration based checks disallow
-	if !policyCheck(plug, slot) {
-		return false
-	}
-
-	return r.ifaces[plug.Interface].AutoConnectPair(plug, slot)
 }

@@ -93,6 +93,6 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *FirewallControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+func (s *FirewallControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
