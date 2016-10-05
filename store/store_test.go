@@ -2675,7 +2675,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuySuccess(c *C) {
 			c.Check(r.URL.Path, Equals, ordersPath)
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(jsonReq), Equals, `{"snap_id":"`+helloWorldSnapID+`","amount":0.99,"currency":"EUR"}`)
+			c.Check(string(jsonReq), Equals, `{"snap_id":"`+helloWorldSnapID+`","amount":"0.99","currency":"EUR"}`)
 			io.WriteString(w, mockOrderResponseJSON)
 			purchaseServerPostCalled = true
 		default:
@@ -2760,7 +2760,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailWrongPrice(c *C) {
 			c.Check(r.URL.Path, Equals, ordersPath)
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(jsonReq), Equals, "{\"snap_id\":\""+helloWorldSnapID+"\",\"amount\":0.99,\"currency\":\"USD\"}")
+			c.Check(string(jsonReq), Equals, `{"snap_id":"`+helloWorldSnapID+`","amount":"0.99","currency":"USD"}`)
 			w.WriteHeader(http.StatusBadRequest)
 			io.WriteString(w, `
 {
@@ -2854,7 +2854,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailNotFound(c *C) {
 			c.Check(r.URL.Path, Equals, ordersPath)
 			jsonReq, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(jsonReq), Equals, "{\"snap_id\":\"invalid snap ID\",\"amount\":0.99,\"currency\":\"EUR\"}")
+			c.Check(string(jsonReq), Equals, `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`)
 			w.WriteHeader(http.StatusNotFound)
 			io.WriteString(w, "{\"error_message\":\"Not found\"}")
 			purchaseServerPostCalled = true
