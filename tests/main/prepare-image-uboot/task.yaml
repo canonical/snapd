@@ -1,5 +1,4 @@
 summary: Check that prepare-image works for uboot-systems
-systems: [-ubuntu-core-16-64]
 environment:
     ROOT: /tmp/root
     IMAGE: /tmp/root/image
@@ -32,10 +31,10 @@ execute: |
 
     echo Verifying the result
     ls -lR $IMAGE
-    for f in pi2 pi2-kernel ubuntu-core snapweb; do
+    for f in pi2 pi2-kernel core snapweb; do
         ls $IMAGE/var/lib/snapd/seed/snaps/${f}*.snap
     done
-    grep snap_core=ubuntu-core $IMAGE/boot/uboot/uboot.env
+    grep snap_core=core $IMAGE/boot/uboot/uboot.env
     grep snap_kernel=pi2-kernel $IMAGE/boot/uboot/uboot.env
 
     echo Verify that the kernel is available unpacked
@@ -49,13 +48,13 @@ execute: |
 
     echo Verify that we have valid looking seed.yaml
     cat $IMAGE/var/lib/snapd/seed/seed.yaml
-    # snap-id of ubuntu-core
-    grep -q "snap-id: b8X2psL1ryVrPt5WEmpYiqfr5emixTd7" $IMAGE/var/lib/snapd/seed/seed.yaml
-    for snap in pi2 pi2-kernel ubuntu-core; do
+    # snap-id of core
+    grep -q "snap-id: 99T7MUlRhtI3U0QFgl5mXXESAiSwt776" $IMAGE/var/lib/snapd/seed/seed.yaml
+    for snap in pi2 pi2-kernel core; do
       grep -q "name: $snap" $IMAGE/var/lib/snapd/seed/seed.yaml
     done
 
     echo "Verify that we got some snap assertions"
-    for name in ubuntu-core pi2 pi2-kernel; do
+    for name in pi2 pi2-kernel core; do
         grep "snap-name: $name" $IMAGE/var/lib/snapd/seed/assertions/*
     done

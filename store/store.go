@@ -131,13 +131,12 @@ func infoFromRemote(d snapDetails) *snap.Info {
 
 // Config represents the configuration to access the snap store
 type Config struct {
-	SearchURI         *url.URL
-	DetailsURI        *url.URL
-	BulkURI           *url.URL
-	AssertionsURI     *url.URL
-	OrdersURI         *url.URL
-	CustomersMeURI    *url.URL
-	PaymentMethodsURI *url.URL
+	SearchURI      *url.URL
+	DetailsURI     *url.URL
+	BulkURI        *url.URL
+	AssertionsURI  *url.URL
+	OrdersURI      *url.URL
+	CustomersMeURI *url.URL
 
 	// StoreID is the store id used if we can't get one through the AuthContext.
 	StoreID string
@@ -151,13 +150,12 @@ type Config struct {
 
 // Store represents the ubuntu snap store
 type Store struct {
-	searchURI         *url.URL
-	detailsURI        *url.URL
-	bulkURI           *url.URL
-	assertionsURI     *url.URL
-	ordersURI         *url.URL
-	customersMeURI    *url.URL
-	paymentMethodsURI *url.URL
+	searchURI      *url.URL
+	detailsURI     *url.URL
+	bulkURI        *url.URL
+	assertionsURI  *url.URL
+	ordersURI      *url.URL
+	customersMeURI *url.URL
 
 	architecture string
 	series       string
@@ -305,11 +303,6 @@ func init() {
 	if err != nil {
 		panic(err)
 	}
-
-	defaultConfig.PaymentMethodsURI, err = url.Parse(myappsURL() + "api/2.0/click/paymentmethods/")
-	if err != nil {
-		panic(err)
-	}
 }
 
 type searchResults struct {
@@ -373,20 +366,19 @@ func New(cfg *Config, authContext auth.AuthContext) *Store {
 
 	// see https://wiki.ubuntu.com/AppStore/Interfaces/ClickPackageIndex
 	return &Store{
-		searchURI:         searchURI,
-		detailsURI:        detailsURI,
-		bulkURI:           cfg.BulkURI,
-		assertionsURI:     cfg.AssertionsURI,
-		ordersURI:         cfg.OrdersURI,
-		customersMeURI:    cfg.CustomersMeURI,
-		paymentMethodsURI: cfg.PaymentMethodsURI,
-		series:            series,
-		architecture:      architecture,
-		fallbackStoreID:   cfg.StoreID,
-		detailFields:      fields,
-		client:            newHTTPClient(),
-		authContext:       authContext,
-		deltaFormat:       deltaFormat,
+		searchURI:       searchURI,
+		detailsURI:      detailsURI,
+		bulkURI:         cfg.BulkURI,
+		assertionsURI:   cfg.AssertionsURI,
+		ordersURI:       cfg.OrdersURI,
+		customersMeURI:  cfg.CustomersMeURI,
+		series:          series,
+		architecture:    architecture,
+		fallbackStoreID: cfg.StoreID,
+		detailFields:    fields,
+		client:          newHTTPClient(),
+		authContext:     authContext,
+		deltaFormat:     deltaFormat,
 	}
 }
 
@@ -396,7 +388,7 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	if err != nil {
 		return "", "", err
 	}
-	deserializedMacaroon, err := MacaroonDeserialize(macaroon)
+	deserializedMacaroon, err := auth.MacaroonDeserialize(macaroon)
 	if err != nil {
 		return "", "", err
 	}
@@ -415,13 +407,18 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
+// hasStoreAuth returns true if given user has store macaroons setup
+func hasStoreAuth(user *auth.UserState) bool {
+	return user != nil && user.StoreMacaroon != ""
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
 	fmt.Fprintf(&buf, `Macaroon root="%s"`, user.StoreMacaroon)
 
 	// deserialize root macaroon (we need its signature to do the discharge binding)
-	root, err := MacaroonDeserialize(user.StoreMacaroon)
+	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
 	if err != nil {
 		logger.Debugf("cannot deserialize root macaroon: %v", err)
 		return
@@ -429,14 +426,14 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 
 	for _, d := range user.StoreDischarges {
 		// prepare discharge for request
-		discharge, err := MacaroonDeserialize(d)
+		discharge, err := auth.MacaroonDeserialize(d)
 		if err != nil {
 			logger.Debugf("cannot deserialize discharge macaroon: %v", err)
 			return
 		}
 		discharge.Bind(root.Signature())
 
-		serializedDischarge, err := MacaroonSerialize(discharge)
+		serializedDischarge, err := auth.MacaroonSerialize(discharge)
 		if err != nil {
 			logger.Debugf("cannot re-serialize discharge macaroon: %v", err)
 			return
@@ -450,7 +447,7 @@ func authenticateUser(r *http.Request, user *auth.UserState) {
 func refreshDischarges(user *auth.UserState) ([]string, error) {
 	newDischarges := make([]string, len(user.StoreDischarges))
 	for i, d := range user.StoreDischarges {
-		discharge, err := MacaroonDeserialize(d)
+		discharge, err := auth.MacaroonDeserialize(d)
 		if err != nil {
 			return nil, err
 		}
@@ -631,7 +628,8 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		authenticateDevice(req, device)
 	}
 
-	if user != nil {
+	// only set user authentication if user logged in to the store
+	if hasStoreAuth(user) {
 		authenticateUser(req, user)
 	}
 
@@ -1098,7 +1096,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	}()
 
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || user != nil {
+	if url == "" || hasStoreAuth(user) {
 		url = downloadInfo.DownloadURL
 	}
 
@@ -1191,7 +1189,7 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 	}()
 
 	url := deltaInfo.AnonDownloadURL
-	if url == "" || user != nil {
+	if url == "" || hasStoreAuth(user) {
 		url = deltaInfo.DownloadURL
 	}
 
@@ -1461,35 +1459,6 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	}
 }
 
-type storePaymentBackend struct {
-	Choices     []*storePaymentMethod `json:"choices"`
-	Description string                `json:"description"`
-	ID          string                `json:"id"`
-	Preferred   bool                  `json:"preferred"`
-}
-
-type storePaymentMethod struct {
-	Currencies          []string `json:"currencies"`
-	Description         string   `json:"description"`
-	ID                  int      `json:"id"`
-	Preferred           bool     `json:"preferred"`
-	RequiresInteraction bool     `json:"requires_interaction"`
-}
-
-type PaymentMethod struct {
-	BackendID           string   `json:"backend-id"`
-	Currencies          []string `json:"currencies"`
-	Description         string   `json:"description"`
-	ID                  int      `json:"id"`
-	Preferred           bool     `json:"preferred"`
-	RequiresInteraction bool     `json:"requires-interaction"`
-}
-
-type PaymentInformation struct {
-	AllowsAutomaticPayment bool             `json:"allows-automatic-payment"`
-	Methods                []*PaymentMethod `json:"methods"`
-}
-
 type storeCustomer struct {
 	LatestTOSDate     string `json:"latest_tos_date"`
 	AcceptedTOSDate   string `json:"accepted_tos_date"`
@@ -1543,68 +1512,5 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
 		}
 		return &errors
-	}
-}
-
-// PaymentMethods gets a list of the individual payment methods the user has registerd against their Ubuntu One account
-// TODO Remove once the CLI is using the new /buy/ready endpoint
-func (s *Store) PaymentMethods(user *auth.UserState) (*PaymentInformation, error) {
-	if user == nil {
-		return nil, ErrUnauthenticated
-	}
-
-	reqOptions := &requestOptions{
-		Method: "GET",
-		URL:    s.paymentMethodsURI,
-		Accept: halJsonContentType,
-	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var paymentBackends []*storePaymentBackend
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&paymentBackends); err != nil {
-			return nil, err
-		}
-
-		paymentMethods := &PaymentInformation{
-			AllowsAutomaticPayment: false,
-			Methods:                make([]*PaymentMethod, 0),
-		}
-
-		// Unroll nested structure into a simple list of PaymentMethods
-		for _, backend := range paymentBackends {
-
-			if backend.Preferred {
-				paymentMethods.AllowsAutomaticPayment = true
-			}
-
-			for _, method := range backend.Choices {
-				paymentMethods.Methods = append(paymentMethods.Methods, &PaymentMethod{
-					BackendID:           backend.ID,
-					Currencies:          method.Currencies,
-					Description:         method.Description,
-					ID:                  method.ID,
-					Preferred:           method.Preferred,
-					RequiresInteraction: method.RequiresInteraction,
-				})
-			}
-		}
-
-		return paymentMethods, nil
-	case http.StatusUnauthorized:
-		return nil, ErrInvalidCredentials
-	default:
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("cannot get payment methods: unexpected HTTP code %d: %v", resp.StatusCode, errorInfo)
 	}
 }

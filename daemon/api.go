@@ -29,6 +29,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"os"
+	"os/user"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -79,8 +80,8 @@ var api = []*Command{
 	createUserCmd,
 	buyCmd,
 	readyToBuyCmd,
-	paymentMethodsCmd,
 	snapctlCmd,
+	usersCmd,
 }
 
 var (
@@ -194,17 +195,16 @@ var (
 		GET:    readyToBuy,
 	}
 
-	// TODO Remove once the CLI is using the new /buy/ready endpoint
-	paymentMethodsCmd = &Command{
-		Path:   "/v2/buy/methods",
-		UserOK: false,
-		GET:    getPaymentMethods,
-	}
-
 	snapctlCmd = &Command{
 		Path:   "/v2/snapctl",
 		SnapOK: true,
 		POST:   runSnapctl,
+	}
+
+	usersCmd = &Command{
+		Path:   "/v2/users",
+		UserOK: false,
+		GET:    getUsers,
 	}
 )
 
@@ -213,11 +213,20 @@ func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	if err != nil && err != state.ErrNoState {
+		return InternalError("cannot get user auth data: %s", err)
+	}
+
 	m := map[string]interface{}{
 		"series":     release.Series,
 		"version":    c.d.Version,
 		"os-release": release.ReleaseInfo,
 		"on-classic": release.OnClassic,
+		"managed":    len(users) > 0,
 	}
 
 	// TODO: set the store-id here from the model information
@@ -228,7 +237,13 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(m, nil)
 }
 
-type loginResponseData struct {
+// userResponseData contains the data releated to user creation/login/query
+type userResponseData struct {
+	ID       int      `json:"id,omitempty"`
+	Username string   `json:"username,omitempty"`
+	Email    string   `json:"email,omitempty"`
+	SSHKeys  []string `json:"ssh-keys,omitempty"`
+
 	Macaroon   string   `json:"macaroon,omitempty"`
 	Discharges []string `json:"discharges,omitempty"`
 }
@@ -253,6 +268,11 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		loginData.Email = loginData.Username
 		loginData.Username = ""
 	}
+
+	if loginData.Email == "" && user != nil && user.Email != "" {
+		loginData.Email = user.Email
+	}
+
 	// the "username" needs to look a lot like an email address
 	if !isEmailish(loginData.Email) {
 		return SyncResponse(&resp{
@@ -305,15 +325,25 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	overlord := c.d.overlord
 	state := overlord.State()
 	state.Lock()
-	_, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+	if user != nil {
+		// local user logged-in, set its store macaroons
+		user.StoreMacaroon = macaroon
+		user.StoreDischarges = []string{discharge}
+		err = auth.UpdateUser(state, user)
+	} else {
+		user, err = auth.NewUser(state, loginData.Username, loginData.Email, macaroon, []string{discharge})
+	}
 	state.Unlock()
 	if err != nil {
 		return InternalError("cannot persist authentication details: %v", err)
 	}
 
-	result := loginResponseData{
-		Macaroon:   macaroon,
-		Discharges: []string{discharge},
+	result := userResponseData{
+		ID:         user.ID,
+		Username:   user.Username,
+		Email:      user.Email,
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
 	}
 	return SyncResponse(result, nil)
 }
@@ -360,7 +390,7 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 		}
 	}
 
-	if macaroon == "" || len(discharges) == 0 {
+	if macaroon == "" {
 		return nil, fmt.Errorf("invalid authorization header")
 	}
 
@@ -377,7 +407,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 	localSnap, active, err := localSnapInfo(c.d.overlord.State(), name)
 	if err != nil {
 		if err == errNoSnap {
-			return NotFound("cannot find snap %q", name)
+			return NotFound("cannot find %q snap", name)
 		}
 
 		return InternalError("%v", err)
@@ -385,12 +415,12 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	route := c.d.router.Get(c.Path)
 	if route == nil {
-		return InternalError("cannot find route for snap %s", name)
+		return InternalError("cannot find route for %q snap", name)
 	}
 
 	url, err := route.URL("name", name)
 	if err != nil {
-		return InternalError("cannot build URL for snap %s: %v", name, err)
+		return InternalError("cannot build URL for %q snap: %v", name, err)
 	}
 
 	result := webify(mapLocal(localSnap, active), url.String())
@@ -641,11 +671,12 @@ func (*licenseData) Error() string {
 
 type snapInstruction struct {
 	progress.NullProgress
-	Action   string        `json:"action"`
-	Channel  string        `json:"channel"`
-	Revision snap.Revision `json:"revision"`
-	DevMode  bool          `json:"devmode"`
-	JailMode bool          `json:"jailmode"`
+	Action           string        `json:"action"`
+	Channel          string        `json:"channel"`
+	Revision         snap.Revision `json:"revision"`
+	DevMode          bool          `json:"devmode"`
+	JailMode         bool          `json:"jailmode"`
+	IgnoreValidation bool          `json:"ignore-validation"`
 	// dropping support temporarely until flag confusion is sorted,
 	// this isn't supported by client atm anyway
 	LeaveOld bool         `json:"temp-dropped-leave-old"`
@@ -657,7 +688,7 @@ type snapInstruction struct {
 }
 
 var (
-	snapstateGet               = snapstate.Get
+	snapstateCoreInfo          = snapstate.CoreInfo
 	snapstateInstall           = snapstate.Install
 	snapstateInstallPath       = snapstate.InstallPath
 	snapstateRefreshCandidates = snapstate.RefreshCandidates
@@ -678,21 +709,20 @@ var ensureStateSoon = ensureStateSoonImpl
 
 var errNothingToInstall = errors.New("nothing to install")
 
-func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
-	ubuntuCore := "ubuntu-core"
+const oldDefaultSnapCoreName = "ubuntu-core"
+const defaultCoreSnapName = "core"
 
-	if targetSnap == ubuntuCore {
+func ensureUbuntuCore(st *state.State, targetSnap string, userID int) (*state.TaskSet, error) {
+	if targetSnap == defaultCoreSnapName || targetSnap == oldDefaultSnapCoreName {
 		return nil, errNothingToInstall
 	}
 
-	var ss snapstate.SnapState
-
-	err := snapstateGet(st, ubuntuCore, &ss)
+	_, err := snapstateCoreInfo(st)
 	if err != state.ErrNoState {
 		return nil, err
 	}
 
-	return snapstateInstall(st, ubuntuCore, "stable", snap.R(0), userID, 0)
+	return snapstateInstall(st, defaultCoreSnapName, "stable", snap.R(0), userID, 0)
 }
 
 func withEnsureUbuntuCore(st *state.State, targetSnap string, userID int, install func() (*state.TaskSet, error)) ([]*state.TaskSet, error) {
@@ -819,6 +849,9 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	flags, err := modeFlags(inst.DevMode, inst.JailMode)
 	if err != nil {
 		return "", nil, err
+	}
+	if inst.IgnoreValidation {
+		flags |= snapstate.IgnoreValidation
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
@@ -1013,7 +1046,7 @@ func trySnap(c *Command, r *http.Request, user *auth.UserState, trydir string, f
 		return BadRequest("cannot try %s: %s", trydir, err)
 	}
 
-	msg := fmt.Sprintf(i18n.G("Try %q snap from %q"), info.Name(), trydir)
+	msg := fmt.Sprintf(i18n.G("Try %q snap from %s"), info.Name(), trydir)
 	chg := newChange(st, "try-snap", msg, []*state.TaskSet{tsets}, []string{info.Name()})
 	chg.Set("api-data", map[string]string{"snap-name": info.Name()})
 
@@ -1312,15 +1345,23 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode request body into patch values: %v", err)
 	}
 
-	s := c.d.overlord.State()
-	s.Lock()
-	defer s.Unlock()
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
 
-	taskset := configstate.Change(s, snapName, patchValues)
-	change := s.NewChange("configure-snap", fmt.Sprintf("Setting config for %s", snapName))
-	change.AddAll(taskset)
+	var ss snapstate.SnapState
+	if err := snapstate.Get(st, snapName, &ss); err == state.ErrNoState {
+		return NotFound("cannot find %q snap", snapName)
+	} else if err != nil {
+		return InternalError("%v", err)
+	}
 
-	s.EnsureBefore(0)
+	taskset := configstate.Configure(st, snapName, patchValues)
+
+	summary := fmt.Sprintf("Change configuration of %q snap", snapName)
+	change := newChange(st, "configure-snap", summary, []*state.TaskSet{taskset}, []string{snapName})
+
+	st.EnsureBefore(0)
 
 	return AsyncResponse(nil, &Meta{Change: change.ID()})
 }
@@ -1679,6 +1720,60 @@ func getUserDetailsFromStore(email string) (string, *osutil.AddUserOptions, erro
 	return v.Username, opts, nil
 }
 
+func createAllKnownSystemUsers(st *state.State, createData *postUserCreateData) Response {
+	var createdUsers []userResponseData
+
+	st.Lock()
+	db := assertstate.DB(st)
+	modelAs, err := devicestate.Model(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get model assertion")
+	}
+
+	headers := map[string]string{
+		"brand-id": modelAs.BrandID(),
+	}
+	st.Lock()
+	assertions, err := db.FindMany(asserts.SystemUserType, headers)
+	st.Unlock()
+	if err != nil {
+		return BadRequest("cannot find system-user assertion: %s", err)
+	}
+
+	for _, as := range assertions {
+		email := as.(*asserts.SystemUser).Email()
+		// we need to use getUserDetailsFromAssertion as this verifies
+		// the assertion against the current brand/model/time
+		username, opts, err := getUserDetailsFromAssertion(st, email)
+		if err != nil {
+			logger.Noticef("ignoring system-user assertion for %q: %s", email, err)
+			continue
+		}
+		// ignore already existing users
+		if _, err := user.Lookup(username); err == nil {
+			continue
+		}
+
+		// FIXME: duplicated code
+		opts.Sudoer = createData.Sudoer
+		opts.ExtraUsers = !release.OnClassic
+
+		if err := osutilAddUser(username, opts); err != nil {
+			return InternalError("cannot add user %q: %s", username, err)
+		}
+		if err := setupLocalUser(st, username, email); err != nil {
+			return InternalError("%s", err)
+		}
+		createdUsers = append(createdUsers, userResponseData{
+			Username: username,
+			SSHKeys:  opts.SSHKeys,
+		})
+	}
+
+	return SyncResponse(createdUsers, nil)
+}
+
 func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil.AddUserOptions, error) {
 	errorPrefix := fmt.Sprintf("cannot add system-user %q: ", email)
 
@@ -1732,11 +1827,54 @@ func getUserDetailsFromAssertion(st *state.State, email string) (string, *osutil
 	return su.Username(), opts, nil
 }
 
-type createResponseData struct {
-	Username string   `json:"username"`
-	SSHKeys  []string `json:"ssh-keys"`
-	// deprecated
-	SSHKeyCount int `json:"ssh-key-count"`
+type postUserCreateData struct {
+	Email        string `json:"email"`
+	Sudoer       bool   `json:"sudoer"`
+	Known        bool   `json:"known"`
+	ForceManaged bool   `json:"force-managed"`
+}
+
+var userLookup = user.Lookup
+
+func setupLocalUser(st *state.State, username, email string) error {
+	user, err := userLookup(username)
+	if err != nil {
+		return fmt.Errorf("cannot lookup user %q: %s", username, err)
+	}
+	uid, err := strconv.Atoi(user.Uid)
+	if err != nil {
+		return fmt.Errorf("cannot get uid of user %q: %s", username, err)
+	}
+	gid, err := strconv.Atoi(user.Gid)
+	if err != nil {
+		return fmt.Errorf("cannot get gid of user %q: %s", username, err)
+	}
+	authDataFn := filepath.Join(user.HomeDir, ".snap", "auth.json")
+	if err := osutil.MkdirAllChown(filepath.Dir(authDataFn), 0700, uid, gid); err != nil {
+		return err
+	}
+
+	// setup new user, local-only
+	st.Lock()
+	authUser, err := auth.NewUser(st, username, email, "", nil)
+	st.Unlock()
+	if err != nil {
+		return fmt.Errorf("cannot persist authentication details: %v", err)
+	}
+	// store macaroon auth in auth.json in the new users home dir
+	outStr, err := json.Marshal(struct {
+		Macaroon string `json:"macaroon"`
+	}{
+		Macaroon: authUser.Macaroon,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot marshal auth data: %s", err)
+	}
+	if err := osutil.AtomicWriteFileChown(authDataFn, []byte(outStr), 0600, 0, uid, gid); err != nil {
+		return fmt.Errorf("cannot write auth file %q: %s", authDataFn, err)
+	}
+
+	return nil
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -1748,17 +1886,30 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot use create-user as non-root")
 	}
 
-	var createData struct {
-		Email  string `json:"email"`
-		Sudoer bool   `json:"sudoer"`
-		Known  bool   `json:"known"`
-	}
+	var createData postUserCreateData
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&createData); err != nil {
 		return BadRequest("cannot decode create-user data from request body: %v", err)
 	}
 
+	// verify request
+	st := c.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get user count: %s", err)
+	}
+	if len(users) > 0 && !createData.ForceManaged {
+		return BadRequest("cannot create user: device already managed")
+	}
+
+	// special case: the user requested the creation of all known
+	// system-users
+	if createData.Email == "" && createData.Known {
+		return createAllKnownSystemUsers(c.d.overlord.State(), &createData)
+	}
 	if createData.Email == "" {
 		return BadRequest("cannot create user: 'email' field is empty")
 	}
@@ -1766,13 +1917,15 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	var username string
 	var opts *osutil.AddUserOptions
 	if createData.Known {
-		username, opts, err = getUserDetailsFromAssertion(c.d.overlord.State(), createData.Email)
+		username, opts, err = getUserDetailsFromAssertion(st, createData.Email)
 	} else {
 		username, opts, err = getUserDetailsFromStore(createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
 	}
+
+	// FIXME: duplicated code
 	opts.Sudoer = createData.Sudoer
 	opts.ExtraUsers = !release.OnClassic
 
@@ -1780,10 +1933,13 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 		return BadRequest("cannot create user %s: %s", username, err)
 	}
 
-	return SyncResponse(&createResponseData{
-		Username:    username,
-		SSHKeys:     opts.SSHKeys,
-		SSHKeyCount: len(opts.SSHKeys),
+	if err := setupLocalUser(c.d.overlord.State(), username, createData.Email); err != nil {
+		return InternalError("%s", err)
+	}
+
+	return SyncResponse(&userResponseData{
+		Username: username,
+		SSHKeys:  opts.SSHKeys,
 	}, nil)
 }
 
@@ -1845,33 +2001,6 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(buyResult, nil)
 }
 
-// TODO Remove once the CLI is using the new /buy/ready endpoint
-func getPaymentMethods(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
-
-	paymentMethods, err := s.PaymentMethods(user)
-
-	switch err {
-	default:
-		return InternalError("%v", err)
-	case store.ErrInvalidCredentials:
-		return Unauthorized(err.Error())
-	case store.ErrUnauthenticated:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    errorKindLoginRequired,
-			},
-			Status: http.StatusBadRequest,
-		}, nil)
-	case nil:
-		// continue
-	}
-
-	return SyncResponse(paymentMethods, nil)
-}
-
 func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 	s := getStore(c)
 
@@ -1911,4 +2040,32 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	return SyncResponse(result, nil)
+}
+
+func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
+	uid, err := postCreateUserUcrednetGetUID(r.RemoteAddr)
+	if err != nil {
+		return BadRequest("cannot get ucrednet uid: %v", err)
+	}
+	if uid != 0 {
+		return BadRequest("cannot use create-user as non-root")
+	}
+
+	st := c.d.overlord.State()
+	st.Lock()
+	users, err := auth.Users(st)
+	st.Unlock()
+	if err != nil {
+		return InternalError("cannot get users: %s", err)
+	}
+
+	resp := make([]userResponseData, len(users))
+	for i, u := range users {
+		resp[i] = userResponseData{
+			Username: u.Username,
+			Email:    u.Email,
+			ID:       u.ID,
+		}
+	}
+	return SyncResponse(resp, nil)
 }

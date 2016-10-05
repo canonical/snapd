@@ -51,10 +51,11 @@ import (
 )
 
 type remoteRepoTestSuite struct {
-	store  *Store
-	logbuf *bytes.Buffer
-	user   *auth.UserState
-	device *auth.DeviceState
+	store     *Store
+	logbuf    *bytes.Buffer
+	user      *auth.UserState
+	localUser *auth.UserState
+	device    *auth.DeviceState
 
 	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
 	origBackoffs     []int
@@ -176,15 +177,15 @@ func makeTestRefreshDischargeResponse() (string, error) {
 		return "", err
 	}
 
-	return MacaroonSerialize(m)
+	return auth.MacaroonSerialize(m)
 }
 
 func createTestUser(userID int, root, discharge *macaroon.Macaroon) (*auth.UserState, error) {
-	serializedMacaroon, err := MacaroonSerialize(root)
+	serializedMacaroon, err := auth.MacaroonSerialize(root)
 	if err != nil {
 		return nil, err
 	}
-	serializedDischarge, err := MacaroonSerialize(discharge)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	if err != nil {
 		return nil, err
 	}
@@ -226,6 +227,11 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	t.user, err = createTestUser(1, root, discharge)
 	c.Assert(err, IsNil)
+	t.localUser = &auth.UserState{
+		ID:       11,
+		Username: "test-user",
+		Macaroon: "snapd-macaroon",
+	}
 	t.device = createTestDevice()
 	t.mockXDelta = testutil.MockCommand(c, "xdelta", "")
 }
@@ -243,15 +249,15 @@ func (t *remoteRepoTestSuite) TearDownSuite(c *C) {
 func (t *remoteRepoTestSuite) expectedAuthorization(c *C, user *auth.UserState) string {
 	var buf bytes.Buffer
 
-	root, err := MacaroonDeserialize(user.StoreMacaroon)
+	root, err := auth.MacaroonDeserialize(user.StoreMacaroon)
 	c.Assert(err, IsNil)
-	discharge, err := MacaroonDeserialize(user.StoreDischarges[0])
+	discharge, err := auth.MacaroonDeserialize(user.StoreDischarges[0])
 	c.Assert(err, IsNil)
 	discharge.Bind(root.Signature())
 
-	serializedMacaroon, err := MacaroonSerialize(root)
+	serializedMacaroon, err := auth.MacaroonSerialize(root)
 	c.Assert(err, IsNil)
-	serializedDischarge, err := MacaroonSerialize(discharge)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	c.Assert(err, IsNil)
 
 	fmt.Fprintf(&buf, `Macaroon root="%s", discharge="%s"`, serializedMacaroon, serializedDischarge)
@@ -296,6 +302,28 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	snap.DownloadURL = "AUTH-URL"
 
 	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.user)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "I was downloaded")
+}
+
+func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		c.Check(url, Equals, "anon-url")
+
+		w.Write([]byte("I was downloaded"))
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.localUser)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -490,6 +518,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 var downloadDeltaTests = []struct {
 	info          snap.DownloadInfo
 	authenticated bool
+	useLocalUser  bool
 	format        string
 	expectedURL   string
 	expectedPath  string
@@ -512,8 +541,21 @@ var downloadDeltaTests = []struct {
 		},
 	},
 	authenticated: true,
+	useLocalUser:  false,
 	format:        "xdelta",
 	expectedURL:   "auth-delta-url",
+	expectedPath:  "snapname_24_26_delta.xdelta",
+}, {
+	// A local authenticated request downloads the anonymous delta url.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: true,
+	useLocalUser:  true,
+	format:        "xdelta",
+	expectedURL:   "anon-delta-url",
 	expectedPath:  "snapname_24_26_delta.xdelta",
 }, {
 	// An error is returned if more than one matching delta is returned by the store,
@@ -551,6 +593,9 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 		t.store.deltaFormat = testCase.format
 		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 			expectedUser := t.user
+			if testCase.useLocalUser {
+				expectedUser = t.localUser
+			}
 			if !testCase.authenticated {
 				expectedUser = nil
 			}
@@ -564,6 +609,9 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 		defer os.RemoveAll(downloadDir)
 
 		authedUser := t.user
+		if testCase.useLocalUser {
+			authedUser = t.localUser
+		}
 		if !testCase.authenticated {
 			authedUser = nil
 		}
@@ -650,6 +698,37 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
 	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	defer response.Body.Close()
+	c.Assert(err, IsNil)
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
+}
+
+func (t *remoteRepoTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+		// check no user authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "")
+		// check device authorization is set
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		io.WriteString(w, "response-data")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	authContext := &testAuthContext{c: c, device: t.device, user: t.localUser}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(repo.client, reqOptions, t.localUser)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -839,7 +918,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 	macaroon, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
-	serializedMacaroon, err := MacaroonSerialize(macaroon)
+	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -851,7 +930,7 @@ func (t *remoteRepoTestSuite) TestLoginUser(c *C) {
 
 	discharge, err := makeTestDischarge()
 	c.Assert(err, IsNil)
-	serializedDischarge, err := MacaroonSerialize(discharge)
+	serializedDischarge, err := auth.MacaroonSerialize(discharge)
 	c.Assert(err, IsNil)
 	mockSSOServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -887,7 +966,7 @@ func (t *remoteRepoTestSuite) TestLoginUserMyAppsError(c *C) {
 func (t *remoteRepoTestSuite) TestLoginUserSSOError(c *C) {
 	macaroon, err := makeTestMacaroon()
 	c.Assert(err, IsNil)
-	serializedMacaroon, err := MacaroonSerialize(macaroon)
+	serializedMacaroon, err := auth.MacaroonSerialize(macaroon)
 	c.Assert(err, IsNil)
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -2875,164 +2954,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 	c.Assert(result, IsNil)
 	c.Assert(err, NotNil)
 	c.Check(err.Error(), Equals, "you need to log in first")
-}
-
-// acquired by printing raw response body inside store.PaymentMethods for testing account on staging server.
-// difficult to get via curl, as macaroon authentication is required.
-const paymentMethodsJson = `
-[
-    {
-        "id": "credit_card",
-        "description": "Credit or Debit Card",
-        "preferred": true,
-        "choices": [
-            {
-                "requires_interaction": false,
-                "currencies": [
-                    "GBP"
-                ],
-                "id": 1,
-                "preferred": true,
-                "description": "**** **** **** 1111 (Visa, exp. 12/2030)"
-            },
-            {
-                "requires_interaction": false,
-                "currencies": [
-                    "USD"
-                ],
-                "id": 2,
-                "preferred": false,
-                "description": "**** **** **** 2222 (Visa, exp. 01/2050)"
-            }
-        ]
-    },
-    {
-        "id": "rest_paypal",
-        "description": "PayPal",
-        "preferred": false,
-        "choices": [
-            {
-                "requires_interaction": true,
-                "currencies": [
-                    "USD",
-                    "GBP",
-                    "EUR"
-                ],
-                "id": 3,
-                "preferred": false,
-                "description": "PayPal"
-            }
-        ]
-    }
-]
-`
-
-func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethods(c *C) {
-	purchaseServerGetCalled := 0
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			// check device authorization is set, implicitly checking doRequest was used
-			c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
-
-			c.Check(r.Header.Get("Authorization"), Equals, t.expectedAuthorization(c, t.user))
-			c.Check(r.URL.Path, Equals, "/api/2.0/click/paymentmethods/")
-			io.WriteString(w, paymentMethodsJson)
-			purchaseServerGetCalled++
-		default:
-			c.Error("Unexpected request method: ", r.Method)
-		}
-	}))
-
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	paymentMethodsURI, err := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		PaymentMethodsURI: paymentMethodsURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	result, err := repo.PaymentMethods(t.user)
-	c.Assert(err, IsNil)
-	c.Assert(result, NotNil)
-
-	c.Check(result.AllowsAutomaticPayment, Equals, true)
-	c.Assert(len(result.Methods), Equals, 3)
-	c.Check(result.Methods[0], DeepEquals, &PaymentMethod{
-		BackendID:           "credit_card",
-		Currencies:          []string{"GBP"},
-		Description:         "**** **** **** 1111 (Visa, exp. 12/2030)",
-		ID:                  1,
-		Preferred:           true,
-		RequiresInteraction: false,
-	})
-	c.Check(result.Methods[1], DeepEquals, &PaymentMethod{
-		BackendID:           "credit_card",
-		Currencies:          []string{"USD"},
-		Description:         "**** **** **** 2222 (Visa, exp. 01/2050)",
-		ID:                  2,
-		Preferred:           false,
-		RequiresInteraction: false,
-	})
-	c.Check(result.Methods[2], DeepEquals, &PaymentMethod{
-		BackendID:           "rest_paypal",
-		Currencies:          []string{"USD", "GBP", "EUR"},
-		Description:         "PayPal",
-		ID:                  3,
-		Preferred:           false,
-		RequiresInteraction: true,
-	})
-
-	c.Check(purchaseServerGetCalled, Equals, 1)
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsNoAuth(c *C) {
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	result, err := repo.PaymentMethods(nil)
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "you need to log in first")
-}
-
-func (t *remoteRepoTestSuite) TestUbuntuStorePaymentMethodsHandles401(c *C) {
-	purchaseServerGetCalled := 0
-	mockPurchasesServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case "GET":
-			w.WriteHeader(http.StatusUnauthorized)
-			io.WriteString(w, "Authorization Required")
-			purchaseServerGetCalled++
-		default:
-			c.Error("Unexpected request method: ", r.Method)
-		}
-	}))
-
-	c.Assert(mockPurchasesServer, NotNil)
-	defer mockPurchasesServer.Close()
-
-	paymentMethodsURI, err := url.Parse(mockPurchasesServer.URL + "/api/2.0/click/paymentmethods/")
-	c.Assert(err, IsNil)
-
-	authContext := &testAuthContext{c: c, device: t.device, user: t.user}
-	cfg := Config{
-		PaymentMethodsURI: paymentMethodsURI,
-	}
-	repo := New(&cfg, authContext)
-	c.Assert(repo, NotNil)
-
-	result, err := repo.PaymentMethods(t.user)
-	c.Assert(result, IsNil)
-	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "invalid credentials")
 }
 
 var readyToBuyTests = []struct {

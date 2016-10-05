@@ -39,7 +39,7 @@ var _ = Suite(&DockerSupportInterfaceSuite{
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{
-				SuggestedName: "ubuntu-core",
+				SuggestedName: "core",
 				Type:          snap.TypeOS},
 			Name:      "docker-support",
 			Interface: "docker-support",
@@ -72,8 +72,8 @@ func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *DockerSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+func (s *DockerSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
 
 func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {

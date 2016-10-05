@@ -91,20 +91,23 @@ func requestLoginWith2faRetry(email, password string) error {
 	}
 }
 
-func (x *cmdLogin) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-
-	email := x.Positional.Email
+func requestLogin(email string) error {
 	fmt.Fprint(Stdout, i18n.G("Password: "))
-	password, err := terminal.ReadPassword(0)
+	password, err := terminal.ReadPassword(Terminal)
 	fmt.Fprint(Stdout, "\n")
 	if err != nil {
 		return err
 	}
 
-	err = requestLoginWith2faRetry(email, string(password))
+	return requestLoginWith2faRetry(email, string(password))
+}
+
+func (x *cmdLogin) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+
+	err := requestLogin(x.Positional.Email)
 	if err != nil {
 		return err
 	}

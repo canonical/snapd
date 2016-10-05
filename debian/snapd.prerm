@@ -9,6 +9,7 @@ if [ "$1" = "remove" -o "$1" = "upgrade" ]; then
         systemctl stop snapd.boot-ok.service
         systemctl stop snapd.refresh.timer
         systemctl stop snapd.refresh.service
+	systemctl stop snapd.autoimport.service
         systemctl stop snapd.socket
         systemctl stop snapd.service
     fi

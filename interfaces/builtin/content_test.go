@@ -20,13 +20,11 @@
 package builtin_test
 
 import (
-	"fmt"
-
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
 
@@ -141,29 +139,145 @@ plugs:
 	c.Assert(err, ErrorMatches, "content interface target path is not clean:.*")
 }
 
-func (s *ContentSuite) TestConnectedPlugSnippetSimple(c *C) {
-	const mockSnapYaml = `name: content-slot-snap
+func (s *ContentSuite) TestResolveSpecialVariable(c *C) {
+	info := snaptest.MockInfo(c, "name: name", &snap.SideInfo{Revision: snap.R(42)})
+	c.Check(builtin.ResolveSpecialVariable("foo", info), Equals, "/snap/name/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP/foo", info), Equals, "/snap/name/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA/foo", info), Equals, "/var/snap/name/42/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON/foo", info), Equals, "/var/snap/name/common/foo")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP", info), Equals, "/snap/name/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_DATA", info), Equals, "/var/snap/name/42")
+	c.Check(builtin.ResolveSpecialVariable("$SNAP_COMMON", info), Equals, "/var/snap/name/common")
+}
+
+// Check that legacy syntax works and allows sharing read-only snap content
+func (s *ContentSuite) TestConnectedPlugSnippetSharingLegacy(c *C) {
+	const consumerYaml = `name: consumer 
+plugs:
+ content:
+  target: import
+`
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
+	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	const producerYaml = `name: producer
+slots:
+ content:
+  read:
+   - export
+`
+	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
+	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+
+	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	expected := "/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0\n"
+	c.Assert(string(content), Equals, expected)
+}
+
+// Check that sharing of read-only snap content is possible
+func (s *ContentSuite) TestConnectedPlugSnippetSharingSnap(c *C) {
+	const consumerYaml = `name: consumer 
+plugs:
+ content:
+  target: $SNAP/import
+`
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
+	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	const producerYaml = `name: producer
+slots:
+ content:
+  read:
+   - $SNAP/export
+`
+	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
+	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+
+	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	expected := "/snap/producer/5/export /snap/consumer/7/import none bind,ro 0 0\n"
+	c.Assert(string(content), Equals, expected)
+}
+
+// Check that sharing of writable data is possible
+func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapData(c *C) {
+	const consumerYaml = `name: consumer 
+plugs:
+ content:
+  target: $SNAP_DATA/import
+`
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
+	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	const producerYaml = `name: producer
+slots:
+ content:
+  write:
+   - $SNAP_DATA/export
+`
+	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
+	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+
+	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	expected := "/var/snap/producer/5/export /var/snap/consumer/7/import none bind 0 0\n"
+	c.Assert(string(content), Equals, expected)
+}
+
+// Check that sharing of writable common data is possible
+func (s *ContentSuite) TestConnectedPlugSnippetSharingSnapCommon(c *C) {
+	const consumerYaml = `name: consumer 
+plugs:
+ content:
+  target: $SNAP_COMMON/import
+`
+	consumerInfo := snaptest.MockInfo(c, consumerYaml, &snap.SideInfo{Revision: snap.R(7)})
+	plug := &interfaces.Plug{PlugInfo: consumerInfo.Plugs["content"]}
+	const producerYaml = `name: producer
+slots:
+ content:
+  write:
+   - $SNAP_COMMON/export
+`
+	producerInfo := snaptest.MockInfo(c, producerYaml, &snap.SideInfo{Revision: snap.R(5)})
+	slot := &interfaces.Slot{SlotInfo: producerInfo.Slots["content"]}
+
+	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
+	c.Assert(err, IsNil)
+	expected := "/var/snap/producer/common/export /var/snap/consumer/common/import none bind 0 0\n"
+	c.Assert(string(content), Equals, expected)
+}
+
+func (s *ContentSuite) TestLegacyAutoConnect(c *C) {
+	const plugSnapYaml = `name: content-slot-snap
+version: 1.0
+plugs:
+ content-plug:
+  interface: content
+  content: cont1
+`
+	info := snaptest.MockInfo(c, plugSnapYaml, nil)
+	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
+
+	const slotSnapYaml = `name: content-slot-snap
 version: 1.0
 slots:
  content-slot:
   interface: content
-  read:
-   - shared/read
-  write:
-   - shared/write
-plugs:
- content-plug:
-  interface: content
-  target: import
+  content: cont1
 `
-	info := snaptest.MockInfo(c, mockSnapYaml, nil)
+	info = snaptest.MockInfo(c, slotSnapYaml, nil)
 	slot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
-	plug := &interfaces.Plug{PlugInfo: info.Plugs["content-plug"]}
-	content, err := s.iface.ConnectedPlugSnippet(plug, slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
 
-	expected := fmt.Sprintf(`%[1]s/content-slot-snap/unset/shared/read %[1]s/content-slot-snap/unset/import none bind,ro 0 0
-%[1]s/content-slot-snap/unset/shared/write %[1]s/content-slot-snap/unset/import none bind 0 0
-`, dirs.SnapMountDir)
-	c.Assert(string(content), DeepEquals, expected)
+	c.Check(s.iface.AutoConnect(plug, slot), Equals, true)
+
+	const otherSnapYaml = `name: content-other-snap
+version: 1.0
+slots:
+ content-slot:
+  interface: content
+  content: cont2
+`
+	info = snaptest.MockInfo(c, otherSnapYaml, nil)
+	otherslot := &interfaces.Slot{SlotInfo: info.Slots["content-slot"]}
+
+	c.Check(s.iface.AutoConnect(plug, otherslot), Equals, false)
 }

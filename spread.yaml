@@ -14,6 +14,7 @@ environment:
     # important to ensure adhoc and linode/qemu behave the same
     SUDO_USER: ""
     SUDO_UID: ""
+    TRUST_TEST_KEYS: "true"
 
 backends:
     linode:
@@ -62,19 +63,67 @@ backends:
                 username: ubuntu
                 password: ubuntu
 
+    external:
+        type: adhoc
+        environment:
+            SPREAD_EXTERNAL_ADDRESS: "$(HOST: echo ${SPREAD_EXTERNAL_ADDRESS:-localhost:8022})"
+        allocate: |
+            ADDRESS $SPREAD_EXTERNAL_ADDRESS
+        systems:
+            - ubuntu-core-16-64:
+                environment:
+                    TRUST_TEST_KEYS: "false"
+                username: test
+                password: ubuntu
+            - ubuntu-core-16-arm-64:
+                username: test
+                password: ubuntu
+            - ubuntu-core-16-arm-32:
+                username: test
+                password: ubuntu
+
 path: /home/gopath/src/github.com/snapcore/snapd
 
 exclude:
     - .git
 
+prepare-each: |
+    journalctl --rotate
+    sleep .1
+    journalctl --vacuum-time=1ms
+
 debug-each: |
-    # something went wrong in the test, get some logs
-    echo "Snapd debug log:"
     journalctl -u snapd
 
 prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
+
+    # Disable burst limit so resetting the state quickly doesn't create problems.
+    mkdir -p /etc/systemd/system/snapd.service.d
+    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    [Service]
+    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
+    EOF
+    mkdir -p /etc/systemd/system/snapd.socket.d
+    cat <<EOF > /etc/systemd/system/snapd.socket.d/local.conf
+    [Unit]
+    StartLimitInterval=0
+    EOF
+
+    if [ "$SPREAD_BACKEND" = external ]; then
+        # build test binaries
+        if [ ! -f $GOPATH/bin/snapbuild ]; then
+            mkdir -p $GOPATH/bin
+            snap install --devmode --edge classic
+            classic "sudo apt update && apt install -y git golang-go"
+            classic "GOPATH=$GOPATH go get ../..${PROJECT_PATH}/tests/lib/snapbuild"
+            snap remove classic
+        fi
+        exit 0
+    fi
 
     # apt update is hanging on security.ubuntu.com with IPv6.
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
@@ -113,19 +162,26 @@ prepare: |
     # increment version so upgrade can work
     dch -i "testing build"
 
-    test -d /home/test || adduser --quiet --disabled-password --gecos '' test
+    if ! id test >& /dev/null; then
+        # manually setting the UID and GID to 12345 because we need to
+        # know the numbers match for when we set up the user inside
+        # the all-snap, which has its own user & group database.
+        # Nothing special about 12345 beyond it being high enough it's
+        # unlikely to ever clash with anything, and easy to remember.
+        addgroup --quiet --gid 12345 test
+        adduser --quiet --uid 12345 --gid 12345 --disabled-password --gecos '' test
+    fi
+
+    owner=$( stat -c "%U:%G" /home/test )
+    if [ "$owner" != "test:test" ]; then
+        echo "expected /home/test to be test:test but it's $owner"
+        exit 1
+    fi
+    unset owner
+
     echo 'test ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
     chown test.test -R ..
     su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
-
-    # Disable burst limit so resetting the state quickly doesn't create problems.
-    mkdir -p /etc/systemd/system/snapd.service.d
-    cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
-    [Unit]
-    StartLimitInterval=0
-    [Service]
-    Environment=SNAPD_DEBUG_HTTP=7 SNAP_REEXEC=0
-    EOF
 
     # Build snapbuild.
     apt-get install -y git
@@ -137,16 +193,17 @@ prepare: |
 suites:
     tests/main/:
         summary: Full-system tests for snapd
+
         prepare: |
             . $TESTSLIB/prepare.sh
-            if [ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]; then
+            if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
                 prepare_all_snap
             else
                 prepare_classic
             fi
         restore: |
             $TESTSLIB/reset.sh
-            if [ "$SPREAD_SYSTEM" != "ubuntu-core-16-64" ]; then
+            if [[ "$SPREAD_SYSTEM" != ubuntu-core-16-* ]]; then
                 apt-get purge -y snapd || true
             fi
         restore-each: |

@@ -58,7 +58,7 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 	release.MockOnClassic(false)
 
 	bs.bootloader = boottest.NewMockBootloader("mock", c.MkDir())
-	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_2.snap"
+	bs.bootloader.BootVars["snap_core"] = "core_2.snap"
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_2.snap"
 	partition.ForceBootloader(bs.bootloader)
 
@@ -72,8 +72,8 @@ func (bs *bootedSuite) TearDownTest(c *C) {
 	partition.ForceBootloader(nil)
 }
 
-var osSI1 = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(1)}
-var osSI2 = &snap.SideInfo{RealName: "ubuntu-core", Revision: snap.R(2)}
+var osSI1 = &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+var osSI2 = &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
 var kernelSI1 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(1)}
 var kernelSI2 = &snap.SideInfo{RealName: "canonical-pc-linux", Revision: snap.R(2)}
 
@@ -81,9 +81,9 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 	st.Lock()
 	defer st.Unlock()
 
-	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 1", osSI1)
-	snaptest.MockSnap(c, "name: ubuntu-core\ntype: os\nversion: 2", osSI2)
-	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 1", osSI1)
+	snaptest.MockSnap(c, "name: core\ntype: os\nversion: 2", osSI2)
+	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
 		Sequence: []*snap.SideInfo{osSI1, osSI2},
@@ -105,16 +105,16 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_1.snap"
+	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, IsNil)
 
 	st.Lock()
 	defer st.Unlock()
 
-	// ubuntu-core "current" got reverted but canonical-pc-linux did not
+	// core "current" got reverted but canonical-pc-linux did not
 	var snapst snapstate.SnapState
-	err = snapstate.Get(st, "ubuntu-core", &snapst)
+	err = snapstate.Get(st, "core", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(1))
 	c.Assert(snapst.Active, Equals, true)
@@ -136,14 +136,14 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	// canonical-pc-linux "current" got reverted but ubuntu-core did not
+	// canonical-pc-linux "current" got reverted but core did not
 	var snapst snapstate.SnapState
 	err = snapstate.Get(st, "canonical-pc-linux", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(1))
 	c.Assert(snapst.Active, Equals, true)
 
-	err = snapstate.Get(st, "ubuntu-core", &snapst)
+	err = snapstate.Get(st, "core", &snapst)
 	c.Assert(err, IsNil)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Active, Equals, true)
@@ -162,18 +162,18 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
 	st := bs.overlord.State()
 	bs.makeInstalledKernelOS(c, st)
 
-	bs.bootloader.BootVars["snap_core"] = "ubuntu-core_99.snap"
+	bs.bootloader.BootVars["snap_core"] = "core_99.snap"
 	err := boot.UpdateRevisions(bs.overlord)
-	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "ubuntu-core"`)
+	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "core"`)
 }
 
 func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 	st := bs.overlord.State()
 
 	st.Lock()
-	// put ubuntu-core into the state but add no files on disk
+	// put core into the state but add no files on disk
 	// will break in the tasks
-	snapstate.Set(st, "ubuntu-core", &snapstate.SnapState{
+	snapstate.Set(st, "core", &snapstate.SnapState{
 		SnapType: "os",
 		Active:   true,
 		Sequence: []*snap.SideInfo{osSI1, osSI2},
@@ -181,7 +181,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 	})
 	st.Unlock()
 
-	bs.bootloader.BootVars["snap_kernel"] = "ubuntu-core_1.snap"
+	bs.bootloader.BootVars["snap_kernel"] = "core_1.snap"
 	err := boot.UpdateRevisions(bs.overlord)
 	c.Assert(err, ErrorMatches, `(?ms)cannot update revisions after boot changes:.*`)
 }

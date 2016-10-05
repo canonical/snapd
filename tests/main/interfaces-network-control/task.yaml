@@ -1,7 +1,5 @@
 summary: Ensure that the network-control interface works.
 
-systems: [-ubuntu-core-16-64]
-
 details: |
     The network-control interface allows a snap to configure networking.
 
@@ -20,7 +18,8 @@ environment:
     ARP_ENTRY_ADDR: "30.30.30.30"
 
 prepare: |
-    . $TESTSLIB/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+
     echo "Given a snap declaring a plug on the network-control interface is installed"
     snapbuild $TESTSLIB/snaps/network-control-consumer .
     snap install --dangerous network-control-consumer_1.0_all.snap
@@ -33,16 +32,19 @@ prepare: |
     while ! netstat -lnt | grep -Pq "tcp.*?:$PORT +.*?LISTEN\n*"; do sleep 0.5; done
 
 restore: |
-    . $TESTSLIB/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+    . "$TESTSLIB/network.sh"
+
     systemd_stop_and_destroy_unit $SERVICE_NAME
     rm -f network-control-consumer_1.0_all.snap net-query.output net-command.output $SERVICE_FILE
-    . $TESTSLIB/network.sh
     arp -d $ARP_ENTRY_ADDR -i $(get_default_iface) || true
 
 execute: |
+    . "$TESTSLIB/names.sh"
+    . "$TESTSLIB/network.sh"
+
     CONNECTED_PATTERN=":network-control +network-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +network-control-consumer:network-control"
-    . $TESTSLIB/network.sh
     INTERFACE=$(get_default_iface)
 
     echo "Then the plug disconnected by default"
@@ -51,7 +53,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect network-control-consumer:network-control ubuntu-core:network-control
+    snap connect network-control-consumer:network-control ${core_name}:network-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command can query network status information"
@@ -60,7 +62,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect network-control-consumer:network-control ubuntu-core:network-control
+    snap disconnect network-control-consumer:network-control ${core_name}:network-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not query network status information"
@@ -72,7 +74,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is connected"
-    snap connect network-control-consumer:network-control ubuntu-core:network-control
+    snap connect network-control-consumer:network-control ${core_name}:network-control
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap command can modify the network configuration"
@@ -83,7 +85,7 @@ execute: |
     echo "===================================="
 
     echo "When the plug is disconnected"
-    snap disconnect network-control-consumer:network-control ubuntu-core:network-control
+    snap disconnect network-control-consumer:network-control ${core_name}:network-control
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap command can not modify the network configuration"

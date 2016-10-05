@@ -20,6 +20,7 @@
 package configstate_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"strings"
 )
 
 func TestConfigState(t *testing.T) { TestingT(t) }
@@ -45,126 +47,209 @@ func (s *transactionSuite) SetUpTest(c *C) {
 	s.transaction = configstate.NewTransaction(s.state)
 }
 
-func (s *transactionSuite) TestSetDoesNotTouchState(c *C) {
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
+type setGetOp string
 
-	// Create a new transaction to grab a new snapshot of the state
+func (op setGetOp) kind() string {
+	return strings.Fields(string(op))[0]
+}
+
+func (op setGetOp) args() map[string]interface{} {
+	m := make(map[string]interface{})
+	args := strings.Fields(string(op))
+	for _, pair := range args[1:] {
+		if pair == "=>" {
+			break
+		}
+		kv := strings.SplitN(pair, "=", 2)
+		var v interface{}
+		err := json.Unmarshal([]byte(kv[1]), &v)
+		if err != nil {
+			v = kv[1]
+		}
+		m[kv[0]] = v
+	}
+	return m
+}
+
+func (op setGetOp) error() string {
+	if i := strings.Index(string(op), " => "); i >= 0 {
+		return string(op[i+4:])
+	}
+	return ""
+}
+
+func (op setGetOp) fails() bool {
+	return op.error() != ""
+}
+
+var setGetTests = [][]setGetOp{{
+	// Basics.
+	`set one=1 two=2`,
+	`setunder three=3`,
+	`get one=1 two=2 three=-`,
+	`getunder one=- two=- three=3`,
+	`commit`,
+	`getunder one=1 two=2 three=3`,
+	`get one=1 two=2 three=3`,
+	`set two=22 four=4`,
+	`get one=1 two=22 three=3 four=4`,
+	`getunder one=1 two=2 three=3 four=-`,
+	`commit`,
+	`getunder one=1 two=22 three=3 four=4`,
+}, {
+	// Trivial full doc.
+	`set doc={"one":1,"two":2}`,
+	`get doc={"one":1,"two":2}`,
+}, {
+	// Nested mutations.
+	`set one.two.three=3`,
+	`set one.five=5`,
+	`setunder one={"two":{"four":4}}`,
+	`get one={"two":{"three":3},"five":5}`,
+	`get one.two={"three":3}`,
+	`get one.two.three=3`,
+	`get one.five=5`,
+	`commit`,
+	`getunder one={"two":{"three":3,"four":4},"five":5}`,
+	`get one={"two":{"three":3,"four":4},"five":5}`,
+	`get one.two={"three":3,"four":4}`,
+	`get one.two.three=3`,
+	`get one.two.four=4`,
+	`get one.five=5`,
+}, {
+	// Replacement with nested mutation.
+	`set one={"two":{"three":3}}`,
+	`set one.five=5`,
+	`get one={"two":{"three":3},"five":5}`,
+	`get one.two={"three":3}`,
+	`get one.two.three=3`,
+	`get one.five=5`,
+	`setunder one={"two":{"four":4},"six":6}`,
+	`commit`,
+	`getunder one={"two":{"three":3},"five":5}`,
+}, {
+	// Cannot go through known scalar implicitly.
+	`set one.two=2`,
+	`set one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one={"two":2}`,
+	`commit`,
+	`set one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one.two.three=3 => snap "core" option "one\.two" is not a map`,
+	`get one={"two":2}`,
+	`getunder one={"two":2}`,
+}, {
+	// Unknown scalars may be overwritten though.
+	`setunder one={"two":2}`,
+	`set one.two.three=3`,
+	`commit`,
+	`getunder one={"two":{"three":3}}`,
+}, {
+	// Invalid option names.
+	`set BAD=1 => invalid option name: "BAD"`,
+	`set 42=1 => invalid option name: "42"`,
+	`set .bad=1 => invalid option name: ""`,
+	`set bad.=1 => invalid option name: ""`,
+	`set bad..bad=1 => invalid option name: ""`,
+	`set one.bad--bad.two=1 => invalid option name: "bad--bad"`,
+	`set one.-bad.two=1 => invalid option name: "-bad"`,
+	`set one.bad-.two=1 => invalid option name: "bad-"`,
+}}
+
+func (s *transactionSuite) TestSetGet(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-	transaction := configstate.NewTransaction(s.state)
-	var value string
-	err := transaction.Get("test-snap", "foo", &value)
-	c.Check(err, NotNil, Commentf("Expected config set by first transaction to not be saved"))
-}
 
-func (s *transactionSuite) TestCommit(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+	for _, test := range setGetTests {
+		c.Logf("-----")
+		s.state.Set("config", map[string]interface{}{})
+		t := configstate.NewTransaction(s.state)
+		snap := "core"
+		for _, op := range test {
+			c.Logf("%s", op)
+			switch op.kind() {
+			case "set":
+				for k, v := range op.args() {
+					err := t.Set(snap, k, v)
+					if op.fails() {
+						c.Assert(err, ErrorMatches, op.error())
+					} else {
+						c.Assert(err, IsNil)
+					}
+				}
 
-	// Create a new transaction to grab a new snapshot of the state
-	transaction := configstate.NewTransaction(s.state)
-	var value string
-	err := transaction.Get("test-snap", "foo", &value)
-	c.Check(err, IsNil, Commentf("Expected config set by first transaction to be saved"))
-	c.Check(value, Equals, "bar")
-}
+			case "get":
+				for k, expected := range op.args() {
+					var obtained interface{}
+					err := t.Get(snap, k, &obtained)
+					if op.fails() {
+						c.Assert(err, ErrorMatches, op.error())
+						var nothing interface{}
+						c.Assert(t.GetMaybe(snap, k, &nothing), ErrorMatches, op.error())
+						c.Assert(nothing, IsNil)
+						continue
+					}
+					if expected == "-" {
+						if !configstate.IsNoOption(err) {
+							c.Fatalf("Expected %q key to not exist, but it has value %v", k, obtained)
+						}
+						c.Assert(err, ErrorMatches, fmt.Sprintf("snap %q has no %q configuration option", snap, k))
+						var nothing interface{}
+						c.Assert(t.GetMaybe(snap, k, &nothing), IsNil)
+						c.Assert(nothing, IsNil)
+						continue
+					}
+					c.Assert(err, IsNil)
+					c.Assert(obtained, DeepEquals, expected)
 
-func (s *transactionSuite) TestCommitOnlyCommitsChanges(c *C) {
-	// Set the initial config
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
+					obtained = nil
+					c.Assert(t.GetMaybe(snap, k, &obtained), IsNil)
+					c.Assert(obtained, DeepEquals, expected)
+				}
 
-	// Create two new transactions
-	transaction1 := configstate.NewTransaction(s.state)
-	transaction2 := configstate.NewTransaction(s.state)
+			case "commit":
+				t.Commit()
 
-	// transaction1 will change the configuration item that is already present.
-	c.Check(transaction1.Set("test-snap", "foo", "baz"), IsNil)
-	transaction1.Commit()
+			case "setunder":
+				var config map[string]map[string]interface{}
+				s.state.Get("config", &config)
+				if config == nil {
+					config = make(map[string]map[string]interface{})
+				}
+				if config[snap] == nil {
+					config[snap] = make(map[string]interface{})
+				}
+				for k, v := range op.args() {
+					if v == "-" {
+						delete(config[snap], k)
+						if len(config[snap]) == 0 {
+							delete(config[snap], snap)
+						}
+					} else {
+						config[snap][k] = v
+					}
+				}
+				s.state.Set("config", config)
 
-	// transaction2 will add a new configuration item.
-	c.Check(transaction2.Set("test-snap", "qux", "quux"), IsNil)
-	transaction2.Commit()
+			case "getunder":
+				var config map[string]map[string]interface{}
+				s.state.Get("config", &config)
+				for k, expected := range op.args() {
+					obtained, ok := config[snap][k]
+					if expected == "-" {
+						if ok {
+							c.Fatalf("Expected %q key to not exist, but it has value %v", k, obtained)
+						}
+						continue
+					}
+					c.Assert(obtained, DeepEquals, expected)
+				}
 
-	// Now verify that the change made by both transactions actually took place
-	// (i.e. transaction1's change was not overridden by the old data in
-	// transaction2).
-	transaction := configstate.NewTransaction(s.state)
-
-	var value string
-	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
-	c.Check(value, Equals, "baz", Commentf("Expected 'test-snap' value for 'foo' to be set by transaction1"))
-
-	c.Check(transaction.Get("test-snap", "qux", &value), IsNil)
-	c.Check(value, Equals, "quux", Commentf("Expected 'test-snap' value for 'qux' to be set by transaction2"))
-}
-
-func (s *transactionSuite) TestGetNothing(c *C) {
-	var value string
-	err := s.transaction.Get("test-snap", "foo", &value)
-	c.Assert(err, FitsTypeOf, &configstate.NoOptionError{})
-	c.Check(err, ErrorMatches, `snap "test-snap" has no "foo" configuration option`)
-
-	value = ""
-	err = s.transaction.GetMaybe("test-snap", "foo", &value)
-	c.Assert(err, IsNil)
-}
-
-func (s *transactionSuite) TestGetCachedWrites(c *C) {
-	// Get() should read the cached writes, even without a Commit()
-	s.transaction.Set("test-snap", "foo", "bar")
-	var value string
-	err := s.transaction.Get("test-snap", "foo", &value)
-	c.Check(err, IsNil, Commentf("Expected 'test-snap' config to contain 'foo'"))
-	c.Check(value, Equals, "bar")
-
-	value = ""
-	err = s.transaction.GetMaybe("test-snap", "foo", &value)
-	c.Check(err, IsNil, Commentf("Expected 'test-snap' config to contain 'foo'"))
-	c.Check(value, Equals, "bar")
-}
-
-func (s *transactionSuite) TestGetOriginalEvenWithCachedWrites(c *C) {
-	// Set the initial config
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(s.transaction.Set("test-snap", "foo", "bar"), IsNil)
-	s.transaction.Commit()
-
-	transaction := configstate.NewTransaction(s.state)
-	c.Check(transaction.Set("test-snap", "baz", "qux"), IsNil)
-
-	// Now get both the cached write as well as the initial config
-	var value string
-	c.Check(transaction.Get("test-snap", "foo", &value), IsNil)
-	c.Check(value, Equals, "bar")
-	c.Check(transaction.Get("test-snap", "baz", &value), IsNil)
-	c.Check(value, Equals, "qux")
-}
-
-func (s *transactionSuite) TestIsolationFromOtherTransactions(c *C) {
-	// Set the initial config
-	s.state.Lock()
-	defer s.state.Unlock()
-	c.Check(s.transaction.Set("test-snap", "foo", "initial"), IsNil)
-	s.transaction.Commit()
-
-	// Create two new transactions
-	transaction1 := configstate.NewTransaction(s.state)
-	transaction2 := configstate.NewTransaction(s.state)
-
-	// Change the config in one
-	c.Check(transaction1.Set("test-snap", "foo", "updated"), IsNil)
-	transaction1.Commit()
-
-	// Verify that the other transaction doesn't see the changes
-	var value string
-	c.Check(transaction2.Get("test-snap", "foo", &value), IsNil)
-	c.Check(value, Equals, "initial", Commentf("Expected transaction2 to be isolated from transaction1"))
+			default:
+				panic("unknown test op kind: " + op.kind())
+			}
+		}
+	}
 }
 
 type brokenType struct {

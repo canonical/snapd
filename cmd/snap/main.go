@@ -40,9 +40,10 @@ import (
 
 // Standard streams, redirected for testing.
 var (
-	Stdin  io.Reader = os.Stdin
-	Stdout io.Writer = os.Stdout
-	Stderr io.Writer = os.Stderr
+	Stdin    io.Reader = os.Stdin
+	Stdout   io.Writer = os.Stdout
+	Stderr   io.Writer = os.Stderr
+	Terminal int       = 0
 )
 
 type options struct {
@@ -133,26 +134,7 @@ func lintArg(cmdName, optName, desc, origDesc string) {
 // from each other.
 func Parser() *flags.Parser {
 	optionsData.Version = func() {
-		sv, err := Client().ServerVersion()
-		if err != nil {
-			sv = &client.ServerVersion{
-				Version:     i18n.G("unavailable"),
-				Series:      "-",
-				OSID:        "-",
-				OSVersionID: "-",
-			}
-		}
-
-		w := tabWriter()
-
-		fmt.Fprintf(w, "snap\t%s\n", cmd.Version)
-		fmt.Fprintf(w, "snapd\t%s\n", sv.Version)
-		fmt.Fprintf(w, "series\t%s\n", sv.Series)
-		if sv.OnClassic {
-			fmt.Fprintf(w, "%s\t%s\n", sv.OSID, sv.OSVersionID)
-		}
-		w.Flush()
-
+		printVersions()
 		panic(&exitStatus{0})
 	}
 	parser := flags.NewParser(&optionsData, flags.HelpFlag|flags.PassDoubleDash|flags.PassAfterNonOption)

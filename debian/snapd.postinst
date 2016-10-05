@@ -16,6 +16,7 @@ case "$1" in
             systemctl start snapd.boot-ok.service
             systemctl start snapd.refresh.timer
             systemctl start snapd.refresh.service
+	    systemctl start snapd.autoimport.service
             systemctl start snapd.socket
             systemctl start snapd.service
 	fi

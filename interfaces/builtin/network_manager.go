@@ -73,6 +73,9 @@ network packet,
 # from netplan
 /run/NetworkManager/{,**} r,
 
+# Allow writing dhcp files to a well-known system location
+/run/NetworkManager/dhcp/{,**} w,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
@@ -439,6 +442,11 @@ func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error 
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AutoConnect() bool {
+func (iface *NetworkManagerInterface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

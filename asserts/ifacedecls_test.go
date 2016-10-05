@@ -334,6 +334,20 @@ func checkBoolPlugConnConstraints(c *C, cstrs *asserts.PlugConnectionConstraints
 	c.Check(cstrs.SlotAttributes, Equals, expected)
 	c.Check(cstrs.SlotSnapIDs, HasLen, 0)
 	c.Check(cstrs.SlotPublisherIDs, HasLen, 0)
+	c.Check(cstrs.SlotSnapTypes, HasLen, 0)
+}
+
+func checkBoolSlotConnConstraints(c *C, cstrs *asserts.SlotConnectionConstraints, always bool) {
+	expected := asserts.NeverMatchAttributes
+	if always {
+		expected = asserts.AlwaysMatchAttributes
+	}
+	c.Assert(cstrs, NotNil)
+	c.Check(cstrs.PlugAttributes, Equals, expected)
+	c.Check(cstrs.SlotAttributes, Equals, expected)
+	c.Check(cstrs.PlugSnapIDs, HasLen, 0)
+	c.Check(cstrs.PlugPublisherIDs, HasLen, 0)
+	c.Check(cstrs.PlugSnapTypes, HasLen, 0)
 }
 
 func (s *plugSlotRulesSuite) TestCompilePlugRuleAllAllowDenyStanzas(c *C) {
@@ -448,12 +462,24 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleDefaults(c *C) {
 	checkBoolPlugConnConstraints(c, rule.DenyAutoConnection, true)
 }
 
+func (s *plugSlotRulesSuite) TestCompilePlugRuleInstalationConstraintsIDConstraints(c *C) {
+	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
+		"allow-installation": map[string]interface{}{
+			"plug-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	cstrs := rule.AllowInstallation
+	c.Check(cstrs.PlugSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+}
+
 func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstraints(c *C) {
 	rule, err := asserts.CompilePlugRule("iface", map[string]interface{}{
 		"allow-connection": map[string]interface{}{
 			"slot-snap-type":    []interface{}{"core", "kernel", "gadget", "app"},
 			"slot-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
-			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"},
+			"slot-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
 		},
 	})
 	c.Assert(err, IsNil)
@@ -461,7 +487,7 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleConnectionConstraintsIDConstrain
 	cstrs := rule.AllowConnection
 	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
 	c.Check(cstrs.SlotSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
-	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$same"})
+	c.Check(cstrs.SlotPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"})
 
 }
 
@@ -543,6 +569,213 @@ func (s *plugSlotRulesSuite) TestCompilePlugRuleErrors(c *C) {
 		c.Assert(err, IsNil, Commentf(t.stanza))
 
 		_, err = asserts.CompilePlugRule("iface", m["iface"])
+		c.Check(err, ErrorMatches, t.err, Commentf(t.stanza))
+	}
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleAllAllowDenyStanzas(c *C) {
+	m, err := asserts.ParseHeaders([]byte(`iface:
+  allow-installation:
+    slot-attributes:
+      a1: A1
+  deny-installation:
+    slot-attributes:
+      a2: A2
+  allow-connection:
+    plug-attributes:
+      pa3: PA3
+    slot-attributes:
+      sa3: SA3
+  deny-connection:
+    plug-attributes:
+      pa4: PA5
+    slot-attributes:
+      sa4: SA4
+  allow-auto-connection:
+    plug-attributes:
+      pa5: PA5
+    slot-attributes:
+      sa5: SA5
+  deny-auto-connection:
+    plug-attributes:
+      pa6: PA6
+    slot-attributes:
+      sa6: SA6`))
+	c.Assert(err, IsNil)
+
+	rule, err := asserts.CompileSlotRule("iface", m["iface"].(map[string]interface{}))
+	c.Assert(err, IsNil)
+
+	c.Check(rule.Interface, Equals, "iface")
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	checkAttrs(c, rule.AllowInstallation.SlotAttributes, "a1")
+	c.Assert(rule.DenyInstallation, NotNil)
+	checkAttrs(c, rule.DenyInstallation.SlotAttributes, "a2")
+	// connection subrules
+	c.Assert(rule.AllowConnection, NotNil)
+	checkAttrs(c, rule.AllowConnection.PlugAttributes, "pa3")
+	checkAttrs(c, rule.AllowConnection.SlotAttributes, "sa3")
+	c.Assert(rule.DenyConnection, NotNil)
+	checkAttrs(c, rule.DenyConnection.PlugAttributes, "pa4")
+	checkAttrs(c, rule.DenyConnection.SlotAttributes, "sa4")
+	// auto-connection subrules
+	c.Assert(rule.AllowAutoConnection, NotNil)
+	checkAttrs(c, rule.AllowAutoConnection.PlugAttributes, "pa5")
+	checkAttrs(c, rule.AllowAutoConnection.SlotAttributes, "sa5")
+	c.Assert(rule.DenyAutoConnection, NotNil)
+	checkAttrs(c, rule.DenyAutoConnection.PlugAttributes, "pa6")
+	checkAttrs(c, rule.DenyAutoConnection.SlotAttributes, "sa6")
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleShortcutTrue(c *C) {
+	rule, err := asserts.CompileSlotRule("iface", "true")
+	c.Assert(err, IsNil)
+
+	c.Check(rule.Interface, Equals, "iface")
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	c.Check(rule.AllowInstallation.SlotAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Assert(rule.DenyInstallation, NotNil)
+	c.Check(rule.DenyInstallation.SlotAttributes, Equals, asserts.NeverMatchAttributes)
+	// connection subrules
+	checkBoolSlotConnConstraints(c, rule.AllowConnection, true)
+	checkBoolSlotConnConstraints(c, rule.DenyConnection, false)
+	// auto-connection subrules
+	checkBoolSlotConnConstraints(c, rule.AllowAutoConnection, true)
+	checkBoolSlotConnConstraints(c, rule.DenyAutoConnection, false)
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleShortcutFalse(c *C) {
+	rule, err := asserts.CompileSlotRule("iface", "false")
+	c.Assert(err, IsNil)
+
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	c.Check(rule.AllowInstallation.SlotAttributes, Equals, asserts.NeverMatchAttributes)
+	c.Assert(rule.DenyInstallation, NotNil)
+	c.Check(rule.DenyInstallation.SlotAttributes, Equals, asserts.AlwaysMatchAttributes)
+	// connection subrules
+	checkBoolSlotConnConstraints(c, rule.AllowConnection, false)
+	checkBoolSlotConnConstraints(c, rule.DenyConnection, true)
+	// auto-connection subrules
+	checkBoolSlotConnConstraints(c, rule.AllowAutoConnection, false)
+	checkBoolSlotConnConstraints(c, rule.DenyAutoConnection, true)
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleDefaults(c *C) {
+	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
+		"deny-auto-connection": "true",
+	})
+	c.Assert(err, IsNil)
+
+	// everything follows the defaults...
+
+	// install subrules
+	c.Assert(rule.AllowInstallation, NotNil)
+	c.Check(rule.AllowInstallation.SlotAttributes, Equals, asserts.AlwaysMatchAttributes)
+	c.Assert(rule.DenyInstallation, NotNil)
+	c.Check(rule.DenyInstallation.SlotAttributes, Equals, asserts.NeverMatchAttributes)
+	// connection subrules
+	checkBoolSlotConnConstraints(c, rule.AllowConnection, true)
+	checkBoolSlotConnConstraints(c, rule.DenyConnection, false)
+	// auto-connection subrules
+	checkBoolSlotConnConstraints(c, rule.AllowAutoConnection, true)
+	// ... but deny-auto-connection is on
+	checkBoolSlotConnConstraints(c, rule.DenyAutoConnection, true)
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleInstalationConstraintsIDConstraints(c *C) {
+	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
+		"allow-installation": map[string]interface{}{
+			"slot-snap-type": []interface{}{"core", "kernel", "gadget", "app"},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	cstrs := rule.AllowInstallation
+	c.Check(cstrs.SlotSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleConnectionConstraintsIDConstraints(c *C) {
+	rule, err := asserts.CompileSlotRule("iface", map[string]interface{}{
+		"allow-connection": map[string]interface{}{
+			"plug-snap-type":    []interface{}{"core", "kernel", "gadget", "app"},
+			"plug-snap-id":      []interface{}{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"},
+			"plug-publisher-id": []interface{}{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	cstrs := rule.AllowConnection
+	c.Check(cstrs.PlugSnapTypes, DeepEquals, []string{"core", "kernel", "gadget", "app"})
+	c.Check(cstrs.PlugSnapIDs, DeepEquals, []string{"snapidsnapidsnapidsnapidsnapid01", "snapidsnapidsnapidsnapidsnapid02"})
+	c.Check(cstrs.PlugPublisherIDs, DeepEquals, []string{"pubidpubidpubidpubidpubidpubid09", "canonical", "$SAME"})
+}
+
+func (s *plugSlotRulesSuite) TestCompileSlotRuleErrors(c *C) {
+	tests := []struct {
+		stanza string
+		err    string
+	}{
+		{`iface: foo`, `slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
+  - allow`, `slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
+  allow-installation: foo`, `allow-installation in slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
+  deny-installation: foo`, `deny-installation in slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
+  allow-connection: foo`, `allow-connection in slot rule for interface "iface" must be a map or one of the shortcuts 'true' or 'false'`},
+		{`iface:
+  allow-installation:
+    slot-attributes:
+      a1: [`, `cannot compile slot-attributes in allow-installation in slot rule for interface "iface": cannot compile "a1" constraint .*`},
+		{`iface:
+  allow-connection:
+    plug-attributes:
+      a2: [`, `cannot compile plug-attributes in allow-connection in slot rule for interface "iface": cannot compile "a2" constraint .*`},
+		{`iface:
+  allow-connection:
+    plug-snap-id:
+      -
+        foo: 1`, `plug-snap-id in allow-connection in slot rule for interface "iface" must be a list of strings`},
+		{`iface:
+  allow-connection:
+    plug-snap-id:
+      - foo`, `plug-snap-id in allow-connection in slot rule for interface "iface" contains an invalid element: "foo"`},
+		{`iface:
+  allow-connection:
+    plug-snap-type:
+      - foo`, `plug-snap-type in allow-connection in slot rule for interface "iface" contains an invalid element: "foo"`},
+		{`iface:
+  allow-connection:
+    plug-snap-type:
+      - xapp`, `plug-snap-type in allow-connection in slot rule for interface "iface" contains an invalid element: "xapp"`},
+		{`iface:
+  allow-connection:
+    plug-snap-ids:
+      - foo`, `allow-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+		{`iface:
+  deny-connection:
+    plug-snap-ids:
+      - foo`, `deny-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+		{`iface:
+  allow-auto-connection:
+    plug-snap-ids:
+      - foo`, `allow-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+		{`iface:
+  deny-auto-connection:
+    plug-snap-ids:
+      - foo`, `deny-auto-connection in slot rule for interface "iface" must specify at least one of plug-attributes, slot-attributes, plug-snap-type, plug-publisher-id, plug-snap-id`},
+		{`iface:
+  allow-connect: true`, `slot rule for interface "iface" must specify at least one of allow-installation, deny-installation, allow-connection, deny-connection, allow-auto-connection, deny-auto-connection`},
+	}
+
+	for _, t := range tests {
+		m, err := asserts.ParseHeaders([]byte(t.stanza))
+		c.Assert(err, IsNil, Commentf(t.stanza))
+		_, err = asserts.CompileSlotRule("iface", m["iface"])
 		c.Check(err, ErrorMatches, t.err, Commentf(t.stanza))
 	}
 }

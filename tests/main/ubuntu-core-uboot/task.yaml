@@ -1,0 +1,12 @@
+summary: Ensure we have unpacked kernel.img/initrd.img on uboot systems
+systems: [ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+environment:
+    NAME/initrdimg: initrd.img*
+    NAME/kernelimg: kernel.img*
+
+execute: |
+    output=$(find /boot/uboot/*-kernel_*.snap/ -name "$NAME" )
+    if [ -z "$output" ]; then
+        echo "Not found expected file $NAME in /boot/uboot/*-kernel_*.snap/"
+        exit 1
+    fi

@@ -1,5 +1,5 @@
 summary: Check that try command works
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 environment:
     PORT: 8081
     SERVICE_FILE: "./service.sh"
@@ -26,9 +26,7 @@ execute: |
     snap try $TESTSLIB/snaps/test-snapd-tools
 
     echo "Then the snap is listed as installed with try in the notes"
-    expected="(?s)Name +Version +Rev +Developer +Notes\n\
-    test-snapd-tools +.*?try"
-    snap list | grep -Pzq "$expected"
+    snap list | grep -Pq "^test-snapd-tools +.*?try"
 
     echo "And commands from the snap-try binary can be run"
     test-snapd-tools.success
