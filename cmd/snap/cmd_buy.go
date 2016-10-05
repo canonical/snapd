@@ -21,7 +21,6 @@ package main
 
 import (
 	"fmt"
-	"go/doc"
 	"strings"
 
 	"github.com/snapcore/snapd/client"
@@ -110,8 +109,11 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 		}
 		return err
 	}
-	doc.ToText(Stdout, fmt.Sprintf(i18n.G(`Please re-enter your Ubuntu One password to purchase %q from %q for %s. Press ctrl-c to cancel.`),
-		snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency)), "", "", 80)
+
+	// TRANSLATORS: %q, %q and %s are the snap name, developer, and price. Please wrap the translation at 80 characters.
+	fmt.Fprintf(Stdout, i18n.G(`Please re-enter your Ubuntu One password to purchase %q from %q
+for %s. Press ctrl-c to cancel.`), snap.Name, snap.Developer, formatPrice(opts.Price, opts.Currency))
+	fmt.Fprint(Stdout, "\n")
 
 	err = requestLogin("")
 	if err != nil {
@@ -123,8 +125,10 @@ Once completed, return here and run 'snap buy %s' again.`), snap.Name)
 		return err
 	}
 
-	// TRANSLATORS: %s is a snap name
-	doc.ToText(Stdout, fmt.Sprintf(i18n.G(`Thanks for purchasing %q. You may now install it on any of your devices with 'snap install %s'.`), opts.SnapName, opts.SnapName), "", "", 80)
+	// TRANSLATORS: %q and %s are the same snap name. Please wrap the translation at 80 characters.
+	fmt.Fprintf(Stdout, i18n.G(`Thanks for purchasing %q. You may now install it on any of your devices
+with 'snap install %s'.`), opts.SnapName, opts.SnapName)
+	fmt.Fprint(Stdout, "\n")
 
 	return nil
 }
