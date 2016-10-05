@@ -685,7 +685,7 @@ func (t *remoteRepoTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, localUser)
+	response, err := repo.doRequest(func() *http.Client { return repo.client }, reqOptions, localUser)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
