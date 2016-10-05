@@ -11,13 +11,13 @@ case "$1" in
         if dpkg --compare-versions "$2" lt-nl "2.0.7"; then
             ldconfig
         fi
-	# start required services
-	if [ -d /run/systemd/system ]; then
+        # start required services
+        if [ -d /run/systemd/system ]; then
             systemctl start snapd.boot-ok.service
             systemctl start snapd.refresh.timer
             systemctl start snapd.refresh.service
-	    systemctl start snapd.autoimport.service
+            systemctl start snapd.autoimport.service
             systemctl start snapd.socket
             systemctl start snapd.service
-	fi
+        fi
 esac
