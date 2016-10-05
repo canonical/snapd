@@ -27,15 +27,20 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortIsManagedHelp = i18n.G("internal")
+var shortIsManagedHelp = i18n.G("Exits zero on managed system")
 var longIsManagedHelp = i18n.G(`
-internal
+The managed command will exit with a zero status if snapd has registered users.
 `)
 
-type cmdIsManaged struct{}
+type cmdIsManaged struct {
+	Quiet bool `short:"q"`
+}
 
 func init() {
-	cmd := addCommand("is-managed", shortIsManagedHelp, longIsManagedHelp, func() flags.Commander { return &cmdIsManaged{} }, nil, nil)
+	cmd := addCommand("managed", shortIsManagedHelp, longIsManagedHelp, func() flags.Commander { return &cmdIsManaged{} },
+		map[string]string{
+			"q": "No output unless there are errors",
+		}, nil)
 	cmd.hidden = true
 }
 
@@ -44,15 +49,23 @@ func (cmd cmdIsManaged) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	is, err := Client().SysInfo()
+	sysinfo, err := Client().SysInfo()
 	if err != nil {
-		return fmt.Errorf("cannot get system information: %s", err)
+		return err
 	}
 
-	if is.Managed {
-		fmt.Fprintf(Stdout, "system is managed\n")
-		return nil
+	status := 1
+	if sysinfo.Managed {
+		status = 0
 	}
 
-	return fmt.Errorf("system is not managed")
+	if !cmd.Quiet {
+		if sysinfo.Managed {
+			fmt.Fprintln(Stdout, "system is managed")
+		} else {
+			fmt.Fprintln(Stdout, "system is not managed")
+		}
+	}
+
+	panic(&exitStatus{status})
 }

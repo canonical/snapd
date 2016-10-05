@@ -361,7 +361,7 @@ func (client *Client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
 	if _, err := client.doSync("GET", "/v2/system-info", nil, nil, nil, &sysInfo); err != nil {
-		return nil, fmt.Errorf("bad sysinfo result: %v", err)
+		return nil, fmt.Errorf("cannot obtain system details: %v", err)
 	}
 
 	return &sysInfo, nil

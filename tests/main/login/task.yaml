@@ -12,13 +12,22 @@ execute: |
     echo "Checking wrong password error"
     expect -f unsuccessful_login.exp
 
+    if output=$(snap managed); then
+        echo "Without login managed should exit 1. Output:"
+        echo $output
+    fi
+    if [ "$output" != "system is not managed" ]; then
+        echo "Unexpected output from 'snap managed':"
+        echo $output
+    fi
+
     if [[ $SPREAD_STORE_USER && $SPREAD_STORE_PASSWORD ]]; then
         echo "Checking successful login"
         expect -f successful_login.exp
 
-        output=$(snap is-managed)
+        output=$(snap managed)
         if [ "$output" != "system is managed" ]; then
-            echo "Unexpected output from 'snap is-managed'"
+            echo "Unexpected output from 'snap managed':"
             echo $output
             exit 1
         fi
