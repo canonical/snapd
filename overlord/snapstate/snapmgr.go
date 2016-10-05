@@ -731,7 +731,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.CurrentInfo(curInfo)
 
-	if err := checkSnap(t.State(), ss.SnapPath, curInfo, Flags(ss.Flags)); err != nil {
+	if err := checkSnap(t.State(), ss.SnapPath, ss.SideInfo, curInfo, Flags(ss.Flags)); err != nil {
 		return err
 	}
 
