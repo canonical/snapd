@@ -15,12 +15,14 @@ execute: |
     if [[ $SPREAD_STORE_USER && $SPREAD_STORE_PASSWORD ]]; then
         echo "Checking successful login"
         expect -f successful_login.exp
+
+        output=$(snap is-managed)
+        if [ "$output" != "system is managed" ]; then
+            echo "Unexpected output from 'snap is-managed'"
+            echo $output
+            exit 1
+        fi
+
         snap logout
     fi
 
-    output=$(snap is-managed)
-    if [ "$output" != "system is managed" ]; then
-        echo "Unexpected output from 'snap is-managed'"
-        echo $output
-        exit 1
-    fi
