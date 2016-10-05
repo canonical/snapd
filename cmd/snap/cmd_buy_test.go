@@ -300,9 +300,11 @@ func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase 'hello' from 'canonical' for 2.99GBP. Press ctrl-c to cancel.
+	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
+for 2.99GBP. Press ctrl-c to cancel.
 Password: 
-Thanks for purchasing 'hello'. You may now install it on any of your devices with 'snap install hello'.
+Thanks for purchasing "hello". You may now install it on any of your devices
+with 'snap install hello'.
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
