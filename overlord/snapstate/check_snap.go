@@ -91,7 +91,6 @@ func checkSnap(st *state.State, snapFilePath string, si *snap.SideInfo, curInfo 
 	switch s.Type {
 	case snap.Type(""), snap.TypeApp, snap.TypeKernel:
 		// "" used in a lot of tests :-/
-
 		return nil
 	case snap.TypeOS:
 		if curInfo != nil {
