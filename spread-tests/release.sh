@@ -15,7 +15,7 @@ create_dist_tarball() {
     pkg_version="$(cat "$top_dir/VERSION")"
 
     # Ensure that build system is up-to-date and ready
-    autoreconf -i
+    autoreconf -f -i
     # XXX: This fixes somewhat odd error when configure below (in an empty directory) fails with:
     # configure: error: source directory already configured; run "make distclean" there first
     test -f Makefile && make distclean
