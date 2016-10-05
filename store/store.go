@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -541,53 +542,89 @@ type requestOptions struct {
 	Data         []byte
 }
 
-// doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
-func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
-	req, err := s.newRequest(reqOptions, user)
-	if err != nil {
-		return nil, err
-	}
+// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
+var backoffs = []int{113, 191, 331, 557, 929, 0}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
+// httpClientProvider is a function which creates or returns an existing http client (for scenarios where reusing is desired)
+type httpClientProvider func() *http.Client
 
-	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
-		refreshed := false
-		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
-			// refresh user
-			err = s.refreshUser(user)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
-		}
-		if strings.Contains(wwwAuth, "refresh_device_session=1") {
-			// refresh device session
-			if s.authContext == nil {
-				return nil, fmt.Errorf("internal error: no authContext")
-			}
-			device, err := s.authContext.Device()
-			if err != nil {
-				return nil, err
-			}
+// doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed and
+// retrying the request a set number of times for common network and http errors.
+func (s *Store) doRequest(clientProvider httpClientProvider, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+	var err error
+	var resp *http.Response
 
-			err = s.refreshDeviceSession(device)
-			if err != nil {
-				return nil, err
-			}
-			refreshed = true
-		}
-		if refreshed {
-			// close previous response and retry
-			// TODO: make this non-recursive or add a recursion limit
+	// Helper function for returning an error and closing http response body.
+	// Note, we cannot deffer Body.Close() in doRequest, as on successful
+	// requests we want to return the body without closing it.
+	errorNoBody := func(e error) (*http.Response, error) {
+		if resp != nil {
 			resp.Body.Close()
-			return s.doRequest(client, reqOptions, user)
 		}
+		return nil, e
 	}
 
+	for retry := 0; retry < len(backoffs); retry++ {
+		req, err := s.newRequest(reqOptions, user)
+		if err != nil {
+			return nil, err
+		}
+
+		client := clientProvider()
+
+		resp, err = client.Do(req)
+		if err != nil {
+			resp.Body.Close()
+			// retry on network timeout, exit on any other network error
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				time.Sleep(time.Duration(backoffs[retry]) * time.Millisecond)
+				continue // retry
+			}
+			return nil, err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == http.StatusUnauthorized {
+			refreshed := false
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				err = s.refreshUser(user)
+				if err != nil {
+					return errorNoBody(err)
+				}
+				refreshed = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				if s.authContext == nil {
+					return errorNoBody(fmt.Errorf("internal error: no authContext"))
+				}
+				device, err := s.authContext.Device()
+				if err != nil {
+					return errorNoBody(err)
+				}
+
+				err = s.refreshDeviceSession(device)
+				if err != nil {
+					return errorNoBody(err)
+				}
+				refreshed = true
+			}
+			if refreshed {
+				// close previous response and retry
+				resp.Body.Close()
+				retry = -1
+				continue
+			}
+			return resp, err
+		}
+
+		if resp.StatusCode == http.StatusOK || (resp.StatusCode != http.StatusInternalServerError && resp.StatusCode != http.StatusServiceUnavailable) {
+			return resp, err
+		}
+
+		time.Sleep(time.Duration(backoffs[retry]) * time.Millisecond)
+	}
 	return resp, err
 }
 
@@ -718,7 +755,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -793,7 +830,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		URL:    u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -888,7 +925,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1011,7 +1048,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1102,9 +1139,6 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	return w.Name(), w.Sync()
 }
 
-// 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
-var downloadBackoffs = []int{113, 191, 331, 557, 929, 0}
-
 // download writes an http.Request showing a progress.Meter
 var download = func(name, downloadURL string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 	storeURL, err := url.Parse(downloadURL)
@@ -1118,25 +1152,18 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	}
 
 	var resp *http.Response
-	for _, n := range downloadBackoffs {
-		// we do *not* want to reuse the client between iterations in
-		// this case as it will have internal state (e.g. cached
-		// connections) that led us to an error (the default client is
-		// documented as not reusing the transport unless the body is
-		// read to EOF and closed, so this is a belt-and-braces thing).
-		r, err := s.doRequest(&http.Client{}, reqOptions, user)
-		if err != nil {
-			return err
-		}
-		defer r.Body.Close()
-
-		resp = r
-
-		if r.StatusCode != 500 {
-			break
-		}
-		time.Sleep(time.Duration(n) * time.Millisecond)
+	// we do *not* want to reuse the client between iterations in
+	// this case as it will have internal state (e.g. cached
+	// connections) that led us to an error (the default client is
+	// documented as not reusing the transport unless the body is
+	// read to EOF and closed, so this is a belt-and-braces thing).
+	r, err := s.doRequest(func() *http.Client { return &http.Client{} }, reqOptions, user)
+	if err != nil {
+		return err
 	}
+	defer r.Body.Close()
+
+	resp = r
 	if resp.StatusCode != 200 {
 		return &ErrDownload{Code: resp.StatusCode, URL: resp.Request.URL}
 	}
@@ -1276,7 +1303,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    url,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1408,7 +1435,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1472,7 +1499,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return err
 	}
