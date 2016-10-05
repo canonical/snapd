@@ -502,7 +502,6 @@ void sc_populate_mount_ns(const char *security_tag)
 	if (on_classic) {
 		sc_setup_quirks();
 	}
-
 	// setup the security backend bind mounts
 	sc_setup_mount_profiles(security_tag);
 
