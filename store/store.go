@@ -554,6 +554,16 @@ func (s *Store) doRequest(clientProvider httpClientProvider, reqOptions *request
 	var err error
 	var resp *http.Response
 
+	// Helper function for returning an error and closing http response body.
+	// Note, we cannot deffer Body.Close() in doRequest, as on successful
+	// requests we want to return the body without closing it.
+	errorNoBody := func(e error) (*http.Response, error) {
+		if resp != nil {
+			resp.Body.Close()
+		}
+		return nil, e
+	}
+
 	for retry := 0; retry < len(backoffs); retry++ {
 		req, err := s.newRequest(reqOptions, user)
 		if err != nil {
@@ -580,26 +590,23 @@ func (s *Store) doRequest(clientProvider httpClientProvider, reqOptions *request
 				// refresh user
 				err = s.refreshUser(user)
 				if err != nil {
-					resp.Body.Close()
-					return nil, err
+					return errorNoBody(err)
 				}
 				refreshed = true
 			}
 			if strings.Contains(wwwAuth, "refresh_device_session=1") {
 				// refresh device session
 				if s.authContext == nil {
-					return nil, fmt.Errorf("internal error: no authContext")
+					return errorNoBody(fmt.Errorf("internal error: no authContext"))
 				}
 				device, err := s.authContext.Device()
 				if err != nil {
-					resp.Body.Close()
-					return nil, err
+					return errorNoBody(err)
 				}
 
 				err = s.refreshDeviceSession(device)
 				if err != nil {
-					resp.Body.Close()
-					return nil, err
+					return errorNoBody(err)
 				}
 				refreshed = true
 			}
@@ -747,7 +754,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -822,7 +829,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		URL:    u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(func () *http.Client { return s.client}, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -917,7 +924,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(func () *http.Client { return s.client}, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1149,7 +1156,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	// connections) that led us to an error (the default client is
 	// documented as not reusing the transport unless the body is
 	// read to EOF and closed, so this is a belt-and-braces thing).
-	r, err := s.doRequest(func() *http.Client { return &http.Client{}}, reqOptions, user)
+	r, err := s.doRequest(func() *http.Client { return &http.Client{} }, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -1295,7 +1302,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    url,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1427,7 +1434,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1491,7 +1498,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return err
 	}
