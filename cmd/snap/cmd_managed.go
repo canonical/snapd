@@ -27,20 +27,16 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-var shortIsManagedHelp = i18n.G("Exits zero on managed system")
+var shortIsManagedHelp = i18n.G("Prints whether system is managed")
 var longIsManagedHelp = i18n.G(`
-The managed command will exit with a zero status if snapd has registered users.
+The managed command will print true or false informing whether
+snapd has registered users.
 `)
 
-type cmdIsManaged struct {
-	Quiet bool `short:"q"`
-}
+type cmdIsManaged struct{}
 
 func init() {
-	cmd := addCommand("managed", shortIsManagedHelp, longIsManagedHelp, func() flags.Commander { return &cmdIsManaged{} },
-		map[string]string{
-			"q": "No output unless there are errors",
-		}, nil)
+	cmd := addCommand("managed", shortIsManagedHelp, longIsManagedHelp, func() flags.Commander { return &cmdIsManaged{} }, nil, nil)
 	cmd.hidden = true
 }
 
@@ -54,18 +50,6 @@ func (cmd cmdIsManaged) Execute(args []string) error {
 		return err
 	}
 
-	status := 1
-	if sysinfo.Managed {
-		status = 0
-	}
-
-	if !cmd.Quiet {
-		if sysinfo.Managed {
-			fmt.Fprintln(Stdout, "system is managed")
-		} else {
-			fmt.Fprintln(Stdout, "system is not managed")
-		}
-	}
-
-	panic(&exitStatus{status})
+	fmt.Fprintf(Stdout, "%v\n", sysinfo.Managed)
+	return nil
 }
