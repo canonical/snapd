@@ -640,7 +640,8 @@ version: @VERSION@
 		Sequence: []*snap.SideInfo{
 			{RealName: "bar", SnapID: "bar-id", Revision: snap.R(1)},
 		},
-		Current: snap.R(1),
+		Current:  snap.R(1),
+		SnapType: "app",
 	})
 
 	develSigning := assertstest.NewSigningDB("devdevdev", develPrivKey)

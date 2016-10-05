@@ -252,3 +252,8 @@ func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *FwupdInterface) AutoConnect() bool {
 	return false
 }
+
+func (iface *FwupdInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}

@@ -417,3 +417,8 @@ func (iface *UDisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *UDisks2Interface) AutoConnect() bool {
 	return false
 }
+
+func (iface *UDisks2Interface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}

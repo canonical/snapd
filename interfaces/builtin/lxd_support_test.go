@@ -144,3 +144,7 @@ func (s *LxdSupportInterfaceSuite) TestPermanentSlotPolicySecComp(c *C) {
 func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {
 	c.Check(s.iface.AutoConnect(), Equals, true)
 }
+
+func (s *LxdSupportInterfaceSuite) TestAutoConnectPair(c *C) {
+	c.Check(s.iface.AutoConnectPair(nil, nil), Equals, true)
+}

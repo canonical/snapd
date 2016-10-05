@@ -42,7 +42,7 @@ Disconnects the specific plug from the specific slot.
 $ snap disconnect <snap>:<slot or plug>
 
 Disconnects everything from the provided plug or slot.
-The snap name may be omitted for the OS snap.
+The snap name may be omitted for the core snap.
 
 Application Options:
       --version            Print the version and exit
