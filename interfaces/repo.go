@@ -823,5 +823,5 @@ func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot, policyCheck 
 		return false
 	}
 
-	return r.ifaces[plug.Interface].AutoConnectPair(plug, slot)
+	return r.ifaces[plug.Interface].AutoConnect(plug, slot)
 }

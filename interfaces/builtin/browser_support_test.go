@@ -174,6 +174,6 @@ func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *BrowserSupportInterfaceSuite) TestAutoConnect(c *C) {
+func (s *BrowserSupportInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

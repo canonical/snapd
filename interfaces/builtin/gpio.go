@@ -139,7 +139,7 @@ func (iface *GpioInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-func (iface *GpioInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *GpioInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

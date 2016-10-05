@@ -151,11 +151,11 @@ func (iface *BoolFileInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-// AutoConnectPair returns whether plug and slot should be implicitly
+// AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate and declaration-based checks allow.
 //
 // By default we allow what declarations allowed.
-func (iface *BoolFileInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *BoolFileInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	return true
 }

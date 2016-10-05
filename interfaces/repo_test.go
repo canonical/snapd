@@ -1376,7 +1376,7 @@ func contentPolicyCheck(plug *Plug, slot *Slot) bool {
 	return plug.Snap.Developer == slot.Snap.Developer
 }
 
-func contentAutoConnectPair(plug *Plug, slot *Slot) bool {
+func contentAutoConnect(plug *Plug, slot *Slot) bool {
 	return plug.Attrs["content"] == slot.Attrs["content"]
 }
 
@@ -1384,7 +1384,7 @@ func contentAutoConnectPair(plug *Plug, slot *Slot) bool {
 // is a content plug and one a content slot
 func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
-	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectPairCallback: contentAutoConnectPair})
+	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectCallback: contentAutoConnect})
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap

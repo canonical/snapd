@@ -250,6 +250,6 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *UDisks2InterfaceSuite) TestAutoConnect(c *C) {
+func (s *UDisks2InterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

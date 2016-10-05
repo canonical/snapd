@@ -89,6 +89,6 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *Unity7InterfaceSuite) TestAutoConnect(c *C) {
+func (s *Unity7InterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

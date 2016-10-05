@@ -156,11 +156,11 @@ type Interface interface {
 	// auto-connected when an unambiguous connection candidate is available.
 	LegacyAutoConnect() bool
 
-	// AutoConnectPair returns whether plug and slot should be
+	// AutoConnect returns whether plug and slot should be
 	// implicitly auto-connected assuming they will be an
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
-	AutoConnectPair(plug *Plug, slot *Slot) bool
+	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
 // SecuritySystem is a name of a security system.

@@ -89,6 +89,6 @@ func (s *NetworkBindInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *NetworkBindInterfaceSuite) TestAutoConnect(c *C) {
+func (s *NetworkBindInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

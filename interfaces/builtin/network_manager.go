@@ -446,7 +446,7 @@ func (iface *NetworkManagerInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-func (iface *NetworkManagerInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

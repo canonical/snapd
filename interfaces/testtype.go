@@ -28,8 +28,8 @@ import (
 type TestInterface struct {
 	// InterfaceName is the name of this interface
 	InterfaceName string
-	// AutoConnectPairCallback is the callback invoked inside AutoConnectPair
-	AutoConnectPairCallback func(*Plug, *Slot) bool
+	// AutoConnectCallback is the callback invoked inside AutoConnect
+	AutoConnectCallback func(*Plug, *Slot) bool
 	// SanitizePlugCallback is the callback invoked inside SanitizePlug()
 	SanitizePlugCallback func(plug *Plug) error
 	// SanitizeSlotCallback is the callback invoked inside SanitizeSlot()
@@ -116,12 +116,12 @@ func (t *TestInterface) LegacyAutoConnect() bool {
 	panic("no test should depend on this anymore")
 }
 
-// AutoConnectPair returns whether plug and slot should be implicitly
+// AutoConnect returns whether plug and slot should be implicitly
 // auto-connected assuming they will be an unambiguous connection
 // candidate.
-func (t *TestInterface) AutoConnectPair(plug *Plug, slot *Slot) bool {
-	if t.AutoConnectPairCallback != nil {
-		return t.AutoConnectPairCallback(plug, slot)
+func (t *TestInterface) AutoConnect(plug *Plug, slot *Slot) bool {
+	if t.AutoConnectCallback != nil {
+		return t.AutoConnectCallback(plug, slot)
 	}
 	return true
 }

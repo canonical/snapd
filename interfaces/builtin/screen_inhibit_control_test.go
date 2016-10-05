@@ -89,6 +89,6 @@ func (s *ScreenInhibitControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *ScreenInhibitControlInterfaceSuite) TestAutoConnect(c *C) {
+func (s *ScreenInhibitControlInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

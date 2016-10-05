@@ -237,7 +237,7 @@ func (iface *BluezInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-func (iface *BluezInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *BluezInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

@@ -87,7 +87,7 @@ func (iface *LxdSupportInterface) LegacyAutoConnect() bool {
 	return true
 }
 
-func (iface *LxdSupportInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

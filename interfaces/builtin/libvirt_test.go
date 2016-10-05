@@ -65,6 +65,6 @@ func (s *LibvirtInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *LibvirtInterfaceSuite) TestAutoConnect(c *C) {
+func (s *LibvirtInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

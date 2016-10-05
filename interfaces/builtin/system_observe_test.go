@@ -89,6 +89,6 @@ func (s *SystemObserveInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *SystemObserveInterfaceSuite) TestAutoConnect(c *C) {
+func (s *SystemObserveInterfaceSuite) TestLegacyAutoConnect(c *C) {
 	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

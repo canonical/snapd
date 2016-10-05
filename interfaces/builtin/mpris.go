@@ -252,7 +252,7 @@ func (iface *MprisInterface) LegacyAutoConnect() bool {
 	return false
 }
 
-func (iface *MprisInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+func (iface *MprisInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
 	// allow what declarations allowed
 	return true
 }

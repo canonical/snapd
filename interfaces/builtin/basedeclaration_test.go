@@ -133,7 +133,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	}
 }
 
-func (s *baseDeclSuite) TestAutoConnectPair(c *C) {
+func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 	all := builtin.Interfaces()
 
 	// these have more complex or in flux policies and have their
@@ -148,12 +148,12 @@ func (s *baseDeclSuite) TestAutoConnectPair(c *C) {
 		if snowflakes[iface.Name()] {
 			continue
 		}
-		c.Check(iface.AutoConnectPair(nil, nil), Equals, true)
+		c.Check(iface.AutoConnect(nil, nil), Equals, true)
 	}
 }
 
-func (s *baseDeclSuite) TestInterimAutoConnectHome(c *C) {
-	// home will be controlled by AutoConnectPair(plug, slot) until
+func (s *baseDeclSuite) TestInterimAutoConnectionHome(c *C) {
+	// home will be controlled by AutoConnect(plug, slot) until
 	// we have on-classic support in decls
 	// to stop it from working on non-classic
 	cand := s.connectCand(c, "home", "", "")
@@ -161,22 +161,22 @@ func (s *baseDeclSuite) TestInterimAutoConnectHome(c *C) {
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestInterimAutoConnectSnapdControl(c *C) {
+func (s *baseDeclSuite) TestInterimAutoConnectionSnapdControl(c *C) {
 	// snapd-control is auto-connect until we have snap declaration editing
 	cand := s.connectCand(c, "snapd-control", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectContent(c *C) {
-	// content will also depend for now AutoConnectPair(plug, slot)
+func (s *baseDeclSuite) TestAutoConnectionContent(c *C) {
+	// content will also depend for now AutoConnect(plug, slot)
 	// random snaps cannot connect with content
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)
 }
 
-func (s *baseDeclSuite) TestAutoConnectLxdSupport(c *C) {
+func (s *baseDeclSuite) TestAutoConnectionLxdSupport(c *C) {
 	cand := s.connectCand(c, "lxd-support", "", "")
 	err := cand.CheckAutoConnect()
 	c.Check(err, NotNil)

@@ -157,6 +157,6 @@ func (iface *ContentInterface) LegacyAutoConnect() bool {
 	return true
 }
 
-func (iface *ContentInterface) AutoConnectPair(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+func (iface *ContentInterface) AutoConnect(plug *interfaces.Plug, slot *interfaces.Slot) bool {
 	return plug.Attrs["content"] == slot.Attrs["content"]
 }
