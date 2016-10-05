@@ -24,17 +24,31 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
-// Change returns a taskset required to apply the given configuration
-// patch.
-func Change(s *state.State, snapName string, patchValues map[string]interface{}) *state.TaskSet {
-	initialContext := map[string]interface{}{
-		"patch": patchValues,
+func init() {
+	snapstate.Configure = Configure
+}
+
+// Configure returns a taskset to apply the given configuration patch.
+func Configure(s *state.State, snapName string, patch map[string]interface{}) *state.TaskSet {
+	hooksup := &hookstate.HookSetup{
+		Snap:     snapName,
+		Hook:     "configure",
+		Optional: len(patch) == 0,
 	}
-	hookTaskSummary := fmt.Sprintf(i18n.G("Run configure hook for %s"), snapName)
-	task := hookstate.HookTask(s, hookTaskSummary, snapName, snap.Revision{}, "configure", initialContext)
+	var contextData map[string]interface{}
+	if len(patch) > 0 {
+		contextData = map[string]interface{}{"patch": patch}
+	}
+	var summary string
+	if hooksup.Optional {
+		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap if present"), snapName)
+	} else {
+		summary = fmt.Sprintf(i18n.G("Run configure hook of %q snap"), snapName)
+	}
+	task := hookstate.HookTask(s, summary, hooksup, contextData)
 	return state.NewTaskSet(task)
 }

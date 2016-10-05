@@ -14,18 +14,9 @@ restore: |
     rm snapctl-hooks_1.0_all.snap
 
 execute: |
-    echo "Test that snap get works on a snap without any hooks"
-    if ! snap set basic foo=bar; then
-        echo "snap set unexpectedly failed"
-        exit 1
-    fi
-    if ! output=$(snap get basic foo); then
-        echo "snap get unexpectedly failed"
-        exit 1
-    fi
-    expected="bar"
-    if "$output" -ne "$expected"; then
-        echo "Expected 'foo' to be '$expected', but it was '$output'"
+    echo "Test that snap get fails on a snap without any hooks"
+    if output=$(snap get basic foo); then
+        echo "snap get unexpectedly worked with output '$output'"
         exit 1
     fi
 
@@ -38,8 +29,8 @@ execute: |
         echo "snap get unexpectedly failed"
         exit 1
     fi
-    expected="test-snapctl-set-foo"
-    if "$output" -ne "$expected"; then
+    expected='"test-snapctl-set-foo"'
+    if [ "$output" != "$expected" ]; then
         echo "Expected 'command' to be '$expected', but it was '$output'"
         exit 1
     fi
@@ -47,8 +38,8 @@ execute: |
         echo "snap get unexpectedly failed"
         exit 1
     fi
-    expected="bar"
-    if "$output" -ne "$expected"; then
+    expected='"bar"'
+    if [ "$output" != "$expected" ]; then
         echo "Expected 'foo' to be '$expected', but it was '$output'"
         exit 1
     fi
