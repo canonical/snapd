@@ -545,13 +545,14 @@ type requestOptions struct {
 // 3 pₙ₊₁ ≥ 5 pₙ; last entry should be 0 -- the sleep is done at the end of the loop
 var backoffs = []int{113, 191, 331, 557, 929, 0}
 
+// httpClientProvider is a function which creates or returns an existing http client (for scenarios where reusing is desired)
+type httpClientProvider func() *http.Client
+
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed and
 // retrying the request a set number of times for common network and http errors.
-func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
+func (s *Store) doRequest(clientProvider httpClientProvider, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	var err error
 	var resp *http.Response
-
-	reuseClient := (client != nil)
 
 	for retry := 0; retry < len(backoffs); retry++ {
 		req, err := s.newRequest(reqOptions, user)
@@ -559,9 +560,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 			return nil, err
 		}
 
-		if !reuseClient {
-			client = &http.Client{}
-		}
+		client := clientProvider()
 
 		resp, err = client.Do(req)
 		if err != nil {
@@ -748,7 +747,7 @@ func (s *Store) decorateOrders(snaps []*snap.Info, channel string, user *auth.Us
 		URL:    s.ordersURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -823,7 +822,7 @@ func (s *Store) Snap(name, channel string, devmode bool, revision snap.Revision,
 		URL:    u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func () *http.Client { return s.client}, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -918,7 +917,7 @@ func (s *Store) Find(search *Search, user *auth.UserState) ([]*snap.Info, error)
 		URL:    &u,
 		Accept: halJsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func () *http.Client { return s.client}, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1041,7 +1040,7 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client }, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1150,7 +1149,7 @@ var download = func(name, downloadURL string, user *auth.UserState, s *Store, w 
 	// connections) that led us to an error (the default client is
 	// documented as not reusing the transport unless the body is
 	// read to EOF and closed, so this is a belt-and-braces thing).
-	r, err := s.doRequest(nil, reqOptions, user)
+	r, err := s.doRequest(func() *http.Client { return &http.Client{}}, reqOptions, user)
 	if err != nil {
 		return err
 	}
@@ -1296,7 +1295,7 @@ func (s *Store) Assertion(assertType *asserts.AssertionType, primaryKey []string
 		URL:    url,
 		Accept: asserts.MediaType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1428,7 +1427,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		ContentType: jsonContentType,
 		Data:        jsonData,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
 	if err != nil {
 		return nil, err
 	}
@@ -1492,7 +1491,7 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	resp, err := s.doRequest(func() *http.Client { return s.client}, reqOptions, user)
 	if err != nil {
 		return err
 	}

@@ -649,7 +649,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(func() *http.Client { return repo.client }, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -683,7 +683,7 @@ func (t *remoteRepoTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(func() *http.Client { return repo.client }, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -729,7 +729,7 @@ func (t *remoteRepoTestSuite) TestDoRequestRefreshesAuth(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(func() *http.Client { return repo.client }, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -790,7 +790,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAndRefreshesDeviceAuth(c *C) {
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(func() *http.Client { return repo.client }, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
@@ -827,7 +827,7 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsExtraHeaders(c *C) {
 		},
 	}
 
-	response, err := repo.doRequest(repo.client, reqOptions, t.user)
+	response, err := repo.doRequest(func() *http.Client { return repo.client }, reqOptions, t.user)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
