@@ -407,6 +407,11 @@ func LoginUser(username, password, otp string) (string, string, error) {
 	return macaroon, discharge, nil
 }
 
+// hasStoreAuth returns true if given user has store macaroons setup
+func hasStoreAuth(user *auth.UserState) bool {
+	return user != nil && user.StoreMacaroon != ""
+}
+
 // authenticateUser will add the store expected Macaroon Authorization header for user
 func authenticateUser(r *http.Request, user *auth.UserState) {
 	var buf bytes.Buffer
@@ -624,7 +629,7 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 	}
 
 	// only set user authentication if user logged in to the store
-	if user != nil && user.StoreMacaroon != "" {
+	if hasStoreAuth(user) {
 		authenticateUser(req, user)
 	}
 
@@ -1091,7 +1096,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	}()
 
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || (user != nil && user.StoreMacaroon != "") {
+	if url == "" || hasStoreAuth(user) {
 		url = downloadInfo.DownloadURL
 	}
 
@@ -1184,7 +1189,7 @@ func (s *Store) downloadDelta(name string, downloadDir string, downloadInfo *sna
 	}()
 
 	url := deltaInfo.AnonDownloadURL
-	if url == "" || user != nil {
+	if url == "" || hasStoreAuth(user) {
 		url = deltaInfo.DownloadURL
 	}
 

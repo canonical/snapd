@@ -51,10 +51,11 @@ import (
 )
 
 type remoteRepoTestSuite struct {
-	store  *Store
-	logbuf *bytes.Buffer
-	user   *auth.UserState
-	device *auth.DeviceState
+	store     *Store
+	logbuf    *bytes.Buffer
+	user      *auth.UserState
+	localUser *auth.UserState
+	device    *auth.DeviceState
 
 	origDownloadFunc func(string, string, *auth.UserState, *Store, io.Writer, progress.Meter) error
 	origBackoffs     []int
@@ -226,6 +227,11 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	t.user, err = createTestUser(1, root, discharge)
 	c.Assert(err, IsNil)
+	t.localUser = &auth.UserState{
+		ID:       11,
+		Username: "test-user",
+		Macaroon: "snapd-macaroon",
+	}
 	t.device = createTestDevice()
 	t.mockXDelta = testutil.MockCommand(c, "xdelta", "")
 }
@@ -317,13 +323,7 @@ func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
 	snap.AnonDownloadURL = "anon-url"
 	snap.DownloadURL = "AUTH-URL"
 
-	localUser := &auth.UserState{
-		ID:       1,
-		Username: "test-user",
-		Macaroon: "snapd-macaroon",
-	}
-
-	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, localUser)
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, t.localUser)
 	c.Assert(err, IsNil)
 	defer os.Remove(path)
 
@@ -518,6 +518,7 @@ func (t *remoteRepoTestSuite) TestDownloadWithDelta(c *C) {
 var downloadDeltaTests = []struct {
 	info          snap.DownloadInfo
 	authenticated bool
+	useLocalUser  bool
 	format        string
 	expectedURL   string
 	expectedPath  string
@@ -540,8 +541,21 @@ var downloadDeltaTests = []struct {
 		},
 	},
 	authenticated: true,
+	useLocalUser:  false,
 	format:        "xdelta",
 	expectedURL:   "auth-delta-url",
+	expectedPath:  "snapname_24_26_delta.xdelta",
+}, {
+	// A local authenticated request downloads the anonymous delta url.
+	info: snap.DownloadInfo{
+		Deltas: []snap.DeltaInfo{
+			{AnonDownloadURL: "anon-delta-url", Format: "xdelta", FromRevision: 24, ToRevision: 26},
+		},
+	},
+	authenticated: true,
+	useLocalUser:  true,
+	format:        "xdelta",
+	expectedURL:   "anon-delta-url",
 	expectedPath:  "snapname_24_26_delta.xdelta",
 }, {
 	// An error is returned if more than one matching delta is returned by the store,
@@ -579,6 +593,9 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 		t.store.deltaFormat = testCase.format
 		download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
 			expectedUser := t.user
+			if testCase.useLocalUser {
+				expectedUser = t.localUser
+			}
 			if !testCase.authenticated {
 				expectedUser = nil
 			}
@@ -592,6 +609,9 @@ func (t *remoteRepoTestSuite) TestDownloadDelta(c *C) {
 		defer os.RemoveAll(downloadDir)
 
 		authedUser := t.user
+		if testCase.useLocalUser {
+			authedUser = t.localUser
+		}
 		if !testCase.authenticated {
 			authedUser = nil
 		}
@@ -701,19 +721,14 @@ func (t *remoteRepoTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) 
 	c.Assert(mockServer, NotNil)
 	defer mockServer.Close()
 
-	localUser := &auth.UserState{
-		ID:       1,
-		Username: "test-user",
-		Macaroon: "snapd-macaroon",
-	}
-	authContext := &testAuthContext{c: c, device: t.device, user: localUser}
+	authContext := &testAuthContext{c: c, device: t.device, user: t.localUser}
 	repo := New(&Config{}, authContext)
 	c.Assert(repo, NotNil)
 
 	endpoint, _ := url.Parse(mockServer.URL)
 	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
 
-	response, err := repo.doRequest(repo.client, reqOptions, localUser)
+	response, err := repo.doRequest(repo.client, reqOptions, t.localUser)
 	defer response.Body.Close()
 	c.Assert(err, IsNil)
 
