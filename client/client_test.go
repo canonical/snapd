@@ -409,3 +409,15 @@ func (cs *clientSuite) TestClientJSONError(c *C) {
 	_, err := cs.cli.SysInfo()
 	c.Assert(err, ErrorMatches, `bad sysinfo result: cannot decode "some non-json error message": invalid char.*`)
 }
+
+func (cs *clientSuite) TestUsers(c *C) {
+	cs.rsp = `{"type": "sync", "result":
+                     [{"username": "foo","email":"foo@example.com"},
+                      {"username": "bar","email":"bar@example.com"}]}`
+	sysInfo, err := cs.cli.Users()
+	c.Check(err, IsNil)
+	c.Check(sysInfo, DeepEquals, []*client.User{
+		{Username: "foo", Email: "foo@example.com"},
+		{Username: "bar", Email: "bar@example.com"},
+	})
+}

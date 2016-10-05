@@ -68,10 +68,10 @@ func autoImportCandidates() ([]string, error) {
 
 }
 
-func autoImportFromAllMounts() error {
+func autoImportFromAllMounts() (int, error) {
 	cands, err := autoImportCandidates()
 	if err != nil {
-		return err
+		return 0, err
 	}
 
 	added := 0
@@ -81,15 +81,10 @@ func autoImportFromAllMounts() error {
 		} else {
 			logger.Noticef("imported %s", cand)
 		}
+		added++
 	}
 
-	// FIXME: once we have a way to know if a device is owned,
-	//        no longer call this unconditionally
-	if added > 0 {
-		// FIXME: run `snap create-users --known`
-	}
-
-	return nil
+	return added, nil
 }
 
 func tryMount(deviceName string) (string, error) {
@@ -153,6 +148,13 @@ func init() {
 	cmd.hidden = true
 }
 
+func autoAddUsers() error {
+	cmd := cmdCreateUser{
+		Known: true, Sudoer: true,
+	}
+	return cmd.Execute(nil)
+}
+
 func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
@@ -165,5 +167,14 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		defer doUmount(mp)
 	}
 
-	return autoImportFromAllMounts()
+	added, err := autoImportFromAllMounts()
+	if err != nil {
+		return err
+	}
+
+	if added > 0 {
+		return autoAddUsers()
+	}
+
+	return nil
 }

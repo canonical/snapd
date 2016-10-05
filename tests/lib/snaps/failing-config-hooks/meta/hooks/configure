@@ -1,4 +1,4 @@
 #!/bin/sh
 
-echo "configure hook"
+echo "error from within configure hook"
 exit 1

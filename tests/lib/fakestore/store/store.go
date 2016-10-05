@@ -332,6 +332,7 @@ var someSnapIDtoName = map[string]string{
 	"buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ": "hello-world",
 	"EQPfyVOJF0AZNz9P2IJ6UKwldLFN5TzS": "xkcd-webserver",
 	"b8X2psL1ryVrPt5WEmpYiqfr5emixTd7": "ubuntu-core",
+	"99T7MUlRhtI3U0QFgl5mXXESAiSwt776": "core",
 	"bul8uZn9U3Ll4ke6BMqvNVEZjuJCSQvO": "canonical-pc",
 	"SkKeDk2PRgBrX89DdgULk3pyY5DJo6Jk": "canonical-pc-linux",
 	"eFe8BTR5L5V9F7yHeMAPxkEr2NdUXMtw": "test-snapd-tools",

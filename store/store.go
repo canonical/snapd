@@ -660,7 +660,8 @@ func (s *Store) newRequest(reqOptions *requestOptions, user *auth.UserState) (*h
 		authenticateDevice(req, device)
 	}
 
-	if user != nil {
+	// only set user authentication if user logged in to the store
+	if user != nil && user.StoreMacaroon != "" {
 		authenticateUser(req, user)
 	}
 

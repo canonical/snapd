@@ -46,7 +46,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 )
 
 // DeviceManager is responsible for managing the device identity and device
@@ -150,7 +149,11 @@ func (m *DeviceManager) ensureOperational() error {
 	var prepareDevice *state.Task
 	if gadgetInfo.Hooks["prepare-device"] != nil {
 		summary := i18n.G("Run prepare-device hook")
-		prepareDevice = hookstate.HookTask(m.state, summary, gadgetInfo.Name(), snap.R(0), "prepare-device", nil)
+		hooksup := &hookstate.HookSetup{
+			Snap: gadgetInfo.Name(),
+			Hook: "prepare-device",
+		}
+		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
 	}
 
@@ -447,7 +450,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 
 	tr := configstate.NewTransaction(t.State())
 	var svcURL string
-	err = tr.GetMaybe(gadgetName, "device-service-url", &svcURL)
+	err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
 	if err != nil {
 		return nil, err
 	}
@@ -459,7 +462,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		}
 
 		var headers map[string]string
-		err = tr.GetMaybe(gadgetName, "device-service-headers", &headers)
+		err = tr.GetMaybe(gadgetName, "device-service.headers", &headers)
 		if err != nil {
 			return nil, err
 		}
@@ -475,7 +478,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		cfg.requestIDURL = reqIDURL.String()
 
 		var bodyStr string
-		err = tr.GetMaybe(gadgetName, "registration-body", &bodyStr)
+		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
 		if err != nil {
 			return nil, err
 		}
@@ -489,7 +492,7 @@ func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
 		cfg.serialRequestURL = serialURL.String()
 
 		var proposedSerial string
-		err = tr.GetMaybe(gadgetName, "registration-proposed-serial", &proposedSerial)
+		err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &proposedSerial)
 		if err != nil {
 			return nil, err
 		}

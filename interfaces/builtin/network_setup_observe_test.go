@@ -37,7 +37,7 @@ var _ = Suite(&NetworkSetupObserveInterfaceSuite{
 	iface: builtin.NewNetworkSetupObserveInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "network-setup-observe",
 			Interface: "network-setup-observe",
 		},

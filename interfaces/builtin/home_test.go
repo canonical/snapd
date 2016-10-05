@@ -38,7 +38,7 @@ var _ = Suite(&HomeInterfaceSuite{
 	iface: builtin.NewHomeInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
-			Snap:      &snap.Info{SuggestedName: "ubuntu-core", Type: snap.TypeOS},
+			Snap:      &snap.Info{SuggestedName: "core", Type: snap.TypeOS},
 			Name:      "home",
 			Interface: "home",
 		},
@@ -91,6 +91,7 @@ func (s *HomeInterfaceSuite) TestAutoConnectOnClassic(c *C) {
 	defer restore()
 	iface := builtin.NewHomeInterface()
 	c.Check(iface.AutoConnect(), Equals, true)
+	c.Check(iface.AutoConnectPair(nil, nil), Equals, true)
 }
 
 func (s *HomeInterfaceSuite) TestAutoConnectOnCore(c *C) {
@@ -98,4 +99,5 @@ func (s *HomeInterfaceSuite) TestAutoConnectOnCore(c *C) {
 	defer restore()
 	iface := builtin.NewHomeInterface()
 	c.Check(iface.AutoConnect(), Equals, false)
+	c.Check(iface.AutoConnectPair(nil, nil), Equals, false)
 }

@@ -86,3 +86,8 @@ func (iface *LxdSupportInterface) AutoConnect() bool {
 	// since limited to lxd.canonical, we can auto-connect
 	return true
 }
+
+func (iface *LxdSupportInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}

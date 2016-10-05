@@ -164,11 +164,8 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	}
 
 	hook := info.Hooks[hookName]
-
-	// Make sure this hook is valid for this snap. If not, don't run it. This
-	// isn't an error, e.g. it will happen if a snap doesn't ship a system hook.
 	if hook == nil {
-		return nil
+		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), hookName, snapName)
 	}
 
 	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)

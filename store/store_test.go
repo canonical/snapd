@@ -658,6 +658,42 @@ func (t *remoteRepoTestSuite) TestDoRequestSetsAuth(c *C) {
 	c.Check(string(responseData), Equals, "response-data")
 }
 
+func (t *remoteRepoTestSuite) TestDoRequestDoesNotSetAuthForLocalOnlyUser(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.UserAgent(), Equals, userAgent)
+		// check no user authorization is set
+		authorization := r.Header.Get("Authorization")
+		c.Check(authorization, Equals, "")
+		// check device authorization is set
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		io.WriteString(w, "response-data")
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	localUser := &auth.UserState{
+		ID:       1,
+		Username: "test-user",
+		Macaroon: "snapd-macaroon",
+	}
+	authContext := &testAuthContext{c: c, device: t.device, user: localUser}
+	repo := New(&Config{}, authContext)
+	c.Assert(repo, NotNil)
+
+	endpoint, _ := url.Parse(mockServer.URL)
+	reqOptions := &requestOptions{Method: "GET", URL: endpoint}
+
+	response, err := repo.doRequest(repo.client, reqOptions, localUser)
+	defer response.Body.Close()
+	c.Assert(err, IsNil)
+
+	responseData, err := ioutil.ReadAll(response.Body)
+	c.Assert(err, IsNil)
+	c.Check(string(responseData), Equals, "response-data")
+}
+
 func (t *remoteRepoTestSuite) TestDoRequestAuthNoSerial(c *C) {
 	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c.Check(r.UserAgent(), Equals, userAgent)

@@ -34,12 +34,13 @@ type evalSymlinksFn func(string) (string, error)
 var evalSymlinks = filepath.EvalSymlinks
 
 type commonInterface struct {
-	name                  string
-	connectedPlugAppArmor string
-	connectedPlugSecComp  string
-	connectedPlugKMod     string
-	reservedForOS         bool
-	autoConnect           bool
+	name                   string
+	connectedPlugAppArmor  string
+	connectedPlugSecComp   string
+	connectedPlugKMod      string
+	reservedForOS          bool
+	autoConnect            bool
+	rejectAutoConnectPairs bool
 }
 
 // Name returns the interface name.
@@ -49,7 +50,7 @@ func (iface *commonInterface) Name() string {
 
 // SanitizeSlot checks and possibly modifies a slot.
 //
-// If the reservedForOS flag is set then only slots on the "ubuntu-core" snap
+// If the reservedForOS flag is set then only slots on core snap
 // are allowed.
 func (iface *commonInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	if iface.Name() != slot.Interface {
@@ -119,4 +120,13 @@ func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 // auto-connected when an unambiguous connection candidate is available.
 func (iface *commonInterface) AutoConnect() bool {
 	return iface.autoConnect
+}
+
+// AutoConnectPair returns whether plug and slot should be implicitly
+// auto-connected assuming they will be an unambiguous connection
+// candidate and declaration-based checks allow.
+//
+// By default we allow what declarations allowed.
+func (iface *commonInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	return !iface.rejectAutoConnectPairs
 }
