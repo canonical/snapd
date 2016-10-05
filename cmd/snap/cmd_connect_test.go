@@ -47,7 +47,7 @@ fails.
 
 $ snap connect <snap>:<plug>
 
-Connects the provided plug to the slot in the OS snap with a name matching
+Connects the provided plug to the slot in the core snap with a name matching
 the plug name.
 
 Application Options:
