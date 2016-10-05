@@ -210,8 +210,8 @@ func createTestDevice() *auth.DeviceState {
 func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 	t.store = New(nil, nil)
 	t.origDownloadFunc = download
-	t.origBackoffs = downloadBackoffs
-	downloadBackoffs = []int{2, 5, 0}
+	t.origBackoffs = backoffs
+	backoffs = []int{2, 5, 0}
 	dirs.SetRootDir(c.MkDir())
 	c.Assert(os.MkdirAll(dirs.SnapMountDir, 0755), IsNil)
 
@@ -232,7 +232,7 @@ func (t *remoteRepoTestSuite) SetUpTest(c *C) {
 
 func (t *remoteRepoTestSuite) TearDownTest(c *C) {
 	download = t.origDownloadFunc
-	downloadBackoffs = t.origBackoffs
+	backoffs = t.origBackoffs
 	t.mockXDelta.Restore()
 }
 
@@ -395,7 +395,7 @@ func (t *remoteRepoTestSuite) TestActualDownload500(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, FitsTypeOf, &ErrDownload{})
 	c.Check(err.(*ErrDownload).Code, Equals, http.StatusInternalServerError)
-	c.Check(n, Equals, len(downloadBackoffs)) // woo!!
+	c.Check(n, Equals, len(backoffs)) // woo!!
 }
 
 type downloadBehaviour []struct {
@@ -2878,8 +2878,9 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 }
 
 var readyToBuyTests = []struct {
-	Input func(w http.ResponseWriter)
-	Test  func(c *C, err error)
+	Input              func(w http.ResponseWriter)
+	Test               func(c *C, err error)
+	ExpectedNumOfCalls int
 }{
 	{
 		// A user account the is ready for buying
@@ -2896,6 +2897,7 @@ var readyToBuyTests = []struct {
 		Test: func(c *C, err error) {
 			c.Check(err, IsNil)
 		},
+		ExpectedNumOfCalls: 1,
 	},
 	{
 		// A user account that hasn't accepted the TOS
@@ -2913,6 +2915,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "terms of service not accepted")
 		},
+		ExpectedNumOfCalls: 1,
 	},
 	{
 		// A user account that has no payment method
@@ -2930,6 +2933,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "no payment methods")
 		},
+		ExpectedNumOfCalls: 1,
 	},
 	{
 		// No user account exists
@@ -2941,6 +2945,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, "cannot get customer details: server says no account exists")
 		},
+		ExpectedNumOfCalls: 1,
 	},
 	{
 		// An unknown set of errors occurs
@@ -2964,6 +2969,7 @@ var readyToBuyTests = []struct {
 			c.Assert(err, NotNil)
 			c.Check(err.Error(), Equals, `store reported an error: message 1`)
 		},
+		ExpectedNumOfCalls: 3,
 	},
 }
 
@@ -3000,6 +3006,6 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreReadyToBuy(c *C) {
 
 		err = repo.ReadyToBuy(t.user)
 		test.Test(c, err)
-		c.Check(purchaseServerGetCalled, Equals, 1)
+		c.Check(purchaseServerGetCalled, Equals, test.ExpectedNumOfCalls)
 	}
 }
