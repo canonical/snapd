@@ -2637,7 +2637,8 @@ const customersMeValid = `
 var buyTests = []struct {
 	SuggestedCurrency string
 	ExpectedInput     string
-	BuyResponse       func(http.ResponseWriter)
+	BuyStatus         int
+	BuyResponse       string
 	SnapID            string
 	Price             float64
 	Currency          string
@@ -2648,27 +2649,24 @@ var buyTests = []struct {
 		// successful buying
 		SuggestedCurrency: "EUR",
 		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"0.99","currency":"EUR"}`,
-		BuyResponse: func(w http.ResponseWriter) {
-			io.WriteString(w, mockOrderResponseJSON)
-		},
-		ExpectedResult: &BuyResult{State: "Complete"},
+		BuyStatus:         http.StatusOK,
+		BuyResponse:       mockOrderResponseJSON,
+		ExpectedResult:    &BuyResult{State: "Complete"},
 	},
 	{
 		// failure due to invalid price
 		SuggestedCurrency: "USD",
 		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"5.99","currency":"USD"}`,
-		BuyResponse: func(w http.ResponseWriter) {
-			w.WriteHeader(http.StatusBadRequest)
-			io.WriteString(w, `
-	{
-		"error_list": [
-			{
-				"code": "invalid-field",
-				"message": "invalid price specified"
-			}
-		]
-	}`)
-		},
+		BuyStatus:         http.StatusBadRequest,
+		BuyResponse: `
+{
+	"error_list": [
+		{
+			"code": "invalid-field",
+			"message": "invalid price specified"
+		}
+	]
+}`,
 		Price:         5.99,
 		ExpectedError: "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified",
 	},
@@ -2676,18 +2674,16 @@ var buyTests = []struct {
 		// failure due to unknown snap ID
 		SuggestedCurrency: "USD",
 		ExpectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
-		BuyResponse: func(w http.ResponseWriter) {
-			w.WriteHeader(http.StatusNotFound)
-			io.WriteString(w, `
-	{
-		"error_list": [
-			{
-				"code": "not-found",
-				"message": "Not found"
-			}
-		]
-	}`)
-		},
+		BuyStatus:         http.StatusNotFound,
+		BuyResponse: `
+{
+	"error_list": [
+		{
+			"code": "not-found",
+			"message": "Not found"
+		}
+	]
+}`,
 		SnapID:        "invalid snap ID",
 		Price:         0.99,
 		Currency:      "EUR",
@@ -2697,18 +2693,16 @@ var buyTests = []struct {
 		// failure due to "Purchase failed"
 		SuggestedCurrency: "USD",
 		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
-		BuyResponse: func(w http.ResponseWriter) {
-			w.WriteHeader(http.StatusPaymentRequired)
-			io.WriteString(w, `
-	{
-		"error_list": [
-			{
-				"code": "request-failed",
-				"message": "Purchase failed"
-			}
-		]
-	}`)
-		},
+		BuyStatus:         http.StatusPaymentRequired,
+		BuyResponse: `
+{
+	"error_list": [
+		{
+			"code": "request-failed",
+			"message": "Purchase failed"
+		}
+	]
+}`,
 		ExpectedError: "cannot buy snap \"hello-world\": payment failed: store reported an error: Purchase failed",
 	},
 }
@@ -2756,7 +2750,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 				jsonReq, err := ioutil.ReadAll(r.Body)
 				c.Assert(err, IsNil)
 				c.Check(string(jsonReq), Equals, test.ExpectedInput)
-				test.BuyResponse(w)
+				w.WriteHeader(test.BuyStatus)
+				io.WriteString(w, test.BuyResponse)
 				purchaseServerPostCalled = true
 			default:
 				c.Error("Unexpected request method: ", r.Method)
