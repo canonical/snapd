@@ -39,7 +39,7 @@ var ParseErrorInTest = parseError
 
 // expose read and write auth helpers for testing
 var TestWriteAuth = writeAuthData
-var TestReadAuth = readAuthData
+var TestReadAuth = ReadAuthData
 var TestStoreAuthFilename = storeAuthDataFilename
 
 var TestAuthFileEnvKey = authFileEnvKey
