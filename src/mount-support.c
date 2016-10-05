@@ -494,8 +494,9 @@ void sc_populate_mount_ns(const char *security_tag)
 	if (mount("none", "/", NULL, MS_REC | MS_SLAVE, NULL) != 0) {
 		die("can not make make / rslave");
 	}
+	bool on_classic = is_running_on_classic_distribution();
 	// do the mounting if run on a non-native snappy system
-	if (is_running_on_classic_distribution()) {
+	if (on_classic) {
 		setup_snappy_os_mounts();
 	}
 	// set up private mounts
@@ -505,7 +506,9 @@ void sc_populate_mount_ns(const char *security_tag)
 	setup_private_pts();
 
 	// setup quirks for specific snaps
-	sc_setup_quirks();
+	if (on_classic) {
+		sc_setup_quirks();
+	}
 
 	// setup the security backend bind mounts
 	sc_setup_mount_profiles(security_tag);
