@@ -304,6 +304,34 @@ func (t *remoteRepoTestSuite) TestAuthenticatedDownloadDoesNotUseAnonURL(c *C) {
 	c.Assert(string(content), Equals, "I was downloaded")
 }
 
+func (t *remoteRepoTestSuite) TestLocalUserDownloadUsesAnonURL(c *C) {
+	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {
+		c.Check(url, Equals, "anon-url")
+
+		w.Write([]byte("I was downloaded"))
+		return nil
+	}
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = "anon-url"
+	snap.DownloadURL = "AUTH-URL"
+
+	localUser := &auth.UserState{
+		ID:       1,
+		Username: "test-user",
+		Macaroon: "snapd-macaroon",
+	}
+
+	path, err := t.store.Download("foo", &snap.DownloadInfo, nil, localUser)
+	c.Assert(err, IsNil)
+	defer os.Remove(path)
+
+	content, err := ioutil.ReadFile(path)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, "I was downloaded")
+}
+
 func (t *remoteRepoTestSuite) TestDownloadFails(c *C) {
 	var tmpfile *os.File
 	download = func(name, url string, user *auth.UserState, s *Store, w io.Writer, pbar progress.Meter) error {

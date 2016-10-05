@@ -1091,7 +1091,7 @@ func (s *Store) Download(name string, downloadInfo *snap.DownloadInfo, pbar prog
 	}()
 
 	url := downloadInfo.AnonDownloadURL
-	if url == "" || user != nil {
+	if url == "" || (user != nil && user.StoreMacaroon != "") {
 		url = downloadInfo.DownloadURL
 	}
 
