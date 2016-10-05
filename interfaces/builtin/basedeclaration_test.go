@@ -121,17 +121,17 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 	// these simply auto-connect, anything else doesn't
 	autoconnect := map[string]bool{
 		"browser-support":        true,
-		"mir":                    true,
-		"pulseaudio":             true,
 		"gsettings":              true,
+		"mir":                    true,
 		"network":                true,
 		"network-bind":           true,
+		"opengl":                 true,
+		"optical-drive":          true,
+		"pulseaudio":             true,
 		"screen-inhibit-control": true,
 		"unity7":                 true,
 		"upower-observe":         true,
 		"x11":                    true,
-		"opengl":                 true,
-		"optical-drive":          true,
 	}
 
 	for _, iface := range all {

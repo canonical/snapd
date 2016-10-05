@@ -106,6 +106,8 @@ func (m *InterfaceManager) doSetupProfiles(task *state.Task, _ *tomb.Tomb) error
 	if err := m.reloadConnections(snapName); err != nil {
 		return err
 	}
+	// FIXME: here we should not reconnect auto-connect plug/slot
+	// pairs that were explicitly disconnected by the user
 	if err := m.autoConnect(task, snapName, nil); err != nil {
 		return err
 	}
