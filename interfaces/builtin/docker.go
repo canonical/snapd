@@ -97,3 +97,8 @@ func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *DockerInterface) AutoConnect() bool {
 	return false
 }
+
+func (iface *DockerInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}

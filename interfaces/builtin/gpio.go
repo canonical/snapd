@@ -139,3 +139,8 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 func (iface *GpioInterface) AutoConnect() bool {
 	return false
 }
+
+func (iface *GpioInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}

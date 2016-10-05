@@ -236,3 +236,8 @@ func (iface *BluezInterface) SanitizeSlot(slot *interfaces.Slot) error {
 func (iface *BluezInterface) AutoConnect() bool {
 	return false
 }
+
+func (iface *BluezInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}

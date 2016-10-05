@@ -156,3 +156,7 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 func (iface *ContentInterface) AutoConnect() bool {
 	return true
 }
+
+func (iface *ContentInterface) AutoConnectPair(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+	return plug.Attrs["content"] == slot.Attrs["content"]
+}

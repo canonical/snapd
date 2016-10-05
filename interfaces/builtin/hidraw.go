@@ -184,6 +184,11 @@ func (iface *HidrawInterface) AutoConnect() bool {
 	return false
 }
 
+func (iface *HidrawInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
+}
+
 func (iface *HidrawInterface) hasUsbAttrs(slot *interfaces.Slot) bool {
 	if _, ok := slot.Attrs["usb-vendor"]; ok {
 		return true

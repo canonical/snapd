@@ -263,3 +263,7 @@ func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug
 func (iface *BrowserSupportInterface) AutoConnect() bool {
 	return true
 }
+
+func (iface *BrowserSupportInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
+	return true
+}

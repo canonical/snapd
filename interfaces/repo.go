@@ -757,6 +757,9 @@ func (r *Repository) AutoConnectBlacklist(snapName string) map[string]bool {
 
 	for plugName, plug := range r.plugs[snapName] {
 		iface := r.ifaces[plug.Interface]
+		// XXX: what do about this? it's mostly an optimisation,
+		// anyway this is logic is probably already doing the wrong
+		// thing in some corner cases
 		if !iface.AutoConnect() {
 			continue
 		}
@@ -804,11 +807,11 @@ func (r *Repository) DisconnectSnap(snapName string) ([]string, error) {
 	return result, nil
 }
 
-// isLivePatchSnap checks special Name/Developer combinations to see
+// IsLivePatchSnap checks special Name/Developer combinations to see
 // if this particular snap's connections should be automatically connected even
 // if the interfaces are not autoconnect and the snap is not an OS snap.
 // FIXME: remove once we have assertions that provide this feature
-func isLivePatchSnap(snap *snap.Info) bool {
+func IsLivePatchSnap(snap *snap.Info) bool {
 	if snap.Name() == "canonical-livepatch" && snap.DeveloperID == "canonical" {
 		return true
 	}
@@ -817,7 +820,7 @@ func isLivePatchSnap(snap *snap.Info) bool {
 
 // AutoConnectCandidates finds and returns viable auto-connection candidates
 // for a given plug.
-func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slot {
+func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string, policyCheck func(*Plug, *Slot) bool) []*Slot {
 	r.m.Lock()
 	defer r.m.Unlock()
 
@@ -829,7 +832,7 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 	var candidates []*Slot
 	for _, slotsForSnap := range r.slots {
 		for _, slot := range slotsForSnap {
-			if r.isAutoConnectCandidate(plug, slot) {
+			if r.isAutoConnectCandidate(plug, slot, policyCheck) {
 				candidates = append(candidates, slot)
 			}
 		}
@@ -839,34 +842,15 @@ func (r *Repository) AutoConnectCandidates(plugSnapName, plugName string) []*Slo
 
 // isAutoConnectCandidate returns true if the plug is a candidate to
 // automatically connect to the given slot.
-func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot) bool {
+func (r *Repository) isAutoConnectCandidate(plug *Plug, slot *Slot, policyCheck func(*Plug, *Slot) bool) bool {
 	if slot.Interface != plug.Interface {
 		return false
 	}
 
-	// FIXME: remove once we have assertions that provide this feature
-	if isLivePatchSnap(plug.Snap) {
-		return true
-	}
-
-	if !r.ifaces[plug.Interface].AutoConnect() {
+	// declaration based checks disallow
+	if !policyCheck(plug, slot) {
 		return false
 	}
 
-	// content sharing auto connect candidates
-	if slot.Interface == "content" {
-		if slot.Attrs["content"] == plug.Attrs["content"] && slot.Snap.Developer == plug.Snap.Developer {
-			return true
-		}
-		// we need to stop here to avoid the OS snap autoconnecting
-		// any content later
-		return false
-	}
-
-	// OS snap auto connect candidates
-	if slot.Snap.Type == snap.TypeOS {
-		return true
-	}
-
-	return false
+	return r.ifaces[plug.Interface].AutoConnectPair(plug, slot)
 }
