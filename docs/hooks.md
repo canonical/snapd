@@ -72,13 +72,13 @@ chmod 600 $SNAP_DATA/credentials
 ### `prepare-device` (gadget hook)
 
 The optional `prepare-device` hook will be called on the gadget if
-present at the start fo the device initialisation process, once the
+present at the start of the device initialisation process, once the
 device has first booted and the gadget snap has been installed. The
 hook will also be called if this process is retried later from scratch
 in case of initialisation failures.
 
 The device initialisation process is for example responsible of
-setting the serial indentification of the device through an exchange
+setting the serial identification of the device through an exchange
 with a device service. The `prepare-device` hook can for example
 redirect this exchange and dynamically set options relevant to it.
 
