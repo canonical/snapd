@@ -129,7 +129,7 @@ prepare: |
     sysctl -w net.ipv6.conf.all.disable_ipv6=1
     trap "sysctl -w net.ipv6.conf.all.disable_ipv6=0" EXIT
 
-    if [ $(lsb_release -c -s) = trusty ]; then
+    if [ "$SPREAD_SYSTEM" = "ubuntu-14.04-64" ]; then
          apt-get install -y software-properties-common
          add-apt-repository ppa:thomas-voss/trusty
          apt-get update
