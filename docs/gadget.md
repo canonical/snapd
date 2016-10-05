@@ -30,3 +30,6 @@ partition as `grub.cfg` and `uboot.env`. The bootloader configuration
 contains the boot logic. Examples for the boot logic can be found in
 the `pc` and the `pi2` gadget snaps.
 
+A cloud-init configuration may be provided at the toplevel of the
+gadget snap as `cloud.conf`. It will be copied into the image as
+`/etc/cloud/cloud.cfg` and will be the only file in that directory.
