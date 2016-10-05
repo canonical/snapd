@@ -118,17 +118,39 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"snapd-control": true,
 	}
 
+	// these simply auto-connect, anything else doesn't
+	autoconnect := map[string]bool{
+		"browser-support":        true,
+		"mir":                    true,
+		"pulseaudio":             true,
+		"gsettings":              true,
+		"network":                true,
+		"network-bind":           true,
+		"screen-inhibit-control": true,
+		"unity7":                 true,
+		"upower-observe":         true,
+		"x11":                    true,
+		"opengl":                 true,
+		"optical-drive":          true,
+	}
+
 	for _, iface := range all {
 		if snowflakes[iface.Name()] {
 			continue
 		}
-		expected := iface.LegacyAutoConnect()
+		expected := autoconnect[iface.Name()]
+		comm := Commentf(iface.Name())
+
+		// cross-check with past behavior
+		c.Check(expected, Equals, iface.LegacyAutoConnect(), comm)
+
+		// check base declaration
 		cand := s.connectCand(c, iface.Name(), "", "")
 		err := cand.CheckAutoConnect()
 		if expected {
-			c.Check(err, IsNil, Commentf(iface.Name()))
+			c.Check(err, IsNil, comm)
 		} else {
-			c.Check(err, NotNil, Commentf(iface.Name()))
+			c.Check(err, NotNil, comm)
 		}
 	}
 }
