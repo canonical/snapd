@@ -37,6 +37,7 @@ import (
 )
 
 const autoImportsName = "auto-import.assert"
+const sysBlockDir = "/sys/block"
 
 var mountInfoPath = "/proc/self/mountinfo"
 
@@ -65,7 +66,6 @@ func autoImportCandidates() ([]string, error) {
 	}
 
 	return cands, scanner.Err()
-
 }
 
 func autoImportFromAllMounts() (int, error) {
@@ -85,6 +85,71 @@ func autoImportFromAllMounts() (int, error) {
 	}
 
 	return added, nil
+}
+
+func unmountedBlockDevices() ([]string, error) {
+	blockDevices := make(map[string]bool)
+
+	entries, err := ioutil.ReadDir(sysBlockDir)
+	if err != nil {
+		return []string{}, err
+	}
+	for _, entry := range entries {
+		devPath := filepath.Join(sysBlockDir, entry.Name())
+		hasPartitions := false
+		subEntries, err := ioutil.ReadDir(devPath)
+		if err != nil {
+			return []string{}, err
+		}
+		linkDest, err := os.Readlink(devPath)
+		if err != nil {
+			return []string{}, err
+		}
+		if strings.HasPrefix(linkDest, "../devices/virtual") {
+			continue
+		}
+		for _, subEntry := range subEntries {
+			_, err = os.Stat(filepath.Join(devPath, subEntry.Name(), "partition"))
+			if err == nil {
+				hasPartitions = true
+				blockDevices[subEntry.Name()] = true
+			}
+		}
+		if !hasPartitions {
+			blockDevices[entry.Name()] = true
+		}
+	}
+	f, err := os.Open(mountInfoPath)
+	if err != nil {
+		return []string{}, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	// see https://www.kernel.org/doc/Documentation/filesystems/proc.txt,
+	// sec. 3.5
+	for scanner.Scan() {
+		l := strings.Fields(scanner.Text())
+		if len(l) == 0 {
+			continue
+		}
+		device := l[9]
+		if strings.HasPrefix(device, "/dev/") {
+			device = device[5:]
+			delete(blockDevices, device)
+		}
+	}
+	if scanner.Err() != nil {
+		return []string{}, scanner.Err()
+	}
+
+	unmountedDevices := []string{}
+
+	for device, _ := range blockDevices {
+		unmountedDevices = append(unmountedDevices, "/dev/"+device)
+	}
+
+	return unmountedDevices, err
 }
 
 func tryMount(deviceName string) (string, error) {
@@ -159,7 +224,17 @@ func (x *cmdAutoImport) Execute(args []string) error {
 	if len(args) > 0 {
 		return ErrExtraArgs
 	}
-	for _, path := range x.Mount {
+	toMount := []string{}
+	if len(x.Mount) > 0 {
+		toMount = x.Mount
+	} else {
+		var err error
+		toMount, err = unmountedBlockDevices()
+		if err != nil {
+			logger.Noticef("error listing unmounted block devices: %v", err)
+		}
+	}
+	for _, path := range toMount {
 		mp, err := tryMount(path)
 		if err != nil {
 			continue // Error was reported. Continue looking.
