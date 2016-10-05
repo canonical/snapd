@@ -108,10 +108,10 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	snapstate.SetGlobalFlag(st, snapstate.Seeded)
+	st.Set("seeded", true)
 
 	err := boot.PopulateStateFromSeed(st)
-	c.Assert(err, ErrorMatches, "cannot populate state: state not empty")
+	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
 func (s *FirstBootTestSuite) TestPopulateFromSeedHappy(c *C) {

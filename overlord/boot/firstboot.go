@@ -37,12 +37,13 @@ import (
 
 func PopulateStateFromSeed(st *state.State) error {
 	// check that the state is empty
-	flags, err := snapstate.GlobalFlags(st)
-	if err != nil {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
 		return err
 	}
-	if (flags & snapstate.Seeded) != 0 {
-		return fmt.Errorf("cannot populate state: state not empty")
+	if seeded {
+		return fmt.Errorf("cannot populate state: already seeded")
 	}
 
 	// ack all initial assertions
@@ -99,7 +100,8 @@ func PopulateStateFromSeed(st *state.State) error {
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
 	}
-	snapstate.SetGlobalFlag(st, snapstate.Seeded)
+	// FIXME: make the last thing that runs in the "seed" change
+	st.Set("seeded", true)
 
 	return nil
 }

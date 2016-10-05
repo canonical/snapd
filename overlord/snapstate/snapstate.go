@@ -546,37 +546,6 @@ func infoForUpdate(s *state.State, snapst *SnapState, name, channel string, revi
 	return readInfo(name, sideInfo)
 }
 
-type GlobalSnapStateFlags int
-
-const (
-	// Seeded is set once the snapstate is seeded from the initial seed.yaml
-	Seeded = 1 << iota
-)
-
-// GlobalFlags returns a set of flags related to the snapstate
-func GlobalFlags(s *state.State) (int, error) {
-	var flags int
-	err := s.Get("snapstate-flags", &flags)
-	if err == state.ErrNoState {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, err
-	}
-	return flags, nil
-}
-
-// SetGlobalFlag adds a new global flag
-func SetGlobalFlag(s *state.State, newFlag int) error {
-	flags, err := GlobalFlags(s)
-	if err != nil {
-		return err
-	}
-	flags |= newFlag
-	s.Set("snapstate-flags", flags)
-	return nil
-}
-
 // Enable sets a snap to the active state
 func Enable(s *state.State, name string) (*state.TaskSet, error) {
 	var snapst SnapState
