@@ -136,7 +136,7 @@ func (iface *MirInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *MirInterface) AutoConnect() bool {
+func (iface *MirInterface) LegacyAutoConnect() bool {
 	return true
 }
 

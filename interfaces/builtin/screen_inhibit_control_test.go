@@ -90,5 +90,5 @@ func (s *ScreenInhibitControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *ScreenInhibitControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

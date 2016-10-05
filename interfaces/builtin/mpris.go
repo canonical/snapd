@@ -248,7 +248,7 @@ func (iface *MprisInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return err
 }
 
-func (iface *MprisInterface) AutoConnect() bool {
+func (iface *MprisInterface) LegacyAutoConnect() bool {
 	return false
 }
 

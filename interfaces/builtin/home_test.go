@@ -90,7 +90,7 @@ func (s *HomeInterfaceSuite) TestAutoConnectOnClassic(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 	iface := builtin.NewHomeInterface()
-	c.Check(iface.AutoConnect(), Equals, true)
+	c.Check(iface.LegacyAutoConnect(), Equals, true)
 	c.Check(iface.AutoConnectPair(nil, nil), Equals, true)
 }
 
@@ -98,6 +98,6 @@ func (s *HomeInterfaceSuite) TestAutoConnectOnCore(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	iface := builtin.NewHomeInterface()
-	c.Check(iface.AutoConnect(), Equals, false)
+	c.Check(iface.LegacyAutoConnect(), Equals, false)
 	c.Check(iface.AutoConnectPair(nil, nil), Equals, false)
 }

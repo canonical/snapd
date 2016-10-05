@@ -260,7 +260,7 @@ func (iface *BrowserSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug
 	return nil, nil
 }
 
-func (iface *BrowserSupportInterface) AutoConnect() bool {
+func (iface *BrowserSupportInterface) LegacyAutoConnect() bool {
 	return true
 }
 

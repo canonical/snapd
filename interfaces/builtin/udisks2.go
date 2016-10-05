@@ -414,7 +414,7 @@ func (iface *UDisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *UDisks2Interface) AutoConnect() bool {
+func (iface *UDisks2Interface) LegacyAutoConnect() bool {
 	return false
 }
 

@@ -175,5 +175,5 @@ func (s *BrowserSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *BrowserSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

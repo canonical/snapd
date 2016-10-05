@@ -122,7 +122,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		if snowflakes[iface.Name()] {
 			continue
 		}
-		expected := iface.AutoConnect()
+		expected := iface.LegacyAutoConnect()
 		cand := s.connectCand(c, iface.Name(), "", "")
 		err := cand.CheckAutoConnect()
 		if expected {
@@ -169,7 +169,7 @@ func (s *baseDeclSuite) TestInterimAutoConnectSnapdControl(c *C) {
 }
 
 func (s *baseDeclSuite) TestAutoConnectContent(c *C) {
-	// content will also depend for now AutoConnect(plug, slot)
+	// content will also depend for now AutoConnectPair(plug, slot)
 	// random snaps cannot connect with content
 	cand := s.connectCand(c, "content", "", "")
 	err := cand.CheckAutoConnect()

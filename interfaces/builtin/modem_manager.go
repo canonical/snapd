@@ -1209,7 +1209,7 @@ func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *ModemManagerInterface) AutoConnect() bool {
+func (iface *ModemManagerInterface) LegacyAutoConnect() bool {
 	return false
 }
 

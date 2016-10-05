@@ -179,8 +179,7 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 	return nil, nil
 }
 
-// AutoConnect indicates whether this type of interface should allow autoconnect
-func (iface *SerialPortInterface) AutoConnect() bool {
+func (iface *SerialPortInterface) LegacyAutoConnect() bool {
 	return false
 }
 

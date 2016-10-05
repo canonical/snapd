@@ -73,7 +73,7 @@ func (s *DockerSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *DockerSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
 
 func (s *DockerSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {

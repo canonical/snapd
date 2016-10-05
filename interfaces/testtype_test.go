@@ -149,8 +149,10 @@ func (s *TestInterfaceSuite) TestSlotSnippet(c *C) {
 	c.Assert(snippet, IsNil)
 }
 
-func (s *TestInterfaceSuite) TestAutoConnect(c *C) {
-	c.Assert(s.iface.AutoConnect(), Equals, false)
-	iface := &TestInterface{AutoConnectFlag: true}
-	c.Assert(iface.AutoConnect(), Equals, true)
+func (s *TestInterfaceSuite) TestAutoConnectPair(c *C) {
+	c.Check(s.iface.AutoConnectPair(nil, nil), Equals, true)
+
+	iface := &TestInterface{AutoConnectPairCallback: func(*Plug, *Slot) bool { return false }}
+
+	c.Check(iface.AutoConnectPair(nil, nil), Equals, false)
 }

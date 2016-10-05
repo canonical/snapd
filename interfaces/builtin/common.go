@@ -116,9 +116,7 @@ func (iface *commonInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *
 	return nil, nil
 }
 
-// AutoConnect returns true if plugs and slots should be implicitly
-// auto-connected when an unambiguous connection candidate is available.
-func (iface *commonInterface) AutoConnect() bool {
+func (iface *commonInterface) LegacyAutoConnect() bool {
 	return iface.autoConnect
 }
 

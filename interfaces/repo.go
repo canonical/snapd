@@ -760,7 +760,7 @@ func (r *Repository) AutoConnectBlacklist(snapName string) map[string]bool {
 		// XXX: what do about this? it's mostly an optimisation,
 		// anyway this is logic is probably already doing the wrong
 		// thing in some corner cases
-		if !iface.AutoConnect() {
+		if !iface.LegacyAutoConnect() {
 			continue
 		}
 		if len(r.plugSlots[plug]) != 0 {

@@ -251,5 +251,5 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *UDisks2InterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

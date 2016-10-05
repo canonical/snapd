@@ -1118,10 +1118,10 @@ func (s *RepositorySuite) TestSecuritySnippetsForSnapFailureWithPermanentSnippet
 	c.Check(snippets, IsNil)
 }
 
-func (s *RepositorySuite) TestAutoConnectBlacklist(c *C) {
+func (s *RepositorySuite) TestAutoConnectCandidates(c *C) {
 	// Add two interfaces, one with automatic connections, one with manual
 	repo := s.emptyRepo
-	err := repo.AddInterface(&TestInterface{InterfaceName: "auto", AutoConnectFlag: true})
+	err := repo.AddInterface(&TestInterface{InterfaceName: "auto"})
 	c.Assert(err, IsNil)
 	err = repo.AddInterface(&TestInterface{InterfaceName: "manual"})
 	c.Assert(err, IsNil)
@@ -1149,23 +1149,12 @@ slots:
 	err = repo.AddSnap(consumer)
 	c.Assert(err, IsNil)
 
-	// Sanity check, our test is valid because plug "auto" is a candidate
-	// for auto-connection
-	c.Assert(repo.AutoConnectCandidates("consumer", "auto", policyCheck), HasLen, 1)
+	candidateSlots := repo.AutoConnectCandidates("consumer", "auto", policyCheck)
+	c.Assert(candidateSlots, HasLen, 1)
+	c.Check(candidateSlots[0].Snap.Name(), Equals, "producer")
+	c.Check(candidateSlots[0].Interface, Equals, "auto")
+	c.Check(candidateSlots[0].Name, Equals, "auto")
 
-	// Without any connections in place, the plug "auto" is blacklisted
-	// because in normal circumstances it would be auto-connected.
-	blacklist := repo.AutoConnectBlacklist("consumer")
-	c.Check(blacklist, DeepEquals, map[string]bool{"auto": true})
-
-	// Connect the "auto" plug and slots together
-	connRef := ConnRef{PlugRef: PlugRef{Snap: "consumer", Name: "auto"}, SlotRef: SlotRef{Snap: "producer", Name: "auto"}}
-	err = repo.Connect(connRef)
-	c.Assert(err, IsNil)
-
-	// With the connection in place the "auto" plug is not blacklisted.
-	blacklist = repo.AutoConnectBlacklist("consumer")
-	c.Check(blacklist, IsNil)
 }
 
 // Tests for AddSnap and RemoveSnap
@@ -1395,7 +1384,7 @@ func contentAutoConnectPair(plug *Plug, slot *Slot) bool {
 // is a content plug and one a content slot
 func makeContentConnectionTestSnaps(c *C, plugContentToken, slotContentToken string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
-	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectPairHook: contentAutoConnectPair})
+	err := repo.AddInterface(&TestInterface{InterfaceName: "content", AutoConnectPairCallback: contentAutoConnectPair})
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`
 name: content-plug-snap
@@ -1453,10 +1442,10 @@ func (s *RepositorySuite) TestAutoConnectContentInterfaceNoMatchingDeveloper(c *
 
 func makeLivepatchConnectionTestSnaps(c *C, name, developer string) (*Repository, *snap.Info, *snap.Info) {
 	repo := NewRepository()
-	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted", AutoConnectFlag: false})
+	err := repo.AddInterface(&TestInterface{InterfaceName: "restricted"})
 	c.Assert(err, IsNil)
 
-	err = repo.AddInterface(&TestInterface{InterfaceName: "non-restricted", AutoConnectFlag: true})
+	err = repo.AddInterface(&TestInterface{InterfaceName: "non-restricted"})
 	c.Assert(err, IsNil)
 
 	plugSnap := snaptest.MockInfo(c, fmt.Sprintf(`

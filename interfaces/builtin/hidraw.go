@@ -179,8 +179,7 @@ func (iface *HidrawInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *
 	return nil, nil
 }
 
-// AutoConnect indicates whether this type of interface should allow autoconnect
-func (iface *HidrawInterface) AutoConnect() bool {
+func (iface *HidrawInterface) LegacyAutoConnect() bool {
 	return false
 }
 

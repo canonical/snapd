@@ -153,7 +153,7 @@ func (iface *ContentInterface) PermanentPlugSnippet(plug *interfaces.Plug, secur
 	return nil, nil
 }
 
-func (iface *ContentInterface) AutoConnect() bool {
+func (iface *ContentInterface) LegacyAutoConnect() bool {
 	return true
 }
 

@@ -160,7 +160,7 @@ func (iface *PulseAudioInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *PulseAudioInterface) AutoConnect() bool {
+func (iface *PulseAudioInterface) LegacyAutoConnect() bool {
 	return true
 }
 

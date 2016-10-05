@@ -86,7 +86,7 @@ func (iface *PppInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *PppInterface) AutoConnect() bool {
+func (iface *PppInterface) LegacyAutoConnect() bool {
 	return false
 }
 

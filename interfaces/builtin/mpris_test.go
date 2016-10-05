@@ -346,5 +346,5 @@ func (s *MprisInterfaceSuite) TestUsedSecuritySystems(c *C) {
 
 func (s *MprisInterfaceSuite) TestAutoConnect(c *C) {
 	iface := &builtin.MprisInterface{}
-	c.Check(iface.AutoConnect(), Equals, false)
+	c.Check(iface.LegacyAutoConnect(), Equals, false)
 }

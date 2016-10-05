@@ -135,8 +135,7 @@ func (iface *GpioInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *in
 	return nil, nil
 }
 
-// AutoConnect returns whether interface should be auto-connected by default
-func (iface *GpioInterface) AutoConnect() bool {
+func (iface *GpioInterface) LegacyAutoConnect() bool {
 	return false
 }
 

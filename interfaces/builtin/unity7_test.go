@@ -90,5 +90,5 @@ func (s *Unity7InterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *Unity7InterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }

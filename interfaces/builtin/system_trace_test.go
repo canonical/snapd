@@ -86,5 +86,5 @@ func (s *SystemTraceInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *SystemTraceInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

@@ -86,5 +86,5 @@ func (s *LocaleControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *LocaleControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

@@ -94,5 +94,5 @@ func (s *FirewallControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *FirewallControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

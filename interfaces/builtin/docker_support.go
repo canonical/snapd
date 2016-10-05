@@ -580,7 +580,7 @@ func (iface *DockerSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
 	return nil
 }
 
-func (iface *DockerSupportInterface) AutoConnect() bool {
+func (iface *DockerSupportInterface) LegacyAutoConnect() bool {
 	return false
 }
 

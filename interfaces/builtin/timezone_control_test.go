@@ -91,5 +91,5 @@ func (s *TimezoneControlInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *TimezoneControlInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

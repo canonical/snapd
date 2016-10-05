@@ -94,7 +94,7 @@ func (iface *DockerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *DockerInterface) AutoConnect() bool {
+func (iface *DockerInterface) LegacyAutoConnect() bool {
 	return false
 }
 

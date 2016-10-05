@@ -248,8 +248,7 @@ func (iface *FwupdInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-// AutoConnect returns whether interface should be auto-connected by default
-func (iface *FwupdInterface) AutoConnect() bool {
+func (iface *FwupdInterface) LegacyAutoConnect() bool {
 	return false
 }
 

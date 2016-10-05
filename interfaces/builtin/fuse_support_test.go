@@ -90,5 +90,5 @@ func (s *FuseSupportInterfaceSuite) TestUsedSecuritySystems(c *C) {
 }
 
 func (s *FuseSupportInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }
