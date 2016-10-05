@@ -182,7 +182,6 @@ func (iface *SerialPortInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 // AutoConnect indicates whether this type of interface should allow autoconnect
 func (iface *SerialPortInterface) AutoConnect() bool {
 	return false
-
 }
 
 func (iface *SerialPortInterface) AutoConnectPair(*interfaces.Plug, *interfaces.Slot) bool {
