@@ -386,8 +386,6 @@ func Manager(s *state.State) (*SnapManager, error) {
 	runner.AddHandler("unlink-snap", m.doUnlinkSnap, nil)
 	runner.AddHandler("clear-snap", m.doClearSnapData, nil)
 	runner.AddHandler("discard-snap", m.doDiscardSnap, nil)
-	// seeding
-	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
 	// test handlers
 	runner.AddHandler("fake-install-snap", func(t *state.Task, _ *tomb.Tomb) error {
@@ -1115,14 +1113,5 @@ func (m *SnapManager) cleanup(t *state.Task, _ *tomb.Tomb) error {
 
 	m.backend.ClearTrashedData(info)
 
-	return nil
-}
-
-func (m *SnapManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
-	st := t.State()
-	st.Lock()
-	defer st.Unlock()
-
-	st.Set("seeded", true)
 	return nil
 }
