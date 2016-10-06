@@ -1,13 +1,12 @@
 summary: Ensure that the home interface works.
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
-
 details: |
     The home interface allows a snap to access non-hidden files in $HOME
 
     A snap which defines the home plug must be shown in the interfaces list.
-    The plug must be autoconnected on install and, as usual, must be able to be
-    reconnected.
+    The plug must be autoconnected on install for classic systems and disconnected
+    on all-snaps and, as usual, must be able to be reconnected. When connected
+    it must grant access to non hidden home files.
 
 environment:
     SNAP_FILE: "home-consumer_1.0_all.snap"
@@ -44,19 +43,23 @@ execute: |
     .*?\n\
     - +home-consumer:home"
 
-    echo "Then the snap is listed as connected"
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        echo "Then the snap is listed as disconnected"
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+    else
+        echo "Then the snap is listed as connected"
+        snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
-    echo "============================================"
+        echo "============================================"
 
-    echo "When the plug is disconnected"
-    snap disconnect home-consumer:home ${core_name}:home
-    snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
+        echo "When the plug is disconnected"
+        snap disconnect home-consumer:home ${core_name}:home
+        snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
-    echo "Then the plug can be connected again"
-    snap connect home-consumer:home ${core_name}:home
-    snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
-
+        echo "Then the plug can be connected again"
+        snap connect home-consumer:home ${core_name}:home
+        snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
+    fi
     echo "============================================"
 
     echo "When the plug is connected"

@@ -1,7 +1,5 @@
 summary: Check that snap connect works
 
-systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-32, -ubuntu-core-16-arm-64]
-
 environment:
     SNAP_FILE: "home-consumer_1.0_all.snap"
 
@@ -11,7 +9,10 @@ prepare: |
     echo "Install a test snap"
     snapbuild $TESTSLIB/snaps/home-consumer .
     snap install --dangerous $SNAP_FILE
-    snap disconnect home-consumer:home ${core_name}:home
+    # the home interface is not autoconnected on all-snap systems
+    if [[ ! "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+        snap disconnect home-consumer:home ${core_name}:home
+    fi
 
 restore: |
     rm -f *.snap
