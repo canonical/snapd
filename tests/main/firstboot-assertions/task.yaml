@@ -4,7 +4,6 @@ environment:
     SEED_DIR: /var/lib/snapd/seed
 prepare: |
     systemctl stop snapd.service
-    rm -f /var/lib/snapd/firstboot/stamp
     rm -f /var/lib/snapd/state.json
     mkdir -p $SEED_DIR/assertions
     touch $SEED_DIR/seed.yaml
