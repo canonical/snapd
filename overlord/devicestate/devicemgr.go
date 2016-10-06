@@ -183,6 +183,8 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
+var bootPopulateStateFromSeed = boot.PopulateStateFromSeed
+
 // ensureSnaps makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
 func (m *DeviceManager) ensureSeedYaml() error {
@@ -213,7 +215,7 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := boot.PopulateStateFromSeed(m.state)
+	tsAll, err := bootPopulateStateFromSeed(m.state)
 	if err != nil {
 		return err
 	}

@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -156,6 +157,7 @@ func (s *deviceMgrSuite) TearDownTest(c *C) {
 	assertstate.ReplaceDB(s.state, nil)
 	s.state.Unlock()
 	dirs.SetRootDir("")
+	release.OnClassic = true
 }
 
 func (s *deviceMgrSuite) settle() {
@@ -747,4 +749,82 @@ func (s *deviceMgrSuite) TestDeviceAssertionsDeviceSessionRequest(c *C) {
 	c.Check(sessReq.Model(), Equals, "pc")
 	c.Check(sessReq.Serial(), Equals, "8989")
 	c.Check(sessReq.Nonce(), Equals, "NONCE-1")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlAlreadySeeded(c *C) {
+	release.OnClassic = false
+
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	called := false
+	devicestate.MockBootPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+		called = true
+		return nil, nil
+	})
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlChangeInFlight(c *C) {
+	release.OnClassic = false
+
+	s.state.Lock()
+	chg := s.state.NewChange("seed", "just for testing")
+	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
+	s.state.Unlock()
+
+	called := false
+	devicestate.MockBootPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+		called = true
+		return nil, nil
+	})
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlSkippedOnClassic(c *C) {
+	release.OnClassic = true
+
+	called := false
+	devicestate.MockBootPopulateStateFromSeed(func(*state.State) ([]*state.TaskSet, error) {
+		called = true
+		return nil, nil
+	})
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+	c.Assert(called, Equals, false)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
+	release.OnClassic = false
+
+	devicestate.MockBootPopulateStateFromSeed(func(*state.State) (ts []*state.TaskSet, err error) {
+		t := s.state.NewTask("test-task", "a random task")
+		ts = append(ts, state.NewTaskSet(t))
+		return ts, nil
+	})
+
+	err := s.mgr.EnsureSeedYaml()
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	tl := chg.Tasks()
+	c.Check(tl, HasLen, 2)
+	testTask := tl[0]
+	markSeededTask := tl[1]
+	c.Check(testTask.Kind(), Equals, "test-task")
+	c.Check(testTask.HaltTasks(), DeepEquals, []*state.Task{markSeededTask})
+	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
+	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{testTask})
 }
