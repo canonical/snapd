@@ -194,6 +194,15 @@ snaps:
 	tsAll, err := boot.PopulateStateFromSeed(st)
 	c.Assert(err, IsNil)
 
+	// the last task of the last taskset must be mark-seeded
+	markSeededTask := tsAll[len(tsAll)-1].Tasks()[0]
+	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
+	// and the markSeededTask must wait for the other tasks
+	prevTasks := tsAll[len(tsAll)-2].Tasks()
+	otherTask := prevTasks[len(prevTasks)-1]
+	c.Check(markSeededTask.WaitTasks(), testutil.Contains, otherTask)
+
+	// now run the change and check the result
 	chg := st.NewChange("run-it", "run the populate from seed changes")
 	for _, ts := range tsAll {
 		chg.AddAll(ts)
@@ -236,6 +245,12 @@ snaps:
 	c.Assert(info.SnapID, Equals, "")
 	c.Assert(info.Revision, Equals, snap.R("x1"))
 	c.Assert(info.DeveloperID, Equals, "")
+
+	// and ensure state is now considered seeded
+	var seeded bool
+	err = state.Get("seeded", &seeded)
+	c.Assert(err, IsNil)
+	c.Check(seeded, Equals, true)
 }
 
 func writeAssertionsToFile(fn string, assertions []asserts.Assertion) {

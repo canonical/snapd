@@ -820,15 +820,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
 	defer s.state.Unlock()
 
 	c.Check(s.state.Changes(), HasLen, 1)
-	chg := s.state.Changes()[0]
-	tl := chg.Tasks()
-	c.Check(tl, HasLen, 2)
-	testTask := tl[0]
-	markSeededTask := tl[1]
-	c.Check(testTask.Kind(), Equals, "test-task")
-	c.Check(testTask.HaltTasks(), DeepEquals, []*state.Task{markSeededTask})
-	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
-	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{testTask})
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {

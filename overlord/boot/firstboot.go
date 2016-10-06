@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -91,6 +92,15 @@ func PopulateStateFromSeed(st *state.State) ([]*state.TaskSet, error) {
 
 		tsAll = append(tsAll, ts)
 	}
+	if len(tsAll) == 0 {
+		return nil, nil
+	}
+
+	ts := tsAll[len(tsAll)-1]
+	markSeeded := st.NewTask("mark-seeded", i18n.G("Mark system seeded"))
+	markSeeded.WaitAll(ts)
+	tsAll = append(tsAll, state.NewTaskSet(markSeeded))
+
 	return tsAll, nil
 }
 
