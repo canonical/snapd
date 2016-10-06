@@ -22,9 +22,6 @@ package snapstate_test
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 
 	. "gopkg.in/check.v1"
 
@@ -248,11 +245,9 @@ version: 2
 	c.Check(err, ErrorMatches, "cannot replace gadget snap with a different one")
 }
 
+// FIXME: re-enable once we have the check again
 func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
-	err := os.MkdirAll(filepath.Dir(dirs.SnapFirstBootStamp), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapFirstBootStamp, nil, 0644)
-	c.Assert(err, IsNil)
+	c.Skip("gadget check disabled right now")
 
 	reset := release.MockOnClassic(false)
 	defer reset()
@@ -260,12 +255,12 @@ func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
+	st.Set("seeded", true)
 
 	const yaml = `name: gadget
 type: gadget
 version: 1
 `
-
 	info, err := snap.InfoFromSnapYaml([]byte(yaml))
 	c.Assert(err, IsNil)
 

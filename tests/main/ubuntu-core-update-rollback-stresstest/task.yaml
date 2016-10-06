@@ -2,6 +2,13 @@ summary: Run update/rollback tests
 systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 restore: |
     rm -f nextBoot
+debug: |
+    cat /proc/cmdline
+    if [ $(which grub-editenv) ]; then
+        grub-editenv list
+    else
+        fw_printenv |grep ^snap
+    fi
 execute: |
     . "$TESTSLIB/names.sh"
     . "$TESTSLIB/boot.sh"
