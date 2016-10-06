@@ -210,13 +210,16 @@
     /run/snapd/ns/*.lock rwk,
     /run/snapd/ns/*.mnt rw,
     ptrace (tracedby) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
-    owner @{PROC}/*/mountinfo r,
+    @{PROC}/*/mountinfo r,
     capability sys_chroot,
     capability sys_admin,
     signal (send, receive) set=(abrt) peer=@LIBEXECDIR@/snap-confine,
     signal (send) set=(int) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
     signal (send, receive) set=(alrm, exists) peer=@LIBEXECDIR@/snap-confine,
     signal (receive) set=(exists) peer=@LIBEXECDIR@/snap-confine//mount-namespace-capture-helper,
+
+    # For aa_change_hat() to go into ^mount-namespace-capture-helper
+    @{PROC}/[0-9]*/attr/current w,
 
     ^mount-namespace-capture-helper (attach_disconnected) {
         # We run privileged, so be fanatical about what we include and don't use
