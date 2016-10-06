@@ -25,8 +25,21 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	jujuerrors "github.com/juju/errors"
+	"github.com/juju/retry"
+	"github.com/juju/utils/clock"
+	"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,16 +50,6 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/snapcore/snapd/arch"
-	"github.com/snapcore/snapd/asserts"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/snap"
 )
 
 // TODO: better/shorter names are probably in order once fewer legacy places are using this
@@ -60,6 +63,7 @@ const (
 	// communicating with the store. History:
 	//  - "1": client supports squashfs snaps
 	UbuntuCoreWireProtocol = "1"
+	MaxRetryDuration       = time.Duration(30) * time.Second
 )
 
 // UserAgent to send
@@ -171,6 +175,16 @@ type Store struct {
 
 	mu                sync.Mutex
 	suggestedCurrency string
+}
+
+func httpStatusErrToError(httpErr httpErrorResponse, msg string) error {
+	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
+	if httpErr.Oops != "" {
+		tpl += " [%s]"
+		return fmt.Errorf(tpl, msg, httpErr.StatusCode, httpErr.Method, httpErr.URL, httpErr.Oops)
+	}
+
+	return nil
 }
 
 func respToError(resp *http.Response, msg string) error {
@@ -546,6 +560,113 @@ type requestOptions struct {
 	Data         []byte
 }
 
+type httpErrorResponse struct {
+	StatusCode int
+	URL        *url.URL
+	Method     string
+	Oops       string
+}
+
+func NewHttpErrorResponse(resp *http.Response) *httpErrorResponse {
+	return &httpErrorResponse{StatusCode: resp.StatusCode, URL: resp.Request.URL}
+}
+
+func (r httpErrorResponse) Error() string {
+	return fmt.Sprintf("%v %d", r.URL, r.StatusCode)
+}
+
+func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
+	var err error
+	for refreshed := true; refreshed; {
+		refreshed = false
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return err
+		}
+
+		wwwAuth := resp.Header.Get("WWW-Authenticate")
+		if resp.StatusCode == http.StatusUnauthorized {
+			if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
+				// refresh user
+				err := s.refreshUser(user)
+				if err != nil {
+					resp.Body.Close()
+					return err
+				}
+				refreshed = true
+			}
+			if strings.Contains(wwwAuth, "refresh_device_session=1") {
+				// refresh device session
+				if s.authContext == nil {
+					resp.Body.Close()
+					return fmt.Errorf("internal error: no authContext")
+				}
+				device, err := s.authContext.Device()
+				if err != nil {
+					resp.Body.Close()
+					return err
+				}
+
+				err = s.refreshDeviceSession(device)
+				if err != nil {
+					resp.Body.Close()
+					return err
+				}
+				refreshed = true
+			}
+		}
+
+		if !refreshed {
+			err = dataDecodeFunc(resp)
+		}
+		resp.Body.Close()
+	}
+	return err
+}
+
+func isFatal(err error) bool {
+	if httpStatusErr, ok := err.(httpErrorResponse); ok {
+		if httpStatusErr.StatusCode == http.StatusInternalServerError || httpStatusErr.StatusCode == http.StatusServiceUnavailable {
+			return false
+		}
+		return true
+	}
+	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+		return false
+	}
+	if err == io.ErrUnexpectedEOF {
+		return false
+	}
+	return true
+}
+
+// retryRequest does an authenticated request to the store handling a potential macaroon refresh required if needed.
+// It retries the request on certain http errors or unexpected EOFs.
+func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
+	req, err := s.newRequest(reqOptions, user)
+	if err != nil {
+		return err
+	}
+
+	err = retry.Call(retry.CallArgs{
+		Func: func() error {
+			return s.doStoreRequest(client, req, user, dataDecodeFunc)
+		},
+		Attempts:    6,
+		Delay:       time.Millisecond,
+		BackoffFunc: retry.DoubleDelay,
+		MaxDuration: MaxRetryDuration,
+		Clock:       clock.WallClock,
+		IsFatalError: isFatal,
+	})
+
+	if err != nil {
+		return jujuerrors.Cause(err)
+	}
+	return nil
+}
+
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
 func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user *auth.UserState) (*http.Response, error) {
 	req, err := s.newRequest(reqOptions, user)
@@ -559,7 +680,7 @@ func (s *Store) doRequest(client *http.Client, reqOptions *requestOptions, user 
 	}
 
 	wwwAuth := resp.Header.Get("WWW-Authenticate")
-	if resp.StatusCode == 401 {
+	if resp.StatusCode == http.StatusUnauthorized {
 		refreshed := false
 		if user != nil && strings.Contains(wwwAuth, "needs_refresh=1") {
 			// refresh user
@@ -1016,20 +1137,26 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 	}
 
-	resp, err := s.doRequest(s.client, reqOptions, user)
+	var updateData searchResults
+	err = s.retryRequest(s.client, reqOptions, user, func(resp *http.Response) error {
+		if resp.StatusCode == http.StatusOK {
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&updateData); err != nil {
+				return err
+			}
+			s.extractSuggestedCurrency(resp)
+			return nil
+		} else {
+			return *NewHttpErrorResponse(resp)
+		}
+	})
+
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		return nil, respToError(resp, "query the store for updates")
-	}
-
-	var updateData searchResults
-	dec := json.NewDecoder(resp.Body)
-	if err := dec.Decode(&updateData); err != nil {
-		return nil, err
+	if httpStatusErr, ok := err.(httpErrorResponse); ok {
+		return nil, httpStatusErrToError(httpStatusErr, "query the store for updates")
 	}
 
 	res := make([]*snap.Info, 0, len(updateData.Payload.Packages))
@@ -1048,8 +1175,6 @@ func (s *Store) ListRefresh(installed []*RefreshCandidate, user *auth.UserState)
 		}
 		res = append(res, infoFromRemote(rsnap))
 	}
-
-	s.extractSuggestedCurrency(resp)
 
 	return res, nil
 }
