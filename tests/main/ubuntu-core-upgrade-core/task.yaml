@@ -51,7 +51,7 @@ execute: |
 
     if [ "$SPREAD_REBOOT" = 1 ]; then
         echo "Waiting for boot-ok to finish"
-        while [ $(bootenv snap_mode) != "" ];; do
+        while [ $(bootenv snap_mode) != "" ]; do
             echo "Show debug info"
             bootenv snap_mode
             sleep 1

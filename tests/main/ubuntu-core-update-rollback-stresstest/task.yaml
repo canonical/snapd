@@ -15,7 +15,7 @@ execute: |
 
     wait_boot_ok() {
         echo "Waiting for boot-ok to finish"
-        while [ $(bootenv snap_mode) != "" ];; do
+        while [ $(bootenv snap_mode) != "" ]; do
             # debug output
             bootenv snap_mode
             sleep 1
