@@ -160,7 +160,12 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	for _, path := range x.Mount {
-		// udev adds loop devices on the fly
+		// udev adds new /dev/loopX devices on the fly when a
+		// loop mount happens and there is no loop device left.
+		//
+		// We need to ignore these events because otherwise both
+		// our mount and the "mount -o loop" fight over the same
+		// device and we get nasty errors
 		if strings.HasPrefix(path, "/dev/loop") {
 			continue
 		}
