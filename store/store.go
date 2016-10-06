@@ -1448,12 +1448,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 		return nil, fmt.Errorf("cannot buy snap %q: server says not found (snap got removed?)", options.SnapName)
 	case http.StatusPaymentRequired:
 		// Payment failed for some reason.
-		var errorInfo storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errorInfo); err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("cannot buy snap %q: payment failed: %v", options.SnapName, errorInfo.Error())
+		return nil, ErrPaymentDeclined
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials

@@ -2683,7 +2683,7 @@ var buyTests = []struct {
 		buyStatus:         http.StatusPaymentRequired,
 		buyErrorCode:      "request-failed",
 		buyErrorMessage:   "Purchase failed",
-		expectedError:     "cannot buy snap \"hello-world\": payment failed: store reported an error: Purchase failed",
+		expectedError:     "payment declined",
 	},
 }
 
