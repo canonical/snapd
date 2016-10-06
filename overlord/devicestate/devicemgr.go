@@ -32,6 +32,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -257,20 +258,42 @@ func (m *DeviceManager) ensureBootOk() error {
 	return snapstate.UpdateBootRevisions(m.state)
 }
 
+type ensureError struct {
+	errs []error
+}
+
+func (e *ensureError) Error() string {
+	if len(e.errs) == 1 {
+		return fmt.Sprintf("devicemgr: %v", e.errs[0])
+	}
+	parts := []string{"devicemgr:"}
+	for _, e := range e.errs {
+		parts = append(parts, e.Error())
+	}
+	return strings.Join(parts, "\n - ")
+}
+
 // Ensure implements StateManager.Ensure.
 func (m *DeviceManager) Ensure() error {
+	var errs []error
+
 	if err := m.ensureSeedYaml(); err != nil {
-		return err
+		errs = append(errs, err)
 	}
 	if err := m.ensureOperational(); err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
 	if err := m.ensureBootOk(); err != nil {
-		return err
+		errs = append(errs, err)
 	}
 
 	m.runner.Ensure()
+
+	if len(errs) > 0 {
+		return &ensureError{errs}
+	}
+
 	return nil
 }
 
