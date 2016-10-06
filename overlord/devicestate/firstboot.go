@@ -17,7 +17,7 @@
  *
  */
 
-package boot
+package devicestate
 
 import (
 	"fmt"
@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-func PopulateStateFromSeed(st *state.State) ([]*state.TaskSet, error) {
+func PopulateStateFromSeedImpl(st *state.State) ([]*state.TaskSet, error) {
 	// check that the state is empty
 	var seeded bool
 	err := st.Get("seeded", &seeded)
