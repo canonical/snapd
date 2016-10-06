@@ -156,9 +156,6 @@ prepare: |
     #        hits xenial-updates
     apt-get install -y snap-confine
 
-    # and remove the image PPA again
-    add-apt-repository --remove ppa:snappy-dev/image
-
     # increment version so upgrade can work
     dch -i "testing build"
 
