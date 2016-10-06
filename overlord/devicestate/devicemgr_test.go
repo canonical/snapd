@@ -894,11 +894,14 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	release.OnClassic = false
 
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
-	bootloader.GetErr = fmt.Errorf("ensure bootloader is not used")
+	bootloader.SetBootVar("snap_mode", "trying")
+	bootloader.SetBootVar("snap_try_core", "core_1.snap")
+	bootloader.SetErr = fmt.Errorf("ensure bootloader is not used")
 	partition.ForceBootloader(bootloader)
 	defer partition.ForceBootloader(nil)
 
 	s.mgr.SetBootOkRan(true)
+
 	err := s.mgr.EnsureBootOk()
 	c.Assert(err, IsNil)
 }

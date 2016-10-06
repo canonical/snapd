@@ -237,23 +237,20 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	// already ran
-	if m.bootOkRan {
-		return nil
-	}
-
 	if release.OnClassic {
 		logger.Debugf("Ignoring 'booted' on classic")
 		return nil
 	}
 
-	bootloader, err := partition.FindBootloader()
-	if err != nil {
-		return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
-	}
-
-	if err := partition.MarkBootSuccessful(bootloader); err != nil {
-		return err
+	if !m.bootOkRan {
+		bootloader, err := partition.FindBootloader()
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
+		}
+		if err := partition.MarkBootSuccessful(bootloader); err != nil {
+			return err
+		}
+		m.bootOkRan = true
 	}
 
 	return snapstate.UpdateBootRevisions(m.state)
@@ -267,11 +264,9 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureOperational(); err != nil {
 		return err
 	}
-	if !m.bootOkRan {
-		if err := m.ensureBootOk(); err != nil {
-			return err
-		}
-		m.bootOkRan = true
+
+	if err := m.ensureBootOk(); err != nil {
+		return err
 	}
 
 	m.runner.Ensure()
