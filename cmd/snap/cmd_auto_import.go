@@ -160,6 +160,11 @@ func (x *cmdAutoImport) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 	for _, path := range x.Mount {
+		// udev adds loop devices on the fly
+		if strings.HasPrefix(path, "/dev/loop") {
+			continue
+		}
+
 		mp, err := tryMount(path)
 		if err != nil {
 			continue // Error was reported. Continue looking.
