@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2014-2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -16,13 +16,35 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  *
  */
+package osutil
 
-package image
-
-var (
-	LocalSnaps           = localSnaps
-	DecodeModelAssertion = decodeModelAssertion
-	DownloadUnpackGadget = downloadUnpackGadget
-	BootstrapToRootDir   = bootstrapToRootDir
-	InstallCloudConfig   = installCloudConfig
+import (
+	"bufio"
+	"os"
+	"strings"
 )
+
+var mountInfoPath = "/proc/self/mountinfo"
+
+// FIXME: this needs a test
+func IsMounted(baseDir string) (bool, error) {
+	f, err := os.Open(mountInfoPath)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		l := strings.Fields(scanner.Text())
+		if len(l) == 0 {
+			continue
+		}
+		mountPoint := l[4]
+		if baseDir == mountPoint {
+			return true, nil
+		}
+	}
+
+	return false, scanner.Err()
+}

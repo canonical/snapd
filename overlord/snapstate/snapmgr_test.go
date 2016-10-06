@@ -787,6 +787,12 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				Channel:  "some-channel",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Revision: snap.R(42),
+			},
 		},
 		{
 			op:    "setup-snap",
@@ -927,6 +933,12 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				SnapID:   "some-snap-id",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
 		},
 		{
 			op:    "setup-snap",
@@ -1087,6 +1099,12 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				SnapID:   "some-snap-id",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
 		},
 		{
 			op:    "setup-snap",
@@ -1238,6 +1256,12 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				SnapID:   "some-snap-id",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
 		},
 		{
 			op:    "setup-snap",
@@ -2960,6 +2984,12 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 		{
 			op:   "open-snap-file",
 			name: "downloaded-snap-path",
+			sinfo: snap.SideInfo{
+				RealName: "some-snap",
+				SnapID:   "snapIDsnapidsnapidsnapidsnapidsn",
+				Channel:  "some-channel",
+				Revision: snap.R(11),
+			},
 		},
 		{
 			op:    "setup-snap",

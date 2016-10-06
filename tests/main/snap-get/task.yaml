@@ -20,7 +20,7 @@ execute: |
         exit 1
     fi
 
-    echo "Test that values set via snapctl can be gotten via snap get"
+    echo "Test that values set via snapctl can be obtained via snap get"
     if ! snap set snapctl-hooks command=test-snapctl-set-foo; then
         echo "snap set unexpectedly failed"
         exit 1
@@ -29,7 +29,7 @@ execute: |
         echo "snap get unexpectedly failed"
         exit 1
     fi
-    expected='"test-snapctl-set-foo"'
+    expected="test-snapctl-set-foo"
     if [ "$output" != "$expected" ]; then
         echo "Expected 'command' to be '$expected', but it was '$output'"
         exit 1
@@ -38,7 +38,7 @@ execute: |
         echo "snap get unexpectedly failed"
         exit 1
     fi
-    expected='"bar"'
+    expected="bar"
     if [ "$output" != "$expected" ]; then
         echo "Expected 'foo' to be '$expected', but it was '$output'"
         exit 1
