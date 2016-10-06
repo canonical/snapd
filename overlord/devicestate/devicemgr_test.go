@@ -847,7 +847,19 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	bootloader.SetBootVar("snap_mode", "trying")
 	bootloader.SetBootVar("snap_try_core", "core_1.snap")
 
+	s.state.Lock()
+	defer s.state.Unlock()
+	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore1},
+		Current:  siCore1.Revision,
+	})
+
+	s.state.Unlock()
 	err := s.mgr.EnsureBootOk()
+	s.state.Lock()
 	c.Assert(err, IsNil)
 
 	mode, err := bootloader.GetBootVar("snap_mode")

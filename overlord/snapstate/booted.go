@@ -75,11 +75,6 @@ func UpdateRevisions(st *state.State) error {
 		return fmt.Errorf(errorPrefix+"%s", err)
 	}
 
-	installed, err := All(st)
-	if err != nil {
-		return fmt.Errorf(errorPrefix+"%s", err)
-	}
-
 	var tsAll []*state.TaskSet
 	for _, snapNameAndRevno := range []string{kernelSnap, osSnap} {
 		name, rev, err := nameAndRevnoFromSnap(snapNameAndRevno)
@@ -87,18 +82,19 @@ func UpdateRevisions(st *state.State) error {
 			logger.Noticef("cannot parse %q: %s", snapNameAndRevno, err)
 			continue
 		}
-		for snapName, snapState := range installed {
-			if name == snapName {
-				if rev != snapState.Current {
-					// FIXME: check that there is no task
-					//        for this already in progress
-					ts, err := RevertToRevision(st, name, rev, Flags(0))
-					if err != nil {
-						return err
-					}
-					tsAll = append(tsAll, ts)
-				}
+		info, err := CurrentInfo(st, name)
+		if err != nil {
+			logger.Noticef("cannot get info for %q: %s", name, err)
+			continue
+		}
+		if rev != info.SideInfo.Revision {
+			// FIXME: check that there is no task
+			//        for this already in progress
+			ts, err := RevertToRevision(st, name, rev, Flags(0))
+			if err != nil {
+				return err
 			}
+			tsAll = append(tsAll, ts)
 		}
 	}
 
