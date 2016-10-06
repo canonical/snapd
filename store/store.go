@@ -1334,9 +1334,9 @@ type BuyResult struct {
 
 // orderInstruction holds data sent to the store for orders.
 type orderInstruction struct {
-	SnapID   string  `json:"snap_id"`
-	Amount   float64 `json:"amount,omitempty"`
-	Currency string  `json:"currency,omitempty"`
+	SnapID   string `json:"snap_id"`
+	Amount   string `json:"amount,omitempty"`
+	Currency string `json:"currency,omitempty"`
 }
 
 type storeError struct {
@@ -1397,7 +1397,7 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 
 	instruction := orderInstruction{
 		SnapID:   options.SnapID,
-		Amount:   options.Price,
+		Amount:   fmt.Sprintf("%.2f", options.Price),
 		Currency: options.Currency,
 	}
 
@@ -1446,6 +1446,9 @@ func (s *Store) Buy(options *BuyOptions, user *auth.UserState) (*BuyResult, erro
 	case http.StatusNotFound:
 		// Likely because snap ID doesn't exist.
 		return nil, fmt.Errorf("cannot buy snap %q: server says not found (snap got removed?)", options.SnapName)
+	case http.StatusPaymentRequired:
+		// Payment failed for some reason.
+		return nil, ErrPaymentDeclined
 	case http.StatusUnauthorized:
 		// TODO handle token expiry and refresh
 		return nil, ErrInvalidCredentials
