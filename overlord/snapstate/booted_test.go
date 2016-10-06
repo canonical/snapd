@@ -108,7 +108,7 @@ func (bs *bootedSuite) makeInstalledKernelOS(c *C, st *state.State) {
 
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
+func (bs *bootedSuite) TestUpdateBootRevisionsOSSimple(c *C) {
 	st := bs.state
 	st.Lock()
 	defer st.Unlock()
@@ -116,7 +116,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_core"] = "core_1.snap"
-	err := snapstate.UpdateRevisions(st)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -142,7 +142,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSSimple(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
+func (bs *bootedSuite) TestUpdateBootRevisionsKernelSimple(c *C) {
 	st := bs.state
 	st.Lock()
 	defer st.Unlock()
@@ -150,7 +150,7 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_1.snap"
-	err := snapstate.UpdateRevisions(st)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
 	st.Unlock()
@@ -176,7 +176,7 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelSimple(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
+func (bs *bootedSuite) TestUpdateBootRevisionsKernelErrorsEarly(c *C) {
 	st := bs.state
 	st.Lock()
 	defer st.Unlock()
@@ -184,11 +184,11 @@ func (bs *bootedSuite) TestUpdateRevisionsKernelErrorsEarly(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_kernel"] = "canonical-pc-linux_99.snap"
-	err := snapstate.UpdateRevisions(st)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "canonical-pc-linux"`)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
+func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsEarly(c *C) {
 	st := bs.state
 	st.Lock()
 	defer st.Unlock()
@@ -196,11 +196,11 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsEarly(c *C) {
 	bs.makeInstalledKernelOS(c, st)
 
 	bs.bootloader.BootVars["snap_core"] = "core_99.snap"
-	err := snapstate.UpdateRevisions(st)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, ErrorMatches, `cannot find revision 99 for snap "core"`)
 }
 
-func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
+func (bs *bootedSuite) TestUpdateBootRevisionsOSErrorsLate(c *C) {
 	st := bs.state
 	st.Lock()
 	defer st.Unlock()
@@ -216,7 +216,7 @@ func (bs *bootedSuite) TestUpdateRevisionsOSErrorsLate(c *C) {
 	bs.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/core/1")
 
 	bs.bootloader.BootVars["snap_kernel"] = "core_1.snap"
-	err := snapstate.UpdateRevisions(st)
+	err := snapstate.UpdateBootRevisions(st)
 	c.Assert(err, IsNil)
 
 	st.Unlock()

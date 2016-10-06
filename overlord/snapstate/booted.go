@@ -44,7 +44,7 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision, error) {
 	return name, rev, nil
 }
 
-// UpdateRevisions synchronizes the active kernel and OS snap versions
+// UpdateBootRevisions synchronizes the active kernel and OS snap versions
 // with the versions that actually booted. This is needed because a
 // system may install "os=v2" but that fails to boot. The bootloader
 // fallback logic will revert to "os=v1" but on the filesystem snappy
@@ -52,7 +52,7 @@ func nameAndRevnoFromSnap(sn string) (string, snap.Revision, error) {
 // misleading. This code will check what kernel/os booted and set
 // those versions active.To do this it creates a Change and kicks
 // start it directly.
-func UpdateRevisions(st *state.State) error {
+func UpdateBootRevisions(st *state.State) error {
 	const errorPrefix = "cannot update revisions after boot changes: "
 
 	if release.OnClassic {

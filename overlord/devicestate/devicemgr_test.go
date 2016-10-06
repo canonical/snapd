@@ -858,7 +858,7 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	c.Assert(mode, Equals, "")
 }
 
-func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateRevisionsHappy(c *C) {
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateBootRevisionsHappy(c *C) {
 	release.OnClassic = false
 
 	bootloader := boottest.NewMockBootloader("mock", c.MkDir())

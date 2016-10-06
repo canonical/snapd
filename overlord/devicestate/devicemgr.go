@@ -256,7 +256,7 @@ func (m *DeviceManager) ensureBootOk() error {
 		return err
 	}
 
-	return snapstate.UpdateRevisions(m.state)
+	return snapstate.UpdateBootRevisions(m.state)
 }
 
 // Ensure implements StateManager.Ensure.
