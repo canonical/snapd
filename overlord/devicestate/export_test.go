@@ -81,3 +81,7 @@ func MockBootPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error
 		bootPopulateStateFromSeed = old
 	}
 }
+
+func (m *DeviceManager) EnsureBootOk() error {
+	return m.ensureBootOk()
+}

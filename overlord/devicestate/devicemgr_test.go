@@ -36,6 +36,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -44,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -827,4 +829,60 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeedYamlHappy(c *C) {
 	c.Check(testTask.HaltTasks(), DeepEquals, []*state.Task{markSeededTask})
 	c.Check(markSeededTask.Kind(), Equals, "mark-seeded")
 	c.Check(markSeededTask.WaitTasks(), DeepEquals, []*state.Task{testTask})
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkSkippedOnClassic(c *C) {
+	release.OnClassic = true
+
+	err := s.mgr.EnsureBootOk()
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
+	release.OnClassic = false
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+	bootloader.SetBootVar("snap_mode", "trying")
+	bootloader.SetBootVar("snap_try_core", "core_1.snap")
+
+	err := s.mgr.EnsureBootOk()
+	c.Assert(err, IsNil)
+
+	mode, err := bootloader.GetBootVar("snap_mode")
+	c.Assert(err, IsNil)
+	c.Assert(mode, Equals, "")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateRevisionsHappy(c *C) {
+	release.OnClassic = false
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+
+	// simulate that we have a new core_2, tried to boot it but that failed
+	bootloader.SetBootVar("snap_mode", "")
+	bootloader.SetBootVar("snap_try_core", "core_2.snap")
+	bootloader.SetBootVar("snap_core", "core_1.snap")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	siCore1 := &snap.SideInfo{RealName: "core", Revision: snap.R(1)}
+	siCore2 := &snap.SideInfo{RealName: "core", Revision: snap.R(2)}
+	snapstate.Set(s.state, "core", &snapstate.SnapState{
+		SnapType: "os",
+		Active:   true,
+		Sequence: []*snap.SideInfo{siCore1, siCore2},
+		Current:  siCore2.Revision,
+	})
+
+	s.state.Unlock()
+	err := s.mgr.EnsureBootOk()
+	s.state.Lock()
+	c.Assert(err, IsNil)
+
+	c.Check(s.state.Changes(), HasLen, 1)
+	c.Check(s.state.Changes()[0].Kind(), Equals, "update-revisions")
 }
