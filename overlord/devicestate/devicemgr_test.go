@@ -905,3 +905,28 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
 	err := s.mgr.EnsureBootOk()
 	c.Assert(err, IsNil)
 }
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
+	release.OnClassic = false
+
+	s.state.Lock()
+	// seeded
+	s.state.Set("seeded", true)
+	// has serial
+	auth.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "8989",
+	})
+	s.state.Unlock()
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.GetErr = fmt.Errorf("bootloader err")
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+
+	s.mgr.SetBootOkRan(false)
+
+	err := s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "devicemgr: bootloader err")
+}
