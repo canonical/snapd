@@ -198,15 +198,7 @@ func (s *checkSnapSuite) TestCheckSnapGadgetMissingPrior(c *C) {
 	st := state.New(nil)
 	st.Lock()
 	defer st.Unlock()
-
-	snapstate.Set(st, "not-firstboot", &snapstate.SnapState{
-		SnapType: "app",
-		Active:   true,
-		Sequence: []*snap.SideInfo{
-			&snap.SideInfo{RealName: "not-firstboot", Revision: snap.R(2)},
-		},
-		Current: snap.R(2),
-	})
+	st.Set("seeded", true)
 
 	const yaml = `name: gadget
 type: gadget
