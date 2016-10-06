@@ -106,9 +106,6 @@ func readAsserts(fn string, batch *assertstate.Batch) ([]*asserts.Ref, error) {
 func importAssertionsFromSeed(st *state.State) error {
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
-	if os.IsNotExist(err) {
-		return nil
-	}
 	if err != nil {
 		return fmt.Errorf("cannot read assert seed dir: %s", err)
 	}
