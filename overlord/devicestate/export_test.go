@@ -85,3 +85,7 @@ func MockBootPopulateStateFromSeed(f func(*state.State) ([]*state.TaskSet, error
 func (m *DeviceManager) EnsureBootOk() error {
 	return m.ensureBootOk()
 }
+
+func (m *DeviceManager) SetBootOkRan(b bool) {
+	m.bootOkRan = b
+}

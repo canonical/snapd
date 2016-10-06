@@ -886,3 +886,16 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkUpdateRevisionsHappy(c *C)
 	c.Check(s.state.Changes(), HasLen, 1)
 	c.Check(s.state.Changes()[0].Kind(), Equals, "update-revisions")
 }
+
+func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkNotRunAgain(c *C) {
+	release.OnClassic = false
+
+	bootloader := boottest.NewMockBootloader("mock", c.MkDir())
+	bootloader.GetErr = fmt.Errorf("ensure bootloader is not used")
+	partition.ForceBootloader(bootloader)
+	defer partition.ForceBootloader(nil)
+
+	s.mgr.SetBootOkRan(true)
+	err := s.mgr.EnsureBootOk()
+	c.Assert(err, IsNil)
+}

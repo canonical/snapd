@@ -57,6 +57,7 @@ type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 	runner     *state.TaskRunner
+	bootOkRan  bool
 }
 
 // Manager returns a new device manager.
@@ -242,6 +243,11 @@ func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
+	// already ran
+	if m.bootOkRan {
+		return nil
+	}
+
 	if release.OnClassic {
 		logger.Debugf("Ignoring 'booted' on classic")
 		return nil
@@ -267,8 +273,11 @@ func (m *DeviceManager) Ensure() error {
 	if err := m.ensureOperational(); err != nil {
 		return err
 	}
-	if err := m.ensureBootOk(); err != nil {
-		return err
+	if !m.bootOkRan {
+		if err := m.ensureBootOk(); err != nil {
+			return err
+		}
+		m.bootOkRan = true
 	}
 
 	m.runner.Ensure()
