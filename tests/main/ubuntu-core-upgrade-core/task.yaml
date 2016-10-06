@@ -2,6 +2,9 @@ summary: Ensure that a ubuntu-core refresh works
 
 systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 
+debug: |
+    cat /proc/cmdline
+
 execute: |
     . "$TESTSLIB/boot.sh"
     . "$TESTSLIB/names.sh"

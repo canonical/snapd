@@ -64,18 +64,10 @@ ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 endif
 
 override_dh_systemd_enable:
-	# enable boot-ok
-	dh_systemd_enable \
-		-psnapd \
-		snapd.boot-ok.service
 	# enable auto-import
 	dh_systemd_enable \
 		-psnapd \
 		snapd.autoimport.service
-	# enable the first boot service
-	dh_systemd_enable \
-		-psnapd \
-		snapd.firstboot.service
 	# we want the auto-update timer enabled by default
 	dh_systemd_enable \
 		-psnapd \
@@ -94,10 +86,6 @@ override_dh_systemd_enable:
 		snapd.service
 
 override_dh_systemd_start:
-	# start boot-ok
-	dh_systemd_start \
-		-psnapd \
-		snapd.boot-ok.service
 	# we want to start the auto-update timer
 	dh_systemd_start \
 		-psnapd \
@@ -157,11 +145,7 @@ override_dh_install:
 	install --mode=0644 debian/*.socket debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 	install --mode=0644 debian/*.target debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.boot-ok.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
-	install --mode=0644 debian/snapd.firstboot.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)
 ifeq ($(RELEASE),trusty)
-	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.firstboot.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.firstboot.service
-	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.boot-ok.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.boot-ok.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.service
 	dh_link debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/snapd.autoimport.service debian/snapd/$(SYSTEMD_UNITS_DESTDIR)/multi-user.target.wants/snapd.autoimport.service
 endif

@@ -127,6 +127,10 @@ func (ms *mgrsSuite) SetUpTest(c *C) {
 	o, err := overlord.New()
 	c.Assert(err, IsNil)
 	ms.o = o
+	st := ms.o.State()
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 }
 
 func (ms *mgrsSuite) TearDownTest(c *C) {
