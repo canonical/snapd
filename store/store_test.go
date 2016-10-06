@@ -2635,75 +2635,55 @@ const customersMeValid = `
 `
 
 var buyTests = []struct {
-	SuggestedCurrency string
-	ExpectedInput     string
-	BuyStatus         int
-	BuyResponse       string
-	SnapID            string
-	Price             float64
-	Currency          string
-	ExpectedResult    *BuyResult
-	ExpectedError     string
+	suggestedCurrency string
+	expectedInput     string
+	buyStatus         int
+	buyResponse       string
+	buyErrorMessage   string
+	buyErrorCode      string
+	snapID            string
+	price             float64
+	currency          string
+	expectedResult    *BuyResult
+	expectedError     string
 }{
 	{
 		// successful buying
-		SuggestedCurrency: "EUR",
-		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"0.99","currency":"EUR"}`,
-		BuyStatus:         http.StatusOK,
-		BuyResponse:       mockOrderResponseJSON,
-		ExpectedResult:    &BuyResult{State: "Complete"},
+		suggestedCurrency: "EUR",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"0.99","currency":"EUR"}`,
+		buyResponse:       mockOrderResponseJSON,
+		expectedResult:    &BuyResult{State: "Complete"},
 	},
 	{
 		// failure due to invalid price
-		SuggestedCurrency: "USD",
-		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"5.99","currency":"USD"}`,
-		BuyStatus:         http.StatusBadRequest,
-		BuyResponse: `
-{
-	"error_list": [
-		{
-			"code": "invalid-field",
-			"message": "invalid price specified"
-		}
-	]
-}`,
-		Price:         5.99,
-		ExpectedError: "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified",
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"5.99","currency":"USD"}`,
+		buyStatus:         http.StatusBadRequest,
+		buyErrorCode:      "invalid-field",
+		buyErrorMessage:   "invalid price specified",
+		price:             5.99,
+		expectedError:     "cannot buy snap \"hello-world\": bad request: store reported an error: invalid price specified",
 	},
 	{
 		// failure due to unknown snap ID
-		SuggestedCurrency: "USD",
-		ExpectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
-		BuyStatus:         http.StatusNotFound,
-		BuyResponse: `
-{
-	"error_list": [
-		{
-			"code": "not-found",
-			"message": "Not found"
-		}
-	]
-}`,
-		SnapID:        "invalid snap ID",
-		Price:         0.99,
-		Currency:      "EUR",
-		ExpectedError: "cannot buy snap \"hello-world\": server says not found (snap got removed?)",
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"invalid snap ID","amount":"0.99","currency":"EUR"}`,
+		buyStatus:         http.StatusNotFound,
+		buyErrorCode:      "not-found",
+		buyErrorMessage:   "Not found",
+		snapID:            "invalid snap ID",
+		price:             0.99,
+		currency:          "EUR",
+		expectedError:     "cannot buy snap \"hello-world\": server says not found (snap got removed?)",
 	},
 	{
 		// failure due to "Purchase failed"
-		SuggestedCurrency: "USD",
-		ExpectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
-		BuyStatus:         http.StatusPaymentRequired,
-		BuyResponse: `
-{
-	"error_list": [
-		{
-			"code": "request-failed",
-			"message": "Purchase failed"
-		}
-	]
-}`,
-		ExpectedError: "cannot buy snap \"hello-world\": payment failed: store reported an error: Purchase failed",
+		suggestedCurrency: "USD",
+		expectedInput:     `{"snap_id":"` + helloWorldSnapID + `","amount":"1.23","currency":"USD"}`,
+		buyStatus:         http.StatusPaymentRequired,
+		buyErrorCode:      "request-failed",
+		buyErrorMessage:   "Purchase failed",
+		expectedError:     "cannot buy snap \"hello-world\": payment failed: store reported an error: Purchase failed",
 	},
 }
 
@@ -2714,7 +2694,7 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 			c.Check(r.Method, Equals, "GET")
 			c.Check(r.URL.Path, Equals, "/hello-world")
 			w.Header().Set("Content-Type", "application/hal+json")
-			w.Header().Set("X-Suggested-Currency", test.SuggestedCurrency)
+			w.Header().Set("X-Suggested-Currency", test.suggestedCurrency)
 			w.WriteHeader(http.StatusOK)
 			io.WriteString(w, MockDetailsJSON)
 			searchServerCalled = true
@@ -2749,9 +2729,22 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 				c.Check(r.URL.Path, Equals, ordersPath)
 				jsonReq, err := ioutil.ReadAll(r.Body)
 				c.Assert(err, IsNil)
-				c.Check(string(jsonReq), Equals, test.ExpectedInput)
-				w.WriteHeader(test.BuyStatus)
-				io.WriteString(w, test.BuyResponse)
+				c.Check(string(jsonReq), Equals, test.expectedInput)
+				if test.buyErrorCode == "" {
+					io.WriteString(w, test.buyResponse)
+				} else {
+					w.WriteHeader(test.buyStatus)
+					fmt.Fprintf(w, `
+{
+	"error_list": [
+		{
+			"code": "%s",
+			"message": "%s"
+		}
+	]
+}`, test.buyErrorCode, test.buyErrorMessage)
+				}
+
 				purchaseServerPostCalled = true
 			default:
 				c.Error("Unexpected request method: ", r.Method)
@@ -2788,23 +2781,23 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuy(c *C) {
 			Currency: repo.SuggestedCurrency(),
 			Price:    snap.Prices[repo.SuggestedCurrency()],
 		}
-		if test.SnapID != "" {
-			buyOptions.SnapID = test.SnapID
+		if test.snapID != "" {
+			buyOptions.SnapID = test.snapID
 		}
-		if test.Currency != "" {
-			buyOptions.Currency = test.Currency
+		if test.currency != "" {
+			buyOptions.Currency = test.currency
 		}
-		if test.Price > 0 {
-			buyOptions.Price = test.Price
+		if test.price > 0 {
+			buyOptions.Price = test.price
 		}
 		result, err := repo.Buy(buyOptions, t.user)
 
-		c.Check(result, DeepEquals, test.ExpectedResult)
-		if test.ExpectedError == "" {
+		c.Check(result, DeepEquals, test.expectedResult)
+		if test.expectedError == "" {
 			c.Check(err, IsNil)
 		} else {
 			c.Assert(err, NotNil)
-			c.Check(err.Error(), Equals, test.ExpectedError)
+			c.Check(err.Error(), Equals, test.expectedError)
 		}
 
 		c.Check(searchServerCalled, Equals, true)
