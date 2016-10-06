@@ -110,7 +110,7 @@ func (s *FirstBootTestSuite) TestPopulateFromSeedErrorsOnState(c *C) {
 	defer st.Unlock()
 	st.Set("seeded", true)
 
-	err := boot.PopulateStateFromSeed(st)
+	_, err := boot.PopulateStateFromSeed(st)
 	c.Assert(err, ErrorMatches, "cannot populate state: already seeded")
 }
 
@@ -191,10 +191,14 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
-	err = boot.PopulateStateFromSeed(st)
+	tsAll, err := boot.PopulateStateFromSeed(st)
 	c.Assert(err, IsNil)
+
+	chg := st.NewChange("run-it", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
 	c.Assert(st.Changes(), HasLen, 1)
-	chg := st.Changes()[0]
 
 	st.Unlock()
 	s.overlord.Settle()
@@ -339,10 +343,12 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	err = boot.PopulateStateFromSeed(st)
+	tsAll, err := boot.PopulateStateFromSeed(st)
+	chg := st.NewChange("run-it", "run the populate from seed changes")
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
 	c.Assert(st.Changes(), HasLen, 1)
-	chg := st.Changes()[0]
-	c.Assert(err, IsNil)
 
 	st.Unlock()
 	s.overlord.Settle()
