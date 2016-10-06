@@ -15,9 +15,9 @@ execute: |
 
     wait_boot_ok() {
         echo "Waiting for boot-ok to finish"
-        while ! systemctl status snapd.boot-ok|grep SUCCESS; do
+        while [ $(bootenv snap_mode) != "" ]; do
             # debug output
-            systemctl status snapd.boot-ok || true
+            bootenv snap_mode
             sleep 1
         done
     }
