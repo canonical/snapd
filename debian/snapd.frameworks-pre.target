@@ -2,6 +2,5 @@
 
 [Unit]
 Description=Ready for frameworks
-After=snapd.firstboot.service
 After=cloud-init.service
 
