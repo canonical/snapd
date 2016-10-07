@@ -42,7 +42,7 @@ var _ = Suite(&I2CInterfaceSuite{
 			Interface: "i2c",
 		},
 	},
-	plug: &interface.Plug{
+	plug: &interfaces.Plug{
 		PlugInfo: &snap.PlugInfo{
 			Snap: &snap.Info{SuggestedName: "i2c"},
 			Name: "i2c",
