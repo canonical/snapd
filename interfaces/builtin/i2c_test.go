@@ -34,7 +34,7 @@ type I2CInterfaceSuite struct {
 }
 
 var _ = Suite(&I2CInterfaceSuite{
-	iface: builtin:NewI2CInterface(),
+	iface: builtin.NewI2CInterface(),
 	slot: &interfaces.Slot{
 		SlotInfo: &snap.SlotInfo{
 			Snap: &snap.Info{SuggestedName: "i2c", Type: snap.TypeOS},
