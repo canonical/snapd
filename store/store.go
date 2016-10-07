@@ -25,7 +25,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	jujuerrors "github.com/juju/errors"
 	"github.com/juju/retry"
 	"github.com/juju/utils/clock"
 	"github.com/snapcore/snapd/arch"
@@ -619,6 +618,9 @@ func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *aut
 
 		if !refreshed {
 			err = dataDecodeFunc(resp)
+			if err != nil {
+				return err
+			}
 		}
 		resp.Body.Close()
 	}
@@ -630,12 +632,9 @@ func isFatal(err error) bool {
 		if httpStatusErr.StatusCode == http.StatusInternalServerError || httpStatusErr.StatusCode == http.StatusServiceUnavailable {
 			return false
 		}
-		return true
-	}
-	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+	} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 		return false
-	}
-	if err == io.ErrUnexpectedEOF {
+	} else if err == io.ErrUnexpectedEOF {
 		return false
 	}
 	return true
@@ -653,18 +652,15 @@ func (s *Store) retryRequest(client *http.Client, reqOptions *requestOptions, us
 		Func: func() error {
 			return s.doStoreRequest(client, req, user, dataDecodeFunc)
 		},
-		Attempts:    6,
-		Delay:       time.Millisecond,
-		BackoffFunc: retry.DoubleDelay,
-		MaxDuration: MaxRetryDuration,
-		Clock:       clock.WallClock,
+		Attempts:     6,
+		Delay:        time.Millisecond,
+		BackoffFunc:  retry.DoubleDelay,
+		MaxDuration:  MaxRetryDuration,
+		Clock:        clock.WallClock,
 		IsFatalError: isFatal,
 	})
 
-	if err != nil {
-		return jujuerrors.Cause(err)
-	}
-	return nil
+	return err
 }
 
 // doRequest does an authenticated request to the store handling a potential macaroon refresh required if needed
@@ -1602,40 +1598,49 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 		URL:    s.customersMeURI,
 		Accept: jsonContentType,
 	}
-	resp, err := s.doRequest(s.client, reqOptions, user)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
 
-	switch resp.StatusCode {
-	case http.StatusOK:
-		var customer storeCustomer
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&customer); err != nil {
-			return err
-		}
-		if !customer.LatestTOSAccepted {
-			return ErrTOSNotAccepted
-		}
-		if !customer.HasPaymentMethod {
-			return ErrNoPaymentMethods
+	var errors storeErrors
+
+	err := s.retryRequest(s.client, reqOptions, user, func(resp *http.Response) error {
+		switch resp.StatusCode {
+		case http.StatusOK:
+			var customer storeCustomer
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&customer); err != nil {
+				return err
+			}
+			if !customer.LatestTOSAccepted {
+				return ErrTOSNotAccepted
+			}
+			if !customer.HasPaymentMethod {
+				return ErrNoPaymentMethods
+			}
+			return nil
+		case http.StatusNotFound:
+			// Likely because user has no account registered on the pay server
+			return fmt.Errorf("cannot get customer details: server says no account exists")
+		case http.StatusUnauthorized:
+			return ErrInvalidCredentials
+		default:
+			dec := json.NewDecoder(resp.Body)
+			if err := dec.Decode(&errors); err != nil {
+				return err
+			}
+			// we want to deserialize and collect the error above, but at the same time
+			// retry the request if the http status falls into proper category.
+			return *NewHttpErrorResponse(resp)
 		}
 		return nil
-	case http.StatusNotFound:
-		// Likely because user has no account registered on the pay server
-		return fmt.Errorf("cannot get customer details: server says no account exists")
-	case http.StatusUnauthorized:
-		return ErrInvalidCredentials
-	default:
-		var errors storeErrors
-		dec := json.NewDecoder(resp.Body)
-		if err := dec.Decode(&errors); err != nil {
-			return err
+	})
+
+	if err != nil {
+		if httpStatusErr, ok := err.(httpErrorResponse); ok && len(errors.Errors) == 0 {
+			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", httpStatusErr.StatusCode)
 		}
-		if len(errors.Errors) == 0 {
-			return fmt.Errorf("cannot get customer details: unexpected HTTP code %d", resp.StatusCode)
+
+		if len(errors.Errors) != 0 {
+			return &errors
 		}
-		return &errors
 	}
+	return err
 }
