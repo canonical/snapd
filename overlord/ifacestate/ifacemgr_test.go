@@ -88,6 +88,10 @@ func (s *interfaceManagerSuite) SetUpTest(c *C) {
 }
 
 func (s *interfaceManagerSuite) TearDownTest(c *C) {
+	if s.command != nil {
+		s.command.Restore()
+	}
+
 	if s.privateMgr != nil {
 		s.privateMgr.Stop()
 	}

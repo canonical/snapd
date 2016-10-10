@@ -27,8 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 )
 
-type collectAttrHandler struct {
-}
+type collectAttrHandler struct {}
 
 func (h *collectAttrHandler) Before() error {
 	return nil
@@ -48,6 +47,6 @@ func SetupHooks(hookMgr *hookstate.HookManager) {
 		return &collectAttrHandler{}
 	}
 
-	hookMgr.Register(regexp.MustCompile("^collect-plug-attr-[a-zA-Z0-9_\\-]+$"), generator)
-	hookMgr.Register(regexp.MustCompile("^collect-slot-attr-[a-zA-Z0-9_\\-]+$"), generator)
+	hookMgr.Register(regexp.MustCompile("^prepare-plug-[a-zA-Z0-9_\\-]+$"), generator)
+	hookMgr.Register(regexp.MustCompile("^prepare-slot-[a-zA-Z0-9_\\-]+$"), generator)
 }
