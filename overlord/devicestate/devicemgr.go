@@ -43,7 +43,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/boot"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -185,7 +184,7 @@ func (m *DeviceManager) ensureOperational() error {
 	return nil
 }
 
-var bootPopulateStateFromSeed = boot.PopulateStateFromSeed
+var PopulateStateFromSeed = PopulateStateFromSeedImpl
 
 // ensureSnaps makes sure that the snaps from seed.yaml get installed
 // with the matching assertions
@@ -217,7 +216,7 @@ func (m *DeviceManager) ensureSeedYaml() error {
 		return nil
 	}
 
-	tsAll, err := bootPopulateStateFromSeed(m.state)
+	tsAll, err := PopulateStateFromSeed(m.state)
 	if err != nil {
 		return err
 	}
