@@ -4087,21 +4087,35 @@ func (s *apiSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfac
 	return restorer
 }
 
+var goodUser = map[string]interface{}{
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foo@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"my-model", "other-model"},
+	"name":         "Boring Guy",
+	"username":     "guy",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
+var badUser = map[string]interface{}{
+	// bad user (not valid for this model)
+	"authority-id": "my-brand",
+	"brand-id":     "my-brand",
+	"email":        "foobar@bar.com",
+	"series":       []interface{}{"16", "18"},
+	"models":       []interface{}{"non-of-the-models-i-have"},
+	"name":         "Random Gal",
+	"username":     "gal",
+	"password":     "$6$salt$hash",
+	"since":        time.Now().Format(time.RFC3339),
+	"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+}
+
 func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 	defer restorer()
 
 	// ensure that if we query the details from the assert DB we get
@@ -4123,20 +4137,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 	defer restorer()
 
 	// mock the calls that create the user
@@ -4186,34 +4187,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			// good user
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-		{
-			// bad user (not valid for this model)
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foobar@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"non-of-the-models-i-have"},
-			"name":         "Random Gal",
-			"username":     "gal",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser, badUser})
 	defer restorer()
 
 	// mock the calls that create the user
@@ -4265,21 +4239,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *check
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			// good user
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 	defer restorer()
 
 	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
@@ -4304,21 +4264,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *chec
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			// good user
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 	defer restorer()
 
 	st := s.d.overlord.State()
@@ -4349,21 +4295,7 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restorer := s.makeSystemUsers(c, []map[string]interface{}{
-		{
-			// good user
-			"authority-id": "my-brand",
-			"brand-id":     "my-brand",
-			"email":        "foo@bar.com",
-			"series":       []interface{}{"16", "18"},
-			"models":       []interface{}{"my-model", "other-model"},
-			"name":         "Boring Guy",
-			"username":     "guy",
-			"password":     "$6$salt$hash",
-			"since":        time.Now().Format(time.RFC3339),
-			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
-		},
-	})
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{goodUser})
 	defer restorer()
 
 	st := s.d.overlord.State()
