@@ -57,6 +57,17 @@ func autoImportCandidates() ([]string, error) {
 		if len(l) == 0 {
 			continue
 		}
+
+		mountSrc := l[9]
+		// skip everything that is not a device (cgroups, debugfs etc)
+		if !strings.HasPrefix(mountSrc, "/dev/") {
+			continue
+		}
+		// skip all loop devices (snaps)
+		if strings.HasPrefix(mountSrc, "/dev/loop") {
+			continue
+		}
+
 		mountPoint := l[4]
 		cand := filepath.Join(mountPoint, autoImportsName)
 		if osutil.FileExists(cand) {
