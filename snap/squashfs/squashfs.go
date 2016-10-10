@@ -100,7 +100,7 @@ func (s *Snap) Unpack(src, dstDir string) error {
 
 // Size returns the size of a squashfs snap.
 func (s *Snap) Size() (size int64, err error) {
-	st, err := os.Stat (s.path)
+	st, err := os.Stat(s.path)
 	if err != nil {
 		return 0, err
 	}
