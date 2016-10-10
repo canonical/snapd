@@ -30,8 +30,8 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -56,7 +56,7 @@ type interfaceManagerSuite struct {
 	secBackend      *interfaces.TestSecurityBackend
 	restoreBackends func()
 	command         *testutil.MockCmd
-	storeSigning *assertstest.StoreStack
+	storeSigning    *assertstest.StoreStack
 }
 
 var _ = Suite(&interfaceManagerSuite{})

@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 // InterfaceManager is responsible for the maintenance of interfaces in
@@ -74,11 +73,21 @@ func Connect(s *state.State, plugSnap, plugName, slotSnap, slotName string) (*st
 	// TODO: Store the intent-to-connect in the state so that we automatically
 	// try to reconnect on reboot (reconnection can fail or can connect with
 	// different parameters so we cannot store the actual connection details).
+	plugHookSetup := &hookstate.HookSetup{
+		Snap:     plugSnap,
+		Hook:     "collect-plug-attr-" + plugName,
+		Optional: true,
+	}
 	summary := fmt.Sprintf(i18n.G("Collect attributes of plug %s:%s"), plugSnap, plugName)
-	collectPlugAttr := hookstate.HookTask(s, summary, plugSnap, snap.Revision{N: 0}, "collect-plug-attr-"+plugName)
+	collectPlugAttr := hookstate.HookTask(s, summary, plugHookSetup, nil)
 
+	slotHookSetup := &hookstate.HookSetup{
+		Snap:     slotSnap,
+		Hook:     "collect-slot-attr-" + slotName,
+		Optional: true,
+	}
 	summary = fmt.Sprintf(i18n.G("Collect attributes of slot %s:%s"), slotSnap, slotName)
-	collectSlotAttr := hookstate.HookTask(s, summary, slotSnap, snap.Revision{N: 0}, "collect-slot-attr-"+slotName)
+	collectSlotAttr := hookstate.HookTask(s, summary, slotHookSetup, nil)
 
 	summary = fmt.Sprintf(i18n.G("Connect %s:%s to %s:%s"),
 		plugSnap, plugName, slotSnap, slotName)
