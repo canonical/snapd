@@ -2957,8 +2957,8 @@ func (t *remoteRepoTestSuite) TestUbuntuStoreBuyFailArgumentChecking(c *C) {
 }
 
 var readyToBuyTests = []struct {
-	Input func(w http.ResponseWriter)
-	Test  func(c *C, err error)
+	Input      func(w http.ResponseWriter)
+	Test       func(c *C, err error)
 	NumOfCalls int
 }{
 	{

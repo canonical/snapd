@@ -1630,7 +1630,6 @@ func (s *Store) ReadyToBuy(user *auth.UserState) error {
 			// retry the request if the http status falls into proper category.
 			return *NewHttpErrorResponse(resp)
 		}
-		return nil
 	})
 
 	if err != nil {
