@@ -2879,6 +2879,7 @@ func (s *apiSuite) TestConnectPlugFailureNoSuchPlug(c *check.C) {
 	s.mockIface(c, &interfaces.TestInterface{InterfaceName: "test"})
 	// there is no consumer, no plug defined
 	s.mockSnap(c, producerYaml)
+	s.mockSnap(c, consumerYaml)
 
 	d.overlord.Loop()
 	defer d.overlord.Stop()
