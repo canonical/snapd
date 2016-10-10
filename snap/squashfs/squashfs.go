@@ -98,6 +98,16 @@ func (s *Snap) Unpack(src, dstDir string) error {
 	return runCommand("unsquashfs", "-f", "-i", "-d", dstDir, s.path, src)
 }
 
+// Size returns the size of a squashfs snap.
+func (s *Snap) Size() (size int64, err error) {
+	st, err := os.Stat (s.path)
+	if err != nil {
+		return 0, err
+	}
+
+	return st.Size(), nil
+}
+
 // ReadFile returns the content of a single file inside a squashfs snap.
 func (s *Snap) ReadFile(filePath string) (content []byte, err error) {
 	tmpdir, err := ioutil.TempDir("", "read-file")

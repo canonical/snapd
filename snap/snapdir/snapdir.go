@@ -41,6 +41,17 @@ func New(path string) *SnapDir {
 	return &SnapDir{path: path}
 }
 
+func (s *SnapDir) Size() (size int64, err error) {
+	totalSize := int64(0)
+	f := func(_ string, info os.FileInfo, err error) error {
+		totalSize += info.Size()
+		return err
+	}
+	filepath.Walk(s.path, f)
+
+	return totalSize, nil
+}
+
 func (s *SnapDir) Install(targetPath, mountDir string) error {
 	return os.Symlink(s.path, targetPath)
 }
