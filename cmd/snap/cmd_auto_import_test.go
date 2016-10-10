@@ -29,6 +29,7 @@ import (
 
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/release"
 )
 
 var mockMountInfoFmt = `
@@ -43,6 +44,9 @@ func makeMockMountInfo(c *C, content string) string {
 }
 
 func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	fakeAssertData := []byte("my-assertion")
 
 	n := 0
@@ -92,4 +96,27 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 	// in the output
 	c.Check(s.Stderr(), Matches, fmt.Sprintf("(?ms).*imported %s\n", fakeAssertsFn))
 	c.Check(n, Equals, total)
+}
+
+func (s *SnapSuite) TestAutoImportAssertsHappyNotOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	fakeAssertData := []byte("my-assertion")
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		panic("not auto-import is run on classic")
+	})
+
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
+	snap.MockMountInfoPath(makeMockMountInfo(c, content))
+
+	rest, err := snap.Parser().ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "auto-import is disabled on classic\n")
 }
