@@ -96,6 +96,13 @@ prepare: |
     # this indicates that the server got reused, nothing to setup
     [ "$REUSE_PROJECT" != 1 ] || exit 0
 
+    # check that we are not updating
+    . "$TESTSLIB/boot.sh"
+    if [ $(bootenv snap_mode) = "try" ]; then
+        echo "Ongoing reboot upgrade process, please try again when finished"
+        exit 1
+    fi
+
     # Disable burst limit so resetting the state quickly doesn't create problems.
     mkdir -p /etc/systemd/system/snapd.service.d
     cat <<EOF > /etc/systemd/system/snapd.service.d/local.conf
