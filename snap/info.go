@@ -68,6 +68,11 @@ func MountDir(name string, revision Revision) string {
 	return filepath.Join(dirs.SnapMountDir, name, revision.String())
 }
 
+// MountFile returns the path to the snap file with the given name and revision.
+func MountFile(name string, revision Revision) string {
+	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", name, revision))
+}
+
 // SecurityTag returns the snap-specific security tag.
 func SecurityTag(snapName string) string {
 	return fmt.Sprintf("snap.%s", snapName)
@@ -182,7 +187,7 @@ func (s *Info) MountDir() string {
 
 // MountFile returns the path where the snap file that is mounted is installed.
 func (s *Info) MountFile() string {
-	return filepath.Join(dirs.SnapBlobDir, fmt.Sprintf("%s_%s.snap", s.Name(), s.Revision))
+	return MountFile(s.Name(), s.Revision)
 }
 
 // HooksDir returns the directory containing the snap's hooks.
@@ -454,6 +459,12 @@ func ReadInfo(name string, si *SideInfo) (*Info, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	st, err := os.Stat (MountFile(name, si.Revision))
+	if err != nil {
+		return nil, err
+	}
+	info.Size = st.Size()
 
 	err = addImplicitHooks(info)
 	if err != nil {
