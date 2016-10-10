@@ -4120,6 +4120,9 @@ func (s *apiSuite) TestGetUserDetailsFromAssertionHappy(c *check.C) {
 // nice to transform them into a table that is just the deltas, and
 // run on a loop.
 func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			"authority-id": "my-brand",
@@ -4180,6 +4183,9 @@ func (s *apiSuite) TestPostCreateUserFromAssertion(c *check.C) {
 }
 
 func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			// good user
@@ -4255,7 +4261,49 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnown(c *check.C) {
 	c.Check(users, check.HasLen, 1)
 }
 
+func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *check.C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	restorer := s.makeSystemUsers(c, []map[string]interface{}{
+		{
+			// good user
+			"authority-id": "my-brand",
+			"brand-id":     "my-brand",
+			"email":        "foo@bar.com",
+			"series":       []interface{}{"16", "18"},
+			"models":       []interface{}{"my-model", "other-model"},
+			"name":         "Boring Guy",
+			"username":     "guy",
+			"password":     "$6$salt$hash",
+			"since":        time.Now().Format(time.RFC3339),
+			"until":        time.Now().Add(24 * 30 * time.Hour).Format(time.RFC3339),
+		},
+	})
+	defer restorer()
+
+	postCreateUserUcrednetGetUID = func(string) (uint32, error) {
+		return 0, nil
+	}
+	defer func() {
+		postCreateUserUcrednetGetUID = ucrednetGetUID
+	}()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"known":true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := postCreateUser(createUserCmd, req, nil).(*resp)
+
+	c.Check(rsp.Type, check.Equals, ResponseTypeError)
+	c.Check(rsp.Result.(*errorResult).Message, check.Matches, `cannot create user: device is a classic system \(try --force-managed\)`)
+}
+
 func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			// good user
@@ -4298,6 +4346,9 @@ func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *chec
 }
 
 func (s *apiSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	restorer := s.makeSystemUsers(c, []map[string]interface{}{
 		{
 			// good user

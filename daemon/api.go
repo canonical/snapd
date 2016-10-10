@@ -1901,6 +1901,7 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	if err != nil {
 		return InternalError("cannot get user count: %s", err)
 	}
+
 	if len(users) > 0 && !createData.ForceManaged {
 		return BadRequest("cannot create user: device already managed")
 	}
@@ -1908,6 +1909,10 @@ func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response 
 	// special case: the user requested the creation of all known
 	// system-users
 	if createData.Email == "" && createData.Known {
+		if release.OnClassic && !createData.ForceManaged {
+			return BadRequest("cannot create user: device is a classic system (try --force-managed)")
+		}
+
 		return createAllKnownSystemUsers(c.d.overlord.State(), &createData)
 	}
 	if createData.Email == "" {
