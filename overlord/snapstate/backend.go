@@ -39,7 +39,7 @@ type StoreService interface {
 
 	SuggestedCurrency() string
 	Buy(options *store.BuyOptions, user *auth.UserState) (*store.BuyResult, error)
-	PaymentMethods(*auth.UserState) (*store.PaymentInformation, error)
+	ReadyToBuy(*auth.UserState) error
 }
 
 type managerBackend interface {
@@ -53,12 +53,15 @@ type managerBackend interface {
 	// the undoers for install
 	UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	UndoCopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
+	// cleanup
+	ClearTrashedData(oldSnap *snap.Info)
 
 	// remove releated
 	UnlinkSnap(info *snap.Info, meter progress.Meter) error
 	RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, meter progress.Meter) error
 	RemoveSnapData(info *snap.Info) error
 	RemoveSnapCommonData(info *snap.Info) error
+	DiscardSnapNamespace(snapName string) error
 
 	// testing helpers
 	CurrentInfo(cur *snap.Info)

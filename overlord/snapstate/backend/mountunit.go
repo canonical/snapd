@@ -59,14 +59,21 @@ func removeMountUnit(baseDir string, meter progress.Meter) error {
 	sysd := systemd.New(dirs.GlobalRootDir, meter)
 	unit := systemd.MountUnitPath(dirs.StripRootDir(baseDir), "mount")
 	if osutil.FileExists(unit) {
-		// use umount --lazy to ensure that even busy mount points
-		// can be unmounted
-		if output, err := exec.Command("umount", "--lazy", baseDir).CombinedOutput(); err != nil {
-			return osutil.OutputErr(output, err)
-		}
-
-		if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+		// use umount -l (lazy) to ensure that even busy mount points
+		// can be unmounted.
+		// note that the long option --lazy is not supported on trusty.
+		isMounted, err := osutil.IsMounted(baseDir)
+		if err != nil {
 			return err
+		}
+		if isMounted {
+			if output, err := exec.Command("umount", "-l", baseDir).CombinedOutput(); err != nil {
+				return osutil.OutputErr(output, err)
+			}
+
+			if err := sysd.Stop(filepath.Base(unit), time.Duration(1*time.Second)); err != nil {
+				return err
+			}
 		}
 		if err := sysd.Disable(filepath.Base(unit)); err != nil {
 			return err

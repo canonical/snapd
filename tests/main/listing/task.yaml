@@ -1,15 +1,21 @@
 summary: Check snap listings
 
-systems: [-ubuntu-core-16-64]
-
 prepare: |
-    snap install test-snapd-tools
+    . $TESTSLIB/snaps.sh
+    install_local test-snapd-tools
 
 execute: |
+    . "$TESTSLIB/names.sh"
+
     echo "List prints core snap version"
-    expected="^ubuntu-core +.*? +((\d{2}\.\d{2}\.\d+)|\w{12}) + \d+ +canonical +- *"
+    if [[ "$SPREAD_BACKEND" = "linode" ]] && [[ "$SPREAD_SYSTEM" = "ubuntu-core-16-64" ]]; then
+        echo "With customized images the ubuntu-core snap is sideloaded"
+        expected="^${core_name} +.*? +((\d{2}\.\d{2}\.\d+)|\w{12}) + x\d+ +- *"
+    else
+        expected="^${core_name} +.*? +((\d{2}\.\d{2}\.\d+)|\w{12}) + \d+ +canonical +- *"
+    fi
     snap list | grep -Pq "$expected"
 
     echo "List prints installed snap version"
-    expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +[0-9]+ +\\S+ +- *"
+    expected="^test-snapd-tools +(\\d+)(\\.\\d+)* +x[0-9]+ +-"
     snap list | grep -Pq "$expected"

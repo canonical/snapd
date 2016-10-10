@@ -19,20 +19,8 @@ execute: |
     #[ -f /root/snap/data-writer/common/from-app ]
 
     echo "Waiting for data writer service to finish..."
-    unit="snap.data-writer.service.service"
-    while true; do
-        code=$(systemctl show -p ExecMainCode $unit | sed 's/.*=\([0-9]\+\)/\1/')
-        # The main code will be 0 until the service is no longer running
-        if [ $code -ne 0 ]; then
-            systemctl status $unit || true
-            status=$(systemctl show -p ExecMainStatus $unit | sed 's/.*=\([0-9]\+\)/\1/')
-            if [ $status -ne 0 ]; then
-                echo "Service exited $status"
-                exit 1
-            fi
-            break
-        fi
-        sleep 1
+    while ! journalctl --no-pager -u snap.data-writer.service.service | grep -q "Writing to SNAP_USER_DATA"; do
+       sleep 1
     done
 
     echo "Services can write to writable areas"

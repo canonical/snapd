@@ -119,6 +119,8 @@ func (mods *modelSuite) TestDecodeInvalid(c *C) {
 		{"model: baz-3000\n", "", `"model" header is mandatory`},
 		{"model: baz-3000\n", "model: \n", `"model" header should not be empty`},
 		{"model: baz-3000\n", "model: baz/3000\n", `"model" primary key header cannot contain '/'`},
+		// lift this restriction at a later point
+		{"model: baz-3000\n", "model: BAZ-3000\n", `"model" header cannot contain uppercase letters`},
 		{"architecture: amd64\n", "", `"architecture" header is mandatory`},
 		{"architecture: amd64\n", "architecture: \n", `"architecture" header should not be empty`},
 		{"gadget: brand-gadget\n", "", `"gadget" header is mandatory`},
@@ -269,9 +271,8 @@ func (ss *serialSuite) TestDecodeKeyIDMismatch(c *C) {
 func (ss *serialSuite) TestSerialRequestHappy(c *C) {
 	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
 		map[string]interface{}{
-			"brand-id": "brand-id1",
-			"model":    "baz-3000",
-			// TODO add key hash header
+			"brand-id":   "brand-id1",
+			"model":      "baz-3000",
 			"device-key": ss.encodedDevKey,
 			"request-id": "REQID",
 		}, []byte("HW-DETAILS"), ss.deviceKey)
@@ -291,6 +292,30 @@ func (ss *serialSuite) TestSerialRequestHappy(c *C) {
 	c.Check(sreq2.BrandID(), Equals, "brand-id1")
 	c.Check(sreq2.Model(), Equals, "baz-3000")
 	c.Check(sreq2.RequestID(), Equals, "REQID")
+
+	c.Check(sreq2.Serial(), Equals, "")
+}
+
+func (ss *serialSuite) TestSerialRequestHappyOptionalSerial(c *C) {
+	sreq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType,
+		map[string]interface{}{
+			"brand-id":   "brand-id1",
+			"model":      "baz-3000",
+			"serial":     "pserial",
+			"device-key": ss.encodedDevKey,
+			"request-id": "REQID",
+		}, []byte("HW-DETAILS"), ss.deviceKey)
+	c.Assert(err, IsNil)
+
+	// roundtrip
+	a, err := asserts.Decode(asserts.Encode(sreq))
+	c.Assert(err, IsNil)
+
+	sreq2, ok := a.(*asserts.SerialRequest)
+	c.Assert(ok, Equals, true)
+
+	c.Check(sreq2.Model(), Equals, "baz-3000")
+	c.Check(sreq2.Serial(), Equals, "pserial")
 }
 
 func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
@@ -299,6 +324,7 @@ func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
 		"model: baz-3000\n" +
 		"device-key:\n    DEVICEKEY\n" +
 		"request-id: REQID\n" +
+		"serial: S\n" +
 		"body-length: 2\n" +
 		"sign-key-sha3-384: " + ss.deviceKey.PublicKey().ID() + "\n\n" +
 		"HW" +
@@ -315,6 +341,7 @@ func (ss *serialSuite) TestSerialRequestDecodeInvalid(c *C) {
 		{"device-key:\n    DEVICEKEY\n", "", `"device-key" header is mandatory`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: \n", `"device-key" header should not be empty`},
 		{"device-key:\n    DEVICEKEY\n", "device-key: $$$\n", `cannot decode public key: .*`},
+		{"serial: S\n", "serial:\n  - xyz\n", `"serial" header must be a string`},
 	}
 
 	for _, test := range invalidTests {

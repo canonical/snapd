@@ -26,11 +26,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
@@ -39,11 +41,18 @@ import (
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
 
+func openPty() (*os.File, error) {
+	return os.OpenFile("/dev/ptmx", os.O_RDWR, 0)
+}
+
 type BaseSnapSuite struct {
 	testutil.BaseTest
 	stdin  *bytes.Buffer
 	stdout *bytes.Buffer
 	stderr *bytes.Buffer
+	term   *os.File
+
+	AuthFile string
 }
 
 func (s *BaseSnapSuite) SetUpTest(c *C) {
@@ -51,15 +60,30 @@ func (s *BaseSnapSuite) SetUpTest(c *C) {
 	s.stdin = bytes.NewBuffer(nil)
 	s.stdout = bytes.NewBuffer(nil)
 	s.stderr = bytes.NewBuffer(nil)
+
+	pty, err := openPty()
+	c.Assert(err, IsNil)
+	s.term = pty
+
 	snap.Stdin = s.stdin
 	snap.Stdout = s.stdout
 	snap.Stderr = s.stderr
+	snap.Terminal = int(s.term.Fd())
+	s.AuthFile = filepath.Join(c.MkDir(), "json")
+	os.Setenv(TestAuthFileEnvKey, s.AuthFile)
 }
 
 func (s *BaseSnapSuite) TearDownTest(c *C) {
 	snap.Stdin = os.Stdin
 	snap.Stdout = os.Stdout
 	snap.Stderr = os.Stderr
+	snap.Terminal = 0
+
+	s.term.Close()
+
+	c.Assert(s.AuthFile == "", Equals, false)
+	err := os.Unsetenv(TestAuthFileEnvKey)
+	c.Assert(err, IsNil)
 	s.BaseTest.TearDownTest(c)
 }
 
@@ -76,6 +100,17 @@ func (s *BaseSnapSuite) RedirectClientToTestServer(handler func(http.ResponseWri
 	s.BaseTest.AddCleanup(func() { server.Close() })
 	snap.ClientConfig.BaseURL = server.URL
 	s.BaseTest.AddCleanup(func() { snap.ClientConfig.BaseURL = "" })
+}
+
+func (s *BaseSnapSuite) Login(c *C) {
+	err := osutil.AtomicWriteFile(s.AuthFile, []byte(TestAuthFileContents), 0600, 0)
+	c.Assert(err, IsNil)
+}
+
+func (s *BaseSnapSuite) Logout(c *C) {
+	if osutil.FileExists(s.AuthFile) {
+		c.Assert(os.Remove(s.AuthFile), IsNil)
+	}
 }
 
 type SnapSuite struct {
@@ -111,6 +146,9 @@ func mockVersion(v string) (restore func()) {
 	cmd.Version = v
 	return func() { cmd.Version = old }
 }
+
+const TestAuthFileEnvKey = "SNAPPY_STORE_AUTH_DATA_FILENAME"
+const TestAuthFileContents = `{"id":123,"email":"hello@mail.com","macaroon":"MDAxM2xvY2F0aW9uIHNuYXBkCjAwMTJpZGVudGlmaWVyIDQzCjAwMmZzaWduYXR1cmUg5RfMua72uYop4t3cPOBmGUuaoRmoDH1HV62nMJq7eqAK"}`
 
 func (s *SnapSuite) TestErrorResult(c *C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {

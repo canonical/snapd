@@ -50,7 +50,6 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 	pb := progress.NewTextProgress()
 	defer func() {
 		pb.Finished()
-		fmt.Fprint(Stdout, "\n")
 	}()
 
 	tMax := time.Time{}
@@ -92,7 +91,7 @@ func wait(client *client.Client, id string) (*client.Change, error) {
 			case t.ID == lastID:
 				pb.Set(float64(t.Progress.Done))
 			default:
-				pb.Start(t.Summary, float64(t.Progress.Total))
+				pb.Start(t.Progress.Label, float64(t.Progress.Total))
 				lastID = t.ID
 			}
 			break
@@ -159,16 +158,17 @@ and the snap can easily be enabled again.
 `)
 
 type cmdRemove struct {
-	Revision   string `long:"revision" description:"Remove only the given revision"`
+	Revision   string `long:"revision"`
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdRemove) Execute([]string) error {
+func (x *cmdRemove) removeOne(opts *client.SnapOptions) error {
+	name := x.Positional.Snaps[0]
+
 	cli := Client()
-	name := x.Positional.Snap
-	changeID, err := cli.Remove(name, &client.SnapOptions{Revision: x.Revision})
+	changeID, err := cli.Remove(name, opts)
 	if err != nil {
 		return err
 	}
@@ -181,14 +181,74 @@ func (x *cmdRemove) Execute([]string) error {
 	return nil
 }
 
+func (x *cmdRemove) removeMany(opts *client.SnapOptions) error {
+	names := x.Positional.Snaps
+
+	cli := Client()
+	changeID, err := cli.RemoveMany(names, opts)
+	if err != nil {
+		return err
+	}
+
+	chg, err := wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	var removed []string
+	if err := chg.Get("snap-names", &removed); err != nil && err != client.ErrNoData {
+		return err
+	}
+
+	for _, name := range removed {
+		fmt.Fprintf(Stdout, i18n.G("%s removed\n"), name)
+	}
+
+	return nil
+
+}
+
+func (x *cmdRemove) Execute([]string) error {
+	opts := &client.SnapOptions{Revision: x.Revision}
+	if len(x.Positional.Snaps) == 1 {
+		return x.removeOne(opts)
+	}
+
+	if x.Revision != "" {
+		return errors.New(i18n.G("a single snap name is needed to specify the revision"))
+	}
+	return x.removeMany(nil)
+}
+
 type channelMixin struct {
-	Channel string `long:"channel" description:"Use this channel instead of stable"`
+	Channel string `long:"channel"`
 
 	// shortcuts
-	EdgeChannel      bool `long:"edge" description:"Install from the edge channel"`
-	BetaChannel      bool `long:"beta" description:"Install from the beta channel"`
-	CandidateChannel bool `long:"candidate" description:"Install from the candidate channel"`
-	StableChannel    bool `long:"stable" description:"Install from the stable channel"`
+	EdgeChannel      bool `long:"edge"`
+	BetaChannel      bool `long:"beta"`
+	CandidateChannel bool `long:"candidate"`
+	StableChannel    bool `long:"stable" `
+}
+
+type mixinDescs map[string]string
+
+func (mxd mixinDescs) also(m map[string]string) mixinDescs {
+	n := make(map[string]string, len(mxd)+len(m))
+	for k, v := range mxd {
+		n[k] = v
+	}
+	for k, v := range m {
+		n[k] = v
+	}
+	return n
+}
+
+var channelDescs = mixinDescs{
+	"channel":   i18n.G("Use this channel instead of stable"),
+	"beta":      i18n.G("Install from the beta channel"),
+	"edge":      i18n.G("Install from the edge channel"),
+	"candidate": i18n.G("Install from the candidate channel"),
+	"stable":    i18n.G("Install from the stable channel"),
 }
 
 func (mx *channelMixin) setChannelFromCommandline() error {
@@ -251,8 +311,13 @@ func (mx *channelMixin) asksForChannel() bool {
 }
 
 type modeMixin struct {
-	DevMode  bool `long:"devmode" description:"Request non-enforcing security"`
-	JailMode bool `long:"jailmode" description:"Override a snap's request for non-enforcing security"`
+	DevMode  bool `long:"devmode"`
+	JailMode bool `long:"jailmode"`
+}
+
+var modeDescs = mixinDescs{
+	"devmode":  i18n.G("Request non-enforcing security"),
+	"jailmode": i18n.G("Override a snap's request for non-enforcing security"),
 }
 
 var errModeConflict = errors.New(i18n.G("cannot use devmode and jailmode flags together"))
@@ -271,30 +336,24 @@ func (mx modeMixin) asksForMode() bool {
 type cmdInstall struct {
 	channelMixin
 	modeMixin
-	Revision string `long:"revision" description:"Install the given revision of a snap, to which you must have developer access"`
+	Revision string `long:"revision"`
 
-	Dangerous bool `long:"dangerous" description:"Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"`
+	Dangerous bool `long:"dangerous"`
+	// alias for --dangerous, deprecated but we need to support it
+	// because we released 2.14.2 with --force-dangerous
+	ForceDangerous bool `long:"force-dangerous" hidden:"yes"`
 
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>"`
+		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes" required:"yes"`
 }
 
-func (x *cmdInstall) Execute([]string) error {
-	if err := x.setChannelFromCommandline(); err != nil {
-		return err
-	}
-	if err := x.validateMode(); err != nil {
-		return err
-	}
-
-	var changeID string
+func (x *cmdInstall) installOne(name string, opts *client.SnapOptions) error {
 	var err error
 	var installFromFile bool
+	var changeID string
 
 	cli := Client()
-	name := x.Positional.Snap
-	opts := &client.SnapOptions{Channel: x.Channel, DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision, Dangerous: x.Dangerous}
 	if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
 		installFromFile = true
 		changeID, err = cli.InstallPath(name, opts)
@@ -323,19 +382,80 @@ func (x *cmdInstall) Execute([]string) error {
 	return showDone([]string{name}, "install")
 }
 
+func (x *cmdInstall) installMany(names []string, opts *client.SnapOptions) error {
+	// sanity check
+	for _, name := range names {
+		if strings.Contains(name, "/") || strings.HasSuffix(name, ".snap") || strings.Contains(name, ".snap.") {
+			return fmt.Errorf("only one snap file can be installed at a time")
+		}
+	}
+
+	cli := Client()
+	changeID, err := cli.InstallMany(names, opts)
+	if err != nil {
+		return err
+	}
+
+	chg, err := wait(cli, changeID)
+	if err != nil {
+		return err
+	}
+
+	var installed []string
+	if err := chg.Get("snap-names", &installed); err != nil && err != client.ErrNoData {
+		return err
+	}
+
+	if len(installed) > 0 {
+		return showDone(installed, "install")
+	}
+
+	return nil
+}
+
+func (x *cmdInstall) Execute([]string) error {
+	if err := x.setChannelFromCommandline(); err != nil {
+		return err
+	}
+	if err := x.validateMode(); err != nil {
+		return err
+	}
+
+	dangerous := x.Dangerous || x.ForceDangerous
+	opts := &client.SnapOptions{
+		Channel:   x.Channel,
+		DevMode:   x.DevMode,
+		JailMode:  x.JailMode,
+		Revision:  x.Revision,
+		Dangerous: dangerous,
+	}
+
+	if len(x.Positional.Snaps) == 1 {
+		return x.installOne(x.Positional.Snaps[0], opts)
+	}
+
+	if x.asksForMode() || x.asksForChannel() {
+		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
+	}
+
+	return x.installMany(x.Positional.Snaps, nil)
+}
+
 type cmdRefresh struct {
 	channelMixin
 	modeMixin
 
-	List       bool `long:"list" description:"show available snaps for refresh"`
-	Positional struct {
+	Revision         string `long:"revision"`
+	List             bool   `long:"list"`
+	IgnoreValidation bool   `long:"ignore-validation"`
+	Positional       struct {
 		Snaps []string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
 }
 
-func refreshMany(snaps []string) error {
+func refreshMany(snaps []string, opts *client.SnapOptions) error {
 	cli := Client()
-	changeID, err := cli.RefreshMany(snaps, nil)
+	changeID, err := cli.RefreshMany(snaps, opts)
 	if err != nil {
 		return err
 	}
@@ -419,18 +539,25 @@ func (x *cmdRefresh) Execute([]string) error {
 		return listRefresh()
 	}
 	if len(x.Positional.Snaps) == 1 {
-		return refreshOne(x.Positional.Snaps[0], &client.SnapOptions{
-			Channel:  x.Channel,
-			DevMode:  x.DevMode,
-			JailMode: x.JailMode,
-		})
+		opts := &client.SnapOptions{
+			Channel:          x.Channel,
+			DevMode:          x.DevMode,
+			JailMode:         x.JailMode,
+			IgnoreValidation: x.IgnoreValidation,
+			Revision:         x.Revision,
+		}
+		return refreshOne(x.Positional.Snaps[0], opts)
 	}
 
 	if x.asksForMode() || x.asksForChannel() {
 		return errors.New(i18n.G("a single snap name is needed to specify mode or channel flags"))
 	}
 
-	return refreshMany(x.Positional.Snaps)
+	if x.IgnoreValidation {
+		return errors.New(i18n.G("a single snap name must be specified when ignoring validation"))
+	}
+
+	return refreshMany(x.Positional.Snaps, nil)
 }
 
 type cmdTry struct {
@@ -540,6 +667,7 @@ func (x *cmdDisable) Execute([]string) error {
 
 type cmdRevert struct {
 	modeMixin
+	Revision   string `long:"revision"`
 	Positional struct {
 		Snap string `positional-arg-name:"<snap>"`
 	} `positional-args:"yes"`
@@ -566,7 +694,7 @@ func (x *cmdRevert) Execute(args []string) error {
 
 	cli := Client()
 	name := x.Positional.Snap
-	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode}
+	opts := &client.SnapOptions{DevMode: x.DevMode, JailMode: x.JailMode, Revision: x.Revision}
 	changeID, err := cli.Revert(name, opts)
 	if err != nil {
 		return err
@@ -591,11 +719,24 @@ func (x *cmdRevert) Execute(args []string) error {
 }
 
 func init() {
-	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} })
-	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} })
-	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} })
-	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} })
-	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} })
-	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} })
-	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} })
+	addCommand("remove", shortRemoveHelp, longRemoveHelp, func() flags.Commander { return &cmdRemove{} },
+		map[string]string{"revision": i18n.G("Remove only the given revision")}, nil)
+	addCommand("install", shortInstallHelp, longInstallHelp, func() flags.Commander { return &cmdInstall{} },
+		channelDescs.also(modeDescs).also(map[string]string{
+			"revision":        i18n.G("Install the given revision of a snap, to which you must have developer access"),
+			"dangerous":       i18n.G("Install the given snap file even if there are no pre-acknowledged signatures for it, meaning it was not verified and could be dangerous (--devmode implies this)"),
+			"force-dangerous": i18n.G("Alias for --dangerous (DEPRECATED)"),
+		}), nil)
+	addCommand("refresh", shortRefreshHelp, longRefreshHelp, func() flags.Commander { return &cmdRefresh{} },
+		channelDescs.also(modeDescs).also(map[string]string{
+			"revision":          i18n.G("Refresh to the given revision"),
+			"list":              i18n.G("Show available snaps for refresh"),
+			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
+		}), nil)
+	addCommand("try", shortTryHelp, longTryHelp, func() flags.Commander { return &cmdTry{} }, modeDescs, nil)
+	addCommand("enable", shortEnableHelp, longEnableHelp, func() flags.Commander { return &cmdEnable{} }, nil, nil)
+	addCommand("disable", shortDisableHelp, longDisableHelp, func() flags.Commander { return &cmdDisable{} }, nil, nil)
+	addCommand("revert", shortRevertHelp, longRevertHelp, func() flags.Commander { return &cmdRevert{} }, modeDescs.also(map[string]string{
+		"revision": "Revert to the given revision",
+	}), nil)
 }

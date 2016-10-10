@@ -69,6 +69,13 @@ network packet,
 
 /run/udev/data/* r,
 
+# Allow access to configuration files generated on the fly
+# from netplan
+/run/NetworkManager/{,**} r,
+
+# Allow writing dhcp files to a well-known system location
+/run/NetworkManager/dhcp/{,**} w,
+
 # Needed by the ifupdown plugin to check which interfaces can
 # be managed an which not.
 /etc/network/interfaces r,
@@ -77,6 +84,13 @@ network packet,
 
 # Needed to use resolvconf from core
 /sbin/resolvconf ixr,
+/run/resolvconf/{,**} r,
+/run/resolvconf/** w,
+/etc/resolvconf/{,**} r,
+/lib/resolvconf/* ix,
+# Required by resolvconf
+/bin/run-parts ixr,
+/etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
 
@@ -379,12 +393,7 @@ func (iface *NetworkManagerInterface) Name() string {
 }
 
 func (iface *NetworkManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -405,11 +414,8 @@ func (iface *NetworkManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return networkManagerConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -418,22 +424,14 @@ func (iface *NetworkManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot
 		return networkManagerPermanentSlotAppArmor, nil
 	case interfaces.SecuritySecComp:
 		return networkManagerPermanentSlotSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
 	case interfaces.SecurityDBus:
 		return networkManagerPermanentSlotDBus, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *NetworkManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *NetworkManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
@@ -444,6 +442,11 @@ func (iface *NetworkManagerInterface) SanitizeSlot(slot *interfaces.Slot) error 
 	return nil
 }
 
-func (iface *NetworkManagerInterface) AutoConnect() bool {
+func (iface *NetworkManagerInterface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *NetworkManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

@@ -355,12 +355,7 @@ func (iface *UDisks2Interface) Name() string {
 }
 
 func (iface *UDisks2Interface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -374,11 +369,8 @@ func (iface *UDisks2Interface) ConnectedPlugSnippet(plug *interfaces.Plug, slot 
 		return []byte(udisks2ConnectedPlugDBus), nil
 	case interfaces.SecuritySecComp:
 		return []byte(udisks2ConnectedPlugSecComp), nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -391,11 +383,8 @@ func (iface *UDisks2Interface) PermanentSlotSnippet(slot *interfaces.Slot, secur
 		return []byte(udisks2PermanentSlotSecComp), nil
 	case interfaces.SecurityUDev:
 		return []byte(udisks2PermanentSlotUDev), nil
-	case interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -405,11 +394,8 @@ func (iface *UDisks2Interface) ConnectedSlotSnippet(plug *interfaces.Plug, slot 
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(udisks2ConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *UDisks2Interface) SanitizePlug(slot *interfaces.Plug) error {
@@ -428,6 +414,11 @@ func (iface *UDisks2Interface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *UDisks2Interface) AutoConnect() bool {
+func (iface *UDisks2Interface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *UDisks2Interface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

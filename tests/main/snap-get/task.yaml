@@ -1,0 +1,45 @@
+summary: Check that `snap get` works as expected
+
+prepare: |
+    echo "Build basic test package (without hooks)"
+    snapbuild $TESTSLIB/snaps/basic .
+    snap install --dangerous basic_1.0_all.snap
+
+    echo "Build package with hook to run snapctl set"
+    snapbuild $TESTSLIB/snaps/snapctl-hooks .
+    snap install --dangerous snapctl-hooks_1.0_all.snap
+
+restore: |
+    rm basic_1.0_all.snap
+    rm snapctl-hooks_1.0_all.snap
+
+execute: |
+    echo "Test that snap get fails on a snap without any hooks"
+    if output=$(snap get basic foo); then
+        echo "snap get unexpectedly worked with output '$output'"
+        exit 1
+    fi
+
+    echo "Test that values set via snapctl can be obtained via snap get"
+    if ! snap set snapctl-hooks command=test-snapctl-set-foo; then
+        echo "snap set unexpectedly failed"
+        exit 1
+    fi
+    if ! output=$(snap get snapctl-hooks command); then
+        echo "snap get unexpectedly failed"
+        exit 1
+    fi
+    expected="test-snapctl-set-foo"
+    if [ "$output" != "$expected" ]; then
+        echo "Expected 'command' to be '$expected', but it was '$output'"
+        exit 1
+    fi
+    if ! output=$(snap get snapctl-hooks foo); then
+        echo "snap get unexpectedly failed"
+        exit 1
+    fi
+    expected="bar"
+    if [ "$output" != "$expected" ]; then
+        echo "Expected 'foo' to be '$expected', but it was '$output'"
+        exit 1
+    fi

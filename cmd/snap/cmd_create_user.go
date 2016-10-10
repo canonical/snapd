@@ -38,15 +38,30 @@ An account can be setup at https://login.ubuntu.com.
 `)
 
 type cmdCreateUser struct {
-	JSON       bool `long:"json" description:"output results in JSON format"`
-	Sudoer     bool `long:"sudoer" description:"grant sudo access to the created user"`
 	Positional struct {
-		Email string `positional-arg-name:"email"`
+		Email string
 	} `positional-args:"yes"`
+
+	JSON         bool `long:"json"`
+	Sudoer       bool `long:"sudoer"`
+	Known        bool `long:"known"`
+	ForceManaged bool `long:"force-managed"`
 }
 
 func init() {
-	addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} })
+	cmd := addCommand("create-user", shortCreateUserHelp, longCreateUserHelp, func() flags.Commander { return &cmdCreateUser{} },
+		map[string]string{
+			"json":          i18n.G("Output results in JSON format"),
+			"sudoer":        i18n.G("Grant sudo access to the created user"),
+			"known":         i18n.G("Use known assertions for user creation"),
+			"force-managed": i18n.G("Force adding the user, even if the device is already managed"),
+		}, []argDesc{{
+			// TRANSLATORS: noun
+			name: i18n.G("<email>"),
+			// TRANSLATORS: note users on login.ubuntu.com can have multiple email addresses
+			desc: i18n.G("An email of a user on login.ubuntu.com"),
+		}})
+	cmd.hidden = true
 }
 
 func (x *cmdCreateUser) Execute(args []string) error {
@@ -56,24 +71,45 @@ func (x *cmdCreateUser) Execute(args []string) error {
 
 	cli := Client()
 
-	request := client.CreateUserRequest{
-		Email:  x.Positional.Email,
-		Sudoer: x.Sudoer,
+	options := client.CreateUserOptions{
+		Email:        x.Positional.Email,
+		Sudoer:       x.Sudoer,
+		Known:        x.Known,
+		ForceManaged: x.ForceManaged,
 	}
 
-	rsp, err := cli.CreateUser(&request)
-	if err != nil {
-		return err
-	}
-	if x.JSON {
-		y, err := json.Marshal(rsp)
-		if err != nil {
-			return nil
-		}
-		fmt.Fprintf(Stdout, "%s\n", y)
+	var results []*client.CreateUserResult
+	var result *client.CreateUserResult
+	var err error
+
+	if options.Email == "" && options.Known {
+		results, err = cli.CreateUsers([]*client.CreateUserOptions{&options})
 	} else {
-		fmt.Fprintf(Stdout, i18n.G("Created user %q and imported SSH keys.\n"), rsp.Username)
+		result, err = cli.CreateUser(&options)
+		if err == nil {
+			results = append(results, result)
+		}
 	}
 
-	return nil
+	createErr := err
+
+	// Print results regardless of error because some users may have been created.
+	if x.JSON {
+		var data []byte
+		if result != nil {
+			data, err = json.Marshal(result)
+		} else if len(results) > 0 {
+			data, err = json.Marshal(results)
+		}
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(Stdout, "%s\n", data)
+	} else {
+		for _, result := range results {
+			fmt.Fprintf(Stdout, i18n.G("created user %q\n"), result.Username)
+		}
+	}
+
+	return createErr
 }

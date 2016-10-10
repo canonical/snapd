@@ -1,50 +1,74 @@
 summary: Run update/rollback tests
-systems: [ubuntu-core-16-64]
+systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
 restore: |
     rm -f nextBoot
+debug: |
+    cat /proc/cmdline
+    if [ $(which grub-editenv) ]; then
+        grub-editenv list
+    else
+        fw_printenv |grep ^snap
+    fi
 execute: |
+    . "$TESTSLIB/names.sh"
+    . "$TESTSLIB/boot.sh"
+
     wait_boot_ok() {
         echo "Waiting for boot-ok to finish"
-        while ! systemctl status snapd.boot-ok|grep SUCCESS; do
+        while [ $(bootenv snap_mode) != "" ]; do
+            # debug output
+            bootenv snap_mode
             sleep 1
         done
     }
     check_boot() {
-        grub-editenv list | grep "snap_core=ubuntu-core_$(cat nextBoot).snap"
+        # debug output
+        bootenv
+        test "$(bootenv snap_core)" = "${core_name}_$(cat nextBoot).snap"
     }
     store_next_boot() {
-        snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > nextBoot
+        snap list|grep ${core_name}|tr -s " "|cut -f3 -d' ' > nextBoot
+        # debug output
+        snap list
+        echo "nextBoot:"
+        cat nextBoot
     }
     echo "Install/revert a couple of times and see if stuff breaks"
     if [ "$SPREAD_REBOOT" = "0" ]; then
-        snap list|grep ubuntu-core|tr -s " "|cut -f3 -d' ' > firstBoot
-        snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
+        snap list|grep ${core_name}|tr -s " "|cut -f3 -d' ' > firstBoot
+        # debug output
+        snap list
+        echo "firstBoot:"
+        cat firstBoot
+        echo "Install new ${core_name}"
+        snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat firstBoot).snap
         store_next_boot
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = "1" ]; then
         wait_boot_ok
         check_boot
-        snap revert ubuntu-core
+        snap revert ${core_name}
         store_next_boot
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = "2" ]; then
         wait_boot_ok
         check_boot
-        snap install --dangerous /var/lib/snapd/snaps/ubuntu-core_$(cat firstBoot).snap
+        snap install --dangerous /var/lib/snapd/snaps/${core_name}_$(cat firstBoot).snap
         store_next_boot
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = "3" ]; then
         wait_boot_ok
         check_boot
-        snap revert ubuntu-core
+        snap revert ${core_name}
         store_next_boot
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = "4" ]; then
         wait_boot_ok
         check_boot
-        grub-editenv list | grep "snap_core=ubuntu-core_$(cat firstBoot).snap"
+
+        test "$(bootenv snap_core)" = "${core_name}_$(cat firstBoot).snap"
     fi

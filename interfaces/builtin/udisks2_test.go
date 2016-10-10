@@ -231,37 +231,6 @@ func (s *UDisks2InterfaceSuite) TestConnectedSlotSnippetUsesPlugLabelOne(c *C) {
 	c.Assert(string(snippet), testutil.Contains, `peer=(label="snap.udisks2.app"),`)
 }
 
-func (s *UDisks2InterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	ppSystems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
-		interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount,
-		interfaces.SecurityAppArmor}
-	for _, system := range ppSystems {
-		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-
-	csSystems := [...]interfaces.SecuritySystem{interfaces.SecuritySecComp,
-		interfaces.SecurityDBus, interfaces.SecurityUDev, interfaces.SecurityMount}
-	for _, system := range csSystems {
-		snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-
-	cpSystems := [...]interfaces.SecuritySystem{interfaces.SecurityUDev,
-		interfaces.SecurityMount}
-	for _, system := range cpSystems {
-		snippet, err := s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-	}
-
-	snippet, err := s.iface.PermanentSlotSnippet(s.slot, interfaces.SecurityMount)
-	c.Assert(err, IsNil)
-	c.Assert(snippet, IsNil)
-}
-
 func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp, interfaces.SecurityDBus}
@@ -281,21 +250,6 @@ func (s *UDisks2InterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(snippet, Not(IsNil))
 }
 
-func (s *UDisks2InterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-}
-
-func (s *UDisks2InterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, false)
+func (s *UDisks2InterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, false)
 }

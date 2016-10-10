@@ -1151,12 +1151,7 @@ func (iface *ModemManagerInterface) Name() string {
 }
 
 func (iface *ModemManagerInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -1177,11 +1172,8 @@ func (iface *ModemManagerInterface) ConnectedPlugSnippet(plug *interfaces.Plug, 
 		return snippet, nil
 	case interfaces.SecuritySecComp:
 		return modemManagerConnectedPlugSecComp, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -1194,11 +1186,8 @@ func (iface *ModemManagerInterface) PermanentSlotSnippet(slot *interfaces.Slot, 
 		return modemManagerPermanentSlotUdev, nil
 	case interfaces.SecurityDBus:
 		return modemManagerPermanentSlotDBus, nil
-	case interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -1208,11 +1197,8 @@ func (iface *ModemManagerInterface) ConnectedSlotSnippet(plug *interfaces.Plug, 
 		new := plugAppLabelExpr(plug)
 		snippet := bytes.Replace(modemManagerConnectedSlotAppArmor, old, new, -1)
 		return snippet, nil
-	case interfaces.SecurityDBus, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *ModemManagerInterface) SanitizePlug(plug *interfaces.Plug) error {
@@ -1223,6 +1209,11 @@ func (iface *ModemManagerInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *ModemManagerInterface) AutoConnect() bool {
+func (iface *ModemManagerInterface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *ModemManagerInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

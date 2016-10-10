@@ -25,11 +25,9 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
-	"sort"
 
 	"gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/arch"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -44,11 +42,11 @@ apps:
  app:
   command: run-app
 hooks:
- apply-config:
+ configure:
 `)
 
 func (s *SnapSuite) TestInvalidParameters(c *check.C) {
-	invalidParameters := []string{"run", "--hook=apply-config", "--command=command-name", "snap-name"}
+	invalidParameters := []string{"run", "--hook=configure", "--command=command-name", "snap-name"}
 	_, err := snaprun.Parser().ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*cannot use --hook and --command together.*")
 
@@ -60,44 +58,9 @@ func (s *SnapSuite) TestInvalidParameters(c *check.C) {
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)
 	c.Check(err, check.ErrorMatches, ".*-r can only be used with --hook.*")
 
-	invalidParameters = []string{"run", "--hook=apply-config", "foo", "bar", "snap-name"}
+	invalidParameters = []string{"run", "--hook=configure", "foo", "bar", "snap-name"}
 	_, err = snaprun.Parser().ParseArgs(invalidParameters)
-	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"apply-config\": bar.*")
-}
-
-func (s *SnapSuite) TestSnapRunSnapExecEnv(c *check.C) {
-	info, err := snap.InfoFromSnapYaml(mockYaml)
-	c.Assert(err, check.IsNil)
-	info.SideInfo.Revision = snap.R(42)
-
-	usr, err := user.Current()
-	c.Assert(err, check.IsNil)
-
-	homeEnv := os.Getenv("HOME")
-	defer os.Setenv("HOME", homeEnv)
-
-	for _, withHomeEnv := range []bool{true, false} {
-		if !withHomeEnv {
-			os.Setenv("HOME", "")
-		}
-
-		env := snaprun.SnapExecEnv(info)
-		sort.Strings(env)
-		c.Check(env, check.DeepEquals, []string{
-			fmt.Sprintf("HOME=%s/snap/snapname/42", usr.HomeDir),
-			fmt.Sprintf("SNAP=%s/snapname/42", dirs.SnapMountDir),
-			fmt.Sprintf("SNAP_ARCH=%s", arch.UbuntuArchitecture()),
-			"SNAP_COMMON=/var/snap/snapname/common",
-			"SNAP_DATA=/var/snap/snapname/42",
-			"SNAP_LIBRARY_PATH=/var/lib/snapd/lib/gl:",
-			"SNAP_NAME=snapname",
-			"SNAP_REEXEC=",
-			"SNAP_REVISION=42",
-			fmt.Sprintf("SNAP_USER_COMMON=%s/snap/snapname/common", usr.HomeDir),
-			fmt.Sprintf("SNAP_USER_DATA=%s/snap/snapname/42", usr.HomeDir),
-			"SNAP_VERSION=1.0",
-		})
-	}
+	c.Check(err, check.ErrorMatches, ".*too many arguments for hook \"configure\": bar.*")
 }
 
 func (s *SnapSuite) TestSnapRunAppIntegration(c *check.C) {
@@ -219,15 +182,15 @@ func (s *SnapSuite) TestSnapRunHookIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook from the active revision
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "snapname"})
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "snapname"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
 		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.hook.apply-config",
-		"snap.snapname.hook.apply-config",
+		"snap.snapname.hook.configure",
+		"snap.snapname.hook.configure",
 		"/usr/lib/snapd/snap-exec",
-		"--hook=apply-config", "snapname"})
+		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -256,15 +219,15 @@ func (s *SnapSuite) TestSnapRunHookUnsetRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Specifically pass "unset" which would use the active version.
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=unset", "snapname"})
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=unset", "snapname"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
 		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.hook.apply-config",
-		"snap.snapname.hook.apply-config",
+		"snap.snapname.hook.configure",
+		"snap.snapname.hook.configure",
 		"/usr/lib/snapd/snap-exec",
-		"--hook=apply-config", "snapname"})
+		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 }
 
@@ -297,15 +260,15 @@ func (s *SnapSuite) TestSnapRunHookSpecificRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Run a hook on revision 41
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=41", "snapname"})
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
 	c.Assert(err, check.IsNil)
 	c.Check(execArg0, check.Equals, "/usr/bin/ubuntu-core-launcher")
 	c.Check(execArgs, check.DeepEquals, []string{
 		"/usr/bin/ubuntu-core-launcher",
-		"snap.snapname.hook.apply-config",
-		"snap.snapname.hook.apply-config",
+		"snap.snapname.hook.configure",
+		"snap.snapname.hook.configure",
 		"/usr/lib/snapd/snap-exec",
-		"--hook=apply-config", "snapname"})
+		"--hook=configure", "snapname"})
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=41")
 }
 
@@ -329,13 +292,13 @@ func (s *SnapSuite) TestSnapRunHookMissingRevisionIntegration(c *check.C) {
 	defer restorer()
 
 	// Attempt to run a hook on revision 41, which doesn't exist
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=41", "snapname"})
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=41", "snapname"})
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "cannot find .*")
 }
 
 func (s *SnapSuite) TestSnapRunHookInvalidRevisionIntegration(c *check.C) {
-	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=apply-config", "-r=invalid", "snapname"})
+	_, err := snaprun.Parser().ParseArgs([]string{"run", "--hook=configure", "-r=invalid", "snapname"})
 	c.Assert(err, check.NotNil)
 	c.Check(err, check.ErrorMatches, "invalid snap revision: \"invalid\"")
 }
@@ -362,7 +325,7 @@ func (s *SnapSuite) TestSnapRunHookMissingHookIntegration(c *check.C) {
 	defer restorer()
 
 	err := snaprun.SnapRunHook("snapname", "unset", "missing-hook")
-	c.Assert(err, check.IsNil)
+	c.Assert(err, check.ErrorMatches, `cannot find hook "missing-hook" in "snapname"`)
 	c.Check(called, check.Equals, false)
 }
 
@@ -390,4 +353,43 @@ func (s *SnapSuite) TestSnapRunErorsForUnknownRunArg(c *check.C) {
 func (s *SnapSuite) TestSnapRunErorsForMissingApp(c *check.C) {
 	_, err := snaprun.Parser().ParseArgs([]string{"run", "--command=shell"})
 	c.Assert(err, check.ErrorMatches, "need the application to run as argument")
+}
+
+func (s *SnapSuite) TestSnapRunSaneEnvironmentHandling(c *check.C) {
+	// mock installed snap
+	dirs.SetRootDir(c.MkDir())
+	defer func() { dirs.SetRootDir("/") }()
+
+	snaptest.MockSnap(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// and mock the server
+	s.mockServer(c)
+
+	// redirect exec
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// set a SNAP{,_*} variable in the environment
+	os.Setenv("SNAP_NAME", "something-else")
+	os.Setenv("SNAP_ARCH", "PDP-7")
+	defer os.Unsetenv("SNAP_NAME")
+	defer os.Unsetenv("SNAP_ARCH")
+	// but unreleated stuff is ok
+	os.Setenv("SNAP_THE_WORLD", "YES")
+	defer os.Unsetenv("SNAP_THE_WORLD")
+
+	// and ensure those SNAP_ vars get overriden
+	rest, err := snaprun.Parser().ParseArgs([]string{"run", "snapname.app", "--arg1", "arg2"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1", "arg2"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_NAME=something-else")
+	c.Check(execEnv, check.Not(testutil.Contains), "SNAP_ARCH=PDP-7")
+	c.Check(execEnv, testutil.Contains, "SNAP_THE_WORLD=YES")
 }

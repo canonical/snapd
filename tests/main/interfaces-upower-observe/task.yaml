@@ -1,6 +1,6 @@
 summary: Ensure that the upower-observe interface works.
 
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 summary: |
     The upower-observe interface allows a snap to query UPower for power devices, history
@@ -16,14 +16,15 @@ prepare: |
     echo "Given a snap declaring a plug on the upower-observe interface is installed"
     snap install --edge test-snapd-upower-observe-consumer
 
-    apt install -y upower
+    apt-get install -y upower
 
 restore: |
     rm -f upower.error
-    apt remove -y upower
-    apt autoremove -y
+    apt-get remove -y upower
+    apt-get autoremove -y
 
 execute: |
+    . "$TESTSLIB/names.sh"
     CONNECTED_PATTERN=":upower-observe +test-snapd-upower-observe-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +test-snapd-upower-observe-consumer:upower-observe"
 
@@ -33,7 +34,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-upower-observe-consumer:upower-observe ubuntu-core:upower-observe
+    snap disconnect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
     snap interfaces | grep -Pzq "$DISCONNECTED_PATTERN"
 
     echo "Then the snap is not able to dump info about the upower devices"
@@ -46,7 +47,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect test-snapd-upower-observe-consumer:upower-observe ubuntu-core:upower-observe
+    snap connect test-snapd-upower-observe-consumer:upower-observe ${core_name}:upower-observe
     snap interfaces | grep -Pzq "$CONNECTED_PATTERN"
 
     echo "Then the snap is able to dump info about the upower devices"

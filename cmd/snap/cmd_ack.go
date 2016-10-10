@@ -29,7 +29,7 @@ import (
 
 type cmdAck struct {
 	AckOptions struct {
-		AssertionFile string `positional-arg-name:"<assertion file>" description:"assertion file"`
+		AssertionFile string
 	} `positional-args:"true" required:"true"`
 }
 
@@ -48,20 +48,24 @@ database.
 func init() {
 	addCommand("ack", shortAckHelp, longAckHelp, func() flags.Commander {
 		return &cmdAck{}
-	})
+	}, nil, []argDesc{{
+		name: i18n.G("<assertion file>"),
+		desc: i18n.G("Assertion file"),
+	}})
 }
 
-func (x *cmdAck) Execute(args []string) error {
-	if len(args) > 0 {
-		return ErrExtraArgs
-	}
-
-	assertFile := x.AckOptions.AssertionFile
-
+func ackFile(assertFile string) error {
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
 		return err
 	}
 
 	return Client().Ack(assertData)
+}
+
+func (x *cmdAck) Execute(args []string) error {
+	if len(args) > 0 {
+		return ErrExtraArgs
+	}
+	return ackFile(x.AckOptions.AssertionFile)
 }

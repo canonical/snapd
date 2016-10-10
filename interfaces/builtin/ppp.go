@@ -41,11 +41,13 @@ var pppConnectedPlugAppArmor = []byte(`
 @{PROC}/@{pid}/loginuid r,
 capability setgid,
 capability setuid,
-/sbin/resolvconf rix,
-/run/resolvconf** rw,
-/etc/resolvconf/** rw,
-/etc/resolvconf/update.d/* ix,
-/lib/resolvconf/* ix,
+`)
+
+// ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded
+// by the kernel on different ioctl calls for this device. Note also that
+// in many cases ppp_generic is statically linked into the kernel (CONFIG_PPP=y)
+var pppConnectedPlugKmod = []byte(`
+ppp_generic
 `)
 
 type PppInterface struct{}
@@ -55,51 +57,25 @@ func (iface *PppInterface) Name() string {
 }
 
 func (iface *PppInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PppInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
 	switch securitySystem {
-	case interfaces.SecurityDBus:
-		return nil, nil
 	case interfaces.SecurityAppArmor:
 		return pppConnectedPlugAppArmor, nil
-	case interfaces.SecuritySecComp:
-		return nil, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
+	case interfaces.SecurityKMod:
+		return pppConnectedPlugKmod, nil
 	}
+	return nil, nil
 }
 
 func (iface *PppInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityAppArmor:
-		return nil, nil
-	case interfaces.SecuritySecComp:
-		return nil, nil
-	case interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	case interfaces.SecurityDBus:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PppInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor, interfaces.SecuritySecComp, interfaces.SecurityUDev, interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *PppInterface) SanitizePlug(plug *interfaces.Plug) error {
@@ -110,6 +86,11 @@ func (iface *PppInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *PppInterface) AutoConnect() bool {
+func (iface *PppInterface) LegacyAutoConnect() bool {
 	return false
+}
+
+func (iface *PppInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
+	return true
 }

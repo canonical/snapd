@@ -31,8 +31,17 @@ const (
 	fetchSaved
 )
 
-// Fetcher helps fetching assertions and their prerequisites.
-type Fetcher struct {
+// A Fetcher helps fetching assertions and their prerequisites.
+type Fetcher interface {
+	// Fetch retrieves the assertion indicated by ref then its prerequisites
+	// recursively, along the way saving prerequisites before dependent assertions.
+	Fetch(*Ref) error
+	// Save retrieves the prerequisites of the assertion recursively,
+	// along the way saving them, and finally saves the assertion.
+	Save(Assertion) error
+}
+
+type fetcher struct {
 	db       RODatabase
 	retrieve func(*Ref) (Assertion, error)
 	save     func(Assertion) error
@@ -41,8 +50,8 @@ type Fetcher struct {
 }
 
 // NewFetcher creates a Fetcher which will use trustedDB to determine trusted assertions, will fetch assertions following prerequisites using retrieve, and then will pass them to save, saving prerequisites before dependent assertions.
-func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), save func(Assertion) error) *Fetcher {
-	return &Fetcher{
+func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), save func(Assertion) error) Fetcher {
+	return &fetcher{
 		db:       trustedDB,
 		retrieve: retrieve,
 		save:     save,
@@ -50,7 +59,7 @@ func NewFetcher(trustedDB RODatabase, retrieve func(*Ref) (Assertion, error), sa
 	}
 }
 
-func (f *Fetcher) chase(ref *Ref, a Assertion) error {
+func (f *fetcher) chase(ref *Ref, a Assertion) error {
 	// check if ref points to a trusted assertion, in which case
 	// there is nothing to do
 	_, err := ref.Resolve(f.db.FindTrusted)
@@ -65,7 +74,7 @@ func (f *Fetcher) chase(ref *Ref, a Assertion) error {
 	case fetchSaved:
 		return nil // nothing to do
 	case fetchRetrieved:
-		return fmt.Errorf("internal error: circular assertions are not expected: %s %v", ref.Type.Name, ref.PrimaryKey)
+		return fmt.Errorf("internal error: circular assertions are not expected: %s", ref)
 	}
 	if a == nil {
 		retrieved, err := f.retrieve(ref)
@@ -92,12 +101,12 @@ func (f *Fetcher) chase(ref *Ref, a Assertion) error {
 
 // Fetch retrieves the assertion indicated by ref then its prerequisites
 // recursively, along the way saving prerequisites before dependent assertions.
-func (f *Fetcher) Fetch(ref *Ref) error {
+func (f *fetcher) Fetch(ref *Ref) error {
 	return f.chase(ref, nil)
 }
 
 // fetchAccountKey behaves like Fetch for the account-key with the given key id.
-func (f *Fetcher) fetchAccountKey(keyID string) error {
+func (f *fetcher) fetchAccountKey(keyID string) error {
 	keyRef := &Ref{
 		Type:       AccountKeyType,
 		PrimaryKey: []string{keyID},
@@ -107,6 +116,6 @@ func (f *Fetcher) fetchAccountKey(keyID string) error {
 
 // Save retrieves the prerequisites of the assertion recursively,
 // along the way saving them, and finally saves the assertion.
-func (f *Fetcher) Save(a Assertion) error {
+func (f *fetcher) Save(a Assertion) error {
 	return f.chase(a.Ref(), a)
 }

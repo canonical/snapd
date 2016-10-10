@@ -129,7 +129,7 @@ func New() (*Overlord, error) {
 	}
 	o.configMgr = configMgr
 
-	deviceMgr, err := devicestate.Manager(s)
+	deviceMgr, err := devicestate.Manager(s, hookMgr)
 	if err != nil {
 		return nil, err
 	}

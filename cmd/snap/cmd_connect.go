@@ -27,9 +27,9 @@ import (
 
 type cmdConnect struct {
 	Positionals struct {
-		Offer SnapAndName `positional-arg-name:"<snap>:<plug>" required:"true"`
-		Use   SnapAndName `positional-arg-name:"<snap>:<slot>" required:"true"`
-	} `positional-args:"true" required:"true"`
+		Offer SnapAndName `required:"yes"`
+		Use   SnapAndName
+	} `positional-args:"true"`
 }
 
 var shortConnectHelp = i18n.G("Connects a plug to a slot")
@@ -39,7 +39,7 @@ It may be called in the following ways:
 
 $ snap connect <snap>:<plug> <snap>:<slot>
 
-Connects the specific plug to the specific slot.
+Connects the provided plug to the given slot.
 
 $ snap connect <snap>:<plug> <snap>
 
@@ -47,17 +47,18 @@ Connects the specific plug to the only slot in the provided snap that matches
 the connected interface. If more than one potential slot exists, the command
 fails.
 
-$ snap connect <plug> <snap>[:<slot>]
+$ snap connect <snap>:<plug>
 
-Without a name for the snap offering the plug, the plug name is looked at in
-the gadget snap, the kernel snap, and then the os snap, in that order. The
-first of these snaps that has a matching plug name is used and the command
-proceeds as above.
+Connects the provided plug to the slot in the core snap with a name matching
+the plug name.
 `)
 
 func init() {
 	addCommand("connect", shortConnectHelp, longConnectHelp, func() flags.Commander {
 		return &cmdConnect{}
+	}, nil, []argDesc{
+		{name: i18n.G("<snap>:<plug>")},
+		{name: i18n.G("<snap>:<slot>")},
 	})
 }
 

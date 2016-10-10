@@ -1,7 +1,5 @@
 summary: Check change abort
 
-systems: [-ubuntu-core-16-64]
-
 environment:
     SNAP_NAME: test-snapd-tools
 
@@ -17,11 +15,14 @@ execute: |
     echo "Abort with valid id - error"
     subdirPath="/snap/$SNAP_NAME/current/foo"
     mkdir -p $subdirPath
-    if snap install $SNAP_NAME; then
+    . $TESTSLIB/snaps.sh
+    if install_local $SNAP_NAME; then
         echo "install should fail when the target directory exists"
         exit 1
     fi
-    if snap abort 1; then
+    idPattern="\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
+    id=$(echo "$(snap changes)" | grep -Pzo "$idPattern")
+    if snap abort $id; then
         echo "abort with valid failed id should fail"
         exit 1
     fi
@@ -30,8 +31,10 @@ execute: |
     echo "===================================="
 
     echo "Abort with valid id - done"
-    snap install $SNAP_NAME
-    if snap abort 2; then
+    install_local $SNAP_NAME
+    idPattern="\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
+    id=$(echo "$(snap changes)" | grep -Pzo "$idPattern")
+    if snap abort $id; then
         echo "abort with valid done id should fail"
         exit 1
     fi

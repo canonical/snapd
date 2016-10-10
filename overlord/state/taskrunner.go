@@ -51,6 +51,7 @@ type TaskRunner struct {
 	// locking
 	mu       sync.Mutex
 	handlers map[string]handlerPair
+	cleanups map[string]HandlerFunc
 	stopped  bool
 
 	blocked     func(t *Task, running []*Task) bool
@@ -69,6 +70,7 @@ func NewTaskRunner(s *State) *TaskRunner {
 	return &TaskRunner{
 		state:    s,
 		handlers: make(map[string]handlerPair),
+		cleanups: make(map[string]HandlerFunc),
 		tombs:    make(map[string]*tomb.Tomb),
 	}
 }
@@ -80,6 +82,27 @@ func (r *TaskRunner) AddHandler(kind string, do, undo HandlerFunc) {
 	defer r.mu.Unlock()
 
 	r.handlers[kind] = handlerPair{do, undo}
+}
+
+// AddCleanup registers a function to be called after the change completes,
+// for cleaning up data left behind by tasks of the specified kind.
+// The provided function will be called no matter what the final status of the
+// task is. This mechanism enables keeping data around for a potential undo
+// until there's no more chance of the task being undone.
+//
+// The cleanup function is run concurrently with other cleanup functions,
+// despite any wait ordering between the tasks. If it returns an error,
+// it will be retried later.
+//
+// The handler for tasks of the provided kind must have been previously
+// registered before AddCleanup is called for it.
+func (r *TaskRunner) AddCleanup(kind string, cleanup HandlerFunc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, ok := r.handlers[kind]; !ok {
+		panic("internal error: attempted to register cleanup for unknown task kind")
+	}
+	r.cleanups[kind] = cleanup
 }
 
 // SetBlocked sets a predicate function to decide whether to block a task from running based on the current running tasks. It can be used to control task serialisation.
@@ -177,6 +200,40 @@ func (r *TaskRunner) run(t *Task) {
 	})
 }
 
+func (r *TaskRunner) clean(t *Task) {
+	if !t.Change().IsReady() {
+		// Whole Change is not ready so don't run cleanups yet.
+		return
+	}
+
+	cleanup, ok := r.cleanups[t.Kind()]
+	if !ok {
+		t.SetClean()
+		return
+	}
+
+	tomb := &tomb.Tomb{}
+	r.tombs[t.ID()] = tomb
+	tomb.Go(func() error {
+		tomb.Kill(cleanup(t, tomb))
+
+		// Locks must be acquired in the same order everywhere.
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		r.state.Lock()
+		defer r.state.Unlock()
+
+		delete(r.tombs, t.ID())
+
+		if tomb.Err() != nil {
+			logger.Debugf("Cleaning task %s: %s", t.ID(), tomb.Err())
+		} else {
+			t.SetClean()
+		}
+		return nil
+	})
+}
+
 func (r *TaskRunner) abortChange(chg *Change) {
 	chg.Abort()
 	ensureScheduled := false
@@ -260,6 +317,9 @@ func (r *TaskRunner) Ensure() {
 
 		status := t.Status()
 		if status.Ready() {
+			if !t.IsClean() {
+				r.clean(t)
+			}
 			continue
 		}
 		if status == UndoStatus && handlers.undo == nil {

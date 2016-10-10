@@ -28,6 +28,8 @@ var allInterfaces = []interfaces.Interface{
 	&BluezInterface{},
 	&BrowserSupportInterface{},
 	&ContentInterface{},
+	&DockerInterface{},
+	&DockerSupportInterface{},
 	&GpioInterface{},
 	&HidrawInterface{},
 	&LocationControlInterface{},
@@ -53,6 +55,7 @@ var allInterfaces = []interfaces.Interface{
 	NewNetworkBindInterface(),
 	NewNetworkControlInterface(),
 	NewNetworkObserveInterface(),
+	NewNetworkSetupObserveInterface(),
 	NewProcessControlInterface(),
 	NewRemovableMediaInterface(),
 	NewScreenInhibitControlInterface(),
@@ -72,6 +75,7 @@ var allInterfaces = []interfaces.Interface{
 	NewBluetoothControlInterface(),
 	NewKernelModuleControlInterface(),
 	NewFuseSupportInterface(),
+	NewTimeControlInterface(),
 	NewLibvirtInterface(),
 }
 

@@ -1,6 +1,6 @@
 summary: Ensure that the locale-control interface works.
 
-systems: [-ubuntu-core-16-64]
+systems: [-ubuntu-core-16-64, -ubuntu-core-16-arm-64, -ubuntu-core-16-arm-32]
 
 summary: |
     The locale-control interface allows a snap to access the locale configuration.
@@ -16,13 +16,19 @@ prepare: |
     echo "Given a snap declaring a plug on the locale-control interface is installed"
     snapbuild $TESTSLIB/snaps/locale-control-consumer .
     snap install --dangerous locale-control-consumer_1.0_all.snap
-    cp /etc/default/locale locale.back
+    mv /etc/default/locale locale.back
+    cat > /etc/default/locale <<EOF
+    LANG="$LANG"
+    LANGUAGE="$LANGUAGE"
+    EOF
 
 restore: |
     rm -f locale-control-consumer_1.0_all.snap locale-read.error locale-write.error
     mv locale.back /etc/default/locale
 
 execute: |
+    . "$TESTSLIB/names.sh"
+
     CONNECTED_PATTERN=":locale-control +locale-control-consumer"
     DISCONNECTED_PATTERN="(?s).*?\n- +locale-control-consumer:locale-control"
 
@@ -32,7 +38,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect locale-control-consumer:locale-control ubuntu-core:locale-control
+    snap connect locale-control-consumer:locale-control ${core_name}:locale-control
 
     echo "Then the snap is able to read the locale configuration"
     [ "$(su -l -c 'locale-control-consumer.get LANG' test)" = "$LANG" ]
@@ -40,7 +46,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect locale-control-consumer:locale-control ubuntu-core:locale-control
+    snap disconnect locale-control-consumer:locale-control ${core_name}:locale-control
 
     echo "Then the snap is not able to read the locale configuration"
     if su -l -c "locale-control-consumer.get LANG 2>${PWD}/locale-read.error" test; then
@@ -52,7 +58,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is connected"
-    snap connect locale-control-consumer:locale-control ubuntu-core:locale-control
+    snap connect locale-control-consumer:locale-control ${core_name}:locale-control
 
     echo "Then the snap is able to write the locale configuration"
     locale-control-consumer.set LANG mylang
@@ -61,7 +67,7 @@ execute: |
     echo "==================================="
 
     echo "When the plug is disconnected"
-    snap disconnect locale-control-consumer:locale-control ubuntu-core:locale-control
+    snap disconnect locale-control-consumer:locale-control ${core_name}:locale-control
 
     echo "Then the snap is not able to read the locale configuration"
     if locale-control-consumer.set LANG mysecondlang 2>${PWD}/locale-write.error; then

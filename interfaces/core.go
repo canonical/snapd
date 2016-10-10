@@ -20,7 +20,6 @@
 package interfaces
 
 import (
-	"errors"
 	"fmt"
 	"regexp"
 
@@ -31,6 +30,11 @@ import (
 type Plug struct {
 	*snap.PlugInfo
 	Connections []SlotRef `json:"connections,omitempty"`
+}
+
+// Ref returns reference to a plug
+func (plug *Plug) Ref() PlugRef {
+	return PlugRef{Snap: plug.Snap.Name(), Name: plug.Name}
 }
 
 // PlugRef is a reference to a plug.
@@ -45,6 +49,11 @@ type Slot struct {
 	Connections []PlugRef `json:"connections,omitempty"`
 }
 
+// Ref returns reference to a slot
+func (slot *Slot) Ref() SlotRef {
+	return SlotRef{Snap: slot.Snap.Name(), Name: slot.Name}
+}
+
 // SlotRef is a reference to a slot.
 type SlotRef struct {
 	Snap string `json:"snap"`
@@ -55,6 +64,17 @@ type SlotRef struct {
 type Interfaces struct {
 	Plugs []*Plug `json:"plugs"`
 	Slots []*Slot `json:"slots"`
+}
+
+// ConnRef holds information about plug and slot reference that form a particular connection.
+type ConnRef struct {
+	PlugRef PlugRef
+	SlotRef SlotRef
+}
+
+// ID returns a string identifying a given connection.
+func (conn *ConnRef) ID() string {
+	return fmt.Sprintf("%s:%s %s:%s", conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name)
 }
 
 // Interface describes a group of interchangeable capabilities with common features.
@@ -79,9 +99,8 @@ type Interface interface {
 	// slot.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	PermanentPlugSnippet(plug *Plug, securitySystem SecuritySystem) ([]byte, error)
 
 	// ConnectedPlugSnippet returns the snippet of text for the given security
@@ -97,9 +116,8 @@ type Interface interface {
 	// instead.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	ConnectedPlugSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// PermanentSlotSnippet returns the snippet of text for the given security
@@ -111,9 +129,8 @@ type Interface interface {
 	// slot is made.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	PermanentSlotSnippet(slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
 	// ConnectedSlotSnippet returns the snippet of text for the given security
@@ -129,15 +146,21 @@ type Interface interface {
 	// instead.
 	//
 	// An empty snippet is returned when there are no additional permissions
-	// that are required to implement this interface. ErrUnknownSecurity error
-	// is returned when the plug cannot deal with the requested security
-	// system.
+	// that are required to implement this interface or when the interface
+	// doesn't recognize the security system.
 	ConnectedSlotSnippet(plug *Plug, slot *Slot, securitySystem SecuritySystem) ([]byte, error)
 
-	// AutoConnect returns whether plugs and slots should be implicitly
-	// auto-connected when an unambiguous connection candidate is available in
-	// the OS snap.
-	AutoConnect() bool
+	// LegacyAutoConnect is OBSOLETE, only used temporarily in tests
+	// to cross check with past behavior.
+	// It returned whether plugs and slots should be implicitly
+	// auto-connected when an unambiguous connection candidate is available.
+	LegacyAutoConnect() bool
+
+	// AutoConnect returns whether plug and slot should be
+	// implicitly auto-connected assuming they will be an
+	// unambiguous connection candidate and declaration-based checks
+	// allow.
+	AutoConnect(plug *Plug, slot *Slot) bool
 }
 
 // SecuritySystem is a name of a security system.
@@ -154,11 +177,8 @@ const (
 	SecurityUDev SecuritySystem = "udev"
 	// SecurityMount identifies the mount security system.
 	SecurityMount SecuritySystem = "mount"
-)
-
-var (
-	// ErrUnknownSecurity is reported when a interface is unable to deal with a given security system.
-	ErrUnknownSecurity = errors.New("unknown security system")
+	// SecurityKMod identifies the kernel modules security system
+	SecurityKMod SecuritySystem = "kmod"
 )
 
 // Regular expression describing correct identifiers.

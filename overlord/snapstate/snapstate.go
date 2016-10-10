@@ -37,6 +37,7 @@ import (
 // Flags are used to pass additional flags to operations and to keep track of snap modes.
 type Flags int
 
+// Flags that will be stored in SnapState.
 const (
 	// DevMode switches confinement to non-enforcing mode.
 	DevMode = 1 << iota
@@ -47,9 +48,14 @@ const (
 	// always be enforcing, even if the snap requests otherwise.
 	JailMode
 
-	// if we need flags for just SnapSetup it may be easier
-	// to start a new sequence from the other end with:
-	// 0x40000000 >> iota
+	// TODO: migrate away from this bit flags based approach in API and state
+)
+
+// Flags affecting operations but not stored in state.
+const (
+	// IgnoreValidation is set when the user requested as one-off
+	// to ignore refresh control validation.
+	IgnoreValidation = 0x10000
 )
 
 func (f Flags) DevModeAllowed() bool {
@@ -64,6 +70,10 @@ func (f Flags) JailMode() bool {
 	return f&JailMode != 0
 }
 
+func (f Flags) IgnoreValidation() bool {
+	return f&IgnoreValidation != 0
+}
+
 func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet, error) {
 	if err := checkChangeConflict(s, ss.Name(), snapst); err != nil {
 		return nil, err
@@ -72,6 +82,9 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	if ss.SnapPath == "" && ss.Channel == "" {
 		ss.Channel = "stable"
 	}
+
+	// clear out IgnoreValidation
+	ss.Flags &= ^IgnoreValidation
 
 	revisionStr := ""
 	if ss.SideInfo != nil {
@@ -126,7 +139,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	}
 
 	// copy-data (needs stopped services by unlink)
-	if !revisionIsLocal {
+	if !ss.Flags.Revert() {
 		copyData := s.NewTask("copy-snap-data", fmt.Sprintf(i18n.G("Copy snap %q data"), ss.Name()))
 		addTask(copyData)
 		prev = copyData
@@ -148,7 +161,7 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 	prev = startSnapServices
 
 	// Do not do that if we are reverting to a local revision
-	if snapst.HasCurrent() && !revisionIsLocal {
+	if snapst.HasCurrent() && !ss.Flags.Revert() {
 		seq := snapst.Sequence
 		currentIndex := snapst.LastIndex(snapst.Current)
 
@@ -162,6 +175,19 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			prev = tasks[len(tasks)-1]
 		}
 
+		// make sure we're not scheduling the removal of the target
+		// revision in the case where the target revision is already in
+		// the sequence.
+		for i := 0; i < currentIndex; i++ {
+			si := seq[i]
+			if si.Revision == ss.Revision() {
+				// we do *not* want to removeInactiveRevision of this one
+				copy(seq[i:], seq[i+1:])
+				seq = seq[:len(seq)-1]
+				currentIndex--
+			}
+		}
+
 		// normal garbage collect
 		for i := 0; i <= currentIndex-2; i++ {
 			si := seq[i]
@@ -170,9 +196,36 @@ func doInstall(s *state.State, snapst *SnapState, ss *SnapSetup) (*state.TaskSet
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
 		}
+
+		addTask(s.NewTask("cleanup", fmt.Sprintf("Clean up %q%s install", ss.Name(), revisionStr)))
 	}
 
-	return state.NewTaskSet(tasks...), nil
+	var defaults map[string]interface{}
+
+	if !snapst.HasCurrent() && ss.SideInfo != nil && ss.SideInfo.SnapID != "" {
+		gadget, err := GadgetInfo(s)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		if err == nil {
+			gadgetInfo, err := snap.ReadGadgetInfo(gadget)
+			if err != nil {
+				return nil, err
+			}
+			defaults = gadgetInfo.Defaults[ss.SideInfo.SnapID]
+		}
+	}
+
+	installSet := state.NewTaskSet(tasks...)
+	configSet := Configure(s, ss.Name(), defaults)
+	configSet.WaitAll(installSet)
+	installSet.AddAll(configSet)
+
+	return installSet, nil
+}
+
+var Configure = func(s *state.State, snapName string, patch map[string]interface{}) *state.TaskSet {
+	panic("internal error: snapstate.Configure is unset")
 }
 
 func checkChangeConflict(s *state.State, snapName string, snapst *SnapState) error {
@@ -362,6 +415,9 @@ func refreshCandidates(st *state.State, names []string, user *auth.UserState) ([
 	return updates, stateByID, nil
 }
 
+// ValidateRefreshes allows to hook validation into the handling of refresh candidates.
+var ValidateRefreshes func(s *state.State, refreshes []*snap.Info, userID int) (validated []*snap.Info, err error)
+
 // UpdateMany updates everything from the given list of names that the
 // store says is updateable. If the list is empty, update everything.
 // Note that the state must be locked by the caller.
@@ -374,6 +430,18 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 	updates, stateByID, err := refreshCandidates(st, names, user)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	if ValidateRefreshes != nil && len(updates) != 0 {
+		updates, err = ValidateRefreshes(st, updates, userID)
+		if err != nil {
+			// not doing "refresh all" report the error
+			if len(names) != 0 {
+				return nil, nil, err
+			}
+			// doing "refresh all", log the problems
+			logger.Noticef("cannot refresh some snaps: %v", err)
+		}
 	}
 
 	updated := make([]string, 0, len(updates))
@@ -411,7 +479,7 @@ func UpdateMany(st *state.State, names []string, userID int) ([]string, []*state
 
 // Update initiates a change updating a snap.
 // Note that the state must be locked by the caller.
-func Update(s *state.State, name, channel string, userID int, flags Flags) (*state.TaskSet, error) {
+func Update(s *state.State, name, channel string, revision snap.Revision, userID int, flags Flags) (*state.TaskSet, error) {
 	var snapst SnapState
 	err := Get(s, name, &snapst)
 	if err != nil && err != state.ErrNoState {
@@ -431,11 +499,8 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		channel = snapst.Channel
 	}
 
-	updateInfo, err := updateInfo(s, &snapst, channel, userID, flags)
+	info, err := infoForUpdate(s, &snapst, name, channel, revision, userID, flags)
 	if err != nil {
-		return nil, err
-	}
-	if err := checkRevisionIsNew(name, &snapst, updateInfo.Revision); err != nil {
 		return nil, err
 	}
 
@@ -443,11 +508,42 @@ func Update(s *state.State, name, channel string, userID int, flags Flags) (*sta
 		Channel:      channel,
 		UserID:       userID,
 		Flags:        SnapSetupFlags(flags),
-		DownloadInfo: &updateInfo.DownloadInfo,
-		SideInfo:     &updateInfo.SideInfo,
+		DownloadInfo: &info.DownloadInfo,
+		SideInfo:     &info.SideInfo,
 	}
 
 	return doInstall(s, &snapst, ss)
+}
+
+func infoForUpdate(s *state.State, snapst *SnapState, name, channel string, revision snap.Revision, userID int, flags Flags) (*snap.Info, error) {
+	if revision.Unset() {
+		// good ol' refresh
+		info, err := updateInfo(s, snapst, channel, userID, flags)
+		if err != nil {
+			return nil, err
+		}
+		if ValidateRefreshes != nil && !flags.IgnoreValidation() {
+			_, err := ValidateRefreshes(s, []*snap.Info{info}, userID)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return info, nil
+	}
+	var sideInfo *snap.SideInfo
+	for _, si := range snapst.Sequence {
+		if si.Revision == revision {
+			sideInfo = si
+			break
+		}
+	}
+	if sideInfo == nil {
+		// refresh from given revision from store
+		return snapInfo(s, name, channel, revision, userID, flags)
+	}
+
+	// refresh-to-local
+	return readInfo(name, sideInfo)
 }
 
 // Enable sets a snap to the active state
@@ -706,7 +802,7 @@ func RevertToRevision(s *state.State, name string, rev snap.Revision, flags Flag
 	}
 	ss := &SnapSetup{
 		SideInfo: snapst.Sequence[i],
-		Flags:    SnapSetupFlags(flags),
+		Flags:    SnapSetupFlags(flags) | SnapSetupFlagRevert,
 	}
 	return doInstall(s, &snapst, ss)
 }
@@ -825,8 +921,7 @@ func ActiveInfos(s *state.State) ([]*snap.Info, error) {
 	return infos, nil
 }
 
-// GadgetInfo finds the current gadget snap's info.
-func GadgetInfo(s *state.State) (*snap.Info, error) {
+func infoForType(s *state.State, snapType snap.Type) (*snap.Info, error) {
 	var stateMap map[string]*SnapState
 	if err := s.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
@@ -839,11 +934,55 @@ func GadgetInfo(s *state.State) (*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		if typ != snap.TypeGadget {
+		if typ != snapType {
 			continue
 		}
 		return snapState.CurrentInfo()
 	}
 
 	return nil, state.ErrNoState
+}
+
+// GadgetInfo finds the current gadget snap's info.
+func GadgetInfo(s *state.State) (*snap.Info, error) {
+	return infoForType(s, snap.TypeGadget)
+}
+
+// CoreInfo finds the current OS snap's info.
+func CoreInfo(s *state.State) (*snap.Info, error) {
+	return infoForType(s, snap.TypeOS)
+}
+
+// InstallMany installs everything from the given list of names.
+// Note that the state must be locked by the caller.
+func InstallMany(st *state.State, names []string, userID int) ([]string, []*state.TaskSet, error) {
+	installed := make([]string, len(names))
+	tasksets := make([]*state.TaskSet, 0, len(names))
+	for i, name := range names {
+		ts, err := Install(st, name, "", snap.R(0), userID, 0)
+		if err != nil {
+			return nil, nil, err
+		}
+		installed[i] = name
+		tasksets = append(tasksets, ts)
+	}
+
+	return installed, tasksets, nil
+}
+
+// RemoveMany removes everything from the given list of names.
+// Note that the state must be locked by the caller.
+func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	removed := make([]string, len(names))
+	tasksets := make([]*state.TaskSet, 0, len(names))
+	for i, name := range names {
+		ts, err := Remove(st, name, snap.R(0))
+		if err != nil {
+			return nil, nil, err
+		}
+		removed[i] = name
+		tasksets = append(tasksets, ts)
+	}
+
+	return removed, tasksets, nil
 }
