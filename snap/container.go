@@ -32,6 +32,9 @@ import (
 
 // Container is the interface to interact with the low-level snap files
 type Container interface {
+	// Size returns the size of the snap in bytes.
+	Size() (int64, error)
+
 	// ReadFile returns the content of a single file from the snap.
 	ReadFile(relative string) ([]byte, error)
 
