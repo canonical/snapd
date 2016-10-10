@@ -29,15 +29,17 @@ import (
 
 var shortHelpHelp = i18n.G("Help")
 var longHelpHelp = i18n.G(`
-How help for the snap command.`)
+The help command shows helpful information. Unlike this. ;-)
+`)
 
 type cmdHelp struct {
-	Manpage bool `long:"man" description:"Generate the manpage"`
+	Manpage bool `long:"man"`
 	parser  *flags.Parser
 }
 
 func init() {
-	addCommand("help", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdHelp{} })
+	addCommand("help", shortHelpHelp, longHelpHelp, func() flags.Commander { return &cmdHelp{} },
+		map[string]string{"man": i18n.G("Generate the manpage")}, nil)
 }
 
 func (cmd *cmdHelp) setParser(parser *flags.Parser) {

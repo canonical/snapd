@@ -120,6 +120,8 @@ kind               | value description
 `two-factor-failed` | the OTP provided wasn't recognised
 `login-required` | the requested operation cannot be performed without an authenticated user. This is the kind of any other 401 Unauthorized response.
 `invalid-auth-data` | the authentication data provided failed to validate (e.g. a malformed email address). The `value` of the error is an object with a key per failed field and a list of the failures on each field.
+`terms-not-accepted` | the user has not accepted the store's terms of service.
+`no-payment-methods` | the user does not have a payment method registered to complete a purchase.
 
 ### Timestamps
 
@@ -246,6 +248,7 @@ Alter the collection searched:
       "name": "http",
       "resource": "/v2/snaps/http",
       "revision": 14,
+      "screenshots": [{url: "https://myapps.developer.ubuntu.com/site_media/appmedia/2015/10/screenshot.png", width: 800, height: 1280}],
       "status": "available",
       "summary": "HTTPie in a snap",
       "type": "app",
@@ -269,6 +272,7 @@ Alter the collection searched:
 * `private`: true if this snap is only available to its author.
 * `resource`: HTTP resource for this snap.
 * `revision`: a number representing the revision.
+* `screenshots`: JSON array of the screenshots for this snap. Each screenshot has a `url` field for the image and optionally `width` and `height` (in pixels).
 * `status`: can be either `available`, or `priced` (i.e. needs to be bought to become available).
 * `summary`: one-line summary.
 * `type`: the type of snap; one of `app`, `kernel`, `gadget`, or `os`.
@@ -329,11 +333,11 @@ Sample result:
       "icon": "",                  // core might not have an icon
       "installed-size": 67784704,
       "install-date": "2016-03-08T11:29:21Z",
-      "name": "ubuntu-core",
+      "name": "core",
       "developer": "canonical",
       "resource": "/v2/snaps/ubuntu-core",
       "status": "active",
-      "type": "os",
+      "type": "core",
       "update-available": 247,
       "version": "241",
       "revision": 99,
@@ -354,7 +358,7 @@ In addition to the fields described in `/v2/find`:
 * `status`: can be either `installed` or `active` (i.e. is current).
 * `trymode`: true if the app was installed in try mode.
 
-furthermore, `download-size` and `price` cannot occur in the output of `/v2/snaps`.
+furthermore, `download-size`, `screenshots` and `prices` cannot occur in the output of `/v2/snaps`.
 
 ### POST
 
@@ -582,19 +586,6 @@ Generally the UUID of a background operation you are interested in.
 }
 ```
 
-#### Sample input specifying specific credit card:
-
-```javascript
-{
-    "snap-id": "2kkitQurgOkL3foImG4wDwn9CIANuHlt",
-    "snap-name": "moon-buggy",
-    "price": 2.99,
-    "currency": "USD",
-    "backend-id": "credit_card",
-    "method-id": 1
-}
-```
-
 #### Sample result:
 
 ```javascript
@@ -603,63 +594,61 @@ Generally the UUID of a background operation you are interested in.
 }
 ```
 
-## /v2/buy/methods
+## /v2/buy/ready
 
 ### GET
 
-* Description: Get a list of the available payment methods
+* Description: Determine if the user's account ready to make purchases.
 * Access: authenticated
 * Operation: sync
-* Return: Dict with payment methods.
+* Return: true, or error.
 
-#### Sample result with one method that allows automatic payment:
+## /v2/create-user
+
+### POST
+
+* Description: Create a local user
+* Access: trusted
+* Operation: sync
+* Return: an object with the created username and the ssh keys imported.
+
+#### Input
+
+A JSON object with the following keys:
+* email: the email of the user to create
+* sudoers: if true adds "sudo" access to the created user
+* known: use the local system-user assertions to create the user
+         (see assertions.md for details about the system-user assertion)
+
+As a special case: if email is empty and known is set to true, the
+command will create users for all system-user assertions that are
+valid for this device.
+
+#### Output
+
+A JSON object with the following keys:
+* username: the username of the created user
+* ssh-keys: a list of strings with the ssh keys that got added
+* ssh-key-count: (deprecated) the number of ssh keys that got added
+
+As a special case: if the input email was empty and known set to true,
+multiple users can be created, so the return type is a list of the above
+objects.
+
+Sample input:
 
 ```javascript
 {
-    "allows-automatic-payment": true,
-    "methods": [
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD", "GBP"],
-        "description": "**** **** **** 1111 (exp 23/2020)",
-        "id": 123,
-        "preferred": true,
-        "requires-interaction": false
-      }
-    ]
-  }
+  "email":"michael@example.com",
+  "sudoer": false
+}
 ```
 
-#### Sample with 3 methods and no automatic payments:
-
+Sample return:
 ```javascript
 {
-    "allows-automatic-payment": false,
-    "methods": [
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD", "GBP"],
-        "description": "**** **** **** 1111 (exp 23/2020)",
-        "id": 123,
-        "preferred": false,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD", "GBP"],
-        "description": "**** **** **** 2222 (exp 23/2025)",
-        "id": 234,
-        "preferred": false,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "rest_paypal",
-        "currencies": ["USD", "GBP", "EUR"],
-        "description": "PayPal",
-        "id": 345,
-        "preferred": false,
-        "requires-interaction": true
-      }
-    ]
-  }
+  "username":"mvo",
+  "ssh-keys": ["key1","key2"]
+  "ssk-key-count": 2,
+}
 ```

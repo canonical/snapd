@@ -40,10 +40,10 @@ var (
 )
 
 type cmdRun struct {
-	Command  string `long:"command" description:"alternative command to run" hidden:"yes"`
-	Hook     string `long:"hook" description:"hook to run" hidden:"yes"`
-	Revision string `short:"r" description:"use a specific snap revision when running hook" default:"unset" hidden:"yes"`
-	Shell    bool   `long:"shell" description:"run a shell instead of the command (useful for debugging)"`
+	Command  string `long:"command" hidden:"yes"`
+	Hook     string `long:"hook" hidden:"yes"`
+	Revision string `short:"r" default:"unset" hidden:"yes"`
+	Shell    bool   `long:"shell" `
 }
 
 func init() {
@@ -52,7 +52,12 @@ func init() {
 		i18n.G("Run the given snap command with the right confinement and environment"),
 		func() flags.Commander {
 			return &cmdRun{}
-		})
+		}, map[string]string{
+			"command": i18n.G("Alternative command to run"),
+			"hook":    i18n.G("Hook to run"),
+			"r":       i18n.G("Use a specific snap revision when running hook"),
+			"shell":   i18n.G("Run a shell instead of the command (useful for debugging)"),
+		}, nil)
 }
 
 func (x *cmdRun) Execute(args []string) error {
@@ -114,25 +119,6 @@ func getSnapInfo(snapName string, revision snap.Revision) (*snap.Info, error) {
 	return info, nil
 }
 
-// returns the environment that is important for the later stages of execution
-// (like SNAP_REVISION that snap-exec requires to work)
-func snapExecEnv(info *snap.Info) []string {
-	home := os.Getenv("HOME")
-	// HOME is not set for systemd services, so pull it out of passwd
-	if home == "" {
-		user, err := user.Current()
-		if err == nil {
-			home = user.HomeDir
-		}
-	}
-
-	env := snapenv.Basic(info)
-	if home != "" {
-		env = append(env, snapenv.User(info, home)...)
-	}
-	return env
-}
-
 func createUserDataDirs(info *snap.Info) error {
 	usr, err := userCurrent()
 	if err != nil {
@@ -178,11 +164,8 @@ func snapRunHook(snapName, snapRevision, hookName string) error {
 	}
 
 	hook := info.Hooks[hookName]
-
-	// Make sure this hook is valid for this snap. If not, don't run it. This
-	// isn't an error, e.g. it will happen if a snap doesn't ship a system hook.
 	if hook == nil {
-		return nil
+		return fmt.Errorf(i18n.G("cannot find hook %q in %q"), hookName, snapName)
 	}
 
 	return runSnapConfine(info, hook.SecurityTag(), snapName, "", hook.Name, nil)
@@ -212,7 +195,5 @@ func runSnapConfine(info *snap.Info, securityTag, snapApp, command, hook string,
 	cmd = append(cmd, snapApp)
 	cmd = append(cmd, args...)
 
-	env := append(os.Environ(), snapExecEnv(info)...)
-
-	return syscallExec(cmd[0], cmd, env)
+	return syscallExec(cmd[0], cmd, snapenv.ExecEnv(info))
 }

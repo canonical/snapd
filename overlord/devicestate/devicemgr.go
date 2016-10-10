@@ -29,7 +29,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/tomb.v2"
@@ -37,10 +40,15 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/boot"
+	"github.com/snapcore/snapd/overlord/configstate"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/partition"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -50,10 +58,11 @@ type DeviceManager struct {
 	state      *state.State
 	keypairMgr asserts.KeypairManager
 	runner     *state.TaskRunner
+	bootOkRan  bool
 }
 
 // Manager returns a new device manager.
-func Manager(s *state.State) (*DeviceManager, error) {
+func Manager(s *state.State, hookManager *hookstate.HookManager) (*DeviceManager, error) {
 	runner := state.NewTaskRunner(s)
 
 	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
@@ -64,10 +73,41 @@ func Manager(s *state.State) (*DeviceManager, error) {
 
 	m := &DeviceManager{state: s, keypairMgr: keypairMgr, runner: runner}
 
+	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
+
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
+	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 
 	return m, nil
+}
+
+type prepareDeviceHandler struct{}
+
+func newPrepareDeviceHandler(context *hookstate.Context) hookstate.Handler {
+	return prepareDeviceHandler{}
+}
+
+func (h prepareDeviceHandler) Before() error {
+	return nil
+}
+
+func (h prepareDeviceHandler) Done() error {
+	return nil
+}
+
+func (h prepareDeviceHandler) Error(err error) error {
+	return nil
+}
+
+func (m *DeviceManager) changeInFlight(kind string) bool {
+	for _, chg := range m.state.Changes() {
+		if chg.Kind() == kind && !chg.Status().Ready() {
+			// change already in motion
+			return true
+		}
+	}
+	return false
 }
 
 func (m *DeviceManager) ensureOperational() error {
@@ -95,11 +135,8 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
-	for _, chg := range m.state.Changes() {
-		if chg.Kind() == "become-operational" && !chg.Status().Ready() {
-			// change already in motion
-			return nil
-		}
+	if m.changeInFlight("become-operational") {
+		return nil
 	}
 
 	if serialRequestURL == "" {
@@ -107,27 +144,156 @@ func (m *DeviceManager) ensureOperational() error {
 		return nil
 	}
 
+	gadgetInfo, err := snapstate.GadgetInfo(m.state)
+	if err == state.ErrNoState {
+		// no gadget installed yet, cannot proceed
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
 	// XXX: some of these will need to be split and use hooks
 	// retries might need to embrace more than one "task" then,
 	// need to be careful
 
+	tasks := []*state.Task{}
+
+	var prepareDevice *state.Task
+	if gadgetInfo.Hooks["prepare-device"] != nil {
+		summary := i18n.G("Run prepare-device hook")
+		hooksup := &hookstate.HookSetup{
+			Snap: gadgetInfo.Name(),
+			Hook: "prepare-device",
+		}
+		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
+		tasks = append(tasks, prepareDevice)
+	}
+
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
+	if prepareDevice != nil {
+		genKey.WaitFor(prepareDevice)
+	}
+	tasks = append(tasks, genKey)
 	requestSerial := m.state.NewTask("request-serial", i18n.G("Request device serial"))
 	requestSerial.WaitFor(genKey)
+	tasks = append(tasks, requestSerial)
 
 	chg := m.state.NewChange("become-operational", i18n.G("Initialize device"))
-	chg.AddAll(state.NewTaskSet(genKey, requestSerial))
+	chg.AddAll(state.NewTaskSet(tasks...))
 
 	return nil
 }
 
-// Ensure implements StateManager.Ensure.
-func (m *DeviceManager) Ensure() error {
-	err := m.ensureOperational()
+var bootPopulateStateFromSeed = boot.PopulateStateFromSeed
+
+// ensureSnaps makes sure that the snaps from seed.yaml get installed
+// with the matching assertions
+func (m *DeviceManager) ensureSeedYaml() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	// FIXME: enable on classic?
+	//
+	// Disable seed.yaml on classic for now. In the long run we want
+	// classic to have a seed parsing as well so that we can install
+	// snaps in a classic environment (LP: #1609903). However right
+	// now it is under heavy development so until the dust
+	// settles we disable it.
+	if release.OnClassic {
+		return nil
+	}
+
+	var seeded bool
+	err := m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if seeded {
+		return nil
+	}
+
+	if m.changeInFlight("seed") {
+		return nil
+	}
+
+	tsAll, err := bootPopulateStateFromSeed(m.state)
 	if err != nil {
 		return err
 	}
+	if len(tsAll) == 0 {
+		return nil
+	}
+
+	msg := fmt.Sprintf("Initialize system state")
+	chg := m.state.NewChange("seed", msg)
+	for _, ts := range tsAll {
+		chg.AddAll(ts)
+	}
+	m.state.EnsureBefore(0)
+
+	return nil
+}
+
+func (m *DeviceManager) ensureBootOk() error {
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	if release.OnClassic {
+		logger.Debugf("Ignoring 'booted' on classic")
+		return nil
+	}
+
+	if !m.bootOkRan {
+		bootloader, err := partition.FindBootloader()
+		if err != nil {
+			return fmt.Errorf(i18n.G("cannot mark boot successful: %s"), err)
+		}
+		if err := partition.MarkBootSuccessful(bootloader); err != nil {
+			return err
+		}
+		m.bootOkRan = true
+	}
+
+	return snapstate.UpdateBootRevisions(m.state)
+}
+
+type ensureError struct {
+	errs []error
+}
+
+func (e *ensureError) Error() string {
+	if len(e.errs) == 1 {
+		return fmt.Sprintf("devicemgr: %v", e.errs[0])
+	}
+	parts := []string{"devicemgr:"}
+	for _, e := range e.errs {
+		parts = append(parts, e.Error())
+	}
+	return strings.Join(parts, "\n - ")
+}
+
+// Ensure implements StateManager.Ensure.
+func (m *DeviceManager) Ensure() error {
+	var errs []error
+
+	if err := m.ensureSeedYaml(); err != nil {
+		errs = append(errs, err)
+	}
+	if err := m.ensureOperational(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := m.ensureBootOk(); err != nil {
+		errs = append(errs, err)
+	}
+
 	m.runner.Ensure()
+
+	if len(errs) > 0 {
+		return &ensureError{errs}
+	}
+
 	return nil
 }
 
@@ -153,9 +319,8 @@ func deviceAPIBaseURL() string {
 }
 
 var (
-	keyLength     = 4096
-	retryInterval = 60 * time.Second
-	// TODO: this will come optionally as config from the gadget snap
+	keyLength        = 4096
+	retryInterval    = 60 * time.Second
 	deviceAPIBase    = deviceAPIBaseURL()
 	requestIDURL     = deviceAPIBase + "request-id"
 	serialRequestURL = deviceAPIBase + "devices"
@@ -226,11 +391,18 @@ func retryErr(t *state.Task, reason string, a ...interface{}) error {
 	return &state.Retry{After: retryInterval}
 }
 
-func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client) (string, error) {
+func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, client *http.Client, cfg *serialRequestConfig) (string, error) {
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
-	resp, err := client.Post(requestIDURL, "", nil)
+
+	req, err := http.NewRequest("POST", cfg.requestIDURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("internal error: cannot create request-id request %q", cfg.requestIDURL)
+	}
+	cfg.applyHeaders(req)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", retryErr(t, "cannot retrieve request-id for making a request for a serial: %v", err)
 	}
@@ -252,12 +424,17 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 
 	}
 
-	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, map[string]interface{}{
+	headers := map[string]interface{}{
 		"brand-id":   device.Brand,
 		"model":      device.Model,
 		"request-id": requestID.RequestID,
 		"device-key": string(encodedPubKey),
-	}, nil, privKey) // XXX: fill body with some agreed hardware details
+	}
+	if cfg.proposedSerial != "" {
+		headers["serial"] = cfg.proposedSerial
+	}
+
+	serialReq, err := asserts.SignWithoutAuthority(asserts.SerialRequestType, headers, cfg.body, privKey)
 	if err != nil {
 		return "", err
 	}
@@ -267,11 +444,19 @@ func prepareSerialRequest(t *state.Task, privKey asserts.PrivateKey, device *aut
 
 var errPoll = errors.New("serial-request accepted, poll later")
 
-func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client) (*asserts.Serial, error) {
+func submitSerialRequest(t *state.Task, serialRequest string, client *http.Client, cfg *serialRequestConfig) (*asserts.Serial, error) {
 	st := t.State()
 	st.Unlock()
 	defer st.Lock()
-	resp, err := client.Post(serialRequestURL, asserts.MediaType, bytes.NewBufferString(serialRequest))
+
+	req, err := http.NewRequest("POST", cfg.serialRequestURL, bytes.NewBufferString(serialRequest))
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot create serial-request request %q", cfg.serialRequestURL)
+	}
+	cfg.applyHeaders(req)
+	req.Header.Set("Content-Type", asserts.MediaType)
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, retryErr(t, "cannot deliver device serial request: %v", err)
 	}
@@ -300,7 +485,7 @@ func submitSerialRequest(t *state.Task, serialRequest string, client *http.Clien
 	return serial, nil
 }
 
-func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState) (*asserts.Serial, error) {
+func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceState, cfg *serialRequestConfig) (*asserts.Serial, error) {
 	var serialSup serialSetup
 	err := t.Get("serial-setup", &serialSup)
 	if err != nil && err != state.ErrNoState {
@@ -323,7 +508,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	// previous one used could have expired
 
 	if serialSup.SerialRequest == "" {
-		serialRequest, err := prepareSerialRequest(t, privKey, device, client)
+		serialRequest, err := prepareSerialRequest(t, privKey, device, client, cfg)
 		if err != nil { // errors & retries
 			return nil, err
 		}
@@ -331,7 +516,7 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 		serialSup.SerialRequest = serialRequest
 	}
 
-	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client)
+	serial, err := submitSerialRequest(t, serialSup.SerialRequest, client, cfg)
 	if err == errPoll {
 		// we can/should reuse the serial-request
 		t.Set("serial-setup", serialSup)
@@ -357,10 +542,95 @@ func getSerial(t *state.Task, privKey asserts.PrivateKey, device *auth.DeviceSta
 	return serial, nil
 }
 
+type serialRequestConfig struct {
+	requestIDURL     string
+	serialRequestURL string
+	headers          map[string]string
+	proposedSerial   string
+	body             []byte
+}
+
+func (cfg *serialRequestConfig) applyHeaders(req *http.Request) {
+	for k, v := range cfg.headers {
+		req.Header.Set(k, v)
+	}
+}
+
+func getSerialRequestConfig(t *state.Task) (*serialRequestConfig, error) {
+	gadgetInfo, err := snapstate.GadgetInfo(t.State())
+	if err != nil {
+		return nil, fmt.Errorf("cannot find gadget snap and its name: %v", err)
+	}
+	gadgetName := gadgetInfo.Name()
+
+	tr := configstate.NewTransaction(t.State())
+	var svcURL string
+	err = tr.GetMaybe(gadgetName, "device-service.url", &svcURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if svcURL != "" {
+		baseURL, err := url.Parse(svcURL)
+		if err != nil {
+			return nil, fmt.Errorf("cannot parse device registration base URL %q: %v", svcURL, err)
+		}
+
+		var headers map[string]string
+		err = tr.GetMaybe(gadgetName, "device-service.headers", &headers)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg := serialRequestConfig{
+			headers: headers,
+		}
+
+		reqIDURL, err := baseURL.Parse("request-id")
+		if err != nil {
+			return nil, fmt.Errorf("cannot build /request-id URL from %v: %v", baseURL, err)
+		}
+		cfg.requestIDURL = reqIDURL.String()
+
+		var bodyStr string
+		err = tr.GetMaybe(gadgetName, "registration.body", &bodyStr)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.body = []byte(bodyStr)
+
+		serialURL, err := baseURL.Parse("serial")
+		if err != nil {
+			return nil, fmt.Errorf("cannot build /serial URL from %v: %v", baseURL, err)
+		}
+		cfg.serialRequestURL = serialURL.String()
+
+		var proposedSerial string
+		err = tr.GetMaybe(gadgetName, "registration.proposed-serial", &proposedSerial)
+		if err != nil {
+			return nil, err
+		}
+		cfg.proposedSerial = proposedSerial
+
+		return &cfg, nil
+	}
+
+	return &serialRequestConfig{
+		requestIDURL:     requestIDURL,
+		serialRequestURL: serialRequestURL,
+	}, nil
+}
+
 func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
+
+	cfg, err := getSerialRequestConfig(t)
+	if err != nil {
+		return err
+	}
 
 	device, err := auth.Device(st)
 	if err != nil {
@@ -394,7 +664,7 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: multiple serial assertions for the same device key")
 	}
 
-	serial, err := getSerial(t, privKey, device)
+	serial, err := getSerial(t, privKey, device, cfg)
 	if err == errPoll {
 		t.Logf("Will poll for device serial assertion in 60 seconds")
 		return &state.Retry{After: retryInterval}
@@ -437,6 +707,15 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	auth.SetDevice(st, device)
 
 	t.SetStatus(state.DoneStatus)
+	return nil
+}
+
+func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("seeded", true)
 	return nil
 }
 
@@ -490,26 +769,6 @@ func (m *DeviceManager) DeviceSessionRequest(nonce string) (*asserts.DeviceSessi
 
 	return a.(*asserts.DeviceSessionRequest), serial, err
 
-}
-
-// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
-func (m *DeviceManager) SerialProof(nonce string) (*asserts.SerialProof, error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-
-	privKey, err := m.keyPair()
-	if err != nil {
-		return nil, err
-	}
-
-	a, err := asserts.SignWithoutAuthority(asserts.SerialProofType, map[string]interface{}{
-		"nonce": nonce,
-	}, nil, privKey)
-	if err != nil {
-		return nil, err
-	}
-
-	return a.(*asserts.SerialProof), err
 }
 
 // Model returns the device model assertion.

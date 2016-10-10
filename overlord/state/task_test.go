@@ -82,6 +82,25 @@ func (ts *taskSuite) TestGetSet(c *C) {
 	c.Check(v, Equals, 1)
 }
 
+func (ts *taskSuite) TestClear(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	t.Set("a", 1)
+
+	var v int
+	err := t.Get("a", &v)
+	c.Assert(err, IsNil)
+	c.Check(v, Equals, 1)
+
+	t.Clear("a")
+
+	c.Check(t.Get("a", &v), Equals, state.ErrNoState)
+}
+
 func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	st := state.New(nil)
 	st.Lock()
@@ -94,6 +113,21 @@ func (ts *taskSuite) TestStatusAndSetStatus(c *C) {
 	t.SetStatus(state.DoneStatus)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (ts *taskSuite) TestIsCleanAndSetClean(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	t := st.NewTask("download", "1...")
+
+	c.Check(t.IsClean(), Equals, false)
+
+	t.SetStatus(state.DoneStatus)
+	t.SetClean()
+
+	c.Check(t.IsClean(), Equals, true)
 }
 
 func jsonStr(m json.Marshaler) string {
@@ -111,37 +145,39 @@ func (ts *taskSuite) TestProgressAndSetProgress(c *C) {
 
 	t := st.NewTask("download", "1...")
 
-	t.SetProgress(2, 99)
-	cur, tot := t.Progress()
+	t.SetProgress("snap", 2, 99)
+	label, cur, tot := t.Progress()
+	c.Check(label, Equals, "snap")
 	c.Check(cur, Equals, 2)
 	c.Check(tot, Equals, 99)
 
-	t.SetProgress(0, 0)
-	cur, tot = t.Progress()
+	t.SetProgress("", 0, 0)
+	label, cur, tot = t.Progress()
+	c.Check(label, Equals, "")
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
 
-	t.SetProgress(0, -1)
-	cur, tot = t.Progress()
+	t.SetProgress("", 0, -1)
+	_, cur, tot = t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
 
-	t.SetProgress(0, -1)
-	cur, tot = t.Progress()
+	t.SetProgress("", 0, -1)
+	_, cur, tot = t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
 
-	t.SetProgress(2, 1)
-	cur, tot = t.Progress()
+	t.SetProgress("", 2, 1)
+	_, cur, tot = t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 	c.Check(jsonStr(t), Not(testutil.Contains), "progress")
 
-	t.SetProgress(42, 42)
-	cur, tot = t.Progress()
+	t.SetProgress("", 42, 42)
+	_, cur, tot = t.Progress()
 	c.Check(cur, Equals, 42)
 	c.Check(tot, Equals, 42)
 }
@@ -154,22 +190,22 @@ func (ts *taskSuite) TestProgressDefaults(c *C) {
 	t := st.NewTask("download", "1...")
 
 	c.Check(t.Status(), Equals, state.DoStatus)
-	cur, tot := t.Progress()
+	_, cur, tot := t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 
 	t.SetStatus(state.DoStatus)
-	cur, tot = t.Progress()
+	_, cur, tot = t.Progress()
 	c.Check(cur, Equals, 0)
 	c.Check(tot, Equals, 1)
 
 	t.SetStatus(state.DoneStatus)
-	cur, tot = t.Progress()
+	_, cur, tot = t.Progress()
 	c.Check(cur, Equals, 1)
 	c.Check(tot, Equals, 1)
 
 	t.SetStatus(state.ErrorStatus)
-	cur, tot = t.Progress()
+	_, cur, tot = t.Progress()
 	c.Check(cur, Equals, 1)
 	c.Check(tot, Equals, 1)
 }
@@ -318,17 +354,19 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 
 	writes := []func(){
 		func() { t1.SetStatus(state.DoneStatus) },
+		func() { t1.SetClean() },
 		func() { t1.Set("a", 1) },
 		func() { t2.WaitFor(t1) },
-		func() { t1.SetProgress(2, 2) },
+		func() { t1.SetProgress("", 2, 2) },
 		func() { t1.Logf("") },
 		func() { t1.Errorf("") },
 		func() { t1.UnmarshalJSON(nil) },
-		func() { t1.SetProgress(1, 1) },
+		func() { t1.SetProgress("", 1, 1) },
 	}
 
 	reads := []func(){
 		func() { t1.Status() },
+		func() { t1.IsClean() },
 		func() { t1.Get("a", nil) },
 		func() { t1.WaitTasks() },
 		func() { t1.HaltTasks() },
@@ -336,7 +374,7 @@ func (cs *taskSuite) TestMethodEntrance(c *C) {
 		func() { t1.Log() },
 		func() { t1.MarshalJSON() },
 		func() { t1.Progress() },
-		func() { t1.SetProgress(0, 1) },
+		func() { t1.SetProgress("", 0, 1) },
 	}
 
 	for i, f := range reads {

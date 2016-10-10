@@ -51,8 +51,8 @@ type cmdChange struct {
 }
 
 func init() {
-	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} })
-	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} })
+	addCommand("changes", shortChangesHelp, longChangesHelp, func() flags.Commander { return &cmdChanges{} }, nil, nil)
+	addCommand("change", shortChangeHelp, longChangeHelp, func() flags.Commander { return &cmdChange{} }, nil, nil)
 }
 
 type changesByTime []*client.Change

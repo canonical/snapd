@@ -1,0 +1,48 @@
+summary: Ensure classic dimension works correctly
+systems: [ubuntu-core-16-64, ubuntu-core-16-arm-64, ubuntu-core-16-arm-32]
+environment:
+    # We need to set the SUDO_USER here to simulate the real
+    # behavior. I.e. when entering classic it happens via
+    # `sudo classic` and the user gets a user shell inside
+    # the classic environment that has sudo support.
+    SUDO_USER: test
+prepare: |
+    echo "test ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/create-test
+restore: |
+    rm -f /etc/sudoers.d/create-test
+execute: |
+    echo "Ensure classic can be installed"
+    snap install --devmode --beta classic
+    snap list|grep classic
+
+    echo "Check that classic can run commands inside classic"
+    classic test -f /var/lib/dpkg/status
+
+    echo "Ensure that after classic exits no processes are left behind"
+    classic "sleep 133713371337&"
+    if ps afx|grep 133713371337|grep -v grep; then
+        echo "The sleep process was not killed when classic exited"
+        echo "Something is wrong with the cleanup"
+        exit 1
+    fi
+
+    echo "Ensure sudo works without a password inside classic"
+    # classic uses "script" to work around the issue that
+    # tty reports "no tty" inside snaps (LP: #1611493)
+    #
+    # "script" adds extra \r into the output that we need to filter here
+    if [ "$(classic sudo id -u|tr -d "\r")" != "0" ]; then
+        echo "sudo inside classic did not work as expected"
+        exit 1
+    fi
+
+    for d in /proc /run /sys /dev /snappy; do
+        if ! classic test -d $d; then
+            echo "Expected dir $d is missing inside classic"
+            exit 1
+        fi
+        if ! classic mount | grep "$d"; then
+            echo "Expected bind mount for $d in classic missing"
+            exit 1
+        fi
+    done

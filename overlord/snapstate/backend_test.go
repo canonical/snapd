@@ -144,6 +144,10 @@ func (f *fakeStore) ListRefresh(cands []*store.RefreshCandidate, _ *auth.UserSta
 		return nil, nil
 	}
 
+	if snapID == "fakestore-please-error-on-refresh" {
+		return nil, fmt.Errorf("failing as requested")
+	}
+
 	var name string
 	if snapID == "some-snap-id" {
 		name = "some-snap"
@@ -218,8 +222,8 @@ func (f *fakeStore) Buy(options *store.BuyOptions, user *auth.UserState) (*store
 	panic("Never expected fakeStore.Buy to be called")
 }
 
-func (f *fakeStore) PaymentMethods(user *auth.UserState) (*store.PaymentInformation, error) {
-	panic("Never expected fakeStore.PaymentMethods to be called")
+func (f *fakeStore) ReadyToBuy(user *auth.UserState) error {
+	panic("Never expected fakeStore.ReadyToBuy to be called")
 }
 
 func (f *fakeStore) Assertion(*asserts.AssertionType, []string, *auth.UserState) (asserts.Assertion, error) {
@@ -275,6 +279,14 @@ func (f *fakeSnappyBackend) ReadInfo(name string, si *snap.SideInfo) (*snap.Info
 		info.Type = snap.TypeOS
 	}
 	return info, nil
+}
+
+func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
+	f.ops = append(f.ops, fakeOp{
+		op:    "cleanup-trash",
+		name:  si.Name(),
+		revno: si.Revision,
+	})
 }
 
 func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, userID int, flags snapstate.Flags) (*snap.Info, error) {
@@ -394,6 +406,14 @@ func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
 	f.ops = append(f.ops, fakeOp{
 		op:   "remove-snap-common-data",
 		name: info.MountDir(),
+	})
+	return nil
+}
+
+func (f *fakeSnappyBackend) DiscardSnapNamespace(snapName string) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "discard-namespace",
+		name: snapName,
 	})
 	return nil
 }

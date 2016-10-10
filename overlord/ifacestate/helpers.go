@@ -23,10 +23,13 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/backends"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -92,7 +95,9 @@ func (m *InterfaceManager) reloadConnections(snapName string) error {
 		if snapName != "" && plugRef.Snap != snapName && slotRef.Snap != snapName {
 			continue
 		}
-		err = m.repo.Connect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name)
+
+		connRef := interfaces.ConnRef{PlugRef: *plugRef, SlotRef: *slotRef}
+		err = m.repo.Connect(connRef)
 		if err != nil {
 			logger.Noticef("%s", err)
 		}
@@ -154,6 +159,75 @@ func parseConnID(conn string) (*interfaces.PlugRef, *interfaces.SlotRef, error) 
 	return plugRef, slotRef, nil
 }
 
+type autoConnectChecker struct {
+	st       *state.State
+	cache    map[string]*asserts.SnapDeclaration
+	baseDecl *asserts.BaseDeclaration
+}
+
+func newAutoConnectChecker(s *state.State) (*autoConnectChecker, error) {
+	baseDecl, err := assertstate.BaseDeclaration(s)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+	return &autoConnectChecker{
+		st:       s,
+		cache:    make(map[string]*asserts.SnapDeclaration),
+		baseDecl: baseDecl,
+	}, nil
+}
+
+func (c *autoConnectChecker) snapDeclaration(snapID string) (*asserts.SnapDeclaration, error) {
+	snapDecl := c.cache[snapID]
+	if snapDecl != nil {
+		return snapDecl, nil
+	}
+	snapDecl, err := assertstate.SnapDeclaration(c.st, snapID)
+	if err != nil {
+		return nil, err
+	}
+	c.cache[snapID] = snapDecl
+	return snapDecl, nil
+}
+
+func (c *autoConnectChecker) check(plug *interfaces.Plug, slot *interfaces.Slot) bool {
+	// FIXME: remove once we have assertions that provide this feature
+	if interfaces.IsLivePatchSnap(plug.Snap) {
+		return true
+	}
+
+	var plugDecl *asserts.SnapDeclaration
+	if plug.Snap.SnapID != "" {
+		var err error
+		plugDecl, err = c.snapDeclaration(plug.Snap.SnapID)
+		if err != nil {
+			logger.Noticef("error: cannot find snap declaration for %q: %v", plug.Snap.Name(), err)
+			return false
+		}
+	}
+
+	var slotDecl *asserts.SnapDeclaration
+	if slot.Snap.SnapID != "" {
+		var err error
+		slotDecl, err = c.snapDeclaration(slot.Snap.SnapID)
+		if err != nil {
+			logger.Noticef("error: cannot find snap declaration for %q: %v", slot.Snap.Name(), err)
+			return false
+		}
+	}
+
+	// check the connection against the declarations' rules
+	ic := policy.ConnectCandidate{
+		Plug:                plug.PlugInfo,
+		PlugSnapDeclaration: plugDecl,
+		Slot:                slot.SlotInfo,
+		SlotSnapDeclaration: slotDecl,
+		BaseDeclaration:     c.baseDecl,
+	}
+
+	return ic.CheckAutoConnect() == nil
+}
+
 func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blacklist map[string]bool) error {
 	var conns map[string]connState
 	err := task.State().Get("conns", &conns)
@@ -163,17 +237,27 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 	if conns == nil {
 		conns = make(map[string]connState)
 	}
+
+	autochecker, err := newAutoConnectChecker(task.State())
+	if err != nil {
+		return err
+	}
+
 	// XXX: quick hack, auto-connect everything
 	for _, plug := range m.repo.Plugs(snapName) {
 		if blacklist[plug.Name] {
 			continue
 		}
-		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name)
+		candidates := m.repo.AutoConnectCandidates(snapName, plug.Name, autochecker.check)
 		if len(candidates) != 1 {
 			continue
 		}
 		slot := candidates[0]
-		if err := m.repo.Connect(snapName, plug.Name, slot.Snap.Name(), slot.Name); err != nil {
+		connRef := interfaces.ConnRef{
+			PlugRef: interfaces.PlugRef{Snap: snapName, Name: plug.Name},
+			SlotRef: interfaces.SlotRef{Snap: slot.Snap.Name(), Name: slot.Name},
+		}
+		if err := m.repo.Connect(connRef); err != nil {
 			task.Logf("cannot auto connect %s:%s to %s:%s: %s",
 				snapName, plug.Name, slot.Snap.Name(), slot.Name, err)
 		}
@@ -184,16 +268,16 @@ func (m *InterfaceManager) autoConnect(task *state.Task, snapName string, blackl
 	return nil
 }
 
-func getPlugAndSlotRefs(task *state.Task) (*interfaces.PlugRef, *interfaces.SlotRef, error) {
+func getPlugAndSlotRefs(task *state.Task) (interfaces.PlugRef, interfaces.SlotRef, error) {
 	var plugRef interfaces.PlugRef
 	var slotRef interfaces.SlotRef
 	if err := task.Get("plug", &plugRef); err != nil {
-		return nil, nil, err
+		return plugRef, slotRef, err
 	}
 	if err := task.Get("slot", &slotRef); err != nil {
-		return nil, nil, err
+		return plugRef, slotRef, err
 	}
-	return &plugRef, &slotRef, nil
+	return plugRef, slotRef, nil
 }
 
 func getConns(st *state.State) (map[string]connState, error) {
@@ -211,4 +295,37 @@ func getConns(st *state.State) (map[string]connState, error) {
 
 func setConns(st *state.State, conns map[string]connState) {
 	st.Set("conns", conns)
+}
+
+// CheckInterfaces checks whether plugs and slots of snap are allowed for installation.
+func CheckInterfaces(st *state.State, snapInfo *snap.Info) error {
+	// XXX: AddImplicitSlots is really a brittle interface
+	snap.AddImplicitSlots(snapInfo)
+
+	baseDecl, err := assertstate.BaseDeclaration(st)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find base declaration: %v", err)
+	}
+
+	var snapDecl *asserts.SnapDeclaration
+	if snapInfo.SnapID != "" {
+		var err error
+		snapDecl, err = assertstate.SnapDeclaration(st, snapInfo.SnapID)
+		if err != nil {
+			return fmt.Errorf("cannot find snap declaration for %q: %v", snapInfo.Name(), err)
+		}
+	}
+
+	ic := policy.InstallCandidate{
+		Snap:            snapInfo,
+		SnapDeclaration: snapDecl,
+		BaseDeclaration: baseDecl,
+	}
+
+	return ic.Check()
+}
+
+func init() {
+	// hook interface checks into snapstate installation logic
+	snapstate.CheckInterfaces = CheckInterfaces
 }

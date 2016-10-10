@@ -55,9 +55,12 @@ var (
 	AccountKeyType      = &AssertionType{"account-key", []string{"public-key-sha3-384"}, assembleAccountKey, 0}
 	ModelType           = &AssertionType{"model", []string{"series", "brand-id", "model"}, assembleModel, 0}
 	SerialType          = &AssertionType{"serial", []string{"brand-id", "model", "serial"}, assembleSerial, 0}
+	BaseDeclarationType = &AssertionType{"base-declaration", []string{"series"}, assembleBaseDeclaration, 0}
 	SnapDeclarationType = &AssertionType{"snap-declaration", []string{"series", "snap-id"}, assembleSnapDeclaration, 0}
 	SnapBuildType       = &AssertionType{"snap-build", []string{"snap-sha3-384"}, assembleSnapBuild, 0}
 	SnapRevisionType    = &AssertionType{"snap-revision", []string{"snap-sha3-384"}, assembleSnapRevision, 0}
+	SystemUserType      = &AssertionType{"system-user", []string{"brand-id", "email"}, assembleSystemUser, 0}
+	ValidationType      = &AssertionType{"validation", []string{"series", "snap-id", "approved-snap-id", "approved-snap-revision"}, assembleValidation, 0}
 
 // ...
 )
@@ -75,9 +78,12 @@ var typeRegistry = map[string]*AssertionType{
 	AccountKeyType.Name:      AccountKeyType,
 	ModelType.Name:           ModelType,
 	SerialType.Name:          SerialType,
+	BaseDeclarationType.Name: BaseDeclarationType,
 	SnapDeclarationType.Name: SnapDeclarationType,
 	SnapBuildType.Name:       SnapBuildType,
 	SnapRevisionType.Name:    SnapRevisionType,
+	SystemUserType.Name:      SystemUserType,
+	ValidationType.Name:      ValidationType,
 	// no authority
 	DeviceSessionRequestType.Name: DeviceSessionRequestType,
 	SerialProofType.Name:          SerialProofType,
@@ -97,7 +103,21 @@ type Ref struct {
 }
 
 func (ref *Ref) String() string {
-	return fmt.Sprintf("%s %v", ref.Type.Name, ref.PrimaryKey)
+	pkStr := "-"
+	n := len(ref.Type.PrimaryKey)
+	if n != len(ref.PrimaryKey) {
+		pkStr = "???"
+	} else if n > 0 {
+		pkStr = ref.PrimaryKey[n-1]
+		if n > 1 {
+			sfx := []string{pkStr + ";"}
+			for i, k := range ref.Type.PrimaryKey[:n-1] {
+				sfx = append(sfx, fmt.Sprintf("%s:%s", k, ref.PrimaryKey[i]))
+			}
+			pkStr = strings.Join(sfx, " ")
+		}
+	}
+	return fmt.Sprintf("%s (%s)", ref.Type.Name, pkStr)
 }
 
 // Unique returns a unique string representing the reference that can be used as a key in maps.

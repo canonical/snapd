@@ -22,6 +22,8 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/jessevdk/go-flags"
 
@@ -36,22 +38,28 @@ import (
 
 type cmdDownload struct {
 	channelMixin
-	Revision string `long:"revision" description:"Download the given revision of a snap, to which you must have developer access"`
+	Revision string `long:"revision"`
 
 	Positional struct {
-		Snap string `positional-arg-name:"<snap>" description:"snap name"`
+		Snap string
 	} `positional-args:"true" required:"true"`
 }
 
-var shortDownloadHelp = i18n.G("Download a given snap")
+var shortDownloadHelp = i18n.G("Downloads the given snap")
 var longDownloadHelp = i18n.G(`
-The download command will download the given snap and its supporting assertions to the current directory.
+The download command downloads the given snap and its supporting assertions
+to the current directory under .snap and .assert file extensions, respectively.
 `)
 
 func init() {
 	addCommand("download", shortDownloadHelp, longDownloadHelp, func() flags.Commander {
 		return &cmdDownload{}
-	})
+	}, channelDescs.also(map[string]string{
+		"revision": i18n.G("Download the given revision of a snap, to which you must have developer access"),
+	}), []argDesc{{
+		name: "<snap>",
+		desc: i18n.G("Snap name"),
+	}})
 }
 
 func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info, dlOpts *image.DownloadOptions) error {
@@ -63,7 +71,8 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 		return err
 	}
 
-	w, err := os.Create(snapPath + ".assertions")
+	assertPath := strings.TrimSuffix(snapPath, filepath.Ext(snapPath)) + ".assert"
+	w, err := os.Create(assertPath)
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot create assertions file: %v"), err)
 	}
@@ -75,7 +84,7 @@ func fetchSnapAssertions(sto *store.Store, snapPath string, snapInfo *snap.Info,
 	}
 	f := image.StoreAssertionFetcher(sto, dlOpts, db, save)
 
-	return image.FetchSnapAssertions(snapPath, snapInfo, f, db)
+	return image.FetchAndCheckSnapAssertions(snapPath, snapInfo, f, db)
 }
 
 func (x *cmdDownload) Execute(args []string) error {

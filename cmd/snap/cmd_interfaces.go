@@ -28,9 +28,9 @@ import (
 )
 
 type cmdInterfaces struct {
-	Interface   string `short:"i" description:"constrain listing to specific interfaces"`
+	Interface   string `short:"i"`
 	Positionals struct {
-		Query SnapAndName `positional-arg-name:"<snap>:<slot or plug>" description:"snap or snap:name" skip-help:"true"`
+		Query SnapAndName `skip-help:"true"`
 	} `positional-args:"true"`
 }
 
@@ -56,7 +56,12 @@ Filters the complete output so only plugs and/or slots matching the provided det
 func init() {
 	addCommand("interfaces", shortInterfacesHelp, longInterfacesHelp, func() flags.Commander {
 		return &cmdInterfaces{}
-	})
+	}, map[string]string{
+		"i": i18n.G("Constrain listing to specific interfaces"),
+	}, []argDesc{{
+		name: i18n.G("<snap>:<slot or plug>"),
+		desc: i18n.G("Constrain listing to a specific snap or snap:name"),
+	}})
 }
 
 func (x *cmdInterfaces) Execute(args []string) error {
@@ -88,9 +93,9 @@ func (x *cmdInterfaces) Execute(args []string) error {
 			if x.Interface != "" && slot.Interface != x.Interface {
 				continue
 			}
-			// The OS snap (always ubuntu-core) is special and enable abbreviated
+			// The OS snap is special and enable abbreviated
 			// display syntax on the slot-side of the connection.
-			if slot.Snap == "ubuntu-core" {
+			if slot.Snap == "core" || slot.Snap == "ubuntu-core" {
 				fmt.Fprintf(w, ":%s\t", slot.Name)
 			} else {
 				fmt.Fprintf(w, "%s:%s\t", slot.Snap, slot.Name)

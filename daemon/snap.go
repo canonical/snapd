@@ -38,7 +38,7 @@ func snapIcon(info *snap.Info) string {
 	// XXX: copy of snap.Snap.Icon which will go away
 	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
 	if len(found) == 0 {
-		return ""
+		return info.IconURL
 	}
 
 	return found[0]
@@ -113,6 +113,13 @@ type appJSON struct {
 	Name string `json:"name"`
 }
 
+// screenshotJSON contains the json for snap.ScreenshotInfo
+type screenshotJSON struct {
+	URL    string `json:"url"`
+	Width  int64  `json:"width,omitempty"`
+	Height int64  `json:"height,omitempty"`
+}
+
 func mapLocal(localSnap *snap.Info, snapst *snapstate.SnapState) map[string]interface{} {
 	status := "installed"
 	if snapst.Active && localSnap.Revision == snapst.Current {
@@ -160,6 +167,15 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		confinement = snap.StrictConfinement
 	}
 
+	screenshots := make([]screenshotJSON, len(remoteSnap.Screenshots))
+	for i, screenshot := range remoteSnap.Screenshots {
+		screenshots[i] = screenshotJSON{
+			URL:    screenshot.URL,
+			Width:  screenshot.Width,
+			Height: screenshot.Height,
+		}
+	}
+
 	result := map[string]interface{}{
 		"description":   remoteSnap.Description(),
 		"developer":     remoteSnap.Developer,
@@ -175,6 +191,10 @@ func mapRemote(remoteSnap *snap.Info) map[string]interface{} {
 		"channel":       remoteSnap.Channel,
 		"private":       remoteSnap.Private,
 		"confinement":   confinement,
+	}
+
+	if len(screenshots) > 0 {
+		result["screenshots"] = screenshots
 	}
 
 	if len(remoteSnap.Prices) > 0 {

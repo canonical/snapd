@@ -32,7 +32,7 @@ import (
 
 type cmdCreateKey struct {
 	Positional struct {
-		KeyName string `positional-arg-name:"<key-name>" description:"name of key to create; defaults to 'default'"`
+		KeyName string
 	} `positional-args:"true"`
 }
 
@@ -42,7 +42,10 @@ func init() {
 		i18n.G("Create a cryptographic key pair that can be used for signing assertions."),
 		func() flags.Commander {
 			return &cmdCreateKey{}
-		})
+		}, nil, []argDesc{{
+			name: i18n.G("<key-name>"),
+			desc: i18n.G("Name of key to create; defaults to 'default'"),
+		}})
 	cmd.hidden = true
 }
 

@@ -1,0 +1,58 @@
+#!/bin/sh
+
+test_nonexisting() {
+	echo "Getting a configuration value that shouldn't be there"
+	if [ "$(snapctl get non-existing 2>&1)" != "" ]; then
+		echo "Expected getting a non-existing value to be empty"
+		exit 1
+	fi
+}
+
+test_snapctl_set_foo() {
+	echo "Setting foo"
+	if ! snapctl set foo=bar; then
+		echo "snapctl set unexpectedly failed"
+		exit 1
+	fi
+}
+
+test_snapctl_get_foo() {
+	echo "Getting foo"
+	if ! output="$(snapctl get foo)"; then
+		echo "Expected snapctl get to be able to retrieve value just set"
+		exit 1
+	fi
+
+	expected_output="bar"
+	if [ "$output" != "$expected_output" ]; then
+		echo "Expected output to be '$expected_output', but it was '$output'"
+		exit 1
+	fi
+}
+
+test_exit_one() {
+	echo "Failing as requested."
+	exit 1
+}
+
+command=$(snapctl get command)
+case $command in
+	"")
+		;;
+	"test-nonexisting")
+		test_nonexisting
+		;;
+	"test-snapctl-set-foo")
+		test_snapctl_set_foo
+		;;
+	"test-snapctl-get-foo")
+		test_snapctl_get_foo
+		;;
+	"test-exit-one")
+		test_exit_one
+		;;
+	*)
+		echo "Invalid command: '$command'"
+		exit 1
+		;;
+esac

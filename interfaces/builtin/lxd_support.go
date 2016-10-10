@@ -46,14 +46,7 @@ func (iface *LxdSupportInterface) Name() string {
 }
 
 func (iface *LxdSupportInterface) PermanentPlugSnippet(plug *interfaces.Plug, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
@@ -62,34 +55,16 @@ func (iface *LxdSupportInterface) ConnectedPlugSnippet(plug *interfaces.Plug, sl
 		return []byte(lxdSupportConnectedPlugAppArmor), nil
 	case interfaces.SecuritySecComp:
 		return []byte(lxdSupportConnectedPlugSecComp), nil
-	case interfaces.SecurityDBus, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
 	}
+	return nil, nil
 }
 
 func (iface *LxdSupportInterface) PermanentSlotSnippet(slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *LxdSupportInterface) ConnectedSlotSnippet(plug *interfaces.Plug, slot *interfaces.Slot, securitySystem interfaces.SecuritySystem) ([]byte, error) {
-	switch securitySystem {
-	case interfaces.SecurityDBus, interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityUDev,
-		interfaces.SecurityMount:
-		return nil, nil
-	default:
-		return nil, interfaces.ErrUnknownSecurity
-	}
+	return nil, nil
 }
 
 func (iface *LxdSupportInterface) SanitizePlug(plug *interfaces.Plug) error {
@@ -107,7 +82,12 @@ func (iface *LxdSupportInterface) SanitizeSlot(slot *interfaces.Slot) error {
 	return nil
 }
 
-func (iface *LxdSupportInterface) AutoConnect() bool {
+func (iface *LxdSupportInterface) LegacyAutoConnect() bool {
 	// since limited to lxd.canonical, we can auto-connect
+	return true
+}
+
+func (iface *LxdSupportInterface) AutoConnect(*interfaces.Plug, *interfaces.Slot) bool {
+	// allow what declarations allowed
 	return true
 }

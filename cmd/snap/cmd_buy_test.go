@@ -29,6 +29,12 @@ import (
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
+type BuySnapSuite struct {
+	BaseSnapSuite
+}
+
+var _ = check.Suite(&BuySnapSuite{})
+
 type expectedURL struct {
 	Body    string
 	Checker func(r *http.Request)
@@ -72,15 +78,25 @@ func (s *buyTestMockSnapServer) checkCounts() {
 	}
 }
 
-func (s *SnapSuite) TestBuyHelp(c *check.C) {
+func (s *BuySnapSuite) SetUpTest(c *check.C) {
+	s.BaseSnapSuite.SetUpTest(c)
+	s.Login(c)
+}
+
+func (s *BuySnapSuite) TearDownTest(c *check.C) {
+	s.Logout(c)
+	s.BaseSnapSuite.TearDownTest(c)
+}
+
+func (s *BuySnapSuite) TestBuyHelp(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"buy"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "the required argument `<snap-name>` was not provided")
+	c.Check(err.Error(), check.Equals, "the required argument `<snap>` was not provided")
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuyInvalidCharacters(c *check.C) {
+func (s *BuySnapSuite) TestBuyInvalidCharacters(c *check.C) {
 	_, err := snap.Parser().ParseArgs([]string{"buy", "a:b"})
 	c.Assert(err, check.NotNil)
 	c.Check(err.Error(), check.Equals, "cannot buy snap \"a:b\": invalid characters in name")
@@ -125,7 +141,7 @@ const buyFreeSnapFailsFindJson = `
 }
 `
 
-func (s *SnapSuite) TestBuyFreeSnapFails(c *check.C) {
+func (s *BuySnapSuite) TestBuyFreeSnapFails(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
@@ -188,24 +204,12 @@ func buySnapFindURL(c *check.C) *expectedURL {
 	}
 }
 
-const buyMethodsAllowsAutomaticPaymentJson = `
+const buyReadyJson = `
 {
   "type": "sync",
   "status-code": 200,
   "status": "OK",
-  "result": {
-    "allows-automatic-payment": true,
-    "methods": [
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD", "GBP"],
-        "description": "**** **** **** 1111 (exp 23/2020)",
-        "id": 123,
-        "preferred": true,
-        "requires-interaction": false
-      }
-    ]
-  },
+  "result": true,
   "sources": [
     "store"
   ],
@@ -213,9 +217,9 @@ const buyMethodsAllowsAutomaticPaymentJson = `
 }
 `
 
-func buyMethodsAllowsAutomaticPaymentURL(c *check.C) *expectedURL {
+func buyReady(c *check.C) *expectedURL {
 	return &expectedURL{
-		Body: buyMethodsAllowsAutomaticPaymentJson,
+		Body: buyReadyJson,
 	}
 }
 
@@ -225,9 +229,6 @@ const buySnapJson = `
   "status-code": 200,
   "status": "OK",
   "result": {
-    "open_id": "https://login.staging.ubuntu.com/+id/open_id",
-    "snap_id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6",
-    "refundable_until": "2015-07-15 18:46:21",
     "state": "Complete"
   },
   "sources": [
@@ -237,14 +238,36 @@ const buySnapJson = `
 }
 `
 
-func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
+const loginJson = `
+{
+  "type": "sync",
+  "status-code": 200,
+  "status": "OK",
+  "result": {
+    "id": 1,
+    "username": "username",
+    "email": "hello@mail.com",
+    "macaroon": "1234abcd",
+    "discharges": ["a", "b", "c"]
+  },
+  "sources": [
+    "store"
+  ]
+}
+`
+
+func (s *BuySnapSuite) TestBuySnapSuccess(c *check.C) {
+
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
-				"/v2/find":        buySnapFindURL(c),
-				"/v2/buy/methods": buyMethodsAllowsAutomaticPaymentURL(c),
+				"/v2/find":      buySnapFindURL(c),
+				"/v2/buy/ready": buyReady(c),
 			},
 			"POST": &expectedMethod{
+				"/v2/login": &expectedURL{
+					Body: loginJson,
+				},
 				"/v2/buy": &expectedURL{
 					Body: buySnapJson,
 					Checker: func(r *http.Request) {
@@ -272,254 +295,37 @@ func (s *SnapSuite) TestBuySnapAutomaticPayment(c *check.C) {
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
 	// Confirm the purchase.
-	fmt.Fprint(s.stdin, "y\n")
+	fmt.Fprint(s.term, "the password\n")
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Check(err, check.IsNil)
 	c.Check(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, "Do you want to buy \"hello\" from \"canonical\" for 2.99GBP? (Y/n): hello bought\n")
-	c.Check(s.Stderr(), check.Equals, "")
-}
-
-const buyMethodsSelectPaymentMethodJson = `
-{
-  "type": "sync",
-  "status-code": 200,
-  "status": "OK",
-  "result": {
-    "allows-automatic-payment": false,
-    "methods": [
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD", "GBP"],
-        "description": "**** **** **** 1111 (exp 23/2020)",
-        "id": 123,
-        "preferred": false,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD", "GBP"],
-        "description": "**** **** **** 2222 (exp 23/2025)",
-        "id": 234,
-        "preferred": false,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "credit_card",
-        "currencies": ["EUR"],
-        "description": "**** **** **** 3333 (exp 30/2027)",
-        "id": 345,
-        "preferred": false,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "rest_paypal",
-        "currencies": ["USD", "GBP", "EUR"],
-        "description": "PayPal",
-        "id": 345,
-        "preferred": false,
-        "requires-interaction": true
-      }
-    ]
-  },
-  "sources": [
-    "store"
-  ],
-  "suggested-currency": "GBP"
-}
-`
-
-func (s *SnapSuite) TestBuySnapSelectPaymentMethod(c *check.C) {
-	mockServer := &buyTestMockSnapServer{
-		ExpectedMethods: expectedMethods{
-			"GET": &expectedMethod{
-				"/v2/find": buySnapFindURL(c),
-				"/v2/buy/methods": &expectedURL{
-					Body: buyMethodsSelectPaymentMethodJson,
-				},
-			},
-			"POST": &expectedMethod{
-				"/v2/buy": &expectedURL{
-					Body: buySnapJson,
-					Checker: func(r *http.Request) {
-						var postData struct {
-							SnapID    string  `json:"snap-id"`
-							SnapName  string  `json:"snap-name"`
-							Price     float64 `json:"price"`
-							Currency  string  `json:"currency"`
-							MethodID  int     `json:"method-id"`
-							BackendID string  `json:"backend-id"`
-						}
-						decoder := json.NewDecoder(r.Body)
-						err := decoder.Decode(&postData)
-						c.Assert(err, check.IsNil)
-
-						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
-						c.Check(postData.SnapName, check.Equals, "hello")
-						c.Check(postData.Price, check.Equals, 2.99)
-						c.Check(postData.Currency, check.Equals, "GBP")
-
-						// Confirm the correct details for card #2
-						c.Check(postData.MethodID, check.Equals, 234)
-						c.Check(postData.BackendID, check.Equals, "credit_card")
-					},
-				},
-			},
-		},
-		Checker: c,
-	}
-	defer mockServer.checkCounts()
-	s.RedirectClientToTestServer(mockServer.serveHttp)
-
-	// Select the second card
-	fmt.Fprint(s.stdin, "2\n")
-	// Confirm "yes" to the purchase
-	fmt.Fprint(s.stdin, "\n")
-
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
-	c.Check(err, check.IsNil)
-	c.Check(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `  Selection  Description
-  1          **** **** **** 1111 (exp 23/2020)
-  2          **** **** **** 2222 (exp 23/2025)
-  3          **** **** **** 3333 (exp 30/2027)
-Type a number to select payment method: Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): hello bought
+	c.Check(s.Stdout(), check.Equals, `Please re-enter your Ubuntu One password to purchase "hello" from "canonical"
+for 2.99GBP. Press ctrl-c to cancel.
+Password: 
+Thanks for purchasing "hello". You may now install it on any of your devices
+with 'snap install hello'.
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-const buyMethodsSelectPaymentMethodWithDefaultJson = `
+const readyToBuyNoPaymentMethodJson = `
 {
-  "type": "sync",
-  "status-code": 200,
-  "status": "OK",
+  "type": "error",
   "result": {
-    "allows-automatic-payment": false,
-    "methods": [
-      {
-        "backend-id": "credit_card",
-        "currencies": ["GBP"],
-        "description": "**** **** **** 1111 (exp 23/2020)",
-        "id": 123,
-        "preferred": true,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD"],
-        "description": "**** **** **** 2222 (exp 23/2025)",
-        "id": 234,
-        "preferred": false,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "credit_card",
-        "currencies": ["USD"],
-        "description": "**** **** **** 3333 (exp 30/2027)",
-        "id": 345,
-        "preferred": false,
-        "requires-interaction": false
-      },
-      {
-        "backend-id": "rest_paypal",
-        "currencies": ["USD", "GBP", "EUR"],
-        "description": "PayPal",
-        "id": 345,
-        "preferred": false,
-        "requires-interaction": true
-      }
-    ]
-  },
-  "sources": [
-    "store"
-  ],
-  "suggested-currency": "GBP"
-}
-`
+      "message": "no payment methods",
+      "kind": "no-payment-methods"
+    },
+    "status-code": 400
+}`
 
-func (s *SnapSuite) TestBuySnapSelectPaymentMethodWithDefault(c *check.C) {
+func (s *BuySnapSuite) TestBuySnapFailsNoPaymentMethod(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
 				"/v2/find": buySnapFindURL(c),
-				"/v2/buy/methods": &expectedURL{
-					Body: buyMethodsSelectPaymentMethodWithDefaultJson,
-				},
-			},
-			"POST": &expectedMethod{
-				"/v2/buy": &expectedURL{
-					Body: buySnapJson,
-					Checker: func(r *http.Request) {
-						var postData struct {
-							SnapID    string  `json:"snap-id"`
-							SnapName  string  `json:"snap-name"`
-							Price     float64 `json:"price"`
-							Currency  string  `json:"currency"`
-							MethodID  int     `json:"method-id"`
-							BackendID string  `json:"backend-id"`
-						}
-						decoder := json.NewDecoder(r.Body)
-						err := decoder.Decode(&postData)
-						c.Assert(err, check.IsNil)
-
-						c.Check(postData.SnapID, check.Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
-						c.Check(postData.SnapName, check.Equals, "hello")
-						c.Check(postData.Price, check.Equals, 2.99)
-						c.Check(postData.Currency, check.Equals, "GBP")
-
-						// Confirm the correct details for card #1
-						c.Check(postData.MethodID, check.Equals, 123)
-						c.Check(postData.BackendID, check.Equals, "credit_card")
-					},
-				},
-			},
-		},
-		Checker: c,
-	}
-	defer mockServer.checkCounts()
-	s.RedirectClientToTestServer(mockServer.serveHttp)
-
-	// Select the default card
-	fmt.Fprint(s.stdin, "\n")
-	// Confirm "yes" to the purchase
-	fmt.Fprint(s.stdin, "\n")
-
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
-	c.Check(err, check.IsNil)
-	c.Check(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `   Selection  Description
-*  1          **** **** **** 1111 (exp 23/2020)
-   2          **** **** **** 2222 (exp 23/2025)
-   3          **** **** **** 3333 (exp 30/2027)
-Press <enter> to use your default[*], or type a number to select payment method: Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): hello bought
-`)
-	c.Check(s.Stderr(), check.Equals, "")
-}
-
-const buyNoPaymentMethodsJson = `
-{
-  "type": "sync",
-  "status-code": 200,
-  "status": "OK",
-  "result": {
-    "allows-automatic-payment": false,
-    "methods": []
-  },
-  "sources": [
-    "store"
-  ],
-  "suggested-currency": "GBP"
-}
-`
-
-func (s *SnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
-	mockServer := &buyTestMockSnapServer{
-		ExpectedMethods: expectedMethods{
-			"GET": &expectedMethod{
-				"/v2/find": buySnapFindURL(c),
-				"/v2/buy/methods": &expectedURL{
-					Body: buyNoPaymentMethodsJson,
+				"/v2/buy/ready": &expectedURL{
+					Body: readyToBuyNoPaymentMethodJson,
 				},
 			},
 		},
@@ -530,19 +336,30 @@ func (s *SnapSuite) TestBuySnapFailsNoPaymentMethods(c *check.C) {
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot buy snap "hello": no payment methods registered`)
+	c.Check(err.Error(), check.Equals, `You do not have a payment method associated with your account, visit https://my.ubuntu.com/payment/edit to add one.
+Once completed, return here and run 'snap buy hello' again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
 	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
+const readyToBuyNotAcceptedTermsJson = `
+{
+  "type": "error",
+  "result": {
+      "message": "terms of service not accepted",
+      "kind": "terms-not-accepted"
+    },
+    "status-code": 400
+}`
+
+func (s *BuySnapSuite) TestBuySnapFailsNotAcceptedTerms(c *check.C) {
 	mockServer := &buyTestMockSnapServer{
 		ExpectedMethods: expectedMethods{
 			"GET": &expectedMethod{
 				"/v2/find": buySnapFindURL(c),
-				"/v2/buy/methods": &expectedURL{
-					Body: buyMethodsSelectPaymentMethodJson,
+				"/v2/buy/ready": &expectedURL{
+					Body: readyToBuyNotAcceptedTermsJson,
 				},
 			},
 		},
@@ -551,101 +368,23 @@ func (s *SnapSuite) TestBuySnapFailsInvalidMethodID(c *check.C) {
 	defer mockServer.checkCounts()
 	s.RedirectClientToTestServer(mockServer.serveHttp)
 
-	// Type an invalid number
-	fmt.Fprint(s.stdin, "abc\n")
-
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
 	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot buy snap "hello": invalid payment method selection "abc"`)
+	c.Check(err.Error(), check.Equals, `Please visit https://my.ubuntu.com/terms to agree to the latest terms and conditions.
+Once completed, return here and run 'snap buy hello' again.`)
 	c.Check(rest, check.DeepEquals, []string{"hello"})
-	c.Check(s.Stdout(), check.Equals, `  Selection  Description
-  1          **** **** **** 1111 (exp 23/2020)
-  2          **** **** **** 2222 (exp 23/2025)
-  3          **** **** **** 3333 (exp 30/2027)
-Type a number to select payment method: `)
+	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
-func (s *SnapSuite) TestBuySnapFailsEmptyMethodID(c *check.C) {
-	mockServer := &buyTestMockSnapServer{
-		ExpectedMethods: expectedMethods{
-			"GET": &expectedMethod{
-				"/v2/find": buySnapFindURL(c),
-				"/v2/buy/methods": &expectedURL{
-					Body: buyMethodsSelectPaymentMethodJson,
-				},
-			},
-		},
-		Checker: c,
-	}
-	defer mockServer.checkCounts()
-	s.RedirectClientToTestServer(mockServer.serveHttp)
-
-	// Type an invalid number
-	fmt.Fprint(s.stdin, "\n")
+func (s *BuySnapSuite) TestBuyFailsWithoutLogin(c *check.C) {
+	// We don't login here
+	s.Logout(c)
 
 	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot buy snap "hello": invalid payment method selection ""`)
+	c.Check(err, check.NotNil)
+	c.Check(err.Error(), check.Equals, "You need to be logged in to purchase software. Please run 'snap login' and try again.")
 	c.Check(rest, check.DeepEquals, []string{"hello"})
-	c.Check(s.Stdout(), check.Equals, `  Selection  Description
-  1          **** **** **** 1111 (exp 23/2020)
-  2          **** **** **** 2222 (exp 23/2025)
-  3          **** **** **** 3333 (exp 30/2027)
-Type a number to select payment method: `)
-	c.Check(s.Stderr(), check.Equals, "")
-}
-
-func (s *SnapSuite) TestBuySnapFailsOutOfRangeMethodID(c *check.C) {
-	mockServer := &buyTestMockSnapServer{
-		ExpectedMethods: expectedMethods{
-			"GET": &expectedMethod{
-				"/v2/find": buySnapFindURL(c),
-				"/v2/buy/methods": &expectedURL{
-					Body: buyMethodsSelectPaymentMethodJson,
-				},
-			},
-		},
-		Checker: c,
-	}
-	defer mockServer.checkCounts()
-	s.RedirectClientToTestServer(mockServer.serveHttp)
-
-	// Payment method selection out of range
-	fmt.Fprint(s.stdin, "5\n")
-
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, `cannot buy snap "hello": unknown payment method selection 5`)
-	c.Check(rest, check.DeepEquals, []string{"hello"})
-	c.Check(s.Stdout(), check.Equals, `  Selection  Description
-  1          **** **** **** 1111 (exp 23/2020)
-  2          **** **** **** 2222 (exp 23/2025)
-  3          **** **** **** 3333 (exp 30/2027)
-Type a number to select payment method: `)
-	c.Check(s.Stderr(), check.Equals, "")
-}
-
-func (s *SnapSuite) TestBuyCancel(c *check.C) {
-	mockServer := &buyTestMockSnapServer{
-		ExpectedMethods: expectedMethods{
-			"GET": &expectedMethod{
-				"/v2/find":        buySnapFindURL(c),
-				"/v2/buy/methods": buyMethodsAllowsAutomaticPaymentURL(c),
-			},
-		},
-		Checker: c,
-	}
-	defer mockServer.checkCounts()
-	s.RedirectClientToTestServer(mockServer.serveHttp)
-
-	// Decline the payment
-	fmt.Fprint(s.stdin, "no\n")
-
-	rest, err := snap.Parser().ParseArgs([]string{"buy", "hello"})
-	c.Assert(err, check.NotNil)
-	c.Check(err.Error(), check.Equals, "aborting")
-	c.Check(rest, check.DeepEquals, []string{"hello"})
-	c.Check(s.Stdout(), check.Equals, `Do you want to buy "hello" from "canonical" for 2.99GBP? (Y/n): `)
+	c.Check(s.Stdout(), check.Equals, "")
 	c.Check(s.Stderr(), check.Equals, "")
 }

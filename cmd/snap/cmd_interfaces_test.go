@@ -51,16 +51,16 @@ Filters the complete output so only plugs and/or slots matching the provided
 details are listed.
 
 Application Options:
-      --version                    print the version and exit
+      --version                    Print the version and exit
 
 Help Options:
   -h, --help                       Show this help message
 
 [interfaces command options]
-      -i=                          constrain listing to specific interfaces
+      -i=                          Constrain listing to specific interfaces
 
 [interfaces command arguments]
-  <snap>:<slot or plug>:           snap or snap:name
+  <snap>:<slot or plug>:           Constrain listing to a specific snap or snap:name
 `
 	rest, err := Parser().ParseArgs([]string{"interfaces", "--help"})
 	c.Assert(err.Error(), Equals, msg)
@@ -314,7 +314,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 			"result": client.Interfaces{
 				Slots: []client.Slot{
 					{
-						Snap:      "ubuntu-core",
+						Snap:      "core",
 						Name:      "network-listening",
 						Interface: "network-listening",
 						Label:     "Ability to be a network service",
@@ -338,7 +338,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "ubuntu-core",
+								Snap: "core",
 								Name: "network-listening",
 							},
 						},
@@ -350,7 +350,7 @@ func (s *SnapSuite) TestInterfacesOsSnapSlots(c *C) {
 						Label:     "Ability to be a network service",
 						Connections: []client.SlotRef{
 							{
-								Snap: "ubuntu-core",
+								Snap: "core",
 								Name: "network-listening",
 							},
 						},
@@ -387,7 +387,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 						Label:     "Serial port on the expansion header",
 						Connections: []client.PlugRef{
 							{
-								Snap: "ubuntu-core",
+								Snap: "core",
 								Name: "debug-console",
 							},
 						},
@@ -413,7 +413,7 @@ func (s *SnapSuite) TestInterfacesTwoSlotsAndFiltering(c *C) {
 	c.Assert(rest, DeepEquals, []string{})
 	expectedStdout := "" +
 		"Slot                         Plug\n" +
-		"canonical-pi2:debug-console  ubuntu-core\n"
+		"canonical-pi2:debug-console  core\n"
 	c.Assert(s.Stdout(), Equals, expectedStdout)
 	c.Assert(s.Stderr(), Equals, "")
 }

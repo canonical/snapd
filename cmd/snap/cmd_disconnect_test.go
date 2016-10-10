@@ -39,16 +39,13 @@ $ snap disconnect <snap>:<plug> <snap>:<slot>
 
 Disconnects the specific plug from the specific slot.
 
-$ snap disconnect <snap>:<slot>
+$ snap disconnect <snap>:<slot or plug>
 
-Disconnects any previously connected plugs from the provided slot.
-
-$ snap disconnect <snap>
-
-Disconnects all plugs from the provided snap.
+Disconnects everything from the provided plug or slot.
+The snap name may be omitted for the core snap.
 
 Application Options:
-      --version            print the version and exit
+      --version            Print the version and exit
 
 Help Options:
   -h, --help               Show this help message
@@ -89,7 +86,7 @@ func (s *SnapSuite) TestDisconnectExplicitEverything(c *C) {
 	rest, err := Parser().ParseArgs([]string{"disconnect", "producer:plug", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, "\n")
+	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -124,7 +121,7 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSlot(c *C) {
 	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer:slot"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, "\n")
+	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }
 
@@ -159,6 +156,6 @@ func (s *SnapSuite) TestDisconnectEverythingFromSpecificSnap(c *C) {
 	rest, err := Parser().ParseArgs([]string{"disconnect", "consumer"})
 	c.Assert(err, IsNil)
 	c.Assert(rest, DeepEquals, []string{})
-	c.Assert(s.Stdout(), Equals, "\n")
+	c.Assert(s.Stdout(), Equals, "")
 	c.Assert(s.Stderr(), Equals, "")
 }

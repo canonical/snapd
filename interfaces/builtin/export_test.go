@@ -22,3 +22,5 @@ package builtin
 func MprisGetName(iface *MprisInterface, attribs map[string]interface{}) (string, error) {
 	return iface.getName(attribs)
 }
+
+var ResolveSpecialVariable = resolveSpecialVariable

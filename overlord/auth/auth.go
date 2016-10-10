@@ -20,10 +20,15 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
+
+	"gopkg.in/macaroon.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/overlord/state"
@@ -31,9 +36,10 @@ import (
 
 // AuthState represents current authenticated users as tracked in state
 type AuthState struct {
-	LastID int          `json:"last-id"`
-	Users  []UserState  `json:"users"`
-	Device *DeviceState `json:"device,omitempty"`
+	LastID      int          `json:"last-id"`
+	Users       []UserState  `json:"users"`
+	Device      *DeviceState `json:"device,omitempty"`
+	MacaroonKey []byte       `json:"macaroon-key,omitempty"`
 }
 
 // DeviceState represents the device's identity and store credentials
@@ -51,14 +57,65 @@ type DeviceState struct {
 type UserState struct {
 	ID              int      `json:"id"`
 	Username        string   `json:"username,omitempty"`
+	Email           string   `json:"email,omitempty"`
 	Macaroon        string   `json:"macaroon,omitempty"`
 	Discharges      []string `json:"discharges,omitempty"`
 	StoreMacaroon   string   `json:"store-macaroon,omitempty"`
 	StoreDischarges []string `json:"store-discharges,omitempty"`
 }
 
+// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
+func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
+	marshalled, err := m.MarshalBinary()
+	if err != nil {
+		return "", err
+	}
+	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
+	return encoded, nil
+}
+
+// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
+func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
+	var m macaroon.Macaroon
+	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
+	if err != nil {
+		return nil, err
+	}
+	err = m.UnmarshalBinary(decoded)
+	if err != nil {
+		return nil, err
+	}
+	return &m, nil
+}
+
+// generateMacaroonKey generates a random key to sign snapd macaroons
+func generateMacaroonKey() ([]byte, error) {
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+const snapdMacaroonLocation = "snapd"
+
+// newUserMacaroon returns a snapd macaroon for the given username
+func newUserMacaroon(macaroonKey []byte, userID int) (string, error) {
+	userMacaroon, err := macaroon.New(macaroonKey, strconv.Itoa(userID), snapdMacaroonLocation)
+	if err != nil {
+		return "", fmt.Errorf("cannot create macaroon for snapd user: %s", err)
+	}
+
+	serializedMacaroon, err := MacaroonSerialize(userMacaroon)
+	if err != nil {
+		return "", fmt.Errorf("cannot serialize macaroon for snapd user: %s", err)
+	}
+
+	return serializedMacaroon, nil
+}
+
 // NewUser tracks a new authenticated user and saves its details in the state
-func NewUser(st *state.State, username, macaroon string, discharges []string) (*UserState, error) {
+func NewUser(st *state.State, username, email, macaroon string, discharges []string) (*UserState, error) {
 	var authStateData AuthState
 
 	err := st.Get("auth", &authStateData)
@@ -68,13 +125,27 @@ func NewUser(st *state.State, username, macaroon string, discharges []string) (*
 		return nil, err
 	}
 
-	sort.Strings(discharges)
+	if authStateData.MacaroonKey == nil {
+		authStateData.MacaroonKey, err = generateMacaroonKey()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	authStateData.LastID++
+
+	localMacaroon, err := newUserMacaroon(authStateData.MacaroonKey, authStateData.LastID)
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Strings(discharges)
 	authenticatedUser := UserState{
 		ID:              authStateData.LastID,
 		Username:        username,
-		Macaroon:        macaroon,
-		Discharges:      discharges,
+		Email:           email,
+		Macaroon:        localMacaroon,
+		Discharges:      nil,
 		StoreMacaroon:   macaroon,
 		StoreDischarges: discharges,
 	}
@@ -107,6 +178,24 @@ func RemoveUser(st *state.State, userID int) error {
 	}
 
 	return fmt.Errorf("invalid user")
+}
+
+func Users(st *state.State) ([]*UserState, error) {
+	var authStateData AuthState
+
+	err := st.Get("auth", &authStateData)
+	if err == state.ErrNoState {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	users := make([]*UserState, len(authStateData.Users))
+	for i, _ := range authStateData.Users {
+		users[i] = &authStateData.Users[i]
+	}
+	return users, nil
 }
 
 // User returns a user from the state given its ID
@@ -191,6 +280,35 @@ func CheckMacaroon(st *state.State, macaroon string, discharges []string) (*User
 		return nil, ErrInvalidAuth
 	}
 
+	snapdMacaroon, err := MacaroonDeserialize(macaroon)
+	if err != nil {
+		return nil, ErrInvalidAuth
+	}
+	// attempt snapd macaroon verification
+	if snapdMacaroon.Location() == snapdMacaroonLocation {
+		// no caveats to check so far
+		check := func(caveat string) error { return nil }
+		// ignoring discharges, unused for snapd macaroons atm
+		err = snapdMacaroon.Verify(authStateData.MacaroonKey, check, nil)
+		if err != nil {
+			return nil, ErrInvalidAuth
+		}
+		macaroonID := snapdMacaroon.Id()
+		userID, err := strconv.Atoi(macaroonID)
+		if err != nil {
+			return nil, ErrInvalidAuth
+		}
+		user, err := User(st, userID)
+		if err != nil {
+			return nil, ErrInvalidAuth
+		}
+		if macaroon != user.Macaroon {
+			return nil, ErrInvalidAuth
+		}
+		return user, nil
+	}
+
+	// if macaroon is not a snapd macaroon, fallback to previous token-style check
 NextUser:
 	for _, user := range authStateData.Users {
 		if user.Macaroon != macaroon {
@@ -222,26 +340,22 @@ type DeviceAssertions interface {
 
 	// DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the device serial assertion.
 	DeviceSessionRequest(nonce string) (*asserts.DeviceSessionRequest, *asserts.Serial, error)
-
-	// SerialProof produces a serial-proof with the given nonce. (DEPRECATED)
-	SerialProof(nonce string) (*asserts.SerialProof, error)
 }
 
 var (
+	// ErrNoSerial indicates that a device serial is not set yet.
 	ErrNoSerial = errors.New("no device serial yet")
 )
 
 // An AuthContext exposes authorization data and handles its updates.
 type AuthContext interface {
 	Device() (*DeviceState, error)
-	UpdateDevice(device *DeviceState) error
 
-	UpdateUser(user *UserState) error
+	UpdateDeviceAuth(device *DeviceState, sessionMacaroon string) (actual *DeviceState, err error)
+
+	UpdateUserAuth(user *UserState, discharges []string) (actual *UserState, err error)
 
 	StoreID(fallback string) (string, error)
-
-	Serial() ([]byte, error)                  // DEPRECATED
-	SerialProof(nonce string) ([]byte, error) // DEPRECATED
 
 	DeviceSessionRequest(nonce string) (devSessionRequest []byte, serial []byte, err error)
 }
@@ -265,20 +379,46 @@ func (ac *authContext) Device() (*DeviceState, error) {
 	return Device(ac.state)
 }
 
-// UpdateDevice updates device in state.
-func (ac *authContext) UpdateDevice(device *DeviceState) error {
+// UpdateDeviceAuth updates the device auth details in state.
+// The last update wins but other device details are left unchanged.
+// It returns the updated device state value.
+func (ac *authContext) UpdateDeviceAuth(device *DeviceState, newSessionMacaroon string) (actual *DeviceState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
 
-	return SetDevice(ac.state, device)
+	cur, err := Device(ac.state)
+	if err != nil {
+		return nil, err
+	}
+
+	// just do it, last update wins
+	cur.SessionMacaroon = newSessionMacaroon
+	if err := SetDevice(ac.state, cur); err != nil {
+		return nil, fmt.Errorf("internal error: cannot update just read device state: %v", err)
+	}
+
+	return cur, nil
 }
 
-// UpdateUser updates user in state.
-func (ac *authContext) UpdateUser(user *UserState) error {
+// UpdateUserAuth updates the user auth details in state.
+// The last update wins but other user details are left unchanged.
+// It returns the updated user state value.
+func (ac *authContext) UpdateUserAuth(user *UserState, newDischarges []string) (actual *UserState, err error) {
 	ac.state.Lock()
 	defer ac.state.Unlock()
 
-	return UpdateUser(ac.state, user)
+	cur, err := User(ac.state, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// just do it, last update wins
+	cur.StoreDischarges = newDischarges
+	if err := UpdateUser(ac.state, cur); err != nil {
+		return nil, fmt.Errorf("internal error: cannot update just read user state: %v", err)
+	}
+
+	return cur, nil
 }
 
 // StoreID returns the store id according to system state or
@@ -301,30 +441,6 @@ func (ac *authContext) StoreID(fallback string) (string, error) {
 		return storeID, nil
 	}
 	return fallback, nil
-}
-
-// Serial returns the encoded device serial assertion.
-func (ac *authContext) Serial() ([]byte, error) {
-	if ac.deviceAsserts == nil {
-		return nil, state.ErrNoState
-	}
-	serial, err := ac.deviceAsserts.Serial()
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(serial), nil
-}
-
-// SerialProof produces a serial-proof with the given nonce.
-func (ac *authContext) SerialProof(nonce string) ([]byte, error) {
-	if ac.deviceAsserts == nil {
-		return nil, state.ErrNoState
-	}
-	proof, err := ac.deviceAsserts.SerialProof(nonce)
-	if err != nil {
-		return nil, err
-	}
-	return asserts.Encode(proof), nil
 }
 
 // DeviceSessionRequest produces a device-session-request with the given nonce, it also returns the encoded device serial assertion. It returns ErrNoSerial if the device serial is not yet initialized.

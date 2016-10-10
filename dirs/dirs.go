@@ -40,10 +40,12 @@ var (
 	SnapSeccompDir            string
 	SnapMountPolicyDir        string
 	SnapUdevRulesDir          string
+	SnapKModModulesDir        string
 	LocaleDir                 string
 	SnapMetaDir               string
 	SnapdSocket               string
 	SnapSocket                string
+	SnapRunNsDir              string
 
 	SnapSeedDir   string
 	SnapDeviceDir string
@@ -51,8 +53,7 @@ var (
 	SnapAssertsDBDir      string
 	SnapTrustedAccountKey string
 
-	SnapStateFile      string
-	SnapFirstBootStamp string
+	SnapStateFile string
 
 	SnapBinariesDir     string
 	SnapServicesDir     string
@@ -62,6 +63,8 @@ var (
 	CloudMetaDataFile string
 
 	ClassicDir string
+
+	LibExecDir string
 )
 
 var (
@@ -110,6 +113,7 @@ func SetRootDir(rootdir string) {
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
 	SnapBlobDir = filepath.Join(rootdir, snappyDir, "snaps")
 	SnapDesktopFilesDir = filepath.Join(rootdir, snappyDir, "desktop", "applications")
+	SnapRunNsDir = filepath.Join(rootdir, "/run/snapd/ns")
 
 	// keep in sync with the debian/snapd.socket file:
 	SnapdSocket = filepath.Join(rootdir, "/run/snapd.socket")
@@ -122,10 +126,6 @@ func SetRootDir(rootdir string) {
 	SnapSeedDir = filepath.Join(rootdir, snappyDir, "seed")
 	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
 
-	// NOTE: if you change stampFile, update the condition in
-	// snapd.firstboot.service to match
-	SnapFirstBootStamp = filepath.Join(rootdir, snappyDir, "firstboot", "stamp")
-
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
 	SnapBusPolicyDir = filepath.Join(rootdir, "/etc/dbus-1/system.d")
@@ -134,6 +134,10 @@ func SetRootDir(rootdir string) {
 
 	SnapUdevRulesDir = filepath.Join(rootdir, "/etc/udev/rules.d")
 
+	SnapKModModulesDir = filepath.Join(rootdir, "/etc/modules-load.d/")
+
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
+
+	LibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")
 }

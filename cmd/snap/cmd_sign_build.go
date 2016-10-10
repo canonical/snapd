@@ -33,13 +33,13 @@ import (
 
 type cmdSignBuild struct {
 	Positional struct {
-		Filename string `positional-arg-name:"<filename>" description:"filename of the snap you want to assert a build for"`
+		Filename string
 	} `positional-args:"yes" required:"yes"`
 
-	DeveloperID string `long:"developer-id" description:"identifier of the signer" required:"yes"`
-	SnapID      string `long:"snap-id" description:"identifier of the snap package associated with the build" required:"yes"`
-	KeyName     string `short:"k" default:"default" description:"name of the GnuPG key to use (defaults to 'default' as key name)"`
-	Grade       string `long:"grade" choice:"devel" choice:"stable" default:"stable" description:"grade states the build quality of the snap (defaults to 'stable')"`
+	DeveloperID string `long:"developer-id" required:"yes"`
+	SnapID      string `long:"snap-id" required:"yes"`
+	KeyName     string `short:"k" default:"default" `
+	Grade       string `long:"grade" choice:"devel" choice:"stable" default:"stable"`
 }
 
 var shortSignBuildHelp = i18n.G("Create snap build assertion")
@@ -51,7 +51,15 @@ func init() {
 		longSignBuildHelp,
 		func() flags.Commander {
 			return &cmdSignBuild{}
-		})
+		}, map[string]string{
+			"developer-id": i18n.G("Identifier of the signer"),
+			"snap-id":      i18n.G("Identifier of the snap package associated with the build"),
+			"k":            i18n.G("Name of the GnuPG key to use (defaults to 'default' as key name)"),
+			"grade":        i18n.G("Grade states the build quality of the snap (defaults to 'stable')"),
+		}, []argDesc{{
+			name: i18n.G("<filename>"),
+			desc: i18n.G("Filename of the snap you want to assert a build for"),
+		}})
 	cmd.hidden = true
 }
 

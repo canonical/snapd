@@ -35,6 +35,8 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, Contains, &builtin.BoolFileInterface{})
 	c.Check(all, Contains, &builtin.BluezInterface{})
 	c.Check(all, Contains, &builtin.BrowserSupportInterface{})
+	c.Check(all, Contains, &builtin.DockerInterface{})
+	c.Check(all, Contains, &builtin.DockerSupportInterface{})
 	c.Check(all, Contains, &builtin.GpioInterface{})
 	c.Check(all, Contains, &builtin.HidrawInterface{})
 	c.Check(all, Contains, &builtin.LocationControlInterface{})
@@ -74,4 +76,5 @@ func (s *AllSuite) TestInterfaces(c *C) {
 	c.Check(all, DeepContains, builtin.NewCameraInterface())
 	c.Check(all, DeepContains, builtin.NewKernelModuleControlInterface())
 	c.Check(all, DeepContains, builtin.NewFuseSupportInterface())
+	c.Check(all, DeepContains, builtin.NewTimeControlInterface())
 }

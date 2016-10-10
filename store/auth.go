@@ -21,9 +21,10 @@ package store
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net/http"
 
 	"gopkg.in/macaroon.v1"
@@ -62,32 +63,8 @@ func httpStatusCodeClientError(httpStatusCode int) bool {
 	return httpStatusCode/100 == 4
 }
 
-// MacaroonSerialize returns a store-compatible serialized representation of the given macaroon
-func MacaroonSerialize(m *macaroon.Macaroon) (string, error) {
-	marshalled, err := m.MarshalBinary()
-	if err != nil {
-		return "", err
-	}
-	encoded := base64.RawURLEncoding.EncodeToString(marshalled)
-	return encoded, nil
-}
-
-// MacaroonDeserialize returns a deserialized macaroon from a given store-compatible serialization
-func MacaroonDeserialize(serializedMacaroon string) (*macaroon.Macaroon, error) {
-	var m macaroon.Macaroon
-	decoded, err := base64.RawURLEncoding.DecodeString(serializedMacaroon)
-	if err != nil {
-		return nil, err
-	}
-	err = m.UnmarshalBinary(decoded)
-	if err != nil {
-		return nil, err
-	}
-	return &m, nil
-}
-
-// LoginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
-func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
+// loginCaveatID returns the 3rd party caveat from the macaroon to be discharged by Ubuntuone
+func loginCaveatID(m *macaroon.Macaroon) (string, error) {
 	caveatID := ""
 	for _, caveat := range m.Caveats() {
 		if caveat.Location == UbuntuoneLocation {
@@ -101,8 +78,8 @@ func LoginCaveatID(m *macaroon.Macaroon) (string, error) {
 	return caveatID, nil
 }
 
-// RequestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
-func RequestStoreMacaroon() (string, error) {
+// requestStoreMacaroon requests a macaroon for accessing package data from the ubuntu store.
+func requestStoreMacaroon() (string, error) {
 	const errorPrefix = "cannot get snap access permission from store: "
 
 	data := map[string]interface{}{
@@ -207,8 +184,8 @@ func requestDischargeMacaroon(endpoint string, data map[string]string) (string, 
 	return responseData.Macaroon, nil
 }
 
-// DischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
-func DischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
+// dischargeAuthCaveat returns a macaroon with the store auth caveat discharged.
+func dischargeAuthCaveat(caveat, username, password, otp string) (string, error) {
 	data := map[string]string{
 		"email":     username,
 		"password":  password,
@@ -221,8 +198,8 @@ func DischargeAuthCaveat(caveat, username, password, otp string) (string, error)
 	return requestDischargeMacaroon(UbuntuoneDischargeAPI, data)
 }
 
-// RefreshDischargeMacaroon returns a soft-refreshed discharge macaroon.
-func RefreshDischargeMacaroon(discharge string) (string, error) {
+// refreshDischargeMacaroon returns a soft-refreshed discharge macaroon.
+func refreshDischargeMacaroon(discharge string) (string, error) {
 	data := map[string]string{
 		"discharge_macaroon": discharge,
 	}
@@ -230,8 +207,8 @@ func RefreshDischargeMacaroon(discharge string) (string, error) {
 	return requestDischargeMacaroon(UbuntuoneRefreshDischargeAPI, data)
 }
 
-// RequestStoreDeviceNonce requests a nonce for device authentication against the store.
-func RequestStoreDeviceNonce() (string, error) {
+// requestStoreDeviceNonce requests a nonce for device authentication against the store.
+func requestStoreDeviceNonce() (string, error) {
 	const errorPrefix = "cannot get nonce from store: "
 
 	req, err := http.NewRequest("POST", MyAppsDeviceNonceAPI, nil)
@@ -266,8 +243,8 @@ func RequestStoreDeviceNonce() (string, error) {
 	return responseData.Nonce, nil
 }
 
-// RequestDeviceSession requests a device session macaroon from the store.
-func RequestDeviceSession(serialAssertion, sessionRequest, previousSession string) (string, error) {
+// requestDeviceSession requests a device session macaroon from the store.
+func requestDeviceSession(serialAssertion, sessionRequest, previousSession string) (string, error) {
 	const errorPrefix = "cannot get device session from store: "
 
 	data := map[string]string{
@@ -298,7 +275,8 @@ func RequestDeviceSession(serialAssertion, sessionRequest, previousSession strin
 
 	// check return code, error on anything !200
 	if resp.StatusCode != 200 {
-		return "", fmt.Errorf(errorPrefix+"store server returned status %d", resp.StatusCode)
+		body, _ := ioutil.ReadAll(io.LimitReader(resp.Body, 1e6)) // do our best to read the body
+		return "", fmt.Errorf(errorPrefix+"store server returned status %d and body %q", resp.StatusCode, body)
 	}
 
 	dec := json.NewDecoder(resp.Body)

@@ -1,0 +1,23 @@
+summary: |
+    Ensure after device initialisation registration worked and
+    we have a serial and can acquire a session macaroon
+systems: [ubuntu-core-16-64]
+execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    echo "We have a model assertion"
+    snap known model|grep "brand-id: canonical"
+
+    echo "Wait for device initialisation to be done"
+    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+
+    echo "Check we have a serial"
+    snap known serial|grep "authority-id: canonical"
+    snap known serial|grep "brand-id: canonical"
+    snap known serial|grep "model: pc"
+
+    echo "Make sure we could acquire a session macaroon"
+    snap find pc
+    grep -qE '"session-macaroon":"[^"]' /var/lib/snapd/state.json

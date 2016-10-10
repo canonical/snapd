@@ -121,3 +121,8 @@ func (cmd *MockCmd) ForgetCalls() {
 		panic(err)
 	}
 }
+
+// BinDir returns the location of the directory holding overridden commands.
+func (cmd *MockCmd) BinDir() string {
+	return cmd.binDir
+}

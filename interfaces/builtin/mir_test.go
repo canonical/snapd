@@ -55,30 +55,6 @@ func (s *MirInterfaceSuite) TestName(c *C) {
 	c.Assert(s.iface.Name(), Equals, "mir")
 }
 
-func (s *MirInterfaceSuite) TestUnusedSecuritySystems(c *C) {
-	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
-		interfaces.SecuritySecComp, interfaces.SecurityDBus,
-		interfaces.SecurityUDev}
-	for _, system := range systems {
-		snippet, err := s.iface.PermanentPlugSnippet(s.plug, system)
-		c.Assert(err, IsNil)
-		c.Assert(snippet, IsNil)
-		if system != interfaces.SecurityAppArmor {
-			snippet, err := s.iface.ConnectedSlotSnippet(s.plug, s.slot, system)
-			c.Assert(err, IsNil)
-			c.Assert(snippet, IsNil)
-		}
-		if system != interfaces.SecurityAppArmor && system != interfaces.SecuritySecComp {
-			snippet, err := s.iface.PermanentSlotSnippet(s.slot, system)
-			c.Assert(err, IsNil)
-			c.Assert(snippet, IsNil)
-			snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, system)
-			c.Assert(err, IsNil)
-			c.Assert(snippet, IsNil)
-		}
-	}
-}
-
 func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	systems := [...]interfaces.SecuritySystem{interfaces.SecurityAppArmor,
 		interfaces.SecuritySecComp}
@@ -97,21 +73,6 @@ func (s *MirInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	}
 }
 
-func (s *MirInterfaceSuite) TestUnexpectedSecuritySystems(c *C) {
-	snippet, err := s.iface.PermanentPlugSnippet(s.plug, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedPlugSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.PermanentSlotSnippet(s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-	snippet, err = s.iface.ConnectedSlotSnippet(s.plug, s.slot, "foo")
-	c.Assert(err, Equals, interfaces.ErrUnknownSecurity)
-	c.Assert(snippet, IsNil)
-}
-
-func (s MirInterfaceSuite) TestAutoConnect(c *C) {
-	c.Check(s.iface.AutoConnect(), Equals, true)
+func (s MirInterfaceSuite) TestLegacyAutoConnect(c *C) {
+	c.Check(s.iface.LegacyAutoConnect(), Equals, true)
 }
