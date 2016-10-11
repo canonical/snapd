@@ -34,10 +34,14 @@ class mountinfo_entry:
         return cls(fs_type, mount_id, mount_opts, mount_point, mount_src,
                    opt_fields, root_dir)
 
-    def _fix_nondeterministic_strings(self):
-        self.root_dir = re.sub('_\w{6}', '_XXXXXX', self.root_dir)
+    def _fix_nondeterministic_mount_point(self):
         self.mount_point = re.sub('_\w{6}', '_XXXXXX', self.mount_point)
         self.mount_point = re.sub('/\d+$', '/NUMBER', self.mount_point)
+
+    def _fix_nondeterministic_root_dir(self):
+        self.root_dir = re.sub('_\w{6}', '_XXXXXX', self.root_dir)
+
+    def _fix_nondeterministic_mount_src(self):
         self.mount_src = re.sub('/dev/[sv]da', '/dev/BLOCK', self.mount_src)
 
     def _fix_nondeterministic_opt_fields(self, seen):
@@ -72,28 +76,41 @@ class mountinfo_entry:
             "root_dir": self.root_dir,
         }
 
-def parse_mountinfo(lines): 
+
+def parse_mountinfo(lines):
     return [mountinfo_entry.parse(line) for line in lines]
 
-def fix_nondeterminism(entries):
+
+def fix_initial_nondeterminism(entries):
+    for entry in entries:
+        entry._fix_nondeterministic_mount_point()
+
+
+def fix_remaining_nondeterminism(entries):
     seen_opt_fields = {}
     seen_loops = {}
     for entry in entries:
-        entry._fix_nondeterministic_strings()
+        entry._fix_nondeterministic_root_dir()
+        entry._fix_nondeterministic_mount_src()
         entry._fix_nondeterministic_opt_fields(seen_opt_fields)
         entry._fix_nondeterministic_loop(seen_loops)
+
 
 def main():
     entries = parse_mountinfo(sys.stdin)
     # Get rid of the core snap as it is not certain that we'll see one and we want determinism
     entries = [entry for entry in entries if not re.match("/snap/core/\d+", entry.mount_point)]
+    # Sort by just the mount point,
+    entries.sort(key=lambda entry: (entry.mount_point))
+    # Fix random directories and nondeterministic revisions
+    fix_initial_nondeterminism(entries)
     # Make entries nicely deterministic, by sorting them by mount location
     entries.sort(key=lambda entry: (entry.mount_point, entry.mount_src, entry.root_dir))
-
-    # Fix random directories and nondeterministic revisions
-    fix_nondeterminism(entries)
+    # Fix remainder of the non-determinism
+    fix_remaining_nondeterminism(entries)
+    # Export everyrging
     json.dump([entry.as_json() for entry in entries],
-               sys.stdout, sort_keys=True, indent=2, separators=(',', ': '))
+              sys.stdout, sort_keys=True, indent=2, separators=(',', ': '))
     sys.stdout.write('\n')
 
 

@@ -8,6 +8,9 @@ execute: |
     cmp observed.json expected.json
 debug: |
     diff -u observed.json expected.json
+    apt-get install pastebinit
+    nsenter -m/run/snapd/ns/snapd-hacker-toolbelt.mnt \
+        cat /proc/self/mountinfo | pastebinit
 restore: |
     snap remove snapd-hacker-toolbelt
     rm -f observed.json
