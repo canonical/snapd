@@ -567,11 +567,11 @@ type httpErrorResponse struct {
 }
 
 func NewHttpErrorResponse(resp *http.Response) *httpErrorResponse {
-	return &httpErrorResponse{StatusCode: resp.StatusCode, URL: resp.Request.URL}
+	return &httpErrorResponse{StatusCode: resp.StatusCode, URL: resp.Request.URL, Method: resp.Request.Method}
 }
 
 func (r httpErrorResponse) Error() string {
-	return fmt.Sprintf("%v %d", r.URL, r.StatusCode)
+	return fmt.Sprintf("HTTP request failed: '%v', method: %s, status: %d", r.URL, r.Method, r.StatusCode)
 }
 
 func (s *Store) doStoreRequest(client *http.Client, req *http.Request, user *auth.UserState, dataDecodeFunc func(*http.Response) error) error {
